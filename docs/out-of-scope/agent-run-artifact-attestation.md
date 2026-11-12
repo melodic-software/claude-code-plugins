@@ -22,7 +22,6 @@ names no AI-agent-run predicate;
 `predicate`, so a prompt or instruction digest is expressible only as a custom predicate
 with no vetted type. `plugins/autonomy/reference/return-accounting.md` "Agent-run artifact
 attestation is out of scope".
-**As of:** 2026-09-29.
 **Recheck:** a maintainer names a predicate URI they will own, or GitHub/in-toto
 publishes an agent-run predicate this marketplace is asked to emit.
 

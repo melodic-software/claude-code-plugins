@@ -107,6 +107,7 @@ jobs:
   # re-runs a lane run in full (reconcile.mjs, the lane kind), so this job
   # re-runs too and its own gate checks the reconciler's record.
   trigger:
+    name: Trigger
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
@@ -447,6 +448,7 @@ jobs:
   # failure runs the key and writes no probe: the review job's `if` starts
   # with !cancelled().
   review-handoffs-credit:
+    name: Review Handoffs Credit
     needs: trigger
     if: >-
       github.ref == 'refs/heads/main'
@@ -556,6 +558,7 @@ jobs:
   # otherwise reads its own (take-shared-text.sh). It never fails the run: a
   # read, scan or upload that fails leaves no hash, so each leg reads its own.
   trusted-text:
+    name: Trusted Text
     needs: trigger
     if: >-
       !cancelled()
@@ -695,6 +698,7 @@ jobs:
   # leg re-run alone in a later attempt starts and gates itself. With the
   # key out of credit, review-handoffs-credit skips this job.
   review:
+    name: Review
     needs: [trigger, review-handoffs-credit, trusted-text]
     if: >-
       needs.review-handoffs-credit.outputs.next-leg != 'subscription'
@@ -1601,6 +1605,7 @@ jobs:
   # enabled lane is handed on as credit-stop, at the trigger job's main
   # commit. It holds no secret, runs no model and checks nothing out.
   review-handoffs:
+    name: Review Handoffs
     needs: [trigger, review-handoffs-credit, review]
     if: >-
       !cancelled()
@@ -1668,6 +1673,7 @@ jobs:
   # holds them equal), so the gates, the kill switch and the hardening run
   # again. Only this job's launcher step gets the subscription token.
   review-subscription:
+    name: Review Subscription
     needs: [trusted-text, review-handoffs]
     # !cancelled(): the implicit success() also needs every ancestor, so one
     # lane's failed leg would skip the other lane's next leg.
@@ -2555,6 +2561,7 @@ jobs:
 
   # The lanes the subscription leg handed on, as review-fallback's matrix.
   subscription-handoffs:
+    name: Subscription Handoffs
     needs: review-subscription
     if: >-
       !cancelled()
@@ -2590,6 +2597,7 @@ jobs:
   # credential and the fallback reason, and it hands nothing on: it is the
   # last leg, so a stop here leaves the lane unbound and fails the job.
   review-fallback:
+    name: Review Fallback
     needs: [trusted-text, subscription-handoffs]
     # !cancelled(): the implicit success() also needs every ancestor, so one
     # lane's failed leg would skip the other lane's next leg.
@@ -3437,6 +3445,7 @@ jobs:
   # a hold. No model runs in this job; it reads only the counts that
   # write-verdict.mjs checked, from this run's own artifacts.
   record:
+    name: Record
     needs: [review, review-subscription, review-fallback]
     # A key leg skipped by its own gate reviewed nothing, so no later leg ran:
     # nothing to record. One the credit gate skipped handed every lane on.

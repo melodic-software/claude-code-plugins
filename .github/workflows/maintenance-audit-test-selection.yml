@@ -44,6 +44,7 @@ permissions: {}
 
 jobs:
   audit-test-selection:
+    name: Audit Test Selection
     if: github.event_name != 'workflow_run'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -155,6 +156,7 @@ jobs:
           retention-days: 7
 
   audit-failed-suite-selection:
+    name: Audit Failed Suite Selection
     if: >-
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'failure' &&

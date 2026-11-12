@@ -736,7 +736,7 @@ test("the workflow runs on a needs-human unlabel", () => {
 // and, case-insensitively as GitHub does, over the comment body.
 function reenterGate({ event, labels, label = null, comment = null, sender = null, action = event === "issues" ? "unlabeled" : "created", fieldId = null, author = OWNER.id }) {
   const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
-  const block = /\n {2}reenter:\n(?: {4}#.*\n)* {4}if: >-\n((?: {6}.*\n)+)/.exec(workflow)?.[1];
+  const block = /\n {2}reenter:\n(?: {4}#.*\n)*(?: {4}name: .*\n)? {4}if: >-\n((?: {6}.*\n)+)/.exec(workflow)?.[1];
   assert.ok(block, "the reenter job has a folded if:");
   let body = block
     .split("\n")

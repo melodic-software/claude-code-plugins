@@ -23,7 +23,7 @@ permissions: {}
 
 jobs:
   check-upstream-drift:
-    name: drift (${{ matrix.skill }})
+    name: Drift (${{ matrix.skill }})
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

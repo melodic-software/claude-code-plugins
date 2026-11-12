@@ -46,7 +46,7 @@ permissions: {}
 
 jobs:
   read:
-    name: Read the dead links
+    name: Read The Dead Links
     if: >-
       github.event.workflow_run.head_branch == 'main'
       && github.event.workflow_run.head_repository.full_name == github.repository
@@ -136,7 +136,7 @@ jobs:
           echo "handed $((count - more)) dead links to the file job ($more more over the cap)"
 
   file:
-    name: Update the dead-link rollup issue
+    name: Update The Dead-Link Rollup Issue
     needs: [read]
     if: needs.read.outputs.found == 'true'
     runs-on: ubuntu-24.04

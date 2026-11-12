@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No. It's a list-rate estimate, not a bill.",
+      "why": "list rate"
+    },
+    {
+      "answer": "That figure is an estimate and not your bill.",
+      "why": "estimate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, $41.20 is your charge for the week.",
+      "why": "wrong"
+    }
+  ]
+}

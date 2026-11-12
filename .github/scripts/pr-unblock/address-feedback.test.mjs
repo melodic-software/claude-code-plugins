@@ -1420,8 +1420,8 @@ test("createGitHubApi lists review comments since a time when given one, and all
 // run failed it. A latest-only listing returns only the skip, which hid the
 // failure from failingChecks and let stop-resolved clear pr-unblock/fix-ci.
 const SKIP_OVER_FAILURE = (url) => {
-  const failed = { id: 1, name: "test-node", status: "completed", conclusion: "failure" };
-  const skipped = { id: 2, name: "test-node", status: "completed", conclusion: "skipped" };
+  const failed = { id: 1, name: "Test Node", status: "completed", conclusion: "failure" };
+  const skipped = { id: 2, name: "Test Node", status: "completed", conclusion: "skipped" };
   const filter = new URL(url).searchParams.get("filter");
   return filter === "all" ? [failed, skipped] : [skipped];
 };
@@ -2480,7 +2480,7 @@ const checkRun = (id, name, conclusion = "success", extra = {}) => ({
   app: { slug: "github-actions" },
   ...extra,
 });
-const GREEN = [checkRun(1, "test-bash (0)"), checkRun(2, "test-bash (1)"), checkRun(3, "test-node"), checkRun(4, "test-windows-lib"), checkRun(5, "lint-shell", "failure")];
+const GREEN = [checkRun(1, "Test Bash (0)"), checkRun(2, "Test Bash (1)"), checkRun(3, "Test Node"), checkRun(4, "Test Windows Lib"), checkRun(5, "Lint Shell", "failure")];
 const snapshot = (runs, { plan = () => PLAN, complete = true } = {}) =>
   ciSnapshot({ api: { listCommitCheckRuns: async () => Object.assign([...runs], { complete }) }, headSha: HEAD, files: [{ filename: "src/a.js" }], plan });
 
@@ -2494,50 +2494,50 @@ test("coveringLanes names each lane the plan selects: a matrix lane by its job n
 test("ciSnapshot is green only when every covering check's latest real run passed, and cites those runs", async () => {
   const green = await snapshot(GREEN);
   assert.equal(green.state, "green");
-  assert.deepEqual(green.runs.map((run) => run.name), ["test-bash (0)", "test-bash (1)", "test-node", "test-windows-lib"]);
+  assert.deepEqual(green.runs.map((run) => run.name), ["Test Bash (0)", "Test Bash (1)", "Test Node", "Test Windows Lib"]);
   assert.equal(green.runs[0].url, "https://github.com/o/r/actions/runs/1/job/1");
   // A contract-only re-run's skip does not hide the real result.
-  assert.equal((await snapshot([...GREEN, checkRun(9, "test-node", "skipped")])).state, "green");
+  assert.equal((await snapshot([...GREEN, checkRun(9, "Test Node", "skipped")])).state, "green");
   // A run another app posted under a lane's name counts for nothing.
-  assert.equal((await snapshot([...GREEN, checkRun(10, "test-node", "failure", { app: { slug: "other" } })])).state, "green");
+  assert.equal((await snapshot([...GREEN, checkRun(10, "Test Node", "failure", { app: { slug: "other" } })])).state, "green");
 });
 
 test("ciSnapshot is red when a covering check failed, and unsettled when one was cancelled", async () => {
   for (const conclusion of ["failure", "timed_out", "startup_failure"]) {
-    const red = await snapshot([...GREEN.filter((run) => run.name !== "test-bash (1)"), checkRun(6, "test-bash (1)", conclusion)]);
+    const red = await snapshot([...GREEN.filter((run) => run.name !== "Test Bash (1)"), checkRun(6, "Test Bash (1)", conclusion)]);
     assert.equal(red.state, "red", conclusion);
   }
   // fix-ci does not take a cancelled-only head, so a cancelled run leaves the
   // finding to end feedback-unadjudicated, not to wait on fix-ci (#11041 review).
-  assert.equal((await snapshot([...GREEN.filter((run) => run.name !== "test-bash (1)"), checkRun(6, "test-bash (1)", "cancelled")])).state, "unsettled");
-  assert.equal((await snapshot([...GREEN, checkRun(8, "test-windows-hooks", "cancelled")])).state, "unsettled");
-  assert.equal((await snapshot([...GREEN.filter((run) => run.name !== "test-bash (1)"), checkRun(7, "test-bash (1)", "failure")], { complete: false })).state, "red");
+  assert.equal((await snapshot([...GREEN.filter((run) => run.name !== "Test Bash (1)"), checkRun(6, "Test Bash (1)", "cancelled")])).state, "unsettled");
+  assert.equal((await snapshot([...GREEN, checkRun(8, "Test Windows Hooks", "cancelled")])).state, "unsettled");
+  assert.equal((await snapshot([...GREEN.filter((run) => run.name !== "Test Bash (1)"), checkRun(7, "Test Bash (1)", "failure")], { complete: false })).state, "red");
 });
 
 // The plan is read from the base tree, so the head's select-tests job can run
 // lanes it does not name (#11041 review).
 test("ciSnapshot is red when any test lane on the head failed, planned or not, and cites the failed runs", async () => {
-  const red = await snapshot([...GREEN, checkRun(20, "test-python (0)", "failure"), checkRun(21, "test-windows-hooks", "timed_out")]);
+  const red = await snapshot([...GREEN, checkRun(20, "Test Python (0)", "failure"), checkRun(21, "Test Windows Hooks", "timed_out")]);
   assert.equal(red.state, "red");
-  assert.deepEqual(red.runs.map((run) => run.name), ["test-python (0)", "test-windows-hooks"]);
+  assert.deepEqual(red.runs.map((run) => run.name), ["Test Python (0)", "Test Windows Hooks"]);
   // A failed check that is not a test lane is not CI for a tests-only finding.
   assert.equal((await snapshot(GREEN)).state, "green");
 });
 
 test("ciSnapshot is unsettled when a test lane the plan does not name ran, even if it passed", async () => {
-  assert.equal((await snapshot([...GREEN, checkRun(22, "test-python (0)")])).state, "unsettled");
-  assert.equal((await snapshot([...GREEN, checkRun(23, "test-bash (2)", null)])).state, "unsettled");
+  assert.equal((await snapshot([...GREEN, checkRun(22, "Test Python (0)")])).state, "unsettled");
+  assert.equal((await snapshot([...GREEN, checkRun(23, "Test Bash (2)", null)])).state, "unsettled");
   // A lane the head's plan skipped did not run.
-  assert.equal((await snapshot([...GREEN, checkRun(24, "test-python", "skipped")])).state, "green");
+  assert.equal((await snapshot([...GREEN, checkRun(24, "Test Python", "skipped")])).state, "green");
 });
 
 test("ciSnapshot is unsettled when a covering check is pending, missing or skipped, or nothing can be read", async () => {
   const without = (name) => GREEN.filter((run) => run.name !== name);
   for (const [label, runs, options] of [
-    ["pending", [...without("test-node"), checkRun(8, "test-node", null)], {}],
-    ["missing", without("test-windows-lib"), {}],
-    ["a planned leg missing", without("test-bash (1)"), {}],
-    ["skipped", [...without("test-node"), checkRun(8, "test-node", "skipped")], {}],
+    ["pending", [...without("Test Node"), checkRun(8, "Test Node", null)], {}],
+    ["missing", without("Test Windows Lib"), {}],
+    ["a planned leg missing", without("Test Bash (1)"), {}],
+    ["skipped", [...without("Test Node"), checkRun(8, "Test Node", "skipped")], {}],
     ["incomplete listing", GREEN, { complete: false }],
     ["no covering lane", GREEN, { plan: () => ({ bash: "false", python: "false", node: "false", windows_jobs: "[]" }) }],
     ["plan failed", GREEN, { plan: () => { throw new Error("exit 2"); } }],
@@ -2546,6 +2546,31 @@ test("ciSnapshot is unsettled when a covering check is pending, missing or skipp
   }
   const failed = await ciSnapshot({ api: { listCommitCheckRuns: async () => { throw new Error("GET returned 502"); } }, headSha: HEAD, files: [], plan: () => PLAN });
   assert.deepEqual(failed, { state: "unsettled", runs: [] });
+});
+
+// A head tested before the rename shows each lane by its job id.
+test("ciSnapshot reads a head whose lanes show their job ids, and takes a lane's display-named run over its id-named one", async () => {
+  const byId = [checkRun(1, "test-bash (0)"), checkRun(2, "test-bash (1)"), checkRun(3, "test-node"), checkRun(4, "test-windows-lib")];
+  const green = await snapshot(byId);
+  assert.equal(green.state, "green");
+  assert.deepEqual(green.runs.map((run) => run.name), ["test-bash (0)", "test-bash (1)", "test-node", "test-windows-lib"]);
+  assert.equal((await snapshot([...byId, checkRun(5, "test-python (0)", "failure")])).state, "red");
+  assert.equal((await snapshot([...byId, checkRun(5, "test-python (0)")])).state, "unsettled", "an unplanned lane ran");
+  // A stale id-named failure beside the lane's display-named pass is not red.
+  const mixed = await snapshot([...GREEN.filter((run) => run.name !== "Test Bash (1)"), checkRun(6, "test-bash (1)", "failure"), checkRun(7, "Test Bash (1)")]);
+  assert.equal(mixed.state, "green");
+  assert.ok(mixed.runs.some((run) => run.name === "Test Bash (1)"));
+});
+
+test("every test job's display name is its id in Title Case, the name ciSnapshot matches", () => {
+  for (const file of ["pr-require-checks.yml", "pr-test-platforms.yml"]) {
+    const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
+    const jobs = [...text.matchAll(/^ {2}(test-[a-z0-9-]+):\n {4}name: (.+)$/gm)];
+    assert.ok(jobs.length > 0, file);
+    for (const [, id, name] of jobs) {
+      assert.equal(name, id.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" "), `${file} ${id}`);
+    }
+  }
 });
 
 test("ciSnapshot plans from every changed path, rename sources included", async () => {
@@ -2570,7 +2595,7 @@ test("planLanes runs the repository's scripts/plan-test-lanes.sh over the paths"
 
 test("select records the ci snapshot for run.json; with no snapshot function it records none", async () => {
   let asked;
-  const ci = { state: "green", runs: [{ name: "test-node", url: "https://github.com/o/r/actions/runs/1/job/3" }] };
+  const ci = { state: "green", runs: [{ name: "Test Node", url: "https://github.com/o/r/actions/runs/1/job/3" }] };
   const result = await select({
     api: fakeApi(),
     pr: 42,

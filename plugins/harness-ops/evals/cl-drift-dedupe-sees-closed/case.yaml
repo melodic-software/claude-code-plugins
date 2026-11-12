@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: cl-drift-dedupe-sees-closed
+graders:
+  - name: dedupe-includes-closed
+    type: regex
+    pattern: '--state all\b|\ball states\b|(?:^|[.!?;](?=\s|$))(?!(?:(?![.!?;](?:\s|$))[^\n])*?(?:\b(?:not|no|never|cannot|misses|missed)\b|n[’'']t\b|\bonly (?:open|lists? open|sees? open)))(?:(?![.!?;](?:\s|$))[^\n])*?(?:\b(?:includes?|including|included|covers?|sees?|finds?|searches|lists?)\b(?:(?![.!?;](?:\s|$))[^\n]){0,40}?\bclosed\b|\bclosed\b(?:(?![.!?;](?:\s|$))[^\n]){0,40}?\b(?:too|as well|included)\b)'
+    flags: 'im'
+    target: last_message
+  - name: raises-limit
+    type: regex
+    pattern: '--limit 1000\b|\b1,?000\b|\blimit\b[^.\n]{0,40}\braised\b|\b30\b[^.\n]{0,60}\bdefault|\bdefault\b[^.\n]{0,60}\b30\b'
+    flags: 'i'
+    target: last_message

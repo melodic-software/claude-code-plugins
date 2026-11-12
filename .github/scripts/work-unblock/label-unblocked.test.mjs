@@ -986,7 +986,7 @@ const sweptJobs = (conclusion = "success", extraSteps = []) => ({
     { name: "save-wip-state", conclusion: "success", steps: [{ name: "Save the WIP cap's last known state", conclusion: "success" }] },
     {
       id: SWEEP_JOB_ID,
-      name: "label-unblocked",
+      name: "Label Unblocked",
       conclusion: "success",
       steps: [{ name: "Check the kill switch", conclusion: "success" }, ...extraSteps, { name: "Label the unblocked issues", conclusion }],
     },
@@ -1044,11 +1044,17 @@ test("a last sweep whose log does not show the closed listing read falls back to
   }
 });
 
+test("a last sweep run started before the rename, its job named by its id, sets the window as one named by display name", async () => {
+  const jobs = sweptJobs();
+  jobs.jobs[1] = { ...jobs.jobs[1], name: "label-unblocked" };
+  assert.equal((await windowOf({ workflow_runs: [{ id: 5, run_started_at: ago(60) }] }, {}, jobs)).minutes, 75);
+});
+
 test("a last sweep whose job has no usable id falls back to 6 hours without asking for a log", async () => {
   const runs = { workflow_runs: [{ id: 5, run_started_at: ago(60) }] };
   const steps = [{ name: "Label the unblocked issues", conclusion: "success" }];
   for (const id of [undefined, "../9001"]) {
-    const { minutes, actionCalls } = await windowOf(runs, {}, { jobs: [{ id, name: "label-unblocked", conclusion: "success", steps }] });
+    const { minutes, actionCalls } = await windowOf(runs, {}, { jobs: [{ id, name: "Label Unblocked", conclusion: "success", steps }] });
     assert.equal(minutes, 360);
     assert.deepEqual(actionCalls.filter((call) => call.includes("/actions/jobs/")), []);
   }
@@ -1349,7 +1355,7 @@ test("a last sweep older than the 3-hour window is capped at 3 hours", async () 
 // The drop case: sweep at -200 min, paced at -140, the -80 tick dropped, this
 // one now: 215 minutes back, past the 3-hour window.
 test("the sweep after a paced run reads back past it to the sweep before, up to 6 hours", async () => {
-  const pacedJobs = { jobs: [{ id: 9002, name: "label-unblocked", conclusion: "success", steps: [{ name: "Mark this tick paced", conclusion: "success" }, { name: "Label the unblocked issues", conclusion: "skipped" }] }] };
+  const pacedJobs = { jobs: [{ id: 9002, name: "Label Unblocked", conclusion: "success", steps: [{ name: "Mark this tick paced", conclusion: "success" }, { name: "Label the unblocked issues", conclusion: "skipped" }] }] };
   const windowAfterPaced = async (runs) => {
     const { github, calls } = sweptDependent();
     const actions = async (method, path) => {
@@ -1377,7 +1383,7 @@ test("the sweep after a paced run reads back past it to the sweep before, up to 
 test("a held run after a paced run still reaches back to the clean sweep before it", async () => {
   const jobsOf = {
     5: sweptJobs(),
-    6: { jobs: [{ id: 9002, name: "label-unblocked", conclusion: "success", steps: [{ name: "Mark this tick paced", conclusion: "success" }, { name: "Label the unblocked issues", conclusion: "skipped" }] }] },
+    6: { jobs: [{ id: 9002, name: "Label Unblocked", conclusion: "success", steps: [{ name: "Mark this tick paced", conclusion: "success" }, { name: "Label the unblocked issues", conclusion: "skipped" }] }] },
     7: sweptJobs(),
   };
   const windowAfter = async (held, jobsAnswer = (id) => jobsOf[id]) => {
@@ -1404,7 +1410,7 @@ test("a held run after a paced run still reaches back to the clean sweep before 
     assert.ok((await windowAfter(log)) >= 215, JSON.stringify(log));
   }
   // The label step never ran (a held lane token): no sweep step to judge.
-  const noLabel = { jobs: [{ id: 9003, name: "label-unblocked", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "success" }] }] };
+  const noLabel = { jobs: [{ id: 9003, name: "Label Unblocked", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "success" }] }] };
   assert.ok((await windowAfter(LISTED_LOG, (id) => (id === 7 ? noLabel : jobsOf[id]))) >= 215, "no label step");
   // The paced check's own jobs read throws: the fallback is the full 6 hours.
   assert.equal(await windowAfter(LISTED_LOG, () => new Error("GET failed with status 502")), 360);
@@ -1447,7 +1453,7 @@ test("a last successful run that did not sweep falls back to 6 hours", async () 
     { name: "Resolve the config", conclusion: "success" },
     { name: "Report a lane the config turns off", conclusion: "success" },
   ]);
-  const noSteps = { jobs: [{ name: "label-unblocked", conclusion: "success", steps: [] }] };
+  const noSteps = { jobs: [{ name: "Label Unblocked", conclusion: "success", steps: [] }] };
   const noJob = { jobs: [{ name: "save-wip-state", conclusion: "success", steps: [] }] };
   for (const jobs of [killed, offByConfig, noSteps, noJob, { jobs: [] }, { nope: true }, new Error("GET failed with status 502")]) {
     assert.equal((await windowOf(runs, {}, jobs)).minutes, 360);
@@ -2453,12 +2459,12 @@ test("a re-fire record and the App's re-add in the same second, on unchanged wor
 // with the usual record, past once per workflow version, an hour after the
 // run ended (the broker's Retry-After is at most an hour, so the reset has
 // passed) and only while the WIP cap check does not pause the issue lane.
-const pickSlot = { name: "pick-slot", conclusion: "success", steps: [{ name: "Check the WIP cap", conclusion: "success" }] };
+const pickSlot = { name: "Pick Slot", conclusion: "success", steps: [{ name: "Check the WIP cap", conclusion: "success" }] };
 const MINT_FAILED = [
   pickSlot,
-  { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] },
+  { name: "Resolve Issue / Run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] },
 ];
-const WIP_CAPPED = [pickSlot, { name: "resolve-issue", conclusion: "skipped", steps: [] }];
+const WIP_CAPPED = [pickSlot, { name: "Resolve Issue", conclusion: "skipped", steps: [] }];
 function stalledRun({
   number = 30,
   jobs = MINT_FAILED,
@@ -2630,9 +2636,9 @@ test("a run the WIP cap skipped keeps re-firing past the failed-mint bound", asy
 test("a run whose key the key-credit gate held off, with its subscription call run, is no WIP cap skip", async () => {
   const jobs = [
     pickSlot,
-    { name: "resolve-issue", conclusion: "skipped", steps: [] },
-    { name: "resolve-issue-subscription / broker-check", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: "success" }, { name: "Claim the issue with a lane lease", conclusion: "success" }] },
-    { name: "resolve-issue-subscription / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "skipped" }] },
+    { name: "Resolve Issue", conclusion: "skipped", steps: [] },
+    { name: "Resolve Issue Subscription / Broker Check", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: "success" }, { name: "Claim the issue with a lane lease", conclusion: "success" }] },
+    { name: "Resolve Issue Subscription / Run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "skipped" }] },
   ];
   const { github, actions, calls } = stalledRun({ jobs, conclusion: "success", openLanePrs: 1 });
   assert.equal(await sweep({ github, actions }, PAUSING), 0);
@@ -2640,7 +2646,7 @@ test("a run whose key the key-credit gate held off, with its subscription call r
 });
 
 test("a run another gate stopped before its mint, with no WIP cap skip, is not re-fired", async () => {
-  const jobs = [pickSlot, { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "skipped" }] }];
+  const jobs = [pickSlot, { name: "Resolve Issue / Run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "skipped" }] }];
   const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), []);
@@ -2651,9 +2657,9 @@ test("a run another gate stopped before its mint, with no WIP cap skip, is not r
 // the sweep re-fires the issue once no blocker is open, past any bound, and
 // never hands it to a person for it.
 const BLOCKER_SKIPPED = [
-  { name: "admit", conclusion: "success", steps: [{ name: "Check the trigger", conclusion: "success" }, { name: "Wait for open blockers", conclusion: "success" }] },
-  { name: "pick-slot", conclusion: "skipped", steps: [] },
-  { name: "resolve-issue", conclusion: "skipped", steps: [] },
+  { name: "Admit", conclusion: "success", steps: [{ name: "Check the trigger", conclusion: "success" }, { name: "Wait for open blockers", conclusion: "success" }] },
+  { name: "Pick Slot", conclusion: "skipped", steps: [] },
+  { name: "Resolve Issue", conclusion: "skipped", steps: [] },
 ];
 
 test("a run the blocker gate skipped waits, with no write, while a blocker is open", async () => {
@@ -2727,15 +2733,15 @@ test("a run the gate skipped on an umbrella is re-fired once every sub-issue is 
 // adds no needs-human (admission's refusal path hands it to a person).
 const UNTRUSTED_STOPPED = [
   {
-    name: "admit",
+    name: "Admit",
     conclusion: "success",
     steps: [
       { name: "Wait for open blockers", conclusion: "success" },
       { name: "Stop on untrusted provenance", conclusion: "success" },
     ],
   },
-  { name: "pick-slot", conclusion: "skipped", steps: [] },
-  { name: "resolve-issue", conclusion: "skipped", steps: [] },
+  { name: "Pick Slot", conclusion: "skipped", steps: [] },
+  { name: "Resolve Issue", conclusion: "skipped", steps: [] },
 ];
 
 test("a run the gate stopped on untrusted provenance is never re-fired, past any wait or bound, and gets no needs-human", async () => {
@@ -2767,7 +2773,7 @@ test("a stranded issue with an open blocker is neither re-fired nor handed to a 
 });
 
 test("a run that minted its token and failed later keeps the once-per-version re-fire", async () => {
-  const jobs = [pickSlot, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
+  const jobs = [pickSlot, { name: "Resolve Issue / Run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
   const { github, actions, calls } = stalledRun({ jobs, ...earlierPumps(1) });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), []);
@@ -2778,12 +2784,12 @@ test("a run that minted its token and failed later keeps the once-per-version re
 // agent-ready on with no marker. The sweep re-fires that run, the fresh run
 // skips again, and report-skip reports it, so the issue leaves the queued count.
 test("a dimension-skipped run whose report-skip failed is re-fired, so report-skip reports it again", async () => {
-  const readRunner = { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: "success" }] };
+  const readRunner = { name: "Resolve Issue / Run", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: "success" }] };
   for (const [name, mint] of [
     ["failed after its mint", "success"],
     ["failed at its mint", "failure"],
   ]) {
-    const jobs = [pickSlot, readRunner, { name: "report-skip / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: mint }] }];
+    const jobs = [pickSlot, readRunner, { name: "Report Skip / Run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: mint }] }];
     const { github, actions, calls } = stalledRun({ jobs });
     assert.equal(await sweep({ github, actions }), 0, name);
     assert.deepEqual(writes(calls), refired(30), name);
@@ -2794,25 +2800,25 @@ test("a dimension-skipped run whose report-skip failed is re-fired, so report-sk
 // timeout in the WIP cap step: admit succeeded, pick-slot was cancelled and
 // every later job skipped, so no lane branch and no outcome marker exist.
 const CANCELLED_AT_PICK_SLOT = [
-  { name: "admit", conclusion: "success", steps: [{ name: "Check the trigger", conclusion: "success" }] },
-  { name: "pick-slot", conclusion: "cancelled", steps: [{ name: "Check the WIP cap", conclusion: "cancelled" }, { name: "Pick the slot", conclusion: "skipped" }] },
-  { name: "report-skip", conclusion: "skipped", steps: [] },
-  { name: "resolve-issue", conclusion: "skipped", steps: [] },
-  { name: "report-outcome", conclusion: "skipped", steps: [] },
+  { name: "Admit", conclusion: "success", steps: [{ name: "Check the trigger", conclusion: "success" }] },
+  { name: "Pick Slot", conclusion: "cancelled", steps: [{ name: "Check the WIP cap", conclusion: "cancelled" }, { name: "Pick the slot", conclusion: "skipped" }] },
+  { name: "Report Skip", conclusion: "skipped", steps: [] },
+  { name: "Resolve Issue", conclusion: "skipped", steps: [] },
+  { name: "Report Outcome", conclusion: "skipped", steps: [] },
 ];
 
 // A resolve-issue job cancelled while it waited for its slot never got a
 // runner: run 39106011628's `resolve-issue / run` has started_at set, runner_id
 // 0 and no steps. resolve-issue calls pr-run-activity-read.yml, whose jobs
 // are broker-check (`Ask the broker whether the lane may run`) and run.
-const ADMITTED = { name: "admit", conclusion: "success", runner_id: 11, steps: [{ name: "Check the trigger", conclusion: "success" }] };
+const ADMITTED = { name: "Admit", conclusion: "success", runner_id: 11, steps: [{ name: "Check the trigger", conclusion: "success" }] };
 const CANCELLED_IN_SLOT_QUEUE = [
   ADMITTED,
   pickSlot,
-  { name: "resolve-issue / run", conclusion: "cancelled", started_at: "2026-10-16T10:01:00Z", runner_id: 0, steps: [] },
+  { name: "Resolve Issue / Run", conclusion: "cancelled", started_at: "2026-10-16T10:01:00Z", runner_id: 0, steps: [] },
 ];
 const BROKER_ALLOWED = {
-  name: "resolve-issue / broker-check",
+  name: "Resolve Issue / Broker Check",
   conclusion: "success",
   started_at: "2026-10-16T10:01:00Z",
   runner_id: 12,
@@ -2846,7 +2852,7 @@ test("a run cancelled before resolve-issue started is re-fired like a failed run
 test("a cancelled run admit did not pass, one whose resolve-issue started, or a held issue's, is not re-fired", async () => {
   // The broker allowed the run and the model started before the cancel.
   const modelRun = {
-    name: "resolve-issue / run",
+    name: "Resolve Issue / Run",
     conclusion: "cancelled",
     started_at: "2026-10-16T10:02:00Z",
     runner_id: 13,
@@ -2856,12 +2862,12 @@ test("a cancelled run admit did not pass, one whose resolve-issue started, or a 
     ],
   };
   // A runner took the job, but the listing carries no steps.
-  const stepless = { name: "resolve-issue / run", conclusion: "cancelled", started_at: "2026-10-16T10:02:00Z", runner_id: 14 };
+  const stepless = { name: "Resolve Issue / Run", conclusion: "cancelled", started_at: "2026-10-16T10:02:00Z", runner_id: 14 };
   for (const [name, jobs, labels] of [
     // A newer agent-ready run for the issue replaced this one while it waited
     // in the workflow's concurrency group, so none of its jobs ran.
     ["superseded before any job ran", [], []],
-    ["superseded with its jobs cancelled unstarted", [{ name: "admit", conclusion: "cancelled", steps: [] }, { name: "pick-slot", conclusion: "cancelled", steps: [] }], []],
+    ["superseded with its jobs cancelled unstarted", [{ name: "Admit", conclusion: "cancelled", steps: [] }, { name: "Pick Slot", conclusion: "cancelled", steps: [] }], []],
     ["cancelled after the broker allowed it and the model started", [ADMITTED, pickSlot, BROKER_ALLOWED, modelRun], []],
     ["cancelled on a runner with no steps listed", [ADMITTED, pickSlot, BROKER_ALLOWED, stepless], []],
     ["cancelled while waiting, after its broker check ran", [ADMITTED, pickSlot, BROKER_ALLOWED, CANCELLED_IN_SLOT_QUEUE[2]], []],
@@ -2884,25 +2890,25 @@ test("a cancelled run admit did not pass, one whose resolve-issue started, or a 
 // at the read runner's `Stop on stale workflow files` step, with no model turn
 // and no outcome marker, so the sweep re-fires it like a failed run.
 const staleRunJob = (stop) => ({
-  name: "resolve-issue / run",
+  name: "Resolve Issue / Run",
   conclusion: "success",
   steps: [
     { name: "Check the run's workflow files against main", conclusion: "success" },
     { name: "Stop on stale workflow files", conclusion: stop },
   ],
 });
-const STOPPED_STALE = [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("success"), { name: "report-outcome", conclusion: "skipped", steps: [] }];
+const STOPPED_STALE = [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("success"), { name: "Report Outcome", conclusion: "skipped", steps: [] }];
 
 // A blocker added while the run waited for its slot: broker-check's in-slot
 // re-check stops it green at `Stop on an open blocker`, after the lease, with
 // no model turn and no marker. The sweep routes it as admit's blocker gate:
 // it waits while a blocker is open and re-fires once none is, past any bound.
-const recheckStopped = (stop, leg = "resolve-issue") => [
+const recheckStopped = (stop, leg = "Resolve Issue") => [
   ADMITTED,
   pickSlot,
   {
     ...BROKER_ALLOWED,
-    name: `${leg} / broker-check`,
+    name: `${leg} / Broker Check`,
     steps: [
       ...BROKER_ALLOWED.steps,
       { name: "Claim the issue with a lane lease", conclusion: "success" },
@@ -2910,8 +2916,8 @@ const recheckStopped = (stop, leg = "resolve-issue") => [
       { name: "Stop on an open blocker", conclusion: stop },
     ],
   },
-  { name: `${leg} / run`, conclusion: "success", steps: [{ name: "Decide whether the activity runs", conclusion: "success" }] },
-  { name: "report-outcome", conclusion: "skipped", steps: [] },
+  { name: `${leg} / Run`, conclusion: "success", steps: [{ name: "Decide whether the activity runs", conclusion: "success" }] },
+  { name: "Report Outcome", conclusion: "skipped", steps: [] },
 ];
 
 test("a run the in-slot re-check stopped waits, with no write, while a blocker is open", async () => {
@@ -2937,6 +2943,23 @@ test("an in-slot re-check that let the run on is no blocker stop", async () => {
   const pumped = stalledRun({ jobs: recheckStopped("skipped"), conclusion: "success", blockedBy: { 30: [issue(31, { state: "closed" })] }, ...earlierPumps(3) });
   assert.equal(await sweep({ github: pumped.github, actions: pumped.actions }), 0);
   assert.deepEqual(writes(pumped.calls), []);
+});
+
+// A run started before the rename lists each job by its id.
+test("a stalled run whose jobs are named by their ids is read as one named by display names", async () => {
+  const stale = [
+    { ...ADMITTED, name: "admit" },
+    { ...pickSlot, name: "pick-slot" },
+    { ...BROKER_ALLOWED, name: "resolve-issue / broker-check" },
+    { ...staleRunJob("success"), name: "resolve-issue / run" },
+    { name: "report-outcome", conclusion: "skipped", steps: [] },
+  ];
+  const restale = stalledRun({ jobs: stale, conclusion: "success" });
+  assert.equal(await sweep({ github: restale.github, actions: restale.actions }), 0);
+  assert.deepEqual(writes(restale.calls), refired(30));
+  const capped = stalledRun({ jobs: [{ ...pickSlot, name: "pick-slot" }, { name: "resolve-issue", conclusion: "skipped", steps: [] }], conclusion: "success", openLanePrs: 1 });
+  assert.equal(await sweep({ github: capped.github, actions: capped.actions }, PAUSING), 0);
+  assert.deepEqual(writes(capped.calls), refired(30));
 });
 
 test("a run that stopped green on stale workflow files is re-fired, once per version of the lane workflow files", async () => {
@@ -2977,11 +3000,11 @@ test("a run that stopped green on stale workflow files is re-fired, once per ver
 
 // Run 41046083087: the API key leg ran and handed off, and the subscription
 // leg waited for its slot past a lane workflow change and stopped stale there.
-const staleLegJob = (name, stop) => ({ ...staleRunJob(stop), name: `${name} / run` });
+const staleLegJob = (name, stop) => ({ ...staleRunJob(stop), name: `${name} / Run` });
 
 test("a run whose later leg stopped green on stale workflow files is re-fired", async () => {
-  for (const leg of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
-    const jobs = [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("skipped"), staleLegJob(leg, "success"), { name: "report-outcome", conclusion: "skipped", steps: [] }];
+  for (const leg of ["Resolve Issue Subscription", "Resolve Issue Fallback"]) {
+    const jobs = [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("skipped"), staleLegJob(leg, "success"), { name: "Report Outcome", conclusion: "skipped", steps: [] }];
     const fake = stalledRun({ jobs, conclusion: "success" });
     assert.equal(await sweep({ github: fake.github, actions: fake.actions }), 0, leg);
     assert.deepEqual(writes(fake.calls), refired(30), leg);
@@ -2994,7 +3017,7 @@ test("a run whose later leg stopped green on stale workflow files is re-fired", 
 // stop on its next run, not on the failed-mint clock (limits.reset-clamp-min
 // after the run ended, here not yet passed).
 test("a stale run whose report-outcome mint failed is re-fired at once, not as a failed mint", async () => {
-  const reportMint = { name: "report-outcome / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] };
+  const reportMint = { name: "Report Outcome / Run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] };
   const red = stalledRun({ jobs: [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("success"), reportMint], conclusion: "failure", ended: "2026-10-16T11:30:00Z" });
   assert.equal(await sweep({ github: red.github, actions: red.actions }), 0);
   assert.deepEqual(writes(red.calls), refired(30));
@@ -3024,7 +3047,7 @@ const BROKER_REFUSED = [
   pickSlot,
   {
     id: BROKER_CHECK_ID,
-    name: "resolve-issue / broker-check",
+    name: "Resolve Issue / Broker Check",
     conclusion: "failure",
     runner_id: 12,
     started_at: "2026-10-16T10:01:00Z",
@@ -3033,9 +3056,9 @@ const BROKER_REFUSED = [
       { name: "Ask the broker whether the lane may run", conclusion: "failure" },
     ],
   },
-  { name: "report-skip", conclusion: "skipped", steps: [] },
-  { name: "resolve-issue / run", conclusion: "skipped", steps: [] },
-  { name: "report-outcome", conclusion: "skipped", steps: [] },
+  { name: "Report Skip", conclusion: "skipped", steps: [] },
+  { name: "Resolve Issue / Run", conclusion: "skipped", steps: [] },
+  { name: "Report Outcome", conclusion: "skipped", steps: [] },
 ];
 const PATCH_MINT_ID = 120972368518;
 const REPORT_MINT_ID = 120972137995;
@@ -3043,9 +3066,9 @@ const MINT_REFUSED = [
   ADMITTED,
   pickSlot,
   BROKER_ALLOWED,
-  { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Run the skill activity", conclusion: "success" }] },
-  { id: PATCH_MINT_ID, name: "apply-issue-patch / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] },
-  { id: REPORT_MINT_ID, name: "report-outcome / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] },
+  { name: "Resolve Issue / Run", conclusion: "success", steps: [{ name: "Run the skill activity", conclusion: "success" }] },
+  { id: PATCH_MINT_ID, name: "Apply Issue Patch / Run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] },
+  { id: REPORT_MINT_ID, name: "Report Outcome / Run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] },
 ];
 const CHECK_KILLED = { [BROKER_CHECK_ID]: denied("check", "kill-switch") };
 const MINT_KILLED = { [PATCH_MINT_ID]: denied("token", "kill-switch"), [REPORT_MINT_ID]: denied("token", "kill-switch") };
@@ -3155,7 +3178,7 @@ test("a breaker trip's record names the run the broker refused and when it ended
 
 test("a breaker trip leaves the once-per-version re-fire for a later failed run", async () => {
   // A run that minted its token and failed later, after one breaker re-fire on these workflow files.
-  const failedLater = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
+  const failedLater = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "Resolve Issue / Run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
   const { github, actions, calls } = stalledRun({ jobs: failedLater, ...(await afterSweeps(1, BROKER_REFUSED, CHECK_KILLED)) });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
@@ -3213,9 +3236,9 @@ const MINT_STOPPED = [
   ADMITTED,
   pickSlot,
   BROKER_ALLOWED,
-  { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Run the skill activity", conclusion: "success" }] },
+  { name: "Resolve Issue / Run", conclusion: "success", steps: [{ name: "Run the skill activity", conclusion: "success" }] },
   stoppedJob(PATCH_MINT_ID, "apply-issue-patch / run"),
-  stoppedJob(REPORT_MINT_ID, "report-outcome / run"),
+  stoppedJob(REPORT_MINT_ID, "Report Outcome / Run"),
 ];
 const MINT_STOPPED_LOGS = { [PATCH_MINT_ID]: stoppedLog(), [REPORT_MINT_ID]: stoppedLog() };
 
@@ -3235,14 +3258,14 @@ test("a green run whose mints the kill switch stopped is a breaker trip, read fr
 });
 
 test("a stopped patch mint before a report the switch also stopped, or one alone, is a breaker trip", async () => {
-  const alone = MINT_STOPPED.filter((job) => job.id !== REPORT_MINT_ID).concat({ name: "report-outcome", conclusion: "skipped", steps: [] });
+  const alone = MINT_STOPPED.filter((job) => job.id !== REPORT_MINT_ID).concat({ name: "Report Outcome", conclusion: "skipped", steps: [] });
   const { github, actions, calls } = stalledRun({ jobs: alone, logs: MINT_STOPPED_LOGS, conclusion: "success" });
   assert.equal(await sweep({ github, actions }), 0);
   tripped(calls);
 });
 
 test("a run whose stopped mint is followed by a mint that took its token did work, read with no log", async () => {
-  const minted = { id: REPORT_MINT_ID, name: "report-outcome / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }, { name: "Stage the activity from the base", conclusion: "success" }] };
+  const minted = { id: REPORT_MINT_ID, name: "Report Outcome / Run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }, { name: "Stage the activity from the base", conclusion: "success" }] };
   const jobs = [...MINT_STOPPED.slice(0, -1), minted];
   const { github, actions, calls } = stalledRun({ jobs, logs: MINT_STOPPED_LOGS, ...earlierPumps(1) });
   assert.equal(await sweep({ github, actions }), 0);
@@ -3255,8 +3278,8 @@ test("a run whose stopped mint is followed by a mint that took its token did wor
 // so it is a breaker trip, read from report-outcome's log alone.
 const REPORT_STOPPED_AFTER_PATCH = [
   ...MINT_STOPPED.slice(0, -2),
-  { id: PATCH_MINT_ID, name: "apply-issue-patch / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "success" }, { name: "Stage the activity from the base", conclusion: "success" }] },
-  stoppedJob(REPORT_MINT_ID, "report-outcome / run"),
+  { id: PATCH_MINT_ID, name: "Apply Issue Patch / Run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "success" }, { name: "Stage the activity from the base", conclusion: "success" }] },
+  stoppedJob(REPORT_MINT_ID, "Report Outcome / Run"),
 ];
 
 test("a green run whose report mint the kill switch stopped after a patch mint is a breaker trip", async () => {
@@ -3512,7 +3535,7 @@ test("restarts-per-run still caps breaker re-fires under the queue target, the o
 // run ended that a blocker-gate skip waits.
 const OUTAGE_SKIPPED = [
   {
-    name: "admit",
+    name: "Admit",
     conclusion: "success",
     steps: [
       { name: "Check the trigger", conclusion: "success" },
@@ -3521,8 +3544,8 @@ const OUTAGE_SKIPPED = [
       { name: "Stop on untrusted provenance", conclusion: "skipped" },
     ],
   },
-  { name: "pick-slot", conclusion: "skipped", steps: [] },
-  { name: "resolve-issue", conclusion: "skipped", steps: [] },
+  { name: "Pick Slot", conclusion: "skipped", steps: [] },
+  { name: "Resolve Issue", conclusion: "skipped", steps: [] },
 ];
 // Ten minutes before NOW: inside the hour after it, which is 12:50.
 const JUST_ENDED = "2026-10-16T11:50:00Z";
@@ -3623,7 +3646,7 @@ test("a wait on an upstream-status skip is not carried to the next sweep; a bloc
 // 08:00 and 10:00, the last two on the backoff comment, edited at 09:59)
 // around one breaker trip (07:00) wait 24 hours, not 12.
 test("a breaker trip's re-add is its own: the backoff counts every other re-fire after the backoff comment is edited", async () => {
-  const failedLater = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
+  const failedLater = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "Resolve Issue / Run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "success" }] }];
   const unlabeled = (at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: at });
   const history = {
     comments: [
@@ -3725,23 +3748,23 @@ const KILL_SKIPPED = [
   ADMITTED,
   pickSlot,
   {
-    name: "resolve-issue / broker-check",
+    name: "Resolve Issue / Broker Check",
     conclusion: "success",
     steps: [
       { name: "Check the kill switch", conclusion: "success" },
       { name: "Ask the broker whether the lane may run", conclusion: "skipped" },
     ],
   },
-  { name: "report-skip", conclusion: "skipped", steps: [] },
+  { name: "Report Skip", conclusion: "skipped", steps: [] },
   {
-    name: "resolve-issue / run",
+    name: "Resolve Issue / Run",
     conclusion: "success",
     steps: [
       { name: "Check the kill switch", conclusion: "success" },
       { name: "Assert the broker allowed this attempt", conclusion: "skipped" },
     ],
   },
-  { name: "report-outcome", conclusion: "skipped", steps: [] },
+  { name: "Report Outcome", conclusion: "skipped", steps: [] },
 ];
 
 test("a green run whose broker ask the kill switch skipped is a breaker trip, read from the job listing alone", async () => {
@@ -3761,16 +3784,16 @@ test("a green run whose broker ask the kill switch skipped is a breaker trip, re
 
 // A later leg asks the broker again after the API key leg hands off: its
 // broker-check's refusal or kill-switch skip is the run's breaker trip too.
-const LEG_RAN = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Run the skill on the API key", conclusion: "success" }] }];
-const legCheck = (leg, job) => ({ ...job, name: `${leg} / broker-check` });
+const LEG_RAN = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "Resolve Issue / Run", conclusion: "success", steps: [{ name: "Run the skill on the API key", conclusion: "success" }] }];
+const legCheck = (leg, job) => ({ ...job, name: `${leg} / Broker Check` });
 
 test("a later leg's broker-check refused or skipped for the kill switch is a breaker trip", async () => {
-  for (const leg of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
-    const refused = stalledRun({ jobs: [...LEG_RAN, legCheck(leg, BROKER_REFUSED[2]), { name: "report-outcome", conclusion: "skipped", steps: [] }], logs: CHECK_KILLED });
+  for (const leg of ["Resolve Issue Subscription", "Resolve Issue Fallback"]) {
+    const refused = stalledRun({ jobs: [...LEG_RAN, legCheck(leg, BROKER_REFUSED[2]), { name: "Report Outcome", conclusion: "skipped", steps: [] }], logs: CHECK_KILLED });
     assert.equal(await sweep({ github: refused.github, actions: refused.actions }), 0, leg);
     tripped(refused.calls);
     assert.deepEqual(logReads(refused.calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`], leg);
-    const skipped = stalledRun({ jobs: [...LEG_RAN, legCheck(leg, KILL_SKIPPED[2]), { name: "report-outcome", conclusion: "skipped", steps: [] }], conclusion: "success" });
+    const skipped = stalledRun({ jobs: [...LEG_RAN, legCheck(leg, KILL_SKIPPED[2]), { name: "Report Outcome", conclusion: "skipped", steps: [] }], conclusion: "success" });
     assert.equal(await sweep({ github: skipped.github, actions: skipped.actions }), 0, leg);
     tripped(skipped.calls);
   }
@@ -3968,7 +3991,7 @@ const CHECK_STOPPED = [
   pickSlot,
   {
     id: BROKER_CHECK_ID,
-    name: "resolve-issue / broker-check",
+    name: "Resolve Issue / Broker Check",
     conclusion: "success",
     runner_id: 12,
     started_at: "2026-10-16T10:01:00Z",
@@ -3978,8 +4001,8 @@ const CHECK_STOPPED = [
       { name: "Claim the issue with a lane lease", conclusion: "skipped" },
     ],
   },
-  { name: "resolve-issue / run", conclusion: "skipped", steps: [] },
-  { name: "report-outcome", conclusion: "skipped", steps: [] },
+  { name: "Resolve Issue / Run", conclusion: "skipped", steps: [] },
+  { name: "Report Outcome", conclusion: "skipped", steps: [] },
 ];
 
 test("a green run whose broker ask the kill switch stopped is a breaker trip at broker-check, read from one log", async () => {
@@ -4076,6 +4099,24 @@ const PRE_MODEL_LIMITED = {
     BROKER_ALLOWED,
     failedAt("resolve-issue / run", [{ name: "Resolve the config", conclusion: "failure" }, { name: "Run the skill on the API key", conclusion: "skipped" }]),
     { name: "report-outcome", conclusion: "skipped", steps: [] },
+  ],
+  "broker-check under its display name": [
+    ADMITTED,
+    pickSlot,
+    failedAt("Resolve Issue / Broker Check", [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Ask the broker whether the lane may run", conclusion: "success" },
+      { name: "Claim the issue with a lane lease", conclusion: "failure" },
+    ]),
+    { name: "Resolve Issue / Run", conclusion: "skipped", steps: [] },
+    { name: "Report Outcome", conclusion: "skipped", steps: [] },
+  ],
+  "a call's run job under its display name": [
+    ADMITTED,
+    pickSlot,
+    { ...BROKER_ALLOWED, name: "Resolve Issue / Broker Check" },
+    failedAt("Resolve Issue / Run", [{ name: "Resolve the config", conclusion: "failure" }, { name: "Run the skill on the API key", conclusion: "skipped" }]),
+    { name: "Report Outcome", conclusion: "skipped", steps: [] },
   ],
 };
 const AFTER_RESET = Date.parse("2026-10-16T12:31:00Z");
@@ -4251,7 +4292,7 @@ test("an admit whose install failed, or a pick-slot that failed, with its gated 
 test("a green run whose stale stop did not run, or a stop step outside resolve-issue, is not re-fired", async () => {
   for (const [name, jobs] of [
     ["stop step skipped", [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("skipped")]],
-    ["stop step in another job", [ADMITTED, pickSlot, { ...staleRunJob("success"), name: "report-outcome / run" }]],
+    ["stop step in another job", [ADMITTED, pickSlot, { ...staleRunJob("success"), name: "Report Outcome / Run" }]],
   ]) {
     const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
     assert.equal(await sweep({ github, actions }), 0, name);
@@ -4270,13 +4311,21 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
     return Object.fromEntries(ids.map((id, i) => [id, body.split(/^ {2}[a-z][a-z-]*:$/m)[i + 1]]));
   };
   const steps = (block) => [...block.matchAll(/^ {6}- name: (.+)$/gm)].map((m) => m[1]);
+  // The display name the sweep matches each job by (label-unblocked.mjs JOB_NAMES).
+  const shown = (block) => /^ {4}name: (.+)$/m.exec(block)?.[1];
   const unblock = jobs(workflow("work-unblock.yml"));
-  assert.ok(unblock["label-unblocked"] !== undefined);
-  assert.doesNotMatch(unblock["label-unblocked"], /^ {4}name:/m, "label-unblocked keeps its id as its name");
+  assert.equal(shown(unblock["label-unblocked"]), "Label Unblocked");
   assert.ok(steps(unblock["label-unblocked"]).includes("Label the unblocked issues"));
   const caller = jobs(workflow("work-resolve-issue.yml"));
-  for (const id of ["admit", "pick-slot", "resolve-issue"]) {
-    assert.ok(caller[id] !== undefined, id);
+  for (const [id, name] of [
+    ["admit", "Admit"],
+    ["pick-slot", "Pick Slot"],
+    ["report-outcome", "Report Outcome"],
+    ["resolve-issue", "Resolve Issue"],
+    ["resolve-issue-subscription", "Resolve Issue Subscription"],
+    ["resolve-issue-fallback", "Resolve Issue Fallback"],
+  ]) {
+    assert.equal(shown(caller[id]), name, id);
   }
   assert.ok(steps(caller["pick-slot"]).includes("Check the WIP cap"));
   assert.ok(steps(caller.admit).includes("Wait for open blockers"));
@@ -4319,9 +4368,8 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.match(caller["resolve-issue"], /^ {6}start-gate: true$/m);
   assert.ok(!steps(read.run).some((name) => name.startsWith("Stop on a low GITHUB_TOKEN budget")));
   assert.doesNotMatch(read.run, /^ {10}budget:/m);
-  for (const id of ["broker-check", "run"]) {
-    assert.doesNotMatch(read[id], /^ {4}name:/m, `read runner job ${id} keeps its id as its name`);
-  }
+  assert.equal(shown(read["broker-check"]), "Broker Check");
+  assert.equal(shown(read.run), "Run");
   // The write runner mints; the read runner resolve-issue calls never does.
   assert.ok(Object.values(jobs(workflow("pr-run-activity-write.yml"))).some((block) => steps(block).includes("Request the lane token")));
   assert.ok(!Object.values(read).some((block) => steps(block).includes("Request the lane token")));

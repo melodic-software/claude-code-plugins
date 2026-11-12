@@ -124,11 +124,9 @@ concurrency:
 # carries the pull-request contract (title, do-not-merge label, issue linkage)
 # as steps of that one check.
 #
-# JOBS ARE NAMED <verb>-<domain>, AND THE JOB ID IS THE CHECK NAME. The verb
-# says what a job does: `lint` runs linters over source, `check` holds a
-# repository contract across files, `test` executes code. The domain says over
-# what: `repo`, `shell`, `plugins`, `catalog`, `skills`, or the ecosystem a test job runs
-# (`bash`, `python`, `node`). One marker, `mark-lanes`, one resolver,
+# JOB NAMES FOLLOW THE ORG NAMING LINT (melodic-software/standards
+# components/github-actions-conventions), which `lint-repo` runs.
+# One marker, `mark-lanes`, one resolver,
 # `select-tests`, ten working jobs,
 # `lint-repo`, `lint-shell`, `check-plugins`, `check-catalog`, `check-skills`, `test-bash`,
 # `test-python`, `test-node`, `check-managed-files` and `check-tests`, and one aggregate, job `ci-status`, whose
@@ -275,6 +273,7 @@ jobs:
   # besides `ci-status`, which runs no pull request code either.
   mark-lanes:
     # The contract-only gate, verbatim (see `select-tests`).
+    name: Mark Lanes
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 9
@@ -935,6 +934,7 @@ jobs:
     # govern exactly as before: the gate only subtracts the label-flip and
     # body-edit events, where the lanes would re-run a SHA a full run already
     # answered and `ci-status` carries that answer forward instead.
+    name: Select Tests
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 9
@@ -1335,6 +1335,7 @@ jobs:
   # and returns early from its own script when there is no base ref to diff
   # against.
   lint-repo:
+    name: Lint Repo
     needs: [select-tests]
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
@@ -1450,7 +1451,7 @@ jobs:
       # gate is ungated on purpose: a change that edits only the Implementers
       # table is docs-only, and that is exactly the edit that can leave the
       # generated block stale.
-      - name: Check the config-cascade semantics table against the Implementers rows
+      - name: Check the config-cascade semantics table against the `Implementers` rows
         id: config_cascade_semantics
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh config-cascade-semantics {0}
@@ -1853,7 +1854,7 @@ jobs:
 
       # Ungated for the same reason: the planning chain's `## Next` sections
       # are markdown, and a rename elsewhere can strand one of their targets.
-      - name: Check the planning chain's Next graph against the workflow ladder
+      - name: Check the planning chain's `Next` graph against the workflow ladder
         id: next_graph
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh next-graph {0}
@@ -1984,6 +1985,16 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh artifact-retention {0}
         run: scripts/check-artifact-retention.sh --check
 
+      # Workflow, job, step and action names against melodic-software/standards'
+      # github-actions-conventions naming lint, which the action runs from
+      # standards main. It checks out standards under the workspace, so it
+      # runs after every step that scans the tree.
+      - name: Check workflow and action naming
+        id: workflow_naming
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/check-workflow-naming@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
 
@@ -2010,7 +2021,7 @@ jobs:
           # the step log.
           CHECK_RUN_ID: ${{ job.check_run_id }}
           GH_TOKEN: ${{ github.token }}
-          STEP_LOG_CHECKS: markdown typos gitleaks lychee-offline editorconfig actionlint dependabot-schema workflow-schema exec-bit machine-specific-paths eol-renormalize comment-hygiene
+          STEP_LOG_CHECKS: markdown typos gitleaks lychee-offline editorconfig actionlint dependabot-schema workflow-schema exec-bit machine-specific-paths eol-renormalize comment-hygiene workflow-naming
           CHECK_RESULTS: |
             zizmor=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
             loop-lane-floor-drift=${{ steps.loop_lane_floor_drift.outcome }}
@@ -2038,6 +2049,7 @@ jobs:
             lychee-online-changed=${{ steps.lychee_online.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
             actionlint=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.actionlint.outcome }}
+            workflow-naming=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.workflow_naming.outcome }}
             dependabot-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.dependabot_schema.outcome }}
             workflow-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.workflow_schema.outcome }}
             exec-bit=${{ steps.exec_bit.outcome }}
@@ -2079,6 +2091,7 @@ jobs:
   # filter group). `ci-status` passes that skip only against the row, as it
   # does a test lane's.
   lint-shell:
+    name: Lint Shell
     needs: [select-tests]
     # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
     # this lane's ordered skip.
@@ -2356,6 +2369,7 @@ jobs:
   #
   # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-plugins:
+    name: Check Plugins
     needs: [select-tests]
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
@@ -2915,6 +2929,7 @@ jobs:
   #
   # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-catalog:
+    name: Check Catalog
     needs: [select-tests]
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
@@ -3058,6 +3073,7 @@ jobs:
   #
   # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-skills:
+    name: Check Skills
     needs: [select-tests]
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
@@ -3191,7 +3207,7 @@ jobs:
       # grandfathered). Lives outside the suite so a stale-base squash that
       # rewrites the test file alongside the collector cannot delete its own
       # defender (#2656).
-      - name: "Check every emitted fleet finding kind has a Finding: assertion"
+      - name: "Check every emitted fleet finding kind has a `Finding:` assertion"
         id: fleet_finding_test_coverage
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh fleet-finding-test-coverage {0}
@@ -3477,6 +3493,7 @@ jobs:
   # ceilings run one at a time regardless, from
   # scripts/run-plugin-tests-serial.txt, and the plan weighs them three times.
   test-bash:
+    name: Test Bash
     needs: [select-tests]
     # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
     # this lane's ordered skip.
@@ -3775,6 +3792,7 @@ jobs:
   # npm install come too: Python suites run the claude CLI from
   # node_modules/.bin and the inventory's parser packages through node.
   test-python:
+    name: Test Python
     needs: [select-tests]
     # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
     # this lane's ordered skip (see `test-bash`).
@@ -3918,6 +3936,7 @@ jobs:
   # (`PACKAGES`). A step for a package the plan does not name exits 0 on
   # its first line. One job: the chains measure 31 s together.
   test-node:
+    name: Test Node
     needs: [select-tests]
     # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
     # this lane's ordered skip (see `test-bash`).
@@ -4103,6 +4122,7 @@ jobs:
   # pr-check-managed-files-hosted.yml runs the same guard advisory and
   # paths-filtered; this job is the gate.
   check-managed-files:
+    name: Check Managed Files
     needs: [select-tests]
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
@@ -4136,6 +4156,7 @@ jobs:
   #
   # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-tests:
+    name: Check Tests
     needs: [select-tests]
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
@@ -5647,7 +5668,9 @@ jobs:
           # `ran` lists, per lane, the heads of its runs from this repository
           # started before the decision.
           notices='[]' vetted='' ran='[]'
-          # Each lane's status job name, as pr-review-cli.yml names it.
+          # Each lane's status job names, `|`-separated: its caller job's
+          # display name over pr-review-cli.yml's status job, then the caller
+          # job id, the name a head tested before the rename shows.
           while read -r file checks; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
             ran=$(jq -nc --argjson ran "$ran" --arg repo "$repo" --argjson decided "$decided_at" '$ran + [[inputs.workflow_runs[]
@@ -5678,8 +5701,8 @@ jobs:
             done < <(jq -nr --arg repo "$repo" --argjson since "$since" --argjson decided "$decided_at" '[inputs.workflow_runs[]
               | select(.head_repository.full_name == $repo)
               | select((.updated_at | fromdateiso8601) > $since or (.created_at | fromdateiso8601) < $decided) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
-          done <<<'pr-review-hosted.yml pr-review / review-status
-          pr-review-security-hosted.yml pr-review-security / review-status'
+          done <<<'pr-review-hosted.yml PR Review / review-status|pr-review / review-status
+          pr-review-security-hosted.yml PR Review Security / review-status|pr-review-security / review-status'
           # The decided head: the sha of the newest cost notice before the
           # decision that names its own run's head; none when two heads share
           # that time.
@@ -7113,10 +7136,12 @@ jobs:
           # melodic-standards-sync[bot], as
           # .github/standards/trusted-actors/trusted-actors.json lists them.
           exempt_author_ids='49699333 337859524 300666570'
-          # Each lane's status job name, as pr-review-cli.yml names it and the
-          # messages below name it.
-          lanes='pr-review-hosted.yml claude-review pr-review / review-status
-          pr-review-security-hosted.yml claude-security-review pr-review-security / review-status'
+          # Each lane's status job names, `|`-separated: its caller job's
+          # display name over pr-review-cli.yml's status job, the one the
+          # messages below name, then the caller job id, the name a head
+          # tested before the rename shows.
+          lanes='pr-review-hosted.yml claude-review PR Review / review-status|pr-review / review-status
+          pr-review-security-hosted.yml claude-security-review PR Review Security / review-status|pr-review-security / review-status'
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the head '$HEAD_SHA' is not a commit SHA."
             exit 1
@@ -7359,8 +7384,10 @@ jobs:
             url=$(jq -r .html_url <<<"$run")
             jobs=$(read_api "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100") || exit 1
             verdict=$(jq -r --arg checks "$checks" --arg run_status "$(jq -r .status <<<"$run")" '
-              (.jobs | map(select(.name | IN($checks | split("|")[]))) | max_by(.id)) as $s
-              | (.jobs | map(select(.name == "kill-switch")) | max_by(.id)) as $k
+              def newest($names): first($names[] as $n | .jobs | map(select(.name == $n)) | max_by(.id) | values) // null;
+              newest($checks | split("|")) as $s
+              # kill-switch: the job name a head tested before the rename shows.
+              | newest(["Kill Switch", "kill-switch"]) as $k
               | if $s != null and $s.status != "completed" then "pending"
                 elif $s.conclusion == "success" then
                   if any($s.steps[]?; .name == "Apply the hold" and .conclusion != null) | not then "unlisted \($s.id)"
