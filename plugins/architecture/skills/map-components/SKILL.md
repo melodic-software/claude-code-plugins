@@ -243,9 +243,7 @@ a `${user_config.*}` string in a shell command), and its report line is printed.
 - **A component diagram is one container.** Its elements are the components inside that one
   container. Pointer: when deciding a component view's scope or elements, fetch
   [C4 component diagram § Scope](https://c4model.com/diagrams/component#scope) and
-  [§ Primary elements](https://c4model.com/diagrams/component#primary-elements) live. As of:
-  2026-11-10. Recheck trigger: that page scopes a component diagram to something other than one
-  container, or names other primary elements.
+  [§ Primary elements](https://c4model.com/diagrams/component#primary-elements) live.
 - **C4-PlantUML component syntax: read against the README, never run.** The renderer writes the
   macros; a layer violation is a tagged `Rel` (`AddRelTag` plus `$tags`), never an
   `UpdateRelStyle` call. The `C4_Component` include name is our inference from the README's
@@ -254,8 +252,7 @@ a `${user_config.*}` string in a shell command), and its report line is printed.
   [C4-PlantUML README § Component diagram](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#component-diagram)
   and
   [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library)
-  live. As of: 2026-11-10. Recheck trigger: that README changes the component macros or the
-  include path, or a host with Java can run PlantUML over a rendered block.
+  live.
 - **LikeC4 component syntax: parsed by the CLI.** The record is a probe: `likec4@1.59.4
   validate` exits 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
   (`components.c4`, `components-aggregated.c4`), which `render-components.test.sh` diffs
@@ -263,8 +260,7 @@ a `${user_config.*}` string in a shell command), and its report line is printed.
   [LikeC4 specification § Element kind](https://likec4.dev/dsl/specification/#element-kind),
   [model § Element](https://likec4.dev/dsl/model/#element),
   [views § Scoped views](https://likec4.dev/dsl/views/#scoped-views) and
-  [styling § Relationship](https://likec4.dev/dsl/styling/#relationship) live. As of:
-  2026-11-10. Recheck trigger: any of those sections changes that syntax, or a newer `likec4`
+  [styling § Relationship](https://likec4.dev/dsl/styling/#relationship) live. As of: 2026-11-10. Recheck trigger: any of those sections changes that syntax, or a newer `likec4`
   release ships: set `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **The record is one object per line.** A node line starts with `{"id":`. An
   edge line starts with `{"from":`. Any other layout exits 1 and writes

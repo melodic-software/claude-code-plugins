@@ -431,6 +431,7 @@ const ENFORCEMENT_FILES = [
   ".github/scripts/apply-patch/predicates.mjs",
   ".github/scripts/apply-patch/protected-paths.mjs",
   ".github/scripts/lib/run-main.mjs",
+  ".github/scripts/lib/github-rest.mjs",
   ".github/scripts/pr-unblock/fix-ci-context.mjs",
   ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs",
   ".github/scripts/work-resolve-issue/stop-routes.json",
@@ -1714,11 +1715,6 @@ test("trackerBindingText: a .yaml file's tracker mapping as JSON, null when it b
   } finally {
     process.env.PATH = path;
   }
-});
-
-test("trackerBindingText: address-feedback.mjs keeps an identical copy, since the write runner loads pr-unblock alone", async () => {
-  const feedback = await import("../pr-unblock/address-feedback.mjs");
-  assert.equal(String(feedback.trackerBindingText), String(holdsModule.trackerBindingText));
 });
 
 test("queueHolds: the kill switch holds only the lanes App's pull request, until both read false", () => {

@@ -247,6 +247,8 @@ cd "${AFFECTED_TESTS_ROOT:-$SCRIPT_DIR/..}" || exit 2
 . "$SCRIPT_DIR/lib/pytest-python.sh" || exit 2
 # shellcheck source=lib/test-git-env.sh
 . "$SCRIPT_DIR/lib/test-git-env.sh" || exit 2
+# shellcheck source=lib/shard-spec.sh
+. "$SCRIPT_DIR/lib/shard-spec.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
 SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-}"
@@ -285,22 +287,6 @@ shard_given=0
 shard_index=0
 shard_total=1
 declare -a explicit_paths=()
-
-# parse_shard <spec>: accept exactly `<i>/<n>` with i and n decimal, n >= 1 and
-# 0 <= i < n. A spec this function cannot read must never become leg 0 of 1,
-# which RUNS EVERYTHING and would report a full pass from a typo'd fan-out.
-parse_shard() {
-  local spec="$1" i n
-  [[ "$spec" =~ ^[0-9]+/[0-9]+$ ]] || return 1
-  i="${spec%%/*}"
-  n="${spec##*/}"
-  # Strip leading zeros so `08` is 8 rather than an octal parse error.
-  i=$((10#$i))
-  n=$((10#$n))
-  ((n >= 1 && i < n)) || return 1
-  shard_index="$i"
-  shard_total="$n"
-}
 
 # need_value <flag> <argc> <value> <what>: usage errors exit 2, never 1, which
 # is spoken for by an unmapped file and a failing suite.

@@ -61,9 +61,11 @@ its own context on demand: the model cannot `/clear` itself from a loop re-run.
 - **Recheck trigger**: that section says a loop re-run starts a fresh context or
   runs built-in commands.
 
-Any "restart the loop when context passes ~N%" discipline is
-therefore an admonition with no in-session enforcement, the lane has no reliable way
-to measure its own context usage and no way to act on the threshold if it could.
+Any "restart the loop when context passes ~N%" discipline has no in-session enforcement.
+Where the context-guard module loads, it writes the session's context snapshot in `-p` and
+`--bg` sessions too, so a lane can read its own zone from that snapshot; zone lines reach the
+model only with context-guard's `model_notices` option on, which is off by default. A lane still
+cannot reset its own context from inside the loop.
 
 The context change that *does* happen automatically in-session is Claude Code's
 **auto-compaction**: when the conversation nears the model's input limit, older
@@ -75,11 +77,12 @@ relaunch, not keep every turn until then.
 `restart` (stop the session, relaunch from the canonical prompt) is the only
 *fresh-session* reset: the relaunched lane starts a **fresh** session seeded from the
 prompt file, carrying none of the prior conversation. That reset is **operator- or
-launcher-initiated**, not automatic. There is no per-cycle or threshold trigger that
-runs `restart` for you today. Auto-compaction can still fire between restarts, but it
-only summarizes; it does not clear the accumulated, increasingly degraded context.
-Until an automatic relaunch trigger exists, treat the periodic `restart` (e.g. the
-morning refresh) as the mechanism that keeps long-running lanes off a stale,
+launcher-initiated**, not automatic. `consume-restarts run` relaunches a stopped lane whose
+telemetry carries a `restart_request` (written on a cycle-budget or `/loop` expiry hit), once the
+operator registers its OS schedule; nothing relaunches a lane on a context threshold or after a
+crash. Auto-compaction can still fire between restarts, but it only summarizes; it does not clear
+the accumulated, increasingly degraded context. For a lane that never asks, treat the periodic
+`restart` (e.g. the morning refresh) as the mechanism that keeps long-running lanes off a stale,
 repeatedly-compacted context, and do not let a lane prompt assume each `/loop` cycle
 begins with fresh context.
 

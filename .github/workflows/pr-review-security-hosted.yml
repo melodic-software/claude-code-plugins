@@ -462,6 +462,7 @@ jobs:
         lib/publish-gate.mjs
         .github/recurring-schedule.json
         .github/scripts/recurring-schedule/file-due.mjs
+        .github/scripts/lib/github-rest.mjs
         plugins/work-items/scripts/charge-words.json
         .github/scripts/pr-unblock/dependency-classify.mjs
         .github/scripts/apply-patch/apply-patch.mjs

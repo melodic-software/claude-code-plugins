@@ -76,9 +76,6 @@ exclude it.)
   <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
   live for what a fork inherits; for the skill-side `context: fork` contrast, fetch
   <https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents> live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes what a fork inherits from the main
-  session, or whether a skill run with `context: fork` starts without conversation history.
 
 The findings return to this thread, and remediation proceeds *with* the user
 (delta 2).
