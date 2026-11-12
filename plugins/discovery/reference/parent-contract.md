@@ -417,7 +417,7 @@ that carries the detail; none restates the page.
   permissions, effort substitution, built-in subagent capabilities, subagent model resolution,
   per-invocation subagent parameters, turn-limit output or partial marking, or `SendMessage`
   resume, or the CLI major version moves. On any of those, re-read the pointer before restating
-  the record, and re-date it rather than editing a claim in place.
+  the record.
 
 ### A preloaded skill that does not load
 

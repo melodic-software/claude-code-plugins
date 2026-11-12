@@ -2,19 +2,19 @@
 
 Detail behind the boundary section in
 [SKILL.md](../SKILL.md#boundary-the-bundled-simplify-skill). Each row states the decision this skill takes about the bundled
-surface, the upstream section to read for the current behavior, the date it was checked, and the
-event that makes it worth checking again. The sibling `tidy` skill keeps its own record against
+surface, the upstream section to read for the current behavior, and the event that makes it worth
+checking again. The sibling `tidy` skill keeps its own record against
 the same surface in
 [../../tidy/reference/bundled-simplify.md](../../tidy/reference/bundled-simplify.md#decision-records).
 
 ## Decision records
 
-| Decision | Pointer | As of | Recheck trigger |
-|---|---|---|---|
-| Treat `simplify` as a bundled skill invoked by its own name, never through an alias | The `/simplify` row in [All commands](https://code.claude.com/docs/en/commands#all-commands) | 2026-10-11 | The row gains an alias or stops being labeled Skill |
-| Treat every `simplify` run as a mutating pass, so the Native step's mutation gate applies | The same row | 2026-10-11 | The row documents a report-only mode or a flag that turns applying off |
-| Give it one group's file list per run, never a time window or a whole repository. One target may already span many files, so the registry row's trigger, "a multi-file argument form", is half fired; what still separates the two skills is the time window, the repository mode, and ecosystem grouping | The same row, for the targets it takes | 2026-10-11 | The row gains a time-window argument, a repository mode, or ecosystem grouping |
-| Check presence every run; a session where it does not resolve is an ordinary session | [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills), for what turns bundled skills off | 2026-10-11 | That section changes the settings that turn a bundled skill off |
+| Decision | Pointer | Recheck trigger |
+|---|---|---|
+| Treat `simplify` as a bundled skill invoked by its own name, never through an alias | The `/simplify` row in [All commands](https://code.claude.com/docs/en/commands#all-commands) | The row gains an alias or stops being labeled Skill |
+| Treat every `simplify` run as a mutating pass, so the Native step's mutation gate applies | The same row | The row documents a report-only mode or a flag that turns applying off |
+| Give it one group's file list per run, never a time window or a whole repository. One target may already span many files, so the registry row's trigger, "a multi-file argument form", is half fired; what still separates the two skills is the time window, the repository mode, and ecosystem grouping | The same row, for the targets it takes | The row gains a time-window argument, a repository mode, or ecosystem grouping |
+| Check presence every run; a session where it does not resolve is an ordinary session | [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills), for what turns bundled skills off | That section changes the settings that turn a bundled skill off |
 
 ## Why the verdict is complementary
 

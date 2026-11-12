@@ -299,7 +299,7 @@ the former default-on pause).
    `/harness-ops:lanes` launches) to keep the record Write in place. A live probe (`claude --bg`, Claude Code 2.1.285) from a linked worktree outside
    `.claude/worktrees` wrote the record file there with no refusal, as did an earlier lane
    (worktree `cc-plugins-lane-2`). A launch from a checkout that is not a linked worktree is not the
-   recommended mode: one lane's record Write there was refused (the refusal is on #4598), and the
+   recommended mode: one lane's record Write there was refused (the refusal is on the issue the pointer below names), and the
    other outcome of that launch was not probed here. Either way
    the tracker marker comment is the escalation of record, and a refused record Write does not stop
    the cycle. This lane must not call `EnterWorktree` (it would end the long-lived orchestrator), so
