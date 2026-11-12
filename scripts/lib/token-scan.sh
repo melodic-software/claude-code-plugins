@@ -1,5 +1,6 @@
 # shellcheck shell=bash
-# Shared awk-operand handling for the token-list scanners. Sourced, never executed.
+# Shared token-list loading and awk-operand handling for the token-list scanners.
+# Sourced, never executed.
 #
 # check-shell-portability.sh and check-skill-portability.sh are twins: both load
 # a `<token> <ere>` data file with awk's `FNR == NR` idiom and then scan a file
@@ -23,8 +24,9 @@
 # pathspecs, apply different scannability predicates, and only
 # check-shell-portability.sh consults a skill-markdown baseline. Hoisting a
 # parameterized dispatcher over those differences would trade a real duplicate
-# for a fake abstraction -- so this file owns the one thing the two genuinely
-# share.
+# for a fake abstraction -- so this file owns what the two genuinely share: the
+# operand guard and the token-list load. The load calls read_list::into, so a
+# caller sources read-list.sh too.
 
 # token_scan::awk_operand <path>
 #
@@ -48,4 +50,39 @@ token_scan::require_token_file() {
     printf 'Error: token list not found: %s\n' "$1" >&2
     return 1
   fi
+}
+
+# token_scan::load_active <token-file> <active-var> <operand-var>
+#
+# Loads <token-file>'s active patterns into a temp file, names that file in the
+# caller's <active-var>, and puts its awk operand in <operand-var>. Returns
+# non-zero (caller exits 2) when the file is missing, unreadable, yields no
+# active patterns, or the temp file cannot be made.
+#
+# Comment and blank lines go through the shared rule in read-list.sh (#3161) in
+# `leading` mode: an entry is an ERE (or a `!class` token) and may contain a
+# `#`, so only a line that BEGINS with one is a comment. `!class` lines count as
+# active. The empty-set guard is why the list is resolved in the shell: a list
+# with no active patterns makes every file report clean while awk exits 0, the
+# gate passing while gating nothing (#1513).
+#
+# Call it plainly, never inside `$(...)`: it sets the EXIT trap that removes the
+# temp file, and a subshell would drop both the trap and the variables. The trap
+# names <active-var>, read at exit, so both variables must be top-level ones the
+# caller declares before the call, named outside this function's `_ts_` prefix.
+token_scan::load_active() {
+  local _ts_src="$1"
+  local -n _ts_active="$2" _ts_operand="$3"
+  local _ts_patterns=()
+  token_scan::require_token_file "$_ts_src" || return 1
+  read_list::into _ts_patterns "$_ts_src" --comments leading || return 1
+  if ((${#_ts_patterns[@]} == 0)); then
+    printf 'Error: token list loaded no active patterns: %s\n' "$_ts_src" >&2
+    return 1
+  fi
+  _ts_active="$(mktemp)" || return 1
+  # shellcheck disable=SC2064 # the variable NAME is fixed now; its value expands at exit
+  trap "rm -f \"\$$2\"" EXIT
+  printf '%s\n' "${_ts_patterns[@]}" >"$_ts_active"
+  _ts_operand="$(token_scan::awk_operand "$_ts_active")"
 }

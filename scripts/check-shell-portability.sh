@@ -226,39 +226,13 @@ if [[ ! -f "$SCAN_AWK" ]]; then
   exit 2
 fi
 
-# A missing token list fails the gate closed, and it fails HERE with a path in
-# the diagnostic rather than later as an empty pattern set: no list means no
-# patterns, and a scan with no patterns is not a clean scan. The awk operand
-# disambiguation that keeps a path shaped like identifier=value
-# (`tokens=custom.txt`) from being parsed as a variable assignment rather than
-# opened (which would leave the `FNR == NR` loading pass unrun, no patterns
-# active, and every file reporting clean while awk still exits 0) is applied
-# below, to the active-pattern file that is what actually reaches awk. Both live
-# in the library shared with check-skill-portability.sh.
+# Active patterns are resolved HERE, before any scan, so a missing list or one
+# with no active patterns fails the gate closed with the path in the diagnostic.
+# The awk-side `np == 0 && ncls == 0` check stays as defense in depth.
 TOKENS_SRC="${SHELL_PORTABILITY_TOKENS:-scripts/shell-portability-tokens.txt}"
-if ! token_scan::require_token_file "$TOKENS_SRC"; then
-  exit 2
-fi
-
-# Active patterns are resolved HERE instead of inside the awk program, so the
-# comment/blank rule is the shared one (#3161) rather than a private copy — and
-# so this gate stops carrying TWO different rules, since its skill-md baseline
-# above already goes through the same library in `inline` mode. `leading` here:
-# an entry is an ERE (or a `!class` token) and may legitimately contain a `#`.
-#
-# `!class` lines count as active, so the empty-set guard below fires only when
-# the list yields nothing at all — matching the awk-side `np == 0 && ncls == 0`
-# check, which stays as defense in depth.
-token_patterns=()
-read_list::into token_patterns "$TOKENS_SRC" --comments leading || exit 2
-if ((${#token_patterns[@]} == 0)); then
-  printf 'Error: token list loaded no active patterns: %s\n' "$TOKENS_SRC" >&2
-  exit 2
-fi
-TOKENS_ACTIVE="$(mktemp)" || exit 2
-trap 'rm -f "$TOKENS_ACTIVE"' EXIT
-printf '%s\n' "${token_patterns[@]}" >"$TOKENS_ACTIVE"
-TOKENS="$(token_scan::awk_operand "$TOKENS_ACTIVE")"
+# shellcheck disable=SC2034 # TOKENS_ACTIVE is set by load_active and read by its EXIT trap
+TOKENS_ACTIVE='' TOKENS=''
+token_scan::load_active "$TOKENS_SRC" TOKENS_ACTIVE TOKENS || exit 2
 
 # Pre-existing skill-markdown debt (#2704): widening selection onto every
 # SKILL.md / context/*.md / reference/*.md that already carries a token hit

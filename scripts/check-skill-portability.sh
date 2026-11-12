@@ -73,36 +73,12 @@ cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
-# A missing token list fails the gate closed, and it fails HERE with a path in
-# the diagnostic rather than later as an empty pattern set: no list means no
-# patterns, and a scan with no patterns is not a clean scan. The awk operand
-# disambiguation that keeps a path shaped like `tokens=custom.txt` from parsing
-# as a variable assignment is applied below, to the active-pattern file that is
-# what actually reaches awk. Both live in the library shared with the twin
-# scanner, so the two cannot diverge.
+# Active patterns are resolved HERE, before any scan, so a missing list or one
+# with no active patterns fails the gate closed with the path in the diagnostic.
 TOKENS_SRC="${SKILL_PORTABILITY_TOKENS:-scripts/skill-portability-tokens.txt}"
-if ! token_scan::require_token_file "$TOKENS_SRC"; then
-  exit 2
-fi
-
-# Active patterns are resolved HERE instead of inside the awk program, so the
-# comment/blank rule is the shared one (#3161) rather than a fifth private copy.
-# `leading`: an entry is an ERE and may legitimately contain a `#`, so only a
-# line that BEGINS with one is a comment — see scripts/lib/read-list.sh.
-#
-# The empty-set guard is the point of doing it here. A token list that loads no
-# active patterns makes every file report clean while awk exits 0 — the gate
-# passing while gating nothing, the #1513 shape.
-token_patterns=()
-read_list::into token_patterns "$TOKENS_SRC" --comments leading || exit 2
-if ((${#token_patterns[@]} == 0)); then
-  printf 'Error: token list loaded no active patterns: %s\n' "$TOKENS_SRC" >&2
-  exit 2
-fi
-TOKENS_ACTIVE="$(mktemp)" || exit 2
-trap 'rm -f "$TOKENS_ACTIVE"' EXIT
-printf '%s\n' "${token_patterns[@]}" >"$TOKENS_ACTIVE"
-TOKENS="$(token_scan::awk_operand "$TOKENS_ACTIVE")"
+# shellcheck disable=SC2034 # TOKENS_ACTIVE is set by load_active and read by its EXIT trap
+TOKENS_ACTIVE='' TOKENS=''
+token_scan::load_active "$TOKENS_SRC" TOKENS_ACTIVE TOKENS || exit 2
 
 usage() {
   printf 'usage: check-skill-portability.sh <base-ref> | --all | --paths FILE...\n' >&2
