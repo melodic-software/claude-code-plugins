@@ -54,7 +54,7 @@ roles:
     pointer_levels: https://code.claude.com/docs/en/model-config#choose-an-effort-level
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     as_of: 2026-11-09
-    recheck: the guide's task table changes the starting effort for leading many subagents, model-config's effort table changes the row for verification-heavy work, the cost page's orchestrator-strategy section changes which model holds the loop, or a Claude Code release edits the bundled /workflow-authoring skill
+    recheck: the guide's task table changes the starting effort for leading many subagents, model-config's effort table changes the row for verification-heavy work, the cost page's orchestrator-strategy section changes which model holds the loop, the Projects page's coordinator default changes (https://code.claude.com/docs/en/claude-projects#choose-models-and-let-claude-manage-context; the CLI changelog does not track Projects), or a Claude Code release edits the bundled /workflow-authoring skill
   worker:
     model: inherit
     effort: medium

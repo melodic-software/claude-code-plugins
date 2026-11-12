@@ -280,7 +280,8 @@ brief the diff file, PR context file, settled-threads file and prior-findings fi
 when the wrapper named them: a subagent of a lane without Bash has no other way to the diff. The producer of a
 finding must not be the verifier. Drop candidates the verifier rejects, except a
 `manifest <field>: flag` line, which a verifier never drops: the diff hitting the item is the
-evidence. Committable
+evidence. End the summary with one line, `Verifier dropped N of M candidates.`, so verifier
+precision can be baselined across runs. Committable
 suggestion fences (GitHub `suggestion` code blocks) are allowed only when the
 suggestion alone fully fixes the finding on the anchored lines.
 
