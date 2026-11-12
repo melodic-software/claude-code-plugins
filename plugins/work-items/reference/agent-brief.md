@@ -31,7 +31,7 @@ Each pair below comes from one of two changes, a retry backoff cap and a CSV exp
 The brief's fields are the `agent-ready` type of the issue-body contract
 ([`${CLAUDE_PLUGIN_ROOT}/reference/issue-body-contract.json`](${CLAUDE_PLUGIN_ROOT}/reference/issue-body-contract.json)),
 the record the org agent-ready issue form is generated from. Write one `### <heading>` per entry of
-its `fields`, in contract order, under the `## Agent Brief` heading; a form-filed item already
+its `fields`, in issue-body contract order, under the `## Agent Brief` heading; a form-filed item already
 carries them as `###` sections. The type is the issue's own (native Issue Type on org repos, `type:`
 label on personal / non-org repos), never a brief field. Each field's `description` says what it
 holds; the rules table above says how to write the four that go stale. Shape:
