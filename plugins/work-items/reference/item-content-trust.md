@@ -94,8 +94,7 @@ These are instances of the rule above, not separate rules:
   applies the autonomous-eligible label to every briefed delegable item.
 - **Who applied the label**: a label's presence shows only that someone with label rights set it,
   and on GitHub the triage role has label rights with `read` permission (pointer:
-  [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user),
-  as of 2026-10-04, recheck trigger: the endpoint's role mapping changes). Before `work-loop`
+  [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)). Before `work-loop`
   admits an item on its autonomous-eligible role label, it reads the
   latest application of that label from the item's timeline and admits only when that labeler
   holds `write`, `maintain` or `admin`; a triage or read labeler, a missing event, or a failed

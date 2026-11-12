@@ -14,7 +14,7 @@ List work items with optional filtering.
 - `--label <name>` -- Filter by any label (repeatable, AND logic)
 - `--state <s>` -- `open` (default), `closed`, `all`
 - `--assignee <login>` -- Filter by assignee (`@me` for self)
-- `--limit <n>` -- Max results (default: 30; the per-request maximum: [`gh issue list` options](https://cli.github.com/manual/gh_issue_list#options), as of 2026-11-10; recheck when gh changes the `--limit` bound)
+- `--limit <n>` -- Max results (default: 30; the per-request maximum: [`gh issue list` options](https://cli.github.com/manual/gh_issue_list#options))
 - `--search <query>` -- Free search using the bound provider's search syntax
 - `--parent <id>` -- List one container's direct children, any state unless `--state` narrows it (seam `list-sub-items`); the other filters do not combine with it
 

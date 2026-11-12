@@ -30,9 +30,6 @@ the script never runs, so there is no exit code to read.
   live; when checking which plugin `settings.json` keys take effect, fetch
   [plugins manifest reference § Settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: any of those sections changes, or a release note names protected paths, the
-  auto-mode classifier, or plugin `settings.json` keys.
 
 So the operative grants live **operator-side**, and the loop-start step only **detects and reports**
 the gap once, up front. It never edits settings, and never retries a permission/classifier denial
@@ -60,8 +57,7 @@ of this doc alone; confirm the carve-out first.
 - **Pointer**: before adding a `reclaim` allow rule, fetch
   [settings reference § `autoMode.classifyAllShell`](https://code.claude.com/docs/en/settings-reference#automode-classifyallshell)
   and [permission modes § How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions)
-  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes which allow rules auto
-  mode suspends, or a release note names `classifyAllShell`.
+  live.
 
 `/work-items:work`'s Step 0 treats a classifier denial of
 `reclaim` as a non-blocking, report-once-and-skip condition (see
@@ -104,15 +100,12 @@ and the project settings. It never runs a live permission probe. A verb counts a
 coverage, because a work-lane invocation always carries arguments. When a gapped verb has *only* a
 bare-exact grant, the gap message names it, and the remedy is to add the open glob
 (`git commit *`). What each rule shape matches is read live at
-[permissions § Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns)
-(as of 2026-11-03; recheck when that section changes what a rule with no `*`, or with a trailing
-`*`, matches). A missing
+[permissions § Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns). A missing
 verb means the floor is not composed in on this machine; the remediation is to apply the component
 operator-side, not to add a one-off rule.
 
 **Deny wins over allow.** The check follows the permission model's rule precedence
-([permissions § Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions);
-**As of**: 2026-10-11; **Recheck trigger**: that section changes how deny and allow rules rank), so
+([permissions § Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions)), so
 it first tests each probed verb against the effective **deny** rules: a deny rule of
 the verb (bare, or its open-glob form) keeps the verb a gap (reported distinctly as *denied*, not
 *missing*) even when an identical allow rule exists, since the lane still cannot run it. Deny matching
@@ -151,9 +144,7 @@ cannot be determined (the platform, an owner or the current uid is unreadable, o
   [permissions § Permission system](https://code.claude.com/docs/en/permissions#permission-system),
   [worktrees § What worktrees share with the main checkout](https://code.claude.com/docs/en/worktrees#what-worktrees-share-with-the-main-checkout)
   and [settings § Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
-  live. **As of**: 2026-10-18. **Recheck trigger**: any of these sections changes where "Yes, don't
-  ask again" saves the rule, how it resolves through worktrees, or the list of cases that keep the
-  file with the worktree.
+  live.
 
 Where the shared save applies, the main
 checkout's local file is therefore part of a fresh worker worktree's effective settings, and the
@@ -172,9 +163,7 @@ one). The candidates:
 2. **`core.worktree`** in the common dir's config, resolved relative to that dir. It is the
    candidate for a submodule's `<super>/.git/modules/<name>` common dir, which no parent-of-`.git`
    arithmetic can invert. Where git sets the key, and how a relative value resolves, is read live
-   at [git-config § core.worktree](https://git-scm.com/docs/git-config#Documentation/git-config.txt-coreworktree)
-   (as of 2026-11-03; recheck when that entry changes how a relative value resolves or what
-   overrides it).
+   at [git-config § core.worktree](https://git-scm.com/docs/git-config#Documentation/git-config.txt-coreworktree).
 3. **The conventional `<root>/.git` spelling**, the parent of the common dir.
 
 Resolution has three outcomes, and the report distinguishes them:
@@ -249,8 +238,7 @@ The lanes rely on `acceptEdits` only for writes inside the workspace root and tr
 
 - **Pointer**: when checking which writes `acceptEdits` approves, fetch
   [permission modes § Auto-approve file edits with acceptEdits mode](https://code.claude.com/docs/en/permission-modes#auto-approve-file-edits-with-acceptedits-mode)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes the scope of writes
-  `acceptEdits` approves, or a release note names `acceptEdits`.
+  live.
 
 The autonomous lanes dispatch implementation subagents into their own out-of-tree
 worktrees (lifecycle owned by `source-control:worktree`), so every edit in a worktree is an
@@ -265,8 +253,7 @@ Code's default worktree location; `babysit-prs` defaults its `babysit_worktree_r
 - **Pointer**: when comparing the fleet root with Claude Code's own placement, fetch
   [worktrees § Start Claude in a worktree](https://code.claude.com/docs/en/worktrees#start-claude-in-a-worktree)
   and [§ Replace worktree creation with a hook](https://code.claude.com/docs/en/worktrees#replace-worktree-creation-with-a-hook)
-  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes where worktrees are
-  created by default, or a release note names worktree placement.
+  live.
 
 The exact root is operator-configurable and not yet a
 single documented constant across the fleet (the interim loop stopgap trusts `~/.claude-loop-worktrees`),

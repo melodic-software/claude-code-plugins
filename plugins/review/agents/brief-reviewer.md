@@ -36,7 +36,6 @@ it resolves to under a given session model is read live from the pointer below.
   [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model);
   for which tools a definition's `tools` list withholds, see
   [create custom subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
-- **As of:** 2026-11-09.
 - **Recheck trigger:** next model release, or that section changes how an omitted `tools` entry
   is withheld from a subagent, or "Choose a model" changes when a family alias resolves to the
   session's model.

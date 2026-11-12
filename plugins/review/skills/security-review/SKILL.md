@@ -14,7 +14,7 @@ Org-owned security review logic for the `claude-security-review` reusable
 workflow. We treat built-in `/security-review` as unusable in CI. Pointer: when judging whether it
 can run under a CI checkout, fetch
 [errors: /security-review fails without origin/HEAD](https://code.claude.com/docs/en/errors#security-review-fails-without-origin-head)
-live. As of: 2026-11-10. Recheck trigger: that entry stops naming CI checkouts, the command gains
+live. Recheck trigger: that entry stops naming CI checkouts, the command gains
 a diff base a CI checkout provides, or the command gains a way to post to a PR. This org-authored skill is
 the CI path. The lane wrapper supplies `REPO` /
 `PR NUMBER` / `HEAD SHA` and installs the inline-comment MCP server via
@@ -29,8 +29,7 @@ request:
   pass over the current branch, with no PR target this lane could hand it. Pointer: the first row
   of
   [reference/bundled-security-review.md](reference/bundled-security-review.md#the-native-security-review-command-verification-record)
-  carries that record. As of: 2026-11-10. Recheck trigger: that row moves or stops carrying its own
-  pointer and trigger. It cannot run under the Actions checkout (the opening paragraph carries that
+  carries that record. It cannot run under the Actions checkout (the opening paragraph carries that
   record).
 - **This skill (marketplace plugin).** The security logic the `claude-security-review` reusable
   workflow runs in CI. The wrapper supplies the target and owns posting; this skill owns what to
@@ -74,7 +73,6 @@ CI lane alone gets, so it is not used here; on the seat the transcript is the re
 - This skill's frontmatter does not install the inline-comment MCP server; the action's
   `claude_args` does. Rely on the wrapper grant. Pointer: the keys skill frontmatter accepts are
   read at [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
-  As of: 2026-10-11. Recheck trigger: that section adds a key that declares an MCP server.
 - The frontmatter's `gh` grants serve seat-run mode and a wrapper that runs with Bash. A lane that
   runs without Bash cannot use them: there the files the wrapper names ("Inputs" below) are the
   only source of the diff, and skip-gate items 1 and 3 are the wrapper's job gate and scope step,
@@ -303,8 +301,7 @@ eligible for skip 2. Compare the base and head manifests:
   reads it>`, and no inline comment and no `severity:` line; it adds nothing to the findings
   total or `critical-findings: <n>` and never sets `hold`. Pointer: the resolver's trust rules are
   pinned by `lib/view-settings.test.mjs`, the block "a publishing value counts only from a trusted
-  scope". As of: 2026-11-03. Recheck trigger: that block is removed, or a `medium` key stops
-  resolving through `view-settings.mjs`.
+  scope".
 - An inert key is advisory too. Judge the guard bullet first; a key it makes a finding stays one.
   An added or changed `userConfig` key is inert when all of these hold: its `type` is `number` or
   `boolean`; it is not `sensitive`; and, searched across the changed plugin's files in the repository under review at head, its only
@@ -346,16 +343,13 @@ as on in every other case; an opt-in entry's flag, and the keys of the new plugi
 IMPORTANT. Every other flag is IMPORTANT unless it meets the severity bar. Pointer: what
 `defaultEnabled` controls is read at
 [marketplace reference: Plugin entries](https://code.claude.com/docs/en/plugins/marketplace-reference#plugin-entries).
-As of: 2026-10-27. Recheck trigger: that section changes what `defaultEnabled` controls or its
-precedence over `plugin.json`.
 
 The pointers below are reading material for naming what a flagged field runs, never the test
 for whether it is flagged. Pointer: what each field loads, runs, grants, or stores is read at
 [plugin manifest reference: Fields](https://code.claude.com/docs/en/plugins/manifest-reference#fields),
 [Component path forms](https://code.claude.com/docs/en/plugins/manifest-reference#component-path-forms),
 [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration), and
-[Channels](https://code.claude.com/docs/en/plugins/manifest-reference#channels). As of: 2026-11-04.
-Recheck trigger: any of those sections changes.
+[Channels](https://code.claude.com/docs/en/plugins/manifest-reference#channels).
 
 ## High-signal bar
 

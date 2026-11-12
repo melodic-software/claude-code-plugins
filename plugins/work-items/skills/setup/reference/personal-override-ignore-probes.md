@@ -11,8 +11,7 @@ same probes; this file is the single description of them. While a legacy
 The personal override must be both **ignore-matched** and **absent from the index**, and those are two
 independent facts that need opposite remediations. A bare `git check-ignore` cannot separate
 them: for an already-tracked path its silence means either "no rule covers this" or "a rule covers it but the file was committed anyway"
-([git check-ignore](https://git-scm.com/docs/git-check-ignore#_description), as of 2026-11-10;
-recheck when that page changes how it reports a tracked path or what `-v` reports).
+([git check-ignore](https://git-scm.com/docs/git-check-ignore#_description)).
 Reading that silence as the former makes `apply` append an ignore line that changes nothing,
 then announce it as the fix while a credential-bearing file stays in team history.
 

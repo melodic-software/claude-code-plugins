@@ -44,5 +44,3 @@ and effort hold and the lane's step timeout stays within reach.
 
 - **Pointer:** for how a `tools` list withholds tools from a subagent, see
   [create custom subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
-- **As of:** 2026-10-04.
-- **Recheck trigger:** that section changes how an omitted `tools` entry is withheld.

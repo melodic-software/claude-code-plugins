@@ -81,7 +81,7 @@ This skill never relies on a permission prompt to stop an Artifact publish: the 
 
 The gate takes no repository or visibility argument: it reads the repository and host from the pull request `url` in step 1's `facts.json` and looks up that repository's visibility itself, the way `publish-hosted.mjs` does; no visibility from the facts file or the model reaches it. A missing facts file, one with no pull request URL, a host this machine is not logged in to, or a failed lookup gates as `UNKNOWN`. Pass `--explicit` only when step 1's `medium.explicit` is `true`, that is, the reader's own setting chose `artifact`, never the shipped default. The gate prints the `medium` to use and why:
 
-- `artifact`: say "publishing as a private Artifact on claude.ai" before publishing, then publish that file with the Artifact tool. Who can see a published Artifact is read at [artifacts: create an artifact](https://code.claude.com/docs/en/artifacts#create-an-artifact); as of 2026-10-11; recheck trigger: that section stops saying a published artifact stays private until shared, and then drop "private" from the line above. When the tool is unavailable or refused, give the path and say why.
+- `artifact`: say "publishing as a private Artifact on claude.ai" before publishing, then publish that file with the Artifact tool. Who can see a published Artifact is read at [artifacts: create an artifact](https://code.claude.com/docs/en/artifacts#create-an-artifact); recheck trigger: that section stops saying a published artifact stays private until shared, and then drop "private" from the line above. When the tool is unavailable or refused, give the path and say why.
 - `file`: the shipped default met a repository that is not `PUBLIC`, or a hunk shaped like a credential. Do not publish. Give the path, the gate's `reason`, and its `opt_in` as it stands: it names the review plugin's `medium` setting that publishes such pages anyway.
 - `medium: file` from step 1: tell the reader the path. A reader who keeps digests on their machine sets the review plugin's `medium` option to `file`.
 
@@ -144,8 +144,6 @@ Both can put a page about one pull request on claude.ai, so the two get confused
 **Availability is never assumed.** The bundled skill is gated; this section says what to do when it resolves, never that it is present.
 
 - **Pointer**: the `artifact-pr-review` row in [`docs/native-surfaces.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/native-surfaces.md); no upstream page documents the skill.
-- **As of**: 2026-10-04
-- **Recheck trigger**: a Claude Code release removes, renames, or ungates `artifact-pr-review` or changes its description, or the commands reference documents it.
 
 ## Next
 

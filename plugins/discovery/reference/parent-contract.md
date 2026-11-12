@@ -115,7 +115,7 @@ never raises it: write the lower of the token and `${CLAUDE_EFFORT}`, and write 
 `Budget:` word. Explore
 and trace-intent write neither line. A research worker that does not receive `Source breadth:`
 treats the run as `high` and names that default in the artifact, the same fallback as an
-unsubstituted body. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
+unsubstituted body. Record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "`${CLAUDE_EFFORT}` is the loading context's level".
 
 Write `Evidence use: publish` when the output will be quoted outside this session: a
@@ -148,7 +148,7 @@ spends `maxTurns: 40`: `researcher` and `intent-tracer` at `effort: high`, and `
 `effort: medium`, the effort floor, because its turns go almost entirely to reading. Why 40 stays
 is the harness-facts record "`maxTurns` is set per definition, so 40 is a checkpoint, not a
 completion budget". How the pin and the per-call parameter rank against the consumer's
-subagent-model environment settings is not restated here. Dated record:
+subagent-model environment settings is not restated here. Record:
 [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "A per-invocation `model` outranks a subagent's frontmatter".
 
@@ -238,8 +238,6 @@ one.
   [subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents);
   for the analogue, see
   [skills: run skills in a subagent](https://code.claude.com/docs/en/skills#run-skills-in-a-subagent).
-- **As of**: 2026-10-01
-- **Recheck trigger**: either page starts describing argument substitution on the preload path.
 
 **Re-check both pages before restating any mechanism here.** Through 0.14.0 this plugin asserted a
 specific empty-string rendering of the placeholder on the preload path as settled fact, at five
@@ -266,9 +264,6 @@ than each carrying its own copy.
   [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions);
   for the order of argument insertion and variable replacement, see
   [skills: pass arguments to skills](https://code.claude.com/docs/en/skills#pass-arguments-to-skills).
-- **As of**: 2026-10-01
-- **Recheck trigger**: the skills page changes the order of argument insertion and variable
-  replacement, or adds an escape for the `${CLAUDE_…}` variables.
 
 Practically: name a path in plain words rather than passing a `${CLAUDE_…}` token and expecting it
 back. The `topic_as_received` / `scope_as_received` echo-back in the acceptance gate is what catches
@@ -306,25 +301,19 @@ in settings does block the command, for subagents as well as the main conversati
 
 - **Pointer**: for both, see
   [subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section changes how a `disallowedTools` specifier or a settings deny
-  rule applies to a subagent, or a release note names `disallowedTools` specifier matching or
-  subagent permission inheritance.
 
 Command deny rules are a partial guardrail, not the boundary. `Bash(git credential *)` or
 `Bash(gh auth token*)` (each with its `PowerShell(...)` twin, because a background subagent keeps
 `PowerShell`) blocks that one spelling; `printenv`, a `python -c` or `node -e` reader, and every
 other program that opens a file stay open, so we never treat an argument-constraining Bash pattern
 as a boundary (Pointer: for why such patterns are unreliable, see
-[permissions: Bash](https://code.claude.com/docs/en/permissions#bash).
-As of: 2026-10-01. Recheck trigger: the permissions page documents argument matching that holds).
+[permissions: Bash](https://code.claude.com/docs/en/permissions#bash)).
 A `Read(...)` deny does not cover a subprocess either. The stronger layer is the
 operator's sandbox configuration, which `/harness-config:audit` details and dates. A token held in an
 environment variable sits outside any file boundary and stays held by instruction. The plugin
 cannot ship any of this, because a plugin's settings cannot carry permission rules (Pointer: for
 the keys a plugin's settings may set, see
-[plugin manifest reference: `settings`](https://code.claude.com/docs/en/plugins/manifest-reference#settings).
-As of: 2026-10-07. Recheck trigger: that field accepts another key).
+[plugin manifest reference: `settings`](https://code.claude.com/docs/en/plugins/manifest-reference#settings)).
 
 ## Read each file once, stated once
 
@@ -417,27 +406,25 @@ findings returned in place of an artifact are a failed dispatch, not a fallback.
 
 ## Harness facts the dispatch design rests on
 
-Twelve harness behaviors this plugin's dispatch design depends on, each with one dated record here
+Twelve harness behaviors this plugin's dispatch design depends on, each with one record here
 instead of an undated restatement at every site that relies on it. A skill, context file, or agent
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
 them repeats a pointer. Each record states what we rely on in our words and points at the section
 that carries the detail; none restates the page.
 
-- **As of**: 2026-10-01 for every record below unless the record names its own date, re-read that
-  day against the sub-agents, skills, permissions and CLI reference pages.
 - **Recheck trigger**, shared by all twelve: a record's pointer stops supporting it, a release note
   names subagent tool filtering, skill preloading, background execution, subagent spawn
   permissions, effort substitution, built-in subagent capabilities, subagent model resolution,
   per-invocation subagent parameters, turn-limit output or partial marking, or `SendMessage`
   resume, or the CLI major version moves. On any of those, re-read the pointer before restating
-  the record, and re-date it rather than editing a claim in place.
+  the record.
 
 ### A preloaded skill that does not load
 
 *What we rely on.* We never count on the harness to fail a dispatch, or to tell the agent, when a
 `skills:` preload does not load; the liveness token is the only evidence we accept that the body
 arrived. We rely on a resolved preload carrying the skill body itself.
-*As of:* 2026-11-11. *Pointer:* for what a missing, a disabled and a resolved preload deliver, see
+*Pointer:* for what a missing, a disabled and a resolved preload deliver, see
 [subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents).
 *Why the plugin cares.* A run whose discipline never loaded is indistinguishable from a good one by
 every other signal, which is what the liveness token exists to catch.
@@ -458,7 +445,6 @@ agent's own instruction rather than a harness boundary. The section's one except
 subagent run in plan mode, does not apply to any agent here. *Pointer:* for the plan-mode tools a
 non-fork subagent loses and that exception, see
 [subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
-*As of:* 2026-10-11.
 
 ### The `Workflow` tool is absent from every non-fork subagent
 
@@ -474,14 +460,14 @@ one's. *Pointer:* for the foreground cases, see
 [subagents: run subagents in foreground or background](https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background);
 for the background tool set, the available-tools section. *Do not restate the tool subset.* It is a
 list the harness owns and revises; a site that needs it names the page rather than copying the
-members. *As of:* 2026-10-11.
+members.
 
 ### A spawn is permission-checked before it launches, and the depth limit is a different mechanism
 
 *What we rely on.* A denied spawn is not evidence about nesting depth. A permission deny and the
 depth limit are different mechanisms with different symptoms and error text, so read the error
 rather than inferring a depth ceiling from it. A type list on a definition's `Agent` entry is
-never relied on here as a restriction; what that form does is the second pointer's to say. *As of:* 2026-11-01. *Pointer:* for deny rules, see
+never relied on here as a restriction; what that form does is the second pointer's to say. *Pointer:* for deny rules, see
 [subagents: disable specific subagents](https://code.claude.com/docs/en/sub-agents#disable-specific-subagents);
 for the type list on an `Agent` entry, see
 [subagents: restrict which subagents can be spawned](https://code.claude.com/docs/en/sub-agents#restrict-which-subagents-can-be-spawned);
@@ -506,7 +492,7 @@ fails, or a docs page starts stating which level a preloaded skill's placeholder
 `discovery:researcher` is pinned `high` so reasoning does not degrade inside a session tuned down
 for cost. The pin is not absolute: what overrides an agent's `effort` is
 [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)'s
-to state (as of 2026-11-01; recheck when that section changes what ranks above the pin). The worker's substituted value is therefore the session's level, not the pin it runs
+to state. The worker's substituted value is therefore the session's level, not the pin it runs
 at. The parent writes `Source breadth:` from its own load, so the table follows the caller either
 way.
 
@@ -529,7 +515,7 @@ is neither documented nor recoverable from its report, and a worker therefore tr
 hit as a pointer backing `verified: grep`, never `verified: read`. *Not verified:* whether a user-
 or project-scope subagent *named* `Explore` inherits the CLAUDE.md and git-status skip; the page
 ties the skip to the built-in agents by name. Setting `omitClaudeMd: true` on such an override
-makes the question moot. *As of:* 2026-10-11.
+makes the question moot.
 
 ### A per-invocation `model` outranks a subagent's frontmatter
 
@@ -544,7 +530,6 @@ An omitted `model` is not a neutral default: it falls through the order the poin
 machine without a subagent-model setting an unpinned worker runs on the orchestrator's model and
 pays that rate for every turn it spends reading files. `model: inherit` in a worker definition is a
 cost defect for the same reason; how it resolves is at the pointer.
-*As of:* 2026-10-11.
 
 ### The verdict lane pins `opus` at `effort: high`
 
@@ -553,7 +538,7 @@ not grade, so it is a verdict lane and pins `model: opus` and `effort: high`; `e
 mechanical preparation, stays on `sonnet` at `effort: medium`. *Pointer:*
 [docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md), "Model tiers" (the verdict rule
 in its ladder) and "Effort tiers" (consequential-output lanes pin `high`; the pinned-agents
-record). *As of:* 2026-10-02. *Recheck trigger:* an edit to the
+record). *Recheck trigger:* an edit to the
 philosophy's tier rule, lane rule, or pinned-agents record.
 
 ### A turn-limit stop returns partial output, and the parent can resume the agent
@@ -569,7 +554,7 @@ for resume, see
 [Resume first, then decide about the slice](#resume-first-then-decide-about-the-slice) the first
 rung rather than a hope. *Not verified:* which text the partial output carries. We found no page
 that says whether a payload block the agent emitted mid-run is part of it, which is why the agents
-keep the disk marker as the primary stop signal. *As of:* 2026-10-11.
+keep the disk marker as the primary stop signal.
 
 ### `maxTurns` is set per definition, so 40 is a checkpoint, not a completion budget
 
@@ -582,7 +567,6 @@ for the Agent tool's per-call parameters, see
 [subagents: subagent names](https://code.claude.com/docs/en/sub-agents#subagent-names);
 for `--agents` and `--max-turns`, see their rows in
 [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags).
-*As of:* 2026-10-11.
 
 *Decision.* Every producing worker definition here (`explorer`, `researcher`, `intent-tracer`) sets `maxTurns: 40`. The read-only `research-verifier` sets `maxTurns: 30` and stops gathering at turn 24. The number is a checkpoint and a
 runaway guard for unattended fan-out, not a budget sized to finish the work: each agent stops
@@ -767,9 +751,6 @@ legs:
   [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions);
   for leg 3, and for allow rules as the session-wide alternative, see
   [skills: pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill).
-- **As of**: 2026-10-01
-- **Recheck trigger**: either section changes where plugin variables substitute or how long an
-  `allowed-tools` grant lasts.
 
 So the rule is the one the rest of this plugin already makes about un-run checks:
 
@@ -810,8 +791,7 @@ The quoted and unquoted forms are both listed because we treat quoting as part o
 matches, and the invocation forms above quote the path while a hand-typed call may not (Pointer:
 when deciding how a Bash rule matches the text of a quoted path, fetch
 [permissions: wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns)
-live. As of: 2026-10-11. Recheck trigger: that section changes how the text before a rule's first
-`*` is matched). Each rule names the script directly, so it is not the interpreter-led shape auto mode drops.
+live). Each rule names the script directly, so it is not the interpreter-led shape auto mode drops.
 The trailing space-and-`*` covers `--help` and every gate argument.
 
 **Why the rules pin the version instead of wildcarding it.** A cache install's plugin root carries
@@ -935,7 +915,7 @@ slice. Both also usually leave a **live agent**. The order is:
 
 The harness supports this: a subagent that reaches `maxTurns` returns its output marked as
 partial, and `SendMessage` to its agent ID resumes it with its history intact. Address it by ID,
-not by name. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
+not by name. Record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "A turn-limit stop returns partial output, and the parent can resume the agent".
 
 **The discard is what happens next, not instead.** Discard the partial slice, clearing it or

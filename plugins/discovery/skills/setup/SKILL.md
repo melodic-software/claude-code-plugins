@@ -61,7 +61,7 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
      so a value exported now takes effect next session. Whether a settings-file `env` value reaches
      a running session is
      [env vars: set variables in settings files](https://code.claude.com/docs/en/env-vars#set-variables-in-settings-files)'s
-     to state. As of 2026-11-01; recheck when that section changes what a running session picks up.
+     to state.
    - **Fork availability.** Report it as a control, not a gate. Report `CLAUDE_CODE_FORK_SUBAGENT`
      when set; when unset, read the default for the observed version and session kind (interactive,
      `claude -p`, the SDK) from the pointer below and report that, never one remembered here. A
@@ -74,9 +74,6 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
        [Fork the current conversation](https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation)
        for the command that starts a fork by hand; the variable's row in
        [env vars](https://code.claude.com/docs/en/env-vars) for what each value does.
-     - **As of**: 2026-11-01
-     - **Recheck trigger**: either section states a different default, version or command, or a
-       release note names fork mode.
 2. **Gate allow rules.** The acceptance-gate scripts prompt on every run unless the operator's
    `~/.claude/settings.json` allows them. Read its `permissions.allow` (a missing file or key reads
    as no rules; read only, never write) and compare it with these twelve rules for this install root:
@@ -188,7 +185,7 @@ written path, and whether the file is tracked.
   missing for the rest of this session even after it is exported in the shell; the recommendation
   takes effect next session. Whether a variable set in a settings file's `env` applies now is
   [env vars: set variables in settings files](https://code.claude.com/docs/en/env-vars#set-variables-in-settings-files)'s
-  to state (as of 2026-11-01; recheck when that section changes).
+  to state.
 - **The gate allow rules stop matching after a plugin update.** They name this version's cache
   directory, so the gates prompt again until the operator pastes the rules `check` prints; `check`
   reports them "stale".

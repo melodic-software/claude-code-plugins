@@ -126,7 +126,7 @@ Rationale for the ceiling over discipline 8, and skipped-phase N/A: the discipli
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that still begins with `${`, this body was read
 directly and the substitution never ran: run as `high`, every phase below. A value the table below
 does not name also runs as `high`.
-Dated record: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`,
+Record: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`,
 "Harness facts the dispatch design rests on". A dispatched run follows envelope `Source breadth:`
 from this load, not the researcher pin. Missing line: `high`, named in the artifact.
 
@@ -169,7 +169,7 @@ In the main conversation, take the deep tier when any of these holds, and read [
 - **One topic that needs adversarial verification**: contested, high-stakes, or broad enough (multi-vendor, comparison, migration) that independent skeptics should try to refute each claim. The `discovery:research-sweep` workflow runs it when the Workflow tool is observed in this session's toolset; otherwise one researcher does.
 - **A leading `deep` token** in the arguments: strip it from the topic, then route as above. A `breadth=` token with it wins, and the run takes the standard dispatch.
 
-Otherwise the standard dispatch runs: one researcher, whatever the task's size. A dispatched or forked run never selects the deep tier, because it cannot count on `Workflow` or a dependable `Agent` spawn (pointers: [context/deep-tier.md](context/deep-tier.md), the "Main context only" paragraph under its title, which has no heading anchor; as of 2026-10-11; recheck when that paragraph moves or its pointers change): it runs inline, and never promises the workflow engine.
+Otherwise the standard dispatch runs: one researcher, whatever the task's size. A dispatched or forked run never selects the deep tier, because it cannot count on `Workflow` or a dependable `Agent` spawn (pointers: [context/deep-tier.md](context/deep-tier.md), the "Main context only" paragraph under its title, which has no heading anchor): it runs inline, and never promises the workflow engine.
 
 **Who writes `RESEARCH.md`.** In the standard dispatch the `discovery:researcher` subagent writes it
 into its slice (the parent authors none of it; on the by-value rung it only persists what the researcher returned). In the deep tier's workflow path the workflow cannot
@@ -245,7 +245,7 @@ The one obligation the acceptance gate does not grade (the memory root's `.gitig
 
 A leading `breadth=low` or `breadth=medium` token is not part of the topic: strip it before writing `Topic:` and apply it under "Effort, source breadth". `--unattended`, anywhere in the arguments, is not part of the topic either: it is the caller declaring that nobody is present, which governs the `/deep-research` offer under "Routing". Strip it first, so the other tokens count as leading without it.
 
-**A dispatched run does not read the `Research the following topic:` line**, so **do not rely on seeing an unfilled slot**. Whatever the `## Topic` line renders as, a dispatched run takes its topic from the dispatch prompt, and an absent one is a parent-envelope failure the agent reports rather than repairs. A leading `deep` token in that topic is not part of the subject: `topic_as_received` quotes the topic as sent, token included, and the research works on the topic without it. What argument substitution fills is [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)'s to say (as of 2026-11-03; recheck when that section starts describing substitution on the preload path); what we found documented about that path: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Scope and topic do not arrive by argument substitution". Running **inline** with no topic supplied under `## Topic`, infer it from the conversation. Identify the claim, decision, or implementation being worked on and research that.
+**A dispatched run does not read the `Research the following topic:` line**, so **do not rely on seeing an unfilled slot**. Whatever the `## Topic` line renders as, a dispatched run takes its topic from the dispatch prompt, and an absent one is a parent-envelope failure the agent reports rather than repairs. A leading `deep` token in that topic is not part of the subject: `topic_as_received` quotes the topic as sent, token included, and the research works on the topic without it. What argument substitution fills is [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)'s to say; what we found documented about that path: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Scope and topic do not arrive by argument substitution". Running **inline** with no topic supplied under `## Topic`, infer it from the conversation. Identify the claim, decision, or implementation being worked on and research that.
 
 **Caveat, a `${CLAUDE_…}`-shaped token in a topic may not arrive as you typed it**, which is a different question from the paragraph above and not evidence for or against it. What was observed, what is documented, what is not, and the practical rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md) ("A different question"). The `topic_as_received` echo-back in the acceptance gate is what catches it whichever way the substitution actually runs.
 
@@ -260,8 +260,7 @@ The branch is only a topic fallback: the topic comes from an explicit argument f
 separate body Bash calls rather than pre-compute lines, one command per call, so each git read
 reaches the shell on its own. How the harness runs a skill's injected commands is
 [skills: inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)'s
-to say (as of 2026-11-03; recheck when that section states how a block's commands are grouped
-into shell invocations).
+to say.
 
 ## Purpose
 
@@ -318,8 +317,7 @@ later.
 
 - **Pointer**: when deciding whether a `${…}` reference in a supporting file resolves, fetch
   [plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that table adds supporting files or the Bash
-  environment to where a `${…}` reference resolves.
+  live.
 
 ## Boundary, the bundled `deep-research` workflow
 
@@ -330,8 +328,7 @@ research can mean either surface.
   answers one question with a cited report. It is reserved for the person to run: the model does
   not start it and the deep tier does not dispatch it. What it does and who starts it is
   [workflows: bundled workflows](https://code.claude.com/docs/en/workflows#bundled-workflows)'s to
-  say (as of 2026-11-03; recheck when that section changes what the workflow does or who can start
-  it).
+  say.
 - **This skill (marketplace plugin).** Splits a multi-topic ask across per-topic
   `discovery:researcher` workers under this discipline (source tiers, recency gate, coverage
   ledger), and grades every run off disk with a fresh verifier before surfacing it.
@@ -352,7 +349,7 @@ the person's behalf, and a report from the person's own run is not a graded `RES
 **Availability is never assumed.** This section states what to offer, never that the workflow is
 present. What it requires is
 [workflows: bundled workflows](https://code.claude.com/docs/en/workflows#bundled-workflows)'s to
-say (as of 2026-11-03; recheck when that section changes what the workflow requires). The
+say. The
 four-part records live in [reference/native-deep-research.md](reference/native-deep-research.md).
 
 ## Next

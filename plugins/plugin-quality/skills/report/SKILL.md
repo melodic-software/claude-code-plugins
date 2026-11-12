@@ -86,8 +86,6 @@ with no separating newline.
 documents the subagent report the Agent tool returns to the parent. The glued trailer's exact
 shape is an observed shape of that returned text rather than a documented format, and is recorded
 here as an observation.
-*As of.* 2026-11-11.
-*Recheck trigger.* A Claude Code release note touching the Agent tool result format.
 
 ## `commit: none` is allowed
 
@@ -120,8 +118,6 @@ reading the skill file as `fired`.
 - **Pointer**: when deciding what a `skills:` entry that does not load leaves behind, fetch
   [Preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents)
   live.
-- **As of**: 2026-11-11
-- **Recheck trigger**: a Claude Code release note touching subagent `skills` preloading.
 
 **When no body reached you at all**, return `preload_token: MISSING` and `verdict: stopped`.
 `verdict: stopped` is terminal and **not resumable**: no resume can deliver a skill body that never

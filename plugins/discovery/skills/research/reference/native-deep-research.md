@@ -1,14 +1,14 @@
 # The bundled `deep-research` workflow: verification record
 
-Detail behind the `## Boundary` section in [SKILL.md](../SKILL.md). Each row is a four-part
-record: the claim, the basis it rests on, the date it was checked, and the event that makes it
-worth checking again. Nothing here asserts the workflow is present in any session.
+Detail behind the `## Boundary` section in [SKILL.md](../SKILL.md). Each row records the
+claim, the basis it rests on, the date a probe was run, left empty for a pointer row,
+and the event that makes it worth checking again. Nothing here asserts the workflow is present in any session.
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
 | `deep-research` is a bundled workflow, not a skill. The probe read its registered description as "Deep research harness: fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report", with phases Scope, Search, Fetch, Verify, Synthesize | Probe: the `/harness-ops:inventory` extraction of the installed 2.1.284 binary, 2026-09-29 (`bundled_workflows` lane) | 2026-09-29 | A release renames or removes the workflow, or changes its phases |
 | Only the person starts it: the model offers it and never invokes it | Probe: the same extraction (its registration disables model invocation). Pointer: when deciding whether the model may start it, fetch [workflows: bundled workflows](https://code.claude.com/docs/en/workflows#bundled-workflows) live | 2026-10-11 | That section changes who can start the workflow, or a release changes its invocability |
-| What it does and which tool it requires are read from the docs, not from this file, before the offer names it | Pointer: when describing the workflow or its requirement to the person, fetch [workflows: bundled workflows](https://code.claude.com/docs/en/workflows#bundled-workflows) live | 2026-10-11 | That section changes the workflow's description or its requirement |
+| What it does and which tool it requires are read from the docs, not from this file, before the offer names it | Pointer: when describing the workflow or its requirement to the person, fetch [workflows: bundled workflows](https://code.claude.com/docs/en/workflows#bundled-workflows) live |  | That section changes the workflow's description or its requirement |
 | Before invoking, an underspecified question gets 2-3 clarifying questions, and the refined question is passed as arguments | The workflow's `when_to_use` text in the same extraction | 2026-09-29 | A release changes the workflow's `when_to_use` |
 | It researches one question per run; nothing in its description splits a multi-topic ask, applies source tiers, or writes a coverage ledger | The rows above | 2026-09-29 | A release gives the workflow multi-topic splitting or a source-tier contract |
 
