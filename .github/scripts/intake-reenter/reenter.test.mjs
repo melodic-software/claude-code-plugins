@@ -1140,7 +1140,7 @@ const runRouted = (w, env, { log = () => {}, routing } = {}) =>
     env: { KILL_SWITCH: "proceed", GITHUB_REPOSITORY: REPO, ISSUE_NUMBER: String(NUMBER), TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(LANES_APP.id), BASE_PATH: ROOT, ...env },
   });
 
-test("an answer, a needs-human lift or a field release on a routing-labelled issue removes no label, writes no status and dispatches nothing", async () => {
+test("an answer, a needs-human lift or a field release on a routing-labeled issue removes no label, writes no status and dispatches nothing", async () => {
   for (const routed of ["wayfind: design", "work-map"]) {
     const lines = [];
     const runs = [

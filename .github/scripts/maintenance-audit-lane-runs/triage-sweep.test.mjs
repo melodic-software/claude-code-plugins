@@ -136,7 +136,7 @@ test("an issue whose own labels hold a routing label is no candidate, as the bin
   assert.deepEqual(select(readRouting(join(dir, "absent.yaml"))), [3, 4, 5], "no binding file keeps the defaults");
 });
 
-test("the field never makes a routing-labelled issue a candidate", () => {
+test("the field never makes a routing-labeled issue a candidate", () => {
   const issues = [issue(1, { labels: [{ name: "wayfind: research" }] }), issue(2)];
   assert.deepEqual(selectCandidates({ issues, now: NOW, authorIds: authors, statusLabels: new Map([[1, []]]) }).map((i) => i.number), [2]);
 });
@@ -478,7 +478,7 @@ test("an issue with a status label is left alone, whatever its comments", async 
   assert.equal(result.candidates, 0);
 });
 
-test("a pass writes and dispatches nothing for a routing-labelled issue, as the pass's binding names it", async () => {
+test("a pass writes and dispatches nothing for a routing-labeled issue, as the pass's binding names it", async () => {
   const issues = [issue(1, { labels: [{ name: "wayfind: design" }] }), issue(2, { labels: [{ name: "work-map" }] })];
   const gh = fakeGitHub({ issues });
   assert.equal((await sweep(gh)).candidates, 0);
