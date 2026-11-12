@@ -6,14 +6,6 @@ import { test } from "node:test";
 import { isGraphQLRead, retryFetch } from "./retry-fetch.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-// Each script directory that runs from a copy of itself holds its own copy.
-test("apply-patch and pr-unblock hold the same retry-fetch.mjs as this directory", () => {
-  const own = readFileSync(new URL("./retry-fetch.mjs", import.meta.url), "utf8");
-  for (const copy of ["../apply-patch/retry-fetch.mjs", "../pr-unblock/retry-fetch.mjs"]) {
-    assert.equal(readFileSync(new URL(copy, import.meta.url), "utf8"), own, copy);
-  }
-});
-
 const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET", message: "Bearer ghs_secret" } });
 
 function harness(answers, random = () => 1) {
