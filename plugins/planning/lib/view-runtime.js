@@ -345,8 +345,7 @@
   };
 
   // A host that blocks a page's own download, such as the claude.ai artifact viewer
-  // (https://code.claude.com/docs/en/artifacts#offer-a-file-download, as of 2026-10-11; recheck
-  // when that section lets a page start its own download), raises no error and fires no event,
+  // (https://code.claude.com/docs/en/artifacts#offer-a-file-download), raises no error and fires no event,
   // so the page cannot tell whether a file was saved. The button stays
   // only where an anchor download is known to work: a file opened from disk, the session bridge
   // on 127.0.0.1, and a page served top-level over https (a page host whose policy allows
