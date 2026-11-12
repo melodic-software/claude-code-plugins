@@ -12,9 +12,6 @@ Context7 HTTP MCP server, reading the same backend as the `ctx7` CLI. This plugi
   [Environment variable expansion in `.mcp.json`](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)
   and [Unset variables without a default](https://code.claude.com/docs/en/mcp#unset-variables-without-a-default)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: any of those sections changes where server entries are read from or what
-  happens to an unset variable.
 
 ## Configuration (consumer-side, optional)
 
@@ -32,8 +29,7 @@ Add to the consuming project's `.mcp.json` (or user-scope MCP config). Anonymous
 ```
 
 With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects). Only use this form once `CONTEXT7_API_KEY` is actually set in your environment (or add a `${VAR:-default}` fallback): an unset variable shows up as failed auth, not as a config error (the Unset variables without a default pointer at the top of this file, which sits under no
-section heading, has the detail; as of 2026-10-11; recheck when that pointer moves, is dropped,
-or its as-of date changes):
+section heading, has the detail):
 
 ```json
 {
@@ -60,8 +56,6 @@ Same input shape as CLI, same backend, and same output substance. Only the trans
 
 - **Pointer**: for what each tool does and the arguments it takes, fetch
   [Context7: MCP Tools](https://github.com/upstash/context7#mcp-tools) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section renames a tool or changes which arguments it requires.
 
 ## Why prefer MCP over CLI for most lookups
 

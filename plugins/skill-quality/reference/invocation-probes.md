@@ -215,9 +215,7 @@ interval has zero width, so read the probe count before trusting it.
   how many times a case runs by default, fetch
   <https://code.claude.com/docs/en/plugin-evals#choose-what-to-evaluate>,
   <https://code.claude.com/docs/en/plugin-evals#prompt-md-fields> and
-  <https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored> live. **As of**:
-  2026-11-02. **Recheck trigger**: any of those sections changing what one run loads, how
-  `plugins` paths resolve, or the default run count.
+  <https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored> live.
 - **Pointer**: the plugin-evals page does not say which directories a case's `plugins` may name;
   the CLI's load error does ("outside the containment root ... Only plugins under it can be
   loaded"), so a case naming a sibling plugin runs against the directory holding `plugins/`.

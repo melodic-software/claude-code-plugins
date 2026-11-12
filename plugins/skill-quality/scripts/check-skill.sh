@@ -705,8 +705,7 @@ if [[ ! -d "$SKILL_DIR" ]]; then
   # Pointer: when locating an installed copy or judging which versions stay on
   # disk, fetch https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk
   # and https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions
-  # live. As of: 2026-10-11. Recheck trigger: either section changing the
-  # cache layout or how long a previous version stays on disk.
+  # live.
   # Note the cache is a COPY, not a git checkout, so the
   # git-backed checks (3 trigger-preservation, 8 vendor, 9 stale-metadata)
   # correctly no-op there — a "new skill / skipped" result is expected, not a
@@ -898,8 +897,7 @@ else
 
   # The checker treats `name` as optional and resolves a skill by its
   # directory either way (pointer: for the field's default, see
-  # https://code.claude.com/docs/en/skills#frontmatter-reference; as of
-  # 2026-10-11; recheck trigger: the `name` row changing its default). A DIVERGENT name is
+  # https://code.claude.com/docs/en/skills#frontmatter-reference). A DIVERGENT name is
   # the defect this branch exists for: it silently relocates the invocation the
   # doctrine says the skill has. A matching one is merely redundant — and in a
   # plugin skill, not inert (see the warning below).
@@ -925,9 +923,8 @@ else
     # In a PLUGIN skill a matching `name` is not inert: this check treats a
     # declared name as registering a bare `/<name>` alias (pointer: for how a
     # skill gets its command name, see
-    # https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name;
-    # as of 2026-10-11; recheck trigger: that section changing whether a
-    # declared name adds a command), and the picker appends that alias in
+    # https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name),
+    # and the picker appends that alias in
     # parentheses to any row whose typed prefix matches it:
     # `/plugin:deploy (deploy)` (observed in 2.1.225).
     # Omitting the field leaves the namespaced command identical and drops both.
@@ -938,8 +935,7 @@ else
 
   # Spec portability limbs on the EFFECTIVE name: the declared field when there
   # is one, else the directory leaf, which this check takes as the name when
-  # the field is absent (pointer: https://code.claude.com/docs/en/skills#frontmatter-reference;
-  # as of 2026-10-11; recheck trigger: the `name` row changing its default).
+  # the field is absent (pointer: https://code.claude.com/docs/en/skills#frontmatter-reference).
   # Run outside the chain above so an over-long or reserved directory leaf is
   # caught even with no `name:` line. Pointer, and the measurement that Claude
   # Code enforces neither rule: NAME_MAX_LEN above. Counted in codepoints by the
@@ -965,8 +961,7 @@ else
   # time when the named model is unsupported is not a finding here.
   # Pointer: for the values the field accepts, see
   # https://code.claude.com/docs/en/skills#frontmatter-reference, the `model`
-  # row. As of: 2026-09-29. Recheck trigger: that row defines a grammar for
-  # the value.
+  # row.
   if grep -qE '^model:' <<<"$FRONTMATTER"; then
     RAW_MODEL="$(skill_frontmatter::field model <<<"$FRONTMATTER")"
     CUR_MODEL="$(skill_frontmatter::strip_quotes "$RAW_MODEL")"
@@ -985,9 +980,7 @@ else
   # quoted scalar or a block scalar may contain it. This check fails it because
   # an unparsable frontmatter loads the skill with no fields set (pointer: for
   # frontmatter parse failures, see
-  # https://code.claude.com/docs/en/skills#frontmatter-reference; as of
-  # 2026-10-11; recheck trigger: that section changing what happens to a skill
-  # whose frontmatter does not parse). This is the plugin's one record for
+  # https://code.claude.com/docs/en/skills#frontmatter-reference). This is the plugin's one record for
   # that behavior; the summary contract below and the README point here.
   desc_lines="$(awk '
     !seen && /^description:/ { seen = 1; sub(/^description:[[:space:]]*/, ""); sub(/[[:space:]]+#.*$/, ""); print; next }
@@ -1304,8 +1297,8 @@ done < <(
 # A backslash-separated pointer is a defect in its own right, not a miss: this
 # check treats a plugin component path containing a backslash as one Claude
 # Code rejects at load on macOS and Linux. Pointer: for plugin path rules, see
-# https://code.claude.com/docs/en/plugins/loading#paths-that-escape-the-plugin-directory. As of:
-# 2026-10-07. Recheck trigger: that section dropping or widening the rule. The resolve loop above never sees such a path (its
+# https://code.claude.com/docs/en/plugins/loading#paths-that-escape-the-plugin-directory.
+# The resolve loop above never sees such a path (its
 # char-class has no backslash), so without this limb a Windows-authored
 # `scripts\helper.py` skipped the check silently and shipped. The pattern is
 # deliberately tight: a known internal dir token, one or more backslash-led
@@ -1570,9 +1563,7 @@ fi
 # `firecrawl:update`, `playbooks:update`, and `github:setup` are all
 # `disable-model-invocation: true`, and this check treats such a skill's
 # description as absent from the model's context (pointer:
-# https://code.claude.com/docs/en/skills#control-who-invokes-a-skill, as of
-# 2026-10-11; recheck trigger: that section changing whether such a skill's
-# description reaches the model), so trigger phrasing on them can never route anything. Each was re-checked for a STRANDED
+# https://code.claude.com/docs/en/skills#control-who-invokes-a-skill), so trigger phrasing on them can never route anything. Each was re-checked for a STRANDED
 # phrase (one a user would type that no model-invocable skill can receive) and
 # none is stranded: the two `update` skills are maintainer-only with
 # consumer-facing siblings that carry the phrases, `github:setup` is a declared
@@ -2226,8 +2217,7 @@ done
 # every reader recovers, whether it reads with a real YAML parser or a regex.
 # This check treats a value a parser rejects as costing the skill its whole
 # frontmatter (record: the unquoted-description comment under the
-# `# --- Check 1` header above; as of 2026-10-11; recheck trigger: that
-# comment's pointer or its stated parse-failure behavior changing).
+# `# --- Check 1` header above).
 # Requiring a plain, unquoted, colon-free scalar is the largest subset a regex
 # reader can recover exactly, which is why it is stricter than YAML alone.
 #

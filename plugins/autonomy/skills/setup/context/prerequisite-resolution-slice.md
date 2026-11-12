@@ -66,9 +66,6 @@ record holds the upstream pointer for the platform bound the
 - **Pointer**: when a proposal depends on whether a session sees `AGENTS.md`, fetch
   <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
   <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load> live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a Claude Code release note names `AGENTS.md` loading or the Project
-  instructions setting, or either section is renamed or removed.
 
 ## Project server enablement
 
@@ -78,9 +75,6 @@ the config-audit surface. This record holds the upstream pointer for the enablem
 
 - **Pointer**: when deciding what enables a project server, fetch
   <https://code.claude.com/docs/en/mcp#project-server-approvals-and-workspace-trust> live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section adds, removes or renames a setting that approves or rejects a
-  project server.
 
 ## Binding section shape
 

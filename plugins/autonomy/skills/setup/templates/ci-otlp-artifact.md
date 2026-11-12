@@ -62,8 +62,7 @@ and writes JSON-lines into the same artifact directory.
 
 - **Pointer**: when checking how the agent CLI exports telemetry, fetch
   [monitoring: configuration details](https://code.claude.com/docs/en/monitoring-usage#configuration-details)
-  live. **As of**: 2026-11-03. **Recheck trigger**: that section adds an exporter that writes to a
-  file.
+  live.
 
 Config shape:
 
@@ -103,8 +102,6 @@ export OTEL_RESOURCE_ATTRIBUTES=autonomy.work_item.url=<canonical-item-url>
 
 - **Pointer**: when setting the telemetry variables, fetch
   [monitoring: quick start](https://code.claude.com/docs/en/monitoring-usage#quick-start) live.
-  **As of**: 2026-11-03. **Recheck trigger**: the quick start renames or adds a variable the
-  session needs to export.
 
 ## Artifact upload + verification
 

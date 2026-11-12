@@ -63,27 +63,17 @@ For upstream evidence on Haiku subagents for coding work, see
 - **Pointer**: when choosing an effort level for a role, fetch
   [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: a Claude Code release that changes the effort levels or
-  which models accept them.
 
 - **Pointer**: when checking what the `haiku` alias resolves to on a provider,
   fetch
   [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: a new Haiku model, or a change to the alias table.
 
 - **Pointer**: when deciding whether evidence justifies changing a role's
   model, fetch
   [choosing a model: decide whether to upgrade or change models](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model#decide-whether-to-upgrade-or-change-models)
   live.
-- **As of**: 2026-11-09
-- **Recheck trigger**: a new model row in that page's selection matrix.
 
 - **Pointer**: when an advisor pairing is proposed for a Haiku role, read
   [anthropics/claude-code#91715](https://github.com/anthropics/claude-code/issues/91715)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: that issue closes, or a release note adds a
-  per-subagent advisor setting.

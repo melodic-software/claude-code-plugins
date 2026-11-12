@@ -7,8 +7,7 @@ alike, and `hooks/record-rate-limit-stop.sh` (reactive detection records). The m
 Claude Code build that can run mods and runs only where mods are on (**Pointer**: when deciding
 which build that is, fetch
 [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
-live. **As of**: 2026-10-11. **Recheck trigger**: the terminal version that section names for mods
-changes.) Readers are loop-lane session
+live.) Readers are loop-lane session
 bodies; an installed plugin cannot read a sibling plugin's files at runtime, so **consumers inline
 the operable floor below verbatim** and cite this file for provenance only. The inline-floor rule,
 and the requirement that the inlined values stay byte-identical across consumers, is owned by the
@@ -116,9 +115,7 @@ paused lane's own Monitor tick). `captured_at` is the time the module wrote the 
   window is written: a gateway's `spend_limit` and any further window the reading reports reach
   Claude only through the module's `mcp__rate-limit-guard__status` tool. The ranges and units
   above are this file's contract, which readers check against; the field names follow the status
-  line's (Pointer: [status line: rate limit usage](https://code.claude.com/docs/en/statusline#rate-limit-usage).
-  As of: 2026-10-11. Recheck trigger: that section changes a window's range or unit, at which
-  point the writer and this bullet are re-checked together).
+  line's (Pointer: [status line: rate limit usage](https://code.claude.com/docs/en/statusline#rate-limit-usage)).
 - `session_id`: the writing session's id. After `/branch` the file takes the new session's id at
   its first write. The file carries no `session_name` and no other session field.
 - `account`: `{"email": "<address>"}`, the account whose windows this snapshot describes. Present
@@ -158,9 +155,6 @@ record below points at which). A consumer classifies its guard mode before every
 - **Pointer**: when deciding which auth exposes subscription windows, fetch
   [status line: rate limit usage](https://code.claude.com/docs/en/statusline#rate-limit-usage)
   live.
-- **As of**: 2026-10-11.
-- **Recheck trigger**: that section changes which accounts or gateways the `rate_limits` object
-  appears for.
 
 The scope column decides how far a failure reaches: only the whole-guard rows drop the guard to
 reactive-only. Absurd
@@ -242,9 +236,6 @@ past 200).
   fetch [hooks: StopFailure](https://code.claude.com/docs/en/hooks#stopfailure) and
   [hooks: emit terminal notifications](https://code.claude.com/docs/en/hooks#emit-terminal-notifications)
   live.
-- **As of**: 2026-10-11.
-- **Recheck trigger**: the StopFailure section gives the event decision control, or names an
-  output field beyond the terminal-notification one that Claude Code honors.
 
 Read cadence: a reactive-only consumer reads the file on entering reactive-only mode and again
 before each new work claim. The recency baseline starts at the consumer's own start time, so records
@@ -295,7 +286,6 @@ versions used, once it is older than 60 seconds.
     [plugin manifest reference: fields](https://code.claude.com/docs/en/plugins/manifest-reference#fields)
     and [plugin manifest reference: monitors](https://code.claude.com/docs/en/plugins/manifest-reference#monitors)
     live.
-  - **As of**: 2026-10-11.
   - **Recheck trigger**: that page moves monitors out of `experimental`, or a release note names
     the monitors component.
 - **Fixed constants.** The snapshot path and the 95% threshold are contract constants, deliberately not

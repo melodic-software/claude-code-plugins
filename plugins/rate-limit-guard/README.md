@@ -13,15 +13,13 @@ after the reset. Three parts:
   a Claude Code build that can run mods; older builds are unsupported. **Pointer**: when deciding
   which build that is, fetch
   [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
-  live. **As of**: 2026-10-11. **Recheck trigger**: the terminal version that section names for
-  mods changes.
+  live.
 - **StopFailure hook** (`hooks/record-rate-limit-stop.sh`), the reactive fallback. When a turn
   ends on a rate-limit API error, it appends a detection record to
   `~/.claude/rate-limit-guard/stop-events.jsonl`. The hook is side-effect-only by design: the
   record is its one output, and it returns no decision. **Pointer**: when deciding whether a
   StopFailure hook's output can do anything, fetch
-  [hooks: StopFailure](https://code.claude.com/docs/en/hooks#stopfailure) live. **As of**:
-  2026-10-11. **Recheck trigger**: the StopFailure section gives the event decision control.
+  [hooks: StopFailure](https://code.claude.com/docs/en/hooks#stopfailure) live.
 - **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
   fixed file path, the opt-in 95%-of-either-window pause threshold, the staleness rule, pause-end
   semantics, capability-detect fail-open, and drain-then-pause.
@@ -126,9 +124,6 @@ options when it starts its session, for example through `--settings` with the pl
   the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry, and
   the `pluginConfigs` row of
   [mods reference: settings and environment variables](https://code.claude.com/docs/en/plugins/mods/reference#settings-and-environment-variables).
-- **As of**: 2026-11-03.
-- **Recheck trigger**: that section changes which keys `--settings` can set, or the
-  `pluginConfigs` scope changes.
 
 ### The /rate-limit-guard command, band row and status tool
 
@@ -165,8 +160,6 @@ debug log.
 
 - **Pointer**: for where a mod's hooks run, read
   [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run).
-- **As of**: 2026-11-03.
-- **Recheck trigger**: that table adds or drops a place a mod's hooks run.
 
 ### Where mods are off
 
@@ -183,8 +176,6 @@ through unchanged.
   [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
   and [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
   live.
-- **As of**: 2026-10-11.
-- **Recheck trigger**: either section adds or drops a way mods get turned off.
 
 ## Behavior
 
@@ -250,17 +241,13 @@ result.
 
 - **Pointer**: for when an installed plugin loads into a session, read
   [plugin commands: /reload-plugins](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins).
-- **As of**: 2026-11-03.
-- **Recheck trigger**: that section changes which plugin changes it applies to a running session.
 
 ## Requirements
 
 - A Claude Code build at or above the terminal version mods need, with mods on, for the module.
   Below that floor, or with mods off, only the StopFailure hook runs. `prerequisites.json` holds
   the floor as data, in `detect.version.min` of the entry with `"id": "claude"`, which the check
-  skill compares against (relayed 2026-10-11; recheck when that key moves); the pointer below is
-  where to
-  re-derive it.
+  skill compares against; the pointer below is where to re-derive it.
 - [Node.js](https://nodejs.org/en/download) on `PATH`, installed on its own: the `StopFailure` hook
   launches through `node hooks/exec-bash.mjs`, and the module writes the file by running `node`,
   and we never count on Claude Code's install to provide it. Without it the hook records nothing
@@ -278,10 +265,6 @@ result.
   live; when deciding which auth exposes subscription windows, fetch
   [status line: rate limit usage](https://code.claude.com/docs/en/statusline#rate-limit-usage)
   live.
-- **As of**: 2026-10-11.
-- **Recheck trigger**: the terminal version that section names for mods changes, the setup
-  page says the installed binary runs on Node.js, or the rate limit usage section changes which
-  accounts or gateways the `rate_limits` object appears for.
 
 `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether `node`
 resolves, and `bash "<plugin root>/scripts/check-mod-load.sh"` whether the module can load. Both
@@ -318,8 +301,6 @@ for a number, a number for a switch) is Claude Code's to handle before the modul
   `userConfig`, fetch
   [troubleshoot: options do not fit plugin.json userConfig](https://code.claude.com/docs/en/plugins/mods/troubleshoot#options-do-not-fit-plugin-json-userconfig)
   live.
-- **As of**: 2026-10-11.
-- **Recheck trigger**: that section changes what Claude Code does with a refused option value.
 
 The module reads its options when it loads. Claude Code reloads a module when its options change,
 so a switch turned off takes effect from the next event, with no restart. The StopFailure hook
@@ -342,9 +323,6 @@ command prints and writes for an installed plugin; its verified-version record l
   [plugin commands: plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install);
   for what an uninstall removes, read
   [what an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-- **As of**: 2026-11-03.
-- **Recheck trigger**: either section changes what `--config` writes or what an uninstall
-  deletes.
 
 The file path and the 95% pause threshold an opted-in lane applies are deliberately **not** configurable: they are contract
 constants that cross-plugin consumers inline from the

@@ -48,7 +48,7 @@ merely happens to be called `miro`. Every `miro_*` tool named in this skill and 
 denotes that tool under whichever prefix the gate found. Naming basis:
 `reference/miro-integration.md` "Tool namespace"; for the prefix format, fetch
 [Server names, tool names, and reloads](https://code.claude.com/docs/en/plugins/components#server-names-tool-names-and-reloads)
-live (as of 2026-11-03; recheck when that section changes the MCP tool-name format).
+live.
 
 - **Miro available** → run normally: create boards, place stickies, screenshot-verify each phase.
 - **Miro absent** → do NOT fail. Tell the user the `miro` plugin isn't enabled, then offer two paths
@@ -200,5 +200,4 @@ never with `cd`, `ls`, `cat` or `sed` in a shell. Never write generated state in
 the plugin's own installed directory (`${CLAUDE_PLUGIN_ROOT}`) or into the consumer's project tree.
 For what each directory guarantees, fetch
 [Reference plugin paths and store data](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data)
-live (as of 2026-11-10; recheck when that section changes what survives a plugin update or where a
-plugin may write state).
+live.
