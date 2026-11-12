@@ -172,7 +172,7 @@ lib/html-chrome.html -> plugins/*/reference/html-chrome.html
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/hook-test-sink.sh, the telemetry-sink test helper
 # (docs/contracts/shell-test-helpers/README.md, "The telemetry-sink helper").
-# The autonomy, context-guard and desktop-notification plugins carry the
+# The autonomy, context-usage and desktop-notification plugins carry the
 # generated copies, which stay byte-identical to each other.
 hooks/hook-test-sink.sh
 
