@@ -558,6 +558,8 @@ LOCAL_OK=0
 [[ "${SCOPE_STATE[local]}" == "ok" ]] && LOCAL_OK=1
 USER_OK=0
 [[ -n "$USER_SETTINGS" && "${SCOPE_STATE[user]:-absent}" == "ok" ]] && USER_OK=1
+MCP_OK=0
+[[ "${SCOPE_STATE[mcp]}" == "ok" ]] && MCP_OK=1
 
 # What categories A, B, H and I ask of a settings file, read in one jq per file.
 # A field outside its key's presence check stays empty.
@@ -594,8 +596,6 @@ load_facts() {
 [[ $PROJECT_OK -eq 1 ]] && load_facts "$SETTINGS"
 [[ $LOCAL_OK -eq 1 ]] && load_facts "$LOCAL"
 [[ $USER_OK -eq 1 ]] && load_facts "$USER_SETTINGS"
-MCP_OK=0
-[[ "${SCOPE_STATE[mcp]}" == "ok" ]] && MCP_OK=1
 
 # --- Suppression record (three cascade layers) ---------------------------------
 #
@@ -796,8 +796,7 @@ unsupplied() {
   done
 }
 MODS_SLUG="plugins/mods/overview"
-DOCS_WANT=()
-while IFS= read -r slug; do DOCS_WANT+=("$slug"); done < <(unsupplied settings-reference env-vars "$MODS_SLUG")
+mapfile -t DOCS_WANT < <(unsupplied settings-reference env-vars "$MODS_SLUG")
 DOCS_INDEX_JSON="$(jq -cn --arg url "$DOCS_INDEX_URL" \
   '{url:$url,source:"",bytes:0,state:"not-needed",reason:"",sha256:null,content_type:null,lines:0,retrieved:null}')"
 progress docs "upstream pages"
@@ -1008,8 +1007,7 @@ if [[ -n "$SR" ]]; then
 fi
 if [[ ${#linked[@]} -gt 0 ]]; then
   LINKED_MANIFEST="$DOCS_TMP/manifest-linked.json"
-  linked_fetch=()
-  while IFS= read -r slug; do linked_fetch+=("$slug"); done < <(unsupplied "${linked[@]}")
+  mapfile -t linked_fetch < <(unsupplied "${linked[@]}")
   [[ ${#linked_fetch[@]} -gt 0 ]] && fetch_pages "$LINKED_MANIFEST" "${linked_fetch[@]}"
   for slug in "${linked[@]}"; do acquire_page "$slug" "$LINKED_MANIFEST"; done
 fi
@@ -1297,17 +1295,18 @@ if [[ ${#KP_KEY[@]} -gt 0 ]]; then
   for i in "${!KP_KEY[@]}"; do
     surface="${KP_SURF[$i]}" k="${KP_KEY[$i]}" leaf="${KP_LEAF[$i]}" ptr="${KP_PTR[$i]}"
     cr_match "$surface" "$k" "$leaf" && continue
-    cr_note="${CR_WHY:+; not labeled a consent receipt: $CR_WHY}"
+    sev=info detail="$k is not documented on settings-reference; "
     if [[ "$BIN_SEARCH" != "searched" ]]; then
-      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary was not searched, so whether the CLI reads it is not known$cr_note" "$ptr"
+      detail+="the installed claude binary was not searched, so whether the CLI reads it is not known"
     elif [[ "${BIN_HAS[$leaf]}" == "unsearchable" ]]; then
-      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; its name is too short or not identifier-shaped for a binary search to settle, so whether the CLI reads it is not known$cr_note" "$ptr"
+      detail+="its name is too short or not identifier-shaped for a binary search to settle, so whether the CLI reads it is not known"
     elif [[ "${BIN_HAS[$leaf]}" == "yes" ]]; then
       desc="$(bin_describe "$leaf")"
-      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries $leaf as a standalone name, so it may be an internal key the CLI manages (this shows the name is in the CLI, not that the CLI reads it)${desc:+; the binary describes it: \"$desc\"}$cr_note" "$ptr"
+      detail+="the installed claude binary carries $leaf as a standalone name, so it may be an internal key the CLI manages (this shows the name is in the CLI, not that the CLI reads it)${desc:+; the binary describes it: \"$desc\"}"
     else
-      row A key-documented finding warning "$surface" "undocumented-key:$k" "$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it$cr_note" "$ptr"
+      sev=warning detail="$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it"
     fi
+    row A key-documented finding "$sev" "$surface" "undocumented-key:$k" "$detail${CR_WHY:+; not labeled a consent receipt: $CR_WHY}" "$ptr"
   done
 fi
 
