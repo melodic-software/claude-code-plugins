@@ -147,11 +147,9 @@ file_path="" reason="" cwd="" category="" root="" ts="" duration_ms="" line=""
 field_to() { # <var> <key> [<haystack var>]: the JSON string body of "<key>": "..." or ""
   local field__in="$buf"
   (($# > 2)) && field__in="${!3}"
-  if [[ "$field__in" =~ \"$2\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then
-    printf -v "$1" '%s' "${BASH_REMATCH[1]}"
-  else
-    printf -v "$1" '%s' ""
-  fi
+  printf -v "$1" '%s' ""
+  [[ "$field__in" =~ \"$2\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]] && printf -v "$1" '%s' "${BASH_REMATCH[1]}"
+  return 0
 }
 field_to session_id session_id
 field_to event hook_event_name
@@ -210,11 +208,9 @@ fi
 
 # scalar_to <var> <key>: the JSON boolean or number of a top-level "<key>", or "".
 scalar_to() {
-  if [[ "$top" =~ \"$2\"[[:space:]]*:[[:space:]]*(true|false|-?[0-9]+(\.[0-9]+)?)[[:space:]]*(,|$) ]]; then
-    printf -v "$1" '%s' "${BASH_REMATCH[1]}"
-  else
-    printf -v "$1" '%s' ""
-  fi
+  printf -v "$1" '%s' ""
+  [[ "$top" =~ \"$2\"[[:space:]]*:[[:space:]]*(true|false|-?[0-9]+(\.[0-9]+)?)[[:space:]]*(,|$) ]] && printf -v "$1" '%s' "${BASH_REMATCH[1]}"
+  return 0
 }
 meta=()
 for entry in $SLOG_EVENT_LOG_STRINGS; do
@@ -302,14 +298,11 @@ slog_duration_ms_to duration_ms "$start"
 # string bodies and pass as bodies (type `b`), which is what keeps this hook
 # from re-deriving an escape it has no jq to check.
 extras=(category s "$category" effort s "$effort")
-for key in prompt_id tool_use_id agent_id tool_name file_path reason; do
-  [[ -n "${!key}" ]] || continue
-  if [[ "$key" == prompt_id || "$key" == tool_use_id || "$key" == agent_id ]]; then
-    slog_valid_id "${!key}" || continue
-    extras+=("$key" s "${!key}")
-  else
-    extras+=("$key" b "${!key}")
-  fi
+for key in prompt_id tool_use_id agent_id; do
+  [[ -n "${!key}" ]] && slog_valid_id "${!key}" && extras+=("$key" s "${!key}")
+done
+for key in tool_name file_path reason; do
+  [[ -n "${!key}" ]] && extras+=("$key" b "${!key}")
 done
 [[ -n "${TRACEPARENT:-}" && "$TRACEPARENT" =~ ^[0-9a-f-]+$ ]] && extras+=(traceparent s "$TRACEPARENT")
 extras+=(${meta[@]+"${meta[@]}"})
