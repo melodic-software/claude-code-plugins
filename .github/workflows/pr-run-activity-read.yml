@@ -417,7 +417,9 @@ on:
           the second call's subscription leg handed off (with fallback-ready:
           a limit stop, a credit stop, or a 401 or 402), so it skipped the
           scan job, uploaded nothing, recorded no lane outcome and posted no
-          check, and the next call runs the activity.
+          check, and the next call runs the activity. Empty, as is every
+          other run job output, when broker-check handed the first call off
+          before its run job (skip-run): that call posts no check either.
         value: ${{ jobs.run.outputs.handed-off }}
       # Set by broker-check, which runs no model, so a caller may act on them.
       skip-reason:
@@ -735,7 +737,8 @@ jobs:
     name: Run
     needs: broker-check
     # The lanes App's own pull_request events never start a lane, and nor does
-    # a broker kill-switch refusal or a key broker-check skipped.
+    # a broker kill-switch refusal, nor a first call whose key broker-check's
+    # credit read skipped (skip-run).
     if: >-
       !(github.event_name == 'pull_request'
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)

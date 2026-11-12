@@ -386,6 +386,11 @@ test("pr-unblock starts each subscription call on a skipped key-leg run exactly 
     const skippedRun = evidence([...common, job("Run", "skipped"), job("Scan", "skipped"), job("Report", "skipped")], leg, ["posted", "allowed", "credit-stop"]);
     assert.deepEqual(skippedRun, { posted: "false", allowed: "true", "credit-stop": "false" }, leg);
     assert.deepEqual(skippedRun, handoff, `${leg}: the same facts as the run job's handoff`);
+    // A call whose run job skipped while its broker-check succeeded is not
+    // `skipped` to the caller: run 42742077371's address-feedback call had
+    // broker-check and report success and every other job skipped, and
+    // key-credit-markers, whose if needs one call's result != 'skipped' with
+    // the other four calls skipped, ran. Only != 'skipped' is read here.
     const ctx = {
       [`needs.${leg}-select.outputs.proceed`]: "true",
       "needs.fix-ci-context.outputs.proceed": "true",
