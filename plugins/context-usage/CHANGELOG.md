@@ -5,6 +5,10 @@ All notable changes to the `context-usage` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+Entries released before the plugin was renamed `context-usage` were written under its earlier name and
+option prefix. They now show today's names, so a command, option, variable or path named in one
+of them may never have shipped under the name shown.
+
 ## [5.0.7] - 2026-11-12
 
 ### Changed
