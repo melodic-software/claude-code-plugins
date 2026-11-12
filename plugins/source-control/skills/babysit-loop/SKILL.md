@@ -157,7 +157,7 @@ the lane-telemetry contract below. Seam keys and defaults in the config referenc
 toward the `ScheduleWakeup` ceiling. The `/loop` seven-day expiry bounds a standing lane per
 the convention: `loop_started_at` in durable state makes the approaching expiry visible, and an expiry hit is handled exactly like a budget hit (restart-request + clean stop).
 
-- **Pointer**: when the wakeup ceiling or the loop expiry matters, fetch [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval) and [Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) live. **As of**: 2026-11-10. **Recheck trigger**: either section changes its bound, or a release note names `ScheduleWakeup` or scheduled-task expiry.
+- **Pointer**: when the wakeup ceiling or the loop expiry matters, fetch [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval) and [Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) live.
 
 **Drain (`--drain`).** The lane stops when the cycle-start snapshot shows **0 open PRs AND 0 open
 issues** in the target repository. This deliberately outlives the worker lane's exit (all issues
@@ -226,8 +226,8 @@ Escalation is the convention's contract
 ([`docs/contracts/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/loop-lane/README.md)
 §2), held by
 citation: a tracker item carrying the human-gated role label, resolved from the `config.role_labels`
-map of the consumer's tracker binding (the `tracker` mapping of `docs/conventions/work-items.yaml`,
-else the legacy JSON binding), never compared as a literal (when no binding is
+map of the consumer's tracker binding (the `tracker` mapping of `docs/conventions/work-items.yaml`),
+never compared as a literal (when no binding is
 present, the canonical `needs-human` default applies with a loud notice), plus a machine-marked
 escalation comment whose first line is
 `<!-- work-items:escalation lane=babysit-loop kind=escalated -->`. That marker grammar is the
@@ -255,7 +255,7 @@ paragraph owns why. Telemetry is the report surface, never the escalation channe
 A `claude --bg` probe from such a worktree wrote the record there; the work-loop skill's
 "Background-job launch mode" verification record carries the probe.
 
-- **Pointer**: when deciding where a background lane may launch, fetch [How file edits are isolated](https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated) live. **As of**: 2026-11-10. **Recheck trigger**: that section changes when a background session skips its worktree move, or a Claude Code release note changes background-session isolation.
+- **Pointer**: when deciding where a background lane may launch, fetch [How file edits are isolated](https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated) live.
 
 A non-convergence, round-cap, or pause-the-loop escalation has one extra precondition: first read
 the actual content of every unresolved review thread
@@ -323,8 +323,7 @@ partition depends on; it and the `instance:` cycle-report line are the reference
 `effort` is the level that ran, which can differ from the launch `--effort`: at each cycle start
 run `printenv CLAUDE_EFFORT` through Bash and record its output, or `"unset"` when it prints
 nothing. Pointer: for the `CLAUDE_EFFORT` variable, see the `effort` row of
-[Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields). As of:
-2026-10-02. Recheck trigger: that row stops naming the variable.
+[Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields).
 
 `latched_account` is the fingerprint of the account that tripped the pause, recorded with
 `paused_until` at pause entry (never the address; this comment is public). It is `null` or absent
@@ -341,11 +340,10 @@ rejected as unknown, never the rejected value, never a stale reading carried for
 fabricated one. `five_hour_delta_pct` and `seven_day_delta_pct` are per window, since an account may
 report only some windows: `null` when that window's reading is unavailable on either side, on a
 first cycle, and when the current reading is **lower** than the previous one (a rollover). Pointer:
-for which windows exist, the `windows` keys `mcp__rate-limit-guard__status` returns. As of:
-2026-10-30. Recheck trigger: the guard changes which windows it carries. Everything else, the single
-permitted readback, each delta covering the interval *preceding* its reporting cycle, and the three
-properties bounding what the data supports, is the convention's (§4, "Per-cycle usage sample"), held
-by citation.
+for which windows exist, the `windows` keys `mcp__rate-limit-guard__status` returns. Everything
+else, the single permitted readback, each delta covering the interval *preceding* its reporting
+cycle, and the three properties bounding what the data supports, is the convention's (§4,
+"Per-cycle usage sample"), held by citation.
 
 ## Rate-limit guard floor (inlined)
 
@@ -456,8 +454,7 @@ The `reference/` files write `<plugin-root>` for `${CLAUDE_PLUGIN_ROOT}` and `<p
 upsert's `--body-dir`) for `${CLAUDE_PLUGIN_DATA}`. Substitute those paths before running a command
 or writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}`
 token in them would reach the Bash tool unsubstituted, with no such variable to expand. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Next
 

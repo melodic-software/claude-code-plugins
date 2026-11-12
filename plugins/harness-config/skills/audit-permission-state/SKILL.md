@@ -19,7 +19,6 @@ script can read, and it reports a scope it could not read apart from one that wa
 - **Pointer**: when deciding whether a built-in surface already exports the merged set, fetch
   [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) and the `/permissions`
   row of [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) live.
-- **As of**: 2026-11-03
 - **Recheck trigger**: a release note mentions a permissions export or a `/permissions` export
   action, or either section adds one.
 
@@ -80,8 +79,6 @@ read-only by construction: it reads the managed sources and never authors them.
 - **Pointer**: when deciding which managed sources exist and who can write each, fetch
   [managed settings: where each mechanism stores the policy](https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section adds a managed mechanism or a store a plugin or user can write.
 
 ## Arguments
 
@@ -159,8 +156,7 @@ These mechanics decide those records, and conflating them produces confident wro
   across scopes, and records which rule made another inert.** That `inert` record is what answers
   "why is my allow rule ignored". When checking that order and whether scope rank enters it, fetch
   [settings: permission rules combine differently than you expected](https://code.claude.com/docs/en/settings#permission-rules-combine-differently-than-you-expected)
-  live (as of 2026-11-03; recheck when that section changes the evaluation order or how scopes
-  combine).
+  live.
 - **The merge treats a bare tool name as reaching every call of that tool.** A whole-tool deny
   makes every other rule naming that tool inert, other denies included, with the one exception
   `reference/criteria.md` names. A whole-tool ask leaves no scoped allow for that tool in effect.
@@ -172,13 +168,9 @@ These mechanics decide those records, and conflating them produces confident wro
   does not model.
   - **Pointer**: when you need what a carve-out reaches, fetch
     [permissions: Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit) live.
-  - **As of**: 2026-10-10
-  - **Recheck trigger**: that section changes what a carve-out reaches, or starts covering a bare
-    `!` pattern.
 
 `reference/criteria.md` maps every `precedence_basis` token to the docs section it follows from,
-with that record's as-of date and recheck trigger, and states the two standing bounds the run
-prints.
+and states the two standing bounds the run prints.
 
 ## Phase 3: What entering auto mode drops
 
@@ -290,7 +282,7 @@ nothing surfaces which. Stage: `managed-conformance.sh`, fed the inventory.
   lower-scope rule of an earlier-evaluated kind outranks a managed rule, because an administrator
   reads the managed rule as policy. When deciding how managed rules rank and evaluate, fetch
   [permissions: settings precedence](https://code.claude.com/docs/en/permissions#settings-precedence)
-  live (as of 2026-11-03; recheck when that section changes managed rank or the evaluation order).
+  live.
 - **`managed loosenable autoMode`**: we report a managed `autoMode` section as **additive, not a
   policy boundary**, since a developer's own entries can loosen it.
 - **`managed loosenable lockout`**: `disableAutoMode` set to anything but the string `"disable"`.
@@ -305,8 +297,7 @@ every rule string it prints came from a file it read. It ships no security floor
 fold the server-managed cache into the effective set, and do not treat it as the live policy. When
 deciding where the cache lives and how current it is, fetch
 [server-managed settings: fetch and caching behavior](https://code.claude.com/docs/en/server-managed-settings#fetch-and-caching-behavior)
-live (as of 2026-11-03; recheck when that section changes where the cache is kept or how it is
-refreshed). A surface that could not be read gets its own note saying so, because an administrator
+live. A surface that could not be read gets its own note saying so, because an administrator
 reading silence as "no policy deployed" is the failure this report exists to prevent. The note
 routes that diagnosis to the Organization policy line in `/status` and `claude doctor`.
 
@@ -336,8 +327,8 @@ collapse it in the report:
   line in `/status` as the failure read. The script says so on every run; carry it into the report
   rather than implying completeness.
 - **An `ask` finding names where the contract lives**: the auto mode config page, and the
-  upstream issue #83766 against it. Carry the caveat `reference/criteria.md` §"Ask rules under auto
-  mode" words, with its pointer and dated record, when reporting an `ask` result, and point at
+  upstream issue anthropics/claude-code#83766 against it. Carry the caveat `reference/criteria.md` §"Ask rules under auto
+  mode" words, with its pointer, when reporting an `ask` result, and point at
   `permissions.deny` where the outcome must hold regardless.
 - **`invalid-json` is not `absent`.** A malformed settings file contributes no rules to the
   inventory. Report the parse failure, not an empty scope, and do not describe a managed parse
@@ -349,16 +340,13 @@ collapse it in the report:
     live; for other settings files, fetch
     [settings: fix a broken settings file](https://code.claude.com/docs/en/settings#fix-a-broken-settings-file)
     live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: either section changes what Claude Code does when a settings source fails
-    to parse.
 
 ## Scopes
 
 Five: `managed`, `user`, `project`, `local` and `startdir-local`. `local` and `startdir-local` are
 the two easy to get wrong; when deciding where the local file is read from, fetch
 [settings: where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
-live (as of 2026-11-04; recheck when that section changes where the local or shared file is kept).
+live.
 The reader takes its own working directory as the session's primary working directory, the one input
 for `project` and `local`. Run it from the directory the session started in (or last moved to with
 `/cd`). Below the repository root it reads two shared files, `project settings` from its own
@@ -368,7 +356,7 @@ start directory's file is not read unless it is the root's: a session started in
 can over-report the one not in force. Say which directory the session started in when that decides
 the answer. When judging whether a `cd` still carries over, fetch
 [tools reference: what persists between commands](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands)
-live (as of 2026-11-04; recheck when that section changes what a `cd` does to the working directory).
+live.
 `managed`
 is four admin surfaces per OS, not one file, plus a `remote-cache` record for the server-managed
 cache that is not folded into the effective set. `reference/criteria.md` §Scopes has the full table
@@ -383,7 +371,7 @@ conditions, and the one that is not detectable" holds the list and its pointer.
 **A cloud session reads a different scope set, and the run says so.** We treat a user-scope record
 in a cloud session as describing the container, not the operator. The reader detects a cloud
 session by `CLAUDE_CODE_REMOTE`, the only entrypoint variable it branches on.
-`reference/criteria.md` §Scopes holds both dated records.
+`reference/criteria.md` §Scopes holds both records.
 
 ## Prerequisites
 

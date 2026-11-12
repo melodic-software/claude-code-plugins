@@ -94,20 +94,19 @@ named with it and keeps the post as a correlate):
   chapter's narrow threads assume these loops is our reading, not the post's claim. Pointer: when
   a digest needs how Claude Code repeats a prompt, fetch
   <https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-/loop> live, the
-  post as correlate. As of: 2026-10-02. Recheck trigger: that section leaves the page.
+  post as correlate.
 - <https://claude.com/blog/code-review> (not a pointer; correlate only)
   The automated-review gate the claude.ai performance post names as a safety mechanism set up
   before the fast phase; the `review` plugin's CI lanes are its local counterpart, with no custody
   record against it. A summary-level fetch on 2026-09-29 confirmed its topic: the launch of Claude
   Code's Code Review. Pointer: when a digest needs whether Code Review findings gate a merge, fetch
   <https://code.claude.com/docs/en/code-review-pull-requests#check-run-output> live, the post as correlate.
-  As of: 2026-10-02. Recheck trigger: that section leaves the page.
 - <https://claude.com/blog/agentic-coding-is-straining-ci-heres-how-we-scaled-test-impact-analysis-at-anthropic> (correlate only)
   The basis the claude.ai performance post cites for wins decaying in a fast-moving codebase,
   which the `performance` plugin's ratchet guardrails rest on. A summary-level fetch on 2026-09-29
   confirmed its topic: test-impact analysis in Anthropic's CI. Pointer: when a digest needs
   test-impact analysis as a CI technique, fetch this post live; no docs page covers test-impact
-  analysis as of 2026-10-01. As of: 2026-10-01. Recheck trigger: a docs page starts covering it.
+  analysis.
 - <https://claude.dev/blog/spending-your-effort/> (not a pointer; correlate only)
   "Using Claude Code: Spending your effort", which `docs/upstream/opus-5-5-task-cost.md` (Q34)
   and the `playbooks` model-adaptation chapters already cite as a correlate without a custody

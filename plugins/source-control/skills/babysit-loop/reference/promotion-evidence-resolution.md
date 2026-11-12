@@ -77,7 +77,6 @@ Inside its `--since` to `--through` window the publisher fails closed instead of
   created in the window, every event and branch, must carry consecutive `run_number` values, a
   re-run included; a gap refuses. Pointer: `run_number` under
   [github context](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context).
-  As of 2026-10-15. Recheck trigger: that entry changes how numbers are assigned or kept on re-run.
 - `issue-deleted:` or `issue-missing:`: a number missing from the issue listing between two items
   created in the window is read on its own. Read as deleted, it refuses with `issue-deleted:`;
   read as anything but this repository's issue or pull, `issue-missing:`. A discussion holding the
@@ -85,8 +84,8 @@ Inside its `--since` to `--through` window the publisher fails closed instead of
   Pointers: status codes under
   [Get an issue](https://docs.github.com/en/rest/issues/issues#get-an-issue--status-codes) and
   [Converting an issue to a discussion](https://docs.github.com/en/discussions/managing-discussions-for-your-community/moderating-discussions#converting-an-issue-to-a-discussion);
-  probe: `gh api repos/cli/cli/issues/14698` against a discussion number, 2026-10-15. Recheck trigger: either section changes, or a live run refuses on a
-  number that holds a discussion.
+  probe: `gh api repos/cli/cli/issues/14698` against a discussion number, 2026-10-15. Recheck
+  trigger: either section changes, or a live run refuses on a number that holds a discussion.
 - Every `babysit-merge-demotion` record `github-actions[bot]` or a `--lane-login` opened, open or
   closed, whose body or any revision carries the marker or whose edit history is not whole, is a
   gate-failure on every cell at its creation and at each repeat-failure comment one of those
@@ -105,15 +104,14 @@ window. An identity that can write issues can delete a repeat-failure comment; t
 covers a per-merge full run pr-merge dispatches with its own `GITHUB_TOKEN`; its deletion shows as
 a `run_number` gap, or as the 6-hour dispatch-deadline failure when it was the only lane dispatch.
 Pointer:
-[Triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow).
-As of 2026-10-15. Recheck trigger: that section changes which tokens start new runs. The admin
+[Triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow). The admin
 operator account (and any agent on its token) can still delete runs and issues, edit the
 workflows, or disable the alert; that now fails closed rather than passing silently, but nothing
 stops it. Closing it needs a reader of run-deletion events in the organization audit log, which
 this organization cannot read through the API today. Pointer:
 [Using the audit log API](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/reviewing-the-audit-log-for-your-organization#using-the-audit-log-api).
-As of 2026-10-15. Recheck trigger: the organization changes plan or that section changes which
-plans have the audit-log API.
+Recheck trigger: the organization changes plan or that section changes which plans have the
+audit-log API.
 
 ## Fail-closed rules
 

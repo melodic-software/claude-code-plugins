@@ -46,15 +46,16 @@ bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "$ROOT"
 
 Exit `0` prints the home; exit `1` (no pointer) means `docs/conventions`. Exit `4` (the repository
 declined a home) or `5` (the root is `$HOME`, an ancestor of it, or not a git work tree) means no home
-applies: the seam then reads only the legacy JSON file, so setup writes no binding and reports that the
+applies: nothing can bind the repository there, so setup writes no binding and reports that the
 repository needs a convention home first. Exit `3` (a broken pointer) is a `check` FAIL naming the
 resolver's message. With `<home>` resolved:
 
 - `BINDING` is the `tracker` key of `$ROOT/<home>/work-items.yaml`. That file may hold other
   work-items settings; setup edits only its `tracker` mapping.
 - `OVERRIDE` is the gitignored personal override `$ROOT/<home>/work-items.local.yaml` (its `tracker` mapping).
-- `LEGACY` is `$ROOT/.work-item-tracker.json` and its personal override `$ROOT/.work-item-tracker.local.json`:
-  read, and copied by step 1 of "Provider binding", never written.
+- `LEGACY` is the retired binding file `$ROOT/.work-item-tracker.json` and its personal override
+  `$ROOT/.work-item-tracker.local.json`. The seam no longer reads them; step 1 of "Provider binding"
+  copies them, and setup never writes them.
 - `SCHEDULE` is `$ROOT/.github/recurring-schedule.json`.
 
 The binding and schedule are version-controlled and shared by the whole team. They belong in the
@@ -65,8 +66,8 @@ consumer's tree, never in the plugin directory or any machine-local state.
 `apply` runs this first, the recurring-schedule and role-label passes below resolve the binding; the
 `check` binding probe validates it read-only. The tracker seam runs against exactly one provider per
 repo, declared under the `tracker` key of the tracked `<home>/work-items.yaml` (resolved as `BINDING`
-above); every seam verb resolves the bound provider from it, falling back to the legacy JSON file
-while that file is the only binding, and with no binding the seam hard-errors (exit 3). The seam **ships with this plugin** and bundles two adapters, `github` and `local-markdown`;
+above); every seam verb resolves the bound provider from it, and with no binding the seam hard-errors
+(exit 3) with a message naming `/work-items:setup apply`. The seam **ships with this plugin** and bundles two adapters, `github` and `local-markdown`;
 for those, installing the plugin is enough and a repo only declares which one it uses. `jira`, `gitea`,
 and `linear` ship as **seeds**, which step 4 copies into the consuming repo, where the repo owns them.
 Binding shape, discovery, and
@@ -92,9 +93,8 @@ when this pass must stop instead of guessing.
    `empty`). Exit `1` names a value it cannot copy (a null, an empty object, a list of mappings);
    `3` an `OVERRIDE` path that no `.gitignore` rule covers or that the index holds; `4` a repository
    where no home applies or whose pointer is broken. Each writes nothing and is a finding to report. The JSON files
-   stay where they are, unchanged: older installed plugin versions and the repository's own tooling
-   may still read only them. Say so, and say that a later
-   binding edit lands only in the YAML file. Then treat the copy as the current binding. If neither
+   stay where they are, unchanged, and no longer bind: a vendored seam or the repository's own tooling
+   may still read only them. Say so, and say that a later binding edit lands only in the YAML file. Then treat the copy as the current binding. If neither
    file binds the repository, say so and continue to the interview.
 2. **Choose the provider**, recommendation first. One line each below; the selection detail,
    how to verify a `github` bind, what each provider can and cannot do, and every config key,

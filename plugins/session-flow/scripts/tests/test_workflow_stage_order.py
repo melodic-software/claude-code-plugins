@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/skills/workflow/SKILL.md
 """Tripwire: the workflow skill's stage list and detection list agree with steps.md, interview first."""
 
 from __future__ import annotations

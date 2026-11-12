@@ -29,8 +29,7 @@ strings), then the config files, then the framework-registration patterns for th
 language. Stop at the first piece of real evidence.
 
 The optional `LSP` assist is one more source, never a substitute. What `findReferences` returns:
-[LSP tool behavior](https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior),
-as of 2026-11-03; recheck when that section changes what `findReferences` returns.
+[LSP tool behavior](https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior).
 
 ## Verdict rules
 
@@ -59,8 +58,6 @@ parser recognized, and it is a bug report about the detector, not a finding abou
   and adjudicate inline at the same cap. Silently shrinking the set is the failure mode to avoid.
   Pointer for the depth limit and what a subagent at it can spawn:
   [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
-  As of: 2026-10-11. Recheck trigger: that section changes the depth default or what a subagent
-  at the limit can spawn.
 
 ## Suppression formats
 
@@ -76,8 +73,7 @@ The skill writes nothing. It emits ready-to-paste text and the human decides.
 ```
 
 Where knip reads its config and what `ignore` takes:
-[ignore](https://knip.dev/reference/configuration#ignore), as of 2026-11-03; recheck when that
-section changes what an `ignore` entry takes.
+[ignore](https://knip.dev/reference/configuration#ignore).
 
 **vulture**, a whitelist entry carrying the adjudication as its comment:
 
@@ -85,8 +81,7 @@ section changes what an `ignore` entry takes.
 format_legacy_row  # adjudicated alive: dispatched by name from handlers.py
 ```
 
-How vulture reads a whitelist: [Whitelists](https://github.com/jendrikseipp/vulture#whitelists),
-as of 2026-11-03; recheck when that section changes how a whitelist is passed.
+How vulture reads a whitelist: [Whitelists](https://github.com/jendrikseipp/vulture#whitelists).
 
 **A committed vulture whitelist raises `F821` (undefined name) under a consumer's ruff config.**
 Say so whenever you emit one; the consumer either excludes the file in `ruff.toml` or keeps the

@@ -17,9 +17,6 @@ stores; this skill reports where the effective value came from and never writes 
   <https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored> and
   <https://code.claude.com/docs/en/settings-reference#pluginconfigs> live; the option contract is
   <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes where non-sensitive option values are stored or
-  which settings scopes a `pluginConfigs` entry is read from.
 
 Check-centric per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
@@ -90,13 +87,9 @@ reports "already configured".
      when a saved value applies, fetch
      [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
      live.
-   - **As of**: 2026-11-11
-   - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-     refused value, or when a saved value applies.
 
    For where `${user_config.*}` resolves, see
-   [Plugin manifest reference: Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
-   (as of 2026-11-04; recheck when that section changes when skill content takes a value).
+   [Plugin manifest reference: Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value).
    For a root outside the project and home directories, recommend the portable value forms from the
    README's option table (`~` prefix or `${NAME}` / `%NAME%` env-var reference) instead of a literal
    machine path, which guardrail hardcoded-path checks rightly block.

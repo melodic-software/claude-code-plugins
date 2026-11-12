@@ -143,8 +143,6 @@ matcher syntax, and environment variables against the current hooks documentatio
 
 - **Pointer**: [Hooks reference § Configuration](https://code.claude.com/docs/en/hooks#configuration)
   and [§ Hook lifecycle](https://code.claude.com/docs/en/hooks#hook-lifecycle)
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section moves, or a release note adds or renames a hook event.
 
 ### When to recommend
 
@@ -185,8 +183,6 @@ Subagent configurations that improve quality. Verify supported fields (YAML fron
 access, model selection, isolation modes) against the current subagent docs before recommending.
 
 - **Pointer**: [Create custom subagents § Supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section adds, renames or drops a field.
 
 ### When to recommend
 
@@ -214,8 +210,6 @@ Include: server transport (choose from the transports the docs currently support
 provided, read-only vs read-write, expected benefit.
 
 - **Pointer**: [Connect Claude Code to tools via MCP § Installing MCP servers](https://code.claude.com/docs/en/mcp#installing-mcp-servers)
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section adds, deprecates or removes a transport.
 
 ## Settings / Configuration
 
