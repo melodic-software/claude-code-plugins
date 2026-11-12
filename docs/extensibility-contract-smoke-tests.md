@@ -86,9 +86,8 @@ the subprocess environment is identical).
   runs. Which of the plugin's own declared components receive option values, through the
   environment or through `${user_config.KEY}` substitution, is the manifest reference's to state:
   [§ Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
-  and [§ Fields that run through a shell](https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell)
-  (as of 2026-10-11; recheck when either section changes which components receive a value). This
-  run's reading on 2.1.207 counted monitors among them; those sections decide whether that holds.
+  and [§ Fields that run through a shell](https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell).
+  This run's reading on 2.1.207 counted monitors among them; those sections decide whether that holds.
 - **Authoring constraint.** A skill reads a **non-sensitive** userConfig value only through
   `${user_config.KEY}` text-substitution into its own Markdown, never from the environment of a script
   it spawns. A **sensitive** value is unreachable from a skill entirely: it is not substitutable into
@@ -125,8 +124,7 @@ claude plugin install smoketest@<marketplace> --scope local </dev/null
   ([plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
   as of 2026-10-11; recheck when that section drops the subcommand), and the
   [plugin-reconfiguration convention § The routes](contracts/plugin-reconfiguration/README.md#the-routes)
-  owns which route setups print; it prefers `claude plugin configure --values-stdin` headless
-  (as of 2026-10-28; recheck when that section changes the routes setups print).
+  owns which route setups print; it prefers `claude plugin configure --values-stdin` headless.
 - **CI implication.** Seed every required option with `--config` at install time. A bare headless
   install leaves required options unset without failing, so the plugin would run unconfigured.
 
@@ -195,9 +193,8 @@ claude -p "/smokemulti:echo" --plugin-dir <rig>/smokemulti \
   `claude plugin --help`); `/plugin configure` was an interactive slash command only, there was no
   headless probe of bare-vs-qualified resolution, and the docs named neither spelling. The CLI
   reference now documents `claude plugin configure` and which id form it accepts:
-  [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
-  (as of 2026-10-11; recheck when that section changes the id forms it accepts). It agrees with the
-  fleet decision below.
+  [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
+  It agrees with the fleet decision below.
 
 **Fleet decision.** Actionable guidance, anywhere a reader is told to *run* the command with a
 specific plugin target, uses the marketplace-qualified form `/plugin configure

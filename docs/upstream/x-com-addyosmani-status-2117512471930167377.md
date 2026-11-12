@@ -9,10 +9,8 @@ an interview on 2026-11-03; this record states them.
 - **Pointer**: when a row's idea needs its upstream wording, fetch
   <https://x.com/addyosmani/status/2117512471930167377> live (an X Article has no section anchors,
   so each row names the article section it comes from); no docs page covers keeping human judgment
-  in agent workflows as of 2026-11-03.
-- **As of**: 2026-11-03
-- **Recheck trigger**: the post is edited or deleted, a Claude Code docs page starts covering the
-  topic (the pointer moves there), or issue
+  in agent workflows.
+- **Recheck trigger**: issue
   [#12938](https://github.com/melodic-software/claude-code-plugins/issues/12938) or
   [#12939](https://github.com/melodic-software/claude-code-plugins/issues/12939) closes: re-audit
   the rows that cite it.
@@ -61,5 +59,3 @@ and takes ideas only.
 
 - **Pointer**: <https://x.com/addyosmani/status/2117512471930167377>, checked for a license
   statement; none found.
-- **As of**: 2026-11-03
-- **Recheck trigger**: the post gains a license statement or is republished under one.
