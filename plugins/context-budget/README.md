@@ -228,7 +228,7 @@ An uninstall can delete this directory; the audit tells the operator so near the
 - Per-skill / per-agent / per-MCP-tool attribution belongs to `/context` natively.
 - This plugin answers "what is my context made of": the startup measurement and the live
   breakdown. How full the context is and what happens as it fills (zones, notices to Claude,
-  toasts, optional blocking, the one-line level row) belongs to the `context-guard` plugin.
+  toasts, the one-line level row) belongs to the `context-guard` plugin.
 - Measurements describe **headless** sessions of the **local CLI**; interactive sessions and
   cloud/web surfaces can compose the payload differently, and reports say so.
 
