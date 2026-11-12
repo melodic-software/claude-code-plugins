@@ -35,13 +35,6 @@ set -uo pipefail
 checks_init pre-commit "$@" || exit 0
 checks_require_tool actionlint "the kjanat/actionlint v1.17.0 release asset, checked against its checksums file: https://github.com/kjanat/actionlint/releases/tag/v1.17.0"
 
-# staged_gone <path>: 0 at pre-commit when <path> is gone from the work tree and
-# the index holds it as a regular file, not a symlink (mode 120000) or a submodule.
-staged_gone() {
-  [[ "$CHECKS_MODE" == pre-commit && ! -e "$1" && ! -L "$1" ]] || return 1
-  [[ "$(git ls-files -s -- ":(literal)$1" 2>/dev/null)" == 100* ]]
-}
-
 whole=()
 partial=()
 while IFS= read -r -d '' f; do
@@ -51,7 +44,7 @@ while IFS= read -r -d '' f; do
   *) continue ;;
   esac
   # A staged file gone from the work tree has unstaged changes, so it is partial.
-  [[ -f "$f" && ! -L "$f" ]] || staged_gone "$f" || continue
+  [[ -f "$f" && ! -L "$f" ]] || checks_staged_gone "$f" || continue
   if checks_partly_staged "$f"; then
     partial+=("$f")
   else

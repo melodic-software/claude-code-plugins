@@ -18,7 +18,7 @@ import {
   normalizeSynthesisDestName,
 } from "../lib/synthesis-filename.js";
 import { resolveTempSession } from "../lib/temp-session-paths.js";
-import { readJsonFile, readLaneJson } from "../lib/watch-frame-index.js";
+import { readJsonFile, readLaneJson, writeJsonFile } from "../lib/watch-frame-index.js";
 import {
   promotionSourceFileReason,
   validatePromotionDecisionsForSlice,
@@ -161,7 +161,7 @@ export async function visionGatedPromote(sliceDir, { dryRun = false } = {}) {
   dedupeSynthesisDir(lanePath(absSlice, LANES.keyFrames, "frames"));
 
   const mapPath = lanePath(absSlice, LANES.keyFrames, "promotion-map.json");
-  fs.writeFileSync(mapPath, `${JSON.stringify(promotionMap, null, 2)}\n`, "utf8");
+  writeJsonFile(mapPath, promotionMap);
 
   return {
     promoted: promotedPaths.map((p) => path.basename(p)),

@@ -47,11 +47,15 @@ run, and mints nothing ([Check mode](#check-mode)).
 
 1. Fails red when either variable is empty, when the resolved grant is not `read` or `write` for
    each of `contents`, `pull-requests` and `issues`, or when the job lacks `id-token: write`.
-2. Requests an OIDC token for `audience` and masks it.
+2. Requests an OIDC token for `audience` and masks it. A transient failure of that request (HTTP
+   5xx or 429, or a curl timeout or connection error) is retried inside step 3's budget, with the
+   `github-unavailable` backoff below; a last transient failure fails red with an error naming the
+   HTTP status or curl exit, titled `GitHub rate limit` on a 429 and `GitHub server error`
+   otherwise. Any other failure is final.
 3. Sends a `POST` to `broker-url` with `Authorization: Bearer <OIDC token>` and the body
    `{"lane", "activity", "pr_number"?, "issue_number"?, "release"?, "dispatcher_run_id"?}`. It sends
-   at most three requests, each with a fresh OIDC token, and retries only two 503s that come before
-   the broker reserves the job's mint, as GitHub's
+   at most three requests, each with a fresh OIDC token, counting step 2's retries, and retries only
+   two 503s that come before the broker reserves the job's mint, as GitHub's
    [rate-limit guidance](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit)
    asks:
    - `github-rate-limited`: GitHub rate-limited the broker. The retry waits exactly the

@@ -90,15 +90,7 @@ hook::require_jq_blocking "guardrails-block-github-post-content" "block_github_p
 
 jq_rc=0
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || jq_rc=$?
-if ((jq_rc == 2)); then
-  guard::refuse_unparsable
-  exit 2
-fi
-((jq_rc != 0)) && exit 0
-if ((HOOK_JQ_FIELDS_NUL)); then
-  guard::refuse_nul
-  exit 2
-fi
+guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 _BGPC_CWD="${HOOK_JQ_FIELDS[2]:-$PWD}"

@@ -9,7 +9,7 @@
 //   install.mjs list     [common]
 //   install.mjs plan     --scope local|shared|remote [--manager <m>] [common]
 //   install.mjs copy     --scope local|shared [--entry <name>]... [--manager <m>] [--force] [common]
-//   install.mjs decline  --entry <name> [--undo] [--global] [common]
+//   install.mjs decline  --entry <name> [--undo|--opt-in] [--global] [common]
 //   install.mjs verify   [--quiet] [common]
 //   install.mjs config-hook --include-if <condition> [--force] [common]
 //   common: [--repo <dir>] [--plugin-root <dir>]
@@ -28,6 +28,15 @@
 // config-hook writes a stable copy of each commit-msg entry and an include file
 // holding its `[hook "<plugin>-<entry>"]` block under the user's git config
 // directory; the includeIf line that loads it comes back as a decision.
+//
+// After a rename, the plugin lists its former names as earlierNames in
+// entries.json, and only those names are looked at: plan offers to retire the
+// copies, markers, lefthook jobs and config-hook keys an install under one of
+// them left, and a decline key left under one still counts, as git resolves it. plan carries this clone's resolved value to the
+// entry's own key in this clone's local config, and lists for removal only the
+// earlier-name lines in this clone's own local and worktree config files. Lines
+// in system or global files, in what they include, or in a file a local
+// include pulls in may decide other clones or files, so plan only reports them.
 //
 // Exit 0 done; 1 verify found drift, or copy or config-hook refused a locally
 // modified copy, or copy a target that is or passes through a symlink;
@@ -58,7 +67,10 @@ import { fileURLToPath } from "node:url";
 
 export const EVENTS = ["pre-commit", "pre-push", "commit-msg"];
 export const MANAGERS = ["lefthook", "husky", "plain"];
-const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
+// Entry, tool and plugin names; an earlier plugin name read from a repository
+// path or a git config key that fails it is skipped, never listed.
+const NAME_PART = "[a-z0-9][a-z0-9-]*";
+const NAME_RE = new RegExp(`^${NAME_PART}$`);
 const SCRIPT_RE = /^[A-Za-z0-9._-]+\.sh$/;
 const STAMP_RE = /^# (\S+) (\S+) sha256:([0-9a-f]{64})$/;
 const SENTINEL = "# checks-dispatcher v1";
@@ -203,16 +215,30 @@ function readText(file) {
   }
 }
 
+// realOr(p) -> p's physical path, or p itself when it does not exist. The
+// native resolver also expands a Windows short name, as git does.
+const realOr = (p) => {
+  try {
+    return realpathSync.native(p);
+  } catch {
+    return p;
+  }
+};
+
 // repoInfo(dir) -> the paths every action needs, or null outside a work tree.
+// ownConfig: this clone's local and worktree config files, as physical paths,
+// so a symlinked or short-name spelling of dir still matches what git reports.
 export function repoInfo(dir) {
-  const top = git(dir, ["rev-parse", "--show-toplevel"]);
-  if (!top.ok || !top.out) return null;
-  const root = top.out;
-  const abs = (p) => path.resolve(root, p);
+  const paths = ["hooks", "info/exclude", "config", "config.worktree"].flatMap((p) => ["--git-path", p]);
+  const r = git(dir, ["rev-parse", "--show-toplevel", ...paths]);
+  const [root, hooks, exclude, config, worktreeConfig] = r.out.split("\n");
+  if (!r.ok || !root || worktreeConfig === undefined) return null;
+  const abs = (p) => path.resolve(dir, p); // --git-path answers relative to dir
   return {
     top: root,
-    hooksDir: abs(git(root, ["rev-parse", "--git-path", "hooks"]).out),
-    excludeFile: abs(git(root, ["rev-parse", "--git-path", "info/exclude"]).out),
+    hooksDir: abs(hooks),
+    excludeFile: abs(exclude),
+    ownConfig: [abs(config), abs(worktreeConfig)].map(realOr),
     hooksPath: git(root, ["config", "--get", "core.hooksPath"]).out,
   };
 }
@@ -262,11 +288,22 @@ function remoteErrors(remote) {
 }
 
 // validateEntries(manifest) -> list of errors; empty means valid.
+// earlierNames: optional, the plugin names this plugin had before a rename,
+// whose git-hook artifacts plan offers to retire. Each is a migration line,
+// removed once no consumer repository still holds artifacts under that name.
+function earlierErrors(names) {
+  if (names === undefined) return [];
+  if (!Array.isArray(names) || !names.every((n) => typeof n === "string" && NAME_RE.test(n))) {
+    return [`entries.json earlierNames must be a list of plugin names matching ${NAME_RE.source}`];
+  }
+  return new Set(names).size === names.length ? [] : ["entries.json names an earlier name twice"];
+}
+
 export function validateEntries(manifest) {
   if (!Array.isArray(manifest?.entries) || manifest.entries.length === 0) {
     return ["entries.json needs a non-empty entries list"];
   }
-  const errors = [...manifest.entries.flatMap(entryErrors), ...remoteErrors(manifest.remote)];
+  const errors = [...manifest.entries.flatMap(entryErrors), ...remoteErrors(manifest.remote), ...earlierErrors(manifest.earlierNames)];
   const names = manifest.entries.map((e) => e?.name);
   if (new Set(names).size !== names.length) errors.push("entries.json names an entry twice");
   return errors;
@@ -300,10 +337,11 @@ export function loadPlugin(root) {
     throw new UsageError(`${name}: entries.json is not valid JSON: ${err.message}`);
   }
   const errors = validateEntries(manifest);
+  if (manifest.earlierNames?.includes?.(name)) errors.push("entries.json earlierNames lists the plugin's own name");
   if (errors.length) throw new UsageError(`${name}: ${errors.join("; ")}`);
   const libText = readText(path.join(root, "lib", "git-hooks", LIB_NAME));
   if (libText === null) throw new UsageError(`${name}: lib/git-hooks/${LIB_NAME} is missing`);
-  return { name, root, entries: manifest.entries, remote: manifest.remote, libText };
+  return { name, root, entries: manifest.entries, remote: manifest.remote, earlierNames: manifest.earlierNames ?? [], libText };
 }
 
 // stampHash(script, lib, assets): sha256 over the LF-normalized script, a NUL,
@@ -473,33 +511,59 @@ function configBool(info, key) {
   const r = git(info.top, ["config", "--type=bool", "--get", key]);
   return r.ok ? r.out : r.status === 1 ? "" : "invalid";
 }
-// A decline recorded under another plugin name for one of this plugin's
-// entries (entry names are unique across plugins): an install made before the
-// plugin was renamed. It counts between the entry's own key and the master key.
+// A decline recorded under one of the plugin's declared earlier names
+// (earlierNames in entries.json): an install made before the plugin was
+// renamed. It counts between the entry's own key and the master key.
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-// configEntries(info, re, args) -> [{ scope, origin, key, value }] for every
-// config line whose key matches re; value is null for a key with no value.
+// configEntries(info, re, args) -> [{ scope, origin, file, key, value }] for
+// every config line whose key matches re: file is the absolute path of the
+// config file that sets it (an included file included), or null when it comes
+// from no file; value is null for a key with no value.
 function configEntries(info, re, args = []) {
   const tokens = git(info.top, ["config", ...args, "--show-origin", "--show-scope", "--null", "--get-regexp", re]).out.split("\0");
   const out = [];
   for (let i = 0; i + 2 < tokens.length; i += 3) {
     const [key, ...value] = tokens[i + 2].split("\n");
-    out.push({ scope: tokens[i], origin: tokens[i + 1].replace(/^file:/, ""), key, value: value.length ? value.join("\n") : null });
+    const origin = tokens[i + 1];
+    const file = origin.startsWith("file:") ? path.resolve(info.top, origin.slice("file:".length)) : null;
+    out.push({ scope: tokens[i], origin, file, key, value: value.length ? value.join("\n") : null });
   }
   return out;
 }
-const isTrue = (value) => value === null || ["true", "yes", "on", "1"].includes(value.toLowerCase());
-function priorDeclines(info, plugin, entry) {
-  return configEntries(info, `^checks\\.[^.]+\\.${escapeRe(entry.name)}\\.declined$`)
-    .map((d) => ({ ...d, from: d.key.split(".")[1], value: isTrue(d.value) }))
-    .filter((d) => d.from !== plugin.name);
+// fileLines(info, file, re) -> [{ file, key, value }], one per line of that one
+// file (its includes not followed) whose key matches re, in file order; value
+// is git's boolean reading of that line, or null when git does not take it as one.
+function fileLines(info, file, re) {
+  const all = git(info.top, ["config", "--file", file, "--no-includes", "--type=bool", "--null", "--get-regexp", re]);
+  if (all.ok || all.status === 1) {
+    return all.out
+      .split("\0")
+      .filter(Boolean)
+      .map((t) => {
+        const [key, value] = t.split("\n");
+        return { file, key, value: value === "true" };
+      });
+  }
+  // A value git does not take as a boolean fails the whole listing: read each key's values.
+  const lines = configEntries(info, re, ["--file", file, "--no-includes"]);
+  const bools = new Map();
+  for (const key of new Set(lines.map((l) => l.key))) {
+    const r = git(info.top, ["config", "--file", file, "--no-includes", "--type=bool", "--null", "--get-all", key]);
+    bools.set(key, r.ok ? r.out.split("\0").map((v) => v === "true") : []);
+  }
+  const seen = new Map();
+  return lines.map((l) => {
+    const i = seen.get(l.key) ?? 0;
+    seen.set(l.key, i + 1);
+    return { file, key: l.key, value: bools.get(l.key)[i] ?? null };
+  });
 }
 // priorDecline -> the effective value (git's precedence per key) of the entry's
-// decline key under another plugin name: "true" when any such key reads true,
+// decline key under a declared earlier name: "true" when any such key reads true,
 // else "false" when one reads false (an opt-in, as copy writes over a master or
 // global decline), else "". The entry's own key, when set, wins over it.
 function priorDecline(info, plugin, entry) {
-  const values = [...new Set(priorDeclines(info, plugin, entry).map((d) => d.key))].map((k) => configBool(info, k));
+  const values = plugin.earlierNames.map((from) => configBool(info, `checks.${from}.${entry.name}.declined`));
   return values.includes("true") ? "true" : values.includes("false") ? "false" : "";
 }
 const isDeclined = (info, plugin, entry, prior = true) =>
@@ -1004,9 +1068,9 @@ export function copy(info, plugin, entry, scope, manager, force = false) {
 // key (false with optIn, an opt-in over a wider decline) or clears it, in this
 // clone, or with global in the user's global config.
 export function decline(info, plugin, entry, undo = false, global = false, optIn = false) {
-  const scope = global ? "--global" : "--local";
+  const scope = [global ? "--global" : "--local"];
   const key = declineKey(plugin, entry);
-  const args = undo ? ["config", scope, "--unset", key] : ["config", scope, key, optIn ? "false" : "true"];
+  const args = undo ? ["config", ...scope, "--unset", key] : ["config", ...scope, key, optIn ? "false" : "true"];
   const r = git(info.top, args);
   return r.ok || (undo && r.status === 5); // 5: the key was not set
 }
@@ -1175,16 +1239,19 @@ function entryVerdict(info, plugin, entry, manager) {
 }
 
 // leftovers(info, plugin) -> [{ entry, from, dirs[], markers[], scripts[],
-// jobs[{ name, file }], declines[{ key, scope, value, carry }], config[{ key, scope, value? }] }],
-// one per entry and earlier plugin name (`from`) with anything installed under
-// that name, as an install made before the plugin was renamed leaves: copies
-// whose stamp names the entry but not this plugin (in a repository hooks
-// directory or the user config-hook directory), <event>.d markers, lefthook
-// jobs that run such a copy, decline keys, config-hook keys and the includeIf
-// that loads them. Entry names are unique across plugins, so no earlier name
-// is listed anywhere. install.mjs removes none of it: plan hands it to the
-// setup agent as a superseded decision (D1).
+// jobs[{ name, file }], declines[{ key, scope, file, value, keep?, shared?, included? }],
+// config[{ key, scope, file, value? }], carry?: decline | opt-in }],
+// one per entry and declared earlier name (`from`, from earlierNames in
+// entries.json) with anything installed under that name, as an install made
+// before the plugin was renamed leaves: copies whose stamp names the entry and
+// that name (in a repository hooks directory or the user config-hook
+// directory), <event>.d markers, lefthook jobs that run such a copy, decline
+// keys, config-hook keys and the includeIf that loads them. No other plugin
+// name is ever looked at, so with no earlierNames there is nothing. install.mjs
+// removes none of it: plan hands it to the setup agent as a superseded decision (D1).
 function leftovers(info, plugin) {
+  const earlier = new Set(plugin.earlierNames);
+  if (!earlier.size) return [];
   const found = new Map();
   const at = (entry, from) => {
     const k = `${entry.name}\0${from}`;
@@ -1202,71 +1269,96 @@ function leftovers(info, plugin) {
     path.join(path.dirname(path.dirname(info.excludeFile)), "hooks"),
     checksRoot,
   ]);
-  const ownDeclineSet = (entry, scope) => git(info.top, ["config", `--${scope}`, "--get", declineKey(plugin, entry)]).status !== 1;
+  const ownConfig = new Set(info.ownConfig);
   for (const entry of plugin.entries) {
     const name = escapeRe(entry.name);
     for (const root of roots) {
       for (const d of dirNames(root)) {
-        if (!d.isDir || d.name === plugin.name || d.name.toLowerCase().endsWith(".d")) continue;
+        if (!d.isDir || !earlier.has(d.name)) continue;
         const script = path.join(root, d.name, entry.script);
         const stamp = readStamp(readText(script) ?? "");
-        if (!stamp || stamp.name !== entry.name || stamp.plugin === plugin.name) continue;
+        if (!stamp || stamp.name !== entry.name || stamp.plugin !== d.name) continue;
         const l = at(entry, d.name);
         l.dirs.push(configPath(info, path.join(root, d.name)));
         l.scripts.push(configPath(info, script));
         if (root !== checksRoot) continue;
         const include = posix(path.join(root, d.name, INCLUDE_FILE));
         for (const c of configEntries(info, "^includeif\\..*\\.path$", ["--global"])) {
-          if (c.value === include) l.config.push({ key: c.key, scope: c.scope, value: c.value });
+          if (c.value === include) l.config.push({ key: c.key, scope: c.scope, file: c.file, value: c.value });
         }
       }
       const suffix = `.${entry.name}`;
       for (const m of dirNames(path.join(root, `${entry.event}.d`))) {
         const from = m.name.slice(0, -suffix.length);
-        if (m.isDir || !m.name.endsWith(suffix) || !from || from === plugin.name) continue;
+        if (m.isDir || !m.name.endsWith(suffix) || !earlier.has(from)) continue;
         at(entry, from).markers.push(configPath(info, path.join(root, `${entry.event}.d`, m.name)));
       }
     }
     // A job counts only when the file also names a copy under that plugin name.
-    const job = new RegExp(`(?:name:[ \\t]*(["']?)([a-z0-9][a-z0-9-]*)-${name}\\1|^[ \\t]+([a-z0-9][a-z0-9-]*)-${name}:)[ \\t]*$`, "gm");
+    const job = new RegExp(`(?:name:[ \\t]*(["']?)(${NAME_PART})-${name}\\1|^[ \\t]+(${NAME_PART})-${name}:)[ \\t]*$`, "gm");
     for (const file of new Set([lefthookFile(info, "shared"), lefthookFile(info, "local")])) {
       const text = readText(path.join(info.top, file)) ?? "";
       for (const m of text.matchAll(job)) {
         const from = m[2] ?? m[3];
-        if (from !== plugin.name && text.includes(`${from}/${entry.script}`)) at(entry, from).jobs.push({ name: `${from}-${entry.name}`, file });
+        if (earlier.has(from) && text.includes(`${from}/${entry.script}`)) at(entry, from).jobs.push({ name: `${from}-${entry.name}`, file });
       }
     }
-    // Each line is unset, and carried to the entry's own key at the same scope
-    // (local or global, the scopes decline writes) when that scope has none, so
-    // every clone keeps the value git's precedence gave it.
-    for (const d of priorDeclines(info, plugin, entry)) {
-      const carry = ["local", "global"].includes(d.scope) && !ownDeclineSet(entry, d.scope);
-      at(entry, d.from).declines.push({ key: d.key, scope: d.scope, value: d.value, carry });
+    // Earlier-name decline lines as this clone reads them. Git resolves each
+    // key; when this clone sets no own key, the resolved value is carried to
+    // the own key in this clone's local config (`carry`), unless keys under
+    // different earlier names resolve differently, or one resolves to no
+    // boolean. Only lines in this clone's own local and worktree config files
+    // are listed for removal; a line in a system or global file or anything it
+    // includes (shared), in a file a local include pulls in (included), or from
+    // the command line is listed and never edited, since other clones or files
+    // may rely on it.
+    const declineRe = `^checks\\.[^.]+\\.${name}\\.declined$`;
+    const lines = configEntries(info, declineRe)
+      .map((d) => ({ ...d, from: d.key.split(".")[1] }))
+      .filter((d) => earlier.has(d.from));
+    const resolved = [...new Set(lines.map((d) => d.key))].map((k) => configBool(info, k));
+    const values = new Set(resolved.filter((v) => v !== "invalid"));
+    const ownUnset = configBool(info, declineKey(plugin, entry)) === "";
+    const unclear = ownUnset && (values.size > 1 || resolved.includes("invalid"));
+    const carry = ownUnset && !unclear && values.size === 1 ? ([...values][0] === "true" ? "decline" : "opt-in") : null;
+    const fileValues = new Map();
+    const valueOf = (d) => {
+      if (!d.file) return null;
+      if (!fileValues.has(d.file)) fileValues.set(d.file, fileLines(info, d.file, declineRe));
+      const next = fileValues.get(d.file).findIndex((l) => l.key === d.key);
+      return next < 0 ? null : fileValues.get(d.file).splice(next, 1)[0].value;
+    };
+    for (const d of lines) {
+      const where = !d.file ? {} : ["system", "global"].includes(d.scope) ? { shared: true } : ownConfig.has(realOr(d.file)) ? null : { included: true };
+      const l = at(entry, d.from);
+      l.declines.push({ key: d.key, scope: d.scope, file: d.file, value: valueOf(d), ...(where || unclear ? { keep: true, ...where } : {}) });
+      if (carry) l.carry = carry;
     }
     // Config-hook keys set in this repository's config; those the removed
     // include file sets go with it.
     if (!CONFIG_HOOK_EVENTS.includes(entry.event)) continue;
-    for (const c of configEntries(info, `^hook\\.[a-z0-9][a-z0-9-]*-${name}\\.`)) {
+    for (const c of configEntries(info, `^hook\\.${NAME_PART}-${name}\\.`)) {
       const from = c.key.slice("hook.".length, c.key.lastIndexOf(".") - entry.name.length - 1);
-      if (from === plugin.name || posix(c.origin).startsWith(`${posix(checksRoot)}/`)) continue;
+      if (!earlier.has(from) || (c.file && posix(c.file).startsWith(`${posix(checksRoot)}/`))) continue;
       const l = at(entry, from);
-      if (!l.config.some((k) => k.key === c.key && k.scope === c.scope)) l.config.push({ key: c.key, scope: c.scope });
+      if (!l.config.some((k) => k.key === c.key && k.file === c.file)) l.config.push({ key: c.key, scope: c.scope, file: c.file });
     }
   }
   return [...found.values()];
 }
 
-// The removal a leftover needs, in words, for verify's detail.
+// The removal a leftover needs, in words, for verify's detail. Decline lines
+// outside this clone's own config files are for plan and setup only.
+const ownDeclines = (l) => l.declines.filter((d) => d.file && !d.shared && !d.included);
 function leftoverDetail(plugin, l) {
   const parts = [];
   const remove = [...l.dirs, ...l.markers, ...l.scripts.map((s) => `any hook-manager line that runs ${s}`)];
   if (remove.length) parts.push(`remove ${remove.join(" and ")}`);
   for (const j of l.jobs) parts.push(`remove the lefthook job ${j.name} from ${j.file}`);
   for (const c of l.config) parts.push(`unset git config ${c.key} (${c.scope})`);
-  for (const d of l.declines) {
-    const to = `checks.${plugin.name}.${l.entry}.declined`;
-    const what = d.value ? "decline" : "opt-in";
-    parts.push(d.carry ? `move the ${what} ${d.key} (${d.scope}) to ${to}` : `unset git config ${d.key} (${d.scope})`);
+  if (l.carry) parts.push(`set checks.${plugin.name}.${l.entry}.declined ${l.carry === "decline"} in this clone's local config`);
+  for (const d of ownDeclines(l)) {
+    parts.push(d.keep ? `keep ${d.key} (${d.scope}): earlier names disagree, so resolve it by hand` : `unset git config ${d.key} (${d.scope})`);
   }
   return parts.join("; ");
 }
@@ -1282,11 +1374,14 @@ export function verify(info, plugin) {
     missingTools: entry.tools.filter((t) => !whichTool(t)),
   }));
   // A decline left under an earlier name is reported beside the entry's own
-  // declined row, silent at session start; anything else left is drift.
+  // declined row, silent at session start; anything else left is drift. A
+  // decline line only outside this clone's own config, once this clone has its
+  // own key, is no row at all: plan and setup report it.
   const superseded = [];
   for (const l of leftovers(info, plugin)) {
     const row = rows.find((r) => r.entry === l.entry);
     const onlyDeclines = !l.dirs.length && !l.markers.length && !l.jobs.length && !l.config.length;
+    if (onlyDeclines && !l.carry && !ownDeclines(l).length) continue;
     if (onlyDeclines && row.state === "declined") {
       row.detail = [row.detail, leftoverDetail(plugin, l)].filter(Boolean).join("; ");
     } else {

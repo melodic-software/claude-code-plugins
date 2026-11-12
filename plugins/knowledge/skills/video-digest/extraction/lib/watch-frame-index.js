@@ -1,5 +1,5 @@
 /**
- * Shared slice-artifact JSON reads and the selected-frame index for the watch scripts.
+ * Shared slice-artifact JSON reads and writes and the selected-frame index for the watch scripts.
  *
  * The `watch/` CLI scripts all read the same lane JSON and rebuild the same
  * `file` -> frame lookup from `key-frames/selection.json`; both live here so the
@@ -18,6 +18,17 @@ import { lanePath } from "./slice-lanes.js";
  */
 export function readJsonFile(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+/**
+ * Write a JSON artifact to disk, pretty-printed with a trailing newline.
+ *
+ * @param {string} filePath
+ * @param {unknown} value
+ * @returns {void}
+ */
+export function writeJsonFile(filePath, value) {
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
 /**

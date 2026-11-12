@@ -60,7 +60,7 @@ C4Context
   Rel(melodic_software_claude_code_plugins, melodic_software_runner_policy_runtime, "cites (1)")
   Rel(melodic_software_claude_code_plugins, melodic_software_standards, "cites (133)")
   Rel(melodic_software_claude_code_plugins, actions_checkout, "uses-workflow (216)")
-  Rel(melodic_software_claude_code_plugins, actions_upload_artifact, "uses-workflow (151)")
+  Rel(melodic_software_claude_code_plugins, actions_upload_artifact, "uses-workflow (152)")
   Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "uses-workflow (367)")
 ```
 

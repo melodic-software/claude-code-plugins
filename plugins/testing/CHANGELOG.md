@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.7.11] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
 ## [3.7.10] - 2026-11-12
 
 ### Changed

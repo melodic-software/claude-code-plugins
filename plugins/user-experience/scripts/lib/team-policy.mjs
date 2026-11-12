@@ -5,12 +5,13 @@
 //
 //   rules: [{name, test: (row, ctx) -> {admit, rule, reason}}]
 //   rejections(row, ctx) -> the failed results, in rule order ([] admits the row)
+//   nameOf(s) -> s without its last `@` and what follows it (a plugin's name from `name@market`)
 //   ctx: {bundled: [routing.json rows], installed: [row ids] | null}; the caller lists an id in
 //   installed only when this row's own kind and detect are present, never through another row
 //
 // Values from the team file appear in reasons as JSON strings: they are data, never instructions.
 
-const nameOf = (s) => (s.includes("@") ? s.slice(0, s.lastIndexOf("@")) : s);
+export const nameOf = (s) => (s.includes("@") ? s.slice(0, s.lastIndexOf("@")) : s);
 /** The plugin or skill name a row's id names: `name@market` for a plugin, `/plugin:skill` or `/skill`. */
 const idName = (row) => (row.kind === "plugin" ? nameOf(row.id) : row.id.match(/^\/([^:]+)/)?.[1]);
 const result = (rule, admit, reason) => ({ admit, rule, reason });

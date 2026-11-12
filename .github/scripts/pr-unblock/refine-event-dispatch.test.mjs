@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { createGitHubApi, PULL_QUERY } from "./dispatch.mjs";
-import { main } from "./refine-event-dispatch.mjs";
+import { main, REFINE_ACTIVITIES } from "./refine-event-dispatch.mjs";
 
 const HEAD = "a".repeat(40);
 const checkRun = (name) => ({ __typename: "CheckRun", name, checkSuite: { app: { databaseId: 15368 } } });
@@ -59,12 +59,12 @@ function fakeApi({ node = pr(), historyRuns = 0 } = {}) {
   };
 }
 
-async function run(api, { prNumber = "77", limits = {}, sender = "4242", attempt = "1" } = {}) {
+async function run(api, { prNumber = "77", limits = {}, sender = "4242", attempt = "1", activities = [] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "refine-event-"));
   const lines = [];
   try {
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(dir, "ids"), PR_NUMBER: prNumber, APP_SENDER_ID: "1", SENDER_ID: sender, ...(attempt === null ? {} : { RUN_ATTEMPT: attempt }) };
-    const code = await main(env, { api, log: (line) => lines.push(line), loadLimits: async () => limits, loadTidyCutoffs: async () => null, readGateLabel: () => null, readHumans: () => new Set([4242]) });
+    const code = await main(env, { api, log: (line) => lines.push(line), loadLimits: async () => limits, loadTidyCutoffs: async () => null, loadActivities: async () => activities, readGateLabel: () => null, readHumans: () => new Set([4242]) });
     let ids = "";
     try {
       ids = readFileSync(env.RUN_IDS_FILE, "utf8");
@@ -177,7 +177,7 @@ test("by default the sender check reads the humans of the base's trusted-actor l
       try {
         const api = fakeApi();
         const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(dir, "ids"), PR_NUMBER: "77", APP_SENDER_ID: "1", SENDER_ID: sender, RUN_ATTEMPT: "1", BASE_PATH: base };
-        assert.equal(await main(env, { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, readGateLabel: () => null }), 0);
+        assert.equal(await main(env, { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, loadActivities: async () => [], readGateLabel: () => null }), 0);
         assert.equal(api.calls.dispatch.length, dispatched, `sender ${sender}`);
       } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -186,4 +186,95 @@ test("by default the sender check reads the humans of the base's trusted-actor l
   } finally {
     rmSync(base, { recursive: true, force: true });
   }
+});
+
+// refine-dispatch.activities (owner decision 2026-11-12): each listed id is one
+// more pr-refine.yml dispatch on main with the same three inputs as fix-docs's.
+const markerDispatch = { workflow: "pr-refine.yml", ref: "refs/heads/main", inputs: { "pr-number": "77", activity: "fix-marker", "dispatcher-run-id": "555" } };
+
+test("the allowlist holds fix-marker alone", () => {
+  assert.deepEqual(REFINE_ACTIVITIES, ["fix-marker"]);
+});
+
+test("a listed human's event dispatches each configured activity after fix-docs, each id recorded on its own line", async () => {
+  const api = fakeApi();
+  const { code, ids } = await run(api, { activities: ["fix-marker"] });
+  assert.equal(code, 0);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs.activity), ["fix-docs", "fix-marker"]);
+  assert.deepEqual(api.calls.dispatch[1], markerDispatch);
+  assert.equal(ids, "9001\n9001\n");
+});
+
+test("a configured activity needs no fix-docs: none due, fix-docs off, or the PR read failing still dispatches it", async () => {
+  const done = fakeApi({ node: pr({ checks: [checkRun("pr-refine / fix-docs")] }) });
+  await run(done, { activities: ["fix-marker"] });
+  assert.deepEqual(done.calls.dispatch, [markerDispatch], "fix-docs already ran");
+  const off = fakeApi();
+  await run(off, { activities: ["fix-marker"], limits: { "fix-docs-per-run": 0 } });
+  assert.deepEqual(off.calls.dispatch, [markerDispatch], "fix-docs-per-run 0");
+  const unread = fakeApi();
+  unread.readDocsFixCandidate = async () => {
+    throw new Error("502");
+  };
+  const { code } = await run(unread, { activities: ["fix-marker"] });
+  assert.equal(code, 0);
+  assert.deepEqual(unread.calls.dispatch, [markerDispatch], "the PR read failed");
+});
+
+// The lanes App pushes each applied patch, and that push is a synchronize
+// event: dispatching on it would start the activity again.
+test("the lanes App's event dispatches fix-docs but no configured activity", async () => {
+  const api = fakeApi();
+  const { code, lines } = await run(api, { sender: "1", activities: ["fix-marker"] });
+  assert.equal(code, 0);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs.activity), ["fix-docs"]);
+  assert.ok(lines.some((line) => line.startsWith("skip fix-marker #77: the lanes App sent this event")));
+});
+
+test("a re-run attempt or an unlisted sender dispatches no configured activity", async () => {
+  for (const [what, options] of [["attempt 2", { attempt: "2" }], ["unlisted", { sender: "999" }], ["no sender", { sender: "" }]]) {
+    const api = fakeApi();
+    const { code, ids } = await run(api, { ...options, activities: ["fix-marker"] });
+    assert.equal(code, 0, what);
+    assert.deepEqual(api.calls.dispatch, [], what);
+    assert.equal(ids, "", what);
+  }
+});
+
+test("an empty list dispatches only fix-docs, and a repeated id dispatches once", async () => {
+  const empty = fakeApi();
+  await run(empty, { activities: [] });
+  assert.deepEqual(empty.calls.dispatch.map((request) => request.inputs.activity), ["fix-docs"]);
+  const twice = fakeApi();
+  await run(twice, { activities: ["fix-marker", "fix-marker"] });
+  assert.deepEqual(twice.calls.dispatch.map((request) => request.inputs.activity), ["fix-docs", "fix-marker"]);
+});
+
+test("an id outside the allowlist fails the run and dispatches nothing, fix-docs included", async () => {
+  for (const activities of [["fix-docs"], ["fix-marker", "resolve-conflicts"], ["unknown"]]) {
+    const api = fakeApi();
+    const { code, ids, lines } = await run(api, { activities });
+    assert.equal(code, 1, activities.join());
+    assert.deepEqual(api.calls.dispatch, [], activities.join());
+    assert.equal(ids, "", activities.join());
+    assert.ok(lines.some((line) => line.startsWith("::error::refine-dispatch.activities names")), activities.join());
+  }
+});
+
+test("a configured dispatch that fails or returns no run id fails the run", async () => {
+  const thrown = fakeApi();
+  thrown.dispatchWorkflow = async (request) => {
+    thrown.calls.dispatch.push(request);
+    if (request.inputs.activity === "fix-marker") throw new Error("422");
+    return { workflowRunId: 9001 };
+  };
+  assert.equal((await run(thrown, { activities: ["fix-marker"] })).code, 1);
+  const empty = fakeApi();
+  empty.dispatchWorkflow = async (request) => {
+    empty.calls.dispatch.push(request);
+    return { workflowRunId: request.inputs.activity === "fix-marker" ? undefined : 9001 };
+  };
+  const { code, ids } = await run(empty, { activities: ["fix-marker"] });
+  assert.equal(code, 1);
+  assert.equal(ids, "9001\n");
 });

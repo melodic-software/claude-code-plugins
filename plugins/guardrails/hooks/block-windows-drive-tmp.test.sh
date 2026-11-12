@@ -289,6 +289,14 @@ nul_out=$(env OSTYPE=msys bash "$HOOK" \
 assert_exit "Write with NUL in file_path fails closed" 2 "$?"
 assert_contains "NUL block message" "$nul_out" "NUL byte"
 
+# JSON whose fields jq cannot read gets past the stdin read and is refused by
+# the field read.
+guard_invoke --hook "$HOOK" --payload '{"tool_name":"Write","tool_input":"C:/safe/x"}' -- OSTYPE=msys
+assert_exit "a payload whose fields jq cannot read fails closed" 2 "$GUARD_RC"
+assert_eq "unreadable fields: the refusal says why" \
+  "BLOCKED: the hook payload could not be parsed." "$GUARD_ERR"
+assert_eq "unreadable fields: nothing on stdout" "" "$GUARD_OUT"
+
 # --- File-path lane: kill switch ---------------------------------------------
 run_win_payload "kill switch disables the file-path lane" \
   "$(write_json '/tmp/x' 'x')" 0 \
