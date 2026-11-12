@@ -153,6 +153,7 @@ jobs:
   # check does not trust; that event's merge job still runs the check. Not on
   # a PR-scoped dispatch (inputs.pr), which only arms.
   post-merge-dispatch:
+    name: Post Merge Dispatch
     if: >-
       github.ref == 'refs/heads/main'
       && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
@@ -933,6 +934,7 @@ jobs:
     # condition below, which still skips push, forks and other
     # branches. The job joins its concurrency group only once
     # post-merge-dispatch ends.
+    name: Merge
     needs: [post-merge-dispatch]
     # A run started on any other branch would use that branch's copy of this
     # file, so it does nothing. pull_request_target runs carry the PR's base
@@ -956,7 +958,7 @@ jobs:
     # could stop between the gate's check and its merge-queue write. Extra runs
     # wait in line (`queue: max`) instead of being dropped. Without it GitHub
     # keeps only one waiting run and cancels the rest, which leaves CANCELLED
-    # `merge` checks on PRs and makes the merge hook refuse them. Waiting is
+    # `Merge` checks on PRs and makes the merge hook refuse them. Waiting is
     # harmless because every run re-reads its PRs from the API, and a run
     # with a pending successor that does its work skips the gate (the
     # superseded step). GitHub caps
@@ -1170,7 +1172,7 @@ jobs:
       # kill switch, a listed human) and hands out one token per job. A queued
       # run that a change to this file on main superseded is refused
       # `workflow-modified`; it ends green with a warning and no token, so the
-      # steps below skip and no stale failed `merge` check lands on a PR. The
+      # steps below skip and no stale failed `Merge` check lands on a PR. The
       # newer run checks every PR. A kill switch turned on after this run read
       # its variables is refused `kill-switch`; it ends green with a notice and
       # no token the same way, and the next scheduled run checks every PR.
@@ -2348,6 +2350,7 @@ jobs:
     # post-merge-dispatch and reads its report; on every other event and a
     # PR-scoped dispatch that job is skipped, and !cancelled() runs this one
     # anyway.
+    name: Enable Auto Merge
     needs: [post-merge-dispatch]
     # A pull request event wakes it only for a lanes App pull
     # request (its author's id is AUTOMATION_LANES_APP_SENDER_ID), the only
@@ -3036,6 +3039,7 @@ jobs:
   # Rules: .github/scripts/pr-merge/post-unarmed-status.mjs.
   # Not on a PR-scoped dispatch: the next sweep posts what that run would.
   unarmed-status:
+    name: Unarmed Status
     needs: [enable-auto-merge]
     if: ${{ !cancelled() && !inputs.pr && needs.enable-auto-merge.outputs.unarmed-statuses != '' }}
     runs-on: ubuntu-24.04
@@ -3086,6 +3090,7 @@ jobs:
           tokens: github-token
 
   dispatch-full-run:
+    name: Dispatch Full Run
     needs: [merge]
     if: >-
       !cancelled()
@@ -3355,6 +3360,7 @@ jobs:
   # line like the merge job's, so two never write at once and none is
   # cancelled onto a PR head; every step after the checkout cannot fail it.
   gate-check:
+    name: Gate Check
     needs: [merge]
     if: always() && needs.merge.outputs.gate-rows == 'true'
     concurrency:

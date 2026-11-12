@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No: `prune` removes auto-installed dependencies, not records by path.",
+      "why": "dependency axis"
+    },
+    {
+      "answer": "That command works on dependencies only; prune has no path flag.",
+      "why": "reverse order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, `claude plugin prune -s project` clears them.",
+      "why": "wrong"
+    },
+    {
+      "answer": "Prune cannot reach them; nothing in the CLI reaps by path.",
+      "why": "no dependency reason"
+    }
+  ]
+}

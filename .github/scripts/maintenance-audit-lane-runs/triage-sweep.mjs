@@ -174,15 +174,22 @@ export const renderState = ({ runs, filed, runUrl, repoUrl, details = [], reache
     ? `Intake triage did not triage this issue after ${runs.length} dispatches; #${filed} hands it to a maintainer.`
     : `The triage sweep dispatched [intake triage](${runUrl}) for this issue (dispatch ${runs.length}; ${ATTEMPTS} runs that reach intake, or ${RUN_LIMIT} dispatches, hand it to a maintainer).`);
 
-// Whether a run reached intake, from its jobs: the intake-triage caller job, or
-// a job of the reusable it calls ("intake-triage / ..."), finished neither
+// Whether a run reached intake, from its jobs: the Intake Triage caller job, or
+// a job of the reusable it calls ("Intake Triage / ..."), finished neither
 // skipped nor cancelled. The kill switch, a degraded upstream or a born-triaged
 // gate skips it; a run cancelled before it, or that never started, lists it
-// cancelled, skipped or not at all.
+// cancelled, skipped or not at all. A run from before the job rename names the
+// caller intake-triage and the verdict job apply-verdict.
+const INTAKE_JOB = /^(?:Intake Triage|intake-triage)(?: \/ |$)/;
+const INTAKE_APPLY_JOB = /^(?:Intake Triage|intake-triage) \/ .*-apply$/;
+const APPLY_JOB = "Apply Verdict";
+const APPLY_JOB_BEFORE_RENAME = "apply-verdict";
 export const reachedIntake = (jobs) =>
-  (jobs ?? []).some(
-    (j) => /^intake-triage(?: \/ |$)/.test(String(j.name ?? "")) && j.status === "completed" && !["skipped", "cancelled"].includes(j.conclusion),
-  );
+  (jobs ?? []).some((j) => INTAKE_JOB.test(String(j.name ?? "")) && j.status === "completed" && !["skipped", "cancelled"].includes(j.conclusion));
+const applyJob = (jobs) => {
+  const done = jobs.filter((j) => j.status === "completed");
+  return done.find((j) => j.name === APPLY_JOB) ?? done.find((j) => j.name === APPLY_JOB_BEFORE_RENAME);
+};
 
 // A run's mark, from its jobs and one annotations read (`annotations(path)`
 // returns a check run's annotation list): `-` when it never reached intake,
@@ -219,9 +226,9 @@ const checkRunPath = (job) => {
 };
 export async function classifyRun(jobs, annotations) {
   if (!reachedIntake(jobs)) return "-";
-  const apply = jobs.find((j) => j.name === "apply-verdict" && j.status === "completed");
+  const apply = applyJob(jobs);
   if (apply?.conclusion === "skipped") {
-    const reusable = jobs.find((j) => /^intake-triage \/ .*-apply$/.test(String(j.name ?? "")) && j.conclusion === "success");
+    const reusable = jobs.find((j) => INTAKE_APPLY_JOB.test(String(j.name ?? "")) && j.conclusion === "success");
     const path = checkRunPath(reusable);
     if (!path) return "+";
     const notes = (await annotations(path)) ?? [];

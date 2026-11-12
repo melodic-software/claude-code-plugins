@@ -36,6 +36,7 @@ concurrency:
 
 jobs:
   file-upstream-drift-issues:
+    name: File Upstream Drift Issues
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:

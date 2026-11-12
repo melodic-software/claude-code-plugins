@@ -1253,9 +1253,10 @@ async function sweepRefused(context) {
 // This file's workflow, whose lost runs the tick recovers.
 export const DISPATCH_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";
 
-// The workflow's job that dispatches; a loss of its other jobs leaves no head
-// undispatched.
-const DISPATCH_JOB = "dispatch";
+// The workflow's job that dispatches, by its display name, or by its id
+// (`dispatch`) on a run started before the rename; a loss of its other jobs
+// leaves no head undispatched.
+const DISPATCH_JOB = new Set(["Dispatch", "dispatch"]);
 // A job that ran a step, as reconcile.mjs holdReason reads one.
 const jobStarted = (job) => (Array.isArray(job?.steps) ? job.steps : []).some((step) => step?.conclusion != null && step.conclusion !== "skipped");
 // A failed dispatch job sent nothing either (#11344: its POST threw), and
@@ -1267,7 +1268,7 @@ const RECOVERABLE = new Set([...LOST, "failure"]);
 // lose it). A POST the API rejects starts no round to hold the PR, and the
 // tick logs it and ends green (sweepPulls), so this age is the only bound.
 export const FAILED_RUN_WINDOW_HOURS = 2;
-const dispatchLost = (job) => job?.name === DISPATCH_JOB && RECOVERABLE.has(job.conclusion) && jobStarted(job);
+const dispatchLost = (job) => DISPATCH_JOB.has(job?.name) && RECOVERABLE.has(job.conclusion) && jobStarted(job);
 
 // The newest run of DISPATCH_WORKFLOW other than this one, created within
 // LOOKBACK_HOURS (FAILED_RUN_WINDOW_HOURS for a failed one), that ended in

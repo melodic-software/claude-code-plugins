@@ -2390,7 +2390,9 @@ SPEND_JQ="$LANE_DEFS"'
 LANES_PARTIAL=0
 # Runs a single day's search still left out after the per-day re-read.
 LANE_RUNS_SHORT=0
-CALLER_JOB_RE='^([a-z0-9][a-z0-9-]*) / '
+# A caller job's display name (`Fix CI`) or job id (`fix-ci`, a run before the
+# rename or a repository whose job has no display name); either reads as the id.
+CALLER_JOB_RE='^([A-Za-z0-9][A-Za-z0-9 -]*) / '
 # fetch_lane_runs_by_day WORKFLOW SINCE_EPOCH: replaces $WORK/lane.page with one runs search per
 # UTC day from SINCE_EPOCH's day through today.
 fetch_lane_runs_by_day() {
@@ -2436,11 +2438,11 @@ fetch_lane_runs() {
 # failed runs, then the rest, each newest first. A run whose read failed is left out, which the rendering
 # shows as unread. A job a reusable workflow ran is named "<caller job> / <job>";
 # the pipeline lanes name each caller job after its activity, so such a job
-# with annotations adds an `activity=<caller job>` line. That name comes from
+# with annotations adds an `activity=<caller job id>` line. That name comes from
 # the jobs read already made, so the posted `<lane> / <activity>` check runs,
 # whose record copies the run job's, cost no read.
 fetch_lane_annotations() {
-  local runs="$1" out="$2" id jid jname ids n
+  local runs="$1" out="$2" id jid jname ids n act
   : >"$WORK/lane.ann"
   ids="$(jq -r 'map_values(map(select(.status == "completed" and .conclusion != "skipped")) | sort_by(.created_at) | reverse)
     | ([ .[][:3][].id ]) as $newest
@@ -2462,8 +2464,10 @@ fetch_lane_annotations() {
       jq -r '.[]?.message // empty | split("lane-outcome ")
         | if length > 2 then .[0] + "lane-outcome " + (.[1:] | join("lane-outcome-")) else join("lane-outcome ") end' \
         "$WORK/lane.one" >>"$WORK/lane.msgs" 2>/dev/null
-      [[ "$jname" =~ $CALLER_JOB_RE ]] && jq -e 'length > 0' "$WORK/lane.one" >/dev/null 2>&1 &&
-        echo "activity=${BASH_REMATCH[1]}" >>"$WORK/lane.msgs"
+      if [[ "$jname" =~ $CALLER_JOB_RE ]] && jq -e 'length > 0' "$WORK/lane.one" >/dev/null 2>&1; then
+        act="${BASH_REMATCH[1],,}"
+        echo "activity=${act// /-}" >>"$WORK/lane.msgs"
+      fi
     done < <(jq -r -s '.[].jobs[]? | [.id, (.name // "")] | @tsv' "$WORK/lane.jobs" 2>/dev/null)
     ((ok)) && jq -R -s -c --arg id "$id" '{($id): .}' "$WORK/lane.msgs" >>"$WORK/lane.ann"
   done

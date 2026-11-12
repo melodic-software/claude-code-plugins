@@ -1530,8 +1530,13 @@ class CollectLaneRunsTests(unittest.TestCase):
         self.assertNotIn("annotations", jobs[1])
 
     def test_the_lane_job_is_matched_by_its_whole_name(self) -> None:
-        names = ("pr-review / review-status", "pr-review / claude-review-status")
+        names = (
+            "PR Review / review-status",
+            "pr-review / review-status",
+            "pr-review / claude-review-status",
+        )
         for name, read in (
+            ("PR Review / review-status", True),
             ("pr-review / review-status", True),
             ("pr-review / claude-review-status", True),
             ("other / review-status", False),
