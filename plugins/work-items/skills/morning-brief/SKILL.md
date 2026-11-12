@@ -190,11 +190,8 @@ also prints `PARTIAL`.
 
 - **Pointer**: for what `behind_by` counts, see
   <https://docs.github.com/en/rest/commits/commits#compare-two-commits>. For when GitHub
-  regenerates a PR's test merge commit, no docs page covers it as of the date; correlate with
+  regenerates a PR's test merge commit, no docs page covers it; correlate with
   <https://github.blog/changelog/2026-02-19-changes-to-test-merge-commit-generation-for-pull-requests>.
-- **As of**: 2026-10-02
-- **Recheck trigger**: a docs page starts to cover test merge commit regeneration, or the
-  `mergeStateStatus` enum gains or drops a value.
 
 Upstream facts the script restates, each with its verification record:
 
