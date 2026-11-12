@@ -51,4 +51,4 @@ Marks: **concurrency** (a workflow `concurrency:` group), **claim** (another ato
 | Telemetry comment (every loop lane) | one comment per instance, edited in place | claim: the `<lane-marker>@<lane_instance>` marker names the writer; a racing instance never edits another's comment (§4) |
 | Escalation record and marker (§2) | record file, marker comment | not atomic across runs by design: a stop between the two writes re-escalates the next cycle, a duplicate a person can discard |
 
-No follow-up issue is filed: each uncovered row above states why overlap cannot do harm.
+No follow-up issue is filed, because each uncovered row above states why overlap cannot do harm.
