@@ -4332,7 +4332,9 @@ def _verdict_read(path: str) -> Any:
     return json.loads(proc.stdout)
 
 
-def _merge_group_failures(repo: str, branch: str, number: int) -> list[dict[str, Any]] | None:
+def _merge_group_failures(
+    repo: str, branch: str, number: int
+) -> list[dict[str, Any]] | None:
     """The pull request's failed merge_group runs among the repository's
     newest 100, newest first, or None when they cannot be read. The listing
     is shared through the run cache for `run_cache.MAX_AGE`."""
@@ -4454,7 +4456,8 @@ def _run_rate_limit_reset(repo: str, run: dict[str, Any]) -> str | None:
                 f"repos/{repo}/check-runs/{gates[0].get('id')}/annotations?per_page=100"
             )
         )
-        reset = _gate_rate_limit_reset(annotations)
+        # A full page may hide a failure line on the next one.
+        reset = _gate_rate_limit_reset(annotations) if len(annotations) < 100 else None
     if run.get("status") == "completed":
         run_cache.put(RATE_LIMITED_ENTRY_SECTION, key, {"reset": reset})
     return reset
@@ -4469,7 +4472,7 @@ def _rate_limited_removal(repo: str, runs: list[dict[str, Any]], at: str) -> boo
     removed = parse_github_timestamp(at)
     if removed is None:
         return False
-    near = set()
+    near: set[Any] = set()
     for run in runs:
         created = parse_github_timestamp(str(run.get("created_at") or ""))
         ended = parse_github_timestamp(str(run.get("updated_at") or ""))
