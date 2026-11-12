@@ -1651,6 +1651,27 @@ test("lane holds: with GraphQL refused, pr-verify and pr-review-main list throug
   assert.deepEqual(restAnnotationReads(api, REVIEW_JOBS), [70001, 70010]);
 });
 
+test("lane holds: with the GraphQL list answering and the annotation batch failing, pr-verify and pr-review-main list each run through REST and read annotations only where Note the hold ran", async () => {
+  const own = (routes) => routes.slice(0, routes.length - holdRoutes().length);
+  const routes = [...own(verifyRoutes({ workflow_runs: verifyRuns(4) })), ...own(reviewRoutes()), ...holdRoutes()];
+  const api = fakeApi(withNodeIds(routes));
+  const graphql = async (query, variables) => {
+    if (query.includes("... on CheckRun")) {
+      api.queries.push({ query, variables });
+      throw new Error("POST /graphql: HTTP 502");
+    }
+    return api.graphql(query, variables);
+  };
+  const data = await collect({ ...input(api, { holds: { rule: RULE, carried: CARRIED } }), graphql });
+  assert.ok(api.queries.some((q) => q.query.includes("... on WorkflowRun") && q.variables?.ids?.includes("WFR_7000")), "the GraphQL list was read");
+  assert.ok(api.queries.some((q) => q.query.includes("... on CheckRun") && q.variables?.ids?.includes("CR_70001")), "the GraphQL annotations read was tried");
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-verify").map((h) => h.runId), [4001, 4000]);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-review-main").map((h) => h.runId), [7001, 7000]);
+  assert.deepEqual(restAnnotationReads(api, VERIFY_JOBS), [40000, 40011, 40030]);
+  assert.deepEqual(restAnnotationReads(api, REVIEW_JOBS), [70001, 70010]);
+  for (const r of [4000, 4001, 4002, 4003, 7000, 7001, 7002]) assert.equal(api.calls.filter((c) => c.includes(`runs/${r}/jobs?filter=latest`)).length, 1, `run ${r} listed through REST once`);
+});
+
 // pr-merge green runs: 7100 a sweep whose merge job held on its lane token,
 // 7101 a verdict wake whose enable-auto-merge job held, 7102 a sweep with no
 // hold. The notice is the action's own text.

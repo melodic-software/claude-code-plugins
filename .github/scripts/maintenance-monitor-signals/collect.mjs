@@ -56,9 +56,12 @@ export const LIMITS = {
   // GraphQL), plus one lane-hold marker list per lane (7). A re-run, or a
   // node GraphQL does not answer, is read through REST, one call a jobs or
   // annotation read; a REST list has steps, so pr-verify and pr-review-main
-  // (holdStep) read only a job whose `Note the hold` ran. With GraphQL
-  // refused, those two lanes spend 7 + 150 list calls and one annotation
-  // read per held job, not 290 for every green hold job; the other lanes'
+  // (holdStep) read only a job whose `Note the hold` ran, and a run of theirs
+  // whose GraphQL-listed hold job the annotation batch did not answer is
+  // listed again through REST first. With GraphQL refused, or answering the
+  // lists but not the annotations, those two lanes spend at most 7 + 150
+  // list calls and one annotation read per held job, not 290 for every green
+  // hold job; the other lanes'
   // 152 jobs and about 232 annotation reads put the source past
   // CALL_BUDGET at the caps either way. Past the cap, the span stops at the
   // last run read and the window is a gap.
@@ -763,6 +766,9 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         // read through REST has steps: with holdStep, only a job whose listing
         // shows that step succeeded printed a hold, so only its annotations
         // are read one call each; a job listed with no steps is read too.
+        // With holdStep, a run whose GraphQL-listed hold job the annotation
+        // batch did not answer is listed again through REST, one call per run,
+        // so its annotations are read only where that step ran.
         const printed = (j) =>
           holdStep === undefined || !Array.isArray(j.steps) || j.steps.length === 0 || j.steps.some((s) => s?.name === holdStep && s.conclusion === "success");
         const holding = (listed) => listed.filter((j) => j.conclusion === "success" && holdJob(jobs, j.name) && printed(j));
@@ -772,7 +778,9 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         for (const run of toRead) {
           const key = `${lane}:${run.id}`;
           const found = [];
-          for (const job of holding(await jobsFor(run))) {
+          let listed = await jobsFor(run);
+          if (holdStep !== undefined && holding(listed).some((j) => !Array.isArray(j.steps) && !annotationsMemo.has(j.id))) listed = await jobsOf(run);
+          for (const job of holding(listed)) {
             for (const a of await annotationsOf(job.id)) {
               const hold = parseHold(a.title, a.message, a.annotation_level);
               if (hold) found.push(hold);
