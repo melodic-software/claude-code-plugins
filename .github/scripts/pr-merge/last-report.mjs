@@ -23,12 +23,10 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { onMain } from "./head-ref-map.mjs";
-import { countedGh, newestTrustedRun, sharedReads } from "./rotation.mjs";
+import { countedGh, escapeCommand, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const REPORT_ARTIFACT = "pr-merge-post-merge-report";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
 export async function main({ env = process.env, actions, download } = {}) {
   const repo = env.GITHUB_REPOSITORY ?? "";

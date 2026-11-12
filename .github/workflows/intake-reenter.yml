@@ -11,7 +11,8 @@ name: Intake Reenter
 # issue's author (a listed human or the lanes App). A listed human's
 # decision on an issue with no `status:` and no `agent-ready`,
 # `needs-human`, `needs-triage` or `admission-deferred` takes nothing off and
-# does the same. It never adds `agent-ready`. The rules are in
+# does the same. It never adds `agent-ready`, and changes nothing on an issue
+# with a routing label, which intake skips. The rules are in
 # .github/scripts/intake-reenter/reenter.mjs.
 #
 # No model and no App token: the job's GITHUB_TOKEN edits labels and the Work

@@ -61,7 +61,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, REPOSITORY } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { WAKE_TITLE } from "./rotation.mjs";
+import { escapeCommand, WAKE_TITLE } from "./rotation.mjs";
 import { GITHUB_ACTIONS_BOT_ID } from "./who.mjs";
 
 export const RANKS = Object.freeze({
@@ -74,8 +74,6 @@ const NAMES = Object.freeze({ merge: "Merge", "enable-auto-merge": "Enable Auto 
 const jobNamed = (jobs, job) => jobs.find((j) => j?.name === NAMES[job]) ?? jobs.find((j) => j?.name === job);
 const WAITING = new Set(["queued", "pending", "waiting", "requested"]);
 export const MAX_JOB_READS = 5;
-
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
 // The run's actor and its triggering actor (who last re-ran it) are each a
 // listed human, by id.

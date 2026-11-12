@@ -81,7 +81,7 @@ import { createGitHub, loadTrustedList, paginate } from "../../actions/check-tru
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { fieldEvents, issueStatusFromBase } from "../../actions/resolve-config/resolve-config.mjs";
 import { authorAdmitted, carriesSplit, closedByTrusted, finishedParent, humanWritten, loadRules, parentOf, personChecks, REFINE_MARKER, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitParentOf, splitScope, specOf, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
-import { admittedAt, matchesRecord } from "../lib/admission-record.mjs";
+import { admittedAt, matchesRecord, timeOf } from "../lib/admission-record.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -91,7 +91,6 @@ export const MAX_OTHER_COMMENTS = 20;
 // The first line of the pr-merge lane's capped-close record.
 export const CAPPED_CLOSE_MARKER = "<!-- verify-capped-close pr=";
 
-const timeOf = (value) => (typeof value === "string" ? Date.parse(value) : Number.NaN);
 const firstLine = (body) => (body ?? "").trimStart().split("\n", 1)[0].trimEnd();
 
 // When an issue's body was last edited, and its newest body edits and title

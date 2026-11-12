@@ -20,9 +20,14 @@ name: Intake Triage
 # reopened with no `priority:*` label, through the shared
 # intake-label-needs-triage reusable from ci-workflows (its mechanism,
 # loop-safety and fail-closed label-existence contract are there). The floor
-# is not a priority value. A reopened issue runs only the kill switch and the
-# floor label, so it re-acquires the floor if its tier was cleared while
-# closed; triage stays with an opened issue. Settled per #506.
+# is not a priority value. A reopened issue runs only the gate, the kill
+# switch and the floor label, so it re-acquires the floor if its tier was
+# cleared while closed; triage stays with an opened issue. Settled per #506.
+#
+# An issue carrying a routing label (a /planning:wayfind map or decision item,
+# or a decompose container: the work-items binding's container label or
+# wayfind prefix) gets none of this, on any event: that skill routes it, and
+# the gate's notice names the label (.github/actions/check-born-triaged).
 #
 # workflow_dispatch triages one issue by number: issues a job's GITHUB_TOKEN
 # creates (the lane sweep's) start no issues run, and intake-reenter.yml
@@ -47,9 +52,12 @@ permissions: {}
 # cancellation lives on the job, as in pr-review-security-hosted.yml.
 
 jobs:
-  # Skips intake for an issue /work-items:decompose published already
-  # triaged; see .github/actions/check-born-triaged. A failed gate leaves
-  # skip empty, so intake falls through to the reusable, which turns away
+  # Skips intake for an issue carrying a routing label (the work-items
+  # binding's container label, or one starting with its wayfind prefix: a
+  # /planning:wayfind map or decision item, or a decompose container) on every
+  # event, and for an issue /work-items:decompose published already triaged
+  # on an opened issue only; see .github/actions/check-born-triaged. A failed
+  # gate leaves skip empty, so intake falls through to the reusable, which turns away
   # every person when human-ids is empty too. A rate limit on the gate's read
   # sets rate-limited, which stops intake and its GitHub calls. The job also
   # resolves the lane's model, turns and effort from the triage-issue route of
@@ -58,12 +66,13 @@ jobs:
   # does not run, so it never falls back to the CLI's own model and an
   # unbounded turn budget. A dispatch runs only from main, so the trusted-actor
   # list, the models block and the lane's AGENTS.md come from the default branch.
-  # It runs on an opened issue only, so a reopened issue still re-acquires the
-  # floor label. The gate reads before the model resolves, so a model config
-  # that fails still leaves the floor label its skip.
+  # A reopened issue or a dispatch skips on a routing label only, so a reopened
+  # born-triaged issue still re-acquires the floor label and a dispatch
+  # (intake-reenter.yml) still triages one. The gate reads before the model
+  # resolves, so a model config that fails still leaves the floor label its skip.
   born-triaged:
     name: Born Triaged
-    if: (github.event_name == 'issues' && github.event.action == 'opened') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'issues' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -103,11 +112,13 @@ jobs:
             /.github/actions/resolve-config/
             /.github/actions/setup-pinned-node/
             /.github/CODEOWNERS
+            /.github/scripts/pr-merge/merge-holds.mjs
             /.github/standards/github-actions-conventions/vocabulary.json
             /.github/standards/trusted-actors/
             /.node-version
             /docs/conventions/pr-pipeline.yaml
             /docs/conventions/pr-pipeline/
+            /docs/conventions/work-items.yaml
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
@@ -115,12 +126,13 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      - name: Check whether the issue was born triaged
+      - name: Check whether intake skips the issue
         id: check
         uses: ./.base/.github/actions/check-born-triaged # zizmor: ignore[self-repository]
         with:
           issue-number: ${{ github.event.issue.number || inputs.issue-number }}
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          born-triaged: ${{ github.event.action == 'opened' }}
 
       - name: Resolve the triage model
         id: models
@@ -240,9 +252,8 @@ jobs:
           echo "::notice::${WHY} this triage and the needs-triage label (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
 
   # The floor label, on an issues event only: a dispatch asks for triage. A
-  # failed or skipped born-triaged gate (always skipped on a reopen) leaves
-  # skip empty, so the label runs; a rate limit on its read stops the label
-  # and its calls with the same token.
+  # failed born-triaged gate leaves skip empty, so the label runs; a rate
+  # limit on its read stops the label and its calls with the same token.
   intake-label-needs-triage:
     name: Intake Label Needs Triage
     needs: [kill-switch, born-triaged]
@@ -254,10 +265,10 @@ jobs:
       runner: ubuntu-24.04
       label: needs-triage
 
-  # A dispatch asks for triage, so the born-triaged skip applies to an opened
-  # issue only: intake-reenter.yml dispatches an answered issue that was born
-  # triaged and may still carry a status label. A reopened issue gets no
-  # triage, only the floor label.
+  # A dispatch asks for triage, so the gate applies the born-triaged rule to
+  # an opened issue only: intake-reenter.yml dispatches an answered issue that
+  # was born triaged and may still carry a status label. A routing label skips
+  # a dispatch too. A reopened issue gets no triage, only the floor label.
   intake-triage:
     name: Intake Triage
     needs: [born-triaged, kill-switch]
@@ -267,7 +278,7 @@ jobs:
       && needs.kill-switch.outputs.proceed == 'true'
       && needs.kill-switch.outputs.upstream-degraded != 'true'
       && needs.born-triaged.outputs.rate-limited != 'true'
-      && (github.event_name == 'workflow_dispatch' || needs.born-triaged.outputs.skip != 'true')
+      && needs.born-triaged.outputs.skip != 'true'
       && needs.born-triaged.outputs.claude-args != '' }}
     permissions:
       actions: read # list this repository's credit-stop markers

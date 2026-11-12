@@ -193,7 +193,7 @@ import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest,
 // fix-ci-dispatch.mjs imports HOLD_LINE from here.
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
 import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from "./gate-source.mjs";
-import { emptyRecord, isHandled, markHandled, readRecord, RUN_ID, writeRecord } from "./dispatch-record.mjs";
+import { emptyRecord, isHandled, markHandled, readRecord, RUN_ID, startOf, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyReader } from "./verify-cap.mjs";
@@ -256,7 +256,6 @@ export const SWEEP_WORKFLOW = ".github/workflows/pr-unblock-dispatch.yml";
 // address-feedback.mjs DEFAULT_MAX_ROUNDS, may end it sooner).
 export const SWEEP_HEAD_CAP = 3;
 
-const startOf = (run) => Date.parse(run.started_at ?? "");
 const newestStarted = (runs) => runs.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), runs[0]);
 // An ISO time to the second, as the API's `created` filter takes it.
 const isoSeconds = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");

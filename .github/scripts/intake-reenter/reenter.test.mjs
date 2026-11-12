@@ -1127,3 +1127,43 @@ test("a field release changes nothing while a renamed hold label stays on the is
     assert.deepEqual(w.writes, [], hold);
   }
 });
+
+// /planning:wayfind and /work-items:decompose route an issue with a routing
+// label (the binding's container label, default `work-map`, or a label
+// starting with its wayfind prefix, default `wayfind:`), and intake skips it
+// (check-born-triaged.mjs), so no answer, lift or release sends it to triage.
+const runRouted = (w, env, { log = () => {}, routing } = {}) =>
+  main({
+    github: w.github,
+    log,
+    routing,
+    env: { KILL_SWITCH: "proceed", GITHUB_REPOSITORY: REPO, ISSUE_NUMBER: String(NUMBER), TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(LANES_APP.id), BASE_PATH: ROOT, ...env },
+  });
+
+test("an answer, a needs-human lift or a field release on a routing-labeled issue removes no label, writes no status and dispatches nothing", async () => {
+  for (const routed of ["wayfind: design", "work-map"]) {
+    const lines = [];
+    const runs = [
+      [world({ labels: ["needs-owner-decision", routed], comments: [{ id: 1, user: OWNER, body: DECISION }] }), { COMMENT_ID: "1" }],
+      [world({ labels: [routed], events: [lift(OWNER)] }), { EVENT_NAME: "issues", COMMENT_ID: "" }],
+      [world({ labels: [routed], fieldNodes: [heldBy(), removed(OWNER)] }), { EVENT_NAME: "issues", EVENT_ACTION: "field_removed", SENDER_ID: String(OWNER.id), COMMENT_ID: "" }],
+    ];
+    for (const [w, env] of runs) {
+      assert.equal(await runRouted(w, env, { log: (line) => lines.push(line) }), 0, routed);
+      assert.deepEqual(w.writes, [], `${routed}: no label removal, status write, record or dispatch`);
+    }
+    assert.deepEqual(lines, Array(3).fill(`intake-reenter: the issue carries '${routed}', a container or wayfind label, so the skill that filed it routes it; nothing changed`));
+  }
+});
+
+test("a remapped routing label stops re-entry, and the default one then re-enters", async () => {
+  const routing = { container: "epic", prefix: "fog:" };
+  const answer = (label) => world({ labels: ["needs-owner-decision", label], comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  const remapped = answer("fog: storage");
+  assert.equal(await runRouted(remapped, { COMMENT_ID: "1" }, { routing }), 0);
+  assert.deepEqual(remapped.writes, []);
+  const plain = answer("work-map");
+  assert.equal(await runRouted(plain, { COMMENT_ID: "1" }, { routing }), 0);
+  expectTriage(plain, ["work-map"]);
+  expectDispatched(plain);
+});

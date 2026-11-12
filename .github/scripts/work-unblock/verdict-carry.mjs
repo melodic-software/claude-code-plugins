@@ -54,7 +54,7 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
+import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
 
 export const CARRY_ARTIFACT = "work-unblock-verdicts";
 export const CARRY_FILE = "work-unblock-verdicts.json";
@@ -83,7 +83,6 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const DAY_MS = 86_400_000;
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const warn = (what, error) => console.log(`::warning title=verdict-carry::${what}: ${escapeCommand(error?.message ?? error)}`);
 
 const fresh = (entry, now) => {

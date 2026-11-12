@@ -41,7 +41,7 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const MAX_PAGES = 2;
 const MAX_RUNS = 10;
 
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
+export const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
 // Ascending by PR number, starting at the first number above `last`.
 export function rotate(candidates, last) {

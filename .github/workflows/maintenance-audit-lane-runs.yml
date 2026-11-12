@@ -28,9 +28,10 @@ name: Maintenance Audit Lane Runs
 #   the digest comes from github-actions[bot] and starts no workflow.
 #
 # One more job, triage-sweep, runs alone every hour (and with the daily run):
-# it dispatches intake-triage.yml for open issues intake never reached, at
-# most 5 a pass, and labels needs-triage, with a comment on the issue, an issue
-# 2 dispatches in one triage cycle left untriaged. It uses the job's own
+# it dispatches intake-triage.yml for open issues intake never reached and
+# no routing label routes elsewhere, at most 5 a pass, and labels
+# needs-triage, with a comment on the issue, an issue 2 dispatches in one
+# triage cycle left untriaged. It uses the job's own
 # token, never the lanes App.
 #
 # How to stop it: set the organization or repository lanes kill-switch
