@@ -45,8 +45,7 @@
 #      when `gh api installation/repositories` then succeeds. Any other result,
 #      a transient failure included, resolves no identity: under a personal
 #      token SLUG[bot] would miss that token's own comment, and the create would
-#      duplicate it. Which token types reach that endpoint, as of 2026-10-31
-#      (recheck when either list adds or drops it):
+#      duplicate it. Which token types reach that endpoint:
 #      https://docs.github.com/en/rest/authentication/endpoints-available-for-github-app-installation-access-tokens#apps
 #      https://docs.github.com/en/rest/authentication/endpoints-available-for-fine-grained-personal-access-tokens#apps
 #   3. a Bot report with no --app-slug: the reported login, plus `[bot]` when

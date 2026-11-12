@@ -50,10 +50,7 @@ the default is what keeps the engine correct on an install it has never seen.
   session. Our observation: on every audited tree the number matched the live session's PID.
 - **Pointer.** When stating what the file is or how stale markers are cleared, read the 2.1.169
   entry of the [Claude Code CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md)
-  live; no docs page carries an `.in_use` row as of 2026-11-10.
-- **As of.** 2026-11-10.
-- **Recheck trigger.** claude-directory.md or plugins/manifest-reference.md gains an `.in_use` row, or the
-  CHANGELOG names the file again.
+  live; no docs page carries an `.in_use` row.
 
 Because a plugin cache holds one marker per enabled version, the engine groups `pid_typed` rows by
 PID with a count and a bounded path list. A group whose PID is the auditing process or one of its

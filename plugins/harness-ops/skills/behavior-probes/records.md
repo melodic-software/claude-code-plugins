@@ -530,7 +530,7 @@ the trace; its one printed line is the evidence kept. The recheck trigger and ex
 
 **Docs comparison.** The plugin-evals [grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools)
 section and its [prompt.md frontmatter](https://code.claude.com/docs/en/plugin-evals#prompt-md-fields) row
-for `allowed_tools`, both read 2026-11-03, state which tools a run allows; read them live. The result
+for `allowed_tools` state which tools a run allows; read them live. The result
 contradicts the grant-tools section: `Skill` and `Agent` are on its list, were not listed by the case, and ran;
 `TaskStop` was offered unlisted, though its call does not show whether it would have run;
 `ToolSearch`, on neither list, was offered and ran.

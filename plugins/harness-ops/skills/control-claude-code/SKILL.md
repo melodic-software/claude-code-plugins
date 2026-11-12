@@ -59,7 +59,7 @@ every line the broker relays starts with the prefix `broker|` and a space, and i
 `CCD_RUNTIME_DIR` (absolute), ahead of `XDG_RUNTIME_DIR`, names where sessions listen. A run
 that keeps `ANTHROPIC_API_KEY` reads the `ANTHROPIC_API_KEY` row of
 <https://code.claude.com/docs/en/env-vars#variables> for what the interactive session does with the
-key, and screenshots that first screen (as of 2026-11-02; recheck when that row changes).
+key, and screenshots that first screen.
 
 ## Ready
 

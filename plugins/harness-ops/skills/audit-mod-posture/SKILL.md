@@ -90,9 +90,6 @@ and managed hooks cover.
 - **Pointer**: for what the guard does by default, when it loads, and what deny rules cover, fetch
   [Manage mods for your organization: Know what happens by default](https://code.claude.com/docs/en/plugins/mods/admin#know-what-happens-by-default)
   live.
-- **As of**: 2026-10-17
-- **Recheck trigger**: that section changes when the guard loads, or changes what it says deny
-  rules or managed hooks cover for a mod's `$.fs` or `$.process` calls.
 
 ### Phase 3: Report
 
