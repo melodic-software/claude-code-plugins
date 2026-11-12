@@ -2,8 +2,9 @@ import type { EngineInterface, PromptOrigin, Register, Timer } from 'claude-code
 import { alias, followWindow, ofWindow, RANK, readBands, resolveZone, tokenShape, type Bands, type TokenShape, type Zone } from './zone.ts'
 
 const CONTRACT_DIR = 'context-usage'
-// Migration: a session compacted before the rename has its marker under the earlier directory.
-// Remove once every lane has converged on context-usage and no lane holds that directory.
+// Migration: a session compacted before the rename has its marker, and an operator's bands their
+// zones.json, under the earlier directory until the data move runs. Remove once every lane has
+// converged on context-usage and no lane holds that directory.
 const EARLIER_DIR = 'context-guard'
 const PREFIX = 'context-usage: '
 const NEXT_ZONE: Partial<Record<Zone, Zone>> = { light: 'moderate', moderate: 'heavy' }
@@ -107,6 +108,7 @@ type State = {
   settings: Settings
   zonesText: string | null
   zonesKey: string | undefined
+  zonesPath: string | undefined
   zonesToast: boolean
   // Each malformed zones.json text already toasted this session.
   zonesToasted: Set<string>
@@ -366,9 +368,16 @@ const zonesToastText = (path: string, notices: string[]) =>
 // toasted to the person once per distinct content; Claude gets no line about it.
 async function loadSettings($: EngineInterface, st: State, home: string | undefined) {
   if (home === undefined) return st.settings
-  const path = `${home}/.claude/${CONTRACT_DIR}/zones.json`
-  const stat = await $.fs.stat(path).catch(() => undefined)
-  const key = stat === undefined ? 'absent' : `${stat.mtimeMs}:${stat.size}`
+  let path = `${home}/.claude/${CONTRACT_DIR}/zones.json`
+  let stat = await $.fs.stat(path).catch(() => undefined)
+  // Migration: the operator's bands stay under the earlier directory until the data move runs.
+  if (stat === undefined) {
+    const earlier = `${home}/.claude/${EARLIER_DIR}/zones.json`
+    const found = await $.fs.stat(earlier).catch(() => undefined)
+    if (found !== undefined) [path, stat] = [earlier, found]
+  }
+  st.zonesPath = path
+  const key = stat === undefined ? 'absent' : `${path}:${stat.mtimeMs}:${stat.size}`
   if (key !== st.zonesKey) {
     const text = stat === undefined ? null : await $.fs.read(path).then(String).catch(() => null)
     st.settings = parseSettings(text)
@@ -689,7 +698,8 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
       ? `no reading yet (a ${w.context_window_size}-token window)`
       : `${w.used_percentage}% of a ${w.context_window_size}-token window used (${w.total_input_tokens ?? '?'} tokens)`
   const home = await homeDir($)
-  const zones = home === undefined ? 'zones.json: no home directory' : `${home}/.claude/${CONTRACT_DIR}/zones.json (${st.zonesText === null ? 'absent' : 'present'})`
+  const zonesAt = st.zonesPath ?? `${home}/.claude/${CONTRACT_DIR}/zones.json`
+  const zones = home === undefined ? 'zones.json: no home directory' : `${zonesAt} (${st.zonesText === null ? 'absent' : 'present'})`
   const { light, moderate } = settings.bands
   const t = tokenShape(w, body.cli_version, settings.bands)
   const bands = t
@@ -816,6 +826,7 @@ export const register: Register = (on, options) => {
     settings: parseSettings(null),
     zonesText: null,
     zonesKey: undefined,
+    zonesPath: undefined,
     zonesToast: cfg.enabled && cfg.toast,
     zonesToasted: new Set(),
   }

@@ -149,9 +149,10 @@ snap="$dir/context/$sid.json"
 light_max=$DEFAULT_LIGHT_MAX
 moderate_max=$DEFAULT_MODERATE_MAX
 token_bands=$DEFAULT_TOKEN_BANDS
-# The migration moves zones.json before the old directory goes, so the new one wins.
+# The new zones.json wins wherever the snapshot came from. Migration: until the data move runs,
+# the operator's bands stay under the earlier directory; remove this line with the one above.
 zones="$HOME/.claude/context-usage/zones.json"
-[[ -e "$zones" ]] || zones="$dir/zones.json"
+[[ -e "$zones" ]] || zones="$HOME/.claude/context-guard/zones.json"
 if [[ -e "$zones" ]]; then
   # Stderr on the GROUP: see REDIRECTION PLACEMENT above.
   { zres=$(jq -r '

@@ -508,6 +508,11 @@ printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"
 expect "earlier-directory snapshot with the new zones.json uses the new bands" moderate "$HE" e1
 write_snapshot "$HE" e1 70
 expect "snapshot under both directories: the new one wins" heavy "$HE" e1
+HZ="$WORK/h-earlier-zones"
+write_snapshot "$HZ" z1 40
+mkdir -p "$HZ/.claude/context-guard"
+printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"$HZ/.claude/context-guard/zones.json"
+expect "new snapshot with zones.json only under the earlier directory uses those bands" moderate "$HZ" z1
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

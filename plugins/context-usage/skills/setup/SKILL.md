@@ -155,7 +155,10 @@ paths this skill names, with the `Read` tool; never Glob or Grep the plugin dire
    `(absent)` → PASS. Otherwise FAIL "drift: `~/.claude/context-guard/` is left from the plugin's
    earlier name", list its entries and its compaction-marker count (each marker records a
    session compacted before the rename; the module still reads them there until they move), and say
-   whether the user `settings.json` `statusLine` command names that directory. Remediation: `apply`, which moves it (see "Earlier-name directory" below).
+   whether the user `settings.json` `statusLine` command names that directory. When it holds
+   `zones.json` and `~/.claude/context-usage/zones.json` is absent, add the drift line "zones.json
+   still in the earlier directory": the module and the resolver read the operator's bands from there
+   until `apply` moves them. Remediation: `apply`, which moves it (see "Earlier-name directory" below).
    A session still running the plugin under its earlier name recreates `context/` there until it
    ends.
 

@@ -408,6 +408,16 @@ test('zones.json: custom edges move the crossings, and a later edit takes effect
   expect((await walk($, w, [20, 31])).flat()).toEqual([])
 })
 
+// Migration: remove with EARLIER_DIR in register.tsx.
+test('zones.json: bands left under the earlier plugin directory act until the new file exists', async ($, on) => {
+  const { w } = world(on)
+  const earlier = `${HOME}/.claude/context-guard/zones.json`
+  w.files[earlier] = { text: JSON.stringify({ light_max_used_percentage: 30, moderate_max_used_percentage: 60 }), mtimeMs: 1 }
+  expect((await walk($, w, [20, 31])).flat()).toEqual([crossing('moderate')])
+  zonesFile(w, { light_max_used_percentage: 10, moderate_max_used_percentage: 20 }, 2)
+  expect((await walk($, w, [31])).flat()).toEqual([crossing('heavy')])
+})
+
 test('zones.json: an action at the moderate zone appears at that crossing and not before', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { actions: { moderate: { action: 'handoff' } } })
