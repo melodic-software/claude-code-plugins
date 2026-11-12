@@ -1027,10 +1027,10 @@ and `.lefthook-local` with `.yml`, `.yaml`, `.toml`, `.json` or `.jsonc`; under 
 `lefthook` and `lefthook-local` with those extensions; and a path whose first segment is `.lefthook`
 or `.lefthook-local`. Each changes what git, or a hook it runs, does on the next checkout or commit,
 so fix-ci and address-feedback cannot change them. No other row names these three.
-The `issue` row alone also refuses, at any depth, every path Claude Code denies writes to under
-the lanes' `dontAsk` permission mode
+The `issue` row alone also refuses (`claude-protected`), at any depth, every path Claude Code
+denies writes to under the lanes' `dontAsk` permission mode
 ([protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths)) except
-`.gitmodules`, which has its own refusal (`claude-protected`): its run can never write one, so
+`.gitmodules`, which has its own refusal (`gitmodules`): its run can never write one, so
 intake admission refuses an issue whose work names one before a run is spent on it. The other
 lanes also run under `dontAsk` but have no admission step to feed, and the `merge-base` and
 `shared-copies` patches carry the base's own changes, which may touch such a path, so no other row
