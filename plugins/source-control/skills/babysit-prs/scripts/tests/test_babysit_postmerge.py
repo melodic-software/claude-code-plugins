@@ -2750,6 +2750,15 @@ class Baseline(CheckCase):
         self.assertEqual(verdict.failures, ())
         self.assertEqual(verdict.unattributed, (self.SIGHTING,))
 
+    def test_ci_status_and_its_alias_beside_a_gitleaks_failure_add_nothing(self) -> None:
+        jobs = self.gitleaks_red(312)
+        jobs[1]["name"] = "CI Status"
+        alias = failed_job(314, "ci-status", "Report the conclusion of `CI Status`")
+        self.red_after_merge(*jobs, alias)
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.unattributed, (self.SIGHTING,))
+
     def test_a_new_gate_beside_a_gitleaks_failure_is_charged(self) -> None:
         self.before_merge("failure", *self.gitleaks_red(301))
         self.red_after_merge(

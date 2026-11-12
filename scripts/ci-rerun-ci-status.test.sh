@@ -322,6 +322,13 @@ if grep -qxF "api -i repos/o/r/actions/workflows/pr-review-security-hosted.yml/r
 else
   fail "unexpected reads: '$(sort -u "$TMP_ROOT/log")'"
 fi
+# The gate job shows as CI Status, beside its ci-status alias (a later job id):
+# the find step names CI Status, whose re-run re-runs the alias after it; the
+# alias's own re-run would replay its old needs result.
+STUB_JOBS="$(jq -c '.jobs |= ([{id: 99, name: "ci-status", status: "completed", started_at: "2026-10-23T09:51:00Z"}] + map(if .name == "ci-status" then .name = "CI Status" else . end))' <<<"$(cijob completed)")"
+expect "a run with CI Status and its ci-status alias re-runs CI Status" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
+check_reran 1 "CI Status's job, not the alias's, is handed to the re-run step"
+STUB_JOBS="$(cijob completed)"
 STUB_LANE_RUNS="$(runs "$(run 4 completed "$HEAD" "$CODE")")"
 LANE_PATH=$SEC expect "the security lane finishing last reads the code lane" 0 "Re-running ci-status (job 77)"
 if grep -q '/actions/workflows/pr-review-hosted.yml/runs?' "$TMP_ROOT/log"; then ok "the security lane's run reads the code lane's runs"; else fail "reads: $(paste -sd'|' "$TMP_ROOT/log")"; fi

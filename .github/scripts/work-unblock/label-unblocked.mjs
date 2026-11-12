@@ -230,7 +230,12 @@
 // finished (five status listings, read once a sweep that has one) are under
 // limits.refire-queue-per-slot times the lane's SLOTS, within
 // limits.restarts-per-run, so after a clear the lane stays full with a short
-// queue that each finished run's sweep tops up. A breaker
+// queue that each finished run's sweep tops up. A run still `queued`
+// limits.stale-queued-minutes after it was created is not counted: its first
+// job never got a runner, so it is a run GitHub lost and will never start,
+// and counting it would hold the room at 0 for good. For the same reason a
+// reopened fix issue's in-flight check does not count such a run among the
+// runs that name no issue, though one that names the issue still holds it. A breaker
 // record never spends the once-per-version re-fire, never counts toward the
 // failed-mint bound and never raises another cause's backoff. Each run's log
 // is read once, from its one refused job (or its one failed job before any
@@ -2071,19 +2076,27 @@ export function laneSlots({ laneLevel = {}, env = process.env, now = Date.now(),
   return read.level;
 }
 
-// The titles of every work-resolve-issue run that has not finished.
+// Every work-resolve-issue run that has not finished: its title, the status
+// listing that held it, and its creation time in ms (NaN when unreadable).
 async function runsInFlight(actions, repo) {
-  const titles = [];
+  const runs = [];
   for (const status of IN_FLIGHT) {
     const batch = (await actions("GET", `/repos/${repo}/actions/workflows/work-resolve-issue.yml/runs?status=${status}&per_page=100`))
       ?.workflow_runs;
     if (!Array.isArray(batch) || batch.length >= 100) {
       throw new Error(`the ${status} work-resolve-issue run listing has an unexpected shape or 100 runs`);
     }
-    titles.push(...batch.map((run) => String(run.display_title ?? "")));
+    runs.push(...batch.map((run) => ({ title: String(run.display_title ?? ""), status, created: Date.parse(run.created_at) })));
   }
-  return titles;
+  return runs;
 }
+
+// Whether `run` has sat `queued` for `minutes` or more at `now`. The lane's
+// admit job runs on a GitHub-hosted runner and the slot wait is a job-level
+// concurrency group after it (work-resolve-issue.yml), so a run that is still
+// queued this long never got a runner: GitHub lost it and it will never start.
+// An unreadable creation time is never stale, so the run still counts.
+const staleQueued = (run, now, minutes) => run.status === "queued" && now - run.created >= minutes * 60_000;
 
 // `issue`'s lowercased names as the Work status field decides them (fieldFirst).
 const fieldNamesOf = (statusOf, issue) => fieldFirst(statusOf, issue.number, labelNames(issue).map((name) => name.toLowerCase()));
@@ -2092,7 +2105,7 @@ const fieldNamesOf = (statusOf, issue) => fieldFirst(statusOf, issue.number, lab
 // it is not relabeled now, or null with what to do. Null for any other issue,
 // and for one agent-ready was added to since the reopen, which the restart
 // and re-fire rules then take.
-async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf }) {
+async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf, now, limits }) {
   if (issue.user?.login !== ALERT_BOT || !FIX_ISSUE.test(String(issue.body ?? ""))) {
     return null;
   }
@@ -2129,14 +2142,17 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, r
   if (person) {
     return { reason: `a listed human's PR #${person.number} for it is open` };
   }
-  const titles = await inFlight();
-  if (titles === null) {
+  // A run that names the issue holds it even when stale queued: it may still
+  // be its run. A stale queued run that names no issue never starts, so it
+  // cannot be this issue's run in flight and does not make the check unsure.
+  const runs = await inFlight();
+  if (runs === null) {
     return { reason: "no Actions token to read its lane runs" };
   }
-  if (titles.some((title) => title.endsWith(` #${issue.number}`))) {
+  if (runs.some((run) => run.title.endsWith(` #${issue.number}`))) {
     return { reason: "a lane run for it is in flight" };
   }
-  const untitled = titles.filter((title) => !NAMES_ISSUE.test(title)).length;
+  const untitled = runs.filter((run) => !NAMES_ISSUE.test(run.title) && !staleQueued(run, now, limits["stale-queued-minutes"])).length;
   if (untitled > 0) {
     return { reason: `cannot tell whether a lane run for it is in flight: ${untitled} unfinished run(s) name no issue in their title` };
   }
@@ -2588,7 +2604,7 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     const read = readsOf(issue);
     try {
       const verdict =
-        (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf })) ??
+        (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read, statusOf, now, limits })) ??
         (await restartRefusal({ github, actions, jobLog, carry, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read, statusOf, runsOf, upstreamClear }));
       const { reason, fail } = verdict;
       if (carry && reason !== null && !fail) {
@@ -2639,7 +2655,13 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
   if (ready.some(paced)) {
     try {
       const target = limits["refire-queue-per-slot"] * slots();
-      const queued = (await inFlight()).length;
+      const unfinished = await inFlight();
+      const minutes = limits["stale-queued-minutes"];
+      const stale = unfinished.filter((run) => staleQueued(run, now, minutes)).length;
+      if (stale > 0) {
+        console.log(`::notice title=label-unblocked::${stale} work-resolve-issue run(s) queued ${minutes}+ minutes not counted toward the kill-switch re-fire room: GitHub lost them and never starts them (limits.stale-queued-minutes)`);
+      }
+      const queued = unfinished.length - stale;
       room = Math.max(0, target - queued);
       console.log(`label-unblocked: ${queued} work-resolve-issue run(s) unfinished, kill-switch re-fire room ${room} of ${target}`);
     } catch (error) {

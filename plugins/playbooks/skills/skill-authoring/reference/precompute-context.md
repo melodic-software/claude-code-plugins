@@ -13,8 +13,6 @@ authoritative reference is
 [Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
 in the skills docs. Read that for the exact `` !`command` `` inline and ` ```! ` fenced forms,
 substitution variables, and the `shell:` / `disableSkillShellExecution` settings.
-**As of**: 2026-11-10. **Recheck trigger**: that section changes when injected commands run,
-whether their output is scanned again, or what `disableSkillShellExecution` does.
 
 ## What it is
 
@@ -38,8 +36,7 @@ Convert a context-gathering step to `!` injection when **all** hold:
 - **Cheap and bounded.** It returns fast and small, since every load waits for it and a large
   output may not arrive inline. For the timeout and output limits, fetch
   [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
-  live (as of 2026-11-10; recheck when that section changes the timeout or how oversized output
-  arrives).
+  live.
 - **Grantable.** A narrow `allowed-tools` rule in the skill covers it, and it is not the kind of
   command a consumer's ask or deny rule plausibly matches (see
   [Grant every injected command](#grant-every-injected-command)).
@@ -57,9 +54,6 @@ its own record; the others rely on this one:
   [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run) and
   [When an injected command fails](https://code.claude.com/docs/en/skills#when-an-injected-command-fails)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: either section changes what aborts a render, the timeout, or stderr and
-  output-size handling, or the page starts naming the shell options injections run under.
 
 ### Grant every injected command
 
@@ -80,10 +74,6 @@ check refuses aborts the skill load. We therefore:
   ignore it, fetch [Pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill);
   for how a rule matches a line joined by `||` or `|`, fetch
   [Compound commands](https://code.claude.com/docs/en/permissions#compound-commands).
-- **As of**: 2026-10-10
-- **Recheck trigger**: the Permission checks on injected commands section changes which permission
-  results abort a render, Pre-approve tools for a skill stops covering injected commands, or the
-  Compound commands section changes how a rule matches each subcommand of a joined line.
 
 ### Defensive fallback is mandatory
 
@@ -215,8 +205,7 @@ must never assert a bare `empty = none`.
 Which tool runs injected commands depends on `shell:` and the host: fetch
 [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run) and
 the `shell` row of
-[Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live (as of
-2026-11-10; recheck when either changes which tool runs an injection or the `shell` default).
+[Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live.
 Write injection commands portably, or declare `shell:`
 explicitly, so a bash-only pipeline doesn't silently break on a PowerShell host, and pick a
 `|| echo` fallback that is valid in the shell that will run it.
@@ -246,8 +235,7 @@ skill that reaches the PowerShell tool because bash is unavailable.
 - **Renders on every invocation path**: user `/name`, the Skill tool, and auto-invocation all
   preprocess. Keep injected output stable and small, since output that changes between
   invocations costs context again: fetch
-  [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle) live
-  (as of 2026-11-10; recheck when that section changes what a re-invocation with new output adds).
+  [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle) live.
 - **Kill switch.** `disableSkillShellExecution` puts placeholder text in place of every command
   (its wording is in the section linked at the top of this page). The skill must still make sense
   when that text appears in place of the output. Never make correctness depend on injection

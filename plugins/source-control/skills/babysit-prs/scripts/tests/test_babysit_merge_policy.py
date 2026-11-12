@@ -9545,12 +9545,17 @@ class DependabotEligibility(unittest.TestCase):
         f"repos/{REPO}/commits/{'e' * 40}/check-runs"
         "?check_name=ci-status&app_id=15368&filter=latest&per_page=100"
     )
+    GATE = (
+        f"repos/{REPO}/commits/{'e' * 40}/check-runs"
+        "?check_name=CI%20Status&app_id=15368&filter=latest&per_page=100"
+    )
 
     def fake(
         self,
         *,
         commits: list[dict[str, Any]] | None = None,
         ci: list[dict[str, Any]] | None = None,
+        gate: list[dict[str, Any]] | None = None,
         comments: list[dict[str, Any]] | None = None,
         author: dict[str, str] | None = None,
         cross: bool = False,
@@ -9610,6 +9615,8 @@ class DependabotEligibility(unittest.TestCase):
         gh.rest[self.COMMITS] = self.commits
         runs = [{"status": "completed", "conclusion": "success"}] if ci is None else ci
         gh.rest[self.CI] = {"check_runs": runs}
+        # A head tested before the rename has no CI Status run.
+        gh.rest[self.GATE] = {"check_runs": gate or []}
         gh.rest[f"repos/{REPO}/issues/7/comments?per_page=100"] = comments or []
         gh.rest[f"repos/{REPO}/pulls/7/reviews?per_page=100"] = []
         gh.rest[f"repos/{REPO}/pulls/7/comments?per_page=100"] = []
@@ -10409,6 +10416,19 @@ class DependabotEligibility(unittest.TestCase):
                     self.assertEqual(
                         policy._ci_status(*REPO.split("/"), self.HEAD), expected
                     )
+
+    def test_ci_status_decides_and_its_alias_is_not_read(self) -> None:
+        red = {"status": "completed", "conclusion": "failure"}
+        green = {"status": "completed", "conclusion": "success"}
+        for gate, alias, expected in ((red, green, "failure"), (green, red, "success")):
+            with self.subTest(gate=gate["conclusion"]):
+                gh = self.fake(gate=[gate], ci=[alias])
+                self.assertEqual(
+                    policy._ci_status(*REPO.split("/"), self.HEAD), expected
+                )
+                read = [c[1] for c in gh.calls if c[:1] == ["api"]]
+                self.assertIn(self.GATE, read)
+                self.assertNotIn(self.CI, read)
 
     def test_ci_status_runs_that_started_together_keep_any_failure(self) -> None:
         at = "2026-10-24T05:40:00Z"

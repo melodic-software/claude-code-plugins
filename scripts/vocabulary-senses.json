@@ -196,6 +196,7 @@
         {"phrase": "\\binterface contracts?\\b", "reason": "an interface contract at design"},
         {"phrase": "\\b(pr|api|feed|payload|behavioral|presentation|execution|detection|return|framing|findings)[- ]contracts?\\b", "reason": "a named contract that is not the Brief: a PR, API, feed or payload contract, the agent brief's behavioral contract, plan's presentation contract, the interview's execution contract, the handoff detection contract, an agent's return contract, a spawn brief's framing contract or a review's findings contract"},
         {"phrase": "\\bname[- ]by[- ]contract\\b", "reason": "the agent brief's name-by-contract rule"},
+        {"phrase": "\\bissue-body contract\\b", "reason": "the org issue-body contract synced from melodic-software/standards, whose agent-ready type holds the Agent Brief fields"},
         {"phrase": "\\bcontract case\\b", "reason": "an eval's Contract case label names a behavior case, not the Brief"},
         {"path": "**/evals/**/samples/**", "reason": "recorded model output; an edit changes what the eval measures"},
         {"path": "**/evals/**/graders/**", "reason": "grader patterns matched against recorded samples; an edit changes what the eval measures"},

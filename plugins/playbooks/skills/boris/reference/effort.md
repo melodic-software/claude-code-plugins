@@ -1,6 +1,6 @@
 # Spending Your Effort: Sections 125–130
 
-Thariq's *"Using Claude Code: Spending your effort"* (Part 25, September 25, 2026), written for Opus 5.5 and Fable 5.1 after many user questions about what effort is and when to use which level. He drew on the evals and his own runs. The levels, their defaults, and which models accept them change between releases; for the current set, see [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level) (as of 2026-11-09; recheck on a new model release or when that section changes). Pairs with Section 72 (Boris's April 2026 effort habits on Opus 4.7).
+Thariq's *"Using Claude Code: Spending your effort"* (Part 25, September 25, 2026), written for Opus 5.5 and Fable 5.1 after many user questions about what effort is and when to use which level. He drew on the evals and his own runs. The levels, their defaults, and which models accept them change between releases; for the current set, see [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level). Pairs with Section 72 (Boris's April 2026 effort habits on Opus 4.7).
 
 ## 125. What Effort Is
 
