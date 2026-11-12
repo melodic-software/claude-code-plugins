@@ -68,10 +68,7 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 # shellcheck source=../../../scripts/python-resolve.sh
 source "$PLUGIN_ROOT/scripts/python-resolve.sh"
-if ! cm_resolve_python; then
-  echo "audit-coverage.sh: Python ${CM_PYTHON_FLOOR}+ not found (tried python3, python, py -3); it is a required prerequisite" >&2
-  exit 2
-fi
+cm_require_python audit-coverage.sh
 
 if [[ -z "$CONFIG" ]]; then
   CONFIG="$WORK/config.json"

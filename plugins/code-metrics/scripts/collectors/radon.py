@@ -32,9 +32,8 @@ import sys
 from adapter_paths import (
     dispatch,
     normalize,
+    path_probe,
     require_python,
-    version_or_unknown,
-    version_output,
 )
 
 NAME = "radon"
@@ -43,15 +42,7 @@ MEASURES = ("cyclomatic", "halstead", "function_lines")
 
 
 def probe() -> int:
-    exe = shutil.which(NAME)
-    if not exe:
-        print(f"{NAME} not on PATH", file=sys.stderr)
-        return 1
-    output = version_output(exe, NAME)
-    if output is None:
-        return 1
-    print(version_or_unknown(output))
-    return 0
+    return path_probe(NAME)
 
 
 def _flatten(entries: list) -> list[dict]:

@@ -10,9 +10,9 @@
 # stub make_sink writes.
 #
 # Canonical copy: lib/hook-test-sink.sh at the marketplace repo root. Plugins
-# carry byte-identical copies at plugins/<plugin>/hooks/hook-test-sink.sh
-# because an installed plugin is cache-isolated; edit the canonical file and
-# copy it over the plugin copies.
+# carry copies at plugins/<plugin>/hooks/hook-test-sink.sh because an installed
+# plugin is cache-isolated; scripts/sync-shared-copies.sh generates them from
+# this file, so edit it here and rerun that script.
 
 # make_sink <body> -> print the path of an executable stub sink: a bash shebang
 # line followed by <body>, which reads the envelope on stdin. Returns 2 with a

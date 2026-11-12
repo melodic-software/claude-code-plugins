@@ -11,9 +11,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { runMain } from "../lib/run-main.js";
 import { normalizeVttCues } from "./cue-normalize.js";
 import { orchestrateWatching } from "./orchestrate-watching.js";
 
@@ -63,13 +63,4 @@ export async function runWatchingPipelineCli(argv) {
   return 0;
 }
 
-if (isMainModule(import.meta.url)) {
-  runWatchingPipelineCli(process.argv)
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error) => {
-      writeStderr(error instanceof Error ? error.message : String(error));
-      process.exitCode = 1;
-    });
-}
+runMain(import.meta.url, runWatchingPipelineCli);

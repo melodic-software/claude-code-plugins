@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -145,6 +146,19 @@ def version_output(exe: str, tool: str, flag: str = "--version") -> str | None:
         print(f"{tool} {flag} failed: {exc}", file=sys.stderr)
         return None
     return out.stdout + out.stderr
+
+
+def path_probe(name: str) -> int:
+    """The `probe` verb for a tool found on PATH as `name`: print its version."""
+    exe = shutil.which(name)
+    if not exe:
+        print(f"{name} not on PATH", file=sys.stderr)
+        return 1
+    output = version_output(exe, name)
+    if output is None:
+        return 1
+    print(version_or_unknown(output))
+    return 0
 
 
 def dispatch(

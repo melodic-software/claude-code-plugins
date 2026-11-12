@@ -1,10 +1,17 @@
 # shellcheck shell=bash
-# Sourced by the dispatcher and by every audit entry point: the five pieces
+# Sourced by the dispatcher and by every audit entry point: the seven pieces
 # each of them would otherwise repeat verbatim.
 #
 #   cm_usage_banner <file> <last line>    print <file>'s leading comment block,
 #                                         lines 2..<last line>, with the comment
 #                                         marker stripped, on stderr
+#   cm_entry_args <file> <last line> <argument>...
+#                                         parse the `--json`, `--help` and pass-
+#                                         through options into JSON and ARGS; on
+#                                         `--help` print the banner and exit 0
+#   cm_require_python <script name>       resolve the interpreter into PY, or
+#                                         print the prerequisite message and
+#                                         exit 2
 #   cm_split_config <argument>...         split `--config <path>` out of the
 #                                         arguments into CM_CONFIG and leave the
 #                                         rest, in order, in CM_PASS_ARGS
@@ -24,8 +31,8 @@
 # block: each script's `--help` output is its published contract, and several of
 # them stop short of that end.
 #
-# The caller supplies `PY` (from python-resolve.sh) for the two functions that
-# run the interpreter.
+# The functions that run the interpreter read `PY`, which cm_require_python
+# sets through python-resolve.sh, a file the caller sources.
 # shellcheck disable=SC2154
 
 CM_ENTRY_LIB_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
@@ -34,6 +41,40 @@ cm_usage_banner() {
   # One sed rather than a range print piped into a strip: the `-e` fragments
   # give the braces the newlines a BSD sed wants around them.
   sed -n -e "2,${2}{" -e 's/^# \{0,1\}//' -e p -e '}' "$1" >&2
+}
+
+# JSON and ARGS are consumed by the sourcing script, not here. The caller
+# passes its own path: inside this function BASH_SOURCE[0] is this file.
+# shellcheck disable=SC2034
+cm_entry_args() {
+  local file="$1" last="$2"
+  shift 2
+  JSON=0
+  ARGS=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --json)
+      JSON=1
+      shift
+      ;;
+    --help | -h)
+      cm_usage_banner "$file" "$last"
+      exit 0
+      ;;
+    *)
+      ARGS+=("$1")
+      shift
+      ;;
+    esac
+  done
+}
+
+# The caller sources python-resolve.sh, which defines cm_resolve_python.
+cm_require_python() {
+  if ! cm_resolve_python; then
+    echo "$1: Python ${CM_PYTHON_FLOOR}+ not found (tried python3, python, py -3); it is a required prerequisite" >&2
+    exit 2
+  fi
 }
 
 # CM_CONFIG and CM_PASS_ARGS are consumed by the sourcing script, not here.

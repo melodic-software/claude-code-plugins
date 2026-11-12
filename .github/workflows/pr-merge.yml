@@ -1512,6 +1512,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
+          # The completed attempts kept beside post-merge-dispatch's report,
+          # which the fresh check answers with no read (ATTEMPTS_ENV).
+          BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -1534,6 +1537,7 @@ jobs:
             fi
           fi
           if [ -z "$code" ]; then
+            [ ! -f "$kept/attempts.json" ] || cp "$kept/attempts.json" "$BABYSIT_POSTMERGE_ATTEMPTS"
             identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
             code=0
             python3 "$scripts/babysit_postmerge.py" \

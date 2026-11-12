@@ -11,12 +11,12 @@
 
 import fs from "node:fs/promises";
 
-import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { resolveSourceAdapter, supportedHosts } from "../adapters/registry.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
+import { runMain } from "../lib/run-main.js";
 import { summarizeHeatmap } from "./harvest-links.js";
 
 /**
@@ -80,13 +80,4 @@ export async function runHarvestCli(argv) {
   return 0;
 }
 
-if (isMainModule(import.meta.url)) {
-  runHarvestCli(process.argv)
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error) => {
-      writeStderr(error instanceof Error ? error.message : String(error));
-      process.exitCode = 1;
-    });
-}
+runMain(import.meta.url, runHarvestCli);

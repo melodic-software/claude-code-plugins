@@ -30,6 +30,9 @@ source "$WIT_GH_ADAPTER_DIR/../../lib/id.sh"
 wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/json.sh"
 # shellcheck source=../../lib/json.sh
 source "$WIT_GH_ADAPTER_DIR/../../lib/json.sh"
+wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/verb-cli.sh"
+# shellcheck source=../../lib/verb-cli.sh
+source "$WIT_GH_ADAPTER_DIR/../../lib/verb-cli.sh"
 wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/lease.sh"
 # shellcheck source=../../lib/lease.sh
 source "$WIT_GH_ADAPTER_DIR/../../lib/lease.sh"
@@ -100,18 +103,6 @@ wit_usage_error() {
 wit_require_github_id() {
   wit_parse_id "$1" || return 1
   [[ "$WIT_ID_PROVIDER" == "github" ]] || return 1
-}
-
-# wit_help_if_requested <usage-text> <args…> — print usage + exit 0 when the
-# first arg is --help. Adapter verbs are dispatched by the core, but each is a
-# standalone entry script (skill-script contract) and answers --help directly.
-wit_help_if_requested() {
-  local usage="$1"
-  shift
-  if [[ "${1:-}" == "--help" ]]; then
-    printf '%s\n' "$usage"
-    exit 0
-  fi
 }
 
 # wit_write_pause — wait WIT_WRITE_SPACING_S (default 1) before a write, so a

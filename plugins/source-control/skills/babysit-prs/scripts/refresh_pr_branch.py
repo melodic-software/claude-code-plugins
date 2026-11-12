@@ -28,18 +28,15 @@ from babysit_gh import (
     run_gh,
     view_pr,
 )
-from babysit_state import (
-    resolve_state_dir,
-    state_lock,
-    state_path_for,
-    write_state,
+from babysit_state import write_state
+from guarded_mutation import (
+    add_head_pin_arguments,
+    add_worker_arguments,
+    begin_guarded_mutation,
+    require_worker_lease,
+    run_under_state_lock,
 )
-from guarded_mutation import begin_guarded_mutation, require_worker_lease
-from babysit_util import (
-    MIN_HEAD_SHA_PREFIX_LENGTH,
-    configure_stdio,
-    json_object,
-)
+from babysit_util import configure_stdio, json_object
 
 
 def allowed_owners_from_policy(policy: dict[str, Any]) -> frozenset[str]:
@@ -146,13 +143,6 @@ def disarm_auto_merge(repo: str, number: int) -> None:
     """
     if json_object(gh_json(["api", f"repos/{repo}/pulls/{number}"])).get("auto_merge"):
         run_gh(["pr", "merge", str(number), "-R", repo, "--disable-auto"])
-
-
-def run(args: argparse.Namespace) -> dict[str, object]:
-    state_dir = resolve_state_dir(args.state_dir)
-    state_path = state_path_for(state_dir)
-    with state_lock(state_path):
-        return run_locked(args, state_dir, state_path)
 
 
 def run_locked(
@@ -348,30 +338,13 @@ def request_dependabot_rebase(
 def main() -> int:
     configure_stdio()
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument("--pr", required=True, help="PR URL or owner/repo#number")
-    parser.add_argument(
-        "--expected-head-sha",
-        required=True,
-        help=(
-            "snapshot head SHA, full or a hex prefix of at least "
-            f"{MIN_HEAD_SHA_PREFIX_LENGTH} characters"
-        ),
-    )
-    parser.add_argument(
-        "--state-dir",
-        required=True,
-        help=(
-            "Durable state directory. Required: state-dir resolution is "
-            "flag-only, with no environment fallback."
-        ),
-    )
-    parser.add_argument("--lease-token", help="opaque token for this PR's worker lease")
-    parser.add_argument(
-        "--apply", action="store_true", help="request the guarded branch update"
-    )
+    add_head_pin_arguments(parser)
+    add_worker_arguments(parser, "request the guarded branch update")
     args = parser.parse_args()
     try:
-        print(json.dumps(run(args), indent=2, sort_keys=True))
+        print(
+            json.dumps(run_under_state_lock(args, run_locked), indent=2, sort_keys=True)
+        )
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2

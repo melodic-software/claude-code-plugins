@@ -40,6 +40,19 @@ assert_exit "empty stdin is a skip, not a block" 0 "$rc"
 
 expect "a stdin body that is not JSON fails closed" 2 --payload 'not json'
 
+# JSON whose fields jq cannot read gets past the stdin read above and is
+# refused by the field read. A NUL in a command with no delete is refused there
+# too, before the `rm` prefilter could wave it through.
+expect "a payload whose fields jq cannot read fails closed" 2 \
+  --payload '{"tool_name":"Bash","tool_input":"rm -rf build"}'
+assert_eq "unreadable fields: the refusal says why" \
+  "BLOCKED: the hook payload could not be parsed." "$GUARD_ERR"
+assert_eq "unreadable fields: nothing on stdout" "" "$GUARD_OUT"
+expect_both "a NUL byte in a command with no delete fails closed" 2 \
+  --payload "$(jq -n '{tool_name:"Bash",tool_input:{command:"ls\u0000 -la"}}')"
+assert_eq "NUL byte: the refusal says why" \
+  "BLOCKED: the payload carries a NUL byte. Reissue the call without it." "$GUARD_ERR"
+
 rc=0
 bash "$HOOK" <<<'{"tool_name":"Bash","tool_input":{}}' >/dev/null 2>&1 || rc=$?
 assert_exit "payload with no command is a skip" 0 "$rc"

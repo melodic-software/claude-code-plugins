@@ -143,21 +143,12 @@ hook::require_jq_blocking "guardrails-block-windows-drive-tmp" "block_windows_dr
 # file body: a false-positive class that is hardcoded-path-check's concern, not
 # this guard's. `notebook_path` rides along in the same jq process (one spawn,
 # not two) because NotebookEdit spells its target differently from Write/Edit.
+# A NUL byte in any of these fields is fail-CLOSED (#2136 / #2122).
 jq_rc=0
 hook::jq_fields "$INPUT" \
   '.tool_input.command' '.tool_name' \
   '.tool_input.file_path' '.tool_input.notebook_path' || jq_rc=$?
-if ((jq_rc == 2)); then
-  guard::refuse_unparsable
-  exit 2
-fi
-((jq_rc != 0)) && exit 0
-
-# A NUL byte in EITHER field is fail-CLOSED (#2136 / #2122).
-if ((HOOK_JQ_FIELDS_NUL)); then
-  guard::refuse_nul
-  exit 2
-fi
+guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))
 
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"

@@ -18,7 +18,6 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import {
@@ -30,6 +29,7 @@ import {
 } from "../acquisition/caption-wait.js";
 import { UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { acquireMedia } from "../adapters/registry.js";
+import { runMain } from "../lib/run-main.js";
 
 /**
  * @typedef {{ result: 'captions-ready' } |
@@ -119,13 +119,4 @@ async function main(argv) {
   }
 }
 
-if (isMainModule(import.meta.url)) {
-  main(process.argv)
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error) => {
-      writeStderr(error instanceof Error ? error.message : String(error));
-      process.exitCode = 1;
-    });
-}
+runMain(import.meta.url, main);
