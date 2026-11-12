@@ -3,6 +3,14 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.35] - 2026-11-12
+
+### Changed
+
+- `/harness-ops:changelog`'s classification rubric names a stored value as upstream-drift 6.0.0
+  does: a copied or measured upstream number or string, such as a measured figure. A behavior
+  observation with no recorded value is a pointer, whose signal is the feature grep.
+
 ## [8.12.34] - 2026-11-12
 
 ### Changed
