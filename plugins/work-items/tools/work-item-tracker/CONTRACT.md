@@ -676,8 +676,8 @@ backs off, and a lane run that finds a live local lease backs off without starti
   no back-off yet, is refused (exit `7`), never revived: a delayed holder must not undo a
   TTL-based handoff. Recovery from an expired lease is a fresh claim/reclaim, not a renew.
 - `session_id` is optional and collision-prone; a missing/duplicate `session_id` still counts as a
-  competing lease. Its one load-bearing shape is `run-<id>`, a workflow run of the item's
-  repository, which the GitHub adapter's claim step 4 reads; any other value is diagnostic only.
+  competing lease. The one shape the GitHub adapter's claim step 4 reads is `run-<id>`, a workflow run of the
+  item's repository; any other value is diagnostic only.
 - `phase` names the work the lease is for: `triage`, `discovery` or `implementation`. The github
   and local-markdown `claim` write it from `--phase <kind>` and refuse any other value (exit 2)
   before any write. A lease with no `phase` field is an implementation claim. `renew-lease`, and
