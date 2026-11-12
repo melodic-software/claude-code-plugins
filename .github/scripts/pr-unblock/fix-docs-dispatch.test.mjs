@@ -408,12 +408,12 @@ test("a PR whose only fix-docs run was lost without a check run is dispatched on
 });
 
 // A fix-docs run's status and latest jobs as the REST listings name them:
-// pr-refine.yml's fix-docs call's jobs are `fix-docs / <job>`
-// (pr-run-activity-read.yml's broker-check, broker-allowed, run and report).
+// pr-refine.yml's fix-docs call's jobs are `Fix Docs / <job>`
+// (pr-run-activity-read.yml's Broker Check, Broker Allowed, Run and Report).
 const job = (name, conclusion, status = "completed") => ({ name, status, conclusion });
 const ended = (...jobs) => ({ status: "completed", jobs });
 // fix-docs-head found a person's hold: the call never started.
-const HELD = ended(job("fix-docs-head", "success"), job("fix-docs", "skipped"));
+const HELD = ended(job("Fix Docs Head", "success"), job("Fix Docs", "skipped"));
 
 // Outage posture element 3: the PR's next event is the probe. A red run names no
 // cause (a read that failed, or a broker that refused, both end red), so at most
@@ -450,24 +450,24 @@ test("a red fix-docs run does not outlive a run that ended, or the check run it 
 // started, which pr-refine.yml starts on a handoff that read settled. The run
 // job's handed-off output alone skips a scan job (head code can forge it, #8890),
 // so a skipped scan with no handoff job read is no hold.
-const leg = (name, scan) => [job(`${name} / broker-allowed`, "success"), job(`${name} / run`, "success"), job(`${name} / scan`, scan)];
-const read = (name) => job(`${name}-handoff`, "success");
-const HANDED_OFF = ended(job("fix-docs-head", "success"), ...leg("fix-docs", "skipped"), read("fix-docs"), job("fix-docs-subscription", "skipped"));
+const leg = (name, scan) => [job(`${name} / Broker Allowed`, "success"), job(`${name} / Run`, "success"), job(`${name} / Scan`, scan)];
+const read = (name) => job(`${name} Handoff`, "success");
+const HANDED_OFF = ended(job("Fix Docs Head", "success"), ...leg("Fix Docs", "skipped"), read("Fix Docs"), job("Fix Docs Subscription", "skipped"));
 
 test("heldHandoff: a leg that handed off, whose handoff job succeeded, with no next leg held; anything else did not", () => {
   assert.equal(heldHandoff(HANDED_OFF), true);
-  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), read("fix-docs"), job("fix-docs-subscription / run", "skipped"))), true, "a next leg all skipped never ran");
-  assert.equal(heldHandoff(ended(job("fix-docs / broker-allowed", "success"), job("fix-docs / run", "success"), read("fix-docs"))), true, "a handoff's scan job may be unlisted");
-  const second = [...leg("fix-docs", "skipped"), read("fix-docs"), ...leg("fix-docs-subscription", "skipped")];
-  assert.equal(heldHandoff(ended(...second, read("fix-docs-subscription"), job("fix-docs-fallback", "skipped"))), true, "the second leg's read held");
-  assert.equal(heldHandoff(ended(...second, job("fix-docs-subscription-handoff", "skipped"), job("fix-docs-fallback", "skipped"))), false, "no fallback token: no read ran, so a skipped scan is a forged handoff");
-  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), job("fix-docs-handoff", "failure"), job("fix-docs-subscription", "skipped"))), false, "a handoff job that went red is the red run's count");
-  assert.equal(heldHandoff(ended(...leg("fix-docs", "success"), read("fix-docs"), job("fix-docs-subscription", "skipped"))), false, "a decline or a supersede scans");
-  assert.equal(heldHandoff(ended(...leg("fix-docs", "skipped"), read("fix-docs"), ...leg("fix-docs-subscription", "success"))), false, "the next leg ran and scanned");
-  assert.equal(heldHandoff(ended(...second, read("fix-docs-subscription"), ...leg("fix-docs-fallback", "success"))), false, "the third leg ran");
-  assert.equal(heldHandoff(ended(...second, read("fix-docs-subscription"), ...leg("fix-docs-fallback", "skipped"), read("fix-docs-fallback"))), false, "the last leg has no next one to hold back");
-  assert.equal(heldHandoff(ended(job("fix-docs / broker-allowed", "skipped"), job("fix-docs / run", "success"), read("fix-docs"))), false, "no broker allow");
-  assert.equal(heldHandoff(ended(job("fix-docs / broker-allowed", "success"), job("fix-docs / run", "failure"), read("fix-docs"))), false, "a run job that failed");
+  assert.equal(heldHandoff(ended(...leg("Fix Docs", "skipped"), read("Fix Docs"), job("Fix Docs Subscription / Run", "skipped"))), true, "a next leg all skipped never ran");
+  assert.equal(heldHandoff(ended(job("Fix Docs / Broker Allowed", "success"), job("Fix Docs / Run", "success"), read("Fix Docs"))), true, "a handoff's scan job may be unlisted");
+  const second = [...leg("Fix Docs", "skipped"), read("Fix Docs"), ...leg("Fix Docs Subscription", "skipped")];
+  assert.equal(heldHandoff(ended(...second, read("Fix Docs Subscription"), job("Fix Docs Fallback", "skipped"))), true, "the second leg's read held");
+  assert.equal(heldHandoff(ended(...second, job("Fix Docs Subscription Handoff", "skipped"), job("Fix Docs Fallback", "skipped"))), false, "no fallback token: no read ran, so a skipped scan is a forged handoff");
+  assert.equal(heldHandoff(ended(...leg("Fix Docs", "skipped"), job("Fix Docs Handoff", "failure"), job("Fix Docs Subscription", "skipped"))), false, "a handoff job that went red is the red run's count");
+  assert.equal(heldHandoff(ended(...leg("Fix Docs", "success"), read("Fix Docs"), job("Fix Docs Subscription", "skipped"))), false, "a decline or a supersede scans");
+  assert.equal(heldHandoff(ended(...leg("Fix Docs", "skipped"), read("Fix Docs"), ...leg("Fix Docs Subscription", "success"))), false, "the next leg ran and scanned");
+  assert.equal(heldHandoff(ended(...second, read("Fix Docs Subscription"), ...leg("Fix Docs Fallback", "success"))), false, "the third leg ran");
+  assert.equal(heldHandoff(ended(...second, read("Fix Docs Subscription"), ...leg("Fix Docs Fallback", "skipped"), read("Fix Docs Fallback"))), false, "the last leg has no next one to hold back");
+  assert.equal(heldHandoff(ended(job("Fix Docs / Broker Allowed", "skipped"), job("Fix Docs / Run", "success"), read("Fix Docs"))), false, "no broker allow");
+  assert.equal(heldHandoff(ended(job("Fix Docs / Broker Allowed", "success"), job("Fix Docs / Run", "failure"), read("Fix Docs"))), false, "a run job that failed");
   assert.equal(heldHandoff(HELD), false, "a person's hold never started the call");
   assert.equal(heldHandoff(null), false, "a run that is gone");
 });
@@ -488,13 +488,13 @@ test("a green fix-docs run that held on a failed handoff read is dispatched agai
 // fix-docs-head's hold on an unread PR head (outage posture element 2) ends the
 // run green with fix-docs skipped, as a person's hold does; only pr-refine.yml's
 // fix-docs-head-held job, which runs on the unread output alone, tells them apart.
-const UNREAD = ended(job("fix-docs-head", "success"), job("fix-docs-head-held", "success"), job("fix-docs", "skipped"));
+const UNREAD = ended(job("Fix Docs Head", "success"), job("Fix Docs Head Held", "success"), job("Fix Docs", "skipped"));
 
 test("heldHead: only a fix-docs-head-held job that succeeded shows an unread head", () => {
   assert.equal(heldHead(UNREAD), true);
   assert.equal(heldHead(HELD), false, "a person's hold");
-  assert.equal(heldHead(ended(job("fix-docs-head", "success"), job("fix-docs-head-held", "skipped"))), false);
-  assert.equal(heldHead(ended(job("fix-docs-head", "success"), job("fix-docs-head-held", "failure"))), false);
+  assert.equal(heldHead(ended(job("Fix Docs Head", "success"), job("Fix Docs Head Held", "skipped"))), false);
+  assert.equal(heldHead(ended(job("Fix Docs Head", "success"), job("Fix Docs Head Held", "failure"))), false);
   assert.equal(heldHead(HANDED_OFF), false);
   assert.equal(heldHead(null), false, "a run that is gone");
 });
@@ -516,7 +516,7 @@ test("a green fix-docs run held on an unread PR head is dispatched again, until 
 });
 
 test("a green fix-docs run that scanned ends the PR, and a run that did not go green costs no job read", async () => {
-  const runJobs = new Map([[9, ended(...leg("fix-docs", "success"))], [10, HANDED_OFF]]);
+  const runJobs = new Map([[9, ended(...leg("Fix Docs", "success"))], [10, HANDED_OFF]]);
   const scanned = await run({ pages: [[pr(54)]], workflowRuns: [ran(10, 54, "success"), ran(9, 54, "success")], runJobs });
   assert.deepEqual(numbers(scanned.api), [], "a held run after one that scanned changes nothing");
   assert.ok(isHandled(scanned.record, CHECK, pr(54).headRefOid));
@@ -572,23 +572,23 @@ test("every listing page is read", async () => {
 
 // The broker allowed it and its run job emitted an empty head: no check posted.
 const EMPTY_HEAD = ended(
-  job("fix-docs-head", "success"),
-  job("fix-docs / broker-check", "success"),
-  job("fix-docs / broker-allowed", "success"),
-  job("fix-docs / run", "success"),
-  job("fix-docs / report", "success"),
-  job("fix-docs-handoff", "success"),
+  job("Fix Docs Head", "success"),
+  job("Fix Docs / Broker Check", "success"),
+  job("Fix Docs / Broker Allowed", "success"),
+  job("Fix Docs / Run", "success"),
+  job("Fix Docs / Report", "success"),
+  job("Fix Docs Handoff", "success"),
 );
 // The broker refused it: broker-allowed and the run job skipped.
 const REFUSED = ended(
-  job("fix-docs-head", "success"),
-  job("fix-docs / broker-check", "failure"),
-  job("fix-docs / broker-allowed", "skipped"),
-  job("fix-docs / run", "skipped"),
-  job("fix-docs / report", "success"),
-  job("fix-docs-handoff", "success"),
+  job("Fix Docs Head", "success"),
+  job("Fix Docs / Broker Check", "failure"),
+  job("Fix Docs / Broker Allowed", "skipped"),
+  job("Fix Docs / Run", "skipped"),
+  job("Fix Docs / Report", "success"),
+  job("Fix Docs Handoff", "success"),
 );
-const GOING = { status: "in_progress", jobs: [job("fix-docs-head", "success"), job("fix-docs / broker-check", null, "in_progress")] };
+const GOING = { status: "in_progress", jobs: [job("Fix Docs Head", "success"), job("Fix Docs / Broker Check", null, "in_progress")] };
 
 test("docsRunState: only a succeeded broker-allowed job counts; a run that ended without one, or is gone, is done; any other is going", () => {
   assert.equal(docsRunState(EMPTY_HEAD), "allowed");
@@ -598,7 +598,29 @@ test("docsRunState: only a succeeded broker-allowed job counts; a run that ended
   assert.equal(docsRunState({ status: "queued", jobs: [] }), "going", "a run with no job listed yet");
   assert.equal(docsRunState(ended()), "done", "a run that ended with no job, as a startup failure does");
   assert.equal(docsRunState(null), "done", "a run that is gone");
-  assert.equal(docsRunState(ended(job("fix-docs / run", "success"))), "done", "a run job's success is not the broker's allow");
+  assert.equal(docsRunState(ended(job("Fix Docs / Run", "success"))), "done", "a run job's success is not the broker's allow");
+});
+
+// A run started before the rename lists its jobs by their ids.
+test("heldHandoff, heldHead and docsRunState read a run whose jobs are named by their ids", () => {
+  const byIds = (...jobs) => ended(job("fix-docs-head", "success"), ...jobs);
+  const handedOff = byIds(
+    job("fix-docs / broker-allowed", "success"),
+    job("fix-docs / run", "success"),
+    job("fix-docs / scan", "skipped"),
+    job("fix-docs-handoff", "success"),
+    job("fix-docs-subscription", "skipped"),
+  );
+  assert.equal(heldHandoff(handedOff), true);
+  assert.equal(
+    heldHandoff(byIds(job("fix-docs / broker-allowed", "success"), job("fix-docs / run", "success"), job("fix-docs-handoff", "success"), job("fix-docs-subscription / run", "success"))),
+    false,
+    "the next leg ran",
+  );
+  assert.equal(heldHead(byIds(job("fix-docs-head-held", "success"))), true);
+  assert.equal(heldHead(byIds(job("fix-docs-head-held", "skipped"))), false);
+  assert.equal(docsRunState(byIds(job("fix-docs / broker-allowed", "success"))), "allowed");
+  assert.equal(docsRunState(byIds(job("fix-docs / broker-allowed", "skipped"))), "done");
 });
 
 // Run ids the dispatch record keeps for a head.
@@ -667,7 +689,7 @@ test("the GitHub API reads a run's status and its latest jobs as one complete pa
   const urls = [];
   const responses = [
     { ok: true, status: 200, body: { id: 38779200001, status: "completed" } },
-    { ok: true, status: 200, body: { total_count: 1, jobs: [job("fix-docs / broker-allowed", "success")] } },
+    { ok: true, status: 200, body: { total_count: 1, jobs: [job("Fix Docs / Broker Allowed", "success")] } },
     { ok: false, status: 404, body: {} },
     { ok: true, status: 200, body: { id: 38779200003, status: "completed" } },
     { ok: true, status: 200, body: { total_count: 101, jobs: [] } },
@@ -683,7 +705,7 @@ test("the GitHub API reads a run's status and its latest jobs as one complete pa
       return { ok, status, json: async () => body };
     },
   });
-  assert.deepEqual(await api.readRunJobs("38779200001"), { status: "completed", jobs: [job("fix-docs / broker-allowed", "success")] });
+  assert.deepEqual(await api.readRunJobs("38779200001"), { status: "completed", jobs: [job("Fix Docs / Broker Allowed", "success")] });
   assert.deepEqual(urls, [
     "https://api.example/repos/octo/repo/actions/runs/38779200001",
     "https://api.example/repos/octo/repo/actions/runs/38779200001/jobs?filter=latest&per_page=100",

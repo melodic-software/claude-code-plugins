@@ -543,6 +543,7 @@ defaults:
 jobs:
   run:
     # The lanes App's own pull_request events never start a lane.
+    name: Run
     if: >-
       !(github.event_name == 'pull_request'
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
@@ -1986,6 +1987,7 @@ jobs:
           echo "api-failures=${rows:-$none}" >>"$GITHUB_OUTPUT"
 
   report:
+    name: Report
     needs: run
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
     # lanes App's own pull_request events skip the run job. Issue mode has no

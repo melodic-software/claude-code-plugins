@@ -496,11 +496,12 @@ check "unknown mode: no gh call" '' "$(cat "$STUB/calls")"
 # token was refused in a way a retry takes the head on, the annotation texts
 # request-lane-token prints (refire-refused.mjs REFUSED and TRANSIENT).
 # publish_case <annotation message|-> [job conclusion] [token step conclusion]:
-# run 777's reply job, id 9001, failed at its token step with that annotation.
+# run 777's reply job, id 9001, named REPLY_JOB, failed at its token step with
+# that annotation.
 publish_case() {
   setup '[]' '[]'
-  printf '{"jobs":[{"id":9000,"name":"address-feedback-select","conclusion":"success","steps":[]},{"id":9001,"name":"publish-feedback / run","conclusion":"%s","steps":[{"name":"Request the lane token","conclusion":"%s"}]}]}' \
-    "${2:-failure}" "${3:-failure}" >"$STUB/jobs.json"
+  printf '{"jobs":[{"id":9000,"name":"Address Feedback Select","conclusion":"success","steps":[]},{"id":9001,"name":"%s","conclusion":"%s","steps":[{"name":"Request the lane token","conclusion":"%s"}]}]}' \
+    "${REPLY_JOB:-Publish Feedback / Run}" "${2:-failure}" "${3:-failure}" >"$STUB/jobs.json"
   if [[ $1 == - ]]; then echo '[]'; else jq -n --arg m "$1" '[{annotation_level:"failure",message:$m}]'; fi >"$STUB/annotations-9001.json"
   [[ -z ${ROUNDS:-} ]] || printf '%s' "$ROUNDS" >"$STUB/rounds.json"
   GITHUB_RUN_ID=777 MODE=status run feedback-publish-failed
@@ -511,6 +512,10 @@ check "publish-failed, workflow-modified: exit 0" 0 "$RC"
 check "publish-failed, workflow-modified: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
 has "publish-failed, workflow-modified: a notice names the refusal" 'workflow-modified, .github/workflows/pr-unblock.yml' "$STUB/out"
 check "publish-failed, workflow-modified: the status-withheld output" status-withheld=true "$(cat "$STUB/github_output")"
+# A run started before the rename names the reply job by its ids.
+REPLY_JOB='publish-feedback / run' publish_case "$MODIFIED"
+check "publish-failed, workflow-modified, ids-named reply job: no status" 0 "$(grep -c statuses "$STUB/requests" || true)"
+check "publish-failed, workflow-modified, ids-named reply job: the status-withheld output" status-withheld=true "$(cat "$STUB/github_output")"
 # A head at the sweep's cap gets no resend, so the status goes on. Rounds
 # another app posted, or another check, do not count.
 ROUND='{"name":"pr-unblock / address-feedback","app":{"id":15368}}'

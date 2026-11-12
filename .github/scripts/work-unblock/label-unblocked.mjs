@@ -1823,7 +1823,7 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     // A failed job before any model turn: admit, pick-slot, or a call's
     // broker-check or run job, in a run where no model step ran.
     const modelRan = jobs.some((job) => (job.steps ?? []).some((step) => MODEL_STEP.test(String(step?.name)) && step.conclusion && step.conclusion !== "skipped"));
-    const preModel = [...named("admit"), ...named("pick-slot"), ...calls.filter((job) => / \/ (?:broker-check|run)$/.test(String(job.name)))];
+    const preModel = [...named("admit"), ...named("pick-slot"), ...calls.filter((job) => / \/ (?:broker-check|Broker Check|run|Run)$/.test(String(job.name)))];
     const limited = modelRan ? undefined : preModel.find((job) => job.conclusion === "failure");
     const checked = calls.find((job) => failedAt(job, BROKER_STEP));
     const checkStopped = calls.find((job) => job.conclusion === "success" && endedAt(job, BROKER_STEP, "success") && endedAt(job, LEASE_STEP, "skipped"));
@@ -1975,7 +1975,20 @@ async function someRunJobs(jobsOf, runs, test) {
 // did work and never reported, as a failed run did before kill-switch-ok.
 const stoppedMint = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => jobs.some(stoppedAt));
 
-const namedJobs = (jobs, name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
+// The display name of each job this script reads, by job id. The jobs API
+// names a job by its display name, or by its id on a run started before the
+// rename; a called job's name goes on ` / <job>`.
+const JOB_NAMES = {
+  admit: "Admit",
+  "pick-slot": "Pick Slot",
+  "report-outcome": "Report Outcome",
+  "resolve-issue": "Resolve Issue",
+  "resolve-issue-subscription": "Resolve Issue Subscription",
+  "resolve-issue-fallback": "Resolve Issue Fallback",
+  "label-unblocked": "Label Unblocked",
+};
+const namedJobs = (jobs, id) =>
+  jobs.filter((job) => [JOB_NAMES[id], id].some((name) => job?.name === name || String(job?.name).startsWith(`${name} /`)));
 
 // Whether one of `runs` stopped at the admit job's provenance stop.
 const stoppedUntrusted = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => namedJobs(jobs, "admit").some((job) => endedAt(job, UNTRUSTED_STEP, "success")));

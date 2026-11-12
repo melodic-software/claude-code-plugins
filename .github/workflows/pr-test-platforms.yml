@@ -68,6 +68,7 @@ jobs:
   # selector takes about 20 s there and several times that under Git Bash.
   select-tests-windows:
     # Not on a draft; always on schedule and dispatch, where the flag is absent.
+    name: Select Tests Windows
     if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 3
@@ -186,6 +187,7 @@ jobs:
   # Tuesday. Free: GitHub Actions is free for public repositories on standard
   # GitHub-hosted runners, Windows included.
   test-windows-rename-1:
+    name: Test Windows Rename 1
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-rename-1') }}
     runs-on: windows-2025
@@ -240,6 +242,7 @@ jobs:
           tokens: github-token
 
   test-windows-rename-2:
+    name: Test Windows Rename 2
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-rename-2') }}
     runs-on: windows-2025
@@ -295,6 +298,7 @@ jobs:
           tokens: github-token
 
   test-windows-secrets:
+    name: Test Windows Secrets
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-secrets') }}
     runs-on: windows-2025
@@ -340,6 +344,7 @@ jobs:
           tokens: github-token
 
   test-windows-guards:
+    name: Test Windows Guards
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-guards') }}
     runs-on: windows-2025
@@ -388,6 +393,7 @@ jobs:
           tokens: github-token
 
   test-windows-hooks:
+    name: Test Windows Hooks
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-hooks') }}
     runs-on: windows-2025
@@ -486,6 +492,7 @@ jobs:
           tokens: github-token
 
   test-windows-lib:
+    name: Test Windows Lib
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-lib') }}
     runs-on: windows-2025
@@ -566,6 +573,7 @@ jobs:
           tokens: github-token
 
   test-windows-worktree:
+    name: Test Windows Worktree
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-worktree') }}
     runs-on: windows-2025
@@ -633,6 +641,7 @@ jobs:
   # the Windows run of test_server, test_session and test_share took 1.4 times
   # their Linux sum.
   test-macos-planning-shared:
+    name: Test Macos Planning Shared
     needs: [select-tests-windows]
     if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-macos-planning-shared') }}
     runs-on: macos-26
