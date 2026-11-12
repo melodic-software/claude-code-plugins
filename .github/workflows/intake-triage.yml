@@ -587,7 +587,8 @@ jobs:
       # write, contents: read, pull-requests: read).
       # A kill switch turned on after this run read its variables is refused
       # `kill-switch`: the step ends green with a notice and no token, the
-      # write below skips, and refine-select skips on the `stopped` output.
+      # write below skips, the voided step reports it, and refine-select
+      # skips on the `stopped` output.
       - name: Request the lane token
         id: lane-token
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
@@ -603,6 +604,24 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
           kill-switch-ok: true
+
+      # A verdict the kill switch voided stays green, as every lane's
+      # lane-token-stopped does, but never reads as applied: the triage sweep
+      # reads this step from the job listing, counts the run as a transient
+      # stop and, on an issue it has not handed off, dispatches intake again on
+      # a later pass (triage-sweep.mjs VOIDED_STEP). The sweep's gate reads the
+      # `vars` switches; the broker also refuses on a repository variable
+      # shadowing CLAUDE_LANES_DISABLED or an org switch it cannot see, so a
+      # pass can run while the broker still refuses: TRANSIENT_LIMIT bounds
+      # those re-dispatches. It runs only after the who-check passed, which
+      # validated the issue number.
+      - name: Report the voided verdict
+        id: voided
+        if: steps.lane-token.outputs.skip-reason == 'kill-switch'
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
+        run: |
+          echo "::notice title=apply-verdict::#${ISSUE_NUMBER}'s verdict was not written because a lanes kill switch refused the lane token; the triage sweep retries an issue it has not handed off"
 
       - name: Write the verdict
         id: verdict

@@ -24,7 +24,7 @@
 // dispatched and, once read, how each ended; after 2 that reached intake and left it untriaged (a run the
 // kill switch or a gate skipped before intake does not count, up to 6
 // dispatches, and nor do the first 24 whose verdict stopped on a GitHub 5xx,
-// a network error or a deferred triage) the sweep sets its Work status to
+// a network error, a deferred triage or a kill switch) the sweep sets its Work status to
 // needs-triage (write-status.mjs) and rewrites that comment to hand it to a
 // maintainer, listing the runs. That write first reads the field fresh and
 // leaves any state but unset or needs-triage (or ready, on an issue listed
@@ -35,6 +35,9 @@
 // needs-triage whose own state comment hands it off is skipped
 // without a REST read, found by one GraphQL search that returns the hits'
 // comments, so hand-offs cannot use up the call budget.
+//
+// A run whose verdict a lanes kill switch voided (apply-verdict's VOIDED_STEP)
+// wrote nothing, so it counts as a transient stop, not an attempt.
 //
 // Accepted exposure: intake reads an issue's comments, and anyone can comment
 // in the hour before the sweep dispatches. Intake treats them as untrusted
@@ -170,7 +173,7 @@ export const renderState = ({ runs, filed, runUrl, repoUrl, details = [], reache
         "",
         ...details.map(
           (r) =>
-            `- ${repoUrl}/actions/runs/${r.id} (${r.reached === "~" ? "a transient stop: a GitHub 5xx, a network error or a deferred triage" : `${r.conclusion ?? "unknown"}${r.reached === "-" ? ", intake did not run" : ""}`})`,
+            `- ${repoUrl}/actions/runs/${r.id} (${r.reached === "~" ? "a transient stop: a GitHub 5xx, a network error, a deferred triage or a kill switch" : `${r.conclusion ?? "unknown"}${r.reached === "-" ? ", intake did not run" : ""}`})`,
         ),
       ].join("\n")
     : filed === FILING
@@ -206,7 +209,8 @@ const applyJob = (jobs) => {
 //   "GitHub answered 500"); or
 // - apply-verdict was skipped because the reusable's apply job deferred an
 //   otherwise clean triage on a permission denial (run 41807993284), which
-//   writes nothing so that a later run retries it.
+//   writes nothing so that a later run retries it; or
+// - apply-verdict ran VOIDED_STEP (voidedVerdict), read from the jobs alone.
 // No open-incident signal is read: the run's own upstream check skips intake
 // while githubstatus.com lists Actions in an outage, which marks it `-`, and
 // nothing records an API incident at the time a run ran.
@@ -225,12 +229,17 @@ const DEFERRED = "permission denial(s) on an otherwise clean triage";
 // failure annotation is.
 const HELD = /^held: /;
 const EXIT_LINE = /^Process completed with exit code \d+\.$/;
+// The apply-verdict step (intake-triage.yml) that runs only when a lanes kill
+// switch refused its token, so the run wrote no verdict.
+export const VOIDED_STEP = "Report the voided verdict";
+export const voidedVerdict = (jobs) => Boolean(applyJob(jobs ?? [])?.steps?.some((s) => s?.name === VOIDED_STEP && s.conclusion === "success"));
 const checkRunPath = (job) => {
   const id = /\/check-runs\/([0-9]+)$/.exec(String(job?.check_run_url ?? ""))?.[1];
   return id ? `/check-runs/${id}/annotations?per_page=100` : null;
 };
 export async function classifyRun(jobs, annotations) {
   if (!reachedIntake(jobs)) return "-";
+  if (voidedVerdict(jobs)) return "~";
   const apply = applyJob(jobs);
   if (apply?.conclusion === "skipped") {
     const reusable = jobs.find((j) => INTAKE_APPLY_JOB.test(String(j.name ?? "")) && j.conclusion === "success");
