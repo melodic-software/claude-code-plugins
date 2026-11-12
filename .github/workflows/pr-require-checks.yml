@@ -5187,9 +5187,11 @@ jobs:
           # (actions: read). With no github-actions[bot] hold comment it reads
           # nothing more. A base module with no filterLaneHolds predates the
           # binding, so the comments print as they are. A base config that did
-          # not check out, or a read that fails, returns 1.
+          # not check out, or a read that fails, returns 1. The module's stdout
+          # is the array: its log lines (the rate guard's console.log) go to
+          # stderr, and output that is not one JSON array returns 1.
           lane_holds() {
-            local all module="${BASE_CONFIG:-}/.github/scripts/pr-merge/clear-escalations.mjs"
+            local all held module="${BASE_CONFIG:-}/.github/scripts/pr-merge/clear-escalations.mjs"
             all=$(jq -cs 'add // []') || return 1
             if ! jq -e 'any(.[]; .user.login == "github-actions[bot]" and (.body // "" | test("(^|\n)<!-- claude-lane-hold lane=")))' <<<"$all" >/dev/null; then
               printf '%s\n' "$all"
@@ -5205,13 +5207,19 @@ jobs:
             fi
             # The module is not the first argument, which would run its main.
             # shellcheck disable=SC2016 # JavaScript, not shell
-            node --input-type=module -e 'import { pathToFileURL } from "node:url";
+            held=$(node --input-type=module -e 'import { pathToFileURL } from "node:url";
+              for (const level of ["log", "info", "debug", "warn"]) console[level] = console.error;
               const { filterLaneHolds } = await import(pathToFileURL(process.argv[2]).href);
               if (typeof filterLaneHolds === "function") {
                 process.exitCode = await filterLaneHolds();
               } else {
                 process.stdin.pipe(process.stdout);
-              }' lane-holds "$module" <<<"$all"
+              }' lane-holds "$module" <<<"$all") || return 1
+            if ! jq -se 'length == 1 and (.[0] | type) == "array"' <<<"$held" >/dev/null 2>&1; then
+              echo "::error::the base commit's clear-escalations.mjs at ${BASE_SHA:-} did not print the comments as one JSON array." >&2
+              return 1
+            fi
+            printf '%s\n' "$held"
           }
           echo $(($(date +%s) + GH_READ_JOB_SECONDS - GH_READ_MARGIN_SECONDS)) >"$RUNNER_TEMP/gh-read.deadline"
           # fd 9 is each sourcing step's stderr, so the notices reach the log
