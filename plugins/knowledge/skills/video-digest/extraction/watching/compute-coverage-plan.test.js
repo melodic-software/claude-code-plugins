@@ -31,15 +31,20 @@ describe("computeCoveragePlan", () => {
     expect(plan.densificationWindowCount).toBe(1);
   });
 
-  // Tier rule (TUNING.md "Dynamic coverage"): up to 90s -> 5s, up to 300s -> 6s, longer -> 60s.
+  // Tier rule (TUNING.md "Dynamic coverage"): up to 90s -> 5s, up to 300s -> 6s; longer ->
+  // duration / 80 fill frames, rounded up, held between 6s and 60s.
   it.each([
     [60, 5],
     [90, 5],
     [91, 6],
     [207.901, 6],
     [300, 6],
-    [301, 60],
-    [3600, 60],
+    [301, 6],
+    [480, 6],
+    [1200, 15],
+    [3600, 45],
+    [4800, 60],
+    [7200, 60],
   ])("defaults the maximum frame gap of a %ss video to %ss", (durationSec, expected) => {
     const plan = computeCoveragePlan({
       durationSec,

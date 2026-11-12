@@ -49,10 +49,13 @@ Keyword signals: `DENSIFICATION_SIGNALS` (code/slide/demo/terminal patterns).
 | Scene sparse ratio | `120` | `SCENE_SPARSE_RATIO` |
 | Max gap between timed frames, short (sec) | `5` | `SHORT_MAX_FRAME_GAP_SEC` |
 | Max gap between timed frames, medium (sec) | `6` | `MEDIUM_MAX_FRAME_GAP_SEC` |
-| Max gap between timed frames, long (sec) | `60` | `LONG_MAX_FRAME_GAP_SEC` |
+| Max gap between timed frames, long ceiling (sec) | `60` | `LONG_MAX_FRAME_GAP_SEC` |
+| Gap-fill frame budget, long | `80` | `LONG_GAP_FILL_FRAME_BUDGET` |
 
 `maxFrameGapForDuration` picks the cap by the stratified tiers: up to `SHORT_VIDEO_MAX_SEC` short,
-up to `MEDIUM_DURATION_THRESHOLD_SEC` medium, longer long. `run-watch.js --max-frame-gap-sec <sec>`
+up to `MEDIUM_DURATION_THRESHOLD_SEC` medium; longer videos get duration divided by
+`LONG_GAP_FILL_FRAME_BUDGET`, rounded up, held between the medium cap and `LONG_MAX_FRAME_GAP_SEC`
+(20 min: 15 s; 80 min and longer: 60 s). `run-watch.js --max-frame-gap-sec <sec>`
 overrides it for one run, and the value used is recorded as `maxFrameGapSec` in
 `coverage-plan.json` and `watch.json`.
 
@@ -65,8 +68,11 @@ Basis per tier (as of 2026-11-11; recheck when a digest misses visuals or a shee
   between scene cuts; `--max-frame-gap-sec 6` gave 49 frames on 4 sheets, and 10 of the 12
   promoted frames existed only in that run. At most 50 fill frames (4 sheets) at 300 s, half of
   `HIGH_VOLUME_CONTACT_SHEET_MIN`.
-- **Long (60 s):** unchanged (judgment: each gap-fill frame costs vision tokens); one fill frame per
-  minute keeps a 2 h video at 120 or fewer.
+- **Long (budget 80, 6-60 s):** removes the jump from 6 s to 60 s at 300 s, which left a 6-minute
+  demo sampled like the old default. 49 frames filled 4 sheets on the medium run, so about 80 fill
+  frames stay under `HIGH_VOLUME_CONTACT_SHEET_MIN` (8 sheets) before scene frames are added
+  (judgment, unmeasured past 300 s: each fill frame costs vision tokens). Past 80 min the 60 s
+  ceiling holds, one fill frame per minute, so a 2 h video stays at 120 or fewer.
 
 **Tune signal:** a digest that misses visuals in a long stretch without scene cuts needs a lower
 maximum gap; a talking-head video that gains many near-identical fill frames tolerates a higher one.

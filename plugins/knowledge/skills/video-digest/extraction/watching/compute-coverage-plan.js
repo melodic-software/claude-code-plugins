@@ -17,14 +17,16 @@ export const SCENE_SPARSE_RATIO = 120;
  * Longest stretch, in seconds, allowed between two timed frames before a gap-fill
  * frame is extracted, per duration tier (`maxFrameGapForDuration`). Short and
  * medium videos get a tight cap because a demo screen shown for 10-30 s between
- * scene cuts is otherwise never sampled; long videos keep the long stratified
- * interval so fill frames stay near one per minute. Values and their basis:
+ * scene cuts is otherwise never sampled; past the medium tier the cap grows with
+ * length so gap fill stays near `LONG_GAP_FILL_FRAME_BUDGET` frames, between the
+ * medium cap and the long stratified interval. Values and their basis:
  * `vendor/video-digestion/TUNING.md` "Dynamic coverage". Override per run with
  * `run-watch.js --max-frame-gap-sec <sec>`.
  */
 export const SHORT_MAX_FRAME_GAP_SEC = SHORT_STRATIFIED_INTERVAL_SEC;
 export const MEDIUM_MAX_FRAME_GAP_SEC = 6;
 export const LONG_MAX_FRAME_GAP_SEC = LONG_STRATIFIED_INTERVAL_SEC;
+export const LONG_GAP_FILL_FRAME_BUDGET = 80;
 
 const DEFAULT_CUE_ANCHOR_PATTERNS = [
   /\blook at\b/i,
@@ -85,7 +87,8 @@ export function stratifiedIntervalForDuration(durationSec) {
 export function maxFrameGapForDuration(durationSec) {
   if (durationSec <= SHORT_VIDEO_MAX_SEC) return SHORT_MAX_FRAME_GAP_SEC;
   if (durationSec <= MEDIUM_DURATION_THRESHOLD_SEC) return MEDIUM_MAX_FRAME_GAP_SEC;
-  return LONG_MAX_FRAME_GAP_SEC;
+  const budgetGap = Math.ceil(durationSec / LONG_GAP_FILL_FRAME_BUDGET);
+  return Math.min(LONG_MAX_FRAME_GAP_SEC, Math.max(MEDIUM_MAX_FRAME_GAP_SEC, budgetGap));
 }
 
 /**
