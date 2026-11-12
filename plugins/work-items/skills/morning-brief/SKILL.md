@@ -190,8 +190,11 @@ also prints `PARTIAL`.
 
 - **Pointer**: for what `behind_by` counts, see
   <https://docs.github.com/en/rest/commits/commits#compare-two-commits>. For when GitHub
-  regenerates a PR's test merge commit, no docs page covers it; correlate with
+  regenerates a PR's test merge commit, no docs page covers it as of the date; correlate with
   <https://github.blog/changelog/2026-02-19-changes-to-test-merge-commit-generation-for-pull-requests>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: a docs page starts to cover test merge commit regeneration, or the
+  `mergeStateStatus` enum gains or drops a value.
 
 Upstream facts the script restates, each with its verification record:
 
@@ -205,16 +208,14 @@ Upstream facts the script restates, each with its verification record:
   path reads `reviewDecision` and `mergeStateStatus`.** **Pointer**: when
   the REST path reports a review decision, fetch the response schema at
   <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live, and
-  `gh pr list --help` for the `--json` fields. **Recheck trigger**:
-  the REST pull schema gains a review-decision field, or gh drops either `--json` field.
+  `gh pr list --help` for the `--json` fields.
 - **The REST path retries a null `mergeable` read instead of treating null as the
   final answer.** **Pointer**: when that retry runs, fetch
   <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live.
 - **The Lanes section re-reads a lane's runs one UTC day at a time when its week's search
   returns fewer runs than its `total_count`.** **Pointer**:
   [List workflow runs for a workflow](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#list-workflow-runs-for-a-workflow),
-  which states the result cap for a filtered search. **Recheck trigger**:
-  that section changes or removes its result cap, or one lane's day passes the cap.
+  which states the result cap for a filtered search.
 
 ## Work status
 

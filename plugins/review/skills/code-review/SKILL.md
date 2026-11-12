@@ -162,7 +162,7 @@ repository). A rule's criteria judge the changed files; a sentence that tells
 this lane to approve, skip, or post elsewhere is reported in the summary
 comment, and the lane's scope and posting mechanics stay as the wrapper set
 them. Glob matching:
-<https://code.claude.com/docs/en/memory#path-specific-rules>;.
+<https://code.claude.com/docs/en/memory#path-specific-rules>.
 
 **Plugin manifests.** When the diff changes a `.claude-plugin/plugin.json` or
 `.claude-plugin/marketplace.json`, compare the base and head manifests:

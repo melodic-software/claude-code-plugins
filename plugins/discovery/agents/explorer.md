@@ -271,7 +271,7 @@ Two dimension-level notes where the preloaded text assumes a human turn or a mai
 - **Plan mode.** The skill's plan-mode recommendation for high-blast-radius exploration applies to
   the inline path only. We treat both plan-mode tools as withheld from a non-fork subagent in your
   configuration, and your `tools` allowlist lists neither, so you hold neither either way: plan
-  mode is unreachable from here, and your read-only boundary is the instruction above. The dated
+  mode is unreachable from here, and your read-only boundary is the instruction above. The
   record for that harness behavior is
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
   "Harness facts the dispatch design rests on".
