@@ -3,6 +3,26 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.3] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+## [0.9.2] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [0.9.1] - 2026-11-11
+
+### Fixed
+
+- `ubiquitous-language` `locate` step 1: a declared glossary path wins only when it resolves inside
+  the current repository. A declared path outside it is ignored for discovery and never created or
+  written.
+
 ## [0.9.0] - 2026-11-11
 
 ### Added

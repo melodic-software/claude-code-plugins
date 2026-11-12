@@ -50,10 +50,12 @@ const timeline = [
   commented(APP, `<!-- pr-pipeline needs-human-cleared reason=stale-review-hold head=${HEAD} -->\nCleared.`, "2026-10-18T12:00:00Z"),
   { event: "unlabeled", actor: APP, label: { name: "needs-human" }, created_at: "2026-10-18T12:00:01Z" },
 ];
+// Before LEGACY_CUTOFF: a lane comment with no binding still counts.
+const POSTED_AT = "2026-10-01T00:00:00Z";
 const thread = (severity, lane = "claude-security-review", { isResolved = false, path = "plugins/x/z.py", commit = HEAD } = {}) => ({
   isResolved,
   path,
-  comments: { nodes: [{ author: { __typename: "Bot", login: "github-actions" }, body: `${severity}\n\nA finding.\n\nclaude-lane: ${lane}`, originalCommit: { oid: commit }, originalLine: 12, originalStartLine: null }] },
+  comments: { nodes: [{ author: { __typename: "Bot", login: "github-actions" }, body: `${severity}\n\nA finding.\n\nclaude-lane: ${lane}`, createdAt: POSTED_AT, lastEditedAt: null, originalCommit: { oid: commit }, originalLine: 12, originalStartLine: null }] },
 });
 // The held CRITICAL finding, inline at OLD on line 12 of the file the fix changed there, resolved.
 const heldFinding = () => thread("severity: CRITICAL", "claude-security-review", { isResolved: true, path: "plugins/x/y.py", commit: OLD });

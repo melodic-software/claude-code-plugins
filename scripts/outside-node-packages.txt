@@ -16,6 +16,7 @@
 .github/actions/scan-upload
 .github/actions/seal-lane-output
 .github/actions/select-trusted-text
+.github/actions/setup-runner-isolation
 .github/actions/upload-lane-transcript
 .github/scripts/apply-patch
 .github/scripts/branch-cleanup

@@ -93,6 +93,16 @@ ghpost::at_operand() {
   return 0
 }
 
+# ghpost::_cmd_name_to <dest> <word>: the command name <word> runs, without
+# its directory, lowercased and without `.exe`.
+ghpost::_cmd_name_to() {
+  local -n __ghp_name="$1"
+  __ghp_name="${2##*/}"
+  __ghp_name="${__ghp_name##*\\}"
+  __ghp_name="${__ghp_name,,}"
+  __ghp_name="${__ghp_name%.exe}"
+}
+
 # ghpost::is_mutation <mark> <text>... plus the files recorded since <mark>:
 # GraphQL writes only through a mutation.
 ghpost::is_mutation() {
@@ -163,20 +173,18 @@ ghpost::gh_api() {
     vals+=("$v")
     ghpost::at_operand "${v#*=}"
   done
-  method="${method^^}"
-  if [[ -n "$method" ]]; then
-    [[ "$method" != GET && "$method" != HEAD ]] && writes=1
-    [[ "$method" == GET || "$method" == HEAD ]] && writes=0
-  fi
+  case "${method^^}" in
+  "") ;;
+  GET | HEAD) writes=0 ;;
+  *) writes=1 ;;
+  esac
   if ((writes)) && [[ "${endpoint#/}" == graphql ]]; then
     ghpost::is_mutation "$mark" ${vals[@]+"${vals[@]}"} || writes=0
   fi
-  if ((!writes)); then
-    GHPOST_FILES=("${GHPOST_FILES[@]:0:mark}")
-    GHPOST_STDIN=$stdin0
-    return 1
-  fi
-  return 0
+  ((writes)) && return 0
+  GHPOST_FILES=("${GHPOST_FILES[@]:0:mark}")
+  GHPOST_STDIN=$stdin0
+  return 1
 }
 
 # curl <args>: 0 when it sends data to a GitHub API route.
@@ -246,10 +254,8 @@ ghpost::curl() {
 # `./x.sh ...`) with a `--` word, which GHPOST_WRAP_AT then counts past.
 ghpost::_wrapper() {
   local -a w=("$@")
-  local i=0 b="${1##*/}"
-  b="${b##*\\}"
-  b="${b,,}"
-  b="${b%.exe}"
+  local i=0 b
+  ghpost::_cmd_name_to b "$1"
   case "$b" in
   bash | sh | zsh | dash | ksh | mksh)
     i=1
@@ -325,10 +331,7 @@ ghpost::segment() {
     done
     return 0
   fi
-  cmd="${1##*/}"
-  cmd="${cmd##*\\}"
-  cmd="${cmd,,}"
-  cmd="${cmd%.exe}"
+  ghpost::_cmd_name_to cmd "$1"
   shift
   case "$cmd" in
   eval)
@@ -377,13 +380,26 @@ ghpost::segment() {
   esac
   [[ -n "$form" ]] || return 0
   [[ -n "$GHPOST_POST" ]] || GHPOST_POST="$form"
-  local w rest
-  # A curl or `gh api` request header (`-H 'Authorization: ...'`) is
-  # transport, not posted content, so its value is not a body word. Only the
-  # separate `-H <value>` and `--header=<value>` forms are skipped: a joined
-  # `-H...` word may be a body value and stays.
-  local skip=0
+  local w rest skip=0
+  # shellcheck disable=SC2016  # a regex: `$(` is matched, not expanded
+  local re_sub='(\$\(|`)(cat[[:space:]]+|<[[:space:]]*)([^)`]*)'
   for w in "$@"; do
+    # A variable or substitution brings its text from elsewhere in the command
+    # (`B=...; gh ... --body "$B"`); an unquoted `$(` splits the segment and
+    # leaves a word ending in `$`.
+    [[ "$w" == *'$'* ]] && GHPOST_SUBST=1
+    # A quoted `$(cat file)` or `$(<file)` stays inside its word, unparsed.
+    rest="$w"
+    while [[ "$rest" =~ $re_sub ]]; do
+      rest="${rest#*"${BASH_REMATCH[0]}"}"
+      for j in ${BASH_REMATCH[3]}; do
+        [[ "$j" == -* ]] || GHPOST_FILES+=("${j//[\"\']/}")
+      done
+    done
+    # A curl or `gh api` request header (`-H 'Authorization: ...'`) is
+    # transport, not posted content, so its value is not a body word. Only the
+    # separate `-H <value>` and `--header=<value>` forms are skipped: a joined
+    # `-H...` word may be a body value and stays.
     if ((skip)); then
       skip=0
       continue
@@ -399,24 +415,6 @@ ghpost::segment() {
       esac
     fi
     GHPOST_TEXTS+=("$w")
-  done
-  # A variable or substitution brings its text from elsewhere in the command
-  # (`B=...; gh ... --body "$B"`); an unquoted `$(` splits the segment and
-  # leaves a word ending in `$`.
-  for w in "$@"; do
-    [[ "$w" == *'$'* ]] && GHPOST_SUBST=1
-  done
-  # A quoted `$(cat file)` or `$(<file)` stays inside its word, unparsed.
-  # shellcheck disable=SC2016  # a regex: `$(` is matched, not expanded
-  local re_sub='(\$\(|`)(cat[[:space:]]+|<[[:space:]]*)([^)`]*)'
-  for w in "$@"; do
-    rest="$w"
-    while [[ "$rest" =~ $re_sub ]]; do
-      rest="${rest#*"${BASH_REMATCH[0]}"}"
-      for j in ${BASH_REMATCH[3]}; do
-        [[ "$j" == -* ]] || GHPOST_FILES+=("${j//[\"\']/}")
-      done
-    done
   done
   return 0
 }
@@ -454,10 +452,10 @@ ghpost::bodies() {
   GHPOST_BODY_SRC=()
   GHPOST_BODY_KIND=()
   GHPOST_PATHS=(${GHPOST_FILES[@]+"${GHPOST_FILES[@]}"} ${GHPOST_AUX_FILES[@]+"${GHPOST_AUX_FILES[@]}"})
+  # A body file may hold what the command itself writes (a redirect, or a
+  # cp, mv or ln into its name), not what is on disk now.
+  ((${#GHPOST_FILES[@]} && ${#GHPOST_WTARGETS[@]})) && GHPOST_WRITES=1
   for f in ${GHPOST_FILES[@]+"${GHPOST_FILES[@]}"}; do
-    # A body file may hold what the command itself writes (a redirect, or a
-    # cp, mv or ln into its name), not what is on disk now.
-    ((${#GHPOST_WTARGETS[@]})) && GHPOST_WRITES=1
     if ghpost::read_to c "$f"; then
       ghpost::_add file "$f" "$c"
     else

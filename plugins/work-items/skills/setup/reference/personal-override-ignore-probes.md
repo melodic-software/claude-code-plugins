@@ -24,7 +24,7 @@ Sibling `source-control` documents the same trap for its own personal override
 Run both as one Bash tool call:
 
 ```bash
-REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+REPO_ROOT="<project root>"
 OVERRIDE="<home>/work-items.local.yaml"  # repo-relative; the legacy pass uses .work-item-tracker.local.json
 # Is the path IGNORED? Two flags, and both are required:
 #   --no-index answers on gitignore's terms alone, so an already-tracked file cannot mask
@@ -52,6 +52,8 @@ if [ "$IGNORED" -eq 1 ]; then
   esac
 fi
 ```
+
+`<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet.
 
 ## Branching on the pair
 

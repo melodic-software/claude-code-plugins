@@ -445,6 +445,8 @@ jobs:
         if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # The review lanes' comment records (actions: read).
+          ARTIFACT_READ_TOKEN: ${{ github.token }}
           VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
           # The reader reads the FAIL index by exact name; a pull request with
           # more index names than one whole listing costs reads that listing,

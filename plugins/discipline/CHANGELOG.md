@@ -5,6 +5,26 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.26.5] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+## [0.26.4] - 2026-11-11
+
+### Changed
+
+- The setup skill's reconfiguration guidance keeps its decisions (reconfigure through the native configure flow, never uninstall to reconfigure, recheck in a fresh session) and now points at the plugin-reconfiguration convention's "The routes" and "Caveats" sections and the plugin CLI reference's `plugin configure` section instead of restating the headless command, its version floor and failure signals, and drops any claim that option values are fixed at session start or skill load, which the docs do not state.
+- The plugin now ships a generated copy of the plugin-reconfiguration convention at `reference/plugin-reconfiguration.md`, and its skills link that copy by relative path, so an agent without network access can read the routes and caveats the skills point at.
+- The setup skill tells the agent to read the convention's routes and caveats sections and print what they give (the fallback route, its behavior on an already-installed plugin and the scope to pass), leaving out the verified-version record, rather than only naming the sections.
+
+## [0.26.3] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.26.2] - 2026-11-11
 
 ### Changed

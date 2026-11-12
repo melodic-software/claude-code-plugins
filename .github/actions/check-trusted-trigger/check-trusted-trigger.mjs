@@ -1374,10 +1374,10 @@ export async function evaluateTrigger({
   ) {
     throw new Stop("no-pr");
   }
-  // Lanes read the list and scripts from the base, so only the default branch
-  // is a trusted one; a payload without it cannot prove the base.
-  const defaultBranch = event.repository?.default_branch;
-  if (typeof defaultBranch !== "string" || !HEAD_REF.test(defaultBranch) || pull.base.ref !== defaultBranch) {
+  // Lanes read the list and scripts from the default branch, so only it is a
+  // trusted base; a payload without it cannot prove the base.
+  const baseSha = trustedBaseSha(pull, event.repository?.default_branch);
+  if (baseSha === "") {
     throw new Stop("untrusted-base");
   }
   if (actors.some((actor) => Number.isInteger(actor?.id) && deniedIds.has(actor.id))) {
@@ -1457,8 +1457,26 @@ export async function evaluateTrigger({
     "pr-number": String(pull.number),
     "head-ref": pull.head.ref,
     "head-sha": pull.head.sha,
-    "base-sha": pull.base.sha,
+    "base-sha": baseSha,
+    "pr-base-sha": pull.base.sha,
   };
+}
+
+// The base SHA a lane may trust, or "" when the PR is on no trusted base. A PR
+// into the default branch gives its own base SHA. A layer of a native stack
+// targets the layer below, an unmerged branch, so it is trusted only when
+// GitHub's stack record names the default branch as the stack's base, and it
+// gives that stack base's SHA, a default-branch commit, never the lower
+// layer's head. check-trusted-base then proves the SHA is on the default branch.
+function trustedBaseSha(pull, defaultBranch) {
+  if (typeof defaultBranch !== "string" || !HEAD_REF.test(defaultBranch)) {
+    return "";
+  }
+  if (pull.base.ref === defaultBranch) {
+    return pull.base.sha;
+  }
+  const stackBase = pull.stack?.base;
+  return isPlainObject(stackBase) && stackBase.ref === defaultBranch && SHA.test(stackBase.sha ?? "") ? stackBase.sha : "";
 }
 
 function stopped(reason) {
@@ -1469,6 +1487,7 @@ function stopped(reason) {
     "head-ref": "",
     "head-sha": "",
     "base-sha": "",
+    "pr-base-sha": "",
   };
 }
 

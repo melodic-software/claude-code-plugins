@@ -3,6 +3,6 @@
     {
       "use": "command_position_multishell"
     },
-    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?claude(?:\\.exe)?(?:\\\\\\\"|')?(?:(?:\\s|\\\\\\\\\\\\n)+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+plugins?(?:\\s|\\\\\\\\\\\\n)+(?:install|uninstall|remove|configure|enable|disable|update)\\b"
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?claude(?:\\.exe)?(?:\\\\\\\"|')?(?:(?:\\s|\\\\\\\\\\\\n)+-[^\\s\\\"\\\\]+)*(?:\\s|\\\\\\\\\\\\n)+plugins?(?:\\s|\\\\\\\\\\\\n)+(?:install|uninstall|remove|configure|enable|disable|update)\\b(?!\\s+--help\\b)"
   ]
 }

@@ -262,11 +262,11 @@ limitations at the pointer; for which models fast mode supports, read the fast m
 - **Pointer**: see
   [Cache limitations](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#cache-limitations),
   [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode) (the supported
-  model list sits in the page's opening, which has no section anchor as of 2026-10-11), and, for
+  model list sits in the page's opening, which has no section anchor as of 2026-11-11), and, for
   the
   tier,
   [Capability tiers](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#3-capability-tiers).
-- **As of**: 2026-10-01; 2026-11-01 for fast mode.
+- **As of**: 2026-10-01; 2026-11-11 for fast mode.
 - **Recheck trigger**: any pointed section moving, or the supported-model list in the fast mode
   page's opening changing.
 

@@ -22,9 +22,11 @@ A claim is a lease; the `reclaim` verb is the SSOT for staleness (activity-check
 
 ```bash
 TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
-[[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+[[ -f "$TRACKER" ]] || TRACKER="<project root>/tools/work-item-tracker/work-item-tracker.sh"
 "$TRACKER" reclaim "<id>"
 ```
+
+`<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet and each later one in this file.
 
 Present each item the verb reports `reclaimed: true` (released, with the `reason` field saying why); `reclaimed: false` means still-held or lease-renewed, left in place.
 
@@ -37,7 +39,7 @@ A **harness denial of the `reclaim` call itself** takes the same posture. The sc
 Entries in `.github/recurring-schedule.json` with no corresponding open or recently-closed item (skip when the repo has no recurring schedule). Only **due** entries can be orphaned. The automation creates an item only once `next_due <= today`, so a healthy future entry legitimately has no open item and is NOT orphaned:
 
 ```bash
-SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+SCHEDULE="<project root>/.github/recurring-schedule.json"
 if [[ -f "$SCHEDULE" ]]; then
   jq -r --arg today "$(date +%Y-%m-%d)" \
     '.items[] | select(.next_due != null and .next_due <= $today) | .id' "$SCHEDULE"

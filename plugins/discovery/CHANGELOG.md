@@ -1,5 +1,17 @@
 # Changelog: discovery plugin
 
+## [1.7.8] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+## [1.7.7] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [1.7.6] - 2026-11-11
 
 ### Changed

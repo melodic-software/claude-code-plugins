@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/reporting-replica/document-dba.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "memory slice"
+    },
+    {
+      "answer": [],
+      "why": "no write at all is not a tracked-path write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "document-dba.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "working directory"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/reporting-replica/document-dba.md",
+            "content": "x"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/reporting/document-dba.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a second copy in a tracked path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/reporting/dba-replica-questions.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "tracked path without 'document' in the name; the old name-based pattern let it through"
+    }
+  ]
+}

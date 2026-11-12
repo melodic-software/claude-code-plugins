@@ -7,7 +7,8 @@
 # snippet `install.mjs plan --scope remote` returns, fetched from a local stand-in for this
 # repository, verifies ok and blocks an off-convention subject, a staged secret and (with jq)
 # a pushed unresolved skill reference, reading the consumer's own files, until the consumer
-# declines that entry; a new commit on main
+# declines that entry, and blocks a pushed token from the second pre-push job, which reads the
+# refs on stdin too; a new commit on main
 # reaches the consumer on its next lefthook install.
 # test-scope: plugins/guardrails/git-hooks/lefthook-remote.yml plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh plugins/guardrails/git-hooks/pre-push-content.sh plugins/guardrails/git-hooks/content-scan.sh .lefthook/commit-msg/guardrails-commit-msg-convention.sh .lefthook/pre-commit/guardrails-pre-commit-content.sh .lefthook/pre-push/guardrails-reference-verify.sh .lefthook/pre-push/guardrails-pre-push-content.sh .github/scripts/pr-require-checks/install-lefthook.sh
 set -uo pipefail
@@ -158,6 +159,19 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$REPO" config checks.guardrails.reference-verify.declined true
   git -C "$REPO" push -q origin main >/dev/null 2>&1
   expect "pre-push: with the entry declined, the same push passes" 0 "$?"
+  # Both pre-push jobs read the refs on stdin in one push: each must report its own finding, from
+  # a branch with no upstream, where a job without the refs finds no range and passes.
+  git -C "$REPO" config --unset checks.guardrails.reference-verify.declined
+  git -C "$REPO" switch -q main
+  # shellcheck disable=SC2016 # the backticks are Markdown, not a substitution
+  printf 'Run `/alpha:gone`.\n' >"$REPO/LATER.md"
+  printf 'b\ntoken=ghp_%s\n' "$(printf 'B%.0s' {1..36})" >"$REPO/later.md"
+  git -C "$REPO" add LATER.md later.md
+  git -C "$REPO" commit -q --no-verify -m "ABC-5: later" >/dev/null 2>&1
+  git -C "$REPO" switch -q -c side-content
+  err="$(git -C "$REPO" push origin main 2>&1)"
+  expect "pre-push: both stdin jobs block in one push, each from the refs on stdin" "1|yes|yes" \
+    "$?|$(grep -q 'LATER.md:1: skill-reference-verify' <<<"$err" && echo yes)|$(grep -q 'later.md:2: secret or credential pattern' <<<"$err" && echo yes)"
 elif [[ "${GUARDRAILS_REQUIRE_LEFTHOOK:-}" == 1 ]]; then
   expect "jq is on PATH for the pre-push case" yes no
 else

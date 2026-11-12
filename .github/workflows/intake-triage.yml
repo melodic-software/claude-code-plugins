@@ -204,6 +204,7 @@ jobs:
             /.github/scripts/maintenance-reconcile-lost-runs/component-status.mjs
             /.github/actions/setup-pinned-node/
             /.node-version
+            /.github/actions/log-api-budget/
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
@@ -217,6 +218,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # Starts new work: also stop on a low GITHUB_TOKEN budget.
+          budget: "true"
 
       # Skips the run while Actions or npm installs report a degraded component,
       # with a logged reason; fails open (.github/actions/check-upstream-status).
@@ -231,8 +234,10 @@ jobs:
         if: steps.kill.outputs.proceed != 'true'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
+          CAUSE: ${{ steps.kill.outputs.cause }}
+          WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: |
-          echo "::notice::the lanes kill switch stops this triage and the needs-triage label (reason: ${REASON:-unreadable})"
+          echo "::notice::${WHY} this triage and the needs-triage label (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
 
   # The floor label, on an issues event only: a dispatch asks for triage. A
   # failed or skipped born-triaged gate (always skipped on a reopen) leaves
@@ -721,6 +726,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # Starts new work: also stop on a low GITHUB_TOKEN budget.
+          budget: "true"
 
       # The same actors apply-verdict writes for, so a run whose verdict the
       # broker would not write starts no model either.

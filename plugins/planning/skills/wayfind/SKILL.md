@@ -46,6 +46,12 @@ never in the map.
 chart a prototype item early wherever a cheap artifact would expose a look-or-behave question
 before later decisions depend on it.
 
+**Fidelity** is how concrete an artifact is: words and discussion, sketches or breadboards,
+wireframes, prototypes, working code. Settle each decision item with the cheapest artifact that
+answers its question, never below the level where it answers nothing; a prototype can cost less
+than the discussion it replaces, so the cheapest answering artifact is not always the lowest. That
+artifact sets the item's type (work step 5's table).
+
 ## Flow
 
 - **Interview is the entry.** `/planning:interview` suggests wayfind once an interview passes its

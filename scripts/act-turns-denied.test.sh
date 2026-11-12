@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
-# Behavior test: the "Check the skill took a model turn" step in both
-# pr-run-activity files records each permission_denials entry as
+# Behavior test: the "Check the skill took a model turn" step in
+# pr-run-activity-read.yml records each permission_denials entry as
 # {tool_name, input} in act-turns.json, keeping the first 20 with denied_total
 # counting all, and the step summary shows each as `tool: input`, then
 # `(+N more)` for any cut. Tool names are cut to 100 characters, at most 4
 # stderr messages are kept with local_command_stderr_total counting all, and
 # denied entries drop from the end until denied serializes to at most 8192
 # bytes. A worst-case file, every field at its limit in 6-byte-escaped
-# characters, fits the 32768-byte carry cap in both lanes, with the oldest
-# stderr entries dropped first. The write file's step writes the summary itself; the read
-# file's writes none, and its scan job's summary step, after the leak scan
-# and in both modes, renders the act-turns.json it wrote. Runs each step's
+# characters, fits the 32768-byte carry cap, with the oldest stderr entries
+# dropped first. The step writes no summary; the scan job's summary step,
+# after the leak scan and in both modes, renders the act-turns.json it wrote. Runs each step's
 # github-script body against a canned execution file with a stub `core` whose
 # summary records its code blocks.
-# test-scope: .github/workflows/pr-run-activity-write.yml .github/workflows/pr-run-activity-read.yml .github/scripts/lib/act-turns.mjs .github/standards/runner-policy/package.json
+# test-scope: .github/workflows/pr-run-activity-read.yml .github/scripts/lib/act-turns.mjs .github/standards/runner-policy/package.json
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -93,10 +92,9 @@ const runActTurns = async (lane, wf, messages) => {
   } catch {}
   return { dir, blocks, error, turns };
 };
-// The summary views of a run: the write step's own, else the read file's scan
-// job summary step rendering the act-turns.json in `dir`; its run job shows none.
-const views = async (lane, wf, dir, blocks) => {
-  if (lane === "write") return [["the act-turns step", blocks.join("\n")]];
+// The summary views of a run: the scan job summary step rendering the
+// act-turns.json in `dir`; the run job shows none.
+const views = async (lane, wf, dir) => {
   const out = [];
   say(!wf.jobs.run.steps.some((s) => s.name === "Show the skill's run in the step summary"), "read: the run job shows no skill run in its summary");
   for (const [job, steps] of [["scan", wf.jobs.scan.steps]]) {
@@ -114,7 +112,7 @@ const views = async (lane, wf, dir, blocks) => {
 const result = (extra) => ({ type: "result", subtype: "success", is_error: false, num_turns: 3, duration_ms: 1,
   modelUsage: { "claude-x": {} }, ...extra });
 
-for (const lane of ["write", "read"]) {
+for (const lane of ["read"]) {
   const wf = YAML.parse(readFileSync(`.github/workflows/pr-run-activity-${lane}.yml`, "utf8"));
   if (!wf.jobs.run.steps.find((s) => s.id === "act-turns")?.with?.script) {
     say(false, `${lane}: the run job has an act-turns step with a script`);

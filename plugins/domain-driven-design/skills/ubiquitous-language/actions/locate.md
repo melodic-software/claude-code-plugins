@@ -11,7 +11,9 @@ repository.
 ## Steps
 
 1. **Declared convention.** Read the consuming project's `AGENTS.md`, `CLAUDE.md`, `.claude/rules`
-   and declared documentation conventions for a stated glossary path. A declared path wins.
+   and declared documentation conventions for a stated glossary path. A declared path wins when it
+   resolves inside the current repository. A declared path outside it (another repository, a parent
+   directory) is ignored for discovery and is never created or written.
 2. **Resolve the setting names** before searching: follow SKILL.md "Settings", which carries the
    values the harness fills in. A consumer's `glossary_file` (`TERMS.md`, say) is a name the search
    must look for.

@@ -23,7 +23,7 @@ graders:
     focus: 'last_message'
   - name: 'opt-in-route'
     type: 'llm'
-    criteria: 'The reply names setting biome_format_lint_gitignored to true as the way to act on gitignored files, through the plugin''s own settings flow: /plugin configure, claude plugin configure --values-stdin or a claude plugin install --config rerun.'
+    criteria: 'The reply names setting biome_format_lint_gitignored to true as the way to act on gitignored files, through the plugin''s own settings flow: /plugin configure, or a headless route it takes from or points at in the plugin-reconfiguration convention.'
     focus: 'last_message'
   - name: 'biome-json-not-the-route'
     type: 'llm'

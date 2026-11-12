@@ -2,12 +2,11 @@
   "skill": "planning:prd",
   "plugin": "planning",
   "skill_dir": "plugins/planning/skills/prd",
-  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are interview and plan (engineering-internal work), brainstorm, questionnaire, and work-items:decompose for turning a PRD into tickets.",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are interview and plan (engineering-internal work), brainstorm, and work-items:decompose for turning a PRD into tickets.",
   "competitors": [
     "planning:interview",
     "planning:plan",
     "planning:brainstorm",
-    "planning:questionnaire",
     "work-items:decompose"
   ],
   "queries": [

@@ -26,6 +26,12 @@ each shows the tool's path when present, or `absent` when missing:
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.
 
+- **Pointer**: for the placeholder a skipped load-time command leaves, fetch
+  [skills § Inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  live.
+- **As of**: 2026-11-11
+- **Recheck trigger**: the placeholder text changes.
+
 ## Purpose
 
 Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy.md`
@@ -55,7 +61,10 @@ PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 When every guard's toggle is disabled, every prerequisite absent or below its floor, but `node`
 (step 3), downgrades from FAIL to INFO. Each guard exits through its enabled-gate before probing
 anything, so a deliberately disabled plugin is not broken. Report the probes informationally and
-note that re-enabling restores the FAIL semantics.
+note that re-enabling restores the FAIL semantics. A tool a git-hook entry needs keeps the grade it
+gets with a guard on while that entry is installed (step 5 reports it as a `tool` line beside an
+`ok`, `stale` or `modified` entry): the entries run at commit or push outside Claude Code and read
+no toggle.
 
 1. **Bash 5.0+.** The guards' documented runtime floor (Git Bash on native Windows).
    Probe the bash the hooks run: the one `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` resolves
@@ -111,30 +120,27 @@ the retired-hook cleanup below, writes nothing. It points:
 
 - missing `jq` or `node` / old Bash / missing or old `shfmt`: install instructions from the README
   Requirements section; this skill never installs system packages.
-- any toggle or scalar change: reconfigure through Claude Code's native flow, per the
-  marketplace's plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record). Interactive:
-  `/plugin configure guardrails@<marketplace>` any time. Headless, preferred on Claude Code
-  2.1.285 or later: `claude plugin configure guardrails@<marketplace> --values-stdin < values.json`,
-  where `values.json` holds `{"KEY": "VALUE"}` (every value a string, booleans included; keys left
-  out keep their saved values). Headless fallback, before 2.1.285:
-  `claude plugin install guardrails@<marketplace> -s <scope> --config KEY=VALUE` (repeatable per
-  key); against an already-installed plugin it prints `already installed` and still writes the
-  value. Do **not** uninstall to reconfigure: that drops the plugin's entire stored
-  `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. The value always lands in user settings, whichever route writes it.
-  `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
-  in. For the rerun, pass the scope `claude plugin list` reports for this plugin: `-s` places the
-  install record and `enabledPlugins`, and a rerun at another scope adds an install record there
-  and enables the plugin. From the home directory the list can label one file both `user` and
-  `project`: pass `user`. Check each route's own failure signal: `--values-stdin` rejects a bad
-  value with exit 1 and saves nothing, but stores an empty string as `""`; the `--config` rerun
-  prints a warning for a rejected value yet exits 0, so read its output, not the exit code. This
-  skill never writes user settings or `pluginConfigs`.
-  Afterwards rerun `check` in a **fresh session**: the rendered `${user_config.*}` and each
-  hook's `CLAUDE_PLUGIN_OPTION_*` are fixed at session start, so a same-session `check` still
-  reports the OLD value; report the observed effective value, never an unobserved change.
+- any toggle or scalar change: reconfigure through Claude Code's native flow, interactively with
+  `/plugin configure guardrails@<marketplace>` or by a headless route, as the marketplace's
+  plugin-reconfiguration convention gives them in
+  [§ The routes](../../reference/plugin-reconfiguration.md#the-routes)
+  (it owns the verified-version record). Apply the scope and failure-signal caveats in its
+  [§ Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries).
+  Read both sections and print what they give, the fallback route, its behavior on an
+  already-installed plugin and the scope to pass included, rather than only naming them, and
+  leave out the verified-version record.
+  Never uninstall to reconfigure; that section links what an uninstall deletes. This skill never
+  writes user settings or `pluginConfigs`. Afterwards rerun `check` in a **fresh session**, since a
+  same-session `check` can still show the old value, and report the observed effective value,
+  never an unobserved change.
+
+  - **Pointer**: for the headless command's flags, how it reports a saved or refused value, and
+    when a saved value applies, fetch
+    [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+    live.
+  - **As of**: 2026-11-11
+  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
+    refused value, or when a saved value applies.
 
 **Retired hooks.** After the points above, re-run the retirement detection from `check` step 8;
 per finding, individually gated: `delete` → confirm, then run

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "# Claims glossary\n\n**Policyholder**\n\nThe party that owns the insurance contract.\n\nAvoid: account owner\n\n**Claimant**\n\nA policyholder or third party who files a claim.\n\nAvoid: requester\n",
+      "why": "entry added in the file's shape"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Claims glossary\n\n**Policyholder**\n\nThe party that owns the insurance contract.\n\nAvoid: account owner\n",
+      "why": "unchanged: the entry went somewhere else"
+    }
+  ]
+}

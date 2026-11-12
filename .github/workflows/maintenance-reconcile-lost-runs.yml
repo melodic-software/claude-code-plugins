@@ -141,6 +141,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          # Starts new work: also stop on a low GITHUB_TOKEN budget.
+          budget: "true"
 
       # The base config's limits.api, in resolve-config's output shape, for
       # the pacer; a failed read leaves rate-limits.json's defaults.

@@ -31,7 +31,7 @@ Three edit. Two do not.
 |---|---|---|
 | `convert-to-pointer` | Replaces the restatement with a link to the source | The reader can follow the link at the moment they need the fact |
 | `trim-to-citation` | Keeps a short quoted excerpt, attributed, and drops the rest | A specific span is worth quoting verbatim and the surrounding restatement is not |
-| `condense-to-stamped-record` | Condenses to a stamped record: the surface's own decision in its own words, a pointer, an as-of date, a recheck trigger | The surface must act on the fact even when the source is unreachable |
+| `condense-to-stamped-record` | Condenses to a record: the surface's own decision in its own words and a pointer, plus an as-of date and a recheck trigger when the decision stores an upstream value | The surface must act on the fact even when the source is unreachable |
 | `leave-with-reason` | Records why the passage stays | A carve-out applies, or a review veto fired, or the human decided |
 | `neutral-not-found` | Records that no source was identified | Budgets were exhausted; every searched surface is named |
 
@@ -61,8 +61,8 @@ read often" does not make a copy acceptable, it makes a stamped record the right
 
 ## The stamped record, when condensing
 
-A stamped record stores no source text, quoted or paraphrased. It carries all of these parts or
-it is not one:
+A condensed record stores no source text, quoted or paraphrased. It carries these parts or it is
+not one:
 
 1. **The decision**: what the surface does, in its own words, narrow enough to check. Where the
    surface must act on a value offline, the value appears as the surface's own setting or firing
@@ -71,6 +71,12 @@ it is not one:
    record with no pointer is not re-checkable.
 3. **The as-of date**: when the decision was last derived from the source.
 4. **The recheck trigger**: the observable event that obliges re-deriving it.
+
+Parts 3 and 4 belong to a stored value: a decision that holds an upstream default, limit, version
+gate, price, error string or measured observation, which is what an offline surface acting on the
+fact usually holds. A condensed record whose decision holds no upstream value is a pointer record:
+the decision and the pointer alone, with no as-of date or trigger, since a link check catches a
+dead pointer and whoever fetches it sees what changed.
 
 The labels the marketplace's upstream-drift convention uses are `**Pointer**`, `**As of**` and
 `**Recheck trigger**`, each on its own bullet under the decision.
@@ -98,10 +104,10 @@ The dispositions below are what the report recommends, not what a run performs.
 | `condense-to-stamped-record` | The surface must act on the fact without the source. The offline-load-bearing rule above still applies: it selects the stamped record over a bare pointer whatever the finding's tier. |
 | `leave-with-reason` | A carve-out applies (a conforming pointer or record, owned content, a distilling-file surface whose own attribution enumerates the fact, quoted and cited text), or the human decided. |
 
-A recommended stamped record carries the parts above: the surface's decision in its own words, the
-pointer, an ISO 8601 as-of date `check-stamps.sh` can parse, and a trigger naming an event someone
-could notice. When
-no such trigger exists, recommend `convert-to-pointer`.
+A recommended record carries the parts above: the surface's decision in its own words and the
+pointer, and, for a stored value, an ISO 8601 as-of date `check-stamps.sh` can parse and a trigger
+naming an event someone could notice. When a stored value has no such trigger, recommend
+`convert-to-pointer`.
 
 ## Guards, all of which must pass before an edit is kept
 

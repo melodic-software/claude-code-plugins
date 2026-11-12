@@ -237,9 +237,9 @@ skill reports the path either way.
 
 ## Configuration
 
-This plugin has no `userConfig`. It adapts to your project through your
-project's own context: its glossary (if any), its architecture decision records,
-and its work-artifact convention. There is nothing to hand-edit in the plugin.
+The plugin options are listed under Options reference below. Beyond them, the
+plugin adapts to your project through your project's own context: its glossary
+(if any), its architecture decision records, and its work-artifact convention.
 The map keys are consumer-side, not plugin-side; see Consumer configuration
 above.
 
@@ -284,9 +284,6 @@ For a Claude Code release without `plugin configure`, see [Plugin install](https
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
 - [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
-
-As of 2026-11-04. Recheck trigger: one of these sections moves, or a Claude Code
-release note changes how plugin options are set or stored.
 
 <!-- END GENERATED: plugin options -->
 

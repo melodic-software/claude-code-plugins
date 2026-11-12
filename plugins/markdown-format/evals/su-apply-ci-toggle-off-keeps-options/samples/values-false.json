@@ -2,20 +2,19 @@
   "pass": [
     {
       "answer": "`values.json` holds `{\"markdown_format_enabled\": \"false\"}`."
+    },
+    {
+      "answer": "Set markdown_format_enabled to false."
     }
   ],
   "fail": [
-    {
-      "answer": "`{\"markdown_format_enabled\": false}`",
-      "why": "not a string"
-    },
     {
       "answer": "`{\"markdown_format_enabled\": \"true\"}`",
       "why": "wrong value"
     },
     {
-      "answer": "Set markdown_format_enabled to false.",
-      "why": "no values shape"
+      "answer": "`{\"markdown_format\": \"false\"}`",
+      "why": "near miss: wrong key"
     }
   ]
 }

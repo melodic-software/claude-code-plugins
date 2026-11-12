@@ -2,13 +2,21 @@
   "pass": [
     {
       "answer": "{\"settings_write_ask_enabled\": \"false\"}",
-      "why": "string"
+      "why": "JSON form"
+    },
+    {
+      "answer": "Set settings_write_ask_enabled to false.",
+      "why": "key and value in prose"
     }
   ],
   "fail": [
     {
-      "answer": "{\"settings_write_ask_enabled\": false}",
-      "why": "boolean"
+      "answer": "{\"settings_write_ask_enabled\": \"true\"}",
+      "why": "wrong value"
+    },
+    {
+      "answer": "Turn the checkpoint off.",
+      "why": "near miss: names neither key nor value"
     }
   ]
 }

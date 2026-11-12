@@ -3,6 +3,40 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.17] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+## [3.0.16] - 2026-11-11
+
+### Changed
+
+- The setup skill's reconfiguration guidance keeps its decisions (reconfigure through the native configure flow, never uninstall to reconfigure, recheck in a fresh session) and now points at the plugin-reconfiguration convention's "The routes" and "Caveats" sections and the plugin CLI reference's `plugin configure` section instead of restating the headless command, its version floor and failure signals, and drops any claim that option values are fixed at session start or skill load, which the docs do not state.
+- The setup skill's pre-computed context keeps its fallback for a row showing the `disableSkillShellExecution` placeholder and adds a pointer record to the skills docs' "Inject dynamic context" section, where that placeholder text is documented.
+- The setup check's fresh-session rule for observing a changed option no longer gives "injected when this skill loads" as its reason and points at the plugins manifest reference's "Reference a saved value" section instead. In rate-limit-guard it also drops the unpointed claims about when the module and the StopFailure hook read a changed value.
+- The plugin now ships a generated copy of the plugin-reconfiguration convention at `reference/plugin-reconfiguration.md`, and its skills link that copy by relative path, so an agent without network access can read the routes and caveats the skills point at.
+- The setup skill tells the agent to read the convention's routes and caveats sections and print what they give (the fallback route, its behavior on an already-installed plugin and the scope to pass), leaving out the verified-version record, rather than only naming the sections.
+
+## [3.0.15] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.0.14] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.0.13] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [3.0.12] - 2026-11-11
 
 ### Changed

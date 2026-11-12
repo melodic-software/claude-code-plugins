@@ -157,6 +157,7 @@ from urllib.parse import quote
 
 import babysit_check_inputs as check_inputs
 import babysit_dependabot as dependabot
+import babysit_lane_binding as lane_binding
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_review_evidence as review_evidence
@@ -205,6 +206,7 @@ from babysit_gh import (
     gh_capture,
     gh_http_status,
     gh_json,
+    lane_binding_checker,
     normalized_rest_author,
     parse_repo_number,
     pull_request_commits_once,
@@ -3257,6 +3259,9 @@ def _lane_evidence(
         )
     except GraphQLUnavailableError:
         threads = None
+    # Before bind(), which reads any doubt as unbound: a failed check read
+    # raises out of here instead.
+    _attach_lane_bindings(_lane_checker(repo, number, read_env), comments, threads)
     head_sha = str(head.get("sha"))
     head_file = _head_file(repo, head_sha)
     base_sha = json_object(pr.get("base")).get("sha")
@@ -3518,6 +3523,51 @@ def _attach_edits(comments: Any, label: str) -> None:
                     "editor": node.get("editor"),
                     "history": node.get("userContentEdits"),
                 }
+
+
+# Each review lane's caller workflow, the only workflow whose runs bind its
+# comments (babysit_lane_binding).
+_LANE_WORKFLOWS = {lane: path for lane, (path, _) in review_evidence.LANES.items()}
+
+
+def _lane_checker(
+    repo: str, number: int, read_env: Mapping[str, str] | None
+) -> lane_binding.Check:
+    """One pull request's lane-binding checker, reading with `read_env`: the
+    lane token holds no Actions permission."""
+    return lane_binding_checker(repo, number, _LANE_WORKFLOWS, read_env)
+
+
+def _attach_lane_bindings(
+    check: lane_binding.Check, comments: Any, threads: Any
+) -> None:
+    """Give each github-actions[bot] issue comment, and each thread's first
+    comment, that ends in a lane footer and carries a binding the checker's
+    verdict (`babysit_lane_binding.VERDICT`), which `bind()` reads. A
+    comment with no binding is left for `bind()`'s legacy rule and costs no
+    read. A failed read raises."""
+    for comment in comments if is_json_array(comments) else ():
+        if (
+            is_json_object(comment)
+            and json_object(comment.get("user")).get("login")
+            in review_evidence.ACTIONS_LOGINS
+            and lane_binding.binding_of(comment.get("body")) is not None
+        ):
+            comment[lane_binding.VERDICT] = check(
+                lane_binding.issue_comment_view(comment)
+            )
+    for thread in threads if is_json_array(threads) else ():
+        first = json_array(json_object(thread).get("comments"))[:1]
+        for comment in first:
+            if (
+                is_json_object(comment)
+                and json_object(comment.get("author")).get("login")
+                in review_evidence.ACTIONS_LOGINS
+                and lane_binding.binding_of(comment.get("body")) is not None
+            ):
+                comment[lane_binding.VERDICT] = check(
+                    lane_binding.review_comment_view(comment)
+                )
 
 
 class HeadFileUnproven(RuntimeError):

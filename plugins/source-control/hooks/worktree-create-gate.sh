@@ -40,8 +40,8 @@
 #   * exit 0 with no path, which the harness reports as "hook succeeded but
 #     returned no worktree path" (probe).
 # So a WorktreeCreate hook cannot say "not applicable, use your own default". The
-# only way this hook can decline is to fail the creation, which is why the
-# disabled path below exits NON-ZERO rather than exiting 0 silently.
+# only way this hook can decline is to fail the creation, which is why every
+# refusal below exits NON-ZERO rather than exiting 0 silently.
 #
 # Which channel a message reaches:
 #   * a NON-ZERO exit surfaces this hook's stderr — ALL of it, not merely the
@@ -58,12 +58,10 @@
 # case is not a failure — it resolves to the plugin data directory, which is also
 # outside every repository.
 #
-# `worktree_create_gate_enabled=false` does NOT hand placement back to Claude
-# Code — per the paragraph above, no such channel exists. It makes this hook
-# refuse, which fails every harness-driven creation path. Disabling the plugin
-# is the only stand-down that covers every path. `worktree.bgIsolation: "none"`
-# is narrower: it stops background sessions isolating at all, and leaves
-# `--worktree` and subagent worktrees on this hook.
+# The gate has no off switch: no hook output hands placement back to Claude Code.
+# Disabling the plugin is the only stand-down that covers every path.
+# `worktree.bgIsolation: "none"` is narrower: it stops background sessions
+# isolating at all, and leaves `--worktree` and subagent worktrees on this hook.
 #   Pointer: <https://code.claude.com/docs/en/settings-reference#worktree-bgisolation>
 #   As-of: 2026-10-11.
 #   Recheck trigger: that section stops scoping the key to background sessions.
@@ -113,22 +111,6 @@ gate::refuse() {
   done
   exit 1
 }
-
-# Disabled does NOT mean "let Claude Code use its own default" — see the header:
-# no such channel exists, and an exit-0/empty-stdout skip fails the creation
-# anyway, with a generic harness error that never mentions the option the user
-# just set. So the disabled path refuses OUT LOUD instead, and the one thing it
-# must do is name the real stand-downs.
-#
-# The flag is read directly rather than through `hook::check_enabled`, which EXITS
-# 0 itself instead of returning — anything a caller writes after it is dead code,
-# and an exit-0 skip is precisely the shape this path must avoid.
-if [[ "${CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED:-true}" != "true" ]]; then
-  gate::refuse \
-    'to let Claude Code place worktrees itself, disable this plugin; worktree.bgIsolation "none" in settings only stops background sessions isolating, and turning this option off cannot hand placement back' \
-    'the gate is disabled by worktree_create_gate_enabled=false, so it declined to place this worktree' \
-    'a WorktreeCreate hook has no "not applicable" channel: both refusing and returning no path fail the creation'
-fi
 
 # The status matters: an empty or unreadable buffer is a DIFFERENT failure from a
 # payload that parsed but carried no `.name`, and reporting the second for the

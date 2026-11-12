@@ -18,7 +18,7 @@ Collect these with **individual** Bash calls, one command per call, never combin
 - Recent commits, `git log --oneline -5`
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
-Keep the pipe in the command: a read-time cap bounds nothing, since the Bash tool returns the full output first. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body Bash calls, not pre-compute lines. How the harness runs a skill's injected commands: [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run), as of 2026-11-03; recheck when that section changes how injected commands run.
+Keep the pipe in the command: a read-time cap comes too late ([what a result returns inline](https://code.claude.com/docs/en/tools-reference#output-limits)). Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body Bash calls, not pre-compute lines ([how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)).
 
 ## Variables
 
@@ -203,7 +203,7 @@ After writing the PRD, recommend the next step by remaining ambiguity:
 - **Need external research (libs, APIs, comparables)** → `/discovery:research` if enabled, otherwise the strongest research capability available
 - **Engineering scope clear and externals understood** → `/planning:design`, which records a one-line early exit when no design question is open and hands off to `/planning:plan`
 - **The locked PRD is one unit of work that a later session, an AFK lane or another person picks up** → `/work-items:track add --agent-ready`, one tracker item carrying the PRD's acceptance criteria
-- **An open question waits on a stakeholder** → also `/planning:questionnaire` (if enabled), which turns it into a document that person fills in; it runs beside the next step, not in place of it
+- **An open question waits on a stakeholder** → also `/planning:interview document <topic>`, the interview's document surface, which turns it into a document that person fills in; it runs beside the next step, not in place of it
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 

@@ -9,7 +9,6 @@ planning:brainstorm | entry: diverges a rough problem before any scope; /session
 planning:prd
 planning:interview
 planning:wayfind | skip-to: work-items:decompose a closed map has resolved the design decisions a plan holds; the owner's Q531 closes it to prd, decompose or work (#12477)
-planning:questionnaire | entry: /planning:interview and /planning:prd recommend it beside the next step, not in place of it, so no successor section names it
 planning:audit-answers
 planning:design
 planning:design-handoff

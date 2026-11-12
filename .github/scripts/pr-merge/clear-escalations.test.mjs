@@ -750,17 +750,22 @@ test("a review lane's labeled event is a hold until a trusted person unlabels it
   assert.equal(lifted.writes().at(-1)?.method, "DELETE");
 });
 
-test("a review-lane hold edited after the unlabel keeps it", async () => {
-  const w = world({
-    timeline: [
-      laneHold(ACTIONS_BOT, "2026-10-18T08:00:00Z", { updatedAt: "2026-10-18T09:30:00Z" }),
-      unlabeled(OWNER, "2026-10-18T09:00:00Z"),
-      labeled(BOT, "2026-10-18T10:00:00Z"),
-      escalated(),
-    ],
-  });
-  await run(w);
-  assert.deepEqual(w.writes(), []);
+test("a review-lane hold with no binding counts only unedited: an edit after posting makes it no lane's", async () => {
+  // The lanes never edit a hold comment, and any workflow's token can, so an
+  // edited hold with no binding is no review lane's (lane-binding.mjs
+  // legacyCounts). An unedited one still holds.
+  const timeline = (updatedAt) => [
+    laneHold(ACTIONS_BOT, "2026-10-18T08:00:00Z", { updatedAt }),
+    unlabeled(OWNER, "2026-10-18T09:00:00Z"),
+    labeled(BOT, "2026-10-18T10:00:00Z"),
+    escalated(),
+  ];
+  const edited = world({ timeline: timeline("2026-10-18T09:30:00Z") });
+  await run(edited);
+  assert.equal(edited.writes().at(-1)?.method, "DELETE");
+  const kept = world({ timeline: [laneHold(ACTIONS_BOT, "2026-10-18T11:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()] });
+  await run(kept);
+  assert.deepEqual(kept.writes(), []);
 });
 
 test("a hold marker from github-actions[bot] with no lane footer, or from another bot, is not a review-lane hold", async () => {

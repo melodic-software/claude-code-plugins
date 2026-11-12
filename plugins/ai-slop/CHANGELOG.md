@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.18.6] - 2026-11-11
+
+### Changed
+
+- The setup skill's pre-computed context keeps its fallback for a row showing the `disableSkillShellExecution` placeholder and adds a pointer record to the skills docs' "Inject dynamic context" section, where that placeholder text is documented.
+
+## [0.18.5] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [0.18.4] - 2026-11-11
 
 ### Changed

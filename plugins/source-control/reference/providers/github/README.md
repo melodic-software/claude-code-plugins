@@ -25,6 +25,50 @@ A pull request is GitHub's change request; this file uses its terms.
 | The repository's default branch | `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`; in a sandboxed session, `gh api "repos/{owner}/{repo}" --jq '.default_branch'` |
 | Read a tracked file from a repository's default branch | `gh api repos/<owner>/<repo>/contents/<path>` (the `content` field is base64) |
 
+### Target repository
+
+A `gh` command given no repository does not simply use `origin`. It takes `-R` or `GH_REPO`
+first, then the remote `gh repo set-default` recorded, and without either, when it cannot
+prompt (an agent's shell, or any `$(...)` capture), the first remote in its own order by remote
+name, where `upstream` comes before `origin`. A stock `gh repo clone` of a fork records `upstream`
+as the default. So in a fork checkout a bare write can land on the upstream repository.
+
+Each phase that writes resolves the repository once, before its first write (ready and evidence
+before their first read too), with `bash "<skill-dir>/scripts/target-repo.sh" [--dir <checkout>]`
+(the pull-request skill's script), reports the `target repository:` line it prints, and targets
+that repository with every later read and write of the phase. Each write names it:
+`-R <owner>/<repo>` on `gh pr` and `gh issue`, `repos/<owner>/<repo>/...` on `gh api`, as
+[merge](pull-request/merge.md#merge-command) already does. A phase that runs shell blocks also
+exports `GH_REPO` with it, which every other `gh` call follows, the scripts the phase runs
+included, and which `{owner}/{repo}` placeholders expand from. `gh repo view` with no argument
+ignores `GH_REPO` (gh 2.103.3), so a script that needs the repository reads
+`gh api 'repos/{owner}/{repo}' --jq .full_name` instead. The script resolves in this order:
+
+1. `GH_REPO`, when set: the caller's explicit choice, or the repository an earlier block resolved.
+2. When the remotes name two or more github.com repositories, the fork among them: a remote's
+   repository the caller can push to (`.permissions.push`) whose parent (`.parent.full_name`,
+   both from `gh api repos/<owner>/<repo>`) is the recorded default or another remote's
+   repository, `origin` checked first. A fork checkout works on the fork, even when a stock fork
+   clone recorded upstream as gh's default; a contributor's fork added as a remote does not
+   capture a maintainer's writes. A failed read of a repository stops the script with exit 1.
+3. The recorded default.
+4. The one github.com repository the remotes name.
+5. With no github.com remote, gh's own resolution.
+
+It refuses when the remotes cannot decide: two or more github.com repositories, none a fork of
+another that the caller can push to, and no default recorded. It then prints the `gh repo set-default <owner>/<repo>` fix,
+and the refusal stops the phase: which repository is the target is the user's choice, not the
+script's. A pull request meant for upstream from a fork names its base repository explicitly
+([out-of-tree create](pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator),
+triangular flow).
+
+- **Pointer**: [`gh repo set-default`](https://cli.github.com/manual/gh_repo_set-default),
+  [`gh repo clone`](https://cli.github.com/manual/gh_repo_clone) and
+  [`gh help environment`](https://cli.github.com/manual/gh_help_environment) (`GH_REPO`).
+- **As of**: 2026-11-11, gh 2.103.3.
+- **Recheck trigger**: a gh release note that changes how commands pick the base repository or
+  what `gh repo set-default --view` prints.
+
 ## Resolve a pull request
 
 | Operation | GitHub command |
@@ -49,12 +93,12 @@ entry and pass it to every later `gh` call in that phase.
 
 | Operation | GitHub command |
 |---|---|
-| Open a draft PR | `gh pr create --draft` (with `--head <branch>` on the PR-only entry), never `--reviewer` |
+| Open a draft PR | `gh pr create -R <owner>/<repo> --draft` (with `--head <branch>` on the PR-only entry), never `--reviewer` |
 | Check out the PR head | `gh pr checkout <N>`, or `gh pr checkout <N> --detach` when the branch is locked in another worktree. It is fork-safe: a fork's head branch is not fetchable from `origin` by name |
-| Merge the base into the head | `gh api --method PUT repos/{owner}/{repo}/pulls/<N>/update-branch -f expected_head_sha=<sha>`, pinned to the decision's head (pull-request `ready-for-review.md`) |
-| Flip a draft ready | `gh pr ready <N>`, run only inside `/source-control:pull-request ready`, never bare |
+| Merge the base into the head | `gh api --method PUT repos/<owner>/<repo>/pulls/<N>/update-branch -f expected_head_sha=<sha>`, pinned to the decision's head (pull-request `ready-for-review.md`) |
+| Flip a draft ready | `gh pr ready <N> -R <owner>/<repo>`, run only inside `/source-control:pull-request ready`, never bare |
 | Merge a PR | `gh pr merge <N> -R <owner>/<repo>` with the PR number and repository written literally, plus the flags the repository needs: `--squash`, `--auto` on a merge-queue or auto-merge base, `--admin` only where a code-owner review or merge queue blocks an otherwise ready merge and the consumer's policy allows it; `--match-head-commit <sha>` is optional for an immediate merge and required with `--auto`. A refused merge is reported, never handed to the user or retried in another shape ([pull-request/merge.md](pull-request/merge.md#merge-command); pull-request `merge.md` §4.2.1 owns when to merge without asking). A babysit lane merges only through its merge-gate wrapper (babysit-prs `safety.md`) |
-| Open a tracking issue | `gh issue create` |
+| Open a tracking issue | `gh issue create -R <owner>/<repo>` |
 
 ## Checks and CI logs
 
@@ -85,7 +129,7 @@ conversation comments carry only `created_at`.
 |---|---|
 | React to a comment | `POST` to the comment's `/reactions` endpoint (`+1`, `-1`, `eyes`); verify with a `GET` on the same endpoint. Review bodies have no reactions endpoint |
 | Reply on an inline thread | `gh api repos/<owner>/<repo>/pulls/<N>/comments/<id>/replies -F body=@<body-file>` |
-| Reply on the conversation | `gh pr comment <N> --body-file <body-file>` |
+| Reply on the conversation | `gh pr comment <N> -R <owner>/<repo> --body-file <body-file>` |
 | Verify an inline reply | the inline surface filtered with `--jq '.[] \| select(.in_reply_to_id == <original-id>)'` |
 | Verify a conversation reply (D5, before any fix) | the conversation surface filtered with `--jq '.[] \| select(.user.login == "<posting-identity>") \| .body'` |
 | Verify a follow-up reply citing the fix | the conversation surface filtered with `--jq '.[] \| select((.body \| contains("<sha>")) and .user.login == "<posting-identity>") \| .body'`, never `.[-1]` |

@@ -98,6 +98,12 @@ is legitimate only when the cache cannot silently rot, i.e. there is:
 With neither, the "cache" is an unmaintained copy waiting to drift. **Demote
 it** to `convert-to-pointer` (point at the live source) or `delete`.
 
+A pointer is its own drift control: it holds no copy, a link check catches a
+dead one, and whoever fetches it sees what changed. Never require an as-of date
+or a recheck trigger on a pointer, a `convert-to-pointer` result included; the
+recorded recheck trigger above is drift control for a cache, which stores what
+its source says.
+
 ## Factor 4: Fact ownership (the trump card)
 
 Some content is not derivable at any cost because the repository does not

@@ -20,7 +20,7 @@
       "id": 2,
       "name": "mandatory-fresh-context-stress-test",
       "prompt": "/planning:plan exploration and research are done, and I explicitly accept planning without a separate /design pass (no new types or modules). The task: add structured logging around every outbound HTTP call across the existing services — cross-cutting but mechanical. Formulate the plan and get it ready to present.",
-      "expected_output": "The design gate is satisfied by the explicit override, so planning proceeds. Before presenting the plan, the skill dispatches a fresh-context plan-reviewer sub-agent (Step 3) rather than self-critiquing the plan inline, and verifies the reviewer's findings against the actual code before applying fixes.",
+      "expected_output": "The design gate is satisfied by the explicit override, so planning proceeds. Cross-cutting logging matches a stress-test trigger, so before presenting the plan the skill dispatches a fresh-context plan-reviewer sub-agent (Step 3) rather than self-critiquing the plan inline, and verifies the reviewer's findings against the actual code before applying fixes.",
       "files": [],
       "expectations": [
         "Output dispatches the plan-reviewer agent (or an equivalent fresh-context reviewer) rather than the authoring thread reviewing its own plan inline",

@@ -3,6 +3,125 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.0.6] - 2026-11-11
+
+### Changed
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+## [10.0.5] - 2026-11-11
+
+### Changed
+
+- The setup skill's reconfiguration guidance keeps its decisions (reconfigure through the native configure flow, never uninstall to reconfigure, recheck in a fresh session) and now points at the plugin-reconfiguration convention's "The routes" and "Caveats" sections and the plugin CLI reference's `plugin configure` section instead of restating the headless command, its version floor and failure signals, and drops any claim that option values are fixed at session start or skill load, which the docs do not state.
+- The plugin now ships a generated copy of the plugin-reconfiguration convention at `reference/plugin-reconfiguration.md`, and its skills link that copy by relative path, so an agent without network access can read the routes and caveats the skills point at.
+- The setup skill tells the agent to read the convention's routes and caveats sections and print what they give (the fallback route, its behavior on an already-installed plugin and the scope to pass), leaving out the verified-version record, rather than only naming the sections.
+
+### Fixed
+
+- set the lane comment legacy cutoff
+
+  The review lanes write run bindings since ci-workflows#1071 merged
+  (2026-11-11T22:24:32Z). LEGACY_CUTOFF is now 48 hours later,
+  2026-11-13T22:24:32Z, in both ports: a lane comment with no binding counts
+  only when posted at or before it and never edited. The 48 hours cover a run
+  that resolved the reusable before the merge, and a re-run of one within the
+  lost-run reconciler's 24-hour lookback.
+
+  The clear-escalations test of an edited hold with no binding now expects
+  it to read as no lane's; fixtures for unbound lane comments carry dates
+  before the cutoff.
+
+## [10.0.4] - 2026-11-11
+
+### Fixed
+
+- count a lane comment record only once it is complete
+
+  The lane now closes each attempt's comment record with a
+  `{"complete":true}` line once its publish and hold steps did not fail
+  (ci-workflows pr-review-cli). The lane-binding checker counts a record as
+  covering its attempt only when it holds that line; an attempt cut off
+  between posting and recording reads as one that left no record, so its
+  comments fall to the time-window check instead of being rejected.
+
+  Test fixtures for lane comments with no binding now carry their
+  createdAt, ready for LEGACY_CUTOFF, which stays null here. The Python
+  test pins its cutoff to the JavaScript port's.
+
+## [10.0.3] - 2026-11-11
+
+### Changed
+
+- The stacked pull request reference moves to the plugin level, `reference/stacked-prs.md`, so other plugins can point at it. Its "When to stack" section is now the one place that says when to stack: dependent changes, a large change split for review, and ordered series stack; independent changes stay separate PRs off the trunk. It also says to check that the repository's PR pipeline accepts a layer whose base is not the default branch before stacking, replacing the stale line that said the pipeline lanes skip such a layer.
+- `pull-request` asks the stack-or-separate question before `create` opens a PR that builds on another open PR, and `worktree` create points a stacked layer at the layer below it.
+
+### Fixed
+
+- bind lane comments to their producing run
+
+  Every workflow's job token posts as github-actions[bot], so the
+  `claude-lane: <lane>` footer alone does not show a comment came from a
+  review lane. Readers now accept a github-actions[bot] lane comment only
+  when the run its binding line names (`<!-- claude-lane-run id=<run>
+  sha=<head> -->`, written by ci-workflows' pr-review-cli) is that lane's
+  caller workflow, ran on that head, and lists the comment's kind, id and
+  body digest in one of its `claude-lane-comments-<lane>-<attempt>`
+  artifacts. Every attempt's record counts; a run whose record expired
+  proves its comments by time. A comment that fails reads as one with no
+  footer; one that passes is read without its binding line, so severity
+  and footer parsing is unchanged. Comments with no binding keep counting
+  while LEGACY_CUTOFF is unset; a later change sets it once the lanes
+  write bindings.
+
+  - .github/scripts/lib/lane-binding.mjs, its fixtures and test (copies in
+    the review and work-items plugins), and babysit_lane_binding.py.
+  - pr-unblock: address-feedback, feedback-dispatch, publish-feedback,
+    resolve-threads, lane-hold, gate-recheck, dispatch and fix-ci-context
+    read comments and timelines through withLaneBinding.
+  - pr-merge: clear-escalations (thread roots, hold timelines, and the
+    ci-status filterLaneHolds entry), enable-auto-merge's lift check.
+  - ci-status: hold comments pass through filterLaneHolds from the base.
+  - babysit merge gate, review prior-findings, morning-brief
+    review-precision.
+  - ARTIFACT_READ_TOKEN and `actions: read` where a job reads the records;
+    the library and Python module join the hold floor as enforcement.
+
+- In a fork checkout, `pull-request` create, ready and evidence no longer leave the target repository to `gh`, which can pick upstream. Each phase resolves it once with the new `scripts/target-repo.sh`, prints it, and names it in every write. Ready and create export it as `GH_REPO` once it is resolved, so their later reads, and the scripts they run, target it too; evidence resolves it first and names it on every read. `branch-update-signals.sh` without `--repo` now reads the repository through `gh api`, which follows `GH_REPO`, instead of `gh repo view`, which ignores it. A fork checkout resolves to the fork even when `gh` records upstream as its default, but only a fork you can push to, so a maintainer who adds a contributor's fork as a remote keeps writing to the recorded default; a failed repository read stops the phase instead of falling back to upstream. Remotes naming two or more GitHub repositories, none a fork of another that you can push to, with no `gh repo set-default` recorded, are refused with that fix.
+- The create provider reference no longer says the worktree-anchored default-branch read returns the fork's branch: it returns the branch of whichever repository `gh` resolves, which can be upstream.
+
+## [10.0.2] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [10.0.1] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+### Fixed
+
+- A demotion record's lift by a referencing pull request now also counts an upper layer of a native stack into main. Such a layer keeps the lower layer's branch as its base when the stack lands together, so the lift reads its `stack.baseRefName` beside `baseRefName`; its merge commit must still be on main.
+
+## [10.0.0] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+### Removed
+
+- The `worktree_create_gate_enabled` option. Its only off position made the WorktreeCreate gate refuse, so every harness-driven worktree creation failed. The gate now always runs; a stored `false` is ignored. To stop the gate placing worktrees, disable the plugin.
+
+## [9.0.1] - 2026-11-11
+
+### Fixed
+
+- The pr-merge verifier gate no longer holds a pull request with `verify:earlier-fail` for a FAIL that ties to it only by head branch when the pull request that FAIL judged is merged, so a new release pull request on the reused `release/plugins` branch stops inheriting the FAILs of earlier, merged release pull requests. A FAIL from an open or closed-unmerged pull request on the same branch, or one whose state cannot be read, still holds.
+
 ## [9.0.0] - 2026-11-11
 
 ### Changed

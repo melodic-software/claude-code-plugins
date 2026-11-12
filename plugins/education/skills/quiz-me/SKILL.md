@@ -27,7 +27,7 @@ behavior.
 
 Configure via the `/plugin` dialog, or headless by the routes `/education:setup` `check` step 7
 lists, which follow the
-[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md)
+[plugin-reconfiguration convention](../../reference/plugin-reconfiguration.md)
 (it owns the verified-version record). The hardcoded-path
 guardrails may block a literal non-home `report_library_dir`; when a write is blocked, report the
 block and fall back to the `${CLAUDE_PLUGIN_DATA}` default rather than working around the

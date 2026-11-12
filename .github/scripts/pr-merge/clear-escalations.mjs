@@ -174,7 +174,8 @@
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, loadTrustedList, paginate, retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import {
   CLEARED,
@@ -805,7 +806,7 @@ const REVIEW_THREADS_QUERY = `query($owner: String!, $name: String!, $number: In
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       reviewThreads(first: 100, after: $after) {
-        nodes { isResolved path comments(first: 1) { nodes { author { __typename login } body originalCommit { oid } originalLine originalStartLine } } }
+        nodes { isResolved path comments(first: 1) { nodes { author { __typename login } databaseId body createdAt updatedAt lastEditedAt originalCommit { oid } originalLine originalStartLine } } }
         pageInfo { hasNextPage endCursor }
       }
     }
@@ -829,10 +830,131 @@ function commentLane(author, body) {
   return ["github-actions", "github-actions[bot]"].includes(author.login) ? (LANE_TAG.exec(last)?.[1] ?? null) : null;
 }
 
+// The most pages of a run's artifact listing read; a run with more is unread.
+const ARTIFACT_PAGES = 10;
+
+// lane-binding's checker for pull request `pr`: `read` (a createGitHub
+// client whose token holds actions: read) reads the run and its artifact
+// listing and the pull request, `download` an artifact's zip bytes.
+// `laneReads` ({ getPull, getRun, listArtifacts, download }) replaces those
+// reads.
+export function restLaneChecker({ read, download, repo, pr, laneReads }) {
+  return laneChecker({
+    pr,
+    getPull: (number) => read("GET", `/repos/${repo}/pulls/${number}`),
+    getRun: (id) => read("GET", `/repos/${repo}/actions/runs/${id}`),
+    listArtifacts: async (id) => {
+      const all = [];
+      for (let page = 1; page <= ARTIFACT_PAGES; page += 1) {
+        const listing = await read("GET", `/repos/${repo}/actions/runs/${id}/artifacts?per_page=100&page=${page}`);
+        if (!Array.isArray(listing?.artifacts)) {
+          throw new Error(`run ${id}'s artifact listing did not read`);
+        }
+        all.push(...listing.artifacts);
+        if (listing.artifacts.length < 100) {
+          return all;
+        }
+      }
+      throw new Error(`run ${id} lists more than ${ARTIFACT_PAGES * 100} artifacts`);
+    },
+    download,
+    ...laneReads,
+  });
+}
+
+// An artifact's zip bytes. GitHub answers with a redirect to storage, which
+// fetch follows without the token. A failed download throws.
+export function artifactDownload({ token, repo, apiUrl = "https://api.github.com", fetchImpl = fetch, log }) {
+  const send = retryServerErrors(fetchImpl, { log });
+  return async (id) => {
+    const response = await send(`${apiUrl}/repos/${repo}/actions/artifacts/${id}/zip`, {
+      headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" },
+    });
+    if (!response.ok) {
+      throw new Error(`artifact ${id} did not download: HTTP ${response.status}`);
+    }
+    return Buffer.from(await response.arrayBuffer());
+  };
+}
+
+const stdinText = async () => {
+  const chunks = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+};
+
+const LANE_HOLD_LINE = /(^|\n)<!-- claude-lane-hold lane=/;
+// Whether a REST issue comment is a github-actions[bot] review-lane hold
+// comment ending in a lane footer: the only comments filterLaneHolds checks.
+const footedHold = (comment) =>
+  comment?.user?.login === "github-actions[bot]" && LANE_HOLD_LINE.test(String(comment.body ?? "")) && laneFooter(comment.body) !== null;
+
+// REST issue comments with each footed github-actions[bot] hold comment its
+// lane's run did not post (`check`) left without its footer line, as a hold
+// comment with no footer reads, and each one it did post read through
+// withoutBinding. Every other comment passes unchanged. A read that fails
+// throws.
+export async function laneHoldComments(comments, check) {
+  const out = [];
+  for (const comment of comments) {
+    if (!footedHold(comment)) {
+      out.push(comment);
+      continue;
+    }
+    const own = await check({ kind: "issue_comment", id: comment.id, body: comment.body, createdAt: comment.created_at, updatedAt: comment.updated_at });
+    out.push({ ...comment, body: own ? withoutBinding(comment.body) : withoutLaneFooters(comment.body) });
+  }
+  return out;
+}
+
+// `number`'s REST issue timeline with its `commented` items passed through
+// laneHoldComments: a hold comment its lane's run did not post reads as one
+// with no footer, which laneHold, holdsSince and openReviewHold then skip.
+export async function laneTimeline(github, repo, number, check) {
+  const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
+  const comments = await laneHoldComments(timeline.filter((item) => item.event === "commented"), check);
+  let next = 0;
+  return timeline.map((item) => (item.event === "commented" ? comments[next++] : item));
+}
+
+// ci-status's hold readers (pr-require-checks.yml, the human-gated and
+// hold-lift steps, running the base commit's copy of this module): the issue
+// comments, one JSON array on stdin, printed back as one array through
+// laneHoldComments. 0 when they printed, 1 when anything did not read.
+// Environment: GH_TOKEN (actions: read), GITHUB_REPOSITORY, PR_NUMBER,
+// GITHUB_API_URL.
+export async function filterLaneHolds({ env = process.env, input, write = (text) => process.stdout.write(text), laneReads } = {}) {
+  try {
+    const repo = env.GITHUB_REPOSITORY ?? "";
+    const pr = Number(env.PR_NUMBER);
+    if (!REPO.test(repo) || !Number.isSafeInteger(pr) || pr < 1) {
+      throw new Error("GITHUB_REPOSITORY or PR_NUMBER is not set");
+    }
+    const comments = JSON.parse(input ?? (await stdinText()));
+    if (!Array.isArray(comments)) {
+      throw new Error("the comments are not one JSON array");
+    }
+    const log = (line) => console.error(line);
+    const apiUrl = env.GITHUB_API_URL || undefined;
+    const read = createGitHub({ token: env.GH_TOKEN, apiUrl, log });
+    const download = artifactDownload({ token: env.GH_TOKEN, repo, apiUrl, log });
+    write(`${JSON.stringify(await laneHoldComments(comments, restLaneChecker({ read, download, repo, pr, laneReads })))}\n`);
+    return 0;
+  } catch (error) {
+    console.error(`lane-holds: did not read: ${escapeCommand(error?.message ?? error)}`);
+    return 1;
+  }
+}
+
 // Each review thread a review lane opened, as { lane, severity, resolved,
 // path, commit, lines } (its root comment's `severity:` values, the commit it
-// was made on and the [first, last] lines it names there, or null); null when the listing does not read or may be cut short.
-async function laneThreads({ github, repo, number }) {
+// was made on and the [first, last] lines it names there, or null); null when
+// the listing does not read or may be cut short. A github-actions root comment
+// counts only when `check` finds it its lane's own, and is read through
+// withoutBinding; a check that fails to read throws.
+async function laneThreads({ github, repo, number, check }) {
   const [owner, name] = repo.split("/");
   const open = [];
   let after = null;
@@ -851,10 +973,15 @@ async function laneThreads({ github, repo, number }) {
         return null;
       }
       const lane = commentLane(root.author, root.body);
-      if (lane !== null) {
+      const app = ["claude", "claude[bot]"].includes(root.author?.login);
+      const own =
+        lane !== null &&
+        (app ||
+          (await check({ kind: "review_comment", id: root.databaseId, body: root.body, createdAt: root.createdAt, updatedAt: root.updatedAt, lastEditedAt: root.lastEditedAt })));
+      if (own) {
         open.push({
           lane,
-          severity: [...String(root.body ?? "").matchAll(SEVERITY)].map((match) => match[1]),
+          severity: [...String(app ? (root.body ?? "") : withoutBinding(root.body)).matchAll(SEVERITY)].map((match) => match[1]),
           resolved: thread.isResolved,
           path: thread.path ?? null,
           commit: root.originalCommit?.oid ?? null,
@@ -1088,7 +1215,7 @@ async function heldCauseUnchanged({ github, repo, base, head, threads }, held, c
 // ci-status judges the head the App cleared as it was at the removal.
 // `reader` reads the branch activity and `checks` the lanes' runs; null
 // `reader` or `trusted` keeps them.
-export async function staleHoldEvidence({ github, checks, reader, repo, number, pull, timeline, lifted, trusted, head = pull.head.sha, until = Infinity }) {
+export async function staleHoldEvidence({ github, checks, reader, repo, number, pull, timeline, lifted, trusted, check, head = pull.head.sha, until = Infinity }) {
   const { shas, lanes, critical } = holdsSince(timeline, lifted);
   if (shas.length === 0) {
     return { reason: "no review-lane hold comment stands since the label went on" };
@@ -1133,7 +1260,7 @@ export async function staleHoldEvidence({ github, checks, reader, repo, number, 
     }
     reviews.push(review);
   }
-  const threads = await laneThreads({ github, repo, number });
+  const threads = await laneThreads({ github, repo, number, check });
   if (threads === null) {
     return { reason: "the review thread listing may be cut short" };
   }
@@ -1160,7 +1287,7 @@ export async function staleHoldEvidence({ github, checks, reader, repo, number, 
 // Environment: GH_TOKEN, GITHUB_REPOSITORY, PR_NUMBER, HEAD_SHA (the event's
 // head, still the pull request's), CLEARED_SHA, HUMAN_GATED (the label),
 // TRUSTED_ACTORS_PATH, GITHUB_API_URL.
-export async function recheckStaleHold({ env = process.env, github } = {}) {
+export async function recheckStaleHold({ env = process.env, github, laneReads } = {}) {
   try {
     const repo = env.GITHUB_REPOSITORY ?? "";
     const number = Number(env.PR_NUMBER);
@@ -1169,14 +1296,16 @@ export async function recheckStaleHold({ env = process.env, github } = {}) {
     if (!REPO.test(repo) || !Number.isSafeInteger(number) || number < 1 || !SHA.test(env.HEAD_SHA ?? "") || !SHA.test(cleared) || label === "") {
       throw new Error("GITHUB_REPOSITORY, PR_NUMBER, HEAD_SHA, CLEARED_SHA or HUMAN_GATED is not set");
     }
-    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    const apiUrl = env.GITHUB_API_URL || undefined;
+    github ??= createGitHub({ token: env.GH_TOKEN, apiUrl });
+    const check = restLaneChecker({ read: github, download: artifactDownload({ token: env.GH_TOKEN, repo, apiUrl }), repo, pr: number, laneReads });
     const trusted = new Set(loadTrustedList(env.TRUSTED_ACTORS_PATH).humans);
     const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
     if (pull?.head?.sha !== env.HEAD_SHA || pull.head?.repo?.full_name !== repo) {
       console.log(`stale-review-hold: #${number}'s head is no longer ${env.HEAD_SHA}`);
       return 1;
     }
-    const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
+    const timeline = await laneTimeline(github, repo, number, check);
     const { since, lifted } = labelHistory(timeline, label);
     const removed = timeline
       .filter((item) => item.event === "unlabeled" && same(item.label?.name, label))
@@ -1203,7 +1332,7 @@ export async function recheckStaleHold({ env = process.env, github } = {}) {
       console.log(`stale-review-hold: the hold stands at ${cleared}: ${stop}`);
       return 1;
     }
-    const evidence = await staleHoldEvidence({ github, checks: github, reader: github, repo, number, pull, timeline: seen, lifted, trusted, head: cleared, until });
+    const evidence = await staleHoldEvidence({ github, checks: github, reader: github, repo, number, pull, timeline: seen, lifted, trusted, check, head: cleared, until });
     if (evidence.reason !== undefined) {
       console.log(`stale-review-hold: the hold stands at ${cleared}: ${evidence.reason}`);
       return 1;
@@ -1260,7 +1389,7 @@ function standingStop({ timeline, lifted, since, bot, label }) {
 
 // A label a review lane added: what to clear as STALE_HOLD, or { reason }
 // saying why nothing is.
-async function staleReviewHold({ github, checks, repo, number, label, bot, timeline, since, lifted, reader, trusted }) {
+async function staleReviewHold({ github, checks, repo, number, label, bot, timeline, since, lifted, reader, trusted, checkerFor }) {
   const stop = standingStop({ timeline, lifted, since, bot, label });
   if (stop !== null) {
     return { reason: stop };
@@ -1270,7 +1399,7 @@ async function staleReviewHold({ github, checks, repo, number, label, bot, timel
   if (closed !== null) {
     return { reason: closed };
   }
-  const evidence = await staleHoldEvidence({ github, checks, reader, repo, number, pull, timeline, lifted, trusted });
+  const evidence = await staleHoldEvidence({ github, checks, reader, repo, number, pull, timeline, lifted, trusted, check: checkerFor(number) });
   if (evidence.reason !== undefined) {
     return evidence;
   }
@@ -1288,12 +1417,12 @@ async function staleReviewHold({ github, checks, repo, number, label, bot, timel
 // Why a stale-review-hold clear no longer stands at a fresh read of the head
 // and the timeline, or null: the head moved, or the hold comments since the
 // label was last removed are not the ones judged.
-async function staleHoldMoved({ github, repo, number, label, result }) {
+async function staleHoldMoved({ github, repo, number, label, result, check }) {
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
   if (pull?.head?.sha !== result.head) {
     return `its head moved to ${pull?.head?.sha ?? "an unread head"} since it was judged`;
   }
-  const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
+  const timeline = await laneTimeline(github, repo, number, check);
   const { lifted } = labelHistory(timeline, label);
   if (openCredentialHold(timeline, lifted) !== undefined) {
     return CREDENTIAL_KEPT;
@@ -1303,13 +1432,13 @@ async function staleHoldMoved({ github, repo, number, label, result }) {
 }
 
 // What to clear on `number`, or { reason } saying why nothing is.
-async function verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs, verify, reads, reader, trusted }) {
-  const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
+async function verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs, verify, reads, reader, trusted, checkerFor }) {
+  const timeline = await laneTimeline(github, repo, number, checkerFor(number));
   // A removal lifts a review lane's hold only when a person on the trusted
   // list made it, as ci-status reads a lift; without that list none does.
   const { labeled, since, lifted, reviewLabeled } = labelHistory(timeline, label, trusted ?? new Set());
   if (LANE_LABELERS.some((login) => isApp(labeled?.actor, login))) {
-    return staleReviewHold({ github, checks, repo, number, label, bot, timeline, since, lifted, reader, trusted });
+    return staleReviewHold({ github, checks, repo, number, label, bot, timeline, since, lifted, reader, trusted, checkerFor });
   }
   if (!isApp(labeled?.actor, bot)) {
     return { reason: `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App` };
@@ -1680,7 +1809,7 @@ function trustedIds(path) {
   }
 }
 
-export async function main({ env = process.env, github, checks, verify, reader } = {}) {
+export async function main({ env = process.env, github, checks, verify, reader, laneReads } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -1695,6 +1824,16 @@ export async function main({ env = process.env, github, checks, verify, reader }
     const client = (token) => createGitHub({ token, apiUrl: env.GITHUB_API_URL || undefined });
     github ??= client(env.GH_TOKEN);
     checks ??= client(env.CHECKS_TOKEN);
+    // The review lanes' runs and comment records, read with the job token
+    // (actions: read); one checker per pull request.
+    const download = artifactDownload({ token: env.CHECKS_TOKEN, repo, apiUrl: env.GITHUB_API_URL || undefined });
+    const checkers = new Map();
+    const checkerFor = (number) => {
+      if (!checkers.has(number)) {
+        checkers.set(number, restLaneChecker({ read: checks, download, repo, pr: number, laneReads }));
+      }
+      return checkers.get(number);
+    };
     verify ??= pythonVerify(env);
     const reads = { left: NATIVE_READS_PER_RUN };
     // The job's own token reads branch activity, check runs and main's
@@ -1720,7 +1859,7 @@ export async function main({ env = process.env, github, checks, verify, reader }
       }
       try {
         const readAt = Date.now();
-        const result = await verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads, reader, trusted });
+        const result = await verdict({ github, checks, repo, number, label, bot, mainSha, lanePrs: env.LANE_PRS, verify, reads, reader, trusted, checkerFor });
         if (result.reason !== null) {
           console.log(`clear-escalations: #${number} kept: ${result.reason}`);
           continue;
@@ -1736,7 +1875,7 @@ export async function main({ env = process.env, github, checks, verify, reader }
         // the delete: a hold a lane wrote since (the label already on, so no
         // labeled event) or a moved head keeps it, with no comment saying
         // the label came off.
-        const recheck = async () => (result.recorded === STALE_HOLD ? await staleHoldMoved({ github, repo, number, label, result }) : null);
+        const recheck = async () => (result.recorded === STALE_HOLD ? await staleHoldMoved({ github, repo, number, label, result, check: checkerFor(number) }) : null);
         let moved = await recheck();
         // The comment first: a failed removal is retried by the next sweep,
         // which finds the comment and posts no second one.

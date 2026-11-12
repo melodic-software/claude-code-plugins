@@ -63,7 +63,9 @@ jobs:
     if: github.ref == 'refs/heads/main' && (inputs.action || 'merge') == 'merge'
     # The App's private key is an environment secret; the environment admits
     # only main (github-iac RepositoryEnvironments.cs).
-    environment: plugin-release
+    environment:
+      name: plugin-release
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -181,7 +183,9 @@ jobs:
     name: Build
     needs: [merge]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && ((inputs.action || 'merge') != 'merge' || needs.merge.outputs.rebuild == 'true') }}
-    environment: plugin-release
+    environment:
+      name: plugin-release
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

@@ -51,6 +51,7 @@ git add -A
 git commit -q -m "Sessions in Redis, orders in PostgreSQL"
 
 git rm -q src/session/redis_store.py
+mkdir -p src/session
 cat >src/session/cookie_store.py <<'PY'
 """Sessions live in signed cookies."""
 
