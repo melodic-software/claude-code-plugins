@@ -15,6 +15,9 @@
     "reservedJobIds",
     "activityGrammar",
     "displayWords",
+    "properNouns",
+    "displayNameLevel",
+    "jobNameExceptions",
     "exemptions",
     "apps"
   ],
@@ -107,6 +110,30 @@
       "type": "object",
       "propertyNames": { "pattern": "^[a-z][a-z0-9]*$" },
       "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "properNouns": {
+      "description": "Capitalized words and phrases a sentence-case step name may carry after its first word: product, tool and platform names. A mixed-case word (`GitHub`) or an acronym needs no entry.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^\\S+( \\S+)*$" }
+    },
+    "displayNameLevel": {
+      "description": "Level of the job-name and step-name findings: `warning` while the org's repositories adopt the display-name rules, then `error`.",
+      "enum": ["warning", "error"]
+    },
+    "jobNameExceptions": {
+      "description": "Jobs whose display name is fixed by something outside the convention, each with its exact name and the reason.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["jobId", "name", "reason"],
+        "properties": {
+          "jobId": { "$ref": "#/$defs/kebab" },
+          "name": { "type": "string", "minLength": 1 },
+          "reason": { "$ref": "#/$defs/text" }
+        }
+      }
     },
     "exemptions": {
       "description": "The complete exemption list. Nothing else is exempt.",
