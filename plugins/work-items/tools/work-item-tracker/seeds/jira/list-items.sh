@@ -59,25 +59,17 @@ else
   projects_json="$WIT_JIRA_PROJECT_KEYS"
 fi
 
-# jql_value_list <json-array> — the array's elements as a JQL value list: each element
-# wrapped in its own double-quoted literal, comma-joined. Elements are allowlist-checked
-# before they reach here (see the scope comment above), which is what keeps the
-# string-assembled JQL injection-safe.
-jql_value_list() {
-  jq -r 'map("\"\(.)\"") | join(",")' <<<"$1"
-}
-
 # statusCategory scope mirrors the state cut in the normalizer: open == not a
 # done-category, closed == a done-category, all == unconstrained. The done keys are
 # the configurable done-key set (override seam), allowlist-validated at config load; JQL
 # matches them via `statusCategory in`.
 case "$state" in
-open) status_clause=" AND statusCategory not in ($(jql_value_list "$WIT_JIRA_DONE_KEYS"))" ;;
-closed) status_clause=" AND statusCategory in ($(jql_value_list "$WIT_JIRA_DONE_KEYS"))" ;;
+open) status_clause=" AND statusCategory not in ($(wit_jira_value_list "$WIT_JIRA_DONE_KEYS"))" ;;
+closed) status_clause=" AND statusCategory in ($(wit_jira_value_list "$WIT_JIRA_DONE_KEYS"))" ;;
 all) status_clause="" ;;
 *) wit_usage_error "internal: unexpected --state '$state'" ;; # pre-validated above; defensive guard
 esac
-projects_clause="project in ($(jql_value_list "$projects_json"))"
+projects_clause="project in ($(wit_jira_value_list "$projects_json"))"
 # The label narrows the search itself, so the ceiling counts labeled issues only. It is
 # caller text inside a quoted JQL literal, where only `"`, `\` and line breaks are
 # special, so a label holding a quote or backslash is refused rather than escaped. A

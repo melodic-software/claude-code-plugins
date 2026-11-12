@@ -37,6 +37,9 @@ source "$WIT_JIRA_SEAM_LIB/id.sh"
 wit_jira_require_seam_lib "$WIT_JIRA_SEAM_LIB/json.sh"
 # shellcheck source=../../lib/json.sh disable=SC1091
 source "$WIT_JIRA_SEAM_LIB/json.sh"
+wit_jira_require_seam_lib "$WIT_JIRA_SEAM_LIB/verb-cli.sh"
+# shellcheck source=../../lib/verb-cli.sh disable=SC1091
+source "$WIT_JIRA_SEAM_LIB/verb-cli.sh"
 # binding.sh is sourced (not inherited): the dispatcher runs each verb as a fresh
 # `bash <verb>.sh` subprocess, so only exported env vars cross — not wit_find_binding.
 # The adapter re-locates the binding itself to read its jira-specific config subtree,
@@ -111,19 +114,11 @@ wit_jira_bad_keys() {
 WIT_JIRA_BODY=""
 WIT_JIRA_STATUS=""
 
-wit_usage_error() {
-  printf '%s: %s\n' "$(basename "${BASH_SOURCE[1]}")" "$1" >&2
-  exit "$EX_USAGE"
-}
-
-# wit_help_if_requested <usage-text> <args…> — print usage + exit 0 on --help.
-wit_help_if_requested() {
-  local usage="$1"
-  shift
-  if [[ "${1:-}" == "--help" ]]; then
-    printf '%s\n' "$usage"
-    exit 0
-  fi
+# wit_jira_value_list <json-array> — the array's elements as a JQL value list: each
+# element wrapped in its own double-quoted literal, comma-joined. Callers allowlist-check
+# the elements first, which is what keeps the string-assembled JQL injection-safe.
+wit_jira_value_list() {
+  jq -r 'map("\"\(.)\"") | join(",")' <<<"$1"
 }
 
 # wit_require_jira_id <id> — parse an ID and require its provider be `jira`. The
@@ -379,7 +374,7 @@ wit_jira_blocker_resolutions() {
   for ((i = 0; i < n; i += 100)); do
     chunk="$(jq -c --argjson i "$i" '.[$i:$i + 100]' <<<"$keys")"
     chunk_len="$(jq 'length' <<<"$chunk")"
-    jql="key in ($(jq -r 'map("\"\(.)\"") | join(",")' <<<"$chunk"))"
+    jql="key in ($(wit_jira_value_list "$chunk"))"
     body="$(jq -cn --arg jql "$jql" --argjson mr "$chunk_len" \
       '{jql: $jql, fields: ["resolution"], maxResults: $mr}')"
     if out="$(wit_jira_http POST "/search/jql" "$body" 2>/dev/null && [[ "$WIT_JIRA_STATUS" == 2* ]] &&
