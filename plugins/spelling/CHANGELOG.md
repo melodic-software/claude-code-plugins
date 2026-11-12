@@ -530,7 +530,7 @@ No behavior change.
 
 ### Added
 
-- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/spelling:check` and is silenced by the plugin's kill switch. The row is shared across plugins, so a session with several of them sees one notice.
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names the plugin's `check` skill and is silenced by the plugin's kill switch. The row is shared across plugins, so a session with several of them sees one notice.
 - `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
 
 ### Changed
@@ -615,13 +615,13 @@ No behavior change.
 
 ### Changed
 
-- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/spelling:check`, which probes it.
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names the plugin's `check` skill, which probes it.
 
 ## [0.8.5] - 2026-10-01
 
 ### Changed
 
-- **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name `/spelling:check`, which probes it.
+- **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name the plugin's `check` skill, which probes it.
 
 - **The SessionStart probe reports every missing tool in one hook document.** With `jq` declared beside the formatter, a host missing both used to print two JSON documents, which Claude Code cannot read as one hook result.
 
@@ -653,11 +653,11 @@ No behavior change.
 
 ### Added
 
-- The manifest declares its prerequisites, a SessionStart probe prints a notice when one is missing, and `/spelling:check` reports whether the binary resolves without installing.
+- The manifest declares its prerequisites, a SessionStart probe prints a notice when one is missing, and the plugin's `check` skill reports whether the binary resolves without installing.
 
 ### Changed
 
-- The SessionStart probe uses the same latch key as the PostToolUse missing-`typos` notice (`spelling-typos`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal. The notice also names `/spelling:check`.
+- The SessionStart probe uses the same latch key as the PostToolUse missing-`typos` notice (`spelling-typos`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal. The notice also names the plugin's `check` skill.
 
 ## [0.7.9] - 2026-09-29
 
