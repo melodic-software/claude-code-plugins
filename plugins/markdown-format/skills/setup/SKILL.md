@@ -128,8 +128,8 @@ Report the probes informationally and note that re-enabling restores the FAIL se
    (`/plugin` → Installed) rather than parsing settings files.
 9. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
    from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
-   INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
-   FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
+   INFO (this clone said no; silent at session start), and `missing`, `stale`, `modified` or `superseded` is a
+   FAIL whose remediation is `apply install-git-hooks`; for `superseded` (a copy installed under an earlier plugin name), first remove what its detail names. A `tool\t<tool>\tmissing` line means the
    installed entry cannot run here: list every such tool with its install method from the
    `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
    auto-mode session commits. Outside a git repository, report INFO and skip the step.
