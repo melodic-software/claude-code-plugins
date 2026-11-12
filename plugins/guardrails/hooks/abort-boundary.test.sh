@@ -270,7 +270,7 @@ pv_callers=" "
 for f in "$HOOK_DIR"/*.sh; do
   [[ "$f" == *.test.sh ]] && continue
   # A call line, not the usage line in the helper's own doc comment.
-  grep -F "$PV_EXIT" "$f" | grep -qv '^[[:space:]]*#' && pv_callers+="${f##*/} "
+  grep -qv '^[[:space:]]*#' < <(grep -F "$PV_EXIT" "$f") && pv_callers+="${f##*/} "
   hits=$(verdict_unconsumed "$f")
   if [[ -n "$hits" ]]; then
     bad "${f##*/} calls guard::payload_verdict without exiting on it: ${hits//$'\n'/; }"
