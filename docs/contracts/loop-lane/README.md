@@ -959,8 +959,8 @@ operator registers from `consume-restarts print-schedule`; the skill never regis
 operator registers it, every budget hit, under `lanes` or a bare interactive `/loop` alike, is a
 **terminal** manual-restart state: the stop is reported
 in lane telemetry, and the operator owns the restart (`lanes` `restart` is the operator's
-one-command path). The restart-request in the #502 block is written so that the operator today, and
-an automatic trigger when one exists, can act on the same surface.
+one-command path). The restart-request in the #502 block is written so that the operator, or
+`consume-restarts` once its OS schedule is registered, can act on the same surface.
 
 **Telemetry comment (#502).** Each lane **instance** maintains exactly **one** status comment on a
 tracking item, identified by a machine sentinel marker and **edited in place** every cycle, never a
