@@ -73,11 +73,11 @@ denominator or grow branching per caller. Neither is simpler than each script do
 `make_sink`, `wait_for_sink` and `check_envelope` are one vendored helper. `check_envelope <envelope-file>
 [schema-file]` asserts a captured envelope against the hook-telemetry `envelope.schema.json`. The canonical file is
 [`lib/hook-test-sink.sh`](../../../lib/hook-test-sink.sh). Each plugin whose suites need it carries a
-byte-identical copy at `plugins/<p>/hooks/hook-test-sink.sh` and sources it from its own directory.
-[`scripts/check-cross-plugin-source-drift.sh`](../../../scripts/check-cross-plugin-source-drift.sh)
-gates the copies through
-[`scripts/cross-plugin-source-registry.txt`](../../../scripts/cross-plugin-source-registry.txt). The
-contract suite is [`lib/hook-test-sink.test.sh`](../../../lib/hook-test-sink.test.sh).
+copy at `plugins/<p>/hooks/hook-test-sink.sh` and sources it from its own directory.
+[`scripts/sync-shared-copies.sh`](../../../scripts/sync-shared-copies.sh) generates the copies from
+the canonical through [`scripts/shared-copies.txt`](../../../scripts/shared-copies.txt), and its
+`--check` fails on a copy that differs from what it generates. The contract suite is
+[`lib/hook-test-sink.test.sh`](../../../lib/hook-test-sink.test.sh).
 
 - `guardrails` and `harness-ops` keep their own plugin-local `make_sink`. The two differ in contract
   (guardrails' takes a stub body, harness-ops' takes a capture file) and stay outside the vendored
@@ -112,7 +112,7 @@ than spread across all the plugins now.
 
 Each assertion-helper copy site above (the guardrails, harness-ops, source-control, repo-hygiene and
 work-item-tracker helpers) carries a one-line pointer back to this doc. The vendored sink copies are
-byte-identical to the canonical file and are governed by the drift gate instead. A new plugin adding
+generated from the canonical file and are governed by `scripts/sync-shared-copies.sh --check` instead. A new plugin adding
 its own `*.test.sh` assertion helper is not required to register anything here. Duplication of this
 shape is the accepted default, not an opt-in.
 
