@@ -84,6 +84,11 @@ const DAY_MS = 86_400_000;
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const warn = (what, error) => console.log(`::warning title=verdict-carry::${what}: ${escapeCommand(error?.message ?? error)}`);
+// Writes beside `to` first, so a reader never sees a half-written file.
+const writeWhole = (to, text) => {
+  writeFileSync(`${to}.tmp`, text);
+  renameSync(`${to}.tmp`, to);
+};
 
 const fresh = (entry, now) => {
   if (!isObject(entry) || typeof entry.at !== "string" || !ZONED.test(entry.at)) return false;
@@ -107,6 +112,7 @@ function slimJob(job) {
 }
 
 const runKey = (run) => (RUN_KEY.test(`${run?.id}|${run?.run_attempt}`) ? `${run.id}|${run.run_attempt}` : null);
+const refusalKey = (jobId, mode) => (REFUSAL_KEY.test(`${jobId}|${mode}`) ? `${jobId}|${mode}` : null);
 
 // The sweep's code, as this run checked it out: every module beside this one
 // (tests aside). A deploy that changes any of them drops every carried entry.
@@ -177,16 +183,16 @@ export function loadCarry(path, now = Date.now(), code = codeDigest()) {
     },
     // { value } for a carried refusal, else undefined.
     refusal(jobId, mode) {
-      const key = `${jobId}|${mode}`;
-      const entry = REFUSAL_KEY.test(key) ? refusals.get(key) : undefined;
+      const key = refusalKey(jobId, mode);
+      const entry = key ? refusals.get(key) : undefined;
       if (!entry) return undefined;
       use(refusals, key, entry);
       counts.refusalsHit += 1;
       return { value: entry.value };
     },
     keepRefusal(jobId, mode, value) {
-      const key = `${jobId}|${mode}`;
-      if (!REFUSAL_KEY.test(key) || !validRefusal({ value })) return;
+      const key = refusalKey(jobId, mode);
+      if (!key || !validRefusal({ value })) return;
       counts.refusalsRead += 1;
       refusals.set(key, { at, value });
     },
@@ -208,8 +214,7 @@ export function loadCarry(path, now = Date.now(), code = codeDigest()) {
     save(to) {
       const newest = (map, max) => Object.fromEntries([...map].sort(([, a], [, b]) => Date.parse(b.at) - Date.parse(a.at)).slice(0, max));
       try {
-        writeFileSync(`${to}.tmp`, JSON.stringify({ code, jobs: newest(jobs, JOBS_MAX), refusals: newest(refusals, REFUSALS_MAX), decided: newest(decided, DECIDED_MAX) }));
-        renameSync(`${to}.tmp`, to);
+        writeWhole(to, JSON.stringify({ code, jobs: newest(jobs, JOBS_MAX), refusals: newest(refusals, REFUSALS_MAX), decided: newest(decided, DECIDED_MAX) }));
         return true;
       } catch (error) {
         warn("the verdicts were not kept for the next sweep", error);
@@ -230,7 +235,10 @@ export const anySweepRun = (repo) => (run) =>
   run.head_repository?.full_name === repo;
 
 // A successful sweep, the only one whose file is carried.
-export const sweepRun = (repo) => (run) => anySweepRun(repo)(run) && run.conclusion === "success";
+export const sweepRun = (repo) => {
+  const sweep = anySweepRun(repo);
+  return (run) => sweep(run) && run.conclusion === "success";
+};
 
 // `read`: the newest successful sweep's file, written to VERDICTS_IN.
 export async function read({ env = process.env, actions, download } = {}) {
@@ -247,8 +255,7 @@ export async function read({ env = process.env, actions, download } = {}) {
     }
     const text = download(found.artifactId);
     if (!isObject(JSON.parse(text))) throw new Error(`the ${CARRY_ARTIFACT} file of run ${found.runId} is not a JSON object`);
-    writeFileSync(`${to}.tmp`, text);
-    renameSync(`${to}.tmp`, to);
+    writeWhole(to, text);
     console.log(`${CARRY_ARTIFACT} of run ${found.runId}`);
   } catch (error) {
     warn("the verdicts were not carried", error);
