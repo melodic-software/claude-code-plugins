@@ -39,8 +39,7 @@ Phase D's `persist-report.sh`. Either can mutate a file this skill has already r
 this is an instruction-held contract with a narrowed accident surface, not an enforced one. Never
 describe it to an operator as a guarantee. We treat the restriction as clearing on the operator's
 next message, so whoever accepts a diff can apply it (Pointer: the
-[skills frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
-As of: 2026-08-12. Recheck trigger: that section changes how long the restriction lasts). `audit-prompting-postures` carries the identical declaration and caveat: both state one contract.
+[skills frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)). `audit-prompting-postures` carries the identical declaration and caveat: both state one contract.
 
 ## Scope boundary (route out)
 
@@ -259,7 +258,7 @@ the budget as a line count: the line figure is derived per run from the bytes pe
 We size a lane by the context window of the model the lane runs on, never the parent's (Pointer:
 when deciding whose window sizes a lane, fetch
 [subagents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
-live. As of: 2026-10-11. Recheck trigger: that section changes how a subagent's window is sized).
+live).
 
 `<lane model window>` is the `--window-tokens` value: the context window in tokens of the model the
 lane runs on. When the lane's model resolves to no documented window, pass 200000, our setting for
@@ -348,7 +347,7 @@ what belongs to `harness-memory:audit`'s C6 instead.
 Every removal or rewrite proposal is re-judged before it reaches the report, at the `standard` and `strict` verification levels: resolve the level with `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin harness-config --skill audit-instructions` and copy its line into the report header ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). Under `light`, and `off`, which acts as `light` here, dispatch no Phase C verifier and never re-judge inline in its place: follow "When dispatch is unavailable" below with every verification mode `skipped` for the reason `verification: skipped (<level>)`. Dispatch **fresh-context,
 non-fork** subagents, since this is a self-grade of the audit's own proposals and a fork that inherits the
 producing context would not be independent (pointer: when checking what a fork inherits, fetch [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)
-live; as of 2026-11-01, recheck when that table changes what a fork inherits), prompted to refute: "would removing this instruction cause Claude to make mistakes? Argue that it is still load-bearing." Where the removal call is
+live), prompted to refute: "would removing this instruction cause Claude to make mistakes? Argue that it is still load-bearing." Where the removal call is
 high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is
 installed and set up**, e.g. the OpenAI Codex plugin, invoked per its own docs, with the
 fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not
@@ -373,7 +372,7 @@ gate fails, dropped for that named reason.
 ### When dispatch is unavailable
 
 Phases B and C **require** fresh-context, non-fork subagent dispatch. When the Agent tool is
-blocked, unavailable, or the session cannot spawn subagents (including a nested session at the spawn-depth limit; Pointer: when this skill runs inside a subagent, fetch [subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents) live. As of: 2026-10-11. Recheck trigger: that section changes the depth limit or what a subagent at it can spawn):
+blocked, unavailable, or the session cannot spawn subagents (including a nested session at the spawn-depth limit; Pointer: when this skill runs inside a subagent, fetch [subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents) live):
 
 1. **Disclose in the report header** which phases ran inline, which were skipped, and why dispatch
    was unavailable, so a run that skipped verification is distinguishable from a verified one.
@@ -475,7 +474,7 @@ plainly that nothing has been applied.
 
 - **Examples are not scaffolding.** Flag an example block only when it pins the model's *approach*
   to a task, never when it steers output format; for how many to keep, fetch [use examples effectively](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#use-examples-effectively)
-  live (as of 2026-11-03; recheck when that section changes how many examples or what they should steer).
+  live.
 - **Bare-prohibition rewrites go positive first.** The primary remediation is "say what to do
   instead of what not to do"; adding a rationale is the fallback where a genuine hard "never"
   survives. Do not mechanically delete every prohibition the pre-scan flags.

@@ -6,7 +6,7 @@ skills:
 tools: "Read, Grep, Glob, Bash, Edit"
 model: sonnet
 effort: medium
-maxTurns: 80 # fields: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields (as of 2026-11-02; recheck when that table renames or drops skills, effort or maxTurns)
+maxTurns: 80 # fields: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields
 ---
 You are the comment reviewer: a fresh reader of code you did not write, dispatched by
 `/code-tidying:remove-comments` to triage one scope's comments. The skill reaches you through your

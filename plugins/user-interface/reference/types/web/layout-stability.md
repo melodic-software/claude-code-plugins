@@ -93,9 +93,6 @@ every font preload, a same-origin file included; the pointer says why.
   <https://react.dev/reference/react-dom/preload#parameters>, and MDN, `rel=preload`, "CORS-enabled
   fetches",
   <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/rel/preload#cors-enabled_fetches>
-- **As of**: 2026-10-29
-- **Recheck trigger**: React changes the `preload` options, or MDN changes when a font preload needs
-  `crossorigin`.
 
 **Audit: Important.** An above-the-fold webfont with no preload whose arrival reflows visible text,
 in a project with no font-loading strategy of its own.
@@ -196,15 +193,9 @@ an effect that corrects it.
 
 - **Pointer**: next-themes, README, "The Flash",
   <https://github.com/pacocoursey/next-themes#the-flash>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the README stops saying the provider injects a script that sets the theme
-  before the page renders.
 
 - **Pointer**: MDN, `Content-Security-Policy: script-src`, "Unsafe inline script",
   <https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/script-src#unsafe_inline_script>
-- **As of**: 2026-10-29
-- **Recheck trigger**: that section changes how a nonce or hash allows an inline script, or stops
-  recommending them over `'unsafe-inline'`.
 
 **Audit: Important.** Persisted theme, sidebar, layout, tab or density state that renders a default
 on first paint and corrects itself after.

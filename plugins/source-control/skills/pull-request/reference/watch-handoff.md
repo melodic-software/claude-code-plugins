@@ -10,8 +10,7 @@ The facts each route rests on (who can start it, what it needs, what it cannot s
 Before recommending or starting any route, a cloud one included, read the snapshot file under the
 rate-limit floor below and act on what it says. For how a cloud session counts against the plan,
 see the rate-limits entry of
-[Limitations](https://code.claude.com/docs/en/claude-code-on-the-web#limitations) (as of
-2026-11-03; recheck when that entry changes how cloud sessions count toward plan limits).
+[Limitations](https://code.claude.com/docs/en/claude-code-on-the-web#limitations).
 
 - **A window at or past 95:** report the window, its percentage and its reset in local time beside
   the recommendation, with the options: start the route anyway, switch accounts
@@ -22,16 +21,14 @@ see the rate-limits entry of
   background agent, the babysit loop). The person decides.
 - **Unknown** (no file, a stale snapshot, or no `rate_limits`; for when the status line data
   carries none, see
-  [Available data](https://code.claude.com/docs/en/statusline#available-data), as of 2026-11-03,
-  recheck when that section changes when `rate_limits` is present): say so and point at `/usage`
-  beside the row the person's situation picks. For a person
+  [Available data](https://code.claude.com/docs/en/statusline#available-data)): say so and point
+  at `/usage` beside the row the person's situation picks. For a person
   who is staying, prefer `monitor`, which stays in view, over an open-ended route; for one who is
   leaving, keep their row and say its launch is unchecked against the windows.
 
 The check covers the moment of launch only, and nothing here checks `/autofix-pr` again once it
 starts; for where it runs, see
-[Auto-fix pull requests](https://code.claude.com/docs/en/claude-code-on-the-web#auto-fix-pull-requests)
-(as of 2026-11-03; recheck when that section changes where auto-fix runs). A local `monitor` or
+[Auto-fix pull requests](https://code.claude.com/docs/en/claude-code-on-the-web#auto-fix-pull-requests). A local `monitor` or
 loop that trips later follows the floor's drain-then-pause, which pauses only an opted-in session.
 
 ## Rate-limit guard floor (inlined)
@@ -111,8 +108,7 @@ The model never runs it; it prints it filled in. Give the person:
    ([GitHub](../../../reference/providers/github/README.md#change-the-pull-request)). For how the
    command picks the PR, read
    [Auto-fix pull requests](https://code.claude.com/docs/en/claude-code-on-the-web#auto-fix-pull-requests)
-   live (as of 2026-11-03; recheck when that section changes how the terminal command finds the
-   PR).
+   live.
 2. The command, with `<N>` and the project line filled:
 
    ```text

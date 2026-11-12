@@ -150,8 +150,6 @@ primaries): Google's auto-quarantine files a bug
 2016, Google's internal CI; the post also warns quarantine can mask a real race condition), and
 Azure Pipelines pairs suppression with a bug and resets the flag when it resolves
 ([flaky test management](https://learn.microsoft.com/en-us/azure/devops/pipelines/test/flaky-test-management)).
-As of 2026-10-06. Recheck trigger: Google publishes a successor flaky-test post, or the Azure
-page's update date changes.
 
 ### 3. Record the baseline
 
@@ -175,8 +173,7 @@ Write `<work>/classifier-brief.md` from [`context/classifier-brief.md`](context/
 with `<plugin-root>` rendered as `${CLAUDE_PLUGIN_ROOT}`, and dispatch a fresh-context
 `general-purpose` subagent with `model: opus` (for the cases where that alias resolves to the
 session's own model, see
-[sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model), as of
-2026-10-31; recheck when that section changes those cases). Opus, not the judge pass's default
+[sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)). Opus, not the judge pass's default
 `sonnet`, because a wrong deletion costs more than a wrong verdict. Write its table to
 `<work>/classifier-answer.md` and apply that file's reading rules.
 
@@ -185,13 +182,10 @@ relying on how the harness retires a plugin's superseded version directory after
 
 - **Pointer**: when deciding whether a rendered plugin root can still be relied on, fetch
   <https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions> live.
-- **As of**: 2026-10-13 (Claude Code 2.1.296)
-- **Recheck trigger**: a Claude Code release note or that docs section changes plugin cache cleanup.
 
 This skill relies on the per-call `model` it passes taking effect; how that ranks against the
 agent's frontmatter and operator overrides is set by
-<https://code.claude.com/docs/en/sub-agents#choose-a-model>. As of 2026-10-02. Recheck when that
-section changes the order.
+<https://code.claude.com/docs/en/sub-agents#choose-a-model>.
 
 ### 5. Apply
 

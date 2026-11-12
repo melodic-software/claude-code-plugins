@@ -4,8 +4,7 @@ The project's design system, tokens and conventions override everything in this 
 configurable value in an example is a `{{key}}` placeholder; fill each as
 [`values.md`](../../../reference/values.md) says.
 
-Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
-2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
+Each `Baseline:` line links the live compat entry; never copy version numbers from it.
 
 Contents: `one-focus-ring-with-focus-visible`, `hover-styles-only-where-hover-exists`,
 `press-feedback`, `hit-area-larger-than-the-visual`, `card-with-a-distinct-link`,
@@ -18,7 +17,6 @@ Why: keyboard users get a visible ring and mouse users do not, with one rule and
 `outline: none`.
 
 Baseline: [`:focus-visible`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/:focus-visible#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it as the focus style for every interactive element. Never write `outline: none`.
 
@@ -49,7 +47,6 @@ Why: a tap on a touch screen otherwise leaves the hover state stuck.
 
 Baseline: [`hover` media feature](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/hover#browser_compatibility),
 [`pointer`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/pointer#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it on every `:hover` rule.
 
@@ -74,16 +71,13 @@ Rules:
 - **Pointer**: Tailwind CSS, upgrade guide, "Hover styles on mobile" (what the `hover` variant
   compiles to, and the custom-variant override),
   <https://tailwindcss.com/docs/upgrade-guide#hover-styles-on-mobile>
-- **As of**: 2026-10-29
-- **Recheck trigger**: Tailwind changes the media query its `hover` variant compiles to, or how a
-  variant is overridden.
 
 ## Press feedback: `press-feedback`
 
 Why: a pressed control that visibly reacts confirms the press, on every input type.
 
 Baseline: [`:active`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/:active#browser_compatibility),
-widely available. As of 2026-10-11, recheck on a status change.
+widely available.
 
 Use it on pressable controls. Which controls take the scale and which skip it are the `motion`
 concern's (`press`); this recipe is how to write it.
@@ -106,7 +100,6 @@ Rules:
 Why: a pseudo-element grows the target to the touch floor without changing what the user sees.
 
 Baseline: [`inset`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/inset#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it on icon buttons, close buttons and any target that looks smaller than the touch floor. The
 code below uses its 44px; the floors and their sources are the `touch` concern's "2. Targets".
@@ -147,8 +140,7 @@ Why: Don't wrap an entire card in one `<a>`: it kills text selection and screen 
 the whole card as a single link. Give the card a distinct CTA link.
 
 Baseline: [`inset`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/inset#browser_compatibility),
-for the tile carve-out; the card itself is plain HTML. As of 2026-10-29, recheck on a status
-change.
+for the tile carve-out; the card itself is plain HTML.
 
 Use it for cards and list rows that lead somewhere and hold text a person may read or copy.
 
@@ -191,7 +183,6 @@ Why: the parent styles itself from what it contains, replacing a script that tog
 it.
 
 Baseline: [`:has()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/:has#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it wherever a script adds a class to a parent because of its contents or a child's state.
 
@@ -219,7 +210,6 @@ Why: the browser waits until the user has interacted before flagging a field, re
 listeners and a "touched" class.
 
 Baseline: [`:user-invalid`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/:user-invalid#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for inline form validation.
 
@@ -243,7 +233,6 @@ Why: `field-sizing: content` sizes the textarea to its text, with no auto-grow s
 hidden mirror element.
 
 Baseline: [`field-sizing`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/field-sizing#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for any multi-line input, such as a chat composer or a comment box.
 
