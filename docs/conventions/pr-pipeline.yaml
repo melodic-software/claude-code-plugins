@@ -1230,6 +1230,13 @@ limits:
   # oldest stranded first, so the lane stays full without a flood (owner
   # decision Q109).
   refire-queue-per-slot: 2
+  # A work-resolve-issue run still `queued` this many minutes after it was
+  # created is not counted toward that room. The admit job runs on a
+  # GitHub-hosted runner and the slot wait comes after it, so a healthy run
+  # leaves `queued` within minutes; one that stays is lost and never starts.
+  # Twelve runs lost in the 2026-11-11 Actions outage held the room at 0
+  # (sweep run 43123797947). 60 is judgment: well past a hosted runner's pickup.
+  stale-queued-minutes: 60
   # Minutes after a full work-unblock sweep finished during which the sweep a
   # finished work-resolve-issue run starts skips its work. Each full sweep
   # spends about 800 lanes App calls, and on 2026-11-10 seven an hour reached
