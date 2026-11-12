@@ -29,10 +29,13 @@ resolver="$script_dir/../../audit/scripts/resolve-memory-dir.sh"
 
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
-exists() { [[ -f "$1" ]] && echo "PRESENT" || echo "absent"; }
-dir_exists() { [[ -d "$1" ]] && echo "PRESENT" || echo "absent"; }
-
 row() { printf '%-10s %-8s %s\n' "$1" "$2" "$3"; }
+# presence_row <label> <-f|-d> <path>: a row saying whether <path> exists as that type.
+presence_row() {
+  local state=absent
+  test "$2" "$3" && state=PRESENT
+  row "$1" "$state" "$3"
+}
 
 # Presence-only: non-file policy surfaces are named, never read, so an absent JSON
 # file is never mistaken for "no managed policy deployed".
@@ -54,16 +57,16 @@ project_settings="$base/.claude/settings.json"
 local_settings="$base/.claude/settings.local.json"
 
 echo "=== Settings scopes (precedence: managed > local > project > user) ==="
-row "managed" "$(exists "$managed")" "$managed"
-row "managed.d" "$(dir_exists "$managed_dropin")" "$managed_dropin"
+presence_row "managed" -f "$managed"
+presence_row "managed.d" -d "$managed_dropin"
 while IFS= read -r policy_key; do
   [[ -n "$policy_key" ]] && row "managed" "not read" "$policy_key"
 done < <(mscope::registry_keys)
 plist_domain="$(mscope::plist_domain)"
 [[ -n "$plist_domain" ]] && row "managed" "not read" "$plist_domain (managed preferences domain)"
-row "user" "$(exists "$user_settings")" "$user_settings"
-row "project" "$(exists "$project_settings")" "$project_settings"
-row "local" "$(exists "$local_settings")" "$local_settings"
+presence_row "user" -f "$user_settings"
+presence_row "project" -f "$project_settings"
+presence_row "local" -f "$local_settings"
 
 echo
 echo "=== Live environment ==="

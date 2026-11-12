@@ -941,10 +941,10 @@ per model; promotion gate unmet, see "Unscoping considered" below).
 
 - **Widened to `fable-5-1` on 2026-09-03**, first on the bundled `claude-api` skill's
   model-migration reference. That basis's trigger fired when the Fable 5.1 guide was published.
-  The widening now rests on the refusals section of Fable 5.1's own model page. Pointer: [What's
-  new in Claude Fable 5.1, refusals, fallback, and
-  billing](https://platform.claude.com/docs/en/models/fable-5-1/whats-new-fable-5-1#refusals-fallback-and-billing).
-  As of: 2026-10-01. Recheck trigger: that section stops covering the `reasoning_extraction`
+  The widening now rests on the refusal categories of the refusals and fallback page, which
+  lists Fable 5.1. Pointer: [Refusals and fallback, What a refusal
+  looks like](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#refusal-response).
+  As of: 2026-11-11. Recheck trigger: that section stops covering the `reasoning_extraction`
   category for Fable 5.1.
 - **Widened to `opus-5-5` on 2026-09-23:** the Opus 5.5 guide, "Safeguard refusals", documents the
   `reasoning_extraction` category for that model, and how server-side fallback handles those
