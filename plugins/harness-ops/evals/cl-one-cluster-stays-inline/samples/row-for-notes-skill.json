@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| skills/notes/SKILL.md | correct | The compaction default is now 90%, not 80%. |",
+      "why": "row"
+    },
+    {
+      "answer": "Owner surface `skills/notes/SKILL.md`: correct the 80% claim.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No item in range touches this repository.",
+      "why": "no row"
+    },
+    {
+      "answer": "The notes skill states 80%; correct it.",
+      "why": "no path"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "It reads the PF_KTHREAD bit in the flags field of /proc/<pid>/stat.",
+      "why": "flag"
+    },
+    {
+      "answer": "The flags field of `/proc/<pid>/stat` marks kernel threads.",
+      "why": "flags field"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It checks whether the parent pid is 2.",
+      "why": "ppid test"
+    }
+  ]
+}
