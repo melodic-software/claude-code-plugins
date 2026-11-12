@@ -33,7 +33,8 @@ is one command, the detector alone, which an `allowed-tools` grant names.
 - **Pointer**: when changing this line or its grants, fetch
   <https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands> live; the probe that found a
   zero-turn run under dontAsk is in
-  <https://github.com/melodic-software/claude-code-plugins/pull/6732>.
+  <https://github.com/melodic-software/claude-code-plugins/pull/6732>. **As of**: 2026-10-10. **Recheck trigger**: a Claude
+  Code release note that changes how pre-compute commands are permission-checked.
 
 ## Purpose
 
