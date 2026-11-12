@@ -20,9 +20,8 @@
 #
 # Pointer: for the plugin hooks.json `description` field, see
 # https://code.claude.com/docs/en/hooks#reference-scripts-by-path (the plugin
-# scripts tab). As of: 2026-09-05. Recheck trigger: the docs rename, remove, or
-# make the field required; either way this comment and the rule are re-derived
-# from the page, not patched from memory.
+# scripts tab). When the page renames, removes or requires the field, re-derive
+# this comment and the rule from the page, not from memory.
 #
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
 # the whole family's contract, stated once in scripts/README.md, "The check-script

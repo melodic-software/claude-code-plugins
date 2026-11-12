@@ -22,8 +22,7 @@
 // $CLAUDE_PLUGIN_ROOT/scripts/docs-raw.sh, the root the hook process receives.
 //
 // A plugin subagent reports its plugin-scoped name as agent_type:
-// https://code.claude.com/docs/en/hooks#subagentstart (as of 2026-10-04;
-// recheck when that section changes the agent_type a plugin subagent reports).
+// https://code.claude.com/docs/en/hooks#subagentstart.
 //
 // Fail-closed inside the named agent (a command it cannot parse, an input
 // stream that fails, or an error in the gate is denied); fail-open everywhere
@@ -122,8 +121,7 @@ const UID = process.getuid?.()
 
 // Where the markers live: the plugin's data directory, which Claude Code
 // exports to hook processes and keeps under the user's home
-// (https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables, as
-// of 2026-10-07; recheck when CLAUDE_PLUGIN_DATA stops reaching hooks), else a
+// (https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables), else a
 // per-uid directory under the temp directory.
 export function markerDir(env = process.env) {
   if (env.CLAUDE_PLUGIN_DATA) return join(env.CLAUDE_PLUGIN_DATA, 'docs-fetcher-gate')

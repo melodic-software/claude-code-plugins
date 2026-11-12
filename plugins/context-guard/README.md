@@ -11,8 +11,7 @@ degraded context **before** quality slips, instead of guessing. Four parts:
   needs a Claude Code build that can run mods; older builds are unsupported. **Pointer**: when
   deciding which build that is, fetch
   [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
-  live. **As of**: 2026-10-11. **Recheck trigger**: the terminal version that section names for
-  mods changes. See [The module](#the-module).
+  live. See [The module](#the-module).
 - **Zone resolver** (`scripts/context-zone.sh`). `context-zone.sh <session_id>` prints exactly one
   word: `light` / `moderate` / `heavy` / `unknown`. Two band shapes, combined conservatively (the
   worse computable zone wins): percentage bands over `used_percentage` (shipped defaults
@@ -125,8 +124,6 @@ suggestion, so it stays in the box after that hand-off.
 - **Pointer**: when checking whether a mod can clear a suggestion it showed, fetch
   [mods reference: mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods)
   live.
-- **As of**: 2026-11-03.
-- **Recheck trigger**: the `$.prompt` row gains a method that clears or withdraws a suggestion.
 
 Which apps draw the band's site, `AbovePrompt`, is upstream's render-sites table to say. No probe
 of this plugin ran in the Desktop app or VS Code.
@@ -154,9 +151,6 @@ writes carry on.
 - **Pointer**: when checking what can refuse a mod or its registrations, fetch
   [Troubleshoot a mod: refusal messages](https://code.claude.com/docs/en/plugins/mods/troubleshoot#refusal-messages)
   live.
-- **As of**: 2026-11-03.
-- **Recheck trigger**: that section, or the built-in guard's messages beside it, changes which
-  refusals apply to a mod's tool registration.
 
 ### Prompt-cache status-line segment (optional)
 
@@ -186,9 +180,6 @@ command runs first through `--after`, and your other `statusLine` keys stay. It 
   [manifest reference: settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings)
   live; when checking what cache state a mod can read, fetch
   [mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods) live.
-- **As of**: 2026-11-03.
-- **Recheck trigger**: the prompt-cache section renames a field the script reads, the manifest's
-  `settings` section adds `statusLine`, or the `$.session` row's `usage()` gains cache state.
 
 The plugin sends no keep-warm requests: each one spends usage to save a rebuild that may never
 come. For the lifetime rules and the settings that change them, see
@@ -271,9 +262,6 @@ its event through unchanged.
   [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
   and [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
   live.
-- **As of**: 2026-10-11.
-- **Recheck trigger**: either section adds or drops a way mods get turned off, or changes which
-  of them stop settings hooks.
 
 ## Behavior
 
@@ -289,12 +277,10 @@ its event through unchanged.
   data they cannot trust, never a fabricated zone. The shipped bands are declared judgment
   defaults. `zones.json` is the tuning path.
   [The reader contract](reference/reader-contract.md#zone-is-not-a-compaction-indicator) records
-  how the default auto-compact thresholds relate to the bands (relayed 2026-10-11; recheck when
-  that section is renamed or stops relating them). **Pointer**: when deciding what those defaults
+  how the default auto-compact thresholds relate to the bands. **Pointer**: when deciding what those defaults
   are, fetch
   [model config: default auto-compact thresholds](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds)
-  live. **As of**: 2026-11-04. **Recheck trigger**: that section's thresholds change, or it is
-  renamed or removed. The trigger itself is
+  live. The trigger itself is
   operator-tunable, per model as well as globally; the reader contract's tunable
   table records which surfaces we rely on and where to read the rest. The module's percentage
   bands follow it: it reads the window the engine settled on (the `/context` breakdown's
@@ -308,8 +294,7 @@ its event through unchanged.
   lowered, we never read `used_percentage` as a forecast of when compaction will run. **Pointer**:
   when deciding what the percentage is measured against, fetch
   [environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live.
-  **As of**: 2026-10-11. **Recheck trigger**: the `CLAUDE_CODE_AUTO_COMPACT_WINDOW` row changes
-  what the percentage is measured against. The reader contract owns those surfaces, their
+  The reader contract owns those surfaces, their
   verification dates, and the rationale.
 - **Integrity boundary.** The snapshot directory is owner-only where POSIX
   modes work; on Windows ACL volumes it keeps the inherited ACLs and other local users could forge
@@ -368,15 +353,12 @@ you want a file to tune.
 
 - **Pointer**: when checking which scope an install without `--scope` uses, fetch
   [plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install) live.
-- **As of**: 2026-11-03.
-- **Recheck trigger**: that section changes the default of `--scope`.
 
 ## Requirements
 
 The module needs a Claude Code build at or above the terminal version mods need (older builds are
 unsupported). `prerequisites.json` holds the floor as data, in `detect.version.min` of the entry
-with `"id": "claude"`, which the check skill compares against (relayed 2026-10-11; recheck when
-that key moves); the pointer below is where to re-derive it. Its snapshot writes and the PostCompact marker row need
+with `"id": "claude"`, which the check skill compares against; the pointer below is where to re-derive it. Its snapshot writes and the PostCompact marker row need
 [Node.js](https://nodejs.org/en/download) on `PATH`, installed on its own: we never count on Claude
 Code's install to provide it. The marker and the zone resolver run on Bash (Git Bash on native Windows, so install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)). The zone resolver,
@@ -391,9 +373,6 @@ prompt-cache status-line segment runs on Node.js too.
   live; when deciding whether a Claude Code install brings a Node.js the plugin could use, fetch
   [advanced setup: install with npm](https://code.claude.com/docs/en/setup#install-with-npm)
   live.
-- **As of**: 2026-10-11.
-- **Recheck trigger**: the terminal version that section names for mods changes, or the setup
-  page says the installed binary runs on Node.js.
 
 ## Configuration
 
@@ -445,8 +424,6 @@ value of the wrong type, is Claude Code's to handle before the module sees it.
   `userConfig`, fetch
   [troubleshoot: options do not fit plugin.json userConfig](https://code.claude.com/docs/en/plugins/mods/troubleshoot#options-do-not-fit-plugin-json-userconfig)
   live.
-- **As of**: 2026-10-11.
-- **Recheck trigger**: that section changes what Claude Code does with a refused option value.
 
 Per-zone actions, their wording, the approach margin and extra thresholds live in
 `~/.claude/context-guard/zones.json` beside the bands (shape in the

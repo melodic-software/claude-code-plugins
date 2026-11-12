@@ -20,8 +20,7 @@
 # SIDE-EFFECT-ONLY by design: this hook's one job is the marker, and it
 # returns no decision. Pointer: when deciding whether PostCompact output can
 # do anything, fetch https://code.claude.com/docs/en/hooks#postcompact live.
-# As of: 2026-10-11. Recheck trigger: the PostCompact section documents a
-# decision field. jq-FREE by design, mirroring the
+# jq-FREE by design, mirroring the
 # rate-limit-guard StopFailure recorder: the fields are regex-extracted so a
 # degraded environment still records.
 #

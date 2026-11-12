@@ -34,8 +34,6 @@ broken install.**
 - **Pointer**: the WSL clause rests on
   [Claude Code Desktop in WSL: What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session),
   which lists connectors and plugins among the features not available there.
-- **As of**: 2026-10-18.
-- **Recheck trigger**: that section drops plugins from its unavailable list.
 
 **As of 2026-08-21, no documented Claude Code channel other than the status line delivered
 per-session context-window occupancy to a local writer outside a mod.** Two other channels do carry
@@ -149,9 +147,6 @@ a running interactive session.
   [monitoring: standard attributes](https://code.claude.com/docs/en/monitoring-usage#standard-attributes)
   and [status line: context window fields](https://code.claude.com/docs/en/statusline#context-window-fields)
   live.
-- **As of**: 2026-10-11.
-- **Recheck trigger**: the API request event drops its token fields, or the context window fields
-  section changes what `used_percentage` is computed from.
 
 Two disqualifiers hold anyway, and both were measured rather than assumed.
 
@@ -256,8 +251,8 @@ Nothing, for the sessions mods reach. The remaining gaps are where the module do
 each would close by a change to Claude Code, not to this plugin:
 
 - **Plugins in Desktop WSL sessions.** The Desktop WSL page lists plugins as unavailable there
-  ([What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session);
-  as of 2026-10-18; recheck when that section's unavailable list changes), and the mods overview's
+  ([What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session)),
+  and the mods overview's
   "Where mods run" table repeats it.
 - **A context field on hook stdin**, so a settings hook could write the snapshot where mods are off
   and settings hooks still run (an organization's `allowManagedModsOnly`, for example): add the

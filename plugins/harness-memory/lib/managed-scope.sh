@@ -12,9 +12,8 @@
 # surfaces (files, a drop-in directory, an OS policy store), listed at
 # https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy
 # with the drop-in directory at
-# https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams
-# (as of 2026-10-11; recheck when either section gains, drops or moves a
-# surface). Three components in this marketplace need that enumeration, and a
+# https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams.
+# Three components in this marketplace need that enumeration, and a
 # third hand-written copy would drift the moment upstream adds or moves a
 # surface, as it already had: the copies disagreed about whether the drop-in
 # directory existed at all. The paths are documented, not discoverable: a
@@ -45,9 +44,7 @@
 # a reader that computes an effective merge follows the per-key rules at
 # https://code.claude.com/docs/en/managed-settings#compose-every-managed-source
 # and https://code.claude.com/docs/en/settings-reference#managedsourcesbehavior,
-# and drop-in files combine by the rules in the split-a-file section above
-# (as of 2026-10-11; recheck when any of those sections gains or drops a key
-# kind or a combination rule).
+# and drop-in files combine by the rules in the split-a-file section above.
 
 # mscope::base_file [override] — absolute path to the managed-settings.json this
 # OS reads. A non-empty <override> is returned verbatim, so a caller's own test

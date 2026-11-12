@@ -77,8 +77,6 @@ and line, in these groups:
   each is a decision. Either migrate in expand, migrate and contract phases, or keep the stored name
   behind an explicit mapping, and record the choice with `/architecture:record-decision`.
   - **Pointer**: [Parallel Change](https://martinfowler.com/bliki/ParallelChange.html)
-  - **As of**: 2026-11-10
-  - **Recheck trigger**: the page moves.
 
 ## 6. Report
 
