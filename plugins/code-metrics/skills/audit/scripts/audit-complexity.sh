@@ -19,33 +19,13 @@ DISPATCH="$PLUGIN_ROOT/scripts/dispatch.sh"
 # shellcheck source=../../../scripts/entry-common.sh
 source "$PLUGIN_ROOT/scripts/entry-common.sh"
 
-JSON=0
-ARGS=()
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-  --json)
-    JSON=1
-    shift
-    ;;
-  --help | -h)
-    cm_usage_banner "${BASH_SOURCE[0]}" 13
-    exit 0
-    ;;
-  *)
-    ARGS+=("$1")
-    shift
-    ;;
-  esac
-done
+cm_entry_args "${BASH_SOURCE[0]}" 13 "$@"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 # shellcheck source=../../../scripts/python-resolve.sh
 source "$PLUGIN_ROOT/scripts/python-resolve.sh"
-if ! cm_resolve_python; then
-  echo "audit-complexity.sh: Python ${CM_PYTHON_FLOOR}+ not found (tried python3, python, py -3); it is a required prerequisite" >&2
-  exit 2
-fi
+cm_require_python audit-complexity.sh
 
 bash "$DISPATCH" audit-complexity --measures cyclomatic,cognitive,halstead "${ARGS[@]}" >"$WORK/report.json"
 rc=$?

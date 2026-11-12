@@ -21,33 +21,13 @@ DISPATCH="$PLUGIN_ROOT/scripts/dispatch.sh"
 # shellcheck source=../../../scripts/entry-common.sh
 source "$PLUGIN_ROOT/scripts/entry-common.sh"
 
-JSON=0
-ARGS=()
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-  --json)
-    JSON=1
-    shift
-    ;;
-  --help | -h)
-    cm_usage_banner "${BASH_SOURCE[0]}" 11
-    exit 0
-    ;;
-  *)
-    ARGS+=("$1")
-    shift
-    ;;
-  esac
-done
+cm_entry_args "${BASH_SOURCE[0]}" 11 "$@"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 # shellcheck source=../../../scripts/python-resolve.sh
 source "$PLUGIN_ROOT/scripts/python-resolve.sh"
-if ! cm_resolve_python; then
-  echo "audit-size.sh: Python ${CM_PYTHON_FLOOR}+ not found (tried python3, python, py -3); it is a required prerequisite" >&2
-  exit 2
-fi
+cm_require_python audit-size.sh
 
 # Resolve the configuration once (or take the caller's --config), so the
 # size mode is read from the same document the dispatcher measures against.
