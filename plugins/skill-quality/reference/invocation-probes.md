@@ -176,8 +176,8 @@ skill's folder (each row 27 runs per arm, 9 should-trigger probes at 3 runs, all
 | `code-metrics:audit-duplication` | 27/27 / 27/27 / 0/27 |
 | `code-metrics:audit-suppressions` | 27/27 / 27/27 / 0/27 |
 
-A renaming control shows that a probe set can fail, and nothing about the description: it removes
-the skill from view, so it falls all or nothing and never certifies a cut. These three are
+A renaming control shows that a probe set can fail, and nothing about the description, because it
+removes the skill from view, so it falls all or nothing and never certifies a cut. These three are
 unmeasurable and keep the before text. `naming:name-it-better` above shows the description control
 can still drop, on Sonnet 5.5.
 
