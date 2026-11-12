@@ -4,8 +4,7 @@ The project's design system, tokens and conventions override everything in this 
 configurable value in an example is a `{{key}}` placeholder; fill each as
 [`values.md`](../../../reference/values.md) says.
 
-Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
-2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
+Each `Baseline:` line links the live compat entry; never copy version numbers from it.
 
 The motion rules these recipes serve (origin, paired timing, durations, reduced motion) are the
 `motion` concern of `/user-interface:design`; the recipes are the CSS for them.
@@ -21,7 +20,6 @@ replacing a script that adds classes and waits for `transitionend`.
 
 Baseline: [`@starting-style`](https://developer.mozilla.org/en-US/docs/Web/CSS/@starting-style#browser_compatibility),
 [`transition-behavior`](https://developer.mozilla.org/en-US/docs/Web/CSS/transition-behavior#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for dialogs, popovers and anything else toggled with `display`.
 
@@ -94,7 +92,7 @@ Rules:
   exit is the same but faster.
 - Write no fallback: where the exit is unsupported the element closes at once, which is acceptable.
   Which engines animate the exit is read live from the `transition-behavior` and `@starting-style`
-  compat entries above. As of 2026-10-11; recheck when either entry's Baseline status changes.
+  compat entries above.
 - Keep `[popover]:popover-open` out of the selector list that opens the dialog: a browser that does
   not know one selector drops the whole rule, and the dialog opens at `opacity: 0`. Inside
   `@starting-style` the shared list is safe, because every browser that reads the block knows the
@@ -107,7 +105,6 @@ positioning library or a script reading `getBoundingClientRect()`.
 
 Baseline: [`position-area`](https://developer.mozilla.org/en-US/docs/Web/CSS/position-area#browser_compatibility),
 [`position-try-fallbacks`](https://developer.mozilla.org/en-US/docs/Web/CSS/position-try-fallbacks#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for dropdown menus and other popovers opened by a click.
 
@@ -147,7 +144,7 @@ Why: a menu that grows out of the button that opened it stays connected to it; o
 its own center floats detached.
 
 Baseline: [`transform-origin`](https://developer.mozilla.org/en-US/docs/Web/CSS/transform-origin#browser_compatibility),
-widely available. As of 2026-10-29, recheck on a status change.
+widely available.
 
 Use it for dropdowns, menus, popovers and tooltips that scale in. The origin rule is the `motion`
 concern's; many component libraries expose the trigger side as a CSS variable (pointer below).
@@ -225,9 +222,6 @@ Rules:
   UI, "Popover", API reference `Positioner` and `Popup`,
   <https://base-ui.com/react/components/popover#positioner>,
   <https://base-ui.com/react/components/popover#popup>.
-- **As of**: 2026-10-29.
-- **Recheck trigger**: either library renames its origin variable or its starting, ending or
-  instant state.
 
 ## Popover inside a modal: `popover-inside-a-modal`
 
@@ -257,7 +251,6 @@ open and close with no JavaScript.
 
 Baseline: [`::details-content`](https://developer.mozilla.org/en-US/docs/Web/CSS/::details-content#browser_compatibility),
 [`interpolate-size`](https://developer.mozilla.org/en-US/docs/Web/CSS/interpolate-size#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for FAQs and any other disclosure.
 
@@ -296,7 +289,6 @@ Why: animating the clip unrolls a panel of unknown height without animating `hei
 browser.
 
 Baseline: [`clip-path`](https://developer.mozilla.org/en-US/docs/Web/CSS/clip-path#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for dropdowns, menus and panels that open over the page.
 

@@ -47,9 +47,8 @@ session may stack, and an unattended lane does not stack until that work lands.
   [Optimizing CI for stacked pull requests: How workflows run for a stack](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/optimizing-ci-for-stacked-pull-requests#how-workflows-run-for-a-stack).
   Correlate with the probe results in the pull request that closed
   [#7664](https://github.com/melodic-software/claude-code-plugins/issues/7664).
-- **As of**: 2026-11-11
-- **Recheck trigger**: either page changes when it recommends a stack or which base a workflow
-  sees, or [#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410) closes.
+- **Recheck trigger**: [#15410](https://github.com/melodic-software/claude-code-plugins/issues/15410)
+  closes.
 
 ## Create
 
@@ -70,9 +69,6 @@ session may stack, and an unattended lane does not stack until that work lands.
   live; correlate with the
   [gh-stack v0.2.0 release notes](https://github.com/github/gh-stack/releases/tag/v0.2.0) for
   per-repository tracking.
-- **As of**: 2026-10-16
-- **Recheck trigger**: the extension's next minor release, or that page changes its worktree
-  section.
 
 ## Merge
 
@@ -104,6 +100,3 @@ session may stack, and an unattended lane does not stack until that work lands.
   [general availability changelog](https://github.blog/changelog/2026-10-06-stacked-pull-requests-generally-available/)
   and with the queue probe in the pull request that closed
   [#7664](https://github.com/melodic-software/claude-code-plugins/issues/7664).
-- **As of**: 2026-11-11
-- **Recheck trigger**: any of these pages changes how a stack queues or merges, or a stack in a
-  merge queue lands its layers in separate passes.

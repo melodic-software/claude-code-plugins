@@ -158,8 +158,6 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
    The step-2 check rests on this session's own arming record, not on a task-list lookup, because the task-tracking tools are not offered on every model.
 
    - **Pointer**: when you need which models and sessions get `TaskList` and how to opt in, fetch [Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability) live.
-   - **As of**: 2026-10-10
-   - **Recheck trigger**: the Task tool availability section changes which sessions get the task tools, or a release note names task-tool gating.
 
    The poll script, passed inline in the `command` parameter, is the REST poll in the provider
    reference ([GitHub](../../../reference/providers/github/pull-request/monitor.md#poll-checks-over-rest)).
@@ -571,8 +569,7 @@ Watch notifications arrive between turns; mid-response, a notification queues un
 
 - **Pointer**: when deciding whether a watch survives `--resume`, fetch
   [Run prompts on a schedule, Limitations](https://code.claude.com/docs/en/scheduled-tasks#limitations)
-  live. **As of**: 2026-11-10. **Recheck trigger**: that section changes what a resume restarts, or
-  a release note names Monitor or resume behavior.
+  live.
 
 **Cloud sessions (`CLAUDE_CODE_REMOTE=true`):** §3.0.0's baseline poll handles event delivery, with the PR-activity subscription waking the session early on reviews and failed checks. Check `CLAUDE_CODE_REMOTE` before arming.
 

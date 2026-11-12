@@ -280,7 +280,7 @@ orchestrator performs ([reference/orchestration.md](reference/orchestration.md))
 The values below substitute from this plugin's stored configuration when this skill loads.
 A surviving literal `${user_config.…}` placeholder means that key is unset. Apply its
 documented unset behavior. Reference files use `<angle-bracket>` slots; fill every slot from
-this block. Values reach scripts ONLY as explicit CLI flags (**Pointer**: when checking which processes receive option values, fetch [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value) live. **As of**: 2026-11-10. **Recheck trigger**: that section exports options to commands Claude runs through the Bash tool). Configuration selects targets and thresholds; it never widens tier authority.
+this block. Values reach scripts ONLY as explicit CLI flags (**Pointer**: when checking which processes receive option values, fetch [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value) live). Configuration selects targets and thresholds; it never widens tier authority.
 
 | Key | Value | Flag delivery | Unset behavior |
 | --- | --- | --- | --- |
@@ -452,8 +452,7 @@ The `reference/` files write this skill's directory as `<skill-dir>`, which is
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_SKILL_DIR` or `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Gotchas
 

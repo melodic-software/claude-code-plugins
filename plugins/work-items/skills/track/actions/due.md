@@ -36,7 +36,7 @@ fi
 
 `<project root>` is the literal path [`tracker-seam.md`](../../../reference/tracker-seam.md) "Project root" resolves, in its own Bash call before this snippet and each later one in this file.
 
-For days-overdue computation, calculate `(today - next_due)` in days. jq lacks date arithmetic, so compute this when presenting the table (parse the ISO dates and subtract).
+For days-overdue computation, calculate `(today - next_due)` in days when presenting the table (parse the ISO dates and subtract).
 
 1. **Cross-reference with open items.** For each due recurring item, check if one already exists
    (adapter: "List items", `--label <resolved recurring-maintenance label>`, with bodies, bare

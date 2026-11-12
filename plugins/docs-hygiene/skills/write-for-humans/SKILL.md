@@ -195,6 +195,6 @@ The table follows the Before text from its first word to its last:
 ## Source records
 
 The four bundled layers are our selections from published standards, each with a record (our
-decision, a pointer, an as-of date, a recheck trigger) in
+decision and a pointer) in
 [`reference/sources.md`](reference/sources.md). Read it before citing a layer as the standard: the
 STE layer is a principles subset, and a document written to it is not thereby STE-conformant.

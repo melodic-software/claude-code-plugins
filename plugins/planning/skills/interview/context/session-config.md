@@ -41,12 +41,8 @@ treats it as a default, not a rule.
   <https://platform.claude.com/docs/en/about-claude/models/choosing-a-model#choose-the-best-model-to-start-with>
   (correlate with [choosing a Claude model and effort level in Claude Code](https://claude.com/blog/claude-model-and-effort-level-in-claude-code),
   which the model-config page links for this guidance).
-- **As of**: 2026-08-04
-- **Recheck trigger**: either page changes how it orders model against effort, or the
-  model-config page stops linking the post for this guidance.
 
-No docs page states the heuristic itself as of 2026-10-01; the pages above only order the levers.
-Recheck trigger for the heuristic: a docs page starts covering it.
+No docs page states the heuristic itself; the pages above only order the levers.
 
 ## Effort per phase: implement and verify
 
@@ -59,8 +55,6 @@ be read, say so, cite the URL, and recommend no level for either phase.
 
 - **Pointer**: for choosing an effort level, see
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
-- **As of**: 2026-10-02
-- **Recheck trigger**: the section is renamed or moved, or its table columns change.
 
 ## Advisor pairing
 
@@ -68,8 +62,7 @@ As this skill's own judgment, for non-trivial work it does not recommend a faste
 running **without** a stronger advisor: it recommends the faster main model paired with a
 stronger advisor that the main model escalates hard decisions to, rather than paying
 for the stronger model on every routine turn (for when the advisor is consulted, see
-<https://code.claude.com/docs/en/advisor#when-claude-consults-the-advisor>, as of 2026-10-11;
-recheck when that section changes when the main model consults the advisor).
+<https://code.claude.com/docs/en/advisor#when-claude-consults-the-advisor>).
 The concrete tier names that fill this **faster-main + stronger-advisor** shape are
 exactly the values that drift between versions, and which specific pairings are
 accepted drifts with them. Source them live (below), never pin them here: the durable
@@ -87,9 +80,6 @@ Two cautions apply before recommending a pairing:
 - **Pointer**: for both cautions, see
   <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#advisor-strategy-escalate-hard-decisions>
   and, for the baseline, <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#combine-models>.
-- **As of**: 2026-10-31
-- **Recheck trigger**: either section is renamed, moved, or stops covering advisor engagement
-  or the stronger-model-alone baseline.
 
 When the recommendation is "keep the faster main model," pair it with the advisor
 recommendation. When it is "raise the main model to the top tier," the advisor adds
@@ -112,9 +102,6 @@ Primary sources, fetched once when you form the recommendation (not per round):
 - `https://code.claude.com/docs/en/advisor#enable-the-advisor` and `https://code.claude.com/docs/en/advisor#common-model-pairings`: advisor enablement and accepted main+advisor pairings
 - `https://claude.com/blog/the-advisor-strategy`: correlate only, for why a faster main + stronger advisor works
 
-As of 2026-10-11. Recheck when any docs section above is renamed or moved, or stops covering the
-topic it is listed for.
-
 **Fetch failure degrades, never halts.** The recommendation is an auxiliary output, so
 a doc-fetch failure must not block the interview or the Brief. Fall back to the
 durable distinction above and tell the user, in the same breath, that the current
@@ -136,11 +123,6 @@ own session, so it treats advisor state as unknown and may suggest the user chec
   advisor, see <https://code.claude.com/docs/en/advisor#enable-the-advisor>,
   <https://code.claude.com/docs/en/advisor#use-the-/advisor-command> and
   <https://code.claude.com/docs/en/advisor#turn-the-advisor-off>.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the skills page drops the `${CLAUDE_EFFORT}` substitution row, the advisor
-  or environment-variables page adds a way for a session itself (not the user's `/advisor`
-  command) to read the configured advisor, the "Use the `/advisor` command" section changes what
-  a bare `/advisor` shows, or a release note names either.
 
 So split the framing. Where effort is readable, say what it is and recommend from there. Where
 advisor state is not, frame the recommendation as a delta the user applies rather than a fact about

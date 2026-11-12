@@ -40,8 +40,7 @@ from two sources, managed winning per option:
 - The managed settings files at the fixed system path for the platform: `managed-settings.json`,
   then the `managed-settings.d/` drop-ins in the order the managed settings page gives
   ([managed settings](https://code.claude.com/docs/en/managed-settings), "Delivery mechanisms" and
-  "How Claude Code combines managed sources", read 2026-10-11; recheck when either section
-  changes).
+  "How Claude Code combines managed sources").
 - The user `settings.json`, located only from the helper's own install path
   (`<config>/plugins/cache/<marketplace>/<name>/<version>`), never from `CLAUDE_CONFIG_DIR`, `HOME`
   or another environment value. A `--plugin-dir` install has no such anchor, so only managed
@@ -58,8 +57,7 @@ The helper can also read a managed file Claude Code itself skips. When a higher-
 source (a remote policy, or an MDM or HKLM policy) delivers policy keys, Claude Code by default
 uses that source and ignores the managed settings files
 ([managed settings](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources),
-"How Claude Code combines managed sources", as of 2026-10-11; recheck when that section or the
-`managedSourcesBehavior` default changes). The helper sees only the files, so on such a host a
+"How Claude Code combines managed sources"). The helper sees only the files, so on such a host a
 stale `managed-settings.json` the harness no longer applies can still supply these options. On a
 host whose policy comes from a remote or MDM source, keep the options out of managed files or
 remove the stale file.
@@ -217,8 +215,7 @@ The post-merge check dispatches its full run under the lane identity. Where the 
 dispatch needs also lets that identity delete a red run before the publisher reads it, either the
 dispatch moves to an identity the lane cannot use, or a deleted red run stays a named residual
 risk. Which permission covers dispatch and which covers run deletion: GitHub's
-[Actions repository permissions table](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions)
-(as of 2026-10-13; recheck when GitHub adds or splits an Actions permission).
+[Actions repository permissions table](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions).
 
 ### `promotion_evidence_checker`
 
@@ -364,16 +361,12 @@ section states the behavior.
   [managed settings, "When an admin document counts as present"](https://code.claude.com/docs/en/managed-settings#present-admin-documents)
   and the
   [`wslInheritsWindowsSettings` entry](https://code.claude.com/docs/en/settings-reference#wslinheritswindowssettings).
-  As of 2026-10-12. Recheck trigger: either changes what it says about the WSL managed directory or
-  where WSL reads managed settings.
 - Why WSL is refused for the Windows user that owns the distribution, and why the exception
   requires a separate non-sudo Linux user and interop off: how a Windows user enters a
   distribution as root, and what the `wsl.conf` interop key controls:
   [Set up your Linux username and password](https://learn.microsoft.com/en-us/windows/wsl/setup/environment#set-up-your-linux-username-and-password),
   [Run as a specific user](https://learn.microsoft.com/en-us/windows/wsl/basic-commands#run-as-a-specific-user)
   and [Interop settings](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#interop-settings).
-  As of 2026-10-12. Recheck trigger: any of those sections changes how root is entered or what the
-  interop key controls.
 - Why Windows is refused: how the gate's write-access test (`os.access` in
   `babysit_merge_policy.py` `_lane_writable`) works on Windows, the `MS_WINDOWS` branch of
   `os_access_impl` in
@@ -382,12 +375,10 @@ section states the behavior.
   `os.access`.
 - Why no sudo rule is allowed, with or without `NOPASSWD`: sudo credential caching,
   [sudoers, "SUDOERS OPTIONS"](https://www.sudo.ws/docs/man/sudoers.man/#SUDOERS_OPTIONS)
-  (`timestamp_type`, `timestamp_timeout`). As of 2026-10-12. Recheck trigger: a release changes
-  how time stamp records are shared between sessions.
+  (`timestamp_type`, `timestamp_timeout`).
 - What tool restriction removes or denies:
   [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
   and the `--restricted` row of [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags).
-  As of 2026-10-12. Recheck trigger: either changes what it removes or denies.
 
 ## Out of scope
 

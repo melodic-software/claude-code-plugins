@@ -94,8 +94,6 @@ gh pr list -R "$REPO" --state all --limit 200 --search "$ISSUE_REF in:body" --js
 - **Pointer**: when checking which PRs a commit lists, fetch
   [list pull requests associated with a commit](https://docs.github.com/en/rest/commits/commits#list-pull-requests-associated-with-a-commit)
   live.
-- **As of**: 2026-11-08
-- **Recheck trigger**: that section changes which pull requests it returns.
 
 ## Read the signals without a checkout
 

@@ -51,8 +51,7 @@ When a sentence still sounds awkward read aloud, rewrite it.
 ## Load: how much one sentence carries
 
 Our house limits, selected from ASD-STE100 Simplified Technical English. The specification settles
-anything this file does not cover; the record in [`sources.md`](sources.md) holds the pointer and
-the recheck trigger.
+anything this file does not cover; the record in [`sources.md`](sources.md) holds the pointer.
 
 Check from the largest unit down to the smallest. Each row is one check.
 

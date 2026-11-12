@@ -42,5 +42,3 @@ is what keeps it from being obeyed.
 
 - **Pointer:** for how a `tools` list withholds tools from a subagent, see
   [create custom subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
-- **As of:** 2026-10-17.
-- **Recheck trigger:** that section changes how an omitted `tools` entry is withheld.

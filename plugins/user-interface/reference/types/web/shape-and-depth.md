@@ -31,8 +31,6 @@ to the gap. Recipe: `concentric-nested-radius`.
 
 - **Pointer**: CSS Backgrounds and Borders 3, corner shaping,
   <https://www.w3.org/TR/css-backgrounds-3/#corner-shaping>
-- **As of**: 2026-10-29
-- **Recheck trigger**: that section changes how it derives the padding-edge or content-edge radius.
 
 The inner radius is computed, never copied:
 
@@ -222,8 +220,6 @@ why.
 
 - **Pointer**: MDN, `-webkit-device-pixel-ratio`,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/@media/-webkit-device-pixel-ratio>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page stops recommending the `resolution` feature in its place.
 
 **Audit: Suggestion.** Separation borders drawn at the full `css.border_px.standard` on
 high-density screens where the project has, or could take, a hairline token.
@@ -234,8 +230,6 @@ high-density screens where the project has, or could take, a hairline token.
 gradient: multiple stops following an easing curve.
 
 - **Pointer**: an easing-gradient generator, <https://larsenwork.com/easing-gradients/>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page moves or stops generating CSS stops.
 
 **Mask over gradient overlay.** To fade content out, prefer `mask-image`: it composites with any
 content or background, where a gradient overlay only matches one background color.
