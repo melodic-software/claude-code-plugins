@@ -337,13 +337,20 @@ jobs:
           case $code in
             2 | 3 | 4) echo "::warning::the post-merge check exited $code (2 refused, 3 unreadable, 4 write failed); needsDispatch=$needs" ;;
             75)
-              echo "::error::the post-merge check stopped on a GitHub rate limit; no full run is started or re-run" && needs=false
               # The stop it recorded in the job's stop file (babysit_gh.py), for
-              # the merge and enable-auto-merge jobs, which read on this token too.
+              # the merge and enable-auto-merge jobs, which read on this token
+              # too, and its cause: a server error hold (a 5xx whose only
+              # signal was Retry-After) is named so.
               . .base/.github/actions/log-api-budget/api-budget.bash
               . .base/.github/scripts/pr-merge/rate-stop.bash
               stop=$(rate_stop_label)
-              echo "rate-limited=${stop:-an unrecorded pool until its reset}" >>"$GITHUB_OUTPUT"
+              if server=$(rate_stop_server); then
+                echo "::error title=GitHub server error::the post-merge check stopped on $(rate_stop_cause); no full run is started or re-run" && needs=false
+                echo "rate-limited=$stop, held on HTTP $server with a Retry-After" >>"$GITHUB_OUTPUT"
+              else
+                echo "::error::the post-merge check stopped on a GitHub rate limit; no full run is started or re-run" && needs=false
+                echo "rate-limited=${stop:-an unrecorded pool until its reset}" >>"$GITHUB_OUTPUT"
+              fi
               ;;
           esac
           if [[ $(jq -r '.hold // ""' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || true) == recovery-unrecorded ]]; then
@@ -1011,7 +1018,11 @@ jobs:
         env:
           STOP: ${{ needs.post-merge-dispatch.outputs.rate-limited }}
         run: |
-          echo "::error title=GitHub rate limit::post-merge-dispatch stopped on a GitHub rate limit ($STOP); this job sends nothing to GitHub"
+          if [[ $STOP == *", held on HTTP 5"[0-9][0-9]" with a Retry-After" ]]; then
+            echo "::error title=GitHub server error::post-merge-dispatch stopped on a GitHub server error hold ($STOP); this job sends nothing to GitHub"
+          else
+            echo "::error title=GitHub rate limit::post-merge-dispatch stopped on a GitHub rate limit ($STOP); this job sends nothing to GitHub"
+          fi
           exit 1
 
       - name: Resolve main's tip
@@ -1549,7 +1560,7 @@ jobs:
           echo "::endgroup::"
           needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
           if [ "$code" = 75 ]; then
-            echo "::error::the post-merge check stopped on a GitHub rate limit; no remediation or gate runs"
+            echo "::error::the post-merge check stopped on $(. .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && . .base/.github/scripts/pr-merge/rate-stop.bash 2>/dev/null && rate_stop_cause || echo "a GitHub rate limit"); no remediation or gate runs"
             needs=false
           fi
           echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
@@ -1842,7 +1853,12 @@ jobs:
             # later candidate's gate would call GitHub again while limited.
             if [ "$code" = 75 ]; then
               limited=$number
-              echo "::error title=GitHub rate limit::PR #$number's gate stopped on a GitHub rate limit; no later candidate is gated this run"
+              cause=$(. .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && . .base/.github/scripts/pr-merge/rate-stop.bash 2>/dev/null && rate_stop_cause || echo "a GitHub rate limit")
+              if [[ $cause == "a GitHub server error hold"* ]]; then
+                echo "::error title=GitHub server error::PR #$number's gate stopped on $cause; no later candidate is gated this run"
+              else
+                echo "::error title=GitHub rate limit::PR #$number's gate stopped on a GitHub rate limit; no later candidate is gated this run"
+              fi
               echo "{\"last\":$number${deferred:+,\"deferred\":$deferred}}" >"$cursor"
               break
             fi
@@ -2401,7 +2417,11 @@ jobs:
         env:
           STOP: ${{ needs.post-merge-dispatch.outputs.rate-limited }}
         run: |
-          echo "::error title=GitHub rate limit::post-merge-dispatch stopped on a GitHub rate limit ($STOP); this job sends nothing to GitHub"
+          if [[ $STOP == *", held on HTTP 5"[0-9][0-9]" with a Retry-After" ]]; then
+            echo "::error title=GitHub server error::post-merge-dispatch stopped on a GitHub server error hold ($STOP); this job sends nothing to GitHub"
+          else
+            echo "::error title=GitHub rate limit::post-merge-dispatch stopped on a GitHub rate limit ($STOP); this job sends nothing to GitHub"
+          fi
           exit 1
 
       - name: Resolve main's tip
@@ -3015,7 +3035,7 @@ jobs:
             elif [ "$STANDS" = false ] && [ "$FRESH" = 6 ]; then
               OUTCOME="skipped: the fresh post-merge check stopped at a lane merge no dispatch run covers (needs-dispatch)"
             elif [ "$STANDS" = false ] && [ "$FRESH" = 75 ]; then
-              OUTCOME="skipped: the fresh post-merge check stopped on a GitHub rate limit"
+              OUTCOME="skipped: the fresh post-merge check stopped on $(. .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && . .base/.github/scripts/pr-merge/rate-stop.bash 2>/dev/null && rate_stop_cause || echo "a GitHub rate limit")"
             elif [ "$STANDS" = false ] && [[ $FRESH =~ ^[05]$ ]]; then
               OUTCOME="skipped: settle --idle-tick refused the fresh post-merge report (${FRESH_REASON:-no reason read})"
             elif [ "$STANDS" = false ] && [ -n "$FRESH" ]; then

@@ -1146,15 +1146,22 @@ export function liftedByPerson(timeline, label, since) {
 // latch read before the child wrote it and takes in again (reload) on this exit.
 export const READER_RATE_LIMIT_EXIT = 75;
 const GUARD_ERROR = "::error title=GitHub rate limit::";
+// babysit_gh.py's title for a server error hold (a 5xx whose only signal was
+// Retry-After), which exits 75 and holds the same way.
+const SERVER_ERROR = "::error title=GitHub server error::";
 
-// A reader stopped on a rate limit; `line` is its guard's ::error.
+// A reader stopped on a rate limit or a server error hold (serverError);
+// `line` is its guard's ::error.
 export class ReaderRateLimited extends Error {
   constructor(what, stderr) {
     const line = String(stderr ?? "")
       .split("\n")
-      .find((text) => text.startsWith(GUARD_ERROR));
-    super(`${what} stopped on a GitHub rate limit: ${line ? line.slice(GUARD_ERROR.length) : `it exited ${READER_RATE_LIMIT_EXIT}`}`);
+      .find((text) => text.startsWith(GUARD_ERROR) || text.startsWith(SERVER_ERROR));
+    const serverError = line?.startsWith(SERVER_ERROR) === true;
+    const cause = serverError ? "a GitHub server error hold" : "a GitHub rate limit";
+    super(`${what} stopped on ${cause}: ${line ? line.slice((serverError ? SERVER_ERROR : GUARD_ERROR).length) : `it exited ${READER_RATE_LIMIT_EXIT}`}`);
     this.name = "ReaderRateLimited";
+    this.serverError = serverError;
   }
 }
 
@@ -2645,7 +2652,7 @@ export async function main({ env = process.env, github, actions, laneReads, veri
     }
     if (stopped !== null) {
       failed += 1;
-      console.log(`${GUARD_ERROR}enable-auto-merge: ${escapeCommand(stopped.message)}; no pull request is read, noted or armed after it this run, and each armed lanes App pull request is disarmed`);
+      console.log(`${stopped.serverError ? SERVER_ERROR : GUARD_ERROR}enable-auto-merge: ${escapeCommand(stopped.message)}; no pull request is read, noted or armed after it this run, and each armed lanes App pull request is disarmed`);
     }
     // Each verifier read's cost too, so a run's spend reads per pull request.
     const summary = [...lines.map(([, text]) => text), ...unblockSkips, ...(verify.costs ?? []).map(costLine), ...riskTokens];

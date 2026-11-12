@@ -75,9 +75,7 @@ done < <(find "$root/sessions" -mindepth 1 -maxdepth 1 -name '*.jsonl' -mmin "+$
 
 doomed=()
 for f in "${files[@]}"; do
-  [[ -n "${protected[$f]:-}" ]] && continue
-  [[ -n "${old[$f]:-}" ]] || continue
-  doomed+=("$f")
+  [[ -z "${protected[$f]:-}" && -n "${old[$f]:-}" ]] && doomed+=("$f")
 done
 ((${#doomed[@]})) || exit 0
 

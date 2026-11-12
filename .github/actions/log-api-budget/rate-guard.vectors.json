@@ -44,12 +44,14 @@
     {
       "name": "429 with retry-after and no message",
       "input": { "url": "https://api.github.com/repos/o/r", "status": 429, "headers": { "retry-after": "30" }, "body": "" },
-      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748030, "pool": "*" }
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748030, "pool": "*" },
+      "server_error": false
     },
     {
       "name": "retry-after on any status is honored",
       "input": { "url": "https://api.github.com/repos/o/r", "status": 503, "headers": { "retry-after": "5" }, "body": "" },
-      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748005, "pool": "*" }
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748005, "pool": "*" },
+      "server_error": true
     },
     {
       "name": "secondary 403 by message alone waits the documented minute, every pool",
@@ -305,6 +307,69 @@
         "body": []
       },
       "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792749000, "pool": "core" }
+    },
+    {
+      "name": "a 502 with retry-after alone holds every pool for retry-after seconds, as a server error",
+      "input": { "url": "https://api.github.com/repos/o/r/pulls/1", "status": 502, "headers": { "retry-after": "5" }, "body": "" },
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748005, "pool": "*" },
+      "server_error": true
+    },
+    {
+      "name": "a 504 with retry-after, headroom left and an HTML body holds every pool for retry-after seconds, as a server error",
+      "input": {
+        "url": "https://api.github.com/repos/o/r/pulls/1",
+        "status": 504,
+        "headers": { "retry-after": "30", "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": "<html><body>Gateway Timeout</body></html>"
+      },
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748030, "pool": "*" },
+      "server_error": true
+    },
+    {
+      "name": "a 503 with retry-after and remaining 0 is a rate limit, held to the later x-ratelimit-reset",
+      "input": {
+        "url": "https://api.github.com/repos/o/r/pulls/1",
+        "status": 503,
+        "headers": { "retry-after": "5", "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": ""
+      },
+      "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792751600, "pool": "*" },
+      "server_error": false
+    },
+    {
+      "name": "a 503 with retry-after whose message names a secondary rate limit is a rate limit",
+      "input": { "url": "https://api.github.com/repos/o/r/issues/1/comments", "status": 503, "headers": { "retry-after": "60" }, "body": { "message": "You have exceeded a secondary rate limit." } },
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748060, "pool": "*" },
+      "server_error": false
+    },
+    {
+      "name": "a 503 with retry-after whose message names a primary rate limit is a rate limit",
+      "input": { "url": "https://api.github.com/repos/o/r", "status": 503, "headers": { "retry-after": "60" }, "body": "{\"message\":\"API rate limit exceeded for installation ID 1.\"}" },
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748060, "pool": "*" },
+      "server_error": false
+    },
+    {
+      "name": "a graphql 502 with retry-after and a RATE_LIMITED error is a rate limit",
+      "input": { "url": "https://api.github.com/graphql", "status": 502, "headers": { "retry-after": "60" }, "body": { "errors": [{ "type": "RATE_LIMITED", "message": "API rate limit exceeded for installation ID 1." }] } },
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748060, "pool": "*" },
+      "server_error": false
+    },
+    {
+      "name": "a 403 with retry-after and no message is a rate limit",
+      "input": { "url": "https://api.github.com/repos/o/r", "status": 403, "headers": { "retry-after": "60" }, "body": "" },
+      "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748060, "pool": "*" },
+      "server_error": false
+    },
+    {
+      "name": "a 503 with no retry-after does not latch",
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 503,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": ""
+      },
+      "expect": { "latched": false, "low": false, "reset_source": null, "reset": null, "pool": null },
+      "server_error": false
     }
   ],
   "stop_files": [
@@ -367,6 +432,56 @@
       "name": "digits outside ASCII are not digits: Arabic-Indic, fullwidth, and one among ASCII digits",
       "text": "core ١٧٩٢٧٥١٦٠٠\ngraphql １７９２７５１６００\nsearch 179275160٠\nsearch 1792749000\n",
       "until": { "core": null, "graphql": null, "search": 1792749000, "code_search": null }
+    }
+  ],
+  "stop_causes": [
+    {
+      "name": "a server error hold's stop with its cause line reads as a server error for every pool it holds",
+      "stop": "* 1792748120\n",
+      "cause": "* 1792748120 server-503\n",
+      "server": { "core": 503, "graphql": 503 }
+    },
+    {
+      "name": "a stop with no cause file reads as a rate limit",
+      "stop": "* 1792748120\n",
+      "cause": null,
+      "server": { "core": null, "graphql": null }
+    },
+    {
+      "name": "a rate limit's cause line reads as a rate limit",
+      "stop": "core 1792751600\n",
+      "cause": "core 1792751600 limit\n",
+      "server": { "core": null, "graphql": null }
+    },
+    {
+      "name": "a stop with no cause line beside another's reads as a rate limit, and the later stop decides",
+      "stop": "core 1792751600\n* 1792748120\n",
+      "cause": "* 1792748120 server-502\n",
+      "server": { "core": null, "graphql": 502 }
+    },
+    {
+      "name": "a stop ending the same second as a server error hold, with no cause line of its own, reads as a rate limit for the pools it holds",
+      "stop": "core 1792748120\n* 1792748120\n",
+      "cause": "* 1792748120 server-503\n",
+      "server": { "core": null, "graphql": 503 }
+    },
+    {
+      "name": "a rate limit and a server error hold ending the same second read as a rate limit",
+      "stop": "* 1792748120\n* 1792748120\n",
+      "cause": "* 1792748120 server-503\n* 1792748120 limit\n",
+      "server": { "core": null, "graphql": null }
+    },
+    {
+      "name": "a cause line for another pool, or for a stop that has passed, counts for nothing",
+      "stop": "core 1792748120\n",
+      "cause": "graphql 1792748120 server-503\n* 1792747000 server-503\n",
+      "server": { "core": null, "graphql": null }
+    },
+    {
+      "name": "a cause line not shaped `<pool> <1-12 digits> limit|server-5xx`, or with no newline, counts for nothing",
+      "stop": "* 1792748120\n",
+      "cause": "* 1792748120 server-403\n* 1792748120 server-5xx\n* 1792748120  server-503\n* 1792748120 server-503\r\n* 1792748120 server-503",
+      "server": { "core": null, "graphql": null }
     }
   ],
   "stop_file_errors": [

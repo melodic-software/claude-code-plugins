@@ -196,8 +196,9 @@
 // failed on a GitHub API rate-limit stop, in a run where no model step ran
 // (the read runner's `Run the skill on` legs and its reused-branch summary
 // pass): the failed step's last line is rate-guard's or api-budget.bash's
-// stop, a call that hit a pool's rate limit or left it at or under its
-// stop-floor share, naming the reset. It is re-fired as a failed mint, under
+// stop, a call that hit a pool's rate limit, left it at or under its
+// stop-floor share, or got a server error with a Retry-After (a server error
+// hold, its record named so), naming the reset. It is re-fired as a failed mint, under
 // the same bound and backoff, once both that reset and limits.reset-clamp-min
 // hours after the run ended have passed. The same line where a model step ran,
 // or a log that cannot be read, leaves the run as before.
@@ -426,10 +427,13 @@ const denial = (mode) => stamped(String.raw`##\[error\]lane-${mode}-denied: the 
 const DENIAL = { check: denial("check"), token: denial("token") };
 const STEP_FAILED = stamped(String.raw`##\[error\]Process completed with exit code [0-9]+\.$`);
 // rate-guard's (and api-budget.bash's) stop line, as the failed step's last
-// line: a call that hit a pool's rate limit or left it at or under its
-// stop-floor share, and the reset it names. Only the reset is read.
+// line: a call that hit a pool's rate limit, left it at or under its
+// stop-floor share, or got a server error with a Retry-After (rate-guard's
+// serverErrorHold, held the same way, its 5xx in `status`), and the `reset` it
+// names. A raw job log shows a titled annotation as `##[error]<message>`,
+// the title dropped, as it shows an untitled one.
 const RATE_LIMITED = stamped(
-  String.raw`##\[error\].* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+)(?: \(status \d+\))?: no call to it before (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
+  String.raw`##\[error\].* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+|got a GitHub server error, HTTP (?<status>5\d\d) with a Retry-After)(?: \(status \d+\))?: no call to it before (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
 );
 // The write runner's step after MINT_STEP that runs exactly when a token was
 // minted; a MINT_STEP success with it skipped is a mint that stopped green.
@@ -1606,9 +1610,14 @@ const strandedCause = {
 };
 
 const MINT_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started could not get its lane token, or the token broker's leave to run.`;
-// A rate-limit stop's cause, naming the latest reset (ms) its stop lines named.
-const rateLimitCause = (reset) =>
-  `The work-resolve-issue run that \`${LABEL}\` started stopped on GitHub's API rate limit before any model turn; the limit reset at ${new Date(reset).toISOString().replace(/\.\d{3}Z$/, "Z")}.`;
+// A rate-limit stop's cause, naming the latest reset (ms) its stop lines named,
+// or, for a server error hold (`server`, its 5xx), the time the hold passed.
+const rateLimitCause = (reset, server = null) => {
+  const at = new Date(reset).toISOString().replace(/\.\d{3}Z$/, "Z");
+  return server
+    ? `The work-resolve-issue run that \`${LABEL}\` started stopped on a GitHub server error hold (HTTP ${server} with a Retry-After) before any model turn; the hold passed at ${at}.`
+    : `The work-resolve-issue run that \`${LABEL}\` started stopped on GitHub's API rate limit before any model turn; the limit reset at ${at}.`;
+};
 
 // The record of a re-fire after a kill-switch refusal, posted before the
 // label moves, once per re-fire. It names the refused run and when it ended,
@@ -1774,6 +1783,10 @@ async function didNoWork(jobsOf, refusalOf, runs) {
   let resetAt = null;
   // The latest reset a rate-limit stop names, in ms; 0 for none.
   let reset = 0;
+  // A server error hold's 5xx, which names the stop only when no rate limit
+  // stopped a run too.
+  let server = null;
+  let limitSeen = false;
   const atLeast = (kind, run, at, budget = false) => {
     switched ||= kind === "breaker" && !budget;
     if (rank[kind] > (rank[stalled] ?? 0)) {
@@ -1864,7 +1877,13 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       atLeast("mint-failed");
     } else if (limited && refused) {
       atLeast("mint-failed");
-      reset = Math.max(reset, Date.parse(refused));
+      const [at, held] = refused.split(" ");
+      reset = Math.max(reset, Date.parse(at));
+      if (held) {
+        server ??= Number(held.slice("server-".length));
+      } else {
+        limitSeen = true;
+      }
     } else if (capped) {
       atLeast("capped");
     } else if (blocked) {
@@ -1872,7 +1891,8 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     }
   }
   const budget = stalled === "breaker" && !switched;
-  return stalled && { stalled, run: tripped, stage, budget, resetAt: budget ? resetAt : null, reset: stalled === "mint-failed" ? reset : 0 };
+  const limit = stalled === "mint-failed" && reset > 0;
+  return stalled && { stalled, run: tripped, stage, budget, resetAt: budget ? resetAt : null, reset: stalled === "mint-failed" ? reset : 0, server: limit && !limitSeen ? server : null };
 }
 
 // The reason the broker refused `job`, from its log: the failed step's last
@@ -1923,8 +1943,10 @@ function refusalIn(lines, mode) {
     return null;
   }
   if (mode === "limit") {
-    const reset = RATE_LIMITED.exec(lines[end - 1])?.[1];
-    return reset && Number.isFinite(Date.parse(reset)) ? reset : null;
+    // `<reset>` for a rate limit, `<reset> server-<5xx>` for a server error
+    // hold; verdict-carry's REASON carries both.
+    const { reset, status } = RATE_LIMITED.exec(lines[end - 1])?.groups ?? {};
+    return reset && Number.isFinite(Date.parse(reset)) ? `${reset}${status ? ` server-${status}` : ""}` : null;
   }
   return DENIAL[mode].exec(lines[end - 1])?.[1] ?? null;
 }
@@ -2321,7 +2343,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
   // A stale stop ran no model; a failed mint in its re-fire job is no failed
   // mint of the lane's, so it skips the did-no-work clock below.
   const stale = await stoppedStale(jobsOf, runs);
-  const { stalled, run: refused, stage, budget, resetAt, reset } = (!stale && (await didNoWork(jobsOf, refusalReader(jobLog, repo, carry), runs))) || {};
+  const { stalled, run: refused, stage, budget, resetAt, reset, server } = (!stale && (await didNoWork(jobsOf, refusalReader(jobLog, repo, carry), runs))) || {};
   if (stalled) {
     // Breaker trips since a listed human last added agent-ready or a run last
     // reported; past limits.limit-stops-per-issue of them, a flat wait of the
@@ -2357,7 +2379,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
           : outage
             ? "the upstream-status stop skipped its lane run, and the status page does not read clear"
             : reset
-              ? "its lane run stopped on GitHub's API rate limit before any model turn"
+              ? (server ? `its lane run stopped on a GitHub server error hold (HTTP ${server} with a Retry-After) before any model turn` : "its lane run stopped on GitHub's API rate limit before any model turn")
               : "its lane run did no work";
       return { reason: `${why}; it is re-fired after ${new Date(due).toISOString()}`, ...(!outage && { due }) };
     }
@@ -2374,7 +2396,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     // attempt, and the cap and restarts-per-run bound it.
     const fired = firedOn(key).length;
     if (stalled === "mint-failed" && !recorded && fired >= limits["limit-stops-per-issue"]) {
-      return backoff(key, ended, reset ? rateLimitCause(reset) : MINT_CAUSE, hoursFor["failed-mint"]);
+      return backoff(key, ended, reset ? rateLimitCause(reset, server) : MINT_CAUSE, hoursFor["failed-mint"]);
     }
     // An issue keeps one budget record, edited in place for each window; the
     // edit carries the dates of the ones before it.
@@ -2385,7 +2407,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended, budget, record: budgetRecord?.id, earlier } : undefined;
     // Trips sort by when their run ended, not when they fell due, so the sweeps
     // after the switch clears drain them oldest first whatever their waits.
-    return { reason: null, resets: trip ? ended : due, refire: key, recorded, stall: stalled, trip, ...(reset && { cause: rateLimitCause(reset) }) };
+    return { reason: null, resets: trip ? ended : due, refire: key, recorded, stall: stalled, trip, ...(reset && { cause: rateLimitCause(reset, server) }) };
   }
   if (!stale && !runs.some((run) => FAILED.has(run.conclusion)) && !(await stoppedMint(jobsOf, runs)) && !(await cancelledBeforeWork(jobsOf, runs))) {
     return stranded(ended, "its lane run did not fail", "no-report");
