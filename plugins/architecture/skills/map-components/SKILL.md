@@ -252,8 +252,7 @@ a `${user_config.*}` string in a shell command), and its report line is printed.
   [C4-PlantUML README § Component diagram](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#component-diagram)
   and
   [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library)
-  live. Recheck trigger: that README changes the component macros or the
-  include path, or a host with Java can run PlantUML over a rendered block.
+  live.
 - **LikeC4 component syntax: parsed by the CLI.** The record is a probe: `likec4@1.59.4
   validate` exits 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
   (`components.c4`, `components-aggregated.c4`), which `render-components.test.sh` diffs

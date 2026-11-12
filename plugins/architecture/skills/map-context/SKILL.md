@@ -210,8 +210,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
   [C4-PlantUML README § System Context & System Landscape diagrams](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#system-context--system-landscape-diagrams)
   and
   [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library)
-  live. Recheck trigger: that README changes the context macros or the
-  include path, or a host with Java can run PlantUML over a rendered block.
+  live.
 - **LikeC4 context syntax: parsed by the CLI.** The record is a probe: `likec4@1.59.4 validate`
   exits 0 on the golden block in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/` (`context.c4`),
   which `render-context.test.sh` diffs against. Pointer: when checking the syntax the renderer

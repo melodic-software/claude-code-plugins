@@ -251,8 +251,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
   [C4-PlantUML README § Container diagram](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#container-diagram)
   and
   [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library)
-  live. Recheck trigger: that README changes the container macros or the
-  include path, or a host with Java can run PlantUML over a rendered block.
+  live.
 - **LikeC4 container syntax: parsed by the CLI.** The record is a probe: `likec4@1.59.4
   validate` exits 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
   (`containers.c4`, `containers-stores.c4`, `containers-broker.c4`, `containers-endpoints.c4`),

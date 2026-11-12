@@ -196,8 +196,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
   skill adds no C4 dialect key and reads `diagram_dialect.data` (`mermaid` or `dbml`). Pointer:
   when checking which views C4 defines, fetch
   [C4 diagrams § Static structure diagrams](https://c4model.com/diagrams#static-structure-diagrams)
-  and [§ Supporting diagrams](https://c4model.com/diagrams#supporting-diagrams) live. Recheck trigger: C4 adds a diagram type whose subject is entities and their
-  relationships.
+  and [§ Supporting diagrams](https://c4model.com/diagrams#supporting-diagrams) live.
 - **A Prisma one-to-many is read from `@relation(fields:, references:)`.** The reader takes the
   scalar that `fields` names as the foreign key, and reads the relation as required when neither
   the relation field nor that scalar carries `?`. Pointer: when
