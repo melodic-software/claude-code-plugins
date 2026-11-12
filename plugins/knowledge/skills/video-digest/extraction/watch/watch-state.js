@@ -55,7 +55,8 @@ import {
  *   absolute local-checkout path. Persisted so an interrupted watch's `resume` recovers it instead of re-asking.
  * @property {boolean} [skipResearch] - user passed --skip-research; research phase is recorded as skipped
  * @property {number} [maxFrameGapSec] - the coverage plan's maximum gap between timed frames for
- *   this run (`--max-frame-gap-sec` or the default), recorded at watch start so recovery reuses it
+ *   this run when `--max-frame-gap-sec` set it, recorded at watch start so recovery reuses it;
+ *   absent, recovery derives the duration default the run used
  * @property {import('./duration-mismatch.js').DurationMismatch} [durationMismatch] - set only
  *   when the metadata duration and the probed media duration differ by more than the
  *   threshold; absent when they agree

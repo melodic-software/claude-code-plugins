@@ -15,7 +15,9 @@ import { snapshotBootstrapContactSheets } from "./snapshot-bootstrap.js";
 export function postBootstrapSlice(sliceDir) {
   const absSlice = path.resolve(sliceDir);
   const sheetIndexPath = exportSheetFrameIndex(absSlice);
-  const checklistPath = initWatchChecklist(absSlice);
+  // A re-bootstrap refreshes the generated evidence from the new run; agent-written
+  // ticks, evidence and Resume notes survive `force` (initWatchChecklist).
+  const checklistPath = initWatchChecklist(absSlice, { force: true });
 
   let bootstrapSnapshot;
   try {

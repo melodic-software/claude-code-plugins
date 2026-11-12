@@ -118,34 +118,45 @@ function stampCriteriaHashes(rendered) {
     .join("\n");
 }
 
+const GENERATED_EVIDENCE_PREFIX = "  - evidence (generated): ";
+
 /**
- * Carry an existing checklist's ticks (matched by row id), the indented
+ * Carry an existing checklist's ticks (matched by row id), the agent-written
  * evidence lines under each ticked row, and its Resume notes section into a
- * freshly rendered one, so a regenerate never erases evidence. The row text
- * itself is regenerated. A tick whose stored criteria hash no longer matches the
- * regenerated row is dropped with its evidence and reported. A tick saved before
- * hashes existed has none to compare, so it is kept and gets the current hash.
+ * freshly rendered one, so a regenerate never erases agent evidence. Generated
+ * evidence lines are not carried: `applyGeneratedTicks` rewrites them from the
+ * current `watch.json` and `selection.json`, and a tick that rested only on
+ * generated evidence is carried only if the generator still proves it. The row
+ * text itself is regenerated. A tick whose stored criteria hash no longer matches
+ * the regenerated row is dropped with its evidence and reported. A tick saved
+ * before hashes existed has none to compare, so it is kept and gets the current hash.
  *
  * @param {string} rendered freshly rendered checklist, rows already hash-stamped
  * @param {string} previous checklist already on disk
  * @returns {{ text: string, dropped: string[] }} merged checklist and the row ids whose ticks were dropped
  */
 export function carryOverProgress(rendered, previous) {
-  /** @type {Map<string, { hash: string | null, evidence: string[] }>} ticked row id -> stored hash and indented evidence lines under it */
+  /**
+   * @typedef {{ hash: string | null, evidence: string[], generated: boolean }} TickedRow
+   *   stored hash, agent evidence lines, whether generated evidence stood under the row
+   */
+  /** @type {Map<string, TickedRow>} */
   const ticked = new Map();
-  /** @type {string[] | null} */
-  let evidence = null;
+  /** @type {TickedRow | null} */
+  let current = null;
   for (const line of previous.split("\n")) {
     const match = ROW_ID.exec(line);
     if (match) {
-      evidence = match[1] === " " ? null : [];
-      if (evidence) {
-        ticked.set(match[2], { hash: CRITERIA_HASH.exec(line)?.[1] ?? null, evidence });
-      }
-    } else if (evidence && /^\s+\S/.test(line)) {
-      evidence.push(line);
+      current =
+        match[1] === " "
+          ? null
+          : { hash: CRITERIA_HASH.exec(line)?.[1] ?? null, evidence: [], generated: false };
+      if (current) ticked.set(match[2], current);
+    } else if (current && /^\s+\S/.test(line)) {
+      if (line.startsWith(GENERATED_EVIDENCE_PREFIX)) current.generated = true;
+      else current.evidence.push(line);
     } else {
-      evidence = null;
+      current = null;
     }
   }
   /** @type {string[]} */
@@ -155,7 +166,7 @@ export function carryOverProgress(rendered, previous) {
     .flatMap((line) => {
       const match = ROW_ID.exec(line);
       const kept = match && ticked.get(match[2]);
-      if (!match || !kept) return [line];
+      if (!match || !kept || (kept.generated && kept.evidence.length === 0)) return [line];
       if (kept.hash !== null && kept.hash !== CRITERIA_HASH.exec(line)?.[1]) {
         dropped.push(match[2]);
         return [line];
@@ -177,33 +188,16 @@ export function carryOverProgress(rendered, previous) {
  * @returns {string} indented evidence line written under a generated tick
  */
 function generatedEvidence(fact) {
-  return `  - evidence (generated): ${fact}`;
+  return `${GENERATED_EVIDENCE_PREFIX}${fact}`;
 }
 
 const COMPANION_ROWS = ["0b.1", "0b.2", "0b.3", "0b.4", "0b.5"];
 const COMPANION_NA_EVIDENCE = generatedEvidence("n/a, no `source/companion-sources.md` exists");
 
 /**
- * Untick every Phase 0b row a previous run marked n/a and drop its evidence line, so the
- * n/a state is recomputed on each run instead of surviving the kept-tick rewrite.
- *
- * @param {string} previous checklist already on disk
- * @returns {string}
- */
-export function dropCompanionNaTicks(previous) {
-  const lines = previous.split("\n");
-  return lines
-    .flatMap((line, i) => {
-      if (line === COMPANION_NA_EVIDENCE) return [];
-      if (lines[i + 1] === COMPANION_NA_EVIDENCE) return [line.replace(/^- \[[xX]\]/, "- [ ]")];
-      return [line];
-    })
-    .join("\n");
-}
-
-/**
- * Tick each listed row that is still unticked and write its evidence line under it. A row
- * already ticked keeps its tick and evidence as they are.
+ * Tick each listed row and write its generated evidence line directly under it, above any
+ * agent-written evidence a ticked row already carries. The text holds no generated evidence
+ * lines yet: a fresh render has none and `carryOverProgress` does not carry them.
  *
  * @param {string} text checklist
  * @param {Map<string, string>} ticks row id -> evidence line
@@ -214,7 +208,7 @@ export function applyGeneratedTicks(text, ticks) {
     .split("\n")
     .flatMap((line) => {
       const match = ROW_ID.exec(line);
-      const evidence = match && match[1] === " " && ticks.get(match[2]);
+      const evidence = match && ticks.get(match[2]);
       return evidence ? [line.replace("- [ ]", "- [x]"), evidence] : [line];
     })
     .join("\n");
@@ -280,14 +274,21 @@ export function generatedTicks({
     );
   }
 
-  // Without the candidate counts, isHighVolume applies exactly row 1.5's rule.
-  const ruleHighVolume = isHighVolume({ contactSheetCount, durationSec, densificationWindowCount });
+  const candidateCount = selection?.candidateCount ?? 0;
+  const targetMinFrames = selection?.targetMinFrames ?? 0;
+  const ruleHighVolume = isHighVolume({
+    candidateCount,
+    targetMinFrames,
+    contactSheetCount,
+    durationSec,
+    densificationWindowCount,
+  });
   if (selection && recordedHighVolume === ruleHighVolume) {
     const hours = (durationSec / 3600).toFixed(1);
     ticks.set(
       "1.5",
       generatedEvidence(
-        `highVolume=${recordedHighVolume} matches the rule for ${contactSheetCount} sheets, ${hours}h, ${densificationWindowCount} densification windows`,
+        `highVolume=${recordedHighVolume} matches \`isHighVolume\` for ${contactSheetCount} sheets, ${hours}h, ${densificationWindowCount} densification windows, ${candidateCount} candidates against targetMinFrames ${targetMinFrames}`,
       ),
     );
   }
@@ -313,9 +314,11 @@ function readTextIfExists(filePath) {
 
 /**
  * Write the checklist. With `force`, an existing checklist is regenerated (floors,
- * signals, per-sheet rows) and keeps its ticks and Resume notes, except ticks on rows
- * whose criteria changed: those are dropped and listed on stdout. Each run then ticks the
- * still-unticked rows `generatedTicks` proves, with their evidence lines.
+ * signals, per-sheet rows) and keeps its agent-written ticks, evidence and Resume notes,
+ * except ticks on rows whose criteria changed: those are dropped and listed on stderr.
+ * Generated evidence lines are rewritten: each run ticks the rows `generatedTicks` proves
+ * now, with fresh evidence lines, and a row ticked only by an earlier generated line is
+ * unticked once the generator no longer proves it.
  *
  * @param {string} sliceDir
  * @param {{ force?: boolean }} [options]
@@ -407,13 +410,10 @@ export function initWatchChecklist(sliceDir, { force = false } = {}) {
 
   template = stampCriteriaHashes(template);
   if (fs.existsSync(outPath)) {
-    const carried = carryOverProgress(
-      template,
-      dropCompanionNaTicks(fs.readFileSync(outPath, "utf8")),
-    );
+    const carried = carryOverProgress(template, fs.readFileSync(outPath, "utf8"));
     template = carried.text;
     if (carried.dropped.length > 0) {
-      writeStdout(`Dropped ticks (criteria changed since ticked): ${carried.dropped.join(", ")}`);
+      writeStderr(`Dropped ticks (criteria changed since ticked): ${carried.dropped.join(", ")}`);
     }
   }
   template = applyGeneratedTicks(
