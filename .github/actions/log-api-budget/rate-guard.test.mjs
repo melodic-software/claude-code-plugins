@@ -399,6 +399,32 @@ test("a call in flight while a latching answer is still being read is not sent",
   }
 });
 
+// A stop its headers alone show is set before the body is read, so a body
+// that never arrives leaves the pool stopped, not open.
+test("a latching answer whose body never arrives still stops the next call", async () => {
+  const answers = {
+    "a 403 with remaining 0": [403, PRIMARY[1]],
+    "a 503 with Retry-After": [503, { "retry-after": "120" }],
+  };
+  for (const [name, [status, headers]] of Object.entries(answers)) {
+    const sent = [];
+    const { latch } = latchFor();
+    const guarded = latch.guard(async (url) => {
+      sent.push(url);
+      return url === URL_A ? new Response(new ReadableStream({ start() {} }), { status, headers }) : new Response("{}", { status: 200 });
+    });
+    const first = guarded(URL_A);
+    first.catch(() => {});
+    for (let tick = 0; tick < 20; tick += 1) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.equal(sent.length, 1, `${name}: the first call was sent`);
+    assert.notEqual(latch.until(URL_B), null, `${name}: the pool is stopped while the body is pending`);
+    await assert.rejects(guarded(URL_B), RateLimitStop, `${name}: the second call was refused`);
+    assert.deepEqual(sent, [URL_A], `${name}: only the first call was sent`);
+  }
+});
+
 test("a 5xx without retry-after holds nothing", async () => {
   const gh = fakeGitHub([[503, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4999", "x-ratelimit-reset": "1792751600" }, ""], [200]]);
   const { latch, lines, failed } = latchFor();

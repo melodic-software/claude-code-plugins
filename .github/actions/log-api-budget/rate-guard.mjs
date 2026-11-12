@@ -698,25 +698,42 @@ export function createRateLimitLatch({
   async function observe(url, response, method = "GET", token = undefined, resend = false) {
     const pool = poolOf(url);
     const needsBody = SIGNALS.statuses.includes(response.status) || pool === "graphql" || response.status >= 500;
-    const body = needsBody ? await response.clone().text().catch(() => "") : null;
     const limitCap = margin(pool, "limit-cap", token);
     const stopFloor = margin(pool, "stop-floor", token);
-    const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: margin(pool, "read-floor", token), limitCap, stopFloor });
+    const options = { now: now(), readFloor: margin(pool, "read-floor", token), limitCap, stopFloor };
+    // The in-process stop holds either way; a later step only sees a
+    // recorded one, so a failed write is named. Each distinct stop is set
+    // and written once.
+    const recorded = new Map();
+    const record = ({ pool: held, reset }) => {
+      const key = `${held} ${reset}`;
+      if (!recorded.has(key)) {
+        stops.set(held, Math.max(stops.get(held) ?? 0, reset));
+        let failed = "";
+        if (stopFile) {
+          try {
+            mkdirSync(dirname(stopFile), { recursive: true });
+            appendFileSync(stopFile, `${key}\n`);
+          } catch (error) {
+            failed = `; the stop could not be recorded in the job's stop file (${error?.code ?? error?.message}), so later steps do not see it`;
+          }
+        }
+        recorded.set(key, failed);
+      }
+      return recorded.get(key);
+    };
+    // What the headers alone latch is set before any await, so a call in
+    // flight beside this one is refused while the body is read. The body
+    // can only add a latch (a message, RATE_LIMITED): classify ORs it in.
+    const early = classify({ url, status: response.status, headers: response.headers, body: null }, options);
+    if (early.latched) {
+      record(early);
+    }
+    const body = needsBody ? await response.clone().text().catch(() => "") : null;
+    const verdict = needsBody ? classify({ url, status: response.status, headers: response.headers, body }, options) : early;
     low.set(pool, verdict.low);
     if (verdict.latched) {
-      // Set before any await, so a call in flight beside this one is refused.
-      stops.set(verdict.pool, Math.max(stops.get(verdict.pool) ?? 0, verdict.reset));
-      // The in-process stop holds either way; a later step only sees a
-      // recorded one, so a failed write is named.
-      let unrecorded = "";
-      if (stopFile) {
-        try {
-          mkdirSync(dirname(stopFile), { recursive: true });
-          appendFileSync(stopFile, `${verdict.pool} ${verdict.reset}\n`);
-        } catch (error) {
-          unrecorded = `; the stop could not be recorded in the job's stop file (${error?.code ?? error?.message}), so later steps do not see it`;
-        }
-      }
+      const unrecorded = record(verdict);
       const refused = await refusedForLimit(response);
       const get = headerReader(response.headers);
       const [limit, remaining] = ["limit", "remaining"].map((name) => Number(get(`x-ratelimit-${name}`)));
