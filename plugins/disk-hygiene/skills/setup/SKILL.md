@@ -53,8 +53,7 @@ guard launches, and that is a WARN (see step 2), not a failure to downgrade.
 Launching the version probe proves only that something executes, not that it can run
 the guard's own source: Python 3.6, for example, rejects the guard's
 `from __future__ import annotations` and exits without a deny, which this plugin treats as the
-same fail-open (what such an exit does to the call: [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes), as of
-2026-11-10; recheck when that section changes what a `PreToolUse` exit other than 0 or 2 does). Unproven guard execution
+same fail-open (what such an exit does to the call: [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). Unproven guard execution
 fails closed like every other guard-relevant unknown in this plugin.
 
 1. **Node exec-form launcher registration**. All three registrations (both wired hooks in
@@ -69,8 +68,7 @@ fails closed like every other guard-relevant unknown in this plugin.
    - **Pointer**: when checking how exec form spawns `command`, or what a hook that fails to start
      does to the call, fetch [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)
      and [Block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails)
-     live. **As of**: 2026-10-11. **Recheck trigger**: either section changes what Windows needs
-     in `command`, how `shell` and `args` interact, or the default outcome of a failed launch.
+     live.
 
    **`node` and bash**, probed with the Bash tool, not through the launcher. FAIL if
    `command -v node` finds nothing: every guard and detector row runs `node`, so none launches and no guard
@@ -86,16 +84,12 @@ fails closed like every other guard-relevant unknown in this plugin.
    - **Pointer**: when checking whether Claude Code ships or needs Node, fetch
      [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live; for the
      failed-launch notice, [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes).
-     **As of**: 2026-10-11. **Recheck trigger**: the setup page lists Node as bundled or required,
-     the hooks section changes what a failed launch shows, or `hooks/hooks.json` stops using
-     `node` as `command`.
 2. **Python floor on `PATH`**. The interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
    that acts only on engine-referencing commands, and the skill-frontmatter belt `/disk-hygiene:clean`
    arms (the clean skill's safety model holds how long the plugin counts on it; for how long a skill
    hook stays registered, fetch [Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)
-   live, as of 2026-11-03; recheck when that section changes a skill hook's lifetime or resume
-   behavior). Both register unconditionally and resolve the kill switch by
+   live). Both register unconditionally and resolve the kill switch by
    reading `disk_hygiene_enabled` from managed settings first, then the user `settings.json`.) The required version has one origin: the `MIN_PYTHON`
    constant in `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py`, parse it from
    there with the Grep tool or this one command, alone on its line:
@@ -114,8 +108,7 @@ fails closed like every other guard-relevant unknown in this plugin.
    and falls through to `python`, then `py -3`.
    - **Pointer**: when checking what the alias stub does or how to clear it, fetch
      [Using Python on Windows: Troubleshooting](https://docs.python.org/3/using/windows.html#troubleshooting)
-     live. **As of**: 2026-11-03. **Recheck trigger**: that section stops covering the app
-     execution aliases.
+     live.
 
    **The ladder, not the first
    rung, is the verdict.** A host with real Python installed without "Add to PATH" but with the
@@ -215,9 +208,6 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

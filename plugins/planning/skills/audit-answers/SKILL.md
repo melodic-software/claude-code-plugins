@@ -17,8 +17,8 @@ invocation:
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines. How the harness runs a skill's injected commands:
-[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run), as
-of 2026-11-10; recheck when that section changes how injected commands run. Why they stay separate: the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
+Why they stay separate: the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
 "The pre-compute block runs as one shell invocation".
 
 ## Variables
@@ -98,8 +98,8 @@ whole answer set**. More validators add independent cross-checks on every answer
 answers between them, or "confirmed by all" becomes indistinguishable from "unseen by some". A
 validator MUST be a fresh-context subagent that never saw the interview, never a fork (the
 marketplace's self-grade fresh-eyes rule). What each kind of subagent starts from:
-[How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents), as of 2026-11-10;
-recheck when that section changes what a fork or a non-fork subagent starts from. Where the verdict is
+[How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents).
+Where the verdict is
 high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is
 enabled and set up** (e.g. the OpenAI Codex plugin, when its documented surface can take this
 artifact, invoked per its own docs), with the fresh-context same-vendor subagent as the fallback,

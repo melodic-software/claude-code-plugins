@@ -196,8 +196,6 @@ then refuses, and the escalation guard below applies as for any other dirty tree
 - **Pointer**: when deciding whether the reap step writes project settings, fetch
   [Uninstall a plugin the project enables](https://code.claude.com/docs/en/plugins/install#uninstall-a-plugin-the-project-enables)
   live; correlate with issue #6007 for the side effects that section does not cover.
-  **As of**: 2026-11-04. **Recheck trigger**: a Claude Code release changes plugin uninstall, or the
-  helper's restore stops firing on real teardowns.
 
 Five rules govern this step; each closes a way it could do real harm:
 

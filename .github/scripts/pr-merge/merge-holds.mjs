@@ -448,6 +448,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/apply-patch/apply-patch.mjs", "enforcement"],
   [".github/scripts/apply-patch/predicates.mjs", "enforcement"],
   [".github/scripts/apply-patch/protected-paths.mjs", "enforcement"],
+  [".github/scripts/lib/run-main.mjs", "enforcement"],
   [".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"],
   [".github/scripts/pr-unblock/feedback-dispatch.mjs", "enforcement"],
   [".github/scripts/pr-unblock/verify-notes.mjs", "enforcement"],

@@ -16,9 +16,6 @@ Every knowledge skill resolves where it writes from one rule, implemented once i
   - **Pointer**: for where `CLAUDE_PROJECT_DIR` points after a session enters a worktree, see
     <https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree>; for the write
     refusal, see <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation>.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: either section changes where `CLAUDE_PROJECT_DIR` points inside a
-    worktree session or which writes the isolation checks refuse.
 - **Work root**: the session root joined with the `library_dir` setting. Missing, empty, `.`, or a value
   that is exactly one `${user_config.<key>}` token left unsubstituted means the session root; any
   other value holding `${user_config.` is an error. A relative value

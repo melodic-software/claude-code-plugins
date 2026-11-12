@@ -205,8 +205,7 @@ and again after it, and compare the two.
 
 - **Pointer**: when you need the latency read's window, grouping, and cold-tier limits, read
   [Field read for Claude Code hook behavior](../../reference/techniques.md#h-ship-roll-out-read-the-field)
-  live. **As of**: 2026-10-02. **Recheck trigger**: `/harness-ops:observability` renames its
-  `latency` action, or that catalog entry changes the read's limits.
+  live.
 
 ## Boundary
 

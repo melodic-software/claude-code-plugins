@@ -77,9 +77,6 @@ says. Exit 3 means no store exists under `D`: after the envelope, add one line t
 - `D` is `${CLAUDE_PLUGIN_DATA}`. Pass it as a literal argument every time; never read it from
   the Bash tool's environment.
   - **Pointer**: <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>
-  - **As of**: 2026-10-07
-  - **Recheck trigger**: that table changes where `CLAUDE_PLUGIN_DATA` resolves in skill text or
-    the Bash tool.
 - The store and reports live under `D/audit-sessions/`; their layout, retention and schema
   versioning are in [reference/store-layout.md](reference/store-layout.md).
 - **Score history** (read by `trends`): `D/scores/<project-slug>.md`, the file
@@ -94,9 +91,6 @@ says. Exit 3 means no store exists under `D`: after the envelope, add one line t
   - **Pointer**: for what uninstall removes, see
     <https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps>; for
     transcript retention, see <https://code.claude.com/docs/en/data-usage#data-retention>.
-  - **As of**: 2026-11-04
-  - **Recheck trigger**: either section changes what uninstall deletes or how long transcripts
-    are kept.
 - **The collector parses transcript files directly**, although Claude Code does not document their
   entry format. That is a deliberate decision: no interface reports per-session Stop-hook wait or
   active time. The two metrics that read undocumented records (`hooks.stop_ms`, `time.active_s`)
@@ -104,7 +98,6 @@ says. Exit 3 means no store exists under `D`: after the envelope, add one line t
   rules' `basis` in `reference/sweep-rules.json`, and the measurements behind the thresholds in
   `reference/threshold-derivation.md`.
   - **Pointer**: <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>
-  - **As of**: 2026-10-18
   - **Recheck trigger**: that section names a supported interface for per-session hook or active
     time, or a drift run reports an invariant canary lost.
 - Scripts: `S="${CLAUDE_PLUGIN_ROOT}/skills/audit-sessions/scripts"`. Pick an interpreter that is
@@ -206,8 +199,6 @@ before it ends. It reads no plan, because no rule in `reference/sweep-rules.json
    stop: say the session id did not expand, so `now` cannot name this session. Collect nothing,
    and never guess an id or take one from the store.
    - **Pointer**: <https://code.claude.com/docs/en/skills#available-string-substitutions>
-   - **As of**: 2026-10-27
-   - **Recheck trigger**: that table renames or drops the session id substitution.
 2. **Collect this session.** Run Step 1 with `--session '<id>'` added. Collect reads only this
    session's transcript, and reads it again whenever it changed since it was stored. Its exits mean
    what Step 1 says.
@@ -316,9 +307,6 @@ without that flag, make the suggestion to the person. For `trends`, make the sug
 
 - **Pointer**: for what `/insights` reports, fetch
   <https://code.claude.com/docs/en/commands#all-commands> live, the `/insights` row.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that row changes what the command reports, or `/insights` becomes
-  model-invocable.
 
 ## Next
 

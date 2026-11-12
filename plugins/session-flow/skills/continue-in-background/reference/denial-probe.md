@@ -11,7 +11,7 @@ could say it, so a full read of both pages is still owed.
 | Decision | Pointer | As of | Recheck when |
 |---|---|---|---|
 | The launch report says a denial does not stop the launched session, that the denial is in its transcript and `claude logs` output, and that it reaches the final hand-off only when the resumed task reports it | Run C below, a host run on 2026-10-28 on Claude Code 2.1.312 ([#8444](https://github.com/melodic-software/claude-code-plugins/issues/8444)) | 2026-10-28 | A release note changes how a background session handles a classifier denial, or either section above starts saying what a background session does when an action is denied |
-| Keep "unverified" for whether a detached session stops on a prompt after auto mode falls back | <https://code.claude.com/docs/en/permission-modes#when-auto-mode-falls-back>; the probe made one denial and did not exercise the fallback | 2026-10-29 | A probe exercises auto mode's fallback in a `--bg` session |
+| Keep "unverified" for whether a detached session stops on a prompt after auto mode falls back | <https://code.claude.com/docs/en/permission-modes#when-auto-mode-falls-back>; the probe made one denial and did not exercise the fallback |  | A probe exercises auto mode's fallback in a `--bg` session |
 
 ## What the probe observed
 

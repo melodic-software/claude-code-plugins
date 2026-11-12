@@ -36,9 +36,6 @@ because no reachable publication establishes one.
 - **Pointer**: when the size of that risk matters, fetch
   [SkillsBench: Benchmarking How Well Agent Skills Work Across Diverse Tasks](https://arxiv.org/abs/2602.12670)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: a revision of that paper moves the task count or the negative-delta count,
-  or a later benchmark supersedes it.
 
 | Bucket | Rostered? | Permitted remedies | Creates a new artifact? |
 |---|---|---|---|

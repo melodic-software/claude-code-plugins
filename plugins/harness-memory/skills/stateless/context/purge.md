@@ -27,9 +27,8 @@ included") and offer to additionally check any repos the user names.
 
 We resolve `autoMemoryDirectory` from **every** settings scope present before purging; miss one and
 you purge the wrong place. Which scopes it is read from is in
-[`autoMemoryDirectory`](https://code.claude.com/docs/en/settings-reference#automemorydirectory)
-(as of 2026-11-03; recheck when that entry changes the scopes it is read from), and
-[official-guidance.md](../reference/official-guidance.md), "Storage location", holds the rest of
+[`autoMemoryDirectory`](https://code.claude.com/docs/en/settings-reference#automemorydirectory),
+and [official-guidance.md](../reference/official-guidance.md), "Storage location", holds the rest of
 the record. So:
 
 1. Read `autoMemoryDirectory` from every present settings scope: managed, local, project, and
@@ -72,11 +71,8 @@ Present to the user:
   If the intent is the full per-project wipe, point to `claude purge` instead, and state
   its scope to the user (what it deletes and what it leaves alone) from a live read of
   [Clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data), never
-  from memory (as of 2026-10-11; recheck when that section changes what `claude purge` deletes or
-  keeps). How this skill treats the command is in
-  [Out of scope for this skill](../reference/official-guidance.md#out-of-scope-for-this-skill-verified-deliberate)
-  (as of 2026-10-11; recheck when that section is renamed or moved, or drops its `claude purge`
-  record).
+  from memory. How this skill treats the command is in
+  [Out of scope for this skill](../reference/official-guidance.md#out-of-scope-for-this-skill-verified-deliberate).
 - If `$manifest` is empty, report that there is nothing to purge and stop (no-op).
 
 ## Step 3: Confirmation gate (with backup offer)
