@@ -506,12 +506,35 @@ jobs:
           echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
           echo "Denied the runner directory $runner_root and $work/_temp, $work/_actions."
 
+      # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
+      # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
+      # and docker access for the rest of the job.
+      - name: Isolate the runner
+        if: steps.stage.outputs.go == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      # Every binary this job runs comes from the locked root toolchain. Its
+      # install scripts run here, after sudo and docker access are gone.
+      - name: Install the locked root toolchain
+        timeout-minutes: 5
+        if: steps.stage.outputs.go == 'true'
+        run: |
+          cp .base/package.json .base/package-lock.json /opt/tools/
+          npm ci --prefix /opt/tools
+          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
+
       # Eval cases whose scaffold renders frames (explainer-video, knowledge)
       # name ffmpeg as a host tool, and the hosted image carries none. Same
       # BtbN static build, tag and SHA-256 as pr-require-checks.yml's demo-video
-      # leg, into /opt/tools/bin, which every eval run's sandbox can read.
+      # leg, into /opt/tools/bin, which every eval run's sandbox can read. After
+      # isolation, like shfmt below, so the binary never runs with sudo.
       - name: Install ffmpeg for eval scaffolds
-        if: steps.stage.outputs.go == 'true'
+        if: >-
+          steps.stage.outputs.go == 'true' &&
+          (contains(steps.plugins.outputs.list, 'plugins/explainer-video') ||
+          contains(steps.plugins.outputs.list, 'plugins/knowledge'))
         timeout-minutes: 3
         env:
           FFMPEG_RELEASE: autobuild-2026-09-30-13-08
@@ -533,25 +556,6 @@ jobs:
             echo "$line"
             [[ "$line" == *"$FFMPEG_BUILD"* ]] || { echo "::error::$tool reports '$line', not $FFMPEG_BUILD"; exit 1; }
           done
-
-      # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
-      # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
-      # and docker access for the rest of the job.
-      - name: Isolate the runner
-        if: steps.stage.outputs.go == 'true'
-        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
-        with:
-          install-subprocess-isolation: "true"
-
-      # Every binary this job runs comes from the locked root toolchain. Its
-      # install scripts run here, after sudo and docker access are gone.
-      - name: Install the locked root toolchain
-        timeout-minutes: 5
-        if: steps.stage.outputs.go == 'true'
-        run: |
-          cp .base/package.json .base/package-lock.json /opt/tools/
-          npm ci --prefix /opt/tools
-          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
 
       # The guardrails hooks read every Bash command through shfmt and refuse the
       # call without it, so a guardrails eval needs it on PATH. Same v3.14.1 pin
@@ -1365,12 +1369,35 @@ jobs:
           echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
           echo "Denied the runner directory $runner_root and $work/_temp, $work/_actions."
 
+      # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
+      # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
+      # and docker access for the rest of the job.
+      - name: Isolate the runner
+        if: steps.stage.outputs.go == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      # Every binary this job runs comes from the locked root toolchain. Its
+      # install scripts run here, after sudo and docker access are gone.
+      - name: Install the locked root toolchain
+        timeout-minutes: 5
+        if: steps.stage.outputs.go == 'true'
+        run: |
+          cp .base/package.json .base/package-lock.json /opt/tools/
+          npm ci --prefix /opt/tools
+          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
+
       # Eval cases whose scaffold renders frames (explainer-video, knowledge)
       # name ffmpeg as a host tool, and the hosted image carries none. Same
       # BtbN static build, tag and SHA-256 as pr-require-checks.yml's demo-video
-      # leg, into /opt/tools/bin, which every eval run's sandbox can read.
+      # leg, into /opt/tools/bin, which every eval run's sandbox can read. After
+      # isolation, like shfmt below, so the binary never runs with sudo.
       - name: Install ffmpeg for eval scaffolds
-        if: steps.stage.outputs.go == 'true'
+        if: >-
+          steps.stage.outputs.go == 'true' &&
+          (contains(steps.plugins.outputs.list, 'plugins/explainer-video') ||
+          contains(steps.plugins.outputs.list, 'plugins/knowledge'))
         timeout-minutes: 3
         env:
           FFMPEG_RELEASE: autobuild-2026-09-30-13-08
@@ -1392,25 +1419,6 @@ jobs:
             echo "$line"
             [[ "$line" == *"$FFMPEG_BUILD"* ]] || { echo "::error::$tool reports '$line', not $FFMPEG_BUILD"; exit 1; }
           done
-
-      # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
-      # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
-      # and docker access for the rest of the job.
-      - name: Isolate the runner
-        if: steps.stage.outputs.go == 'true'
-        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
-        with:
-          install-subprocess-isolation: "true"
-
-      # Every binary this job runs comes from the locked root toolchain. Its
-      # install scripts run here, after sudo and docker access are gone.
-      - name: Install the locked root toolchain
-        timeout-minutes: 5
-        if: steps.stage.outputs.go == 'true'
-        run: |
-          cp .base/package.json .base/package-lock.json /opt/tools/
-          npm ci --prefix /opt/tools
-          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
 
       # The guardrails hooks read every Bash command through shfmt and refuse the
       # call without it, so a guardrails eval needs it on PATH. Same v3.14.1 pin
@@ -2177,12 +2185,35 @@ jobs:
           echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
           echo "Denied the runner directory $runner_root and $work/_temp, $work/_actions."
 
+      # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
+      # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
+      # and docker access for the rest of the job.
+      - name: Isolate the runner
+        if: steps.stage.outputs.go == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      # Every binary this job runs comes from the locked root toolchain. Its
+      # install scripts run here, after sudo and docker access are gone.
+      - name: Install the locked root toolchain
+        timeout-minutes: 5
+        if: steps.stage.outputs.go == 'true'
+        run: |
+          cp .base/package.json .base/package-lock.json /opt/tools/
+          npm ci --prefix /opt/tools
+          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
+
       # Eval cases whose scaffold renders frames (explainer-video, knowledge)
       # name ffmpeg as a host tool, and the hosted image carries none. Same
       # BtbN static build, tag and SHA-256 as pr-require-checks.yml's demo-video
-      # leg, into /opt/tools/bin, which every eval run's sandbox can read.
+      # leg, into /opt/tools/bin, which every eval run's sandbox can read. After
+      # isolation, like shfmt below, so the binary never runs with sudo.
       - name: Install ffmpeg for eval scaffolds
-        if: steps.stage.outputs.go == 'true'
+        if: >-
+          steps.stage.outputs.go == 'true' &&
+          (contains(steps.plugins.outputs.list, 'plugins/explainer-video') ||
+          contains(steps.plugins.outputs.list, 'plugins/knowledge'))
         timeout-minutes: 3
         env:
           FFMPEG_RELEASE: autobuild-2026-09-30-13-08
@@ -2204,25 +2235,6 @@ jobs:
             echo "$line"
             [[ "$line" == *"$FFMPEG_BUILD"* ]] || { echo "::error::$tool reports '$line', not $FFMPEG_BUILD"; exit 1; }
           done
-
-      # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
-      # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
-      # and docker access for the rest of the job.
-      - name: Isolate the runner
-        if: steps.stage.outputs.go == 'true'
-        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
-        with:
-          install-subprocess-isolation: "true"
-
-      # Every binary this job runs comes from the locked root toolchain. Its
-      # install scripts run here, after sudo and docker access are gone.
-      - name: Install the locked root toolchain
-        timeout-minutes: 5
-        if: steps.stage.outputs.go == 'true'
-        run: |
-          cp .base/package.json .base/package-lock.json /opt/tools/
-          npm ci --prefix /opt/tools
-          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
 
       # The guardrails hooks read every Bash command through shfmt and refuse the
       # call without it, so a guardrails eval needs it on PATH. Same v3.14.1 pin
