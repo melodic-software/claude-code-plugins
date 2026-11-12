@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.28] - 2026-11-12
+
+### Changed
+
+- `block-unresolved-pr-merge` reads the gate's check run as `CI Status`, else `ci-status` on a head
+  tested before the rename, and treats the `ci-status` alias of a superseded `CI Status` in the
+  same Actions run as superseded with it.
+
 ## [3.0.27] - 2026-11-11
 
 ### Changed

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/planning/shared/*.py
 # Part c of the page alignment check, the sizes align.js PARTS puts in c; align-a.test.sh and align-b.test.sh run
 # the rest, and align-run.sh runs each part.
 #   bash plugins/planning/shared/tests/align-c.test.sh

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/planning/skills/*/SKILL.md
 # Tripwire contract test: each planning stage names the one level it decides
 # (behavior, interfaces and contracts, files and symbols). This test fails
 # loudly if a prose edit drops, duplicates or swaps one of those lines.

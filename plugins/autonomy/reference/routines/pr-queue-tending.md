@@ -9,7 +9,8 @@ humans each stalled PR is waiting on.
 Silently stalling PRs are the toil addressed: open PRs go stale waiting on a forgotten
 review, red CI nobody noticed, or an unanswered review thread, and each one is rediscovered
 only when someone trips over it. The sweep does the recurring pass over the whole queue and
-turns every stall into a named nudge, so PRs wait on decisions, not on attention.
+turns every stall into a named nudge, so a PR waits only on a decision, never because
+nobody noticed it.
 
 ## Trigger and cadence
 
@@ -75,7 +76,7 @@ Single-posture identity: `pr-queue-tending` (bare class token).
 | Connector entitlements | none. Access is `repo`, so the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
 | Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
 | `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). None: `executor_class` is deprecated and caps nothing. Merge policy for this identity is n/a (`C1`) |
-| Repo needs | tracker binding via the work-item tracker seam (the `tracker` mapping of `docs/conventions/work-items.yaml`, else the legacy `.work-item-tracker.json`, + adapter `capabilities.json`); CI-config presence (ownerless repo-file probe owned by the resolution contract) so CI outcomes are readable; either absence is `unknown` or `unsupported` per probe outcome |
+| Repo needs | tracker binding via the work-item tracker seam (the `tracker` mapping of `docs/conventions/work-items.yaml`, + adapter `capabilities.json`); CI-config presence (ownerless repo-file probe owned by the resolution contract) so CI outcomes are readable; either absence is `unknown` or `unsupported` per probe outcome |
 
 ## Admission and escalation
 

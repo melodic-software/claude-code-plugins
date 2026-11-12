@@ -1,12 +1,11 @@
 """The tracker binding reader: the `tracker` mapping of
-docs/conventions/work-items.yaml binds first, the legacy root
-.work-item-tracker.json binds a repository that has not moved it, and with
-neither the caller's default applies.
+docs/conventions/work-items.yaml binds, a root .work-item-tracker.json never
+does, and with no binding the caller's default applies.
 
 Expected values come from the work-items seam's binding discovery
 (plugins/work-items/tools/work-item-tracker/lib/binding.sh `wit_find_binding`):
-a YAML file with no `tracker` key falls through to the legacy file, and a YAML
-file that does not parse is an error, never a fallback.
+a YAML file with no `tracker` key binds nothing, and a YAML file that does not
+parse is an error.
 """
 
 from __future__ import annotations
@@ -23,14 +22,25 @@ import babysit_merge_skip as skip
 import babysit_tracker_binding as binding
 
 YAML = "docs/conventions/work-items.yaml"
-LEGACY = ".work-item-tracker.json"
+RETIRED = ".work-item-tracker.json"
 ROLE = "human-gated"
 DEFAULT = "needs-human"
 
 
-def legacy(label: object) -> str:
+def retired(label: object) -> str:
     config = {"role_labels": {ROLE: label}}
     return json.dumps({"schema_version": "1.0", "config": config})
+
+
+def yaml_binding(label: str) -> str:
+    return (
+        "tracker:\n"
+        "  schema_version: '1.0'\n"
+        "  provider: github\n"
+        "  config:\n"
+        "    role_labels:\n"
+        f"      {ROLE}: {label}\n"
+    )
 
 
 class RoleLabel(unittest.TestCase):
@@ -44,62 +54,47 @@ class RoleLabel(unittest.TestCase):
         return binding.role_label(read, policy.yaml_records, ROLE, DEFAULT)
 
     def test_the_paths_are_the_ones_the_seam_reads(self) -> None:
-        self.assertEqual(binding.PATHS, (YAML, LEGACY))
+        self.assertEqual(binding.PATHS, (YAML,))
 
     def test_the_yaml_binding_maps_the_role(self) -> None:
-        text = (
-            "tracker:\n"
-            "  schema_version: '1.0'\n"
-            "  provider: github\n"
-            "  config:\n"
-            "    role_labels:\n"
-            f"      {ROLE}: ' human-review '\n"
-        )
-        files = {YAML: text, LEGACY: legacy("from-json")}
+        files = {YAML: yaml_binding("' human-review '"), RETIRED: retired("from-json")}
         self.assertEqual(self.label(files), "human-review")
         self.assertEqual(self.reads, [YAML])
 
     def test_a_yaml_binding_that_maps_no_role_is_the_default(self) -> None:
-        # It binds, so the legacy file is never read.
-        files = {YAML: "tracker:\n  provider: github\n", LEGACY: legacy("from-json")}
+        files = {YAML: "tracker:\n  provider: github\n", RETIRED: retired("from-json")}
         self.assertEqual(self.label(files), DEFAULT)
         self.assertEqual(self.reads, [YAML])
 
-    def test_a_yaml_file_with_no_tracker_key_falls_back(self) -> None:
+    def test_a_yaml_file_with_no_tracker_key_is_the_default(self) -> None:
         other = "work_priority_order:\n  - 'priority: high'\n"
-        files = {YAML: other, LEGACY: legacy("from-json")}
-        self.assertEqual(self.label(files), "from-json")
-        self.assertEqual(self.reads, [YAML, LEGACY])
+        files = {YAML: other, RETIRED: retired("from-json")}
+        self.assertEqual(self.label(files), DEFAULT)
+        self.assertEqual(self.reads, [YAML])
 
-    def test_with_no_yaml_file_the_legacy_file_binds(self) -> None:
-        self.assertEqual(self.label({LEGACY: legacy(" from-json ")}), "from-json")
+    def test_a_root_json_file_alone_never_binds(self) -> None:
+        self.assertEqual(self.label({RETIRED: retired("from-json")}), DEFAULT)
+        self.assertEqual(self.reads, [YAML])
 
-    def test_a_blank_or_non_string_label_is_the_default(self) -> None:
-        for value in ("", "  ", 7, None):
+    def test_a_blank_label_is_the_default(self) -> None:
+        for value in ("''", "'  '"):
             with self.subTest(value=value):
-                self.assertEqual(self.label({LEGACY: legacy(value)}), DEFAULT)
+                self.assertEqual(self.label({YAML: yaml_binding(value)}), DEFAULT)
 
-    def test_with_neither_file_the_default_applies(self) -> None:
+    def test_with_no_file_the_default_applies(self) -> None:
         self.assertEqual(self.label({}), DEFAULT)
-        self.assertEqual(self.reads, [YAML, LEGACY])
+        self.assertEqual(self.reads, [YAML])
 
     def test_a_yaml_file_that_does_not_parse_raises(self) -> None:
-        files = {YAML: "tracker: {provider: github}\n", LEGACY: legacy("from-json")}
+        files = {YAML: "tracker: {provider: github}\n"}
         with self.assertRaises(policy.PolicyReadError):
             self.label(files)
 
     def test_a_scalar_tracker_key_raises(self) -> None:
-        # The seam counts it as a binding and rejects it; it never falls back.
-        files = {YAML: "tracker: github\n", LEGACY: legacy("from-json")}
+        # The seam counts it as a binding and rejects it.
+        files = {YAML: "tracker: github\n"}
         with self.assertRaises(binding.BindingError):
             self.label(files)
-
-    def test_an_empty_legacy_file_is_the_default(self) -> None:
-        self.assertEqual(self.label({LEGACY: " \n"}), DEFAULT)
-
-    def test_a_legacy_file_that_is_not_json_raises(self) -> None:
-        with self.assertRaises(binding.BindingError):
-            self.label({LEGACY: "{ not json"})
 
     def test_a_failed_read_passes_through(self) -> None:
         def read(path: str) -> str | None:
@@ -110,7 +105,7 @@ class RoleLabel(unittest.TestCase):
 
 
 class SkipKeysOnTheBinding(unittest.TestCase):
-    def test_the_skip_key_covers_both_binding_files(self) -> None:
+    def test_the_skip_key_covers_the_binding_file(self) -> None:
         self.assertLessEqual(set(binding.PATHS), set(skip.MAIN_PATHS))
 
 

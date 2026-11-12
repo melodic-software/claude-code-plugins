@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/*/hooks/hooks.json
 # Pins which hooks.json rows set "onFailure" (#9982). The hook-budget contract,
 # "Which rows set onFailure: block", names exactly the rows that set the key;
 # every other row, the advisory and SessionStart rows included, leaves it unset.

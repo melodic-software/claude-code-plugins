@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: .claude-plugin/marketplace.json
 # Black-box contract test for the check-only carve-out assertions in
 # validate-plugin-contracts.mjs.
 #

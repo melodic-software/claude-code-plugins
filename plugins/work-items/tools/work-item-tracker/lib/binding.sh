@@ -10,11 +10,12 @@ _WIT_BINDING_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_WIT_BINDING_LIB_DIR/labels.sh"
 
 # The repository's one YAML parser and its convention-home resolver, as the plugin's
-# generated copies (scripts/shared-copies.txt). A vendored seam without them reads
-# only the legacy JSON binding.
+# generated copies (scripts/shared-copies.txt). Without them no binding resolves.
 WIT_YAML_PARSER="$_WIT_BINDING_LIB_DIR/../../../skills/triage/scripts/yaml-subset.awk"
 WIT_HOME_RESOLVER="$_WIT_BINDING_LIB_DIR/../../../lib/resolve-convention-home.sh"
 readonly WIT_DEFAULT_CONVENTION_HOME="docs/conventions"
+# The retired repo-root binding file. Discovery never reads it; its presence only
+# names the fix (wit_no_binding_reason), and /work-items:setup apply copies it.
 readonly WIT_LEGACY_BINDING=".work-item-tracker.json"
 # What an empty flow sequence reads as while the parser reads a binding, which turns
 # back into []. It opens with a control character no YAML scalar can hold (raw, it is
@@ -33,13 +34,13 @@ wit_project_root() {
 }
 
 # wit_convention_home <root>: the repo-relative convention home the pointer region
-# binds, or the default home when the repository binds none. Fails when it declined
-# a home, when no home applies (exit 5: the root is $HOME, an ancestor of it, or not
-# in a git work tree, so only the legacy JSON can bind it), or when the pointer is
-# broken (that message passes through to stderr).
+# binds, or the default home when the repository binds none. Fails 1 when it declined
+# a home or no home applies (the root is $HOME, an ancestor of it, or not in a git
+# work tree, so nothing can bind it), 2 when the shared copies are missing, and 3 when
+# the pointer is broken (that message passes through to stderr).
 wit_convention_home() {
   local home rc
-  [[ -f "$WIT_HOME_RESOLVER" && -f "$WIT_YAML_PARSER" ]] || return 1
+  [[ -f "$WIT_HOME_RESOLVER" && -f "$WIT_YAML_PARSER" ]] || return 2
   home="$(bash "$WIT_HOME_RESOLVER" --root "$1" 2>/dev/null)"
   rc=$?
   case "$rc" in
@@ -47,7 +48,7 @@ wit_convention_home() {
   1) printf '%s\n' "$WIT_DEFAULT_CONVENTION_HOME" ;;
   3)
     bash "$WIT_HOME_RESOLVER" --root "$1" >/dev/null
-    return 1
+    return 3
     ;;
   *) return 1 ;;
   esac
@@ -93,7 +94,7 @@ wit_yaml_records() {
 }
 
 # wit_yaml_has_binding <file>: true when the file sets a `tracker` key, or does not
-# parse (so the read names the error rather than falling back to the legacy file).
+# parse (so the read names the error rather than reporting no binding).
 wit_yaml_has_binding() {
   local records
   records="$(wit_yaml_records "$1" 2>/dev/null)" || return 0
@@ -104,7 +105,7 @@ wit_yaml_has_binding() {
 # Every scalar stays a string: the parser drops quotes, so a type guessed from the
 # text would turn a quoted id such as "10000" into a number. Every reader takes
 # numbers and booleans as text (jq -r, then a regex or string compare). An empty flow
-# sequence stays [], as the legacy JSON file writes it: jira and linear tell a present
+# sequence stays [], as a JSON binding writes it: jira and linear tell a present
 # empty list (a config error) from an absent key (the default) with has(). A key with
 # no value reads as absent (CONTRACT.md "Setup (binding file)").
 wit_yaml_binding_json() {
@@ -126,8 +127,8 @@ wit_yaml_binding_json() {
 }
 
 # wit_find_binding: echo the binding file path: the env override, else the `tracker`
-# mapping of <home>/work-items.yaml, else the legacy root .work-item-tracker.json.
-# Never a CWD-upward climb: a stray ancestor or home binding would silently capture
+# mapping of <home>/work-items.yaml. Fails when neither binds; the caller reports
+# wit_no_binding_reason. Never a CWD-upward climb: a stray ancestor or home binding would silently capture
 # every repo beneath it (#2941).
 wit_find_binding() {
   if [[ -n "${WORK_ITEM_TRACKER_BINDING:-}" ]]; then
@@ -145,8 +146,47 @@ wit_find_binding() {
       return 0
     fi
   fi
-  [[ -f "$root/$WIT_LEGACY_BINDING" ]] || return 1
-  printf '%s\n' "$root/$WIT_LEGACY_BINDING"
+  return 1
+}
+
+# wit_no_binding_reason: one line saying why wit_find_binding found no binding and the
+# fix: /work-items:setup check for a broken pointer, a reinstall for missing shared
+# copies, else /work-items:setup apply. A retired repo-root .work-item-tracker.json gets
+# its own line: apply copies it under tracker: in <home>/work-items.yaml.
+wit_no_binding_reason() {
+  local root home legacy=""
+  if [[ -n "${WORK_ITEM_TRACKER_BINDING:-}" ]]; then
+    printf 'no binding file at WORK_ITEM_TRACKER_BINDING=%s; unset it to read <home>/work-items.yaml, which /work-items:setup apply writes\n' "$WORK_ITEM_TRACKER_BINDING"
+    return 0
+  fi
+  root="$(wit_project_root)"
+  if [[ -z "$root" ]]; then
+    printf 'no binding: not in a git work tree and CLAUDE_PROJECT_DIR is unset; run /work-items:setup apply from the repository root\n'
+    return 0
+  fi
+  [[ -f "$root/$WIT_LEGACY_BINDING" ]] && legacy="$root/$WIT_LEGACY_BINDING no longer binds the tracker, and "
+  home="$(wit_convention_home "$root" 2>/dev/null)"
+  case $? in
+  0) ;;
+  2)
+    printf 'no binding: %sthe plugin is missing its shared copies %s or %s; reinstall the work-items plugin\n' "$legacy" \
+      "${WIT_HOME_RESOLVER#"$_WIT_BINDING_LIB_DIR/../../../"}" "${WIT_YAML_PARSER#"$_WIT_BINDING_LIB_DIR/../../../"}"
+    return 0
+    ;;
+  3)
+    printf 'no binding: %sthe convention-home pointer under %s is broken; run /work-items:setup check to see why\n' "$legacy" "$root"
+    return 0
+    ;;
+  *)
+    printf 'no binding: %sno convention home applies under %s (it declines one, is the home directory or an ancestor of it, or is not a git work tree); run /work-items:setup apply from a git work tree that binds a home\n' "$legacy" "$root"
+    return 0
+    ;;
+  esac
+  if [[ -n "$legacy" ]]; then
+    printf 'no binding: %s no longer binds the tracker; run /work-items:setup apply to copy it under tracker: in %s/work-items.yaml\n' "$root/$WIT_LEGACY_BINDING" "$home"
+  else
+    printf 'no binding: %s/%s/work-items.yaml sets no tracker: mapping; run /work-items:setup apply\n' "$root" "$home"
+  fi
 }
 
 # The only keys the personal override may refine; any other key there is a config
@@ -154,8 +194,9 @@ wit_find_binding() {
 readonly WIT_OVERRIDE_ALLOWED_PATHS='[["config","lease_ttl_hours"],["config","lease_ttl_minutes"],["config","jira","auth_email"],["config","jira","auth_env"],["config","linear","auth_env"],["config","gitea","auth_env"],["docs"]]'
 
 # wit_override_path <binding-path>: echo where the personal override sits beside that
-# binding (work-items.local.yaml beside a YAML binding, else .work-item-tracker.local.json),
-# whether or not it exists.
+# binding (work-items.local.yaml beside a YAML binding; beside a JSON file the
+# WORK_ITEM_TRACKER_BINDING override names, .work-item-tracker.local.json), whether or
+# not it exists.
 wit_override_path() {
   local dir name=".work-item-tracker.local.json"
   [[ "$1" == *.yaml ]] && name="work-items.local.yaml"
@@ -173,7 +214,7 @@ wit_find_override() {
 }
 
 # wit_binding_layer_json <path>: one layer as a JSON value: the `tracker` mapping of
-# a YAML file, else the whole JSON file.
+# a YAML file, else (a JSON file the env override names) the whole file.
 wit_binding_layer_json() {
   if [[ "$1" == *.yaml ]]; then
     wit_yaml_binding_json "$1"
@@ -292,9 +333,6 @@ wit_read_binding() {
   local path="$1" json version provider ttl storage human_gated autonomous_eligible recurring_maintenance container minutes
   local owner_decision hold_labels hold_states hold_state_labels wayfind
   json="$(wit_effective_binding_json "$path")" || return 1
-  if [[ "$path" == */"$WIT_LEGACY_BINDING" && "$path" != "${WORK_ITEM_TRACKER_BINDING:-}" ]]; then
-    printf 'work-item-tracker: notice: read the legacy binding %s; move it under tracker: in <home>/work-items.yaml (CONTRACT.md "Setup (binding file)")\n' "$path" >&2
-  fi
   version="$(jq -r '.schema_version // empty' <<<"$json")"
   [[ "$version" == 1.* ]] || { wit_invalid "$path" schema_version "$version"; return 1; }
   provider="$(jq -r '.provider // empty' <<<"$json")"

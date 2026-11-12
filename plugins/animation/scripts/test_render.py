@@ -1,3 +1,4 @@
+# test-scope: plugins/animation/.claude-plugin/plugin.json
 """render.py and capture.mjs over a real headless render. Needs node and playwright-core with Chromium (the
 capture.mjs --probe lookup) and skips without them, or fails with ANIMATION_REQUIRE_DEPS=1."""
 import json
