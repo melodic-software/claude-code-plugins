@@ -60,6 +60,8 @@ import {
   commitPulls,
   createGitHub,
   detailSuffix,
+  ETAG,
+  GitHubError,
   graphQLReader,
   isFault,
   loadTrustedList,
@@ -467,12 +469,47 @@ export function draftJudgments(github, repository, head) {
   };
 }
 
+// Most names answer empty. The ETag of the first exactly empty first page a
+// client reads is sent as If-None-Match on every later first page, and GitHub
+// answers a name whose listing is still that empty body with a 304, which
+// does not count against the primary rate limit. The ETag follows the body
+// across names (babysit_verify_evidence.py EMPTY_ETAG_SUFFIX); GitHub
+// documents it per URL only. Were that to stop holding, each read is a 200 as
+// before: a 304 can only stand for the body the ETag came from, which was empty.
+//   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api>,
+//   "Use conditional requests".
+//   As-of: 2026-11-12.
+//   Recheck trigger: a name read that sent the ETag answers 304 while it holds
+//   an artifact, or no not-modified reaches the job's api-calls notice.
+const emptyListingTags = new WeakMap();
+const ETAG_FORM = /^(W\/)?"[!#-~]{1,200}"$/;
+
 // Every artifact with exactly this name; a read that fails throws.
 async function artifactsNamed(github, repository, name) {
   const artifacts = [];
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     const path = `/repos/${repository}/actions/artifacts?name=${encodeURIComponent(name)}&per_page=100&page=${page}`;
-    const batch = (await github("GET", path))?.artifacts ?? [];
+    const tag = page === 1 ? emptyListingTags.get(github) : undefined;
+    let listing;
+    try {
+      listing = await (tag === undefined ? github("GET", path) : github("GET", path, undefined, { "If-None-Match": tag }));
+    } catch (error) {
+      if (tag !== undefined && error instanceof GitHubError && error.status === 304) {
+        return [];
+      }
+      throw error;
+    }
+    if (
+      page === 1 &&
+      !emptyListingTags.has(github) &&
+      listing?.total_count === 0 &&
+      Array.isArray(listing.artifacts) &&
+      listing.artifacts.length === 0 &&
+      ETAG_FORM.test(listing[ETAG] ?? "")
+    ) {
+      emptyListingTags.set(github, listing[ETAG]);
+    }
+    const batch = listing?.artifacts ?? [];
     artifacts.push(...batch);
     if (batch.length < 100) {
       return artifacts;

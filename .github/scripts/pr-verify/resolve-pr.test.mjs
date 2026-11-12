@@ -19,7 +19,9 @@ import process from "node:process";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createHash } from "node:crypto";
+
+import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { CARRY_MAX, carryMain, closing, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
@@ -2429,6 +2431,163 @@ test("a rated read skips a head its own origin already rated, and only that", as
   assert.equal(await reason({ artifacts: [artifact(name, 903, true)], runs: { 903: rateRun(903) } }, { rated }), "ok");
   assert.equal(await reason({ pulls: [pull({ draft: true })] }, { rated }), "draft");
   assert.equal(await reason({ pulls: [HUMAN_PR] }, { rated }), "author-not-lane");
+});
+
+// fake()'s answers over HTTP through createGitHub. Each artifact-name listing
+// carries an ETag computed from its body, and one sent back as If-None-Match
+// that equals the current body's ETag answers 304 with no body. Sources:
+// GitHub's "Use conditional requests" ("If the response has not changed, you
+// will receive a 304 Not Modified response",
+// https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)
+// and the babysit reader's observation that the ETag follows the body across
+// names (babysit_verify_evidence.py, EMPTY_ETAG_SUFFIX). `etags: false`
+// sends none; `answer(listing)` may replace a listing's response.
+const tagOf = (text) => `W/"${createHash("sha256").update(text).digest("hex")}"`;
+const EMPTY_TAG = tagOf(JSON.stringify({ total_count: 0, artifacts: [] }));
+function overHttp(setup, { etags = true, answer } = {}) {
+  const github = fake(setup);
+  const listings = [];
+  const paths = [];
+  const fetchImpl = async (url, init) => {
+    const { pathname, search, searchParams } = new URL(url);
+    paths.push(pathname + search);
+    const json = await github(init.method, pathname + search, init.body === undefined ? undefined : JSON.parse(init.body));
+    const text = JSON.stringify(json);
+    if (!pathname.endsWith("/actions/artifacts")) {
+      return new Response(text, { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    const sent = init.headers["If-None-Match"] ?? null;
+    const tag = etags ? tagOf(text) : null;
+    const listing = { name: searchParams.get("name"), page: Number(searchParams.get("page")), sent, status: sent !== null && sent === tag ? 304 : 200 };
+    listings.push(listing);
+    const replaced = answer?.(listing);
+    if (replaced) {
+      listing.status = replaced.status;
+      return replaced;
+    }
+    if (listing.status === 304) {
+      return new Response(null, { status: 304, headers: { ETag: tag } });
+    }
+    return new Response(text, { status: 200, headers: { "Content-Type": "application/json", ...(tag && { ETag: tag }) } });
+  };
+  const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, stopFile: null, limits: () => ({}) });
+  return { github: createGitHub({ token: "t", fetchImpl, latch, log: () => {}, sleep: async () => {} }), listings, paths };
+}
+const resolveOverHttp = (http, options = {}) =>
+  resolvePull({ github: http.github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...options });
+const FAIL_NAME = `pr-verify-41-${HEAD}-fail`;
+const PASS_NAME = `pr-verify-41-${HEAD}-pass`;
+const NOTES_NAME = `pr-verify-41-${HEAD}-pass-notes`;
+const FAIL_I7_NAME = `pr-verify-41-${HEAD}-fail-i7`;
+
+test("after an empty listing that carries an ETag, later names send it and a 304 reads as an empty name", async () => {
+  const http = overHttp({});
+  assert.equal((await resolveOverHttp(http)).reason, "ok");
+  assert.deepEqual(http.listings, [
+    { name: FAIL_NAME, page: 1, sent: null, status: 200 },
+    { name: PASS_NAME, page: 1, sent: EMPTY_TAG, status: 304 },
+    { name: NOTES_NAME, page: 1, sent: EMPTY_TAG, status: 304 },
+    { name: FAIL_I7_NAME, page: 1, sent: EMPTY_TAG, status: 304 },
+  ]);
+});
+
+test("a name that holds an artifact answers 200 under the ETag and its run is judged as before", async () => {
+  // A pass: its run and compare are read and the head is already judged.
+  const pass = overHttp({ artifacts: [artifact(PASS_NAME, 77)], runs: { 77: verifyRun(77) } });
+  assert.equal((await resolveOverHttp(pass)).reason, "already-judged");
+  assert.deepEqual(pass.listings.slice(0, 2), [
+    { name: FAIL_NAME, page: 1, sent: null, status: 200 },
+    { name: PASS_NAME, page: 1, sent: EMPTY_TAG, status: 200 },
+  ]);
+  assert.ok(pass.paths.includes(`/repos/${REPO}/actions/runs/77`), pass.paths.join("\n"));
+  assert.ok(pass.paths.includes(`/repos/${REPO}/compare/${MAIN}...main`), pass.paths.join("\n"));
+  // Another pull request's FAIL listed after the empty own FAIL stops the judgment.
+  const other = { sha: HEAD, ref: "feat/other", repo: { full_name: REPO } };
+  const otherFail = `pr-verify-99-${HEAD}-fail`;
+  const fail = overHttp({ pulls: [pull(), pull({ number: 99, state: "closed", head: other })], artifacts: [artifact(otherFail, 78)], runs: { 78: verifyRun(78) } });
+  assert.equal((await resolveOverHttp(fail)).reason, "already-judged");
+  assert.deepEqual(fail.listings, [
+    { name: FAIL_NAME, page: 1, sent: null, status: 200 },
+    { name: otherFail, page: 1, sent: EMPTY_TAG, status: 200 },
+  ]);
+  // More than one page: page 1 sends the ETag, later pages read as before, and
+  // the one unexpired artifact on page 2 still counts.
+  const many = [...Array.from({ length: 100 }, () => artifact(PASS_NAME, 77, true)), artifact(PASS_NAME, 78)];
+  const paged = overHttp({ artifacts: many, runs: { 78: verifyRun(78) } });
+  assert.equal((await resolveOverHttp(paged)).reason, "already-judged");
+  assert.deepEqual(paged.listings.slice(0, 3), [
+    { name: FAIL_NAME, page: 1, sent: null, status: 200 },
+    { name: PASS_NAME, page: 1, sent: EMPTY_TAG, status: 200 },
+    { name: PASS_NAME, page: 2, sent: null, status: 200 },
+  ]);
+});
+
+test("a 304 is never read as artifacts, and only an empty listing's ETag is ever sent", async () => {
+  // A server that answers 304 to every conditional read, even for names that
+  // hold a counted pass and FAIL: the 304s judge nothing, so the head proceeds.
+  const lying = overHttp(
+    { artifacts: [artifact(PASS_NAME, 77), artifact(FAIL_I7_NAME, 78)], runs: { 77: verifyRun(77), 78: verifyRun(78) } },
+    { answer: (listing) => (listing.sent !== null ? new Response(null, { status: 304 }) : undefined) },
+  );
+  assert.equal((await resolveOverHttp(lying)).reason, "ok");
+  assert.ok(!lying.paths.some((apiPath) => /\/actions\/runs\/7[78]$/.test(apiPath)), lying.paths.join("\n"));
+  // A first listing that is not empty (an expired FAIL) gives no ETag to send:
+  // the next name is read unconditionally, and only its empty answer's ETag is sent after.
+  const expired = overHttp({ artifacts: [artifact(FAIL_NAME, 77, true)], runs: { 77: verifyRun(77) } });
+  assert.equal((await resolveOverHttp(expired)).reason, "ok");
+  assert.deepEqual(
+    expired.listings.map(({ sent }) => sent),
+    [null, null, EMPTY_TAG, EMPTY_TAG],
+  );
+  // A 304 to a read that sent no ETag is a failed read.
+  const unasked = overHttp({}, { answer: (listing) => (listing.sent === null ? new Response(null, { status: 304 }) : undefined) });
+  await assert.rejects(resolveOverHttp(unasked), (error) => error instanceof GitHubError && error.status === 304);
+});
+
+test("with no ETag on the empty listing, every name is read as before", async () => {
+  const http = overHttp({}, { etags: false });
+  assert.equal((await resolveOverHttp(http)).reason, "ok");
+  assert.deepEqual(http.listings, [
+    { name: FAIL_NAME, page: 1, sent: null, status: 200 },
+    { name: PASS_NAME, page: 1, sent: null, status: 200 },
+    { name: NOTES_NAME, page: 1, sent: null, status: 200 },
+    { name: FAIL_I7_NAME, page: 1, sent: null, status: 200 },
+  ]);
+  // The same reads, in the same order, as the plain fake makes them.
+  const plain = [];
+  const github = fake({});
+  await resolvePull({
+    github: async (method, apiPath, body) => (plain.push(apiPath), github(method, apiPath, body)),
+    repository: REPO,
+    upstreamRunId: String(RUN),
+    humans: HUMANS,
+    laneIdentity: LANE,
+  });
+  assert.deepEqual(http.paths, plain);
+});
+
+test("a conditional listing that fails still throws", async () => {
+  const refused = overHttp(
+    {},
+    { answer: (listing) => (listing.sent !== null ? new Response(JSON.stringify({ message: "API rate limit exceeded" }), { status: 403, headers: { "Content-Type": "application/json" } }) : undefined) },
+  );
+  await assert.rejects(resolveOverHttp(refused), (error) => error instanceof GitHubError && error.status === 403);
+});
+
+test("a proceeding job bills one artifact listing, and a judged one two", async () => {
+  // Before: an unjudged head billed four listings (own FAIL, pass, pass-notes,
+  // FAIL with -i7), and a head judged by a pass three (own FAIL, pass, pass-notes).
+  const billed = (http) => http.listings.filter(({ status }) => status !== 304).map(({ name }) => name);
+  const unjudged = overHttp({});
+  assert.equal((await resolveOverHttp(unjudged)).reason, "ok");
+  assert.deepEqual(billed(unjudged), [FAIL_NAME]);
+  const judgedByPass = overHttp({ artifacts: [artifact(PASS_NAME, 77)], runs: { 77: verifyRun(77) } });
+  assert.equal((await resolveOverHttp(judgedByPass)).reason, "already-judged");
+  assert.deepEqual(billed(judgedByPass), [FAIL_NAME, PASS_NAME]);
+  assert.deepEqual(
+    judgedByPass.listings.filter(({ status }) => status === 304).map(({ name }) => name),
+    [NOTES_NAME],
+  );
 });
 
 test("the failure and hold lines name RESOLVE_LANE when it is set", () => {
