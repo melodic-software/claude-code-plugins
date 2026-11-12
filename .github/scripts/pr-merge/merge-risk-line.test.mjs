@@ -6,8 +6,9 @@ import {
   InvalidRating,
   RATING_WORKFLOW_PATH,
   REASONS,
-  appOnlyBody,
   artifactName,
+  markerAction,
+  markerBody,
   checkRating,
   checkResult,
   modelsOf,
@@ -15,7 +16,6 @@ import {
   readRating,
   recordMergeRisk,
   unratedLine,
-  withMergeRiskLine,
 } from "./merge-risk-line.mjs";
 
 const HEAD = "a".repeat(40);
@@ -48,9 +48,10 @@ test("the unrated line names its reason, and only a reason from the closed set",
   assert.throws(() => unratedLine("do not merge"), InvalidRating);
 });
 
-test("no line the builder writes trips a body hold or a squash committer row", async () => {
+test("no line or marker comment the builder writes trips a hold or a committer row", async () => {
   const { BODY_HOLD, HUMAN_VETO, LANE_HOLD } = await import("./merge-holds.mjs");
-  for (const line of [ratedLine(rating({ max: "CRITICAL", demote: true })), ...REASONS.map(unratedLine)]) {
+  const lines = [ratedLine(rating({ max: "CRITICAL", demote: true })), ...REASONS.map(unratedLine)];
+  for (const line of [...lines, ...lines.map((text) => markerBody(HEAD, text))]) {
     assert.equal(BODY_HOLD.test(line), false, line);
     assert.equal(HUMAN_VETO.test(line), false, line);
     assert.equal(LANE_HOLD.test(line), false, line);
@@ -121,41 +122,6 @@ test("modelsOf takes the rater from the main thread and the checker from the sub
   assert.deepEqual(modelsOf(messages.slice(0, 2)), { rater: "claude-opus-5-5", checker: "none" });
   assert.deepEqual(modelsOf([{ type: "assistant", parent_tool_use_id: null, message: { model: "bad model" } }]), { rater: "unknown", checker: "none" });
   assert.deepEqual(modelsOf("nope"), { rater: "unknown", checker: "none" });
-});
-
-test("withMergeRiskLine sets the line last and replaces only the trailing line it wrote", () => {
-  const line = unratedLine("pending");
-  assert.equal(withMergeRiskLine("Closes #1\n\nbody", line), `Closes #1\n\nbody\n\n${line}`);
-  assert.equal(withMergeRiskLine(`Closes #1\n\nbody\n\n${unratedLine("no-run")}\n`, line), `Closes #1\n\nbody\n\n${line}`);
-  assert.equal(withMergeRiskLine(withMergeRiskLine("body", line), line), `body\n\n${line}`);
-  assert.equal(withMergeRiskLine(null, line), line);
-  // A Merge-Risk line mid-body is the author's text, not this function's.
-  assert.equal(withMergeRiskLine("a\r\nMerge-Risk: max=LOW\r\nb", line), `a\r\nMerge-Risk: max=LOW\r\nb\n\n${line}`);
-});
-
-test("withMergeRiskLine keeps a fenced example of the format, as this pull request's own body has", () => {
-  const line = unratedLine("pending");
-  const example = ["## Summary", "", "```text", "Merge-Risk: max=<level> demote=<bool>", "Merge-Risk: unrated reason=<reason>", "```", "", "## Fix"].join("\n");
-  assert.equal(withMergeRiskLine(example, line), `${example}\n\n${line}`);
-  // A body that ends inside an open fence keeps its fenced lines too.
-  const open = ["text", "```text", "Merge-Risk: max=LOW"].join("\n");
-  assert.equal(withMergeRiskLine(open, line), `${open}\n\n${line}`);
-  // After a closed fence, the trailing written line is still replaced.
-  assert.equal(withMergeRiskLine(`${example}\n\n${unratedLine("no-run")}`, line), `${example}\n\n${line}`);
-});
-
-test("appOnlyBody holds only for a body the lanes App alone wrote, its edit list read whole", () => {
-  const app = { __typename: "Bot", login: "lanes" };
-  const edits = (...editors) => ({ totalCount: editors.length, nodes: editors.map((editor) => ({ editor })) });
-  assert.equal(appOnlyBody({ author: app, userContentEdits: edits() }, "lanes"), true);
-  assert.equal(appOnlyBody({ author: app, userContentEdits: edits(app, app) }, "lanes"), true);
-  assert.equal(appOnlyBody({ author: app, userContentEdits: edits({ __typename: "User", login: "someone" }) }, "lanes"), false);
-  assert.equal(appOnlyBody({ author: app, userContentEdits: edits({ __typename: "Bot", login: "other-app" }) }, "lanes"), false);
-  assert.equal(appOnlyBody({ author: app, userContentEdits: edits(null) }, "lanes"), false);
-  assert.equal(appOnlyBody({ author: app, userContentEdits: { totalCount: 101, nodes: [] } }, "lanes"), false);
-  assert.equal(appOnlyBody({ author: app }, "lanes"), false);
-  assert.equal(appOnlyBody({ author: { __typename: "User", login: "lanes" }, userContentEdits: edits() }, "lanes"), false);
-  assert.equal(appOnlyBody({ author: app, userContentEdits: edits() }, undefined), false);
 });
 
 test("the artifact name is prefix, pr and head", () => {
@@ -235,98 +201,141 @@ test("readRating: a bad artifact is invalid, an unreadable one unreadable", asyn
   assert.equal(thrown.token, "unrated:unreadable");
 });
 
-// recordMergeRisk: the arm-side step. It never throws.
+// recordMergeRisk: the arm-side step. It never throws, never touches the
+// pull request body, and lists no comments: it reads only those it is given.
 const BOT = "melodic-automation-lanes";
 const APP = { __typename: "Bot", login: BOT };
-const pull = { number: 7, headRefOid: HEAD, body: "Closes #1\n\nbody", author: APP, userContentEdits: { totalCount: 0, nodes: [] } };
-function writer({ body = pull.body, failGet = false, failPatch = false } = {}) {
+const pull = { number: 7, headRefOid: HEAD };
+const PENDING_COMMENT = `<!-- merge-risk-line head=${HEAD} -->\nMerge-Risk: unrated reason=pending`;
+const appSaid = (databaseId, body, createdAt = "2026-11-12T01:00:00Z", author = APP) => ({ databaseId, author, body, createdAt, lastEditedAt: null });
+function writer({ fail = false, hang = false } = {}) {
   const sent = [];
   const github = async (method, path, payload) => {
     sent.push({ method, path, payload });
-    if (method === "GET" && failGet) throw new Error("GET refused");
-    if (method === "PATCH" && failPatch) throw new Error("PATCH refused");
-    if (method === "GET") return { body };
+    if (method === "GET") throw new Error(`a read the arm already made: GET ${path}`);
+    if (path.includes("/pulls/")) throw new Error(`a pull request body write: ${method} ${path}`);
+    if (fail) throw new Error(`${method} refused`);
+    if (hang) return new Promise(() => {});
     return {};
   };
   return { github, sent };
 }
+const pendingReads = () => fake({ listing: [runOf(5, { status: "queued", conclusion: null })] });
 
-test("recordMergeRisk writes the rated line as the body's last line", async () => {
+test("markerBody puts the head marker above the line", () => {
+  assert.equal(markerBody(HEAD, unratedLine("pending")), PENDING_COMMENT);
+});
+
+test("markerAction posts with no marker, leaves an exact one, patches a changed line and posts for a new head", () => {
+  const line = unratedLine("pending");
+  assert.deepEqual(markerAction([], { bot: BOT, head: HEAD, line }), { action: "post" });
+  assert.deepEqual(markerAction(undefined, { bot: BOT, head: HEAD, line }), { action: "post" });
+  assert.deepEqual(markerAction([appSaid(41, PENDING_COMMENT)], { bot: BOT, head: HEAD, line }), { action: "none" });
+  assert.deepEqual(markerAction([appSaid(41, `<!-- merge-risk-line head=${HEAD} -->\nMerge-Risk: unrated reason=no-run`)], { bot: BOT, head: HEAD, line }), { action: "patch", id: 41 });
+  assert.deepEqual(markerAction([appSaid(41, `<!-- merge-risk-line head=${OTHER} -->\nMerge-Risk: unrated reason=pending`)], { bot: BOT, head: HEAD, line }), { action: "post" });
+});
+
+test("markerAction reads only the lanes App's newest marker comment", () => {
+  const line = unratedLine("pending");
+  const older = appSaid(40, PENDING_COMMENT, "2026-11-12T01:00:00Z");
+  const newer = appSaid(41, `<!-- merge-risk-line head=${OTHER} -->\nMerge-Risk: unrated reason=pending`, "2026-11-12T02:00:00Z");
+  assert.deepEqual(markerAction([newer, older], { bot: BOT, head: HEAD, line }), { action: "post" });
+  // A person's or another app's look-alike is not the App's record.
+  const person = appSaid(50, PENDING_COMMENT, "2026-11-12T03:00:00Z", { __typename: "User", login: BOT });
+  const otherApp = appSaid(51, PENDING_COMMENT, "2026-11-12T03:00:00Z", { __typename: "Bot", login: "other-app" });
+  assert.deepEqual(markerAction([person, otherApp], { bot: BOT, head: HEAD, line }), { action: "post" });
+  // The marker must be the first line; quoting it lower down is not a record.
+  assert.deepEqual(markerAction([appSaid(52, `quoted:\n${PENDING_COMMENT}`)], { bot: BOT, head: HEAD, line }), { action: "post" });
+  // A same-head record with no id to patch is posted again.
+  assert.deepEqual(markerAction([{ ...appSaid(53, `<!-- merge-risk-line head=${HEAD} -->\nMerge-Risk: unrated reason=no-run`), databaseId: undefined }], { bot: BOT, head: HEAD, line }), { action: "post" });
+});
+
+test("recordMergeRisk posts one marker comment when the head has none", async () => {
   const { actions } = fake({ artifacts: [{ id: 11, name: artifactName(7, HEAD), expired: false, workflow_run: { id: 5 } }], runs: { 5: runOf(5) } });
   const { github, sent } = writer();
-  const result = await recordMergeRisk({ bot: BOT, pull, repository: REPO, actions, github, download: () => JSON.stringify(rating()) });
-  assert.equal(result.token, "rated");
-  assert.equal(result.wrote, true);
-  const patch = sent.find((call) => call.method === "PATCH");
-  assert.equal(patch.path, `/repos/${REPO}/pulls/7`);
-  assert.equal(patch.payload.body, `Closes #1\n\nbody\n\n${ratedLine(rating())}`);
+  const result = await recordMergeRisk({ bot: BOT, pull, comments: [], repository: REPO, actions, github, download: () => JSON.stringify(rating()) });
+  assert.deepEqual([result.token, result.wrote, result.skipped], ["rated", true, undefined]);
+  assert.deepEqual(sent, [
+    {
+      method: "POST",
+      path: `/repos/${REPO}/issues/7/comments`,
+      payload: { body: `<!-- merge-risk-line head=${HEAD} -->\nMerge-Risk: max=MEDIUM demote=false head=${HEAD} rubric=8.0.0 rater=claude-opus-5-5 checker=claude-opus-5-5` },
+    },
+  ]);
 });
 
-test("recordMergeRisk writes nothing when the line is already exact", async () => {
-  const { actions } = fake({ listing: [runOf(5, { status: "queued", conclusion: null })] });
-  const { github, sent } = writer({ body: `x\n\n${unratedLine("pending")}` });
-  const result = await recordMergeRisk({ bot: BOT, pull: { ...pull, body: `x\n\n${unratedLine("pending")}` }, repository: REPO, actions, github, download: () => "" });
-  assert.equal(result.wrote, false);
-  assert.equal(sent.some((call) => call.method === "PATCH"), false);
-});
-
-test("recordMergeRisk neither reads nor writes a body another account edited", async () => {
-  const { actions, calls } = fake({ listing: [] });
+test("recordMergeRisk patches the head's marker comment when its line changed", async () => {
+  const { actions } = fake({ artifacts: [{ id: 11, name: artifactName(7, HEAD), expired: false, workflow_run: { id: 5 } }], runs: { 5: runOf(5) } });
   const { github, sent } = writer();
-  const edited = { ...pull, userContentEdits: { totalCount: 1, nodes: [{ editor: { __typename: "User", login: "outsider" } }] } };
-  const result = await recordMergeRisk({ bot: BOT, pull: edited, repository: REPO, actions, github, download: () => "" });
-  assert.deepEqual([result.token, result.wrote, result.skipped], ["skipped", false, "untrusted-body"]);
-  assert.deepEqual(calls, []);
+  const result = await recordMergeRisk({ bot: BOT, pull, comments: [appSaid(41, PENDING_COMMENT)], repository: REPO, actions, github, download: () => JSON.stringify(rating()) });
+  assert.deepEqual([result.token, result.wrote], ["rated", true]);
+  assert.deepEqual(sent, [
+    {
+      method: "PATCH",
+      path: `/repos/${REPO}/issues/comments/41`,
+      payload: { body: `<!-- merge-risk-line head=${HEAD} -->\nMerge-Risk: max=MEDIUM demote=false head=${HEAD} rubric=8.0.0 rater=claude-opus-5-5 checker=claude-opus-5-5` },
+    },
+  ]);
+});
+
+test("recordMergeRisk writes nothing when the head's marker comment already holds the line", async () => {
+  const { actions } = pendingReads();
+  const { github, sent } = writer();
+  const result = await recordMergeRisk({ bot: BOT, pull, comments: [appSaid(41, PENDING_COMMENT)], repository: REPO, actions, github, download: () => "" });
+  assert.deepEqual([result.token, result.wrote, result.skipped], ["unrated:pending", false, "exact"]);
   assert.deepEqual(sent, []);
 });
 
-test("recordMergeRisk skips the write when the body changed since the listing", async () => {
-  const { actions } = fake({ listing: [] });
-  const { github, sent } = writer({ body: "Closes #1\n\nbody\n\ndo not merge" });
-  const result = await recordMergeRisk({ bot: BOT, pull, repository: REPO, actions, github, download: () => "" });
-  assert.equal(result.wrote, false);
-  assert.equal(result.skipped, "body-changed");
-  assert.equal(sent.some((call) => call.method === "PATCH"), false);
+test("recordMergeRisk posts a new marker comment for a new head", async () => {
+  const { actions } = pendingReads();
+  const { github, sent } = writer();
+  const old = appSaid(41, `<!-- merge-risk-line head=${OTHER} -->\nMerge-Risk: unrated reason=pending`);
+  await recordMergeRisk({ bot: BOT, pull, comments: [old], repository: REPO, actions, github, download: () => "" });
+  assert.deepEqual(sent, [{ method: "POST", path: `/repos/${REPO}/issues/7/comments`, payload: { body: PENDING_COMMENT } }]);
+});
+
+test("recordMergeRisk records a pull request a person wrote or edited too: the comment is the App's own text", async () => {
+  const { actions } = pendingReads();
+  const { github, sent } = writer();
+  const edited = { ...pull, body: "Closes #1", author: { __typename: "User", login: "someone" }, userContentEdits: { totalCount: 1, nodes: [{ editor: { __typename: "User", login: "outsider" } }] } };
+  const result = await recordMergeRisk({ bot: BOT, pull: edited, comments: [], repository: REPO, actions, github, download: () => "" });
+  assert.equal(result.wrote, true);
+  assert.deepEqual(sent, [{ method: "POST", path: `/repos/${REPO}/issues/7/comments`, payload: { body: PENDING_COMMENT } }]);
 });
 
 test("recordMergeRisk records unrated when every read throws, and still writes", async () => {
   const { actions } = fake({ fail: new Set(["/actions/"]) });
   const { github, sent } = writer();
-  const result = await recordMergeRisk({ bot: BOT, pull, repository: REPO, actions, github, download: () => "" });
+  const result = await recordMergeRisk({ bot: BOT, pull, comments: [], repository: REPO, actions, github, download: () => "" });
   assert.equal(result.token, "unrated:unreadable");
-  assert.equal(sent.find((call) => call.method === "PATCH").payload.body.endsWith(unratedLine("unreadable")), true);
+  assert.deepEqual(sent.map((call) => call.payload.body), [`<!-- merge-risk-line head=${HEAD} -->\nMerge-Risk: unrated reason=unreadable`]);
 });
 
 test("recordMergeRisk records over-budget when a read hangs past the deadline", async () => {
   const actions = () => new Promise(() => {});
   const { github, sent } = writer();
   const started = Date.now();
-  const result = await recordMergeRisk({ bot: BOT, pull, repository: REPO, actions, github, download: () => "", readMs: 50, writeMs: 200 });
+  const result = await recordMergeRisk({ bot: BOT, pull, comments: [], repository: REPO, actions, github, download: () => "", readMs: 50, writeMs: 200 });
   assert.equal(result.token, "unrated:over-budget");
   assert.ok(Date.now() - started < 2000);
-  assert.equal(sent.find((call) => call.method === "PATCH").payload.body.endsWith(unratedLine("over-budget")), true);
+  assert.deepEqual(sent.map((call) => call.payload.body), [`<!-- merge-risk-line head=${HEAD} -->\nMerge-Risk: unrated reason=over-budget`]);
 });
 
-test("recordMergeRisk never throws when the GET or the PATCH fails or hangs", async () => {
+test("recordMergeRisk never throws when the comment write fails or hangs", async () => {
   const { actions } = fake({ listing: [] });
-  for (const options of [{ failGet: true }, { failPatch: true }]) {
-    const { github } = writer(options);
-    const result = await recordMergeRisk({ bot: BOT, pull, repository: REPO, actions, github, download: () => "" });
-    assert.equal(result.wrote, false);
-    assert.equal(result.skipped, "write-failed");
-  }
-  const hang = async (method) => (method === "GET" ? { body: pull.body } : new Promise(() => {}));
-  const result = await recordMergeRisk({ bot: BOT, pull, repository: REPO, actions, github: hang, download: () => "", writeMs: 50 });
-  assert.equal(result.wrote, false);
-  assert.equal(result.skipped, "write-failed");
+  const failed = await recordMergeRisk({ bot: BOT, pull, comments: [], repository: REPO, actions, github: writer({ fail: true }).github, download: () => "" });
+  assert.deepEqual([failed.wrote, failed.skipped], [false, "write-failed"]);
+  const hung = await recordMergeRisk({ bot: BOT, pull, comments: [], repository: REPO, actions, github: writer({ hang: true }).github, download: () => "", writeMs: 50 });
+  assert.deepEqual([hung.wrote, hung.skipped], [false, "write-failed"]);
 });
 
 test("recordMergeRisk survives a throwing download and a malformed pull", async () => {
   const { actions } = fake({ artifacts: [{ id: 11, name: artifactName(7, HEAD), expired: false, workflow_run: { id: 5 } }], runs: { 5: runOf(5) } });
-  const { github } = writer();
+  const { github, sent } = writer();
   const result = await recordMergeRisk({
     bot: BOT,
     pull,
+    comments: [],
     repository: REPO,
     actions,
     github,
@@ -335,8 +344,10 @@ test("recordMergeRisk survives a throwing download and a malformed pull", async 
     },
   });
   assert.equal(result.token, "unrated:unreadable");
-  const bad = await recordMergeRisk({ bot: BOT, pull: { number: "x", headRefOid: "no" }, repository: REPO, actions, github, download: () => "" });
-  assert.equal(bad.wrote, false);
+  const before = sent.length;
+  const bad = await recordMergeRisk({ bot: BOT, pull: { number: "x", headRefOid: "no" }, comments: [], repository: REPO, actions, github, download: () => "" });
+  assert.deepEqual([bad.wrote, bad.skipped], [false, "no-pull"]);
+  assert.equal(sent.length, before);
 });
 
 // ci-status loads clear-escalations.mjs, which imports enable-auto-merge.mjs,
