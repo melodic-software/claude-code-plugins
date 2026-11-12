@@ -9,11 +9,15 @@
 // upload, and waits for the newest pr-refine.yml run they name. Then it reads
 // the pull request: a head that moved (Refine pushed, or anyone else did) is
 // left to the newer head's own review (proceed=false); otherwise the review
-// runs (proceed=true). Every poll also reads the pull request, so a head that
-// moves mid-wait ends the wait at that poll rather than holding the newer
-// head's review in the per-PR queue. A head read as moved is read again after
-// one poll before anything ends on it; a second read that shows this head
-// again resumes the wait. No dispatcher run, no record, a record naming
+// runs (proceed=true). Every poll also reads the head, so a head that moves
+// mid-wait ends the wait at that poll rather than holding the newer head's
+// review in the per-PR queue. A poll reads the head from refs/pull/<n>/head,
+// which answers 304 while the head holds; the pull request itself never does,
+// since its body embeds the repository, whose pushed_at moves on every push.
+// A ref read that shows another head, or fails, falls back to reading the
+// pull request. A head read there as moved is read again after one poll
+// before anything ends on it; a second read that shows this head again
+// resumes the wait. No dispatcher run, no record, a record naming
 // any other run, a wait past its cap, or any read that fails runs the review,
 // as it ran before this job existed.
 //
@@ -25,7 +29,7 @@ import { pathToFileURL } from "node:url";
 
 import { budgetedFetch } from "../pr-unblock/request-budget.mjs";
 
-export const DEFAULTS = Object.freeze({ appearSeconds: 300, capSeconds: 2400, pollSeconds: 30 });
+export const DEFAULTS = Object.freeze({ appearSeconds: 300, capSeconds: 2400, pollSeconds: 60 });
 // A re-run or a later pull_request_target event adds a dispatcher run per
 // head; the record may sit on any of them.
 const DISPATCHER_RUNS = 5;
@@ -75,6 +79,18 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
     return pr.state !== "open" || pr.head?.sha !== head ? pr : null;
   }
 
+  // moved() for a poll, skipped while the head's ref still names this head.
+  // The ref route carries only the PR number, so no branch name reaches a
+  // rate-guard log line. A failed ref read costs what a poll cost before it.
+  async function polled() {
+    try {
+      if ((await api.get(`git/ref/pull/${number}/head`)).object?.sha === head) return null;
+    } catch {
+      // The pull request read below decides, and its failure is read-error.
+    }
+    return moved();
+  }
+
   function skip(pr, after) {
     say("notice", `skip the review: the head is now ${pr.head?.sha ?? "unknown"} (${pr.state}), whose own review runs (after ${after})`);
     return { proceed: false, reason: "head-moved" };
@@ -86,7 +102,7 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
     while (run.status !== "completed") {
       if (now() + pollMs > deadline) return null;
       await sleep(pollMs);
-      const pr = await moved();
+      const pr = await polled();
       if (pr) return { moved: pr };
       run = await api.get(`actions/runs/${run.id}`);
     }
@@ -118,7 +134,7 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
       );
       if (runs.length > 0 || now() + pollMs > start + appearMs) break;
       await sleep(pollMs);
-      const current = await moved();
+      const current = await polled();
       if (current) return skip(current, "waiting for a dispatcher run");
     }
     if (runs.length === 0) return await finish("no-dispatcher");
@@ -155,8 +171,9 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
   }
 }
 
-// A REST reader over budgetedFetch: ETag reuse keeps each repeat poll a 304
-// off the primary rate limit, and the rate guard records spend.
+// A REST reader over budgetedFetch: ETag reuse turns a repeat read of an
+// unchanged resource (the head's ref, a completed run) into a 304 off the
+// primary rate limit, and the rate guard records spend.
 export function createApi({ token, repository, apiUrl = "https://api.github.com", budget }) {
   return {
     async get(path) {

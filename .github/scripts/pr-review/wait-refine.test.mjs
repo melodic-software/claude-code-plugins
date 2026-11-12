@@ -3,8 +3,11 @@
 // skipped (its push starts its own review); every other outcome, a failed
 // read included, reviews. Run and artifact shapes follow the REST docs for
 // workflow runs and artifacts; the record name is the one
-// pr-unblock-dispatch.yml's refine job uploads. Times are the defaults
-// (300 s window, 2400 s cap, 30 s poll), computed by hand.
+// pr-unblock-dispatch.yml's refine job uploads. Times use the 300 s window,
+// 2400 s cap and a 30 s poll (INPUT; the default poll is 60 s), computed by
+// hand. Between polls the head is read from refs/pull/7/head, the ref GitHub
+// keeps for every pull request (git fetch origin pull/ID/head in the docs on
+// checking out pull requests locally).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -23,6 +26,10 @@ const DISPATCHER_ID = 500;
 const REFINE_ID = 900;
 const LIST = `actions/workflows/pr-unblock-dispatch.yml/runs?event=pull_request_target&head_sha=${HEAD}&per_page=100`;
 const INPUT = { number: 7, head: HEAD, repository: REPO, appearMs: 300_000, capMs: 2_400_000, pollMs: 30_000 };
+const PROBE = "git/ref/pull/7/head";
+// The Get a reference response shape (REST docs, git refs).
+const ref = (sha = HEAD) => ({ ref: "refs/pull/7/head", object: { type: "commit", sha } });
+const NOT_FOUND = new Error(`GET ${PROBE} returned 404`);
 
 const pull = (sha = HEAD, extra = {}) => ({ state: "open", head: { sha, repo: { full_name: REPO } }, base: { ref: "main" }, ...extra });
 const dispatcherRun = (extra = {}) => ({
@@ -39,8 +46,11 @@ const refineRun = (extra = {}) => ({ id: REFINE_ID, path: ".github/workflows/pr-
 const record = (id = REFINE_ID) => ({ artifacts: [{ name: `pr-unblock-target-dispatched-${COMMIT}-${id}` }] });
 
 // Each route answers a value, or a list it steps through one read at a time
-// (holding its last), or throws when the value is an Error.
+// (holding its last), or throws when the value is an Error. A world that
+// names no ref route answers the ref read 404, so each test that does not
+// name one shows the pull request read deciding, as before the ref read.
 function world(routes) {
+  routes = { [PROBE]: NOT_FOUND, ...routes };
   const reads = [];
   const seen = new Map();
   let t = 0;
@@ -231,7 +241,57 @@ test("any failed read: the review runs, with a warning", async () => {
   }
 });
 
+const reads = (w, path) => w.reads.filter((line) => line === path).length;
+const running = () => refineRun({ status: "in_progress", conclusion: null });
+
+test("an unchanged head is read from its ref at each poll: the pull request is read only at the start and the finish", async () => {
+  const w = world({ ...refined(steps(running(), running(), running(), refineRun())), [PROBE]: ref() });
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "refine-success" });
+  assert.equal(reads(w, PROBE), 3, "one ref read per poll, three polls");
+  assert.equal(reads(w, "pulls/7"), 2, "the start read and the finish read, none between");
+});
+
+test("an unchanged head is read from its ref while the dispatcher has not yet appeared", async () => {
+  const w = world({ ...refined(refineRun()), [LIST]: steps({ workflow_runs: [] }, { workflow_runs: [] }, { workflow_runs: [dispatcherRun()] }), [PROBE]: ref() });
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "refine-success" });
+  assert.equal(reads(w, PROBE), 2);
+  assert.equal(reads(w, "pulls/7"), 2, "the start read and the finish read, none between");
+});
+
+const apiReads = (w) => w.reads.filter((line) => !line.startsWith("log "));
+
+test("a ref showing another head falls back to the pull request reads: a move they confirm ends the wait", async () => {
+  const w = world({ ...refined(running(), steps(pull(), pull(MOVED))), [PROBE]: ref(MOVED) });
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: false, reason: "head-moved" });
+  assert.equal(w.elapsed(), 60_000, "one 30 s poll, then the 30 s confirming read, as before the ref read");
+  assert.deepEqual(apiReads(w).slice(-3), [PROBE, "pulls/7", "pulls/7"]);
+});
+
+test("a ref showing another head while the pull request still shows this one resumes the wait: the review runs", async () => {
+  const w = world({ ...refined(steps(running(), refineRun())), [PROBE]: ref(MOVED) });
+  assert.deepEqual(await decide(INPUT, w.deps), { proceed: true, reason: "refine-success" });
+  assert.equal(reads(w, PROBE), 1);
+  assert.equal(reads(w, "pulls/7"), 3, "the start read, the fallback read, the finish read");
+});
+
+test("a ref read that fails, or answers 404, or names no commit falls back to the pull request reads, never to read-error", async () => {
+  const failures = { "a 502": new Error(`GET ${PROBE} returned 502`), "a 404": NOT_FOUND, "no object": { ref: "refs/pull/7/head" } };
+  for (const [name, answer] of Object.entries(failures)) {
+    const moving = world({ ...refined(running(), steps(pull(), pull(MOVED))), [PROBE]: answer });
+    assert.deepEqual(await decide(INPUT, moving.deps), { proceed: false, reason: "head-moved" }, `${name}: a move the pull request reads confirm is skipped`);
+    assert.deepEqual(apiReads(moving).slice(-3), [PROBE, "pulls/7", "pulls/7"], name);
+    const closed = world({ ...refined(running(), steps(pull(), pull(HEAD, { state: "closed" }))), [PROBE]: answer });
+    assert.deepEqual(await decide(INPUT, closed.deps), { proceed: false, reason: "head-moved" }, `${name}: a closed pull request is not reviewed`);
+    const still = world({ ...refined(steps(running(), refineRun())), [PROBE]: answer });
+    assert.deepEqual(await decide(INPUT, still.deps), { proceed: true, reason: "refine-success" }, `${name}: an unchanged head waits for Refine`);
+  }
+});
+
 const ENV = { PR_NUMBER: "7", HEAD_SHA: HEAD, GITHUB_REPOSITORY: REPO, GITHUB_TOKEN: "t", GITHUB_OUTPUT: "/dev/null" };
+
+test("the default poll is 60 s, the owner's wait-refine poll decision", () => {
+  assert.equal(readEnv(ENV).pollMs, 60_000);
+});
 
 test("malformed env throws before any read", () => {
   for (const bad of [{ PR_NUMBER: "7x" }, { PR_NUMBER: "0" }, { HEAD_SHA: "abc" }, { HEAD_SHA: HEAD.toUpperCase() }, { GITHUB_TOKEN: "" }, { GITHUB_OUTPUT: undefined }, { GITHUB_REPOSITORY: "o" }, { WAIT_CAP_SECONDS: "-1" }]) {
@@ -268,25 +328,45 @@ function production(routes, { hold = true } = {}) {
   };
   const log = (line) => lines.push(line);
   const latch = createRateLimitLatch({ now: () => t, log, fail: () => (failed += 1), limits: () => ({}), stopFile: null, sleep, hold });
-  const api = createApi({ token: "t", repository: REPO, budget: budgetedFetch({ fetch, log, sleep, now: () => t, random: () => 0, latch }) });
-  return { sent, lines, failed: () => failed, deps: { api, now: () => t, sleep, log } };
+  const budget = budgetedFetch({ fetch, log, sleep, now: () => t, random: () => 0, latch });
+  const api = createApi({ token: "t", repository: REPO, budget });
+  return { sent, lines, failed: () => failed, budget, deps: { api, now: () => t, sleep, log } };
 }
 
 const ok = (body) => [200, body];
 
-test("over budgetedFetch, repeat polls go out conditional and a 304 reads as the last answer", async () => {
+// GitHub answers each pull request read 200 with a new ETag (the body embeds
+// the repository, whose pushed_at moves on every push), so only the ref read
+// can come back 304.
+test("over budgetedFetch, repeat polls read the ref conditional and a 304 reads as the last answer, with no pull request read", async () => {
   const p = production({
-    "pulls/7": [ok(pull()), 304],
+    "pulls/7": [ok(pull())],
+    [PROBE]: [ok(ref()), 304],
     [LIST]: [ok({ workflow_runs: [dispatcherRun()] })],
     [`actions/runs/${DISPATCHER_ID}/artifacts?per_page=100`]: [ok(record())],
-    [`actions/runs/${REFINE_ID}`]: [ok(refineRun({ status: "in_progress", conclusion: null })), 304, ok(refineRun())],
+    [`actions/runs/${REFINE_ID}`]: [ok(running()), 304, ok(running()), ok(refineRun())],
   });
   assert.deepEqual(await decide(INPUT, p.deps), { proceed: true, reason: "refine-success" });
   assert.deepEqual(
-    p.sent.filter((s) => s.path === `actions/runs/${REFINE_ID}`).map((s) => s.etag),
-    [null, `"actions/runs/${REFINE_ID}-0"`, `"actions/runs/${REFINE_ID}-0"`],
+    p.sent.filter((s) => s.path === PROBE).map((s) => s.etag),
+    [null, `"${PROBE}-0"`, `"${PROBE}-0"`],
+    "the first ref read is plain, each repeat carries its ETag",
   );
+  assert.deepEqual(
+    p.sent.filter((s) => s.path === `actions/runs/${REFINE_ID}`).map((s) => s.etag),
+    [null, `"actions/runs/${REFINE_ID}-0"`, `"actions/runs/${REFINE_ID}-0"`, `"actions/runs/${REFINE_ID}-2"`],
+  );
+  assert.equal(p.sent.filter((s) => s.path === "pulls/7").length, 2, "the start read and the finish read, none between");
+  assert.match(p.budget.summary(), /^api-calls rest=\d+ not-modified=3 /, "two ref 304s and one run 304");
   assert.ok(p.sent.every((s) => s.auth === "Bearer t"));
+});
+
+test("over a holding rate guard, a rate-limited ref read reviews, fails nothing and sends no pull request read after it", async () => {
+  const limited = [403, { message: "API rate limit exceeded for installation ID 1." }, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" }];
+  const p = production({ "pulls/7": [ok(pull())], [LIST]: [ok({ workflow_runs: [] })], [PROBE]: [limited] });
+  assert.deepEqual(await decide(INPUT, p.deps), { proceed: true, reason: "read-error" });
+  assert.equal(p.failed(), 0);
+  assert.deepEqual(p.sent.map((s) => s.path), ["pulls/7", LIST, PROBE], "the stopped pool sends nothing after the refusal");
 });
 
 test("over budgetedFetch, a head read fresh after a 200 moves the decision", async () => {
