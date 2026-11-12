@@ -213,8 +213,18 @@ function readText(file) {
   }
 }
 
+// realOr(p) -> p's physical path, or p itself when it does not exist.
+const realOr = (p) => {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+};
+
 // repoInfo(dir) -> the paths every action needs, or null outside a work tree.
-// ownConfig: this clone's local and worktree config files.
+// ownConfig: this clone's local and worktree config files, as physical paths,
+// so a symlinked or short-name spelling of dir still matches what git reports.
 export function repoInfo(dir) {
   const paths = ["hooks", "info/exclude", "config", "config.worktree"].flatMap((p) => ["--git-path", p]);
   const r = git(dir, ["rev-parse", "--show-toplevel", ...paths]);
@@ -225,7 +235,7 @@ export function repoInfo(dir) {
     top: root,
     hooksDir: abs(hooks),
     excludeFile: abs(exclude),
-    ownConfig: [abs(config), abs(worktreeConfig)],
+    ownConfig: [abs(config), abs(worktreeConfig)].map(realOr),
     hooksPath: git(root, ["config", "--get", "core.hooksPath"]).out,
   };
 }
@@ -1305,7 +1315,7 @@ function leftovers(info, plugin) {
       return next < 0 ? null : fileValues.get(d.file).splice(next, 1)[0].value;
     };
     for (const d of lines) {
-      const where = !d.file ? {} : ["system", "global"].includes(d.scope) ? { shared: true } : ownConfig.has(d.file) ? null : { included: true };
+      const where = !d.file ? {} : ["system", "global"].includes(d.scope) ? { shared: true } : ownConfig.has(realOr(d.file)) ? null : { included: true };
       const l = at(entry, d.from);
       l.declines.push({ key: d.key, scope: d.scope, file: d.file, value: valueOf(d), ...(where || unclear ? { keep: true, ...where } : {}) });
       if (carry) l.carry = carry;
