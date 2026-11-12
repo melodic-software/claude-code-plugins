@@ -35,7 +35,8 @@
     "О": "O", "о": "o", "Ο": "O", "ο": "o", "Ѕ": "S", "ѕ": "s", "Т": "T", "т": "t", "Τ": "T", "τ": "t", "Ν": "N", "Н": "N", "Δ": "D", "ԁ": "d" };
   const fold = s => s.replace(/./gu, c => LOOKS[c] || c);
   // A "SESSION DATA" marker however it is dressed: dash runs (spaced or not) around it, any separator between the words.
-  const MARKER = /(?:[\p{Pd}−_=~*#]+\s*)*(?:END[\s_\p{Pd}−]*)?SESSION[\s_\p{Pd}−]*DATA(?:\s*[\p{Pd}−_=~*#]+)*/giu;
+  // One dash character per repetition, so a long dash run with no marker after it fails in linear time.
+  const MARKER = /(?:[\p{Pd}−_=~*#]\s*)*(?:END[\s_\p{Pd}−]*)?SESSION[\s_\p{Pd}−]*DATA(?:\s*[\p{Pd}−_=~*#])*/giu;
 
   /** Session text for inside the data block: NFKC-normalized, format characters (zero-width and the like) dropped,
    *  and anything shaped like a SESSION DATA marker, look-alike letters included, replaced. */
