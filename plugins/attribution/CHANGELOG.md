@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.19.2] - 2026-11-12
+
+### Changed
+
+- Synced the shared library copies this plugin carries; their pointer records no longer carry an as-of date or recheck trigger.
+
 ## [0.19.1] - 2026-11-12
 
 ### Changed
