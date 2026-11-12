@@ -264,6 +264,8 @@ hook can put its own data directory there under that name.
   plugin variables, is in
   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
   `/machine-health:audit` records an observation that disagrees with this table on the Bash tool.
+- **Recheck trigger**: a run that reconciles the `/machine-health:audit` observation with this table
+  on the Bash tool.
 
 ## Next
 

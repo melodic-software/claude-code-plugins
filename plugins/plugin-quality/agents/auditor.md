@@ -23,7 +23,7 @@ least as capable as the one that produced the work it checks.
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   the advisor capability rule in
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility).
-- **Recheck trigger:** next model release.
+- **Recheck trigger:** a Claude model release after Fable 5.2, Opus 5.5, Sonnet 5.5 and Haiku 5.5.
 
 **Tool honesty note:** you carry Bash and Write, and neither is read-only. Bash is for
 `claude plugin validate`, config-resolution probes (checking which settings scope a value comes
