@@ -389,7 +389,7 @@ word into the skill content before the model sees it, but **only when the key is
 in a scope Claude Code reads `pluginConfigs` from, read live from
 [settings reference: pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
 with the precedence
-[settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) gives (as of 2026-11-10; recheck when either changes the scopes or their order). We treat a
+[settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) gives. We treat a
 project's `.claude/settings.json` or `.claude/settings.local.json` entry as doing nothing, and declaring the option in `plugin.json` alone does not make its value readable
 here either. See [context/scope-semantics.md](context/scope-semantics.md) for the read path, its
 pointer, and why it differs from `enabledPlugins`, which this same skill reads from project and
@@ -456,8 +456,7 @@ empty, which keeps the suggestion everywhere. Pass the names as `--quiet-auto-up
 here, or nothing, means no names: leave the flag out.
 
 For the option fields, the picker and where a value is stored, see
-[User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
-(as of 2026-10-27; recheck when that section changes the `options` or `default` fields).
+[User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
 ## Spoke paths
 
@@ -468,8 +467,6 @@ through the Read tool, or on the Bash tool's environment carrying `CLAUDE_SKILL_
 
 - **Pointer**: for where each `${…}` reference resolves, see
   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
-- **As of**: 2026-10-07
-- **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

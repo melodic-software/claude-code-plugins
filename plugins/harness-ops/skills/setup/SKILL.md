@@ -26,10 +26,7 @@ consumer's `.gitignore` to the consumer; the guard lives in a tree the plugin ow
 
 Official contract: when stating how `userConfig` values are prompted for or stored, fetch
 <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration> and
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored> live. As of
-2026-11-10. Recheck when either section stops saying Claude Code prompts for `userConfig` values
-or stores non-sensitive ones in user settings, or when a release note changes how `pluginConfigs`
-entries in project and local settings are treated.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored> live.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then the two
 bounded writes below. Non-interactive, never prompts.
@@ -197,9 +194,6 @@ The options live in Claude Code's native plugin configuration, which setup must 
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 
 After any reconfiguration, rerun `check` in a **fresh session** and report every observed effective
 destination, never claim an unobserved change, and never read a same-session `check` still showing

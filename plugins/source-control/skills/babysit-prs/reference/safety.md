@@ -1189,7 +1189,8 @@ when that full SHA is the head the policy scored, after a
 second kill-switch read and a second read of the opt-in label (presence and provenance), after an
 armed auto-merge is disarmed and refused instead, only while the merge queue has removed that head
 for failed checks fewer than `merge.max-queue-ejections` times (default 2) since it last changed
-(a refused head gets one `<!-- babysit-merge-queue-ejections -->` comment linking the failing
+(at the cap, a removal whose merge-group run failed only `CI Status` on a GitHub rate limit that
+has since reset is not counted; a refused head gets one `<!-- babysit-merge-queue-ejections -->` comment linking the failing
 `merge_group` runs), and after a
 `<!-- babysit-merge-pin sha=<S> rung=<C2|C3> -->` comment records the pin for the post-merge
 read-back and the effective rung for the promotion-evidence publisher (the read-back also accepts

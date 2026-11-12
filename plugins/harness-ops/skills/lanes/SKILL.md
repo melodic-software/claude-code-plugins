@@ -57,13 +57,12 @@ its own context on demand: the model cannot `/clear` itself from a loop re-run.
   issued from a loop does, fetch
   [scheduled tasks: run a prompt repeatedly with /loop](https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-%2Floop)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section says a loop re-run starts a fresh context or
-  runs built-in commands.
 
-Any "restart the loop when context passes ~N%" discipline is
-therefore an admonition with no in-session enforcement, the lane has no reliable way
-to measure its own context usage and no way to act on the threshold if it could.
+Any "restart the loop when context passes ~N%" discipline has no in-session enforcement.
+Where the context-guard module loads, it writes the session's context snapshot in `-p` and
+`--bg` sessions too, so a lane can read its own zone from that snapshot; zone lines reach the
+model only with context-guard's `model_notices` option on, which is off by default. A lane still
+cannot reset its own context from inside the loop.
 
 The context change that *does* happen automatically in-session is Claude Code's
 **auto-compaction**: when the conversation nears the model's input limit, older
@@ -75,11 +74,12 @@ relaunch, not keep every turn until then.
 `restart` (stop the session, relaunch from the canonical prompt) is the only
 *fresh-session* reset: the relaunched lane starts a **fresh** session seeded from the
 prompt file, carrying none of the prior conversation. That reset is **operator- or
-launcher-initiated**, not automatic. There is no per-cycle or threshold trigger that
-runs `restart` for you today. Auto-compaction can still fire between restarts, but it
-only summarizes; it does not clear the accumulated, increasingly degraded context.
-Until an automatic relaunch trigger exists, treat the periodic `restart` (e.g. the
-morning refresh) as the mechanism that keeps long-running lanes off a stale,
+launcher-initiated**, not automatic. `consume-restarts run` relaunches a stopped lane whose
+telemetry carries a `restart_request` (written on a cycle-budget or `/loop` expiry hit), once the
+operator registers its OS schedule; nothing relaunches a lane on a context threshold or after a
+crash. Auto-compaction can still fire between restarts, but it only summarizes; it does not clear
+the accumulated, increasingly degraded context. For a lane that never asks, treat the periodic
+`restart` (e.g. the morning refresh) as the mechanism that keeps long-running lanes off a stale,
 repeatedly-compacted context, and do not let a lane prompt assume each `/loop` cycle
 begins with fresh context.
 
@@ -106,15 +106,12 @@ the marketplace-qualified directory Claude Code actually resolves. `$ARGUMENTS`
 comes after `--data-dir`, so an explicit `--data-dir` the caller passes in
 `$ARGUMENTS` still wins (last flag wins in `lane-launcher.sh`'s parser).
 
-This is the dated record for the export decision; the two restatements below
+This is the record for the export decision; the two restatements below
 point here, and `context/refresh.md` points at the docs section directly.
 
 - **Pointer**: when stating which processes receive the plugin path variables, fetch
   [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that table exports the variables to the Bash tool, or a
-  release note names plugin environment variables.
 
 ## Action Router
 
@@ -179,15 +176,11 @@ keeps no list of them:
   [Check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
   (the `claude plugin test` messages, and the policy it does not report), and
   [Stop user-installed mods from loading](https://code.claude.com/docs/en/plugins/mods/admin#stop-user-installed-mods-from-loading).
-- **As of**: 2026-10-11, Claude Code 2.1.296.
-- **Recheck trigger**: either page changes the version floor or the messages `claude plugin
-  test` prints, or a release note names a new way for mods to be turned off.
 
 ## Consume restart-requests
 
 A lane that hits its cycle budget or the `/loop` expiry
-([scheduled tasks: seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry),
-as of 2026-11-10; recheck when that section changes how a recurring task expires) writes a
+([scheduled tasks: seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry)) writes a
 `restart_request` into its telemetry state block and stops. It cannot relaunch
 itself. The consumer is the reader that closes that gap, meant to run unattended
 on an **OS-owned schedule** (its `print-schedule` action emits the registration
@@ -256,7 +249,7 @@ committed directory. The launcher resolves the prompt dir in exactly one place
 
 A **running** lane keeps the skill versions it loaded at launch: a fix merged to a
 plugin the lane runs does **not** reach that lane mid-session. This is not a missing
-feature to build around. We treat it as Claude Code behavior; the dated record with
+feature to build around. We treat it as Claude Code behavior; the record with
 its three citations is [context/refresh.md](context/refresh.md), "Empirical
 answer: no true mid-session hot-reload for a running loop lane". Restart is the honest
 refresh mechanism, the same `restart` that clears context bloat. Detect an
@@ -282,7 +275,7 @@ data_dir="${CLAUDE_PLUGIN_DATA}"
 Copy it as it renders **here**, already substituted to an absolute path. Writing
 the placeholder, or a `${CLAUDE_PLUGIN_DATA:-…}` env fallback, inside
 `context/refresh.md` would not work: that file is read raw, and we never rely on
-the Bash tool's environment for `CLAUDE_PLUGIN_DATA` (the dated record for that
+the Bash tool's environment for `CLAUDE_PLUGIN_DATA` (the record for that
 decision is the `--data-dir` note above). The probe would then
 read the unqualified `~/.claude/plugins/data/harness-ops` guess, find no marker,
 and skip the staleness check silently.
@@ -339,8 +332,7 @@ Put that path in place of the placeholder before running a command or writing it
 files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
 tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
 Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Gotchas
 
@@ -356,9 +348,6 @@ Basis: the plugins reference,
   - **Basis:** <https://code.claude.com/docs/en/changelog> Claude Code 2.1.257,
     the `--resume` plus `--bg` item (continues under its own id, and a copy is
     announced), and the lanes launcher, which always passes a fresh prompt.
-  - **As of:** 2026-09-28.
-  - **Recheck:** a release note changes what `claude --resume <id> --bg` does
-    with an idle session, or the launcher grows a resume path.
 - **Name is the identity.** Lanes are matched by session `name` **and** `kind:
   background`: every lane is launched with `--bg`, so an interactive window sharing
   a lane name is never matched or stopped. Two lanes must not share a name; a
@@ -431,8 +420,7 @@ Pass the body as file contents (`--body-file PATH`) or pipe it (`--body-file -`)
 `@path`. Read a body from a file with `gh issue comment --body-file` or
 `gh api -F`/`--field key=@path`; which flags read a file is read live from the
 [gh api](https://cli.github.com/manual/gh_api) and
-[gh issue comment](https://cli.github.com/manual/gh_issue_comment) manual pages (as of
-2026-11-10; recheck when either page changes which flags read a value from a file).
+[gh issue comment](https://cli.github.com/manual/gh_issue_comment) manual pages.
 
 The failure is invisible from the outside: the comment's timestamp still
 moves, so any check keying on `updatedAt` reads the lane as **fresh** while it

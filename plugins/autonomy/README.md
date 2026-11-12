@@ -23,8 +23,7 @@ gate is not enforced. The setup `check` reports whether `node` resolves. The hoo
 whether `node` and `jq` resolve.
 
 - **Pointer**: when checking whether a Claude Code install brings Node, fetch
-  <https://code.claude.com/docs/en/setup#install-with-npm> live. **As of**: 2026-10-11.
-  **Recheck trigger**: the setup page says the native binary ships or uses Node.
+  <https://code.claude.com/docs/en/setup#install-with-npm> live.
 
 ## Shipped capability (0.7.0)
 
@@ -148,8 +147,7 @@ marker file. The gate reads those signals itself and does not lean on the `/goal
 (pointer: when deciding whether a command hook could use that evaluator instead, fetch
 [goal: how evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works) and
 [hooks guide: prompt-based hooks](https://code.claude.com/docs/en/hooks-guide#prompt-based-hooks)
-live; as of 2026-11-03; recheck when either section changes what a command hook can trigger). The
-marker is consumed (deleted) when it authorizes a stop, one marker, one stop, so a file left in the
+live). The marker is consumed (deleted) when it authorizes a stop, one marker, one stop, so a file left in the
 checkout by a prior completed run never authorizes the stops of a later lane run. Use `/goal` for a
 single session, this gate for a standing lane.
 
@@ -180,7 +178,7 @@ settings precedence:
    session, run the arm helper from the installed plugin the same way, then pass the id as this
    plugin's `lane_stop_gate_arm_id` option through `--settings`. Read the option's settings shape
    from [settings reference: pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   live (as of 2026-11-03; recheck when that entry changes its shape).
+   live.
 3. **User `settings.json`**, located from the hook's own install path, a *persistent* enable that
    also gates interactive sessions, which defeats the default-OFF design; prefer the launcher.
 
@@ -200,8 +198,6 @@ location, so only managed settings can enable the gate there.
 
 - **Pointer**: when checking how an option value reaches a hook, fetch
   <https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value> live.
-  **As of**: 2026-11-03. **Recheck trigger**: that section changes how an option value reaches a
-  hook process.
 
 It is fail-open (unreadable stdin / missing `jq` / a `SubagentStop` never trips it) and bounded
 against runaway by the `stop_hook_active` one-nudge guard plus Claude Code's own cap on
@@ -209,13 +205,11 @@ consecutive Stop-hook continuations. It catches a graceful self-stop only: a clo
 killed process, or `/loop` expiry emit no `Stop` event.
 
 - **Pointer**: when checking the Stop input field the guard reads, fetch
-  <https://code.claude.com/docs/en/hooks#stop-input> live. **As of**: 2026-10-11. **Recheck
-  trigger**: a Claude Code changelog entry changes the Stop hook's input fields.
+  <https://code.claude.com/docs/en/hooks#stop-input> live.
 - **Pointer**: when checking Claude Code's own cap on consecutive Stop-hook continuations and the
   setting that raises it, fetch
   [Stop hook hits the block cap](https://code.claude.com/docs/en/hooks-guide#stop-hook-hits-the-block-cap)
-  live. **As of**: 2026-10-18. **Recheck trigger**: that section changes the number of consecutive
-  blocks it allows, or renames `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`.
+  live.
 
 When the consuming repo sets `HOOK_TELEMETRY_SINK`, the gate emits one fire-and-forget envelope per
 evaluated outcome (`hook: "lane-stop-gate"`; payload contract in the marketplace's hook-telemetry

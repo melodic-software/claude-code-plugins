@@ -142,9 +142,8 @@
 #                         case, not an edge one — the marketplace clone is
 #                         observed to be shallow and Claude Code re-clones it
 #                         on update, so an older recorded commit is usually
-#                         not in the clone at all. Pointer, as of 2026-10-25
-#                         (the page states the re-clone, not a depth; recheck
-#                         when it changes):
+#                         not in the clone at all. Pointer (the page states
+#                         the re-clone, not a depth):
 #                         https://code.claude.com/docs/en/plugins/host-marketplace.md
 #                         Even an older commit a deeper clone does hold is not
 #                         compared, so the answer does not depend on how deep

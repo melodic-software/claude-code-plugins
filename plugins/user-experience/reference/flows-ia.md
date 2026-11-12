@@ -60,8 +60,6 @@ evidence ([nng-task-analysis]).
   - **Pointer**: for Baymard's current checkout benchmark figures (average steps and fields, the
     field count most sites need, and the step count past which usability suffers), read
     <https://baymard.com/research-articles/checkout-flow-average-form-fields>.
-  - **As of**: 2026-10-04
-  - **Recheck trigger**: Baymard publishes a new checkout benchmark.
 - **Errors at every step boundary.** Give a clearly marked way out of an unwanted action, and
   prevent error-prone conditions or confirm before the person commits. Error pages: explain what
   went wrong and offer a specific recovery action. "Something went wrong" + a back button ends the
@@ -72,8 +70,6 @@ evidence ([nng-task-analysis]).
   - **Pointer**: for the current wording of heuristics 3, 5 and 9, read Nielsen's "10 Usability
     Heuristics for User Interface Design" at
     <https://www.nngroup.com/articles/ten-usability-heuristics/>.
-  - **As of**: 2026-10-04
-  - **Recheck trigger**: NN/g revises the page or its review date moves.
 - **Keep the destructive action apart.** Never place "Delete" directly beside "Confirm". Proximity
   implies equivalence; separate destructive actions with whitespace and a visual break. The flow
   records which step offers the destructive action and where its confirmation sits; the spacing
@@ -105,8 +101,6 @@ evidence ([nng-task-analysis]).
   - **Pointer**: for which files create a public route and how intercepting routes behave in the
     Next.js App Router, read <https://nextjs.org/docs/app/getting-started/project-structure>; for
     another framework, read its own routing docs.
-  - **As of**: 2026-10-04
-  - **Recheck trigger**: a Next.js major release changes the App Router file conventions.
 - **Observed flow, from the running app.** Drive the app with a browser tool when one is installed
   (the routes `detect.mjs` reports) and record the screens and transitions actually seen. Basis:
   judgment.
@@ -218,9 +212,6 @@ tone of interface text belong to `/user-interface:design`. Basis: judgment.
     read <https://www.gov.uk/service-manual/design/form-structure> and
     <https://www.gov.uk/service-manual/design/collecting-personal-information-from-users>. Written
     for UK government services; other organizations adopt them by analogy.
-  - **As of**: 2026-10-04
-  - **Recheck trigger**: GDS updates either page, or moves form guidance into the GOV.UK Design
-    System.
 - **The user's own words.** Take labels and terms from research (interview vocabulary, search
   queries, support tickets), and mark a term with no such source as an assumption. Name things by
   the user's mental model, not internal jargon: "Send messages in the background", not "Enable

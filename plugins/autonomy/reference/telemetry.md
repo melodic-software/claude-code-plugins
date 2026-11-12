@@ -91,9 +91,6 @@ join, because native joining does not cover every session kind the contract serv
   [Inbound trace context in headless sessions](../skills/setup/context/agent-session-telemetry.md#inbound-trace-context-in-headless-sessions)
   and [Traces stay beta](../skills/setup/context/agent-session-telemetry.md#traces-stay-beta), and
   fetch the sections they name live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either of those records' recheck triggers fires, or either linked heading is
-  renamed or removed.
 
 ## Sink binding: out of contract
 

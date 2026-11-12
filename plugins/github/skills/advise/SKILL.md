@@ -80,8 +80,7 @@ built-in command performs it.
   GitHub App on one repository; the model does not invoke it. What it sets up is read live from
   the pointer in the "What `/install-github-app` installs and sets up" row of
   [reference/native-install-github-app.md](reference/native-install-github-app.md) (the file
-  has no section heading to anchor; as of 2026-10-11; recheck when that row's pointer or as-of
-  date changes).
+  has no section heading to anchor).
 - **This skill (marketplace plugin).** Read-only design guidance across the GitHub settings plane,
   grounded in live `gh` state and the fetched GitHub docs; changes only through `--apply`.
 

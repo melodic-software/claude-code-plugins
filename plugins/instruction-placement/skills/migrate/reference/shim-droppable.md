@@ -29,7 +29,7 @@ three. A root that cannot be resolved here is unknown, and fails every condition
 | # | Holds when | Read it from |
 |---|---|---|
 | A | Nothing takes precedence over an `AGENTS.md`: no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` at or above the working directory other than the shims going, **and** no directory on the path from the repository root to a nested `AGENTS.md`, that directory included, holds a `.claude/CLAUDE.md` or a non-shim `CLAUDE.md` or `CLAUDE.local.md` | The ancestor walk below, run from each directory contributors start sessions in; the nested path walk below, over every `AGENTS.md` inside the repository, tracked or not; and the operator for the other machines, whose ancestors (a `~/work/CLAUDE.md`) and uncommitted `CLAUDE.local.md` files this machine cannot see |
-| B | **Project instructions** on this machine is set to a value that reads `AGENTS.md` with no `CLAUDE.md`. Pointer: for the values and the default, [Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load); for the settings scopes, the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry and [Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session), as recorded in [`sources.md`](sources.md), "The built-in agents-md plugin". As of: 2026-11-03. Recheck trigger: the memory section changes its value list or its default, or the `pluginConfigs` scope changes | `pluginConfigs[<id>].options.instructionFiles` in `<config>/settings.json`, managed settings and any `--settings` file, for `<id>` both `agents-md@builtin` and the `id` the condition C lane prints; absent everywhere is the default. Never take project or local settings as the answer. A value that reads no `AGENTS.md` fails |
+| B | **Project instructions** on this machine is set to a value that reads `AGENTS.md` with no `CLAUDE.md`. Pointer: for the values and the default, [Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load); for the settings scopes, the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry and [Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session), as recorded in [`sources.md`](sources.md), "The built-in agents-md plugin". | `pluginConfigs[<id>].options.instructionFiles` in `<config>/settings.json`, managed settings and any `--settings` file, for `<id>` both `agents-md@builtin` and the `id` the condition C lane prints; absent everywhere is the default. Never take project or local settings as the answer. A value that reads no `AGENTS.md` fails |
 | C | The loader is present and not disabled on this machine | `/harness-ops:inventory --bundled`, `builtin_plugins.cc-plugin-agents-md` (`in_loader`, `load`, `gated`, `gate_flags`), and no `enabledPlugins` entry set `false` in any scope (`<config>` user settings, managed, project, local, `--settings`) for `agents-md@builtin` or the `id` the lane prints. Inventory absent, the lane `broken`, or the entry missing is unknown. With `disableAllHooks` or `allowManagedHooksOnly` set `true` in any scope, C holds only on v2.1.287 or later, the build on which built-in mods are verified to keep running under both; an older or unknown version is unknown |
 | D | Every user, machine and organization the repository serves reads `AGENTS.md` directly | Ask the operator, with the list below. Any yes, and any "don't know", fails |
 | E | Nothing reachable through the `@` import graph of any `AGENTS.md`, root or nested, lies outside the working directory | The import-graph walk below, from every `AGENTS.md` and from each session start directory. Any `EXTERNAL`, `UNRESOLVED` or `DEPTH` row fails |
@@ -67,8 +67,7 @@ pointing elsewhere, the page does not say whether that file still counts, so the
 **A `CLAUDE.local.md` row has a replacement to offer.** A developer who keeps one for personal,
 uncommitted notes can move them to a gitignored, unscoped `.claude/rules/<name>.local.md`. Whether
 such a file counts against `AGENTS.md` is read live at
-<https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> (as of 2026-10-11;
-recheck when that section changes which files count). An `@` import inside such a rule is
+<https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md>. An `@` import inside such a rule is
 undocumented: it loaded on one measured build, recorded in [`sources.md`](sources.md), "The nested
 write trigger", and is re-measured on each release before it is relied on. The offer changes no
 verdict: A still fails while the `CLAUDE.local.md` exists.
@@ -111,8 +110,7 @@ The walk reuses this plugin's own import model in `<plugin-root>/scripts/lib/dis
 one `ip_index_target_loaded` runs on: `_ip_imports_of` parses a file's `@` imports and
 `_ip_reaches` bounds the walk's depth. The parsing rules and the hop limit it mirrors are the
 loader's. Pointer: [Import additional files](https://code.claude.com/docs/en/memory#import-additional-files).
-As of: 2026-11-03. Recheck trigger: that section changes what counts as an import or the maximum
-depth. Run it once per session start directory, over every `AGENTS.md` in the repository:
+Run it once per session start directory, over every `AGENTS.md` in the repository:
 
 ```bash
 . <plugin-root>/scripts/lib/discover.sh
@@ -211,7 +209,6 @@ Ask each, and record the answer beside the condition:
 1. **Does any user, machine or organization set Project instructions to a value that reads no
    `AGENTS.md`?** Pointer: for what each value loads,
    [Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load).
-   As of: 2026-11-03. Recheck trigger: that section adds a value or changes what one loads.
 2. **Does anyone run a session that cannot read `AGENTS.md`?** Ask about each session the memory
    page lists. Pointer:
    [When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable).
@@ -229,7 +226,6 @@ Ask each, and record the answer beside the condition:
 4. **Does anyone add this repository with `--add-dir` while
    `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` is set?** Pointer:
    [Where AGENTS.md differs from CLAUDE.md](https://code.claude.com/docs/en/memory#where-agents-md-differs-from-claude-md).
-   As of: 2026-11-10. Recheck trigger: that section changes what loads from an added directory.
 5. **Does anyone reach this repository through the Agent SDK, a cloud or web session, or
    `claude-code-action`?** The memory page does not say whether those surfaces read `AGENTS.md`
    directly. The CI canary in `sources.md` covers one `claude-code-action` pin and CLI, not every
@@ -247,13 +243,11 @@ Ask each, and record the answer beside the condition:
 The verdict per mode:
 
 - `claude-md-or-agents-md`: when a subdirectory's `AGENTS.md` loads is in
-  [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)
-  (as of 2026-11-10; recheck trigger: that section changes the subdirectory trigger). Nested shims leave with the root only when condition A holds for every such subdirectory and
+  [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md).
+  Nested shims leave with the root only when condition A holds for every such subdirectory and
   every directory between it and the root, and condition G holds; a blocker anywhere on that path,
   or a load trigger only a shim carries, keeps its shim, and since `remove-shims` takes root and
   nested together, the repository keeps all of them.
 - `claude-md-and-agents-md`, `claude-md` and `managed-only`: keep every shim. Pointer: for what
   each of these modes loads and in what order,
   [Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load).
-  As of: 2026-11-03. Recheck trigger: that section changes what one of these modes loads, or adds
-  a mode.

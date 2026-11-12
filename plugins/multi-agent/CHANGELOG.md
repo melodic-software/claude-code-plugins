@@ -3,6 +3,21 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.2] - 2026-11-12
+
+### Changed
+
+- defaults: the worker, verifier and retrieval roles record the model-config section on subagent effort as `pointer_subagent_effort`, and their recheck triggers include a change to the default subagent effort setting. Role values are unchanged.
+- routing-rubric: "Evidence so far" points at the cost page's orchestrator-strategy section for upstream evidence on Haiku subagents for coding. The rule is unchanged.
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+## [2.1.1] - 2026-11-12
+
+### Changed
+
+- Synced the shared library copies this plugin carries; their pointer records no longer carry an as-of date or recheck trigger.
+
 ## [2.1.0] - 2026-11-11
 
 ### Changed

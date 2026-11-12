@@ -214,9 +214,6 @@ brackets_valid() {
 # would report a rule broken on a form upstream does not rule out.
 #   Pointer: when deciding what a pattern form matches, fetch
 #     https://code.claude.com/docs/en/memory#path-specific-rules live.
-#   As of: 2026-11-04.
-#   Recheck trigger: that section's pattern table changes what a form matches, or
-#     says what a slash-free literal matches.
 # ---------------------------------------------------------------------------
 glob_to_ere() {
   local pattern="$1"
@@ -423,8 +420,6 @@ for idx in "${!PATTERNS[@]}"; do
     # folder, so a nested rule sees only its own subtree, as paths relative to it.
     #   Pointer: when deciding what a rule's patterns are relative to, fetch
     #     https://code.claude.com/docs/en/memory#path-specific-rules live.
-    #   As of: 2026-11-04.
-    #   Recheck trigger: that section changes a project rule's base directory.
     UNIVERSE="$TRACKED_FILE"
     UNIVERSE_TOTAL="$TRACKED_TOTAL"
     if [[ "$source" == */.claude/rules/* ]]; then

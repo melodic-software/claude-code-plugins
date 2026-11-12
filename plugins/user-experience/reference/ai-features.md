@@ -35,12 +35,8 @@ measured on end users.
 
 - **Pointer**: for Apple's current guidance on generative AI features, read the Human Interface
   Guidelines, Generative AI, at <https://developer.apple.com/design/human-interface-guidelines/generative-ai>.
-- **As of**: 2026-10-04
-- **Recheck trigger**: the page's change log shows an update.
 - **Pointer**: for Google's chapters on user needs, mental models, trust, feedback and errors, read
   the People + AI Guidebook at <https://pair.withgoogle.com/guidebook/>.
-- **As of**: 2026-10-04
-- **Recheck trigger**: PAIR publishes a new guidebook version or re-dates its principles.
 
 ## Chat and answer interfaces
 

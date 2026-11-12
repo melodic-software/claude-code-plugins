@@ -25,8 +25,7 @@ The hook log root is the plugin's `session_event_log_dir` option, project-relati
 `.observability/claude`. Its rendered value is the `root` entry on the skill body's "Rendered
 options" line: use that, never `CLAUDE_PLUGIN_DATA` and never the environment (which processes receive
 `CLAUDE_PLUGIN_OPTION_*` is read live from
-[plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves),
-as of 2026-11-10; recheck when that table exports it to skill subprocesses). A `--hook-root REL` token on the invocation overrides it for one
+[plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)). A `--hook-root REL` token on the invocation overrides it for one
 run. Under the root: `sessions/<session_id>.jsonl`, one file per session, holding the
 per-session event log rows (`source: "event-log"`) and the sink's envelope rows for that
 session (`source: "envelope"`); and the shared `hook-events.jsonl`, holding the same envelope
@@ -126,9 +125,8 @@ Cross-platform: `date -u -d "..."` is GNU. macOS BSD date uses `date -u -v-7d`. 
 **Preferred path: MCP** (no shell-out per call). This skill reads the ccusage
 MCP server's per-day, per-session and 5-hour block reports. Its tool names, arguments and
 return shapes are read live from the server's own tool listing in the session,
-not from this file: as of 2026-11-03 ccusage publishes no MCP reference page
-(`ccusage.com/guide/mcp-server` returned 404). Recheck when ccusage publishes
-one, and point at it here.
+not from this file: ccusage publishes no MCP reference page
+(`ccusage.com/guide/mcp-server` returned 404).
 
 **Fallback path: CLI** when the ccusage MCP server is not configured.
 
@@ -257,9 +255,7 @@ holds, normally the first call's.
 
 - **Pointer**: when checking when `PostToolBatch` fires or the field order of its call list,
   fetch [hooks: PostToolBatch input](https://code.claude.com/docs/en/hooks#posttoolbatch-input)
-  live. **As of**: 2026-10-11. **Recheck trigger**: a `/harness-ops:changelog` ingest whose notes
-  touch hooks, or a batch line's `tool_name` stops matching the transcript's first call of that
-  batch.
+  live.
 
 ```bash
 jq -sr '.[] | select(.source == "event-log")
@@ -320,8 +316,7 @@ drove it, in the promoted `decision` and `source` columns. The DuckDB projection
 - **Pointer**: when stating an event's attributes, their values, or what a `source` bucket
   covers, fetch [monitoring: tool decision event](https://code.claude.com/docs/en/monitoring-usage#tool-decision-event)
   and [monitoring: tool result event](https://code.claude.com/docs/en/monitoring-usage#tool-result-event)
-  live. **As of**: 2026-11-03. **Recheck trigger**: either section renames an attribute or
-  changes its values.
+  live.
 
 **Attribution caveat:** a bucket spans many mechanisms, so a reject count in one bucket is an
 **upper bound** on deny-rule firings and cannot be pinned to an individual rule. Per-rule

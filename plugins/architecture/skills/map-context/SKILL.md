@@ -97,8 +97,7 @@ skip on stderr. Reword the line without the credential and pass it again.
 Add `--focal "<system>"` when the invocation named one. Add `--actors "<file>"` only for
 operator-stated rows. Keep the `${CLAUDE_SKILL_DIR}` anchor;
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Script paths](${CLAUDE_PLUGIN_ROOT}/reference/config.md#script-paths)
-says why. **As of**: 2026-10-11. **Recheck trigger**: that section is renamed or removed, or its
-own recheck trigger fires.
+says why.
 
 The collector creates the parent directory of `--out`. Exit 1 means the record could not be written
 and nothing was: report the message and stop before rendering.
@@ -204,8 +203,6 @@ hand-written; the shared medium resolver decides the destination, with this plug
   [C4 system context diagram § Scope](https://c4model.com/diagrams/system-context#scope),
   [§ Primary elements](https://c4model.com/diagrams/system-context#primary-elements) and
   [§ Supporting elements](https://c4model.com/diagrams/system-context#supporting-elements) live.
-  As of: 2026-11-10. Recheck trigger: that page changes the scope, the primary element, or the
-  supporting elements.
 - **C4-PlantUML context syntax: read against the README, never run.** The renderer writes the
   macros. The `C4_Context` include name is our inference from the README's container example.
   No PlantUML run has parsed this output. Pointer: when checking the macros or the include the
@@ -213,8 +210,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
   [C4-PlantUML README § System Context & System Landscape diagrams](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#system-context--system-landscape-diagrams)
   and
   [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library)
-  live. As of: 2026-11-10. Recheck trigger: that README changes the context macros or the
-  include path, or a host with Java can run PlantUML over a rendered block.
+  live.
 - **LikeC4 context syntax: parsed by the CLI.** The record is a probe: `likec4@1.59.4 validate`
   exits 0 on the golden block in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/` (`context.c4`),
   which `render-context.test.sh` diffs against. Pointer: when checking the syntax the renderer

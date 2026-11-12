@@ -66,14 +66,14 @@ export const MAX_QUEUE_TITLE_CHARS = 60;
 const YT_DLP_NULL_FIELD = "NA";
 
 /**
- * Escape a value for a markdown table cell: collapse whitespace/newlines and escape `|`,
- * which would otherwise silently break the row's column count.
+ * Escape a value for a markdown table cell: collapse whitespace/newlines and escape `\` and `|`,
+ * either of which would otherwise break the row's column count.
  *
  * @param {string} text
  * @returns {string}
  */
 export function escapeTableCell(text) {
-  return (text ?? "").replace(/\s+/g, " ").trim().replace(/\|/g, "\\|");
+  return (text ?? "").replace(/\s+/g, " ").trim().replace(/[\\|]/g, "\\$&");
 }
 
 /**
@@ -381,7 +381,7 @@ export async function preflightVideo(url, deps = {}) {
       title,
       channel,
       handle,
-      displayTitle: truncateTitle(escapeTableCell(title)),
+      displayTitle: escapeTableCell(truncateTitle(title)),
       displayChannel: escapeTableCell(formatChannel(channel, handle)),
     });
   }

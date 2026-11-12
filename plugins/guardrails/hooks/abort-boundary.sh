@@ -13,9 +13,7 @@
 # hooks page's to state. The guard rows set "onFailure": "block", but this
 # boundary turns every status it did not choose into 0 or 2 first, so that key
 # never sees one. Pointer:
-# https://code.claude.com/docs/en/hooks#exit-code-output. As of: 2026-10-30.
-# Recheck trigger: that section changes what a status other than 0 or 2 does
-# to the tool call, or is renamed. A blocking
+# https://code.claude.com/docs/en/hooks#exit-code-output. A blocking
 # guard enforced nothing and nobody was told. The boundary makes that outcome a
 # deliberate one:
 #

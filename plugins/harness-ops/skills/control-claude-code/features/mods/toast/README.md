@@ -35,5 +35,4 @@ the mod's README says.
 - Close every pane before the action.
 - What raises a toast and what holds it back:
   <https://code.claude.com/docs/en/plugins/mods/api#show-something-without-starting-a-turn> and
-  <https://code.claude.com/docs/en/plugins/mods/interface#hold-toasts-behind-a-dialog> (as of
-  2026-10-26; recheck when either section changes how long a toast shows or what holds it).
+  <https://code.claude.com/docs/en/plugins/mods/interface#hold-toasts-behind-a-dialog>.

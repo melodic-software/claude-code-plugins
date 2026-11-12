@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [7.9.12] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
+## [7.9.11] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
 ## [7.9.10] - 2026-11-12
 
 ### Changed

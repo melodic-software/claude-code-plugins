@@ -35,6 +35,11 @@ describe("escapeTableCell", () => {
     expect(escapeTableCell("Rust | Go | C")).toBe("Rust \\| Go \\| C");
   });
 
+  it("escapes backslashes so a trailing one cannot escape the cell's closing pipe", () => {
+    expect(escapeTableCell("C:\\dir\\")).toBe("C:\\\\dir\\\\");
+    expect(escapeTableCell("a\\|b")).toBe("a\\\\\\|b");
+  });
+
   it("collapses newlines and runs of whitespace to a single space", () => {
     expect(escapeTableCell("line one\nline   two\t")).toBe("line one line two");
   });
@@ -187,6 +192,15 @@ describe("preflightVideo", () => {
     expect(result.displayTitle).toBe("Pipe \\| Title");
     expect(result.displayChannel).toBe("Austin Marchese (@austin.marchese)");
     expect(result.note).toBe("");
+  });
+
+  it("caps a long title before escaping it, so the cap never leaves a dangling backslash", async () => {
+    // 58 characters then a pipe at the cap's last kept position (59 kept + the ellipsis = 60).
+    const title = `${"x".repeat(58)}|tail`;
+    const stdout = ["7zZy1QTvokM", title, "Austin Marchese", "@austin.marchese"].join(PREFLIGHT_FIELD_SEP);
+    const spawn = () => Promise.resolve(spawnResult({ success: true, code: 0, stdout }));
+    const result = await preflightVideo(DRIVER_WATCH_URL, { spawn, env });
+    expect(result.displayTitle).toBe(`${"x".repeat(58)}\\|…`);
   });
 
   it("enqueues a just-ended live stream as a valid link and records its live_status", async () => {

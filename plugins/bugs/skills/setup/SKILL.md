@@ -19,8 +19,6 @@ reconfiguration routes through the native flow.
 Pointer: where option values are stored and which settings files they are read from are read at
 [plugins manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
 and [settings reference: `pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs).
-As of: 2026-10-11. Recheck trigger: either section changes where option values are stored or which
-settings files they are read from.
 
 Keys, layers, merge semantics, the `output_dir` partition rule, and the file format live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). Read it before checking or
@@ -61,9 +59,6 @@ Modify nothing. Report both surfaces, then one remediation line per gap.
      when a saved value applies, fetch
      [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
      live.
-   - **As of**: 2026-11-11
-   - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-     refused value, or when a saved value applies.
 
 ### B. `docs/conventions/bugs.yaml` (tracked lane config)
 
@@ -158,7 +153,7 @@ by re-reading it, for `output_dir` by a rerun in a fresh session.
 - **Verify a reconfiguration only in a fresh session.** When checking when a saved value reaches skill content, fetch
   [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
   and [skills § Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
-  live (as of 2026-11-03; recheck trigger: either section changes when a substitution is applied).
+  live.
 - **Never uninstall to reconfigure.** Reconfigure through `check` step A4; what an uninstall deletes
   is linked from the convention section that step cites.
 - **Check the headless route's own failure signal** before reporting a value saved, as the

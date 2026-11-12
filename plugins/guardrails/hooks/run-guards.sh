@@ -97,9 +97,7 @@
 #     sibling `$(: rm)` in 16,378 characters measured 65 s through the chain
 #     on Windows, and a row that runs past its hooks.json `timeout` cannot
 #     be counted on to block. Relay: the pointer record is under Over-length
-#     below. As of: 2026-10-11. Recheck trigger: that record leaves the
-#     Over-length entry, or its own recheck trigger fires. No
-#     guard sees the whole chain's time, which is why the cap
+#     below. No guard sees the whole chain's time, which is why the cap
 #     lives here. An unprimed payload is counted whole, which no command
 #     inside it can exceed.
 #     For the Bash tool, a spelling inside a single-quoted span does not
@@ -160,9 +158,8 @@
 #     exit 2 from any guard still denies the call) because a hook process gets
 #     one JSON document on stdout; as separate hooks each document was
 #     delivered on its own. Pointer:
-#     https://code.claude.com/docs/en/hooks#json-output. As of: 2026-10-11.
-#     Recheck trigger: that section starts accepting more than one JSON object
-#     on a hook's stdout, or is renamed. When jq is absent, or the merge fails,
+#     https://code.claude.com/docs/en/hooks#json-output. When jq is absent,
+#     or the merge fails,
 #     the documents are never concatenated (two documents on stdout is invalid
 #     hook output): the one carrying a blocking decision (`"decision":"block"`,
 #     `"permissionDecision":"deny"`, then `"ask"`) is emitted, else the first,

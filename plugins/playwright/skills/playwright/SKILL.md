@@ -63,7 +63,7 @@ bash "${CLAUDE_SKILL_DIR}/scripts/fill-secret.sh" <flow> e2 E2E_TEST_PASSWORD   
 
 It reads the named variable, refuses an unset or empty one, discards `playwright-cli`'s output, and passes its exit status through. After a failure, take a `snapshot` to see the page. A `type` or `run-code` that carries a secret gets the same treatment by hand: redirect its stdout and stderr to `/dev/null`.
 
-- **Pointer**: what the CLI prints for each command, in upstream's [test-generation reference, "0. How generation works"](https://github.com/microsoft/playwright-cli/blob/main/skills/playwright-cli/references/test-generation.md#0-how-generation-works). **As of**: 2026-11-08. **Recheck trigger**: the frontmatter `upstream-version` moves, or that section starts masking typed text.
+- **Pointer**: what the CLI prints for each command, in upstream's [test-generation reference, "0. How generation works"](https://github.com/microsoft/playwright-cli/blob/main/skills/playwright-cli/references/test-generation.md#0-how-generation-works).
 
 ## Conventions
 
@@ -111,7 +111,7 @@ Load the right reference file for the scenario. Each is distilled from Microsoft
 
 Microsoft's defaults are right for autonomous E2E work: accept them. Don't add `PLAYWRIGHT_MCP_*` env vars to project settings unless a real, recurring need surfaces; they add maintenance surface without benefit. Override per command instead: `--headed` when the user wants to watch, and a saved login state ([Logged-in sites](#logged-in-sites)) when a flow needs a logged-in site.
 
-- **Pointer**: for the current default values (headed or headless, browser profile, timeouts, viewport, console level) and the full env-var and config-file schema, read `$(npm root -g)/@playwright/cli/README.md` or run `playwright-cli open --help`. **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves.
+- **Pointer**: for the current default values (headed or headless, browser profile, timeouts, viewport, console level) and the full env-var and config-file schema, read `$(npm root -g)/@playwright/cli/README.md` or run `playwright-cli open --help`.
 
 **One exception: video recording.** A bare `video-start` records at a small fixed size that `resize` does not change. A demo a reviewer will watch needs the viewport set on `open` and a matching `video-start --size`, both per command, so it does not contradict the guidance above. The levers, frame rate, cursor and action highlights, and the measured outcomes are in [reference/tracing-and-video.md](reference/tracing-and-video.md).
 
@@ -138,8 +138,7 @@ The `reference/` files write this skill's directory as `<skill-dir>`, which is
 it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token in them
 would reach the Bash tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR`
 to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Next
 

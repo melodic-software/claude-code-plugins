@@ -29,8 +29,7 @@ record 21's recheck trigger.
 
 The runner is a script bundled here rather than a plugin `bin/` executable: this plugin ships no
 top-level `bin/`. **Pointer**: when deciding whether this plugin can ship a
-`bin/`, fetch <https://code.claude.com/docs/en/plugins/components#executables> live. **As of**:
-2026-10-08. **Recheck trigger**: that section stops naming surfaces that refuse a `bin/`.
+`bin/`, fetch <https://code.claude.com/docs/en/plugins/components#executables> live.
 
 ## Actions
 
@@ -105,8 +104,6 @@ two differ only in the scrub variable. `plant_env` holds one variable the scrub 
 keeps is the docs section's to state, so no case lists it. **Pointer**: before changing the planted
 variable, or reading what a `pass` covers, fetch
 <https://code.claude.com/docs/en/env-vars#what-the-subprocess-environment-scrub-removes> live.
-**As of**: 2026-11-02. **Recheck trigger**: that section changes what it removes, or a release note
-names the scrub.
 
 The `plugin-eval` area checks which tools a `claude plugin eval` run offers when a case's
 `allowed_tools` leaves them out. Its scaffold writes a fixture plugin whose one eval case lists only
@@ -173,8 +170,7 @@ Run `validate` and `dry-run`, then a live run of the new case and its control, a
 - `--setting-sources project,local` does not isolate a case from everything the user has
   configured; the driver prompt exists because a `CLAUDE.md` made the model refuse before the
   permission layer was asked. What the flag scopes is read live from
-  [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) (as of
-  2026-11-03; recheck when the `--setting-sources` row changes which sources it covers).
+  [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags).
 - A model rewrite such as `git -C <dir> push` escapes a literal `input_match` and a literal permission
   rule alike. Prompts ask for the command character for character, and a rewrite reads as
   inconclusive.

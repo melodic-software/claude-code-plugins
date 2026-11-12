@@ -20,8 +20,6 @@ fleet cleanup contract. It is a separate skill from `:audit` on purpose: keeping
 
 - **Pointer**: how a prefix rule matches the arguments after it is in
   [Permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax).
-  **As of**: 2026-10-11. **Recheck trigger**: that section changes how a trailing wildcard in a
-  Bash rule matches arguments, or is renamed.
 
 Default is **dry-run** (evidence refresh + ordered preview, no mutation). Execution requires an
 explicit `--apply`, then interactive confirmation **or** `--yes` for non-interactive consent.

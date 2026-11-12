@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GENERATED from lib/scope-resolve.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # Shared no-scope ladder for repo-fleet-hygiene.
 #
 # Rungs, first hit wins, after the caller has already applied explicit

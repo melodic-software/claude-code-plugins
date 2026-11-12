@@ -255,6 +255,37 @@ describe("hotmart player module", () => {
 
       await expect(getTranscript(secondPage)).rejects.toThrow("No subtitle manifest captured");
     });
+
+    it("should fetch segments only in the frame whose hostname is the Hotmart player host", async () => {
+      const calls = [];
+      const frame = (url) => ({
+        url: () => url,
+        evaluate: async (_fn, urls) => {
+          calls.push(url);
+          return urls.map(() => ({ ok: true, text: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHello\n" }));
+        },
+      });
+      const lookalikes = [
+        "https://example.com/embed?u=player.hotmart.com",
+        "https://player.hotmart.com.example.com/embed",
+        "https://example.com/player.hotmart.com/embed",
+        "not a url",
+      ];
+      const page = { ...makeMockPage(), frames: () => lookalikes.map(frame) };
+      getCapturedData().set(page, {
+        hlsMasterUrl: null,
+        subtitleManifestBody: "#EXTM3U\n#EXTINF:1.0,\nhttps://cdn.hotmart.com/seg0.webvtt\n#EXT-X-ENDLIST\n",
+      });
+
+      await expect(getTranscript(page)).rejects.toThrow("Hotmart iframe not found");
+      expect(calls).toEqual([]);
+
+      const player = "https://player.hotmart.com/embed/abc";
+      const withPlayer = { ...makeMockPage(), frames: () => [...lookalikes, player].map(frame) };
+      getCapturedData().set(withPlayer, getCapturedData().get(page));
+      expect(await getTranscript(withPlayer)).toContain("Hello");
+      expect(calls).toEqual([player]);
+    });
   });
 
   describe("hasHotmartPlayer", () => {

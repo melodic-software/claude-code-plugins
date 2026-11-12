@@ -249,8 +249,6 @@ real run, read `result-latest.json`. Do not ask them to paste the transcript.
   [`-AsPlainText`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretmanagement/get-secret?view=ps-modules#-asplaintext),
   and Set-SecretStoreConfiguration
   [`-Interaction`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.secretstore/set-secretstoreconfiguration?view=ps-modules#-interaction).
-  As of 2026-11-10. Recheck when the PowerShell Gallery lists a new release of
-  either module, or the overview page changes the modules' maintenance status.
 - The native store rungs can block an unattended run. The Keychain can raise an
   access dialog for an item the calling app is not trusted for or in a locked
   keychain, and `pass` runs `gpg`, which asks for a passphrase through pinentry
@@ -262,8 +260,7 @@ real run, read `result-latest.json`. Do not ask them to paste the transcript.
   [`security` man page](https://keith.github.io/xcode-man-pages/security.1.html)
   (`find-generic-password`, `unlock-keychain`) and the passwordstore.org
   [pass man page](https://git.zx2c4.com/password-store/plain/man/pass.1)
-  (`show`, `gpg-agent`). As of 2026-11-10. Recheck when either man page changes
-  those flags or commands.
+  (`show`, `gpg-agent`).
 - A secret resolved at runtime stays in the human's process. Do not ask for
   the value in chat.
 - `Confirm-Irreversible` is the consent prompt. Do not skip it because the

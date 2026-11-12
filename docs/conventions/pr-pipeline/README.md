@@ -1709,7 +1709,9 @@ the rules that only tighten in
 - **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the
   wrapper enqueuing a head the merge queue has removed that many times for failed checks since the
   head last changed; the queue would eject it again on the same commits. A push resets the count.
-  An unreadable timeline, or 20 timeline items with no head change among them, refuses the
+  At the cap, a removal whose merge-group run failed only `CI Status` (and its `ci-status` alias)
+  on a GitHub rate limit alone, by its failure annotations, is not counted once that limit has
+  reset; a removal whose run or annotations cannot be read counts. An unreadable timeline, or 20 timeline items with no head change among them, refuses the
   enqueue. A refused head gets one `<!-- babysit-merge-queue-ejections -->` comment naming the
   failing `merge_group` runs. Under `merge.lane-prs` `native`, `enable-auto-merge` applies the
   same cap before it arms a lanes App pull request (see [Native auto-merge](#native-auto-merge)).

@@ -95,8 +95,7 @@ omit `--graph`. The collector reads `ProjectReference` Include attributes itself
 
 Keep the `${CLAUDE_SKILL_DIR}` anchor;
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Script paths](${CLAUDE_PLUGIN_ROOT}/reference/config.md#script-paths)
-says why. **As of**: 2026-10-11. **Recheck trigger**: that section is renamed or removed, or its
-own recheck trigger fires.
+says why.
 
 The record is schema_version 1 in the one-object-per-line layout the script writes. Container lines
 start with `{"id":`. Module lines start with `{"container":`. Edge lines start with `{"from":`.
@@ -245,17 +244,14 @@ hand-written; the shared medium resolver decides the destination, with this plug
   and no deployment concerns. Pointer: when checking a container view's scope or elements, fetch
   [C4 container diagram § Scope](https://c4model.com/diagrams/container#scope),
   [§ Primary elements](https://c4model.com/diagrams/container#primary-elements) and
-  [§ Notes](https://c4model.com/diagrams/container#notes) live. As of: 2026-11-10. Recheck
-  trigger: the container-diagram page changes its scope, its primary elements, or moves
-  deployment concerns onto this diagram.
+  [§ Notes](https://c4model.com/diagrams/container#notes) live.
 - **C4-PlantUML container syntax: read against the README, never run.** The renderer writes the
   macros. No PlantUML run has parsed this output. Pointer: when checking the macros or the
   include the renderer writes, fetch
   [C4-PlantUML README § Container diagram](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#container-diagram)
   and
   [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library)
-  live. As of: 2026-11-10. Recheck trigger: that README changes the container macros or the
-  include path, or a host with Java can run PlantUML over a rendered block.
+  live.
 - **LikeC4 container syntax: parsed by the CLI.** The record is a probe: `likec4@1.59.4
   validate` exits 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
   (`containers.c4`, `containers-stores.c4`, `containers-broker.c4`, `containers-endpoints.c4`),
@@ -271,8 +267,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
   `.search.windows.net` is labeled `Azure AI Search`. Pointer: when checking the service's
   endpoint form, fetch
   [Create a search service § Name your service](https://learn.microsoft.com/en-us/azure/search/search-create-service-portal#name-your-service)
-  live. As of: 2026-11-10. Recheck trigger: that section changes the endpoint form or the
-  service moves to another domain. The other hosts the collector labels are listed in
+  live. The other hosts the collector labels are listed in
   `store_technology`; a search service on any other host is labeled `unknown`.
 - **An endpoint is not an edge until it resolves.** A `localhost` URL with no `applicationUrl` on a
   charted deployable, a service name with no compose build context, and a URL naming an external

@@ -22,19 +22,14 @@ platform's symbol server); say which are missing when they are.
 
 ## Pointers
 
-- pprof: <https://github.com/google/pprof>. As of 2026-10-04. Recheck on a Go minor release.
+- pprof: <https://github.com/google/pprof>.
 - perf: <https://man7.org/linux/man-pages/man1/perf-record.1.html>; FlameGraph:
-  <https://github.com/brendangregg/FlameGraph>. As of 2026-10-04. Recheck when the host's perf
-  version changes.
+  <https://github.com/brendangregg/FlameGraph>.
 - .NET diagnostics tools and symbols:
   <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-trace>,
   <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-gcdump>,
-  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/symbols>. As of 2026-10-04. Recheck
-  on a .NET major release.
-- JFR: <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jfr.html>. As of 2026-10-04.
-  Recheck when the project moves to a newer LTS JDK.
+  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/symbols>.
+- JFR: <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jfr.html>.
 - speedscope: <https://github.com/jlfwong/speedscope>; py-spy: <https://github.com/benfred/py-spy>;
-  memray: <https://bloomberg.github.io/memray/>. As of 2026-10-04. Recheck on a major release of
-  any of them.
-- addr2line: <https://sourceware.org/binutils/docs/binutils/addr2line.html>. As of 2026-10-04.
-  Recheck on a binutils major release.
+  memray: <https://bloomberg.github.io/memray/>.
+- addr2line: <https://sourceware.org/binutils/docs/binutils/addr2line.html>.

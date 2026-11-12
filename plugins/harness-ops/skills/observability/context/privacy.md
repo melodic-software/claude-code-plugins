@@ -55,7 +55,7 @@ paths and hook file names stay readable.
 - Hook names, event names, exit codes, durations
 - Branch names, commit SHAs (these are public via `git log`)
 - Cost/token totals (no PII)
-- Statusline payload: we treat it as carrying no user content; its fields are read live from [statusline: available data](https://code.claude.com/docs/en/statusline#available-data) (as of 2026-11-10; recheck when that section adds a prompt or message field)
+- Statusline payload: we treat it as carrying no user content; its fields are read live from [statusline: available data](https://code.claude.com/docs/en/statusline#available-data)
 
 ## Trust boundary
 
