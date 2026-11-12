@@ -1,0 +1,52 @@
+Snapshot for claim C1, raw outputs captured 2026-11-12. Repo root written as <repo>.
+
+== Measurement 1: bash plugins/work-items/skills/measure-delivery/scripts/delivery-metrics.sh --repo <repo> --deploy-signal merge-to-default-branch --since 2026-08-20 --until 2026-11-11 --bucket month
+{
+  "deploy_signal": "merge-to-default-branch",
+  "branch": "origin/main",
+  "bucket": "month",
+  "since": "2026-08-20",
+  "until": "2026-11-11",
+  "totals": {
+    "deployments": 7652,
+    "change_lead_time_hours_median": 0,
+    "failed_deployments": 6,
+    "change_fail_rate": 0.0008,
+    "failed_deployment_recovery_time_hours_median": 1.61,
+    "rework_deployments": 13,
+    "deployment_rework_rate": 0.0017,
+    "unresolved_reverts": 7,
+    "deployments_per_week": 637.67
+  },
+  "trend": [
+    {"period": "2026-08", "deployments": 290, "failed_deployments": 0, "change_fail_rate": 0, "rework_deployments": 0, "deployment_rework_rate": 0, "unresolved_reverts": 0},
+    {"period": "2026-09", "deployments": 1156, "failed_deployments": 0, "change_fail_rate": 0, "rework_deployments": 1, "deployment_rework_rate": 0.0009, "unresolved_reverts": 1},
+    {"period": "2026-10", "deployments": 3670, "failed_deployments": 2, "change_fail_rate": 0.0005, "rework_deployments": 5, "deployment_rework_rate": 0.0014, "unresolved_reverts": 3},
+    {"period": "2026-11", "deployments": 2536, "failed_deployments": 4, "change_fail_rate": 0.0016, "rework_deployments": 7, "deployment_rework_rate": 0.0028, "unresolved_reverts": 3}
+  ]
+}
+(trend rows trimmed to the count and rate fields; lead-time and recovery fields omitted)
+
+== Measurement 2a: git -C <repo> rev-list --count --first-parent origin/main --since=2026-08-20T00:00:00Z --until=2026-11-12T00:00:00Z
+7652
+
+== Measurement 2b: git -C <repo> log --first-parent origin/main --since=2026-08-20T00:00:00Z --until=2026-11-12T00:00:00Z --format='%h %s' --grep='^Revert "' --grep='^revert[(:]'
+49672596acb revert: list open issues 100 per page again (#15119) (#15132)
+58cafd62147 chore(deps-dev): Bump the npm-minor-patch group with 3 updates (#14521)
+4ff95c8647f revert: read Work status events per issue, not from the stale listing (#14667) (#14713)
+5b550fa9280 revert(pr-merge): drop the wake's unmoved-refusal skip (#13107), which never fired in 24 h (#13453)
+f246be28213 revert(source-control): restore the worktree skill's nesting invariant to its body (#13095)
+bee196a5e2f revert: restore four lane-3 skill cuts that failed negative controls (#12247)
+444ef9e12b5 revert(naming): restore the 650-character name-it-better description (#12235)
+fce50a4b927 revert(ai-slop): restore the audit body (#12201 unmeasurable) (#12228)
+ea43e92c5d4 feat(review): add recall eval cases rebuilt from bugs the review lanes missed (#10820)
+398d0ac589b revert(pr-pipeline): stop falling back to the lanes App token on GITHUB_TOKEN exhaustion (#9456)
+17027f7bcee revert(pr-merge): drop merge-pr's lane token actions read (#9438)
+71c1d5a4a34 revert(source-control): stop counting the security lane's docs-only skip as review evidence (#8841)
+6d6b30018ea revert(source-control): undo clean-first pr-merge listing; mergeStateStatus page times out (502) (#8303)
+73f5de8576b revert(discovery): drop the K3 coverage check from the docs lookup procedure (#6544)
+7e3a5c3dab5 revert: remove seven merged out-of-scope park ledgers (#5044)
+Reading: 15 lines; 2 (58cafd62147, ea43e92c5d4) matched a body line, not the subject; 13 have a revert subject.
+
+== Measurement 3: gh pr list -R melodic-software/claude-code-plugins --state merged --search "revert in:title merged:2026-08-20..2026-11-11" --limit 100 --json number,title --jq <count titles matching ^(Revert "|revert(\(.*\))?:)>
+{"matched":37,"revert_prefix":13,"titles":["#15132 revert: list open issues 100 per page again (#15119)","#12228 revert(ai-slop): restore the audit body (#12201 unmeasurable)","#12235 revert(naming): restore the 650-character name-it-better description","#14713 revert: read Work status events per issue, not from the stale listing (#14667)","#12247 revert: restore four lane-3 skill cuts that failed negative controls","#13095 revert(source-control): restore the worktree skill's nesting invariant to its body","#9438 revert(pr-merge): drop merge-pr's lane token actions read","#13453 revert(pr-merge): drop the wake's unmoved-refusal skip (#13107), which never fired in 24 h","#9456 revert(pr-pipeline): stop falling back to the lanes App token on GITHUB_TOKEN exhaustion","#8303 revert(source-control): undo clean-first pr-merge listing; mergeStateStatus page times out (502)","#8841 revert(source-control): stop counting the security lane's docs-only skip as review evidence","#5044 revert: remove seven merged out-of-scope park ledgers","#6544 revert(discovery): drop the K3 coverage check from the docs lookup procedure"]}

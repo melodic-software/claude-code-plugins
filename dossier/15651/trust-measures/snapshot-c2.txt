@@ -1,0 +1,20 @@
+Snapshot for claim C2, raw outputs captured 2026-11-12.
+
+== Measurement 1a: gh pr list -R melodic-software/claude-code-plugins --state merged --limit 500 --json number,author,mergedBy,mergedAt --jq <group by author -> mergedBy>
+[{"k":"app/dependabot -> app/melodic-automation-lanes","n":8},{"k":"app/melodic-automation-lanes -> app/melodic-automation-lanes","n":217},{"k":"app/melodic-release -> app/melodic-release","n":81},{"k":"app/melodic-standards-sync -> app/melodic-standards-sync","n":3},{"k":"kyle-sexton -> app/melodic-automation-lanes","n":7},{"k":"kyle-sexton -> kyle-sexton","n":184}]
+
+== Measurement 1b: gh pr list -R melodic-software/claude-code-plugins --state merged --limit 500 --json number,author,mergedBy,mergedAt,reviews,comments --jq <mergedAt range; app/ author and app/ mergedBy; kyle-sexton in reviews or comments>
+{"first":"2026-11-10T11:07:29Z","last":"2026-11-12T18:50:44Z"}
+{"app_authored_and_merged":309,"with_owner_review_or_comment":4}
+{"total":500}
+Reading: 305 of 500 App-authored, App-merged, no owner-login review or comment.
+
+== Measurement 2: gh api graphql --paginate, search "repo:melodic-software/claude-code-plugins is:pr is:merged merged:2026-11-10T11:07:29Z..2026-11-12T18:50:44Z", per page: Bot author and Bot mergedBy; kyle-sexton among review or comment authors
+{"app_authored_and_merged":56,"app_with_owner_review_or_comment":2,"page_total":100}
+{"app_authored_and_merged":38,"app_with_owner_review_or_comment":0,"page_total":100}
+{"app_authored_and_merged":77,"app_with_owner_review_or_comment":0,"page_total":100}
+{"app_authored_and_merged":69,"app_with_owner_review_or_comment":2,"page_total":100}
+{"app_authored_and_merged":69,"app_with_owner_review_or_comment":0,"page_total":100}
+{"app_authored_and_merged":11,"app_with_owner_review_or_comment":1,"page_total":11}
+Reading: 511 PRs in the merged-at window; 320 Bot-authored and Bot-merged; 5 of those with an owner-login review or comment; 315 of 511 with neither.
+Note: gh pr list's "last 500" is not ordered strictly by merge time, so measurement 1 covers 500 of the 511 PRs merged in that window.

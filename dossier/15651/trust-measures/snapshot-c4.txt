@@ -1,0 +1,11 @@
+Snapshot for claim C4, raw outputs captured 2026-11-12. Repo root written as <repo>.
+
+== Probe 1: bash <repo>/plugins/corrections/tools/findings-buffer/buffer.sh read
+findings-buffer: no adapter bound in docs/conventions/findings-buffer.yaml; using local-file
+(no rows printed)
+
+== Probe 2: find <repo>/.work/codify -maxdepth 3
+bfs: error: <repo>/.work/codify: No such file or directory.
+
+== Probe 3: find <repo>/.work -maxdepth 2 -name 'codify*'
+(no output)
