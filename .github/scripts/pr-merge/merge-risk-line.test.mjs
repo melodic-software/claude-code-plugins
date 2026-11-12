@@ -250,6 +250,23 @@ test("markerAction reads only the lanes App's newest marker comment", () => {
   assert.deepEqual(markerAction([{ ...appSaid(53, `<!-- merge-risk-line head=${HEAD} -->\nMerge-Risk: unrated reason=no-run`), databaseId: undefined }], { bot: BOT, head: HEAD, line }), { action: "post" });
 });
 
+test("markerAction never replaces a rated record with an unrated line, and still moves a rated record to another rating", () => {
+  const rated = appSaid(60, markerBody(HEAD, ratedLine(rating())));
+  for (const reason of REASONS) {
+    assert.deepEqual(markerAction([rated], { bot: BOT, head: HEAD, line: unratedLine(reason) }), { action: "none" }, reason);
+  }
+  const higher = ratedLine({ ...rating(), max: "HIGH", demote: true });
+  assert.deepEqual(markerAction([rated], { bot: BOT, head: HEAD, line: higher }), { action: "patch", id: 60 });
+  assert.deepEqual(markerAction([appSaid(61, PENDING_COMMENT)], { bot: BOT, head: HEAD, line: ratedLine(rating()) }), { action: "patch", id: 61 });
+});
+
+test("markerAction posts a fresh record when the App's newest marker comment was edited", () => {
+  const edited = (body) => ({ ...appSaid(70, body), lastEditedAt: "2026-11-12T02:00:00Z" });
+  assert.deepEqual(markerAction([edited(PENDING_COMMENT)], { bot: BOT, head: HEAD, line: unratedLine("pending") }), { action: "post" });
+  assert.deepEqual(markerAction([edited(PENDING_COMMENT)], { bot: BOT, head: HEAD, line: ratedLine(rating()) }), { action: "post" });
+  assert.deepEqual(markerAction([edited(markerBody(HEAD, ratedLine(rating())))], { bot: BOT, head: HEAD, line: unratedLine("no-run") }), { action: "post" });
+});
+
 test("recordMergeRisk posts one marker comment when the head has none", async () => {
   const { actions } = fake({ artifacts: [{ id: 11, name: artifactName(7, HEAD), expired: false, workflow_run: { id: 5 } }], runs: { 5: runOf(5) } });
   const { github, sent } = writer();

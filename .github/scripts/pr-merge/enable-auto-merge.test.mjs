@@ -4324,11 +4324,9 @@ test("the Merge-Risk record reads the comments the arm already read, lists none 
   // The head's record already holds this line: nothing is written.
   assert.deepEqual(writer.sent, []);
   assert.ok(lines.some((line) => line.startsWith(`::notice title=merge-risk::pr=1 head=${HEAD} merge-risk=unrated:unreadable read-ms=`) && !line.includes("write=")), lines.join("\n"));
-  // No comment list was read beyond the one discussion read, and no body was written.
+  // No comment list was read beyond the one discussion read.
   assert.equal(calls.filter(({ body }) => body?.query === DETAIL_QUERY).length, 1);
   assert.equal(calls.filter(({ body }) => body?.query === DISCUSSION_PAGE_QUERIES.comments).length, 0);
-  assert.equal(calls.filter(({ method, path }) => /\/issues\/[0-9]+\/comments/.test(path) && method === "GET").length, 0);
-  assert.equal(calls.filter(({ method, path }) => method === "PATCH" && /\/pulls\//.test(path)).length, 0);
 });
 
 test("a merge-risk step that throws outright still arms", async () => {

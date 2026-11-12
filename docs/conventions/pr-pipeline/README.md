@@ -2477,9 +2477,11 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
   it again, and builds the line from closed values alone. With no artifact, a run of that file
   still going for the head is `pending`, a finished one `no-rating`, none `no-run`. It then reads
   the pull request's comments the arm already listed, and lists none again. When the lanes App's
-  newest marker comment names this head and holds this line, it writes nothing; when it names
-  this head with another line (`pending` before the rating landed), it edits that comment; in any
-  other case it posts a new comment. The comment is the App's own text, so it records the rating
+  newest marker comment names this head and holds this line, or holds a rated line while this
+  one is `unrated`, it writes nothing, so a later failed read never overwrites a rating; when it
+  names this head with another line (`pending` before the rating landed, or another rating), it
+  edits that comment; when that comment was edited (`lastEditedAt` set) it is no longer the App's
+  text, and the arm posts a new comment, as it does in any other case. The comment is the App's own text, so it records the rating
   on every armed pull request, whoever wrote the body. It never edits the pull request body.
 - **Why a comment.** A merge queue ignores a commit body given at arm time: GraphQL's
   `enablePullRequestAutoMerge` documents `commitBody` with "when merging with a merge queue any
@@ -2489,14 +2491,18 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
   (`squash_merge_commit_message=PR_BODY`). A body edit would be a `pull_request: edited` event,
   which starts a contract-only pr-require-checks run whose completion starts pr-verify,
   pr-verify-capture, pr-rate-merge-risk and pr-review-main runs that only confirm answers already
-  given, about 36 `GITHUB_TOKEN` core calls per arm, and the queue would wait about 50 seconds for
-  that run's `ci-status`. A comment starts none of these, so the record is a comment and the
+  given, about 36 `GITHUB_TOKEN` core calls per arm (the job-call records of the five body edits
+  from 04:53 to 05:38 UTC on 2026-11-12), and the queue would wait about 50 seconds for that run's
+  `ci-status`: run 42173684490 (2026-11-06, every lane job skipped) reported `ci-status` 50
+  seconds after it started, and the 11 short successful pull request runs in that hour's listing
+  took 37 to 58 seconds. A comment starts none of these, so the record is a comment and the
   squash commit does not carry it.
 - **What it costs the merge.** The arm itself waits at most about 40 seconds: the reads have 15
   seconds, the comment write 5, and the artifact download runs `gh` and `unzip`, each capped at 8
   seconds, which that timer cannot cut short. Any error or timeout records `unrated` or skips the
-  write, and the arm goes on. One comment write per head is the most the arm makes, and none when
-  the head's record already holds the line. Its `issue_comment` event starts
+  write, and the arm goes on. Each arm makes at most one comment write, and a head gets at most
+  one comment unless its record was edited; there is no write when the head's record already
+  holds the line or a rating. Its `issue_comment` event starts
   `security-outside-actor` and `intake-reenter` runs whose jobs skip a bot's comment, as they do
   for the pin. Nothing reads the record back: no gate, hold or rung. Not while
   `merge.report-only` is true.
@@ -2506,8 +2512,8 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
   `write=<no-pull|write-failed>` when that kept the record unwritten) and adds the token to the step summary.
 - **Finding a merged pull request's rating.** A squash commit's subject ends in `(#N)`, and a
   revert's subject quotes it. For a revert study, take `N`, read pull request N's comments, and
-  take the lanes App's newest comment whose first line is the marker for the head that merged;
-  its second line is the rating. A pull request armed before the record moved carries the line as
+  take the lanes App's newest comment whose first line is the marker for the head that merged,
+  skipping any with an edit timestamp (`lastEditedAt`); its second line is the rating. A pull request armed before the record moved carries the line as
   its body's last line instead, and so does its squash commit, which GitHub wraps over 72
   characters into one `Merge-Risk:` line and the `key=value` lines after it: join them up to the
   next blank line.

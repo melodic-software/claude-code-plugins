@@ -119,18 +119,22 @@ const MARKER_LINE = new RegExp(`^<!-- ${MERGE_RISK_MARKER} head=([0-9a-f]{40}) -
 // The record's comment body for `head`: the marker line, then `line`.
 export const markerBody = (head, line) => `<!-- ${MERGE_RISK_MARKER} head=${head} -->\n${line}`;
 
+const isRated = (line) => String(line ?? "").startsWith("Merge-Risk: max=");
+
 // What the arm does with its record, from `comments` it already read
-// (author, body, createdAt, databaseId): the lanes App's (`bot`, its login
-// without `[bot]`) newest marker comment for `head` holding `line` needs
-// nothing, one holding another line is patched, and anything else gets a
-// new comment.
+// (author, body, createdAt, lastEditedAt, databaseId): the lanes App's (`bot`,
+// its login without `[bot]`) newest marker comment for `head` holding `line`,
+// or a rated line when `line` is unrated, needs nothing; one holding another
+// line is patched. An edited record is not the App's text, so it, like no
+// record or one for another head, gets a new comment.
 export function markerAction(comments, { bot, head, line }) {
   const newest = (Array.isArray(comments) ? comments : [])
     .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && MARKER_LINE.test(String(c.body ?? "").split(/\r?\n/)[0]))
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
     .at(-1);
-  if (newest === undefined || MARKER_LINE.exec(String(newest.body).split(/\r?\n/)[0])[1] !== head) return { action: "post" };
-  if (String(newest.body).replace(/\r\n/g, "\n") === markerBody(head, line)) return { action: "none" };
+  if (newest === undefined || newest.lastEditedAt || MARKER_LINE.exec(String(newest.body).split(/\r?\n/)[0])[1] !== head) return { action: "post" };
+  const body = String(newest.body).replace(/\r\n/g, "\n");
+  if (body === markerBody(head, line) || (isRated(body.split("\n")[1]) && !isRated(line))) return { action: "none" };
   return Number.isSafeInteger(newest.databaseId) ? { action: "patch", id: newest.databaseId } : { action: "post" };
 }
 
