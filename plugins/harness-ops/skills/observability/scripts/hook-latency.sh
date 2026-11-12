@@ -27,12 +27,11 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OTEL_DIR="$SCRIPT_DIR/../otel"
+OTEL_PROG=hook-latency
+# shellcheck source=../otel/otel-sql.sh
+source "$OTEL_DIR/otel-sql.sh"
 
 usage() { sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
-die() {
-  printf 'hook-latency: %s\n' "$1" >&2
-  exit 2
-}
 routes() {
   cat >&2 <<'EOF'
 hook-latency: routes to hook latency:
@@ -108,14 +107,9 @@ while (($#)); do
   esac
 done
 
-sql_path() { # native duckdb.exe cannot read MSYS paths; double quotes for a SQL literal
-  local p="$1"
-  if command -v cygpath >/dev/null 2>&1; then p="$(cygpath -m "$p")"; fi
-  printf '%s\n' "${p//\'/\'\'}"
-}
-
 command -v duckdb >/dev/null 2>&1 || cannot_evaluate "duckdb not found"
-store="${CC_OTEL_STORE:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/observability/otel}"
+store=""
+otel_store_to store
 [[ -f "$store/cc-logs.json" ]] || cannot_evaluate "no logs store at $store/cc-logs.json"
 
 err="$(mktemp)"
