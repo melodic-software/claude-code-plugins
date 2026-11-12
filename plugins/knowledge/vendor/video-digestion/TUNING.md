@@ -56,8 +56,8 @@ Keyword signals: `DENSIFICATION_SIGNALS` (code/slide/demo/terminal patterns).
 up to `MEDIUM_DURATION_THRESHOLD_SEC` medium; longer videos get duration divided by
 `LONG_GAP_FILL_FRAME_BUDGET`, rounded up, held between the medium cap and `LONG_MAX_FRAME_GAP_SEC`
 (20 min: 15 s; 80 min and longer: 60 s). `run-watch.js --max-frame-gap-sec <sec>`
-overrides it for one run, and the value used is recorded as `maxFrameGapSec` in
-`coverage-plan.json` and `watch.json`.
+overrides it for one run. The value used is recorded as `maxFrameGapSec` in `coverage-plan.json`,
+and in `watch.json` only when `--max-frame-gap-sec` set it.
 
 Basis per tier (as of 2026-11-11; recheck when a digest misses visuals or a sheet count jumps):
 

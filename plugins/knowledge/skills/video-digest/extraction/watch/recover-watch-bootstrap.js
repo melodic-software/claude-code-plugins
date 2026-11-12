@@ -312,7 +312,7 @@ export async function recoverWatchBootstrapCli(argv) {
   const targetMinFrames = selection.targetMinFrames ?? 0;
 
   const highVolume = isHighVolume({
-    candidateCount: selectedCount,
+    candidateCount: selection.candidateCount,
     targetMinFrames: coveragePlan.targetMinFrames,
     contactSheetCount: contactSheets.length,
     durationSec,
