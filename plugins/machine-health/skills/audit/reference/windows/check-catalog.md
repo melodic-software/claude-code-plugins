@@ -684,7 +684,8 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   - **Probed layout:** `<root>/<project-key>/<session-id>/tasks/<task-id>.output` was observed on
     live Windows sessions in
     [#6036](https://github.com/melodic-software/claude-code-plugins/issues/6036). No docs page
-    names this path.
+    names this path. **As of**: 2026-10-04. **Recheck trigger**: a probe finds `.output` files
+    outside `tasks/`.
   - **Pointer**: when deciding whether the running Claude Code version caps a background task's
     output, fetch
     [Interactive mode, "How backgrounding works"](https://code.claude.com/docs/en/interactive-mode#how-backgrounding-works)
