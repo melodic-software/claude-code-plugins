@@ -48,7 +48,7 @@ and viewed 2026-11-12):
 - PRE-PRODUCTION (18): unit tests, functional tests, component tests, fuzz tests, static analysis,
   property based tests, coverage tests, benchmark tests, regression tests, contract tests, lint
   tests, acceptance tests, mutation tests, smoke tests, UI/UX tests, usability tests, penetration
-  tests, threat modelling.
+  tests, threat modeling.
 - DEPLOY (5): integration tests, tap compare, load tests, shadowing, config tests.
 - RELEASE (5): canarying, monitoring, traffic shaping, feature flagging, exception tracking.
 - POST RELEASE (11): teeing, profiling, logs/events, chaos testing, monitoring, A/B tests, tracing,
