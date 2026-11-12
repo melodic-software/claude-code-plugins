@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: asv-absent-key-subagent-use-counts
+graders:
+  - name: absent-key-not-loaded
+    type: regex
+    pattern: 'defaultEnabled[^\n]{0,200}\b(?:not|never|ignored|no effect|doesn[’'']?t|does not)\b|\b(?:not|never|doesn[’'']?t|does not)\b[^\n]{0,80}defaultEnabled|\b(?:will be|is|stays|shows as|reads|reported as|counts as|treated as) (?:disabled|hidden|off)\b'
+    flags: 'i'
+    target: last_message
+  - name: subagent-own-window
+    type: regex
+    pattern: 'sub-?agent[^\n]{0,250}\b(?:own (?:context )?window|smaller (?:context )?window|shed\w*|(?:truncated?|truncates|truncation|truncating)|cut short|drop\w*|not (?:covered|guaranteed)|doesn[’'']?t (?:cover|carry|apply)|does not (?:cover|carry|apply))|\bmain session\b[^\n]{0,120}\bonly\b|\bonly\b[^\n]{0,60}\bmain session\b'
+    flags: 'i'
+    target: last_message
+  - name: use-count-not-comparable
+    type: regex
+    pattern: '\bhooks?\b[^\n]{0,250}\b(?:count\w*|dispatch\w*|inflat\w*|dominat\w*|fires?|fired|every)\b|\bnot (?:directly )?comparable\b|\bincomparable\b'
+    flags: 'i'
+    target: last_message

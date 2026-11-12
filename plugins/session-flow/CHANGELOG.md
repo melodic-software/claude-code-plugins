@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [7.9.9] - 2026-11-12
+
+### Fixed
+
+- Corrected stated facts that had gone stale or were wrong, each checked against its current source.
+
 ## [7.9.8] - 2026-11-11
 
 ### Changed

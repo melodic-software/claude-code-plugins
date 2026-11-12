@@ -61,8 +61,10 @@ SECURITY_CHECK = {
     "workflow_name": "pr-review-security-hosted",
 }
 # pr-review-cli.yml's status jobs, which share the name `review-status`.
-CLI_CHECK = {**CHECK, "name": "pr-review / review-status"}
-CLI_SECURITY_CHECK = {**SECURITY_CHECK, "name": "pr-review-security / review-status"}
+CLI_CHECK = {**CHECK, "name": "PR Review / review-status"}
+CLI_SECURITY_CHECK = {**SECURITY_CHECK, "name": "PR Review Security / review-status"}
+# The same under the lower-case caller: a head tested before the rename.
+RENAMED_CLI_CHECK = {**CHECK, "name": "pr-review / review-status"}
 
 
 def _job(**overrides: Any) -> dict[str, Any]:
@@ -279,6 +281,7 @@ class RerunRateLimitedReview(unittest.TestCase):
             (SECURITY_CHECK, security),
             (CLI_CHECK, primary),
             (CLI_SECURITY_CHECK, security),
+            (RENAMED_CLI_CHECK, primary),
         ):
             report, posts = self._run(
                 job=self._publish_check(check), annotations=[text], check=check

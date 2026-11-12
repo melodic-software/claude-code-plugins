@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: la-compaction-resume-and-cloud
+graders:
+  - name: compaction-not-reset
+    type: regex
+    pattern: 'compact\w*[^\n]{0,250}\b(?:not a (?:fresh |true |real |clean )?(?:reset|context|start)|isn[’'']?t a (?:fresh |true |real |clean )?(?:reset|context|start)|lossy|(?:summary|summaries|summari[sz]\w*))|\b(?:lossy|(?:summary|summaries|summari[sz]\w*))[^\n]{0,200}compact'
+    flags: 'i'
+    target: last_message
+  - name: declines-resume-bg
+    type: regex
+    pattern: '(?:\bno\b|don[’'']?t|do not|never|avoid|shouldn[’'']?t|should not|\bnot\b)[^.\n]{0,100}--resume|--resume[^\n]{0,200}\b(?:instead|rather|fresh|declin\w*|not a restart|isn[’'']?t a restart)'
+    flags: 'i'
+    target: last_message
+  - name: cloud-not-listed
+    type: regex
+    pattern: '(?:does not|doesn[’'']?t|won[’'']?t|will not|\bnot\b|never)[^.\n]{0,40}\b(?:list|show|include|see|report)\w*\b[^.\n]{0,60}\bcloud|\bcloud\b[^.\n]{0,100}\b(?:not (?:listed|shown|included|visible)|aren[’'']?t (?:listed|shown|included)|invisible|missing)|\bnot (?:the )?cloud sessions?\b|\b(?:only (?:lists?|shows?)|lists? only|shows? only)\b[^.\n]{0,60}\b(?:this|your|the local|local)\b[^.\n]{0,20}\b(?:machine|computer|sessions)\b'
+    flags: 'i'
+    target: last_message
+  - name: git-gather-separate
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*\bgit\b)(?:[^"\\]|\\.)*?(?:&&|;|\|\|)'
+    min: 0
+    max: 0

@@ -3142,8 +3142,9 @@ them on every `pull_request` run, contract-only runs included:
   ci-status's merge-holds step still fails on the veto comment until a later comment by the same
   member lifts it, so the veto holds before the label lands and if the label is removed.
 - **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
-  head must have a successful status job (`pr-review / review-status`,
-  `pr-review-security / review-status`) whose `Apply the hold` step ran. A summary-mode run or
+  head must have a successful status job (`PR Review / review-status`,
+  `PR Review Security / review-status`; the lower-case caller on a head tested before the rename)
+  whose `Apply the hold` step ran. A summary-mode run or
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
   the cause named. A lane a kill switch stopped (the switch was on when the review run started)
   fails too: the kill switch pauses review and never waives it. Once it is off, the lost-run

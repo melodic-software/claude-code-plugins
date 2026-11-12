@@ -383,9 +383,8 @@ test("the credit gate runs in the key job after the resolver, the trigger gate a
     assert.ok(index(before) >= 0 && index(before) < index("Read the key's credit history"), before);
   }
   for (const after of GATED_SETUP) assert.ok(index(after) > index("Check the credential"), after);
-  // The marker's name carries the key-job input; the key job's id stays its display name.
+  // The marker's name carries the key-job input, the key job's id.
   assert.equal(input(gate, "key-job"), KEY);
-  assert.doesNotMatch(jobText(KEY), /^ {4}name:/m);
   // The window's default lives only in the action: an empty variable is its 1 hour.
   assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS }}");
   assert.equal(input(gate, "reset-at"), "${{ vars.KEY_CREDIT_RESET_AT }}");

@@ -75,6 +75,7 @@ jobs:
   # Picks the release, skips one already processed, and applies the per-day
   # cap. No model, no secret, a read-only token.
   gate:
+    name: Gate
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -226,6 +227,7 @@ jobs:
   # removed from the working tree first (R13). This is the key leg; a
   # handoff or an empty key leaves the release to model-subscription.
   model:
+    name: Model
     needs: gate
     # The first attempt only: a re-run never runs the model again. A key the
     # credit gate skipped runs nothing here; model-subscription runs it.
@@ -613,6 +615,7 @@ jobs:
   # holds its steps equal to the key leg's but for the credential, the
   # handoff report, the leg record's fallback reason and the seal's job id.
   model-subscription:
+    name: Model Subscription
     needs: [gate, model]
     # The first attempt only, after the key leg handed off, found its key
     # empty, or was skipped by the credit gate.
@@ -960,6 +963,7 @@ jobs:
   # alone, after the subscription leg handed off. It is the last leg and
   # never hands off.
   model-fallback:
+    name: Model Fallback
     needs: [gate, model-subscription]
     # The first attempt only, after the subscription leg handed off or found
     # its token empty.
@@ -1281,6 +1285,7 @@ jobs:
   # scrub-probe-fallback probe the same way on the credential each later leg
   # runs on, after the same handoffs as the model's legs.
   scrub-probe:
+    name: Scrub Probe
     needs: gate
     if: needs.gate.outputs.proceed == 'true' && needs.gate.outputs.next-leg != 'subscription' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
@@ -1507,6 +1512,7 @@ jobs:
   # The scrub probe on the subscription token, after the key probe handed off,
   # found its key empty, or was skipped by the credit gate.
   scrub-probe-subscription:
+    name: Scrub Probe Subscription
     needs: [gate, scrub-probe]
     if: >-
       ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
@@ -1738,6 +1744,7 @@ jobs:
   # The scrub probe on the fallback token, after the subscription probe handed
   # off or found its token empty. The last leg: it never hands off.
   scrub-probe-fallback:
+    name: Scrub Probe Fallback
     needs: [gate, scrub-probe-subscription]
     if: >-
       ${{ !cancelled() && needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
@@ -1950,6 +1957,7 @@ jobs:
   # One leg answers the run: the fallback leg when it ran, else the
   # subscription leg when it ran, else the key leg.
   scan:
+    name: Scan
     needs: [gate, model, model-subscription, model-fallback]
     if: ${{ !cancelled() && (needs.model-fallback.result != 'skipped' && needs.model-fallback.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result != 'skipped' && needs.model-subscription.outputs.sealed-length || needs.model-fallback.result == 'skipped' && needs.model-subscription.result == 'skipped' && needs.model.outputs.sealed-length || '') != '' }}
     runs-on: ubuntu-24.04
@@ -2156,6 +2164,7 @@ jobs:
   # apply-patch does for work-resolve-issue, after checking its net diff stays
   # inside its plugin.
   push-branches:
+    name: Push Branches
     needs: [gate, scan]
     if: ${{ !cancelled() && needs.scan.outputs.clean == 'true' && needs.scan.outputs.branches != '0' }}
     runs-on: ubuntu-24.04
@@ -2294,6 +2303,7 @@ jobs:
   # a range-not-computed plan files nothing and is not recorded done, so the
   # next run takes the release again.
   publish:
+    name: Publish
     needs: [gate, scan, push-branches]
     if: >-
       ${{ !cancelled() && needs.scan.outputs.clean == 'true'

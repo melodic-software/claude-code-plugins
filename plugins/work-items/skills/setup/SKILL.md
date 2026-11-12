@@ -465,8 +465,7 @@ token resolving in a supporting file or in the Bash tool.
 
 - **Pointer**: when deciding whether a `${…}` reference resolves in a file or tool, fetch
   [plugins manifest reference § Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that table adds supporting files or the Bash
-  tool to where a `${…}` reference resolves.
+  live.
 
 ## What this skill does NOT do
 

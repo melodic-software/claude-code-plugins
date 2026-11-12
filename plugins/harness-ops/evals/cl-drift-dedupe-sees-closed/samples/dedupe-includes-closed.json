@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Yes, it runs `gh issue list --state all --limit 1000`, so the closed issue is found and no duplicate is filed.",
+      "why": "flag with later no"
+    },
+    {
+      "answer": "Yes: per `context/native-drift.md`, the check runs `gh issue list --state all --limit 1000`.",
+      "why": "filename dot"
+    },
+    {
+      "answer": "Yes. It runs `gh issue list --state all`, so closed issues are included.",
+      "why": "flag"
+    },
+    {
+      "answer": "Yes, the search covers closed issues as well.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No, it only sees open issues.",
+      "why": "wrong"
+    },
+    {
+      "answer": "No, it won't find the closed one.",
+      "why": "negated find"
+    },
+    {
+      "answer": "It lists only open issues, so the closed one is missed.",
+      "why": "only open"
+    }
+  ]
+}

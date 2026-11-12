@@ -93,8 +93,8 @@ const completeNotice = (lane, scope = "scope=whole") => ({
 });
 // Each review caller's newest run on HEAD and its status job.
 const baseLanes = () => ({
-  "pr-review-hosted.yml": { check: "pr-review / review-status", conclusion: "success", notes: [completeNotice("claude-review")] },
-  "pr-review-security-hosted.yml": { check: "pr-review-security / review-status", conclusion: "success", notes: [completeNotice("claude-security-review")] },
+  "pr-review-hosted.yml": { check: "PR Review / review-status", conclusion: "success", notes: [completeNotice("claude-review")] },
+  "pr-review-security-hosted.yml": { check: "PR Review Security / review-status", conclusion: "success", notes: [completeNotice("claude-security-review")] },
 });
 
 // The branch's pushes, newest first: the person's fix after the held head.

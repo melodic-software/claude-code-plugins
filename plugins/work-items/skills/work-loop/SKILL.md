@@ -56,8 +56,7 @@ document says "per the convention", that file is the contract.
 Launch interactively via `/loop` with the interval omitted (self-paced). At the end of every cycle
 that does not exit, schedule the next one with `ScheduleWakeup`. Short delays under queue
 pressure, backing off toward the ceiling when idle. Pacing semantics, the `/loop` expiry
-([Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry), as of
-2026-11-10; recheck when that section changes the bound), and cycle-budget behavior are owned by
+([Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry)), and cycle-budget behavior are owned by
 the convention (§4); on a budget or expiry hit, write a
 restart-request into the telemetry state block and stop the loop cleanly. A headless launch never
 blocks on an interview (headless-config floor) and never guesses its stop mode
@@ -110,7 +109,7 @@ them from its invocation line, never from this block or launch-prompt prose.
 `loop_started_at` makes the approaching `/loop` expiry visible; `restart_request` is where a
 budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. `latched_account`
 is the tripping account's fingerprint (see [reference/paused-wait.md](reference/paused-wait.md)).
-`effort` is the level that ran, which can differ from the launch `--effort`: at each cycle start run `printenv CLAUDE_EFFORT` through Bash and record its output, or `"unset"` when it prints nothing. Pointer: for the `CLAUDE_EFFORT` variable, see the `effort` row of [Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields). As of: 2026-10-02. Recheck trigger: that row stops naming the variable.
+`effort` is the level that ran, which can differ from the launch `--effort`: at each cycle start run `printenv CLAUDE_EFFORT` through Bash and record its output, or `"unset"` when it prints nothing. Pointer: for the `CLAUDE_EFFORT` variable, see the `effort` row of [Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields).
 
 Every counter here is **per-instance**, the marker partitions the block, so `item_cap`,
 `clean_streak`, `no_progress_streak`, and `rate_limit_latch` measure *this* instance's experience.
@@ -135,8 +134,8 @@ rejected as unknown, never the rejected value, a stale reading carried forward, 
 `five_hour_delta_pct` and `seven_day_delta_pct` are per window, since an account may report only
 some windows: `null` when that window's reading is unavailable on either side, on a first cycle, and
 when the current reading is **lower** than the previous one (a rollover). Pointer: for which windows
-exist, the `windows` keys `mcp__rate-limit-guard__status` returns. As of: 2026-10-30. Recheck
-trigger: the guard changes which windows it carries. Everything else, the single permitted readback,
+exist, the `windows` keys `mcp__rate-limit-guard__status` returns.
+Everything else, the single permitted readback,
 each delta covering the interval *preceding* its reporting cycle, and the three properties bounding
 what the data supports, is the convention's (§4, "Per-cycle usage sample"), held by citation.
 
@@ -281,8 +280,7 @@ the former default-on pause).
    that comment**: create `.claude/lane-escalations/<UTC-stamp>-<item>-work-loop.json` (stamp
    `YYYYMMDDTHHMMSSZ`) with the **Write tool**, never a shell redirect: a consuming repo's out-of-band notification
    hook keys on the Write tool's `PostToolUse` event
-   ([PostToolUse](https://code.claude.com/docs/en/hooks#posttooluse), as of 2026-11-10; recheck
-   when that section changes what `tool_name` a file write reports). Body
+   ([PostToolUse](https://code.claude.com/docs/en/hooks#posttooluse)). Body
    `{"schema":"loop-lane/escalation-record@1","lane":"work-loop","kind":"<marker kind>","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
    Duplicate suppression is the marker read this step already performs before escalating: an item
    whose marker already stands while it is still held for a person per the tracker seam's
@@ -301,7 +299,7 @@ the former default-on pause).
    `/harness-ops:lanes` launches) to keep the record Write in place. A live probe (`claude --bg`, Claude Code 2.1.285) from a linked worktree outside
    `.claude/worktrees` wrote the record file there with no refusal, as did an earlier lane
    (worktree `cc-plugins-lane-2`). A launch from a checkout that is not a linked worktree is not the
-   recommended mode: one lane's record Write there was refused (the refusal is on #4598), and the
+   recommended mode: one lane's record Write there was refused (the refusal is on the issue the pointer below names), and the
    other outcome of that launch was not probed here. Either way
    the tracker marker comment is the escalation of record, and a refused record Write does not stop
    the cycle. This lane must not call `EnterWorktree` (it would end the long-lived orchestrator), so
@@ -383,7 +381,6 @@ The gate admits no other way: a candidate with no admitted autonomous-eligible r
 
 Pointer: for the permission each GitHub role maps to, see
 [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user).
-As of: 2026-11-10. Recheck trigger: the endpoint's role mapping changes.
 
 Hard gates:
 

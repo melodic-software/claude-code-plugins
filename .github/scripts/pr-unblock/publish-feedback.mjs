@@ -234,7 +234,8 @@ const citation = (ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.l
 
 // The check runs a ci snapshot may cite: a github-actions job page.
 const CI_RUN_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[1-9][0-9]{0,19}\/job\/[1-9][0-9]{0,19}$/;
-const CI_RUN_NAME = /^[A-Za-z0-9_.-]+( \([0-9]{1,3}\))?$/;
+// A job's name, display (`Test Bash (3)`) or id (`test-bash (3)`).
+const CI_RUN_NAME = /^[A-Za-z0-9_.-]+(?: [A-Za-z0-9_.-]+)*( \([0-9]{1,3}\))?$/;
 const ciValid = (ci) =>
   ci !== null &&
   typeof ci === "object" &&

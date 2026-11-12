@@ -32,11 +32,34 @@ const AGGREGATOR_STEP = "Aggregate hygiene results";
 // The all-branches secret scan fails on any branch, so it counts against no merge.
 const BRANCH_WIDE_GATES = new Set(["gitleaks failed"]);
 
+// pr-require-checks.yml's job ids, as a run on a commit tested before the
+// rename names its jobs, each to its display name, so checks compare across
+// that rename. A matrix job keeps its ` (N)` suffix.
+export const RENAMED_JOBS = Object.freeze({
+  "mark-lanes": "Mark Lanes",
+  "select-tests": "Select Tests",
+  "lint-repo": "Lint Repo",
+  "lint-shell": "Lint Shell",
+  "check-plugins": "Check Plugins",
+  "check-catalog": "Check Catalog",
+  "check-skills": "Check Skills",
+  "test-bash": "Test Bash",
+  "test-python": "Test Python",
+  "test-node": "Test Node",
+  "check-managed-files": "Check Managed Files",
+  "check-tests": "Check Tests",
+});
+const JOB_NAME = /^([a-z-]+)( \(.*\))?$/;
+export const checkName = (name) => {
+  const match = JOB_NAME.exec(String(name));
+  return match !== null && Object.hasOwn(RENAMED_JOBS, match[1]) ? `${RENAMED_JOBS[match[1]]}${match[2] ?? ""}` : name;
+};
+
 // babysit_postmerge.py's FAILED_CONCLUSIONS: the job conclusions the
 // demotion alert counts, as the judge it hands its checks to does.
 export const ALERT_FAILED = Object.freeze(["failure", "timed_out", "cancelled", "startup_failure", "action_required"]);
 
-// The checks a run attempt failed: a job, or `job: gate` for each gate the
+// The checks a run attempt failed: a job (by checkName), or `job: gate` for each gate the
 // hygiene aggregator titles in a failure annotation. `annotations` maps a job
 // id to its annotations. The red-main report counts only a job that concluded
 // `failure` (a cancelled or timed-out job is no evidence of a break); the
@@ -62,11 +85,12 @@ export function failingChecks(jobs, annotations = {}, { failed: conclusions = ["
       ["failure", "timed_out", "cancelled"].includes(step.conclusion),
     );
     const unknownSteps = gates.length > 0 && failedSteps.length === 0;
+    const name = checkName(job.name);
     if (gates.length === 0 || failedSteps.some((step) => step.name !== AGGREGATOR_STEP) || (unknownSteps && !baseline)) {
-      checks.push(job.name);
+      checks.push(name);
     }
     for (const gate of gates) {
-      if (!BRANCH_WIDE_GATES.has(gate)) checks.push(`${job.name}: ${gate}`);
+      if (!BRANCH_WIDE_GATES.has(gate)) checks.push(`${name}: ${gate}`);
     }
   }
   return [...new Set(checks)];

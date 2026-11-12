@@ -841,13 +841,15 @@ merge-ready for a human. The lane's partition is the only class check, so the PR
 work lane opens carries the body hold line the lane writes for untrusted provenance and waits for
 the user; it is never handed to this invocation.
 
-The AI review checks are the review lane's `claude-review-status` (matched by that job segment
-under any caller, e.g. `review /` or `pr-review /`) and the security lane's
+The AI review checks are the review lane's `PR Review / review-status` (`pr-review /
+review-status` on a head tested before the rename) or `claude-review-status` (matched by that job
+segment under any caller, e.g. `review /` or `pr-review /`) and the security lane's
+`PR Review Security / review-status`, `pr-review-security / review-status`,
 `security-review / security-review` or `pr-review-security / security-review` (matched by its
-whole name, never by the job segment alone; both names hold while old and new callers coexist),
+whole name, never by the job segment alone; every name holds while old and new callers coexist),
 plus any `claude-security-review-status` check the rollup carries. Their names are
-`<caller job id> / <reusable job name>`: the caller components synced from standards supply the
-first part, the ci-workflows reusables the second.
+`<caller job name> / <reusable job name>`: the caller's display name, or its job id where it sets
+none, from the caller components synced from standards, then the ci-workflows reusable's job.
 
 - **Pointer**: when a lane check name in a rollup does not match the gate's, fetch the job names
   in [pr-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review.yml)

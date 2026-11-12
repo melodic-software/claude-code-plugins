@@ -68,6 +68,7 @@ jobs:
   # proceeded mint a token whatever the model call did. Only base code and a
   # read-only token; a dispatch with no dispatcher run skips the steps.
   dispatcher-current:
+    name: Dispatcher Current
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -130,6 +131,7 @@ jobs:
   # element 2): one notice, held=true and no passes, and fix-docs-head-held
   # logs the hold the dispatcher reads to send the PR again.
   plan:
+    name: Plan
     needs: dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-docs'
@@ -253,6 +255,7 @@ jobs:
   # A hold whose reads meet a GitHub fault holds the same way, with no held.
   # It starts only when the plan job planned fix-docs.
   fix-docs-head:
+    name: Fix Docs Head
     needs: [dispatcher-current, plan]
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-docs'
@@ -364,6 +367,7 @@ jobs:
   # HOLD_LANES). It needs plan and fix-docs-head alone, jobs that run no head
   # code, so nothing forges it.
   fix-docs-head-held:
+    name: Fix Docs Head Held
     needs: [plan, fix-docs-head]
     if: >-
       ${{ !cancelled() && (needs.fix-docs-head.outputs.unread == 'true'
@@ -404,6 +408,7 @@ jobs:
   # role's API key alone. Drafts and do-not-merge PRs skip in the config's
   # applies-when, a human-gated hold in fix-docs-head, before any model turn.
   fix-docs:
+    name: Fix Docs
     needs: fix-docs-head
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-docs'
@@ -448,6 +453,7 @@ jobs:
   # were lost (cancelled, timed_out or startup_failure); any other completed run
   # ends the PR. A failed fix-docs still reds its own jobs and the run.
   fix-docs-handoff:
+    name: Fix Docs Handoff
     needs: [fix-docs-head, fix-docs]
     if: ${{ !cancelled() && needs.fix-docs.result != 'skipped' }}
     runs-on: ubuntu-24.04
@@ -532,6 +538,7 @@ jobs:
   # call's output. No job needs this one, so the read, which waits for the
   # jobs listing's steps, delays no handoff.
   key-credit-markers:
+    name: Key Credit Markers
     needs: [fix-docs]
     if: ${{ !cancelled() && (needs.fix-docs.result != 'skipped') }}
     runs-on: ubuntu-24.04
@@ -618,6 +625,7 @@ jobs:
   # fix-docs output: only the run job knows whether it was a credit stop or an
   # empty key, and head code can forge that.
   fix-docs-subscription:
+    name: Fix Docs Subscription
     needs: [fix-docs-head, fix-docs, fix-docs-handoff]
     if: >-
       ${{ !cancelled() && needs.fix-docs.result != 'skipped'
@@ -658,6 +666,7 @@ jobs:
   # nothing starts that did not before. A failed or lagging read starts no third
   # call.
   fix-docs-subscription-handoff:
+    name: Fix Docs Subscription Handoff
     needs: [fix-docs-handoff, fix-docs-subscription]
     if: ${{ !cancelled() && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-handoff.outputs.fallback-ready == 'true' }}
     runs-on: ubuntu-24.04
@@ -729,6 +738,7 @@ jobs:
   # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
   # hands off.
   fix-docs-fallback:
+    name: Fix Docs Fallback
     needs: [fix-docs-head, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff]
     if: ${{ !cancelled() && needs.fix-docs-handoff.outputs.fallback-ready == 'true' && needs.fix-docs-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
@@ -767,6 +777,7 @@ jobs:
   # since the run job runs head code. The head is fix-docs-head's, read by a job that ran no head
   # code; apply-patch still applies onto the head its own gate reads.
   apply-docs-patch:
+    name: Apply Docs Patch
     needs: [fix-docs-head, fix-docs, fix-docs-subscription, fix-docs-fallback]
     if: >-
       ${{ !cancelled()
@@ -813,6 +824,7 @@ jobs:
   # failed logs refine-failed for pass=plan, since no pass's job ran. No token
   # but a read-only one for the checkout.
   record-passes:
+    name: Record Passes
     needs: [plan, fix-docs-head, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff, fix-docs-fallback, apply-docs-patch]
     if: >-
       ${{ !cancelled() && (needs.plan.result == 'failure'

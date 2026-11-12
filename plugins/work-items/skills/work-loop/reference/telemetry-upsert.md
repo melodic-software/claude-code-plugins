@@ -65,8 +65,7 @@ would happily accept. The post-write read-back then re-reads what the write stor
 with the body file, ignoring only CR and trailing newlines: the only check that sees a write which
 reported success and stored something else, including an earlier cycle's well-formed body. Create
 and update pass the body file as `-F body=@<file>`, never `-f`; how each flag treats a leading `@`
-is read live at [gh api § Options](https://cli.github.com/manual/gh_api#options)
-(as of 2026-11-03; recheck when that section changes how `-f` or `-F` reads a value).
+is read live at [gh api § Options](https://cli.github.com/manual/gh_api#options).
 
 ## Exit codes
 
@@ -111,8 +110,7 @@ several `gh api` calls in one Bash invocation) a permission rule may not cover.
 
 - **Pointer**: when an allow rule fails to cover the upsert invocation, fetch
   [permissions § Compound commands](https://code.claude.com/docs/en/permissions#compound-commands)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes how rules match
-  compound commands, or a release note names compound-command permission matching.
+  live.
 
 When the invocation is blocked anyway, retry it rather than hand-transcribing the upsert: reproducing the
 gates in isolated calls loses the distinct exit codes the lane reads its own outcome from.

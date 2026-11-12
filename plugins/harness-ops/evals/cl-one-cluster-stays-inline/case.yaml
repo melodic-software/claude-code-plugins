@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: cl-one-cluster-stays-inline
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-status-on-range
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?changelog-status\.sh(?:[^"\\]|\\.)*?--range'
+    min: 1
+  - name: stays-inline
+    type: tool_used
+    tool: 'Agent'
+    input_match: '"description":"(?![^"]*[Vv]erif)'
+    min: 0
+    max: 0
+  - name: row-for-notes-skill
+    type: regex
+    pattern: 'skills/notes/SKILL\.md'
+    flags: 'i'
+    target: last_message

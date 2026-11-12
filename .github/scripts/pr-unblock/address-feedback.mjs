@@ -121,10 +121,10 @@ export function planLanes(paths, root = ROOT) {
   );
 }
 
-// The check-run names a plan's lanes post: test-bash, test-python and
-// test-node in pr-require-checks.yml (a matrix lane once per leg its
-// bash_legs or python_legs lists, as `<lane> (<leg>)`), and each
-// pr-test-platforms.yml job it names. An unreadable leg list throws.
+// The job ids of a plan's lanes: test-bash, test-python and test-node in
+// pr-require-checks.yml (a matrix lane once per leg its bash_legs or
+// python_legs lists, as `<lane> (<leg>)`), and each pr-test-platforms.yml job
+// it names. An unreadable leg list throws.
 const legs = (value) => {
   const list = JSON.parse(value || "[0]");
   if (!Array.isArray(list) || list.length === 0 || !list.every((leg) => Number.isSafeInteger(leg) && leg >= 0)) {
@@ -140,8 +140,13 @@ export function coveringLanes(plan) {
 }
 
 // A test lane's check-run name: every test job in pr-require-checks.yml and
-// pr-test-platforms.yml is named test-<lane>, a matrix leg `test-<lane> (<leg>)`.
-const TEST_LANE = /^test-[a-z0-9]+(?:-[a-z0-9]+)*(?: \(\d+\))?$/;
+// pr-test-platforms.yml has the id test-<lane> and that id in Title Case as
+// its display name, a matrix leg `Test <Lane> (<leg>)`; a head tested before
+// the rename shows the id, `test-<lane> (<leg>)`.
+const TEST_LANE = /^(?:Test(?: [A-Z0-9][a-z0-9]*)+|test-[a-z0-9]+(?:-[a-z0-9]+)*)(?: \(\d+\))?$/;
+// A lane's display name from its id or display name: `test-bash (3)` and
+// `Test Bash (3)` both give `Test Bash (3)`.
+const laneName = (name) => name.replace(/^\S+/, (id) => id.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" "));
 // A cancelled run is not red: fix-ci does not take a head whose only failing
 // checks were cancelled (fix-ci-dispatch.mjs), so it settles nothing instead.
 const failed = (run) => run.status === "completed" && FAILING.has(run.conclusion);
@@ -159,20 +164,29 @@ const byName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 // settles nothing.
 export async function ciSnapshot({ api, headSha, files, plan = planLanes }) {
   try {
-    const lanes = coveringLanes(plan([...new Set(files.flatMap((file) => [file?.filename, file?.previous_filename]).filter((path) => typeof path === "string" && path !== ""))].sort()));
+    const lanes = coveringLanes(plan([...new Set(files.flatMap((file) => [file?.filename, file?.previous_filename]).filter((path) => typeof path === "string" && path !== ""))].sort())).map(laneName);
     const listed = await api.listCommitCheckRuns(headSha);
-    const tests = [...latestRuns(listed.filter((run) => run?.app?.slug === "github-actions")).values()].filter((run) => TEST_LANE.test(String(run.name)));
+    // One run per lane: the display-named run, else the id-named one.
+    const byLane = new Map();
+    for (const run of latestRuns(listed.filter((run) => run?.app?.slug === "github-actions")).values()) {
+      const name = String(run.name);
+      if (TEST_LANE.test(name) && (!byLane.has(laneName(name)) || name === laneName(name))) {
+        byLane.set(laneName(name), run);
+      }
+    }
+    const tests = [...byLane.values()];
     const red = tests.filter(failed).sort(byName);
     if (red.length > 0) {
       return { state: "red", runs: red.map((run) => ({ name: run.name, url: run.html_url })) };
     }
-    const runs = tests.filter((run) => lanes.includes(String(run.name))).sort(byName);
-    const unplanned = tests.some((run) => !lanes.includes(String(run.name)) && run.conclusion !== "skipped");
+    const planned = (run) => lanes.includes(laneName(String(run.name)));
+    const runs = tests.filter(planned).sort(byName);
+    const unplanned = tests.some((run) => !planned(run) && run.conclusion !== "skipped");
     const passed =
       lanes.length > 0 &&
       listed.complete !== false &&
       !unplanned &&
-      lanes.every((lane) => runs.some((run) => run.name === lane)) &&
+      lanes.every((lane) => byLane.has(lane)) &&
       runs.every((run) => run.status === "completed" && run.conclusion === "success");
     return { state: passed ? "green" : "unsettled", runs: runs.map((run) => ({ name: run.name, url: run.html_url })) };
   } catch {

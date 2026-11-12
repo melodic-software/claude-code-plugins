@@ -3629,14 +3629,27 @@ def _after(value: Any, opened: datetime | None) -> bool:
 
 # The review lanes whose status job records a `claude-lane-hold` notice, as
 # (workflow file, status job names) (merge-holds.mjs `REVIEW_LANES`, and
-# ci-status's cost-hold step): pr-review-cli.yml's name, then the one
+# ci-status's cost-hold step): pr-review-cli.yml's name under the caller's
+# display name, the same under the lower-case caller (a head tested before the
+# rename, or a repository whose caller job has no display name), then the one
 # pr-review.yml and pr-review-security.yml give it. The notice's head and
 # criteria, and the base branch name a compare takes, as the hold step reads it.
 REVIEW_LANES = (
-    ("pr-review-hosted.yml", ("pr-review / review-status", "pr-review / claude-review-status")),
+    (
+        "pr-review-hosted.yml",
+        (
+            "PR Review / review-status",
+            "pr-review / review-status",
+            "pr-review / claude-review-status",
+        ),
+    ),
     (
         "pr-review-security-hosted.yml",
-        ("pr-review-security / review-status", "pr-review-security / security-review"),
+        (
+            "PR Review Security / review-status",
+            "pr-review-security / review-status",
+            "pr-review-security / security-review",
+        ),
     ),
 )
 HOLD_NOTICE = re.compile(

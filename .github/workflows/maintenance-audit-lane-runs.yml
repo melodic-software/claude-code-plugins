@@ -57,6 +57,7 @@ defaults:
 
 jobs:
   collect:
+    name: Collect
     if: github.ref == 'refs/heads/main' && github.event.schedule != '17 * * * *'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -176,6 +177,7 @@ jobs:
 
   # The key leg, one per unit, on the automations role's API key.
   judge:
+    name: Judge
     needs: collect
     # A key the credit gate skipped runs nothing here; judge-handoffs routes
     # every unit to judge-subscription.
@@ -485,6 +487,7 @@ jobs:
   # The units the key leg handed on, as judge-subscription's matrix. It holds
   # no secret and reads only the markers' names and closed-set values.
   judge-handoffs:
+    name: Judge Handoffs
     needs: [collect, judge]
     if: >-
       ${{ !cancelled() && (needs.judge.result != 'skipped'
@@ -575,6 +578,7 @@ jobs:
   # only the credential call's reason input, which the action checks against
   # its closed list of fallback reasons.
   judge-subscription:
+    name: Judge Subscription
     needs: judge-handoffs
     if: ${{ !cancelled() && needs.judge-handoffs.result == 'success' && needs.judge-handoffs.outputs.count != '' && needs.judge-handoffs.outputs.count != '0' }}
     runs-on: ubuntu-24.04
@@ -885,6 +889,7 @@ jobs:
 
   # The units the subscription leg handed on, as judge-fallback's matrix.
   judge-subscription-handoffs:
+    name: Judge Subscription Handoffs
     needs: judge-subscription
     if: ${{ !cancelled() && needs.judge-subscription.result != 'skipped' }}
     runs-on: ubuntu-24.04
@@ -938,6 +943,7 @@ jobs:
   # fallback reason. It is the last leg and never hands off: an empty
   # subscription token fails the subscription leg instead.
   judge-fallback:
+    name: Judge Fallback
     needs: judge-subscription-handoffs
     if: ${{ !cancelled() && needs.judge-subscription-handoffs.result == 'success' && needs.judge-subscription-handoffs.outputs.count != '' && needs.judge-subscription-handoffs.outputs.count != '0' }}
     runs-on: ubuntu-24.04
@@ -1183,6 +1189,7 @@ jobs:
           exit 1
 
   file:
+    name: File
     needs: [collect, judge, judge-subscription, judge-fallback]
     # A failed leg loses its own unit's findings only.
     if: ${{ !cancelled() && needs.collect.result == 'success' && needs.collect.outputs.units != '[]' }}
@@ -1273,6 +1280,7 @@ jobs:
   # at most 5 dispatches (2 calls) and 5 filings (4 calls); the pass stops
   # before an action the calls left cannot finish.
   triage-sweep:
+    name: Triage Sweep
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
