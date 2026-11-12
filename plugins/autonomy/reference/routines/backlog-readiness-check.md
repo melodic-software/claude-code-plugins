@@ -9,7 +9,8 @@ need before the meeting discovers it.
 Refinement-time discovery is the toil addressed: backlog sessions burn shared meeting time
 finding out an item is not ready: acceptance criteria missing, fields absent, scope
 unclear. The check does the recurring pre-refinement pass and annotates each item with what
-is missing, so refinement starts from ready-or-annotated items instead of live archaeology.
+is missing, so refinement starts from ready-or-annotated items and nobody re-investigates
+missing details during the meeting.
 
 ## Trigger and cadence
 
@@ -75,7 +76,7 @@ Single-posture identity: `backlog-readiness-check` (bare class token).
 | Connector entitlements | none. Access is `repo`, so the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
 | Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
 | `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). None: `executor_class` is deprecated and caps nothing. Merge policy for this identity is n/a (`C1`) |
-| Repo needs | tracker binding via the work-item tracker seam (the `tracker` mapping of `docs/conventions/work-items.yaml`, else the legacy `.work-item-tracker.json`, + adapter `capabilities.json`); a deterministic repo-file probe that finds those files absent is `unsupported`; `unknown` only when the work-item seam cannot establish the fact (composition fallback) |
+| Repo needs | tracker binding via the work-item tracker seam (the `tracker` mapping of `docs/conventions/work-items.yaml`, + adapter `capabilities.json`); a deterministic repo-file probe that finds those files absent is `unsupported`; `unknown` only when the work-item seam cannot establish the fact (composition fallback) |
 
 ## Admission and escalation
 

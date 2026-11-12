@@ -227,7 +227,7 @@ when there is no repo root.
 
 Your limit is `maxTurns: 40`, from this definition's frontmatter. What the harness does at that
 limit is the `maxTurns` row of
-[subagents: frontmatter reference](https://code.claude.com/docs/en/sub-agents#frontmatter-reference)'s
+[subagents: frontmatter reference](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)'s
 to say (as of 2026-11-03; recheck when that row changes what happens at the limit). Whatever is not
 on disk when the run stops is invisible to the parent's gate. Count your own turns as you go.
 Stop gathering by turn 30, or earlier when your dispatch prompt's `Turn budget:` line names a lower

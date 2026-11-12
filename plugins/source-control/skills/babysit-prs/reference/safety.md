@@ -100,7 +100,7 @@ value and its unset fallback.
 - Never update the branch of a PR carrying the tracker's standards-sync role label
   (`standards-sync` unless the tracker binding's `config.role_labels` maps it, as
   `scripts/babysit_tracker_binding.py` reads it on the default branch: the `tracker` mapping of
-  `docs/conventions/work-items.yaml`, else the legacy JSON binding at the root): the sync App
+  `docs/conventions/work-items.yaml`): the sync App
   is its only writer, and a merge commit from the base fails its managed-files guard, so the sync
   cannot re-arm. `refresh_pr_branch.py` refuses it, and the unattended enqueue skips its update
   from the base (`checkInputs.updateSkipped`) and enqueues as after a refused update. An
@@ -116,9 +116,6 @@ value and its unset fallback.
   - **Pointer**: the rebase and recreate commands, in
     [Dependabot pull request comment commands](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests); correlate with
     [allowing Dependabot to rebase over extra commits](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#allowing-dependabot-to-rebase-and-force-push-over-extra-commits).
-  - **As of**: 2026-10-24.
-  - **Recheck trigger**: either section changes what rebase or recreate does to a branch that
-    carries another author's commits.
 - Head-ref uniqueness guard: two open PRs sharing one head repository/branch is a stop-and-ask.
   Escalate, never guess which PR a push would update.
 - Lease-protected removal: never remove a worktree without holding that PR's worker lease
@@ -1124,7 +1121,7 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    request whose commit count exceeds the commits the list returned.
    - **Pointer**: when the commits list's cap matters, fetch
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
-     live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
+     live.
    No work class is read: the only class-named check is the trust hold, which refuses an issue
    carrying `provenance: untrusted`, or one a non-human removed it from. Eligibility
    also needs the linked issue vouched for by a human (`issue-not-vouched:<why>` otherwise): a

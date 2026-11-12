@@ -52,7 +52,7 @@ with a narrowed accident surface, never an enforced guarantee. `Write` is kept, 
 the report persist under `${CLAUDE_PLUGIN_DATA}`, and it can mutate a file, so never describe the
 restriction to an operator as mechanical. `audit-instructions` states the same posture.
 
-- **Pointer**: when deciding how long the restriction lasts, fetch [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live. **As of**: 2026-10-11. **Recheck trigger**: that section changes what `disallowed-tools` removes or how long it lasts.
+- **Pointer**: when deciding how long the restriction lasts, fetch [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live.
 
 **`scripts/run-state.sh` writes under that same plugin data directory and nowhere else**, never
 inside a target repository. It takes the data directory as an argument rather than discovering one,
@@ -126,7 +126,7 @@ bash "$S" lease acquire --run-dir "<run-dir>" --run-id "<run-id>" --plugin-data 
 ```
 
 `paths` derives `<plugin-data>/runs/<state-key>/<run-id>` through the plugin's own `lib/state-key.sh`,
-the library whose header records the keying scheme. Pass `--plugin-data` explicitly with the `${CLAUDE_PLUGIN_DATA}` value from this text; never rely on the shell to expand it (Pointer: fetch [manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves) live. As of: 2026-11-10. Recheck trigger: that section exports the variable to Bash-tool commands).
+the library whose header records the keying scheme. Pass `--plugin-data` explicitly with the `${CLAUDE_PLUGIN_DATA}` value from this text; never rely on the shell to expand it (Pointer: fetch [manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves) live).
 `acquire` takes it too, and refuses a `--run-dir` that is not under
 `<plugin-data>/runs/`. It is the only command that *creates* a directory, so it is where the write
 tree is pinned; a wrong or invented run dir would otherwise be created and written into.
@@ -193,13 +193,13 @@ Claude receives, and the live style can differ from the one the user's settings 
 plus settings can report a selection as live when it is not. Report the resolved live style and
 what resolved it.
 
-- **Pointer**: when resolving the live style and what it changes, fetch [output styles: how output styles work](https://code.claude.com/docs/en/output-styles#how-output-styles-work) and [create a custom output style](https://code.claude.com/docs/en/output-styles#create-a-custom-output-style) live. **As of**: 2026-10-11. **Recheck trigger**: either section changes what `keep-coding-instructions` keeps or how `force-for-plugin` interacts with `outputStyle`.
+- **Pointer**: when resolving the live style and what it changes, fetch [output styles: how output styles work](https://code.claude.com/docs/en/output-styles#how-output-styles-work) and [create a custom output style](https://code.claude.com/docs/en/output-styles#create-a-custom-output-style) live.
 
 **Shadowed definitions fall out of this inventory, not out of a catalog.** Where skills, subagents
 or MCP servers share a name across scopes, the pass compares names across the precedence order
 read live, deterministic, model-free and derived tier, and reports at `info` in its own section
 naming the live definition and the shadowed one, never as a conflict finding or merged into one.
-When deciding which same-named definition is live, fetch [skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name), [subagents: choose the subagent scope](https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope) and [MCP: scope hierarchy and precedence](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence) live (as of 2026-11-03; recheck when any of the three changes how a name collision resolves or its scope order).
+When deciding which same-named definition is live, fetch [skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name), [subagents: choose the subagent scope](https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope) and [MCP: scope hierarchy and precedence](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence) live.
 
 ## Phase 2: Derive the exclusion set
 
@@ -285,7 +285,7 @@ overrun costs the lanes still running rather than the whole pass.
 
 This pass builds no replacement for `/doctor` and hands the instruction-file audit to `/doctor
 prompt-audit` rather than running it; for what each owns, fetch [memory: audit your instruction files](https://code.claude.com/docs/en/memory#audit-your-instruction-files)
-live (as of 2026-11-03; recheck when that section changes what either covers). **Both are
+live. **Both are
 operator-run, so neither is dispatched.** Their records (version floors, write posture),
 what the presence check verifies versus probes, and the absence classification are in
 [reference/doctor-handoff.md](reference/doctor-handoff.md).
@@ -464,8 +464,7 @@ The `reference/` files write this skill's directory as `<skill-dir>`, which is
 writing one into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_SKILL_DIR` or `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Gotchas
 
@@ -481,7 +480,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   judging whether a split saves context, fetch
   [memory: import additional files](https://code.claude.com/docs/en/memory#import-additional-files)
   and [memory: my CLAUDE.md is too large](https://code.claude.com/docs/en/memory#my-claude-md-is-too-large)
-  live. As of: 2026-10-11. Recheck trigger: either section says imported files load lazily.
+  live.
 
 ## What this skill does NOT do
 

@@ -77,8 +77,8 @@
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { pathToFileURL } from "node:url";
 
+import { runAsScript } from "../lib/run-main.mjs";
 import { STOP_REASONS } from "../lib/stop-reason.mjs";
 import { createGitHubApi, need, positive, scanRefusal, SHA } from "./address-feedback.mjs";
 import {
@@ -579,14 +579,4 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.env).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.log(`::error::apply-dependency-verdict failed: ${error.message}`);
-      process.exitCode = 1;
-    },
-  );
-}
+runAsScript(import.meta.url, "apply-dependency-verdict", () => main(process.env));

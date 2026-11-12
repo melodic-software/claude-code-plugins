@@ -11,14 +11,12 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
 - User: resolve the root as `${CLAUDE_CONFIG_DIR:-~/.claude}`, never a hardcoded `~/.claude`,
   then: `CLAUDE.md`, `rules/`, `skills/`, `agents/`, `output-styles/` under that root. When
   deciding what the variable relocates, fetch
-  [env vars: variables](https://code.claude.com/docs/en/env-vars#variables) live (as of
-  2026-11-03; recheck when its `CLAUDE_CONFIG_DIR` row changes what the variable moves).
+  [env vars: variables](https://code.claude.com/docs/en/env-vars#variables) live.
 - Project: `./CLAUDE.md` or `./.claude/CLAUDE.md`, `./CLAUDE.local.md`, and every nested
   `CLAUDE.md` / `CLAUDE.local.md` in subdirectories of the project tree (Claude loads these on
   demand once it works with a file in those directories, so walk the tree and do not stop at the
   root; what counts is at
-  [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load),
-  as of 2026-11-04, recheck when that section changes what loads a nested file);
+  [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load));
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/output-styles/`.
 - **A natively read `AGENTS.md`**: `./AGENTS.md` and `./.claude/AGENTS.md`, each its own record, and
   every nested `AGENTS.md` in subdirectories of the project tree, on the same on-demand footing as
@@ -26,8 +24,7 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   instruction-files mode and on the CLAUDE.md files along its own path, so **test it per file,
   never once at the root**. When deciding whether a file is displaced, fetch
   [memory: choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load)
-  live (as of 2026-11-03; recheck when that section changes which files displace an
-  `AGENTS.md`). A displaced file that an import or a symlink brings in is covered by the importing
+  live. A displaced file that an import or a symlink brings in is covered by the importing
   record, not a record of its own. The root case is the condition
   `harness-memory`'s `skills/audit/scripts/lib/agents-md.sh` encodes.
   **Displacement is that mode's answer, not the only one, and this bullet does not restate the
@@ -67,8 +64,7 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   frontmatter hook can register under a different event than the one it names, so resolve the
   effective event from
   [subagents: hooks in subagent frontmatter](https://code.claude.com/docs/en/sub-agents#hooks-in-subagent-frontmatter)
-  before pairing (both pointers as of 2026-10-11; recheck when either section changes a frontmatter
-  hook's lifetime or the event it registers under). Two kinds, and the discriminator is **whether
+  before pairing. Two kinds, and the discriminator is **whether
   the handler's output reaches this session's context, never the handler's `type`**
   ([reference/conflict-criteria.md](../reference/conflict-criteria.md) owns the distinction and its
   citations):
@@ -140,8 +136,7 @@ involving one still carries the no-change representation and its routing recomme
   `CLAUDE_CODE_DISABLE_AUTO_MEMORY` first, then `autoMemoryEnabled` across the settings scopes.
   When deciding what each value means, which one wins and what the default is, fetch
   [memory: enable or disable auto memory](https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory)
-  live (as of 2026-11-03; recheck when that section changes the variable, the setting or how they
-  combine). Reading a lower-scope `false` as decisive would drop a `MEMORY.md` a
+  live. Reading a lower-scope `false` as decisive would drop a `MEMORY.md` a
   higher-precedence scope re-enabled, and inventorying unconditionally would pair live instructions
   against a file left on disk after auto memory was turned off, the same defect as reading a
   disabled plugin's cache. `/harness-memory:stateless` owns this resolver; its `status` action reports
@@ -151,8 +146,7 @@ involving one still carries the no-change representation and its routing recomme
   I15 precisely because `harness-memory`'s C6 does not read it, so excluding it outright would leave
   a `MEMORY.md`-versus-`CLAUDE.md` contradiction audited by neither skill. Only the content that
   actually loads is compared, the loaded portion
-  [memory: how it works](https://code.claude.com/docs/en/memory#how-it-works) names (as of
-  2026-10-11; recheck when that portion changes); topic files beside it are read on demand and are
+  [memory: how it works](https://code.claude.com/docs/en/memory#how-it-works) names; topic files beside it are read on demand and are
   not resident. Ownership is unchanged: `harness-memory` still owns auto memory, and a finding
   here routes there rather than editing it.
 - **Each enabled agent's own memory, under that same gate**: an agent definition carrying a
@@ -160,15 +154,15 @@ involving one still carries the no-change representation and its routing recomme
   per agent, and that subagent reads and writes its own `MEMORY.md` there. The field's value is the
   scope, and each scope has its own location; read the scope-to-directory mapping from
   [subagents: enable persistent memory](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory)
-  live (as of 2026-10-11; recheck when a scope or its directory changes), and resolve a user-scope
+  live, and resolve a user-scope
   directory under the **resolved** user root above, never a hardcoded `~/.claude`.
   [reference/conflict-criteria.md](../reference/conflict-criteria.md) keeps an agent-definition-versus-
   its-own-memory contradiction in scope precisely because those two *do* co-reside in that subagent,
   so this inventory has to reach it: enumerate that `MEMORY.md` for every inventoried agent whose
   definition enables the field, under the same loaded-portion bound. The gate is the effective state
   resolved just above: enumerate agent memory only when auto memory is on, for the dependency
-  recorded at [sub-agents](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory)
-  (as of 2026-10-07; recheck trigger: that section's auto-memory dependency changes); an agent
+  recorded at [sub-agents](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory); an
+  agent
   memory left on disk after the switch flipped is not inventoried.
   Read-only and `harness-memory`-owned exactly as the main entrypoint is.
 - **Org-managed policy**: the managed-policy `CLAUDE.md`, any `claudeMd` value in managed settings,
@@ -189,8 +183,8 @@ involving one still carries the no-change representation and its routing recomme
   ship styles in an
   `output-styles/` directory, and a plugin style with `force-for-plugin` can be active without the
   user selecting it
-  ([output styles: create a custom output style](https://code.claude.com/docs/en/output-styles#create-a-custom-output-style),
-  as of 2026-10-11; recheck when that section changes how `force-for-plugin` applies). Resolve
+  ([output styles: create a custom output style](https://code.claude.com/docs/en/output-styles#create-a-custom-output-style)).
+  Resolve
   which style is actually active, a `force-for-plugin` style from the enabled set first, else the
   `outputStyle` value, which may itself name a plugin-supplied style, and inventory that one. Only
   the active style is resident, so the others stay out of the corpus. Enablement is

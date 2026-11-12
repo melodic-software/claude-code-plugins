@@ -22,7 +22,7 @@ When a test failure needs diagnosis: never dismiss it, never retry blindly.
 
    Passes in isolation but fails with others: shared state problem. Check the consuming project's fixture conventions for known workarounds.
 
-   When the runner shuffles order or seeds randomness, replay with the seed the first failure printed before trying anything else. Read the flag from the runner's own docs; two examples: pytest-randomly's `--randomly-seed=<seed>` ([README](https://github.com/pytest-dev/pytest-randomly#readme)), and Go's `go test -shuffle=<N>` ([testing flags](https://pkg.go.dev/cmd/go/internal/test)). As of 2026-10-06. Recheck trigger: either page renames or drops the flag.
+   When the runner shuffles order or seeds randomness, replay with the seed the first failure printed before trying anything else. Read the flag from the runner's own docs; two examples: pytest-randomly's `--randomly-seed=<seed>` ([README](https://github.com/pytest-dev/pytest-randomly#readme)), and Go's `go test -shuffle=<N>` ([testing flags](https://pkg.go.dev/cmd/go/internal/test)).
 
 4. **Trace the root cause**. Read the code path from test setup through assertion; add logging or breakpoints if needed. Tag every debug log with a unique short prefix (e.g. `[DEBUG-a4f2]`) so cleanup before commit is a single grep. Find *why* it fails, not just *where*
 
@@ -47,7 +47,7 @@ Fix rounds are capped by `maxRounds` in [fix-until-green.md](fix-until-green.md)
 - **Artifacts first.** Preserve the first failure's trace, screenshot, error context and printed seed (step 1) before the first rerun; a rerun that overwrites them leaves only the run that passed.
 - **Seed before rerun.** When the first failure printed a seed or order, replay it (step 3). A failure that reproduces under its seed is deterministic and needs no flake-rate batch.
 
-A pass earned by rerunning still hides the break: Google reports that marking a test failed only after three consecutive failures encourages ignoring flakiness and delays when a break surfaces ([Flaky Tests at Google](https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html), 2016, Google's internal CI). As of 2026-10-06. Recheck trigger: Google publishes a successor flaky-test post.
+A pass earned by rerunning still hides the break: Google reports that marking a test failed only after three consecutive failures encourages ignoring flakiness and delays when a break surfaces ([Flaky Tests at Google](https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html), 2016, Google's internal CI).
 
 ## Process-global static state (parallel test runners)
 

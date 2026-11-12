@@ -1833,13 +1833,13 @@ merge:
         class: enforcement
       - glob: ".github/scripts/pr-unblock/thread-scope.mjs"
         class: enforcement
-      - glob: ".github/scripts/pr-unblock/retry-fetch.mjs"
+      - glob: ".github/scripts/lib/retry-fetch.mjs"
         class: enforcement
       - glob: ".github/scripts/work-resolve-issue/report-outcome.mjs"
         class: enforcement
       - glob: ".github/scripts/work-resolve-issue/limits.mjs"
         class: enforcement
-      - glob: ".github/scripts/work-resolve-issue/retry-fetch.mjs"
+      - glob: ".github/scripts/lib/lane-hold-marker.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/report-escalation.sh"
         class: enforcement
@@ -1875,7 +1875,7 @@ merge:
         class: enforcement
       - glob: ".github/scripts/apply-patch/protected-paths.mjs"
         class: enforcement
-      - glob: ".github/scripts/apply-patch/retry-fetch.mjs"
+      - glob: ".github/scripts/lib/run-main.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/fix-ci-context.mjs"
         class: enforcement

@@ -44,11 +44,12 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
+import { runAsScript } from "../lib/run-main.mjs";
 import { FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
-import { retryFetch } from "./retry-fetch.mjs";
+import { retryFetch } from "../lib/retry-fetch.mjs";
 import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
 import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
 
@@ -2069,14 +2070,4 @@ export async function main(argv, env, { api, actions, log = (line) => console.lo
   throw new Error("usage: address-feedback.mjs select");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.argv.slice(2), process.env).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.log(`::error::address-feedback failed: ${error.message}`);
-      process.exitCode = 1;
-    },
-  );
-}
+runAsScript(import.meta.url, "address-feedback", () => main(process.argv.slice(2), process.env));

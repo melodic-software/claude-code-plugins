@@ -78,7 +78,7 @@ A row the engine marks `skip` or `not-inspectable` is exactly that in the report
 | `.mcp.json` | the engine, or `jq` | Project-level MCP server definitions |
 | `~/.claude/settings.json` | the engine, or the Read tool | User-level defaults (optional; checked when it exists) |
 | start-directory `.claude/settings.local.json` | `check-structure.sh` (structure only) | Only when the session's start directory is not the repository root AND a copy is there. We treat it as live beside the repository-root copy; how the two combine, and the version boundary behind the copy, are the dated record in `audit-permission-state/reference/criteria.md` §Scopes |
-| `managed-settings.json` + `managed-settings.d/` | `check-structure.sh` (structure only) | Machine-scope managed policy, the highest-precedence layer. OS-specific path resolved by the script (Pointer: for each OS's location, fetch [managed settings: where each mechanism stores the policy](https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy) live. As of: 2026-11-10. Recheck trigger: that section moves a file location). Findings on it are report-only routing; managed policy is the administrator's, never edited by `--fix` |
+| `managed-settings.json` + `managed-settings.d/` | `check-structure.sh` (structure only) | Machine-scope managed policy, the highest-precedence layer. OS-specific path resolved by the script (Pointer: for each OS's location, fetch [managed settings: where each mechanism stores the policy](https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy) live). Findings on it are report-only routing; managed policy is the administrator's, never edited by `--fix` |
 | managed policy outside the filesystem | not read | The OS-level policy stores (Windows registry policy keys, the macOS managed-preferences domain) listed at the same pointer. `check-structure.sh` names them so an absent `managed-settings.json` is never read as "no managed policy deployed", but it does not read them |
 | `docs/conventions/harness-config.yaml` (`suppressions`, the team layer of three cascade layers) | the engine | The consumer's suppression record, keyed by `finding_id`, in the convention home the repository binds (default `docs/conventions`). A finding it carries is reported as suppressed with its reason and the layer and file that supplied it; only the team layer suppresses, a personal-only entry is reported as not applied, and a malformed entry is reported and never suppresses. `suppressions.layers` in the engine's output names each file read |
 
@@ -147,9 +147,8 @@ Each category writes an `audit-engine: <category>` line to stderr as it starts; 
 Pass `--debug-log` when you know where this session's debug log is; otherwise the engine looks in the documented locations
 (the debug-log variable first, then the newest file under `<user dir>/debug/`; Pointer: for that
 variable and what it names, fetch
-[environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live. As
-of: 2026-11-10. Recheck trigger: the debug-log variable is renamed or changes what it names). A log it found rather than was given settles the row only when the log
-names this project.
+[environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live). A
+log it found rather than was given settles the row only when the log names this project.
 
 ### 1.0 Hook inventory
 
@@ -160,8 +159,7 @@ checkout first, the installed-plugin registry otherwise), plus the levers (`disa
 `allowManagedHooksOnly`, `strictPluginOnlyCustomization` in the forms that cover hooks; Pointer:
 for those forms, fetch
 [settings reference: strictPluginOnlyCustomization](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)
-live. As of: 2026-11-10. Recheck trigger: that section changes which values lock hooks) that
-switch hooks off, the mod-plane keys reported apart from them (`D/mod-plane`), and any
+live) that switch hooks off, the mod-plane keys reported apart from them (`D/mod-plane`), and any
 divergence between the loaded directory and the registry's cache snapshot.
 
 **Read the inventory state, not just the rows.** `complete` means every enabled plugin resolved.
@@ -272,9 +270,6 @@ The script never rewrites the baseline itself.
 - **Pointer**: for the levels, per-model defaults and level guidance the check reads, see
   [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) and
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
-- **As of**: 2026-10-10
-- **Recheck trigger**: the check reports `table status=unparsed`, or either section is renamed or
-  moved.
 
 ### 3.1 Official docs check
 
@@ -468,8 +463,7 @@ Put that path in place of the placeholder before running a command or writing it
 files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
 tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
 Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Next
 

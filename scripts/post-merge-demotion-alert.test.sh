@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: .github/scripts/post-merge-demotion-alert/newer-green.bash
 # Runs the `File or comment on the demotion issue` step body of
 # .github/workflows/post-merge-demotion-alert.yml under the shell Actions gives
 # a step with no `shell:` (bash -e), against a stub `gh`.

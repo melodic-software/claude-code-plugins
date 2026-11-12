@@ -100,9 +100,9 @@ into one profile.
   loop-lane keys at all means **every merge is human**, whatever tier you
   pass.
 - **Tracker binding present?** The `tracker` mapping of
-  `docs/conventions/work-items.yaml` (or, in a repository not yet migrated, the
-  legacy `.work-item-tracker.json`) must resolve from the worker lane's working
-  directory or its preflight stops the lane.
+  `docs/conventions/work-items.yaml` must resolve from the worker lane's working
+  directory or its preflight stops the lane. A root `.work-item-tracker.json`
+  no longer binds; `/work-items:setup apply` copies it into that mapping.
 - **Role labels.** The human-gated and autonomous-eligible names come
   from that file's `config.role_labels`, not from a literal. Resolve the
   `autonomous-eligible` role **before** any query below; a repo that remapped
@@ -120,19 +120,16 @@ into one profile.
   string, since a label's real value may legitimately carry spaces.
 
   ```bash
-  # The `tracker` mapping of docs/conventions/work-items.yaml, as JSON, else
-  # the legacy .work-item-tracker.json.
+  # The `tracker` mapping of docs/conventions/work-items.yaml, as JSON.
   BINDING=
   if [ -f docs/conventions/work-items.yaml ] && yq -e 'has("tracker")' docs/conventions/work-items.yaml >/dev/null; then
     BINDING=$(mktemp)
     yq -o=json '.tracker' docs/conventions/work-items.yaml >"$BINDING"
-  elif [ -f .work-item-tracker.json ]; then
-    BINDING=.work-item-tracker.json
   fi
   if [ -z "$BINDING" ]; then
     # No binding is the documented warn-and-default case, NOT a malformed
     # one. jq cannot express it, since it fails before the program runs.
-    echo "WARNING: no tracker binding; defaulting role to agent-ready" >&2
+    echo "WARNING: no tracker binding (run /work-items:setup apply); defaulting role to agent-ready" >&2
     ROLE=agent-ready
   else
     ROLE=$(jq -er '

@@ -21,8 +21,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/stateless/scripts/scope-report.sh" || echo "(
 
 Inspect and disable Claude Code **auto memory**, the store Claude writes for itself. Where it
 lives is read at
-[Storage location](https://code.claude.com/docs/en/memory#storage-location) (as of 2026-11-03;
-recheck when that section moves the store or changes what relocates it). Governs auto-memory
+[Storage location](https://code.claude.com/docs/en/memory#storage-location). Governs auto-memory
 only. Not in scope: CLAUDE.md / CLAUDE.local.md / `.claude/rules/` (use `/harness-memory:audit`), transcripts, history, or shell snapshots. For the
 official full per-project wipe, use `claude purge`.
 [reference/official-guidance.md](reference/official-guidance.md), "Out of scope for this skill",
@@ -68,7 +67,7 @@ reports auto memory off, and `0` reports it **on** even against `autoMemoryEnabl
 when the env var is unset does `autoMemoryEnabled` (by settings precedence) decide. `status` must
 report the env var as authoritative whenever it is set. `disable` sets the env var to `1` and
 `autoMemoryEnabled: false` together. The reference file's "Precedence: the env var overrides the
-setting (VERIFIED)" holds the pointer, as-of date and recheck trigger.
+setting (VERIFIED)" holds the pointer.
 
 ## Actions
 
@@ -88,8 +87,6 @@ carrying `CLAUDE_PLUGIN_ROOT`.
 
 - **Pointer**: for where each `${…}` reference resolves, see
   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
-- **As of**: 2026-10-07
-- **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves.
 
 ## Boundary, the built-in `/memory` command
 
@@ -99,8 +96,6 @@ carrying `CLAUDE_PLUGIN_ROOT`.
   it.
   - **Pointer**: for what it opens and toggles, read
     [View and edit with `/memory`](https://code.claude.com/docs/en/memory#view-and-edit-with-/memory).
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that section adds or drops what the command edits or toggles.
 - **This skill (marketplace plugin).** Reports the effective auto-memory state across every
   settings scope and the env var that overrides them, disables it durably through both levers,
   and purges the store behind a manifest and a confirmation gate.
@@ -136,17 +131,13 @@ which `status` reports.
 - **Windows managed policy**: we treat it as possibly held in the registry rather than a file,
   which `scope-report.sh` can't read. Report managed scope as unread, don't assume empty.
   [Settings scopes and precedence](reference/official-guidance.md#settings-scopes-and-precedence)
-  points at where each location is documented (as of 2026-10-11; recheck when that section is
-  renamed or moved, or drops its managed-settings location pointer).
+  points at where each location is documented.
 - **`disable` leaves this session's loaded memory in place.** What auto memory loaded at startup
   stays in the current context whether or not the setting reloads mid-session, so tell the user a
   new session is the first one that starts without it.
   - **Pointer**: for which settings edits reach a running session, see
     <https://code.claude.com/docs/en/settings#when-edits-take-effect>; for the toggle, see
     <https://code.claude.com/docs/en/settings-reference#automemoryenabled>.
-  - **As of**: 2026-10-01
-  - **Recheck trigger**: either section changes whether an `autoMemoryEnabled` or `env` edit
-    reaches a running session.
 - **Tracked `settings.json`**: a live edit to a dotfile-manager-tracked settings file must be
   backfilled to the source; never run an `apply` that could revert the edit.
 - **Desktop / claude.ai memory is server-side**. `purge` cannot delete it; give direction only.

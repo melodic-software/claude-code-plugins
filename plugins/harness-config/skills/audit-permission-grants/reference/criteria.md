@@ -23,8 +23,7 @@ project-only scan would miss every grant kept there, and a user-global finding n
 absolute path rather than `~/.claude/settings.json`. When deciding where prompt approvals are saved
 and where the user settings file lives, fetch
 [settings: find or create your settings files](https://code.claude.com/docs/en/settings#find-or-create-your-settings-files)
-live (as of 2026-11-03; recheck when that section changes the user file's location or what writes
-to it). Frontmatter files under a `vendor/` path segment are skipped: they are
+live. Frontmatter files under a `vendor/` path segment are skipped: they are
 vendored upstream references, not loadable skills/agents/commands, so their `allowed-tools` never take
 effect and a finding on them would be a false positive. Findings are advisory in the default report
 mode and under `--count`, which always exit 0 however many findings they print. They are gating under
@@ -60,9 +59,6 @@ same record).
   live; for other settings files, fetch
   [settings: fix a broken settings file](https://code.claude.com/docs/en/settings#fix-a-broken-settings-file)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes what Claude Code does when a settings source fails to
-  parse.
 
 The coverage block also counts plugin manifests and plugin `settings.json` files parsed, paths the
 walk could not open, and files an exclusion rule removed. `No fragile permission grants found.` is printed only against a non-zero
@@ -168,7 +164,7 @@ blanket form is false for the file tools. Match the mechanism to the rule class:
 
 | Rule class | What actually happens |
 | --- | --- |
-| `Bash(...)` | Read how it matches from [permissions: Bash](https://code.claude.com/docs/en/permissions#bash) live (as of 2026-11-03; recheck when that section changes how a Bash rule matches), and the two exceptions below. |
+| `Bash(...)` | Read how it matches from [permissions: Bash](https://code.claude.com/docs/en/permissions#bash) live, and the two exceptions below. |
 | `Read(...)` / `Edit(...)` | gitignore pattern syntax, which **does** resolve anchors: `~/path` from the home directory, `//path` from the filesystem root, `/path` from the settings source ([permissions](https://code.claude.com/docs/en/permissions#read-and-edit)). The page's own example: `Read(~/Documents/*.pdf)` matches `<home>/Documents/*.pdf`. |
 
 The two exceptions on Bash rules:
@@ -176,16 +172,14 @@ The two exceptions on Bash rules:
 1. **Token substitution in `allowed-tools`.** Some `${CLAUDE_*}` tokens are substituted in Bash rules
    in `allowed-tools`, some only in a plugin skill, and one only from a minimum Claude Code version.
    Read which tokens, where, and from which version live from
-   [skills](https://code.claude.com/docs/en/skills#available-string-substitutions), as of 2026-10-07;
-   recheck trigger: that section changes which tokens it substitutes in `allowed-tools`. A grant whose
+   [skills](https://code.claude.com/docs/en/skills#available-string-substitutions). A grant whose
    token that section substitutes in the grant's own context is the documented way to run a bundled
    script without a prompt, e.g. `allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/render.sh *)`; a
    token it does not substitute there, or below its version floor, stays a literal string, and the
    grant never matches.
 2. **Leading env-assignment stripping**, which is scoped, and scoped differently for allow rules than
    for deny or ask rules. Read which variables are stripped and how each rule kind matches live from
-   [permissions](https://code.claude.com/docs/en/permissions#process-wrappers), as of 2026-10-07;
-   recheck trigger: that section's env-assignment paragraph changes. Never assume an allow rule
+   [permissions](https://code.claude.com/docs/en/permissions#process-wrappers). Never assume an allow rule
    matches past an assignment that section does not cover.
 
 Full doctrine, and the source this row syncs from: the
@@ -200,8 +194,7 @@ bare-name command on PATH, or for `Read`/`Edit` rules the `~/` home anchor.
 **What**: A `Bash(...)` allow rule whose payload begins a path with `~username/` (not the portable
 `~/` home anchor). We treat such a payload as naming one account, whatever the shell would expand.
 When deciding how a Bash rule reads a tilde, fetch
-[permissions: Bash](https://code.claude.com/docs/en/permissions#bash) live (as of 2026-11-03;
-recheck when that section changes how a Bash rule matches a path).
+[permissions: Bash](https://code.claude.com/docs/en/permissions#bash) live.
 
 **How to check**: run the detector. `Read(~/notes.md)` and other `~/` anchors are not flagged. A URL
 user-directory segment such as `Bash(curl https://example.com/~alice/index.html)` is not flagged.
@@ -262,8 +255,7 @@ declares a `permissions` block.
 **Why**: we treat a self-granted permission rule as inert, so the operative rule must be added by
 the operator to user settings. See convention anti-pattern 3. When deciding which keys a plugin
 `settings.json` honors, fetch
-[plugin manifest reference: settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings) live (as
-of 2026-11-03; recheck when that section adds `permissions` to the keys it honors).
+[plugin manifest reference: settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings) live.
 
 **Recommend**: remove the inert block; document an operator-setup note for the bare-name rule instead.
 
@@ -281,8 +273,7 @@ remainder that is not another rule.
 **Why**: Claude Code reports this shape as invalid settings. A scan that kept only the token would
 call `Bash(ls) x` a narrow `Bash(ls)` grant. Pointer: when deciding a rule's shape, fetch
 [permissions: permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax)
-live. As of: 2026-10-11. Recheck trigger: that section changes how parentheses in a specifier or
-trailing text after one are read.
+live.
 
 **Recommend**: delete the trailing text, or rewrite the rule as one `Tool(specifier)`.
 

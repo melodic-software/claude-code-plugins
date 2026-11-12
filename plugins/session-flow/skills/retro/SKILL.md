@@ -139,9 +139,6 @@ are retention-swept (`cleanupPeriodDays`), and the conversation itself has no du
 
 - **Pointer**: [Data usage § Data retention](https://code.claude.com/docs/en/data-usage#data-retention),
   for the retention period and what `cleanupPeriodDays` adjusts.
-- **As of**: 2026-10-19
-- **Recheck trigger**: that section stops describing local transcripts as swept after a retention
-  period, or a release note names `cleanupPeriodDays`.
 
 If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`--unattended`:** make no suggestion.
 
@@ -195,8 +192,6 @@ The `context/` files write the plugin's root directory as `<plugin-root>`, which
 writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsubstituted.
 
 - **Pointer**: <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>
-- **As of**: 2026-10-07
-- **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

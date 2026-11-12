@@ -47,9 +47,6 @@ track behind the decision is [#6740](https://github.com/melodic-software/claude-
 - **Pointer**: when caption files or info.json caption keys look different, fetch the probe in
   [#6740](https://github.com/melodic-software/claude-code-plugins/issues/6740) and yt-dlp's subtitle
   options at <https://github.com/yt-dlp/yt-dlp#subtitle-options> live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: a yt-dlp release note that renames subtitle output files or changes the
-  `subtitles` / `automatic_captions` keys in info.json.
 
 **Comments and extractor args** are adapter-declared capabilities, not pipeline defaults. Both
 flags are pushed only because this adapter declares them. Comment harvest is on (the pinned
@@ -62,9 +59,6 @@ the extractor argument that carries the decision.
 
 - **Pointer**: when a translated track lands despite the skip, or the retry finds none, fetch
   yt-dlp's YouTube extractor arguments at <https://github.com/yt-dlp/yt-dlp#youtube> live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: a yt-dlp release note that renames or changes `skip` values for the youtube
-  extractor.
 
 A caption pass that exits non-zero still selects from the tracks already written, and the failed
 track's `ERROR:` line lands in `transcriptDegradation`.
@@ -90,9 +84,6 @@ a stream ended, is [#14743](https://github.com/melodic-software/claude-code-plug
   <https://github.com/yt-dlp/yt-dlp#output-template> and the YouTube extractor's
   `_list_formats` live-status mapping at
   <https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/youtube/_video.py> live.
-- **As of**: 2026-11-11
-- **Recheck trigger**: a yt-dlp release note that adds, renames or removes a `live_status`
-  value, or changes what the YouTube extractor sets `release_timestamp` from.
 No extractor allow-list is declared: the youtube extractor resolves claimed URLs in-family, with
 no foreign delegation on the single-video path.
 
@@ -154,8 +145,6 @@ classified, acquisition iterates browser cookie profiles before giving up. Recov
 The HTTP 403 row is this spoke's decision: treat a media-fragment 403 as a stale client and update yt-dlp before any other recovery. The probe that an aging client failed that way and a newer build succeeded is [#6048](https://github.com/melodic-software/claude-code-plugins/issues/6048).
 
 - **Pointer**: when a media download returns HTTP 403, fetch the probe in [#6048](https://github.com/melodic-software/claude-code-plugins/issues/6048) and the current yt-dlp release at <https://github.com/yt-dlp/yt-dlp/releases> live.
-- **As of**: 2026-10-03
-- **Recheck trigger**: a yt-dlp release note that changes how an aging binary fails a media download.
 
 The last row is the one to read carefully: this adapter declares **no** retryable patterns of its
 own. Transport-level retry is shared machinery applied to every source, so a 429 never reaches

@@ -100,7 +100,7 @@ rather than measuring anything, and the route.
 - `absent` or `unknown`: the backend is missing. On Linux or WSL2, install each missing package,
   restart Claude Code, and confirm with `/sandbox`. Otherwise: WSL2, a Linux host with
   `bubblewrap` and `socat`, macOS, or a Claude cloud session, whose host and missing packages come
-  from fetching [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#whats-available-in-cloud-sessions) (host) and [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) (packages) live and applying the matching table row.
+  from fetching [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#what%E2%80%99s-available-in-cloud-sessions) (host) and [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) (packages) live and applying the matching table row.
 - `not-ready`: the backend is present and the packages resolve; the cause is the named links, and
   the route is to resolve them or run on a host without them. Never suggest repointing
   `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check. On `platform: wsl2`, when `DOCKER_CONFIG` is unset (the swap changes only `~/.docker`), every link (or `~/.docker` itself) points under `/mnt/`, and no link target holds a `tls/` directory (the script refuses one), run the CLI through the link swap without asking, and say so in the run report (`<skill-dir>` there is `${CLAUDE_SKILL_DIR}`), so the run sees no links: [sandboxes.md, Docker link swap](reference/sandboxes.md#docker-link-swap). When any of the three fails, refuse and name the links.
@@ -118,7 +118,7 @@ ungranted tool is removed and reported on stderr as `not granted`.
 |---|---|---|---|---|---|
 | Windows native | Read the pointer for whether this host has a backend, then apply the backend table: without one, a suite requesting `Bash`, `PowerShell`, `Write` or `Edit` takes the refusal above and its route, and one requesting none of them meets no refusal | One read-only case passed on Claude Code 2.1.316; the CLI kept its unsealed sandbox, so remove each run's `%TEMP%\claude-eval-*` by hand as its warning says ([record](https://github.com/melodic-software/claude-code-plugins/issues/8378#issuecomment-6662011078)) | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-11-05 | That section names a Windows backend, or a release note touches sandbox sealing on Windows |
 | WSL2 | Any suite once the backend is `present`, with Run step 3's `TMPDIR`. Docker Desktop's links make it `not-ready`: take that route's link swap | Through the swap on Docker Desktop's own store, one `Bash`-granting case; also `Bash`-granting runs where a `TMPDIR` under `/tmp` or `/var/tmp` left the workspace read-only and one under home or `/run/user/<uid>` did not | [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2); [records.md](reference/records.md#sandbox-and-credential-store) | 2026-11-04 | That section adds or drops a package or WSL note, or a release note touches sandbox credential exclusion |
-| Claude cloud session | Unverified: in the session, take the `absent` route's cloud clause, then the backend table | None, by choice: the maintainers run no evals in cloud sessions, so whether the CLI runs there stays unverified ([record](https://github.com/melodic-software/claude-code-plugins/issues/8378#issuecomment-6662011078)) | [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) | 2026-11-04 | That page's "What's available in cloud sessions" section changes its host description, Installed tools changes its package list, or a run here is recorded |
+| Claude cloud session | Unverified: in the session, take the `absent` route's cloud clause, then the backend table | None, by choice: the maintainers run no evals in cloud sessions, so whether the CLI runs there stays unverified ([record](https://github.com/melodic-software/claude-code-plugins/issues/8378#issuecomment-6662011078)) | [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) |  |  |
 | GitHub Actions | In melodic-software/claude-code-plugins, dispatch [`eval-browser-dispatch.yml`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/eval-browser-dispatch.yml) on main under the [CI](#ci) rules and keep its `env-scrub` input on, since off gives Bash subprocesses the Claude credentials. It passes no `--threshold`, so the job goes red below the [CLI's default](https://code.claude.com/docs/en/plugin-evals#command-options). [Issue 6649](https://github.com/melodic-software/claude-code-plugins/issues/6649) tracks the suite job. Elsewhere, write a job from [CI](#ci) and [ci.md](reference/ci.md) | With `TMPDIR` moved out of `/tmp` ([PR 12643](https://github.com/melodic-software/claude-code-plugins/pull/12643)), a `Bash,Write` case scored 1.00 in one run with `env-scrub` on, its graders matching a `git merge` call and the file that merge brings in ([run](https://github.com/melodic-software/claude-code-plugins/actions/runs/41706844559)). The earlier pass, also `env-scrub` on, logged only sandbox refusals under `/tmp` ([record](https://github.com/melodic-software/claude-code-plugins/issues/6649#issuecomment-6589725145)) | [Issue 6649](https://github.com/melodic-software/claude-code-plugins/issues/6649); <https://code.claude.com/docs/en/plugin-evals#run-evals-in-ci> | 2026-11-04 | Issue 6649 closes, that workflow's run step changes, or that section changes its runner requirements |
 
 ### Worktree isolation
@@ -241,7 +241,7 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    run's judge model. On a miss, fix the rubric or calibrate a stronger `--judge-model` and use it.
 
 3. Invoke the CLI with the target first, ahead of every flag. Pointer for how the target is parsed:
-   <https://code.claude.com/docs/en/plugin-evals#choose-what-to-evaluate>, as of 2026-10-31; recheck when a release changes a flag that takes values.
+   <https://code.claude.com/docs/en/plugin-evals#choose-what-to-evaluate>.
 
    ```bash
    claude plugin eval <target> --trust-plugin --keep-temp --judge-model opus --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
@@ -255,7 +255,7 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    delta reads 0, so that share of the pass is wasted. When a script is one you would not run on
    your own machine, select the other cases with `--case <glob>` or `--tag <tag>`. On Linux and WSL2, run the CLI as `env TMPDIR=<dir> claude plugin eval …`, where `<dir>` is a directory of at most 24 characters outside the system temp directories that you create first, on disk (for example `$HOME/.ev` when that stays within 24 characters; not the `/run/user` tmpfs, which kept sandboxes can fill). Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). When a case's description asks for `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, add it to the same `env` prefix: [sandboxes.md, Auto memory](reference/sandboxes.md#auto-memory).
 
-   A non-TTY run against an untrusted directory needs `--trust-plugin` ([Trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory), as of 2026-11-10; recheck when that section changes what a run that cannot ask does).
+   A non-TTY run against an untrusted directory needs `--trust-plugin` ([Trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory)).
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta". A run
    that feeds a decision keeps `--judge-model opus`, since the CLI's default judge is uncalibrated
    for decisions; only an exploratory run drops it. Run it in the foreground with a tool timeout
@@ -272,7 +272,7 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    interactive session backgrounds a run only as a harness-tracked task it waits for. A run is
    finished when the process exits and `results.json` exists; read the exit code and the JSON
    together, never one alone. Write the file where git ignores it (the
-   CLI's own copy lands where the `--output-dir` row of [Command options](https://code.claude.com/docs/en/plugin-evals#command-options) says, which can take `--json` too when ignored; as of 2026-11-10, recheck when that row changes its default); a run result is evidence to distill, not a file to commit.
+   CLI's own copy lands where the `--output-dir` row of [Command options](https://code.claude.com/docs/en/plugin-evals#command-options) says, which can take `--json` too when ignored); a run result is evidence to distill, not a file to commit.
 
 4. Read the JSON with the `read` action below. With `--json <file>` there is no terminal table, so
    the JSON is the only record of what happened.
@@ -315,7 +315,7 @@ Read in this order. Stopping early at any step is the finding.
    the suite did not finish: report that and keep the document out of any trend.
 3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still
    scored, as a failure with `explanation: "skipped: cost ceiling"`, so it silently depresses the
-   arm. A non-null `error` does not by itself imply score 0: which errored runs are still graded is in [JSON result](https://code.claude.com/docs/en/plugin-evals#json-result) (as of 2026-11-10; recheck when that section changes which errored runs are graded).
+   arm. A non-null `error` does not by itself imply score 0: which errored runs are still graded is in [JSON result](https://code.claude.com/docs/en/plugin-evals#json-result).
    Either makes the case not comparable; say so instead of reporting its number.
 4. `cases[].aggregates.delta`. It is **omitted** when the arms are not comparable. An omitted delta
    is never zero, and neither is a missing `scoreWithout`.
@@ -446,26 +446,27 @@ reader which one happened and whether the arms were comparable at all (pointer: 
 - The without-arm is not the with-arm minus the plugin: the model without the plugin may load a
   bundled skill such as `claude-api` and cost several times the with-arm. Estimate each arm from
   its own runs.
-- `--trust-plugin` persists (observed: [records.md](reference/records.md#ceiling-trust-and-report-behavior)), so later non-TTY runs launch instead of being refused. How far a yes at the trust prompt reaches: [Trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory), as of 2026-11-10; recheck when that section changes what a yes trusts.
+- `--trust-plugin` persists (observed: [records.md](reference/records.md#ceiling-trust-and-report-behavior)), so later non-TTY runs launch instead of being refused. How far a yes at the trust prompt reaches: [Trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory).
 - Without `--keep-temp` the per-run `tracePath` points at a directory the runner has already
   deleted, so decide on `--keep-temp` before the run, not after reading a surprising score.
 - A typo in `--case` exits 1 and no exit code separates it from a real failure, so read the CLI's
   message before treating an exit 1 as a failing case.
 - A usage or rate limit mid-suite is **not** marked partial, so `partial: false` does not show the
-  runs ended normally. Later runs end with the error and get 0 with no grader run, in both arms, so the suite reads as a regression (pointer: [Runs fail with a usage-limit or rate-limit error partway through](https://code.claude.com/docs/en/plugin-evals#runs-fail-with-a-usage-limit-or-rate-limit-error-partway-through), as of 2026-11-10; recheck when that section changes how such a run is scored). Check each affected run's `error`
+  runs ended normally. Later runs end with the error and get 0 with no grader run, in both arms, so the suite reads as a regression (pointer: [Runs fail with a usage-limit or rate-limit error partway through](https://code.claude.com/docs/en/plugin-evals#runs-fail-with-a-usage-limit-or-rate-limit-error-partway-through)). Check each affected run's `error`
   (`cases[].arms.with[].error`, `cases[].arms.without[].error`) before believing a drop; when it
   names the limit, rerun those cases with `--case` once the limit resets. It is neither a
   regression nor flaky cases, and leaving the cases out of the trend is not enough on its own.
   When `error` is null, run the validity gate and the noise report before drawing any conclusion,
   and say nothing yet about the cases themselves. A run whose sandbox never started fails the gate's `session started` check; the `TMPDIR` route is in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). On Claude Code 2.1.316, when cases grant Bash or load a skill with a pre-computed (``!`command` ``) line, a run's `TMPDIR` must not sit under `/tmp` or `/var/tmp`; the run step's `$HOME` directory avoids it. The gate fails a run whose failed Bash result reports a read-only file system in the run's workspace or `TMPDIR`, or whose pre-computed command failed; recheck when a release note touches `plugin eval` sandbox paths or `TMPDIR` ([records.md](reference/records.md#sandbox-and-credential-store)).
-- Pass `--no-publish` on a terminal run whose report must stay local. When a report publishes, and when a session-started run keeps it local: [HTML report](https://code.claude.com/docs/en/plugin-evals#html-report), as of 2026-11-10; recheck when that section changes when a report publishes.
+- Pass `--no-publish` on a terminal run whose report must stay local. When a report publishes, and when a session-started run keeps it local: [HTML report](https://code.claude.com/docs/en/plugin-evals#html-report).
 - The sandbox limits what the agent under test can reach. It is not a boundary against the
   plugin's own code: hooks, `--scaffold` scripts, and real MCP servers run as you, outside it, with
   network access. A passing suite is a behavior measurement, never a security vetting. Observed sandbox write limits: [records.md](reference/records.md#sandbox-and-credential-store).
 
 ## Sources
 
-Each row: the rule it backs, the pointer to read live, as-of date, recheck trigger. When a trigger
+Each row: the rule it backs, the pointer to read live, and, for a stored value, its as-of date and
+recheck trigger (a pointer-only row leaves those cells empty). When a trigger
 fires, re-read the pointer, refresh the rule and its [records.md](reference/records.md) entry, and
 record a drift outcome in this plugin's CHANGELOG.
 
@@ -477,12 +478,12 @@ record a drift outcome in this plugin's CHANGELOG.
 | Docker credential-store refusal and the `~/.docker/bin` exemption | <https://code.claude.com/docs/en/changelog> (2.1.293); no docs page covers it | 2026-10-10 | A docs page documents the check, or a release note touches sandbox credential exclusion or exempt paths |
 | `eval_tmpdir` 24-character bound and its refusal | [unix(7)](https://man7.org/linux/man-pages/man7/unix.7.html) `sun_path`; sandbox-runtime's bridge sockets and the 63- and 24-character pair in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start) | 2026-10-31 | sandbox-runtime renames its bridge sockets, a release note touches `plugin eval` sandbox paths or `TMPDIR`, or a `<dir>` within the bound fails with the bridge-socket error |
 | Sandbox network denial report, read by the permission denials check | [Sandboxing, The unsandboxed retry escape hatch](https://code.claude.com/docs/en/sandboxing#the-unsandboxed-retry-escape-hatch) says only that the result names the denied host; no page documents the report's format, observed in a with-arm Bash result on Claude Code 2.1.317 (issue #12988), its shape kept in `scripts/fixtures/run-validity/traces/network-denied.jsonl` | 2026-11-04 | That page documents the violation report, a release note touches sandbox violation reporting, or a kept trace shows a network denial the check missed |
-| Cloud route host and packages | [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#whats-available-in-cloud-sessions) (host), [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) (packages) | 2026-11-04 | That section changes its host description or package list |
+| Cloud route host and packages | [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#what%E2%80%99s-available-in-cloud-sessions) (host), [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) (packages) |  |  |
 | Read-only tool set | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-10-10 | That section's allowed-tools sentence changes |
 | Worktree Bash guard refusal of `claude plugin eval --help`, and which session shapes it covers | Observed on Claude Code 2.1.318 ([records.md](reference/records.md#worktrees)) | 2026-11-04 | A release note touches worktree isolation or `plugin eval` |
 | Worktree Bash guard refusal of the user's `!` command | Observed on Claude Code 2.1.285 ([records.md](reference/records.md#worktrees)) | 2026-10-01 | A release note touches worktree isolation or `plugin eval` |
 | CLI linked-worktree refusal | Observed on Claude Code 2.1.289 ([records.md](reference/records.md#worktrees)) | 2026-10-04 | A release note changes the limit or the CLI's repository screening |
-| Model and judge resolution | <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-10-01 | The table changes its `--model` or `--judge-model` row |
+| Model and judge resolution | <https://code.claude.com/docs/en/plugin-evals#command-options> |  |  |
 | `--scaffold` for a case with a `scaffold_script`, and the zero delta without it | <https://code.claude.com/docs/en/plugin-evals#add-setup-or-history-with-case-yaml>; the `--scaffold` row of <https://code.claude.com/docs/en/plugin-evals#command-options>; two discarded passes on Claude Code 2.1.309 and 2.1.310 (issue #9414) | 2026-10-27 | That section changes when a `scaffold_script` runs, or a release note touches `--scaffold` |
 | Flag order, trust refusal, flag defaults | `claude plugin eval --help`; <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-09-12 | `--help` no longer matches, or a release note touches the flag set |
 | Cost anchors (list-price estimates, this plugin's read-only suite, Claude Code 2.1.287 and 2.1.296) | [records.md, Cost anchors](reference/records.md#cost-anchors) | 2026-10-11 | A release note touches `plugin eval`, the served model changes, or a pass averages more than 0.2 USD per run |

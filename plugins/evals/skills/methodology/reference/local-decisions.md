@@ -72,7 +72,7 @@ Default: a judge rubric is a list of checkable pass/fail claims. The 1-to-5 reci
   [eval-audit.md, When the grader is an LLM judge](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-audit.md#when-the-grader-is-an-llm-judge)
   disagree on rubric form.
 - Correlate with <https://claude.dev/blog/automating-eval-design-and-hillclimbing#validating-the-grader>,
-  which departs from the platform page on rubric form as of 2026-10-01.
+  which departs from the platform page on rubric form.
 - **As of**: 2026-10-01
 - **Recheck trigger**: the platform page changes its Example evals section, or a commit to
   `anthropics/skills` changes the LLM-judge section of `eval-audit.md`.

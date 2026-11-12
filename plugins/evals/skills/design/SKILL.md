@@ -195,9 +195,6 @@ convert it; the overwrite rule below applies.
 - **Pointer**: for the eval directory, the case layout and the `case.yaml` required fields, see
   [Eval suite reference](https://code.claude.com/docs/en/plugin-evals#eval-suite-reference) and
   [case.yaml fields](https://code.claude.com/docs/en/plugin-evals#case-yaml-fields).
-- **As of**: 2026-10-31
-- **Recheck trigger**: either section changes the default eval directory, the files a case
-  directory holds, or the fields `case.yaml` requires.
 
 `claude plugin eval` runs each case with the plugin and again without it. The with arm answers
 "does the output meet these expectations"; the with/without delta answers a comparative claim (the
@@ -206,9 +203,9 @@ agents and hooks together). `/evals:plugin-eval` reads that delta. Whether the s
 delta question: the no-plugin arm has no skill to invoke, so read it from the with-arm
 `tool_used: Skill` indicator, which is unscored.
 
-Verified 2026-09-11 against <https://code.claude.com/docs/en/plugin-evals.md> and
-`claude plugin eval --help` (recorded in `docs/native-surfaces.md`, the `plugin eval` entry).
-Recheck when a Claude Code release changes `--ablation`'s default or which graders it excludes from scoring.
+For how the arms run and which graders are scored, read
+<https://code.claude.com/docs/en/plugin-evals.md> and `claude plugin eval --help` (recorded in
+`docs/native-surfaces.md`, the `plugin eval` entry) live.
 
 ## Phase 3: grading hygiene gate
 

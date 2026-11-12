@@ -22,7 +22,7 @@ The read actions `view`, `list`, `review-comments` and `review-venue`, `comments
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep them
 separate body calls, not pre-computed, so the skill stays invocable from inside a worktree: the composition record is the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation).
-**Pointer**: when an isolated session refuses a git command, fetch [How Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) live. **As of**: 2026-11-10. **Recheck trigger**: that section changes its command-shape check.
+**Pointer**: when an isolated session refuses a git command, fetch [How Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) live.
 
 ## Purpose
 
@@ -281,8 +281,7 @@ The `reference/` files write this skill's directory as `<skill-dir>`, which is
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_SKILL_DIR` or `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Next
 

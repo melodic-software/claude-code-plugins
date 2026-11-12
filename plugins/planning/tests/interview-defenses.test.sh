@@ -575,11 +575,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # Phase 3 of #14733 retry: the Stance intake line drops its unattended sentence, and the Unattended path stop paragraph now exits the way rung 3 records a blocker (a blocked USER-RESERVED row, Finish line not settled yet, no Step 4 lock or gate) with the Stopped line limited to the two stop classes, so every other blocker keeps rung 3 and its own last line; it resolves no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
 # Gates: one added sentence routes an unattended stop at the instance question or Finish line to loop.md Unattended path; the lock STOP-on-gap halt is unchanged for every other gap. Unattended path and register: an unattended release or in-use item now exits like the stop path (blocked USER-RESERVED row, no lock or gate, Blocked: last line, owner Q13); rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical and nothing is resolved silently.
 # A decision whose evidence leaves only one viable answer is named on the round header Settled by evidence line with its Basis and an answered-from-evidence register row the user can reopen by id, and a quoted prior owner ruling answers its question as an answered-from-decision fact; every decision with a live alternative is still asked, so the auto-guard still never folds a user choice, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
+# Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "f3a176dbcd93d306b5b021aeabc1ce49fe8db081b285da7895a1aec6b0c2e69d"
+  "f53561525819b0d7eae5b9eaa02a7cb5a0e061bfdb73ebf03af9652271d10f53"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -658,11 +659,12 @@ pin_section "loop.md Step 1.5 section is unchanged (loop's auto-guard + \`lock\`
 # Phase 3 of #14733 eval fix: the Stance intake line also says an unattended run, lock included, still writes the Brief and ends on the Stopped line only for a contradicted recorded Intent or Vision or a critical security issue, and the Unattended path paragraph limits not settled yet to an item naming a release or in-use outcome; both narrow when a run stops, resolve no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
 # Phase 3 of #14733 retry: the Stance intake line drops its unattended sentence, and the Unattended path stop paragraph now exits the way rung 3 records a blocker (a blocked USER-RESERVED row, Finish line not settled yet, no Step 4 lock or gate) with the Stopped line limited to the two stop classes, so every other blocker keeps rung 3 and its own last line; it resolves no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
 # Gates: one added sentence routes an unattended stop at the instance question or Finish line to loop.md Unattended path; the lock STOP-on-gap halt is unchanged for every other gap. Unattended path and register: an unattended release or in-use item now exits like the stop path (blocked USER-RESERVED row, no lock or gate, Blocked: last line, owner Q13); rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical and nothing is resolved silently.
+# Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
 pin_section "loop.md Unattended path section is unchanged (the ladder lives here)" \
   "$LOOP" \
   "### Unattended path" \
   "### Gate before locking" \
-  "6a1fba5865d08c7787a7b4d08e7e3f21c9a53882e5975a6022b7750e86da5112"
+  "f1b9a00efb905dd1d8bf64f133629343cd52fb5fc029d39b931eb57a640ce35e"
 
 # Case A's exemption expectation now names `lock`'s one problem question and its invocation
 # confirming the rest; it still says invoking `lock` does not license guessing, and the halt expectations stand.
@@ -694,11 +696,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # Document surface folded into the interview: the frontmatter adds the document trigger phrases and the `document` argument word; the Action Router adds one row that resolves a named surface and then runs `auto`, leaving the `lock` row and its STOP-on-gap reading untouched; the roster renames case 38 and adds cases 46-51, which register the recipient questions open and resolve none on anyone behalf, so neither defense is weakened
 # Review fix: the surface-word row now matches only a surface marked onRequest in the registry list, so an alias such as browser no longer reroutes a topic; it still only resolves a surface and runs `auto`, and the `lock` row and its STOP-on-gap reading are untouched
 # Owner decision: the surface-word row resolves a request made in words with the surface id, since the document surface keeps no prior-name argument word; the row still only resolves a surface and runs `auto`, and the `lock` row and its STOP-on-gap reading are untouched
+# Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "6695e5fce036cc33040726ecd35aed817679dfba13c77648e6df81c428148b39"
+  "9ec05ae465fc8e693fde59be1e81d386cd350f63021787ecc29179fc23eff758"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -803,11 +806,12 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
 # Rendered-views medium choice (#12296): the degrade table gains a Medium bullet that resolves medium first and renders the table the No HTML way under terminal, and case 45 grades that inline render; each changes only where a round is shown, resolves no row, licenses no silent capture or fudged gap, so cases 15 and 16 hold and the late-commitment next-free-id rule is byte-identical
 # #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 # Glossary skill renamed (Q61): /domain-driven-design:curate-language becomes /domain-driven-design:ubiquitous-language with its curate action for writes, and the interview reads the glossary through its lookup action (Q64) with a repository search fallback; only those tokens and the read line changed, so the no-silent-resolve rule, the constraint-ledger rows and the late-commitment next-free-id rule are byte-identical
+# Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "2daa3ec627587728314ce203d5005819852db44ec7d94e1c493a4cedce3cdf48"
+  "56ff36d3813d798fd0ab61346f5e4d0c6ab05fdf2dd0eb761b147ff89c64b5a7"
 # The sweep-round labeling and the appended pre-round contradiction pass leave the scope, item shape and USER-RESERVED disposition intact; a draft conflict becomes no register row and nothing is captured as an assumption.
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
@@ -818,9 +822,10 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
 # Re-audit: the Dispatch paragraph drops text quoted from the subagents page and keeps the pointer as a dated record; the sweep's scope, item shape, disposition and the request-any-type-but-fork rule are unchanged, so both plants survive.
 # The self-answer source lists name prior owner decisions first, and an answer from a quoted prior owner ruling is an answered-from-decision register row, never an F-line fact, so a sweep decision item still always takes a register row and the procedure check still refuses an F-line for it; decisions with a live alternative and no ruling are still asked, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
+# Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "b17e0525cbe81bf363a2de400da5b39750400cb5186910c52e99145048bce413"
+  "11504458a14c33dcc557289ea1a72cdff082fe22b729598e51abc479aa80e755"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.

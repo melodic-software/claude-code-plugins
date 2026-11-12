@@ -129,8 +129,6 @@ Hunt for the search tokens `bg-gradient-to-r` and `bg-linear-to-r`, and for `bg-
 
 - **Pointer**: Tailwind CSS, `background-image`, "Adding a linear gradient",
   <https://tailwindcss.com/docs/background-image#adding-a-linear-gradient>
-- **As of**: 2026-10-29
-- **Recheck trigger**: Tailwind renames the linear-gradient utilities again or drops `bg-clip-text`.
 
 **Audit: Suggestion.** A headline filled with a gradient (`background-clip: text` with transparent
 text). The contrast it fails is counted once, by the `color` concern.

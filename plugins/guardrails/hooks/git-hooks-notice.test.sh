@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/pre-push-content.sh plugins/guardrails/hooks/yaml-subset.awk
 # The SessionStart probe that names /guardrails:setup apply install-git-hooks when this clone
 # lacks the guardrails git-hook entries: run as harness-ops' prerequisites-fleet.mjs runs it
 # (this plugin's own lib/prerequisites.mjs probe), in a fresh clone and with every entry

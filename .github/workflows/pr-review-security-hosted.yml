@@ -442,10 +442,10 @@ jobs:
         .github/scripts/pr-unblock/escalation-routes.json
         .github/scripts/pr-unblock/gate-source.mjs
         .github/scripts/pr-unblock/thread-scope.mjs
-        .github/scripts/pr-unblock/retry-fetch.mjs
+        .github/scripts/lib/retry-fetch.mjs
         .github/scripts/work-resolve-issue/report-outcome.mjs
         .github/scripts/work-resolve-issue/limits.mjs
-        .github/scripts/work-resolve-issue/retry-fetch.mjs
+        .github/scripts/lib/lane-hold-marker.mjs
         .github/scripts/pr-unblock/report-escalation.sh
         .github/scripts/pr-unblock/adjudicate-feedback.mjs
         .github/scripts/pr-unblock/publish-feedback.mjs
@@ -463,7 +463,7 @@ jobs:
         .github/scripts/apply-patch/apply-patch.mjs
         .github/scripts/apply-patch/predicates.mjs
         .github/scripts/apply-patch/protected-paths.mjs
-        .github/scripts/apply-patch/retry-fetch.mjs
+        .github/scripts/lib/run-main.mjs
         .github/scripts/pr-unblock/fix-ci-context.mjs
         .github/scripts/pr-unblock/feedback-dispatch.mjs
         .github/scripts/pr-unblock/verify-notes.mjs
