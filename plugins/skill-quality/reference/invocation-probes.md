@@ -214,7 +214,7 @@ interval has zero width, so read the probe count before trusting it.
 - **Pointer**: for what one `claude plugin eval` run loads, the case-level `plugins` field, and
   how many times a case runs by default, fetch
   <https://code.claude.com/docs/en/plugin-evals#choose-what-to-evaluate>,
-  <https://code.claude.com/docs/en/plugin-evals#prompt-md-frontmatter> and
+  <https://code.claude.com/docs/en/plugin-evals#prompt-md-fields> and
   <https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored> live. **As of**:
   2026-11-02. **Recheck trigger**: any of those sections changing what one run loads, how
   `plugins` paths resolve, or the default run count.

@@ -3,7 +3,7 @@
 # Upstream source: <owner>/<repo> (<scope, when one is set>)
 
 This page records what this repository takes from, adapts, already has, or rejects in
-[<owner>/<repo>](https://github.com/<owner>/<repo>) (<license as read>). Rows hold our decisions
+`https://github.com/<owner>/<repo>` (<license as read>). Rows hold our decisions
 and our own descriptions of each idea, under the upstream-drift convention's
 [What a row may describe](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#what-a-row-may-describe);
 read upstream at each row's link for what it says.

@@ -92,3 +92,9 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 ^https://api\.github\.com/repos/anthropics/claude-code/releases$
 ^https://api\.github\.com/repos/anthropics/claude-code/releases/tags/v2\.1\.269$
 ^https://api\.github\.com/repos/anthropics/claude-code/tags$
+
+# Publisher bot block: 403 to the runner and to a browser User-Agent; the DOI resolves to the cited Parnas paper on dl.acm.org (verified 2026-11-11).
+^https://doi\.org/10\.1145/361598\.361623$
+
+# claude.ai connectors settings page behind sign-in: 403 on the runner (online run 42809150911) and to a signed-out browser User-Agent (verified 2026-11-11).
+^https://claude\.ai/customize/connectors$

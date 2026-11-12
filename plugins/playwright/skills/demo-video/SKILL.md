@@ -75,7 +75,7 @@ removes its layer in either style. Pass them to `build_edl.py` as
    screenshots arrive at about 4 fps (`record.mjs` prints the rate of each recording). Capture
    uses device-pixel screenshots, not Chromium's screencast. Pointer: when weighing the screencast
    as a capture source, fetch
-   [Page.startScreencast](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-startScreencast)
+   [Page.startScreencast](https://chromedevtools.github.io/devtools-protocol/tot/Page/)
    live. As of: 2026-11-03. Recheck trigger: that method changes its frame size parameters.
 4. **Narration (only when `demo_narration` is true).** When the speech plugin is installed, run
    `/speech:narrate` once per line into `<work>/audio/<step>/`, `<work>/audio/<step>.outcome/` and,

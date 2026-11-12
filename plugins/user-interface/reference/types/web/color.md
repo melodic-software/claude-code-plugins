@@ -212,7 +212,7 @@ scale's L assignments. The remap, and the severity of that finding, are in
 them.
 
 - **Pointer**: raised surfaces lighter than the base in dark mode, in
-  [Apple HIG Dark Mode, iOS and iPadOS](https://developer.apple.com/design/human-interface-guidelines/dark-mode#iOS-iPadOS);
+  [Apple HIG Dark Mode, iOS and iPadOS](https://developer.apple.com/design/human-interface-guidelines/dark-mode);
   [Material dialog container color](https://github.com/material-components/material-components-android/blob/66b0eeb53afeb6025ffbbd37734b08e5bce197ed/docs/components/Dialog.md#container-attributes)
   and
   [Material color roles](https://github.com/material-components/material-components-android/blob/66b0eeb53afeb6025ffbbd37734b08e5bce197ed/docs/theming/Color.md#using-the-color-theming-system);
@@ -235,7 +235,7 @@ lines, so treat the split as a default, not a hard rule.
 
 - **Pointer**: translucent and opaque 1px lines in dark mode, in
   [shadcn/ui dark `--border`](https://github.com/shadcn-ui/ui/blob/4233ed1caded8c38f4bc14b14afe1f93ebcaf966/apps/v4/app/globals.css#L160);
-  [Apple HIG Color, iOS and iPadOS](https://developer.apple.com/design/human-interface-guidelines/color#iOS-iPadOS);
+  [Apple HIG Color, iOS and iPadOS](https://developer.apple.com/design/human-interface-guidelines/color);
   [Material outlined card stroke](https://github.com/material-components/material-components-android/blob/66b0eeb53afeb6025ffbbd37734b08e5bce197ed/docs/components/Card.md#container-attribute)
 - **As of**: 2026-10-29
 - **Recheck trigger**: any of them changes its dark-mode line to the other form, or one of them
