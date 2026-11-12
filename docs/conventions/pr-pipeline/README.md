@@ -3724,6 +3724,7 @@ with its default.
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `refire-queue-per-slot` | 2 | Kill-switch re-fires' queue target per issue-lane slot (`SLOTS`, the effective lane level `lane-level-value.mjs` reads): a sweep re-fires breaker-stranded issues, oldest first, only until the unfinished work-resolve-issue runs reach this times `SLOTS`, within `restarts-per-run`. At most 10. |
+| `stale-queued-minutes` | 60 | Minutes after it was created past which a work-resolve-issue run still at status `queued` is left out of the unfinished runs `refire-queue-per-slot` counts: its first job never got a runner, so GitHub lost it and it never starts. The sweep logs how many it left out. A reopened fix issue's in-flight check also ignores such a run when it names no issue; one that names the issue still holds it. At most 1440. |
 | `sweep-gap-minutes` | 15 | Minutes after a full work-unblock sweep (a run that uploaded `work-unblock-verdicts`) finished during which the sweep a finished work-resolve-issue run starts skips its work and requests no lane token. A scheduled sweep or an issue close never skips; a read that fails runs the sweep. 0 turns it off; at most 60. |
 | `readmit-per-run` | 20 | Open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on, oldest updated first; at most 100. Only an issue that reaches the rules counts: a hold or refuse label, an open blocker or sub-issue, a `status: ready` neither a listed human nor the lanes App added, or a standing `agent-ready` removal leaves it out uncounted. |
 | `parent-rescan-per-run` | 5 | Open issues whose every sub-issue is completed and whose number is the UTC hour modulo 24 that one work-unblock sweep reads to close a finished split parent, oldest updated first; at most 100. A parent whose last sub-issue closed outside the sweep window closes on its hour; one that stays open logs why. |
@@ -4064,10 +4065,15 @@ person's or the lanes App's (`APP_SENDER_ID`). Any untrusted request or event si
 or none that can be read, leaves the thread for a person. So does a comment or review by anyone
 else, apart from our own bots, that was edited since the window opened, or a deleted comment
 of theirs, since either may have held a request. The reason is logged
-(`codex-request-untrusted`, `codex-request-not-found`). The list is matched on the
+(`codex-request-untrusted`, `codex-request-not-found`). A listed bot no comment can summon,
+`github-advanced-security[bot]` (code scanning alerts, which it posts after each analysis of a
+pushed head; `UNSUMMONED_REVIEWER_IDS` in `address-feedback.mjs`), needs no request: its thread is
+worked when a trusted person or the lanes App opened the pull request, and logged with the same
+reasons otherwise. The list is matched on the
 account id GitHub records for each comment and its review, never on a login, so another account
 using the same name matches nothing. The comment text stays data in every model prompt, as the
-reviewer bot's does. This repository lists `chatgpt-codex-connector[bot]` (199175422). The
+reviewer bot's does. This repository lists `chatgpt-codex-connector[bot]` (199175422) and
+`github-advanced-security[bot]` (62310815). The
 select job and `publish-feedback` read the list from the resolved config; `fix-ci-context.mjs`
 and `pr-feedback-dispatch.yml` read it from the base's `pr-pipeline.yaml`. Absent: none.
 

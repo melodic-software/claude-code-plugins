@@ -17,8 +17,6 @@ Use 'max' for hard debugging, architecture decisions, tricky code where Claude n
 > **Amended:** the levels a model offers and its default level vary by model. For the current
 > levels and defaults, see
 > [Claude Code model config, "Choose an effort level"](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
-> **As of:** 2026-09-30. **Recheck trigger:** that section is renamed or removed, or stops stating
-> each model's default level.
 
 Source: https://x.com/trq212/status/2032632596572811575
 
@@ -38,9 +36,6 @@ Walk away from desk, think of something, kick off task from mobile. Claude runs 
 >
 > - **Pointer**: before relying on Remote Control for a plan or account type, fetch
 >   [Remote Control requirements](https://code.claude.com/docs/en/remote-control#requirements) live.
-> - **As of**: 2026-10-11
-> - **Recheck trigger**: that section changes which plans, versions or account settings it
->   requires.
 
 Source: https://x.com/trq212/status/2032632597843779861
 
@@ -127,8 +122,6 @@ Instead of approving every file write and bash command, or skipping permissions 
 >
 > - **Pointer**: when starting a session in auto mode from the command line, fetch
 >   [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) live.
-> - **As of**: 2026-10-11
-> - **Recheck trigger**: that table changes the flag that starts a session in auto mode.
 
 Boris's take: "no 👏 more 👏 permission prompts 👏"
 

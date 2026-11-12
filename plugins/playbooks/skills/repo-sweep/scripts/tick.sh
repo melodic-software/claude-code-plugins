@@ -21,8 +21,7 @@ set -euo pipefail
 
 # A native jq.exe under Git Bash or Cygwin writes text-mode stdout, which would add a CR to
 # every line of the body and break the CRLF-preserving rewrite below; -b keeps the bytes.
-# Pointer: https://jqlang.org/manual/#invoking-jq (--binary), as of 2026-10-11; recheck
-# when jq changes how it opens streams on Windows. REPO_SWEEP_OSTYPE is the test seam for the platform.
+# Pointer: https://jqlang.org/manual/#invoking-jq (--binary). REPO_SWEEP_OSTYPE is the test seam for the platform.
 case ${REPO_SWEEP_OSTYPE:-${OSTYPE-}} in
 msys* | cygwin*) type -P jq >/dev/null && jq() { command jq -b "$@"; } ;;
 *) ;;

@@ -15,4 +15,4 @@ a system-card finding: link the section rather than restate it, so no qualifier 
 
 A blog post appears only as a `correlate with <blog link>` note beside a main-docs pointer. A
 conflict between two pages is recorded only as "pages X and Y disagree on topic T", with both
-links, the as-of date and a trigger.
+links.

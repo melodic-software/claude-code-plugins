@@ -1983,6 +1983,52 @@ test("an automatic Codex review a stranger triggered is skipped, and an untruste
   assert.deepEqual(logged, [untrusted("opening of the pull request")]);
 });
 
+// github-advanced-security[bot], the code scanning (CodeQL) alerts: listed, and
+// unsummoned (UNSUMMONED_REVIEWER_IDS), so its threads need no `@codex`
+// request, only a PR a trusted person or the lanes App opened.
+const CODEQL = 62310815;
+const CODEQL_LOGIN = "github-advanced-security[bot]";
+const codeqlApi = (extra = {}, root = CODEQL) => {
+  const base = botThread({ root, login: root === CODEQL ? CODEQL_LOGIN : CODEX_LOGIN });
+  return fakeApi({ ...base, issueComments: [base.issueComments[0]], ...extra });
+};
+const codeqlLogged = (api) => codexLogged(api, { reviewerIds: [CODEX, CODEQL] });
+// A CodeQL review of an earlier push, after the PR's opening: the window a
+// Codex review would need a fresh request in.
+const earlierScan = { reviews: [{ id: 9, user: { id: CODEQL }, commit_id: OLD_HEAD, submitted_at: "2026-10-17T19:00:00Z" }, ...botThread({ root: CODEQL, login: CODEQL_LOGIN }).reviews] };
+
+test("a CodeQL thread on a PR a trusted person or the lanes App opened is worked with no @codex request, on a later push's scan too", async () => {
+  for (const [label, extra] of [
+    ["a lanes App PR", {}],
+    ["an owner-authored PR", { opener: HUMAN, openedAt: OPENED }],
+    ["a later push's scan", { openedAt: OPENED, ...earlierScan }],
+  ]) {
+    const { result, lines } = await codeqlLogged(codeqlApi(extra));
+    assert.equal(result.decision, "proceed", `${label}\n${lines.join("\n")}`);
+    assert.deepEqual(lines, [], label);
+    assert.deepEqual(result.file.threads[0].comments.map((row) => [row.id, row.author, row.listed]), [[100, "reviewer", true]], label);
+  }
+  const { kept } = await currentThreads({ api: codeqlApi({ opener: HUMAN, openedAt: OPENED }), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX, CODEQL], appId: APP, trustedHumans: new Set([HUMAN]) });
+  assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
+});
+
+test("a CodeQL thread on a stranger's PR or with unreadable triggers is skipped; Codex in the same place still needs its request", async () => {
+  const untrusted = `skip thread PRRT_1: codex-request-untrusted (the opening of the pull request behind the bot's review came from account ${STRANGER}, not on the trusted-actor list)`;
+  const notFound = "skip thread PRRT_1: codex-request-not-found (no trusted @codex request, and no readable opening or ready-for-review event, since the bot's previous review)";
+  for (const [label, api, line] of [
+    ["a stranger-authored PR", codeqlApi({ opener: STRANGER, openedAt: OPENED }), untrusted],
+    ["a timeline that cannot be read", codeqlApi({ timeline: new Error("GET timeline returned 502") }), notFound],
+    ["a Codex review of a later push with no request", codeqlApi({ openedAt: OPENED, reviews: [{ id: 9, user: { id: CODEX }, commit_id: OLD_HEAD, submitted_at: "2026-10-17T19:00:00Z" }, ...botThread().reviews] }, CODEX), notFound],
+  ]) {
+    const { result, lines } = await codeqlLogged(api);
+    assert.deepEqual([result.decision, result.escalationReason], ["escalate", "feedback-untaken-threads"], label);
+    assert.deepEqual(lines, [line], label);
+  }
+  // Unlisted, the same bot's thread is no reviewer's at all.
+  const unlisted = await codexRun(codeqlApi());
+  assert.notEqual(unlisted.decision, "proceed");
+});
+
 // A request read after the fact can have been edited out or deleted, so the
 // check fails closed on the history it can read: an untrusted comment or
 // review edited since the window opened counts whatever it says now, a
