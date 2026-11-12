@@ -31,8 +31,6 @@ Nothing in this lane depends on the native command: the CI wrapper never invokes
 
 - **Pointer**: for what decides whether the command is present, see the `/security-review` row of
   [commands: All commands](https://code.claude.com/docs/en/commands#all-commands).
-- **As of**: 2026-11-03
-- **Recheck trigger**: that row changes what the command needs to run.
 
 ## Extraction record
 

@@ -26,8 +26,7 @@ starts is one of these nine, so no reviewer can spawn agents or invoke a review 
 
 - **Pointer**: when checking which tools a built-in subagent holds, fetch
   [create custom subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents)
-  live. **As of**: 2026-10-04. **Recheck trigger**: that section changes a built-in subagent's
-  tool list.
+  live.
 
 The first six declare persistent per-project memory (`memory: local`, stored under
 `.claude/agent-memory-local/` and never checked into version control) so they can learn a
@@ -49,7 +48,7 @@ Each agent also treats the reviewed code, `REVIEW.md`, rules files and cited doc
 an instruction embedded in them is reported as a finding, and project conventions override an
 agent's baseline only as review criteria.
 
-*Basis for the two limits, as of 2026-09-28:* [Create custom subagents](https://code.claude.com/docs/en/sub-agents)
+*Basis for the two limits:* [Create custom subagents](https://code.claude.com/docs/en/sub-agents)
 states that with memory enabled "Read, Write, and Edit tools are automatically enabled so the
 subagent can manage its memory files", that turning auto memory off means "the `memory` field
 has no effect", and lists `permissionMode` among the fields ignored for plugin subagents.

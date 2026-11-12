@@ -5,7 +5,7 @@ wrong, which is why none of them is caught by "did I do a good job?". They are c
 outcome gate's artifact-grounded criteria, or not at all.
 
 - **A silent preload miss looks exactly like a good run.** A dispatched agent whose `skills:` entry
-  did not resolve starts anyway, writes an artifact, and reports `coverage: complete`. The dated record for that harness behavior is
+  did not resolve starts anyway, writes an artifact, and reports `coverage: complete`. The record for that harness behavior is
   [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
   "Harness facts the dispatch design rests on". The `preload_token` echo is the check that
   distinguishes "the discipline body reached the agent" from "it did not"; a missing or mismatched
@@ -16,7 +16,7 @@ outcome gate's artifact-grounded criteria, or not at all.
   effort `high`, one narrow question has stopped at the limit with nothing returned but the
   harness's partial marking. That is not a discard: resume the agent with `SendMessage` addressed by
   its agent ID, and it continues from retained context. That has recovered a complete artifact set
-  and a well-formed payload that passed both gates. The dated record is
+  and a well-formed payload that passed both gates. The record is
   [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
   "A turn-limit stop returns partial output, and the parent can resume the agent".
 - **Enumerating the corpus from search results.** A Phase 0 ledger built from what searching happened
