@@ -40,6 +40,7 @@ import stat
 import subprocess
 import sys
 import time
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Callable
@@ -717,20 +718,12 @@ def deny_roots(records: list[dict]) -> list[str]:
     by case are two directories, and folding them would drop protection from
     one of them.
     """
-    out: list[str] = []
-    for rec in records:
-        root_path = rec["deny_root"]
-        if root_path not in out:
-            out.append(root_path)
-    return out
+    return list(dict.fromkeys(rec["deny_root"] for rec in records))
 
 
 def under_deny(rel: str, denied: list[str]) -> bool:
     rel = rel.replace("\\", "/")
-    for d in denied:
-        if d in ("", ".") or rel == d or rel.startswith(d + "/"):
-            return True
-    return False
+    return any(d in ("", ".") or rel == d or rel.startswith(d + "/") for d in denied)
 
 
 DOCUMENTED_MINIMUM_DAYS = 1
@@ -785,24 +778,26 @@ def read_retention(root: Path) -> dict:
         "basis": "https://code.claude.com/docs/en/claude-directory.md (Application data)",
     }
 
+    def apply_setting(data: object, field: str) -> None:
+        if not isinstance(data, dict) or "cleanupPeriodDays" not in data:
+            return
+        raw = data["cleanupPeriodDays"]
+        days = valid_retention_days(raw)
+        if days is None:
+            # Reported, not silently ignored, and it does NOT drive
+            # effective_days -- the previously effective value stands.
+            result[field] = f"invalid: {raw!r}"
+        else:
+            result[field] = result["effective_days"] = days
+            result["effective_evidence"] = MEASURED
+
     settings_unparsable = False
     settings = root / "settings.json"
     if settings.is_file():
         try:
             data = json.loads(read_text_guarded(root, "settings.json"))
             result["user_settings_parse"] = "ok"
-            if isinstance(data, dict) and "cleanupPeriodDays" in data:
-                days = valid_retention_days(data["cleanupPeriodDays"])
-                if days is None:
-                    # Reported, not silently ignored, and it does NOT drive
-                    # effective_days -- the documented default stands instead.
-                    result["user_setting_days"] = (
-                        f"invalid: {data['cleanupPeriodDays']!r}"
-                    )
-                else:
-                    result["user_setting_days"] = days
-                    result["effective_days"] = days
-                    result["effective_evidence"] = MEASURED
+            apply_setting(data, "user_setting_days")
         except (OSError, json.JSONDecodeError) as exc:
             settings_unparsable = True
             result["user_settings_parse"] = f"failed: {type(exc).__name__}"
@@ -829,16 +824,7 @@ def read_retention(root: Path) -> dict:
                 data = json.loads(
                     candidate.read_text(encoding="utf-8", errors="replace")
                 )
-                if isinstance(data, dict) and "cleanupPeriodDays" in data:
-                    days = valid_retention_days(data["cleanupPeriodDays"])
-                    if days is None:
-                        result["managed_setting_days"] = (
-                            f"invalid: {data['cleanupPeriodDays']!r}"
-                        )
-                    else:
-                        result["managed_setting_days"] = days
-                        result["effective_days"] = days
-                        result["effective_evidence"] = MEASURED
+                apply_setting(data, "managed_setting_days")
             except (OSError, json.JSONDecodeError):
                 result["managed_setting_days"] = "unparsable"
                 result["findings"].append(
@@ -856,13 +842,9 @@ def read_retention(root: Path) -> dict:
                 )
             break
 
-    # The finding above is raised while reading settings.json, before managed settings
-    # have been looked at -- but its own claim names managed settings as the exception
-    # that keeps the sweep running. On an enterprise machine that supplies a valid
-    # cleanupPeriodDays, leaving it in place told the reader that nothing is being swept
-    # and that every staleness reading is suspect, when neither is true. Withdraw it once
-    # the exception is measured to apply. The parse failure itself is still reported, in
-    # `user_settings_parse`, so no evidence is lost.
+    # The settings-unparsable finding names managed settings as the exception that
+    # keeps the sweep running, so withdraw it once a valid managed value is measured.
+    # The parse failure itself stays reported in `user_settings_parse`.
     if settings_unparsable and isinstance(result["managed_setting_days"], int):
         result["findings"] = [
             f
@@ -922,11 +904,7 @@ def count_files(root: Path, exclude: set[str] | None = None) -> dict[str, int]:
 
 
 def count_by_entry(rows: list[FileRow]) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for row in rows:
-        head = top_level_name(row.relpath)
-        counts[head] = counts.get(head, 0) + 1
-    return counts
+    return dict(Counter(top_level_name(row.relpath) for row in rows))
 
 
 def walk_tree(
@@ -955,9 +933,7 @@ def walk_tree(
             except OSError as exc:
                 errors.append({"path": rel, "error": repr(exc)})
                 continue
-            surface, _note = classify_entry(rel)
-            if is_never_read(rel) and surface != SECRET:
-                surface = SECRET
+            surface = SECRET if is_never_read(rel) else classify_entry(rel)[0]
             verdict = verdict_for(rel, probe=probe)
             rows.append(
                 FileRow(
@@ -998,23 +974,16 @@ def rollup(
     out: list[dict] = []
     for name, members in sorted(groups.items()):
         surface, note = classify_entry(name)
-        # `classify_entry` consults SURFACE_TABLE and nothing else, so a top-level
-        # directory with no table row of its own reads `unclassified` even when the
-        # files under it are secret-bearing: `ide/*.lock` is in NEVER_READ_GLOBS and
-        # every member row is promoted to SECRET by `walk_tree`, but `ide` has no
-        # SURFACE_TABLE key, so the entry summary read `unclassified` -- and its
-        # staleness verdict `unclassified-report-only` rather than `keep`. The entry
-        # line is what a reader scans first; it must never be less alarming than the
-        # rows beneath it, so a SECRET member promotes the entry.
+        # `classify_entry` reads SURFACE_TABLE only, so an entry with no row of its
+        # own (such as `ide`, whose `*.lock` members are never-read) would read
+        # `unclassified` above SECRET member rows. The entry line is what a reader
+        # scans first and must never be milder than its rows, so a SECRET member
+        # promotes the entry.
         secret_members = sum(1 for m in members if m.surface == SECRET)
         if surface != SECRET and secret_members:
             surface = SECRET
-            # The count, not just the fact: a mixed tree can be promoted by a couple of
-            # vendored `*.pem` bundles, and the reader needs it against the `files` field
-            # sitting beside it to see the proportion rather than assume the whole entry
-            # is secret. Promotion is still the right call -- the verdict it produces is
-            # `keep`, and a report-only audit must not summarize a secret-bearing file
-            # under a milder line.
+            # The count lets a reader weigh it against `files`: a mixed tree can be
+            # promoted by a couple of vendored `*.pem` bundles.
             note = (
                 f"Contains {secret_members} never-read secret-bearing file(s), so the entry "
                 f"is classified by its contents rather than by its own name. "
