@@ -186,6 +186,9 @@ it.
 
 - **Pointer**: [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run),
   the cloud session row.
+- **As of**: 2026-10-07, Claude Code 2.1.292.
+- **Recheck trigger**: that section changes whether mods run in cloud sessions, or a cloud run of
+  this module is made.
 
 That observation is **not a misconfiguration**. Under the capability-detection table above it
 classifies as **unknown → reactive-only**. Consumers must not invent window percentages, pause

@@ -56,6 +56,9 @@ cd "$PROJECT_DIR" && golangci-lint run --fix <files>
   in the report, never silent.
   - **Pointer**: when checking which Go release added the flag, fetch
     [Go 1.23 release notes: Go command](https://go.dev/doc/go1.23#go-command) live.
+  - **As of**: 2026-11-10
+  - **Recheck trigger**: the `go-mod-tidy-drift` gate changes its command or the floor its
+    `remediation` names.
 - **GOFLAGS**: a repo-level `GOFLAGS` env var or `go env -w GOFLAGS=...` setting changes build/test
   behavior repo-wide (e.g. `-mod=readonly`); check for one before assuming a bare command failure
   is a real break.

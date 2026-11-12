@@ -27,7 +27,7 @@ Return values from the function are printed as command result.
 
 Treat the `run-code` body as a sandbox, not full Node.js: pass values such as secrets in from the shell as JSON-encoded literals (see the login example below), never through `process.env` or a Node module inside the body.
 
-- **Pointer**: when you need to know which globals the `run-code` sandbox provides, fetch the [v0.1.22 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.22) live.
+- **Pointer**: when you need to know which globals the `run-code` sandbox provides, fetch the [v0.1.22 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.22) live. **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
 ## Common recipes
 

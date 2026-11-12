@@ -235,7 +235,8 @@ perfectly plausible current occupancy, sits inside the window, and resolves `hea
 context may be in the light zone. So the token shape requires
 an explicit version signal: the snapshot's `cli_version`, the Claude Code version the session
 reports to the module (Pointer: `$.session.version()` in
-<https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods>). **The token shape is
+<https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods>. As of: 2026-10-03,
+Claude Code 2.1.288. Recheck trigger: that table renames or drops the method). **The token shape is
 computable only when
 `cli_version` is present, purely numeric dotted, and ≥ 2.1.132**; absent, malformed, or older
 leaves the percentage shape to stand alone.
@@ -704,6 +705,8 @@ not run:
 
 - **Pointer**: [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run)
   and [turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: that table changes a row, or that section changes what stops a mod.
 - **Pointer** (WSL sessions): the first bullet's "plugins are not available" rests on
   [Claude Code Desktop in WSL: What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session),
   which lists connectors and plugins among the features not yet available there.

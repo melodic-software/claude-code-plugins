@@ -43,6 +43,9 @@ pointer, not decided here. C4 ignores the session-level override
   (<https://code.claude.com/docs/en/env-vars#variables>) disagree with changelog 2.1.295 and
   2.1.296 (<https://code.claude.com/docs/en/changelog#2-1-295>, <https://code.claude.com/docs/en/changelog#2-1-296>) on the MCP description and instructions
   length limits.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the mcp page changes its stated default or states a limit per load path, or
+  a release note names MCP description or instructions truncation.
 
 **Spec revision record.** The audit grades its SPEC-tagged criteria against the MCP revision Claude
 Code negotiates by default. Of the tool rules that revision added, three were weighed as criteria:

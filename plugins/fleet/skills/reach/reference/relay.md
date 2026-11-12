@@ -147,7 +147,7 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
   Anywhere else the start fails with a workspace-not-trusted error and exit 1. For its wording,
   fetch
   [Workspace not trusted when dispatching a background session](https://code.claude.com/docs/en/errors#workspace-not-trusted-when-dispatching-a-background-session)
-  live.
+  live (as of 2026-10-11; recheck when that entry's message or fix changes).
 - `claude agents --json --all` reports each session's `id`, `name`, `status` and `state` (for
   example `busy`/`working`, then `idle`/`blocked`). Poll it to know when a session is done.
 - We address `claude logs` and `claude attach` by the short `id` from `claude agents --json --all`

@@ -188,3 +188,8 @@ turn.
   `/context` counts, the [changelog 2.1.261 entry](https://code.claude.com/docs/en/changelog#2-1-261)
   (the `/context` row in [commands § All commands](https://code.claude.com/docs/en/commands#all-commands)
   does not name the counting method); for late connectors, the same 2.1.261 entry.
+- **As of:** 2026-10-11.
+- **Recheck trigger:** the tool search sections change what decides deferral, a docs page or
+  release note says what decides deferral of built-in tools, a release note says
+  `/context` always calls the token-counting API, the `/context` row names its counting method, or
+  a release note says a missed connector fetch is no longer retried.

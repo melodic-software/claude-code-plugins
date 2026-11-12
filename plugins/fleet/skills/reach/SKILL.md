@@ -130,7 +130,7 @@ dated measurement and how to re-measure it). When a script can do the job, run t
 - **Background sessions** need a trusted working directory; anywhere else the start fails with a
   workspace-not-trusted error and exit 1 (for its wording and fix, fetch
   [Workspace not trusted when dispatching a background session](https://code.claude.com/docs/en/errors#workspace-not-trusted-when-dispatching-a-background-session)
-  live). Address
+  live; as of 2026-10-11; recheck when that entry's message or fix changes). Address
   `claude logs` and `claude attach` by the `id` from `claude agents --json --all` (bare `--json`
   lists only active sessions); pass a name only after checking the lane's version against the CLI
   reference. `logs` prints raw TUI output, so read a reply from the transcript (`--resume <id>`).

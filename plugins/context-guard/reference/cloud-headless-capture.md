@@ -21,6 +21,9 @@ channel was adopted.
   [mods reference: mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods);
   where hooks run in
   [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: the method stops reporting the window size or the percentage, or the table
+  removes a kind of session.
 
 A structural `unknown` remains only where the module does not run: a WSL session of the Desktop
 app, where plugins are not available; a session where mods are off; and a session the plugin is

@@ -131,6 +131,7 @@ can see which element each action targets.
 - **Pointer**: when you need the exact flags or default values of `video-start`, `video-chapter` or
   `video-show-actions`, run `playwright-cli <command> --help` live; for what changed, fetch the
   [v0.1.21 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.21).
+  **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
 ## Frame size (two levers, not one)
 
@@ -200,7 +201,8 @@ the file stays small.
 
 - **Pointer**: when an attach fails or you need the `gh` version or size limits, fetch the
   [`gh` v2.99.0 release notes](https://github.com/cli/cli/releases/tag/v2.99.0) and run
-  `gh pr comment --help` live.
+  `gh pr comment --help` live. **As of**: 2026-10-04. **Recheck trigger**: `gh pr comment --help`
+  stops listing `--attach`, or an upload is rejected for size.
 
 ## Known costs
 

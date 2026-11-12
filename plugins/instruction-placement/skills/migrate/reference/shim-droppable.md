@@ -212,6 +212,7 @@ Ask each, and record the answer beside the condition:
 2. **Does anyone run a session that cannot read `AGENTS.md`?** Ask about each session the memory
    page lists. Pointer:
    [When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable).
+   As of: 2026-11-03. Recheck trigger: that section changes its list or the versions that bound it.
 
    Also ask whether anyone runs a CLI before v2.1.287 with `disableAllHooks` or
    `allowManagedHooksOnly` set: an earlier revision of the page listed both here, and no release

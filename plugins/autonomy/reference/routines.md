@@ -474,16 +474,18 @@ Hosting stance below. The following are illustrative bindings, not fixed require
   not reach the run and must be committed to the repository, or declared as a repository
   plugin, to bind.
 
-  **Record for that transfer path.** *Basis:* the harness documentation page for skills,
+  **Dated record for that transfer path.** *Basis:* the harness documentation page for skills,
   section on skills in cloud sessions, which states that cloud sessions do not read the
   machine's user-scope skills directory, that they additionally load project skills committed
   to the cloned repository's skills directory, and that a plugin declared in the repository's
   settings installs at session start while a plugin enabled only in user settings does not
-  transfer. *One correction the record carries:* the same section states that these
+  transfer. *Verified:* 2026-09-06, against harness version 2.1.263 and that page as fetched
+  the same day. *One correction the record carries:* the same section states that these
   sessions also load the skills enabled for the operator's hosted account, so an
   account-enabled skill does reach the run even though a machine-local one does not; the
   committed-artifact rule above is the binding path this contract requires, not the only path
-  that exists.
+  that exists. *Recheck trigger:* that section stops naming the cloned repository's skills
+  directory, or a release note names skill loading in cloud or scheduled sessions.
   *Superseded on plugin loading (2026-10-04):* the cloud environments page now states that a
   cloud session does not install the plugins a repository enables in its settings, so the
   repository-plugin route above no longer binds; see the `control-skill-upkeep` bullet in

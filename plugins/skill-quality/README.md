@@ -67,9 +67,11 @@ the reviewer to confirm the description still names that intent, or to restore t
 - `SKILL.md` under 500 lines, counted over the whole file: this check's stricter reading of
   official guidance that sets the number.
   - **Record**: the comment under the `# --- Check 4` header of `scripts/check-skill.sh` (a
-    script, so no section anchor).
+    script, so no section anchor). **As of**: 2026-10-11. **Recheck trigger**: that header or
+    `LINE_HARD_CAP` being renamed or moved, or that comment's pointer changing.
   - **Pointer**: for the number and what it covers, fetch
-    <https://code.claude.com/docs/en/skills#add-supporting-files> live.
+    <https://code.claude.com/docs/en/skills#add-supporting-files> live. **As of**: 2026-10-11.
+    **Recheck trigger**: that section moving the number or its scope.
 - Backtick- and link-cited skill-internal supporting files resolve. When a path that misses instead
   resolves under a sibling skill, the finding names that sibling and the
   `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/...` cross-skill form, while keeping the hand-verify

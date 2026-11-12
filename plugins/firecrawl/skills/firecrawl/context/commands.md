@@ -71,7 +71,7 @@ firecrawl crawl <job-id> --status -o <path>
 firecrawl crawl <job-id> --wait -o <path>
 ```
 
-`-o <path>` writes a **single JSON file** with all page results inside, not a directory of per-page files. Bulk and expensive; set `--limit` to cap total pages and `--max-depth` to stop runaway crawls. Prefer `map` first to estimate scope. Use `--wait` for simple scripts; for long crawls capture the job-id and check on it or block on it as `firecrawl crawl --help` says, keeping `-o` so results reach the spill file; read that help before relying on an exit code or on what `--status` returns.
+`-o <path>` writes a **single JSON file** with all page results inside, not a directory of per-page files. Bulk and expensive; set `--limit` to cap total pages and `--max-depth` to stop runaway crawls. Prefer `map` first to estimate scope. Use `--wait` for simple scripts; for long crawls capture the job-id and check on it or block on it as `firecrawl crawl --help` says, keeping `-o` so results reach the spill file; read that help before relying on an exit code or on what `--status` returns (as of 2026-11-07, CLI 1.29.0; recheck when `/firecrawl:update` reports a CLI release).
 
 ## map: fast URL discovery, no content
 

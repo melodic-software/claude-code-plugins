@@ -223,7 +223,7 @@ the identity string).
 
 The design-sync family's registry disposition (defer, observed-only) also lives in
 `docs/native-surfaces/records.json` (its `design-sync` records), which keeps the
-v2.1.263 registration evidence as history (recheck when a release note first names a
+v2.1.263 registration evidence as history (as of 2026-10-11; recheck when a release note first names a
 design-family surface, or those records change disposition).
 
 ## Third-party visualization plugins
@@ -272,6 +272,9 @@ time-sensitive detail.
     <https://github.com/melodic-software/claude-code-plugins/pull/3729#issuecomment-5546567555>.
     Open issues: anthropics/claude-code#14375 requests terminal rendering; #52517
     reports Claude Desktop's Claude Code tab showing a mermaid fence as raw source.
+  - **As of**: 2026-09-04
+  - **Recheck trigger**: a changelog entry or either page names terminal diagram
+    rendering, or #14375 closes.
 - Artifact CSP, page size, source file types, availability gating and
   connector-backed live data: each is read live from the pointer in its own entry
   under [Published Artifact](#published-artifact) and

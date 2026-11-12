@@ -129,6 +129,9 @@ Which apps draw the band's site, `AbovePrompt`, is upstream's render-sites table
 of this plugin ran in the Desktop app or VS Code.
 
 - **Pointer**: [mods reference: render sites](https://code.claude.com/docs/en/plugins/mods/reference#render-sites).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: the `AbovePrompt` row changes the apps it lists, or a Desktop run of this
+  plugin is made.
 
 ### The command, the band row and the status tool
 
@@ -310,6 +313,8 @@ envelope. The write is awaited inside the `tool.call`
 hook, so a slow write holds that one tool result, within Claude Code's own-time limit for a hook.
 
 - **Pointer**: [mods reference: limits](https://code.claude.com/docs/en/plugins/mods/reference#limits).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: that section changes a hook's time limit or what happens when it is reached.
 
 `claude plugin test plugins/context-guard` enforces it: the `budget:` case in
 `hooks/context-guard.test.ts` asserts, with no telemetry sink set, no process on calls that write
@@ -407,6 +412,8 @@ so a change takes effect from the next event, with no restart. The PostCompact m
 - **Pointer**: the doc comment on `Register` in the `claude-code/index.d.ts` types Claude Code
   writes for its build (see
   [create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build)).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: that doc comment stops saying an options change reloads the plugin.
 
 A bad option value does not switch the module off: a `zone_line_data` item it does not know reads
 as that option's default, with one transcript line naming it. An option the module does not

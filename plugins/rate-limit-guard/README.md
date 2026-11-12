@@ -108,6 +108,9 @@ Which apps draw the band's site, `AbovePrompt`, is upstream's render-sites table
 notice rows, the toast and the suggestion there are untested.
 
 - **Pointer**: [mods reference: render sites](https://code.claude.com/docs/en/plugins/mods/reference#render-sites).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: the `AbovePrompt` row changes the apps it lists, or a Desktop run of this
+  plugin is made.
 
 In operator mode, a `--bg` lane gets no line from its first turn; that line reaches Claude at the
 lane's next turn no person started. A lane that wants the lines at once supplies its own
@@ -307,6 +310,8 @@ start.
 - **Pointer**: the doc comment on `Register` in the `claude-code/index.d.ts` types Claude Code
   writes for its build (see
   [create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build)).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: that doc comment stops saying an options change reloads the plugin.
 
 Set it with `/plugin configure rate-limit-guard@<marketplace>`, or headless via `claude plugin install
 rate-limit-guard@<marketplace> -s <scope> --config rate_limit_guard_enabled=false`, run against
