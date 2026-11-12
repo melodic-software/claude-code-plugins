@@ -9,12 +9,15 @@
 // not an extra run; a lost fix-docs run list restarts that head's count, at
 // most the cap's runs more. Each entry is validated; anything else in the
 // file is dropped. It also holds the one dispatch sender every dispatcher
-// starts a recorded run with, and the run id form the record accepts.
+// starts a recorded run with, the run id form the record accepts, and
+// startOf, a run's start time in milliseconds.
 
 import { readFileSync, writeFileSync } from "node:fs";
 
 const SHA = /^[0-9a-f]{40}$/;
 export const RUN_ID = /^[1-9][0-9]{0,14}$/;
+// NaN for a run with no readable start: it compares false either way.
+export const startOf = (run) => Date.parse(run.started_at ?? "");
 
 // One workflow dispatch for the PR on `base`: the run id it started, or null
 // when it failed or named no usable id. The dispatched run's gate and the
