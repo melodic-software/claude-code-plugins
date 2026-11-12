@@ -29,8 +29,10 @@
 // holding its `[hook "<plugin>-<entry>"]` block under the user's git config
 // directory; the includeIf line that loads it comes back as a decision.
 //
-// After a rename, a decline key left under the earlier plugin name still
-// counts, as git resolves it. plan carries this clone's resolved value to the
+// After a rename, the plugin lists its former names as earlierNames in
+// entries.json, and only those names are looked at: plan offers to retire the
+// copies, markers, lefthook jobs and config-hook keys an install under one of
+// them left, and a decline key left under one still counts, as git resolves it. plan carries this clone's resolved value to the
 // entry's own key in this clone's local config, and lists for removal only the
 // earlier-name lines in this clone's own local and worktree config files. Lines
 // in system or global files, in what they include, or in a file a local
@@ -286,11 +288,22 @@ function remoteErrors(remote) {
 }
 
 // validateEntries(manifest) -> list of errors; empty means valid.
+// earlierNames: optional, the plugin names this plugin had before a rename,
+// whose git-hook artifacts plan offers to retire. Each is a migration line,
+// removed once no consumer repository still holds artifacts under that name.
+function earlierErrors(names) {
+  if (names === undefined) return [];
+  if (!Array.isArray(names) || !names.every((n) => typeof n === "string" && NAME_RE.test(n))) {
+    return [`entries.json earlierNames must be a list of plugin names matching ${NAME_RE.source}`];
+  }
+  return new Set(names).size === names.length ? [] : ["entries.json names an earlier name twice"];
+}
+
 export function validateEntries(manifest) {
   if (!Array.isArray(manifest?.entries) || manifest.entries.length === 0) {
     return ["entries.json needs a non-empty entries list"];
   }
-  const errors = [...manifest.entries.flatMap(entryErrors), ...remoteErrors(manifest.remote)];
+  const errors = [...manifest.entries.flatMap(entryErrors), ...remoteErrors(manifest.remote), ...earlierErrors(manifest.earlierNames)];
   const names = manifest.entries.map((e) => e?.name);
   if (new Set(names).size !== names.length) errors.push("entries.json names an entry twice");
   return errors;
@@ -324,10 +337,11 @@ export function loadPlugin(root) {
     throw new UsageError(`${name}: entries.json is not valid JSON: ${err.message}`);
   }
   const errors = validateEntries(manifest);
+  if (manifest.earlierNames?.includes?.(name)) errors.push("entries.json earlierNames lists the plugin's own name");
   if (errors.length) throw new UsageError(`${name}: ${errors.join("; ")}`);
   const libText = readText(path.join(root, "lib", "git-hooks", LIB_NAME));
   if (libText === null) throw new UsageError(`${name}: lib/git-hooks/${LIB_NAME} is missing`);
-  return { name, root, entries: manifest.entries, remote: manifest.remote, libText };
+  return { name, root, entries: manifest.entries, remote: manifest.remote, earlierNames: manifest.earlierNames ?? [], libText };
 }
 
 // stampHash(script, lib, assets): sha256 over the LF-normalized script, a NUL,
@@ -497,9 +511,9 @@ function configBool(info, key) {
   const r = git(info.top, ["config", "--type=bool", "--get", key]);
   return r.ok ? r.out : r.status === 1 ? "" : "invalid";
 }
-// A decline recorded under another plugin name for one of this plugin's
-// entries (entry names are unique across plugins): an install made before the
-// plugin was renamed. It counts between the entry's own key and the master key.
+// A decline recorded under one of the plugin's declared earlier names
+// (earlierNames in entries.json): an install made before the plugin was
+// renamed. It counts between the entry's own key and the master key.
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // configEntries(info, re, args) -> [{ scope, origin, file, key, value }] for
 // every config line whose key matches re: file is the absolute path of the
@@ -545,14 +559,11 @@ function fileLines(info, file, re) {
   });
 }
 // priorDecline -> the effective value (git's precedence per key) of the entry's
-// decline key under another plugin name: "true" when any such key reads true,
+// decline key under a declared earlier name: "true" when any such key reads true,
 // else "false" when one reads false (an opt-in, as copy writes over a master or
 // global decline), else "". The entry's own key, when set, wins over it.
 function priorDecline(info, plugin, entry) {
-  const keys = configEntries(info, `^checks\\.[^.]+\\.${escapeRe(entry.name)}\\.declined$`)
-    .map((d) => d.key)
-    .filter((k) => k.split(".")[1] !== plugin.name && NAME_RE.test(k.split(".")[1]));
-  const values = [...new Set(keys)].map((k) => configBool(info, k));
+  const values = plugin.earlierNames.map((from) => configBool(info, `checks.${from}.${entry.name}.declined`));
   return values.includes("true") ? "true" : values.includes("false") ? "false" : "";
 }
 const isDeclined = (info, plugin, entry, prior = true) =>
@@ -1230,15 +1241,17 @@ function entryVerdict(info, plugin, entry, manager) {
 // leftovers(info, plugin) -> [{ entry, from, dirs[], markers[], scripts[],
 // jobs[{ name, file }], declines[{ key, scope, file, value, keep?, shared?, included? }],
 // config[{ key, scope, file, value? }], carry?: decline | opt-in }],
-// one per entry and earlier plugin name (`from`) with anything installed under
-// that name, as an install made before the plugin was renamed leaves: copies
-// whose stamp names the entry but not this plugin (in a repository hooks
-// directory or the user config-hook directory), <event>.d markers, lefthook
-// jobs that run such a copy, decline keys, config-hook keys and the includeIf
-// that loads them. Entry names are unique across plugins, so no earlier name
-// is listed anywhere. install.mjs removes none of it: plan hands it to the
-// setup agent as a superseded decision (D1).
+// one per entry and declared earlier name (`from`, from earlierNames in
+// entries.json) with anything installed under that name, as an install made
+// before the plugin was renamed leaves: copies whose stamp names the entry and
+// that name (in a repository hooks directory or the user config-hook
+// directory), <event>.d markers, lefthook jobs that run such a copy, decline
+// keys, config-hook keys and the includeIf that loads them. No other plugin
+// name is ever looked at, so with no earlierNames there is nothing. install.mjs
+// removes none of it: plan hands it to the setup agent as a superseded decision (D1).
 function leftovers(info, plugin) {
+  const earlier = new Set(plugin.earlierNames);
+  if (!earlier.size) return [];
   const found = new Map();
   const at = (entry, from) => {
     const k = `${entry.name}\0${from}`;
@@ -1261,10 +1274,10 @@ function leftovers(info, plugin) {
     const name = escapeRe(entry.name);
     for (const root of roots) {
       for (const d of dirNames(root)) {
-        if (!d.isDir || d.name === plugin.name || !NAME_RE.test(d.name)) continue;
+        if (!d.isDir || !earlier.has(d.name)) continue;
         const script = path.join(root, d.name, entry.script);
         const stamp = readStamp(readText(script) ?? "");
-        if (!stamp || stamp.name !== entry.name || stamp.plugin === plugin.name) continue;
+        if (!stamp || stamp.name !== entry.name || stamp.plugin !== d.name) continue;
         const l = at(entry, d.name);
         l.dirs.push(configPath(info, path.join(root, d.name)));
         l.scripts.push(configPath(info, script));
@@ -1277,7 +1290,7 @@ function leftovers(info, plugin) {
       const suffix = `.${entry.name}`;
       for (const m of dirNames(path.join(root, `${entry.event}.d`))) {
         const from = m.name.slice(0, -suffix.length);
-        if (m.isDir || !m.name.endsWith(suffix) || !NAME_RE.test(from) || from === plugin.name) continue;
+        if (m.isDir || !m.name.endsWith(suffix) || !earlier.has(from)) continue;
         at(entry, from).markers.push(configPath(info, path.join(root, `${entry.event}.d`, m.name)));
       }
     }
@@ -1287,7 +1300,7 @@ function leftovers(info, plugin) {
       const text = readText(path.join(info.top, file)) ?? "";
       for (const m of text.matchAll(job)) {
         const from = m[2] ?? m[3];
-        if (from !== plugin.name && text.includes(`${from}/${entry.script}`)) at(entry, from).jobs.push({ name: `${from}-${entry.name}`, file });
+        if (earlier.has(from) && text.includes(`${from}/${entry.script}`)) at(entry, from).jobs.push({ name: `${from}-${entry.name}`, file });
       }
     }
     // Earlier-name decline lines as this clone reads them. Git resolves each
@@ -1302,7 +1315,7 @@ function leftovers(info, plugin) {
     const declineRe = `^checks\\.[^.]+\\.${name}\\.declined$`;
     const lines = configEntries(info, declineRe)
       .map((d) => ({ ...d, from: d.key.split(".")[1] }))
-      .filter((d) => d.from !== plugin.name && NAME_RE.test(d.from));
+      .filter((d) => earlier.has(d.from));
     const resolved = [...new Set(lines.map((d) => d.key))].map((k) => configBool(info, k));
     const values = new Set(resolved.filter((v) => v !== "invalid"));
     const ownUnset = configBool(info, declineKey(plugin, entry)) === "";
@@ -1326,7 +1339,7 @@ function leftovers(info, plugin) {
     if (!CONFIG_HOOK_EVENTS.includes(entry.event)) continue;
     for (const c of configEntries(info, `^hook\\.${NAME_PART}-${name}\\.`)) {
       const from = c.key.slice("hook.".length, c.key.lastIndexOf(".") - entry.name.length - 1);
-      if (from === plugin.name || !NAME_RE.test(from) || (c.file && posix(c.file).startsWith(`${posix(checksRoot)}/`))) continue;
+      if (!earlier.has(from) || (c.file && posix(c.file).startsWith(`${posix(checksRoot)}/`))) continue;
       const l = at(entry, from);
       if (!l.config.some((k) => k.key === c.key && k.file === c.file)) l.config.push({ key: c.key, scope: c.scope, file: c.file });
     }
