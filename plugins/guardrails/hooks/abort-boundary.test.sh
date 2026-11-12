@@ -266,20 +266,24 @@ PV_EXIT='guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))'
 verdict_unconsumed() { # <file>: lines calling the helper in any other form
   grep -nE '^[^#]*guard::payload_verdict[[:space:]]' "$1" | grep -vF "$PV_EXIT"
 }
-pv_callers=0
+pv_callers=" "
 for f in "$HOOK_DIR"/*.sh; do
   [[ "$f" == *.test.sh ]] && continue
-  grep -qF "$PV_EXIT" "$f" && pv_callers=$((pv_callers + 1))
+  # A call line, not the usage line in the helper's own doc comment.
+  grep -F "$PV_EXIT" "$f" | grep -qv '^[[:space:]]*#' && pv_callers+="${f##*/} "
   hits=$(verdict_unconsumed "$f")
   if [[ -n "$hits" ]]; then
     bad "${f##*/} calls guard::payload_verdict without exiting on it: ${hits//$'\n'/; }"
   fi
 done
-if ((pv_callers > 0)); then
-  ok "the scan finds guard::payload_verdict's callers ($pv_callers)"
-else
-  bad "no hook calls guard::payload_verdict in the exit form, so the scan above checked nothing"
-fi
+for name in block-credential-read.sh block-exported-msys-pathconv.sh block-github-post-content.sh \
+  block-no-verify.sh block-root-delete-target.sh block-windows-drive-tmp.sh; do
+  if [[ "$pv_callers" == *" $name "* ]]; then
+    ok "$name reads its payload through guard::payload_verdict"
+  else
+    bad "$name no longer calls guard::payload_verdict in the exit form"
+  fi
+done
 # shellcheck disable=SC2016  # fixture bodies carry literal text
 printf '  guard::payload_verdict "$jq_rc"\n' >"$TRAP_FIXTURE/verdict-ignored.sh"
 if [[ -n "$(verdict_unconsumed "$TRAP_FIXTURE/verdict-ignored.sh")" ]]; then
