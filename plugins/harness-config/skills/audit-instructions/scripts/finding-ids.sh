@@ -168,7 +168,7 @@ fi
 # the file path it contains compare equal. Empty when the directory is unset or
 # unreachable.
 physical_dir() {
-  [[ -n "$1" ]] && cd "$1" 2>/dev/null && pwd -P
+  [[ -n "$1" ]] && cd "$1" 2>/dev/null && pwd -P || true
 }
 ROOT="$(physical_dir "$ROOT")"
 HOME_P="$(physical_dir "${HOME:-}")"
