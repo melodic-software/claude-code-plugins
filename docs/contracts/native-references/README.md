@@ -135,7 +135,7 @@ mutation gate. The records behind it live in a **reference file inside the same 
 from the section with a same-plugin relative path, so the body stays short and the detail stays
 reachable. That file holds our decision in our words and a pointer to the exact upstream section,
 and no upstream text; a table form uses the header `| Decision | Pointer |`. A row that keeps a
-stored value (a probed behavior, a recorded default) adds the as-of date and recheck trigger, in a
+stored value (a measured figure, a recorded default) adds the as-of date and recheck trigger, in a
 table as `| Decision | Pointer | As of | Recheck when |`. Existing `native-*` and `bundled-*` reference
 files keep the older four-part shape until
 [#5684](https://github.com/melodic-software/claude-code-plugins/issues/5684) converts them. Modeled on the `review` plugin's organic pattern (`/review:quality-gate`

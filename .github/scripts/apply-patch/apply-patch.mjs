@@ -135,6 +135,7 @@ export const REFUSALS = {
   gitattributes: { kind: "protected-path", optional: true, test: rowPathRule("gitattributes") },
   husky: { kind: "protected-path", optional: true, test: rowPathRule("husky") },
   lefthook: { kind: "protected-path", optional: true, test: rowPathRule("lefthook") },
+  "claude-protected": PROTECTED_REFUSALS["claude-protected"],
   // A mode that gains the executable bit: a new file at 100755, or a change
   // to it. Optional, so the issue row's script-exec-bit and the ci-context
   // row's script fixes keep working.

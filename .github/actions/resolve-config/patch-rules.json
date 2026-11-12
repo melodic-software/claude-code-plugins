@@ -98,7 +98,7 @@
     "escalations": ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "issue": {
-    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused", "claude-protected"],
     "allow": ["any"],
     "max-files": 300,
     "requires": [],

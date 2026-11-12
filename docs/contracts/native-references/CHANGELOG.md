@@ -6,11 +6,16 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
-## [3.6.1] - 2026-11-11
+## [3.6.2] - 2026-11-11
 
 Clarification. The gating-axis and listing-limit pointers no longer carry an as-of date or recheck
 trigger, and the absence note on deferral conventions drops its date: none records an upstream
 number or string.
+
+## [3.6.1] - 2026-11-11
+
+Clarification. The Boundary reference-file example of a stored value names a measured figure
+instead of a probed behavior, per upstream-drift 6.0.0.
 
 ## [3.6.0] - 2026-11-11
 

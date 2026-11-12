@@ -34,6 +34,9 @@ export const PATTERNS = {
   settings: (dirs) =>
     ["", ...dirs].filter((dir) => PATH_RULES.settings(segments(`${dir}/settings.json`))).map((dir) => (dir ? `/${dir}/**/settings*.json` : "/settings*.json")),
   "lane-grants": () => ["/.github/actions/resolve-config/lane-grants.json", "/.github/standards/trusted-actors/trusted-actors.json"],
+  // None: Claude Code already denies these under the lane's dontAsk mode, and
+  // no pattern can keep .claude/'s writable exceptions.
+  "claude-protected": () => [],
 };
 
 // The Edit rules for the path rules `refuse` names; its other refusals

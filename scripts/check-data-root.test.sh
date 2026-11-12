@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: docs/conventions/attribution.yaml
 # Contract test for CHECK_DATA_ROOT in the spoke-plugin-root, plugin-options-docs,
 # changelog-parity and cross-plugin-source-drift checks: each reads the tree the
 # variable names, not the one holding the script. scripts/check-affected.sh relies
