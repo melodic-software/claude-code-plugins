@@ -889,7 +889,7 @@ test("a PR-scoped run whose newest lane merge no full run covers ends the wake o
     "git -C .base log -1 --first-parent --fixed-strings --author=lanes-bot[bot] --format=%cI HEAD",
     `.base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py --repo o/r --branch main --uncovered-since ${LANE_AT}`,
   ]);
-  assert.match(run.stdout, /::notice::no full dispatch run of main was created after the newest lane merge/);
+  assert.match(run.stdout, /::notice::the pre-check found a lane merge \(2026-11-12T02:29:19Z\) no dispatch run covers yet; its report would need a dispatch/);
   assert.match(run.body, /^ {8}id: precheck\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr\n {8}continue-on-error: true\n {8}timeout-minutes: 1\n/);
   assert.match(run.body, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n {10}API_BUDGET_TOKEN: github-token\n {10}API_BUDGET_SCRIPT: uncovered-since\n/);
 });
@@ -963,7 +963,7 @@ test("a PR-scoped run's outcome names the fresh check's refusal and which report
   // The pre-check's stop: no report read, no fresh check run.
   assert.match(
     wakeOutcome({ KILL: "true", WHO: "true", UNCOVERED: "true" }),
-    /report=none outcome=skipped: no full dispatch run covers the newest lane merge \(needs-dispatch, pre-check\)$/,
+    /report=none outcome=skipped: the pre-check found a lane merge no dispatch run covers \(needs-dispatch\)$/,
   );
   assert.match(
     wakeOutcome({ ...base, FRESH: "0", FRESH_REASON: "idle tick needs-dispatch" }),
