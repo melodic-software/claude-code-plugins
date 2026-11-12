@@ -1416,15 +1416,15 @@ the rules that only tighten in
   - `enforcement`, a clean security review clears it: every other module the floored scripts
     import (`.github/scripts/pr-unblock/address-feedback.mjs`, `gate-source.mjs` and
     `thread-scope.mjs`, `escalation-routes.mjs` and the routing table `escalation-routes.json` it
-    reads, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`, and the
-    `retry-fetch.mjs` copy in each of those two directories, and the stop routes
+    reads, `.github/scripts/work-resolve-issue/report-outcome.mjs` and `limits.mjs`,
+    `.github/scripts/lib/retry-fetch.mjs` and `lane-hold-marker.mjs`, and the stop routes
     `report-outcome.mjs` loads, `stop-routes.mjs` and `stop-routes.json`, and `fix-ci-context.mjs`
     with the `.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs` it loads), the scripts that act on a pr-unblock
     stop's route (`report-escalation.sh`, which labels a held reason, `adjudicate-feedback.mjs` and
     `publish-feedback.mjs`, which decide and resolve threads, and
     `.github/scripts/apply-patch/apply-patch.mjs`, which holds fix-ci escalations) with every module
-    they import (`request-budget.mjs`, `dependency-classify.mjs`, and `predicates.mjs`,
-    `protected-paths.mjs` and `retry-fetch.mjs` in `apply-patch/`),
+    they import (`request-budget.mjs`, `dependency-classify.mjs`, and `predicates.mjs` and
+    `protected-paths.mjs` in `apply-patch/`),
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
