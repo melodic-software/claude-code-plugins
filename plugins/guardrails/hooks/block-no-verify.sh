@@ -84,22 +84,13 @@ hook::require_jq_blocking "guardrails-block-no-verify" "block_no_verify_enabled"
 
 # Both fields in one jq process: a jq spawn costs ~140 ms on Windows Git Bash.
 # rc 2 (an unparsable payload) is refused; any other failure skips.
-jq_rc=0
-hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
-if ((jq_rc == 2)); then
-  guard::refuse_unparsable
-  exit 2
-fi
-((jq_rc != 0)) && exit 0
-
 # A NUL byte in either field FAILS CLOSED, before the empty-COMMAND skip: the
 # helper strips NULs, so an all-NUL command arrives empty. Bash discards a NUL
 # and Node's child_process refuses one, so what would run is unknown, and a
 # block is the one verdict right under both.
-if ((HOOK_JQ_FIELDS_NUL)); then
-  guard::refuse_nul
-  exit 2
-fi
+jq_rc=0
+hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
+guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))
 
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
