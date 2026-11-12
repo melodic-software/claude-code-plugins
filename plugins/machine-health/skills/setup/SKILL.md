@@ -40,8 +40,6 @@ complete to whoever wrote it, and the operator's disabled checks silently stop t
 
 - **Pointer**: how the data directory is named is in
   [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables).
-  **As of**: 2026-10-11. **Recheck trigger**: that section changes how the directory name is derived,
-  or is renamed.
 - **Observed, not documented**: a `--plugin-dir` session names the directory `<name>-inline`, and a
   hardcoded `machine-health` path split the overlay from the audit's state and logs on a real
   machine. **Basis**: this plugin's `CHANGELOG.md`, `## [0.7.0]`, the first `### Fixed` entry.
@@ -87,8 +85,6 @@ $pluginRoot, $stateRoot, $reportRoot, $payloadPath = @'
 - **Pointer**: skill content substitution of the plugin paths and of `${user_config.KEY}` is in
   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   and [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value).
-  **As of**: 2026-10-22. **Recheck trigger**: that section stops substituting in skill content or
-  starts exporting the variables to the Bash or PowerShell tool.
 
 ## `check` (read-only, except one write on the owner's yes)
 
@@ -277,9 +273,6 @@ Reject an argument targeting an unknown check id, remediation or muted key with 
      when a saved value applies, fetch
      [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
      live.
-   - **As of**: 2026-11-11
-   - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-     refused value, or when a saved value applies.
 
 Re-running `apply` after everything is already set changes nothing and reports "already configured".
 
@@ -350,9 +343,7 @@ every rule that grants a shell, file-write or network action beside the proposed
 Quote the rules as data. Never edit the settings file: narrowing a rule is the owner's change.
 
 **The monthly run researches the web in auto mode.** Both routes run in auto mode
-([Permission modes, "Eliminate prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode);
-**As of**: 2026-10-23; **Recheck trigger**: that section stops offering auto mode to `claude -p`
-runs), with no tool list or deny rules of their own: auto mode and the owner's settings decide
+([Permission modes, "Eliminate prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)), with no tool list or deny rules of their own: auto mode and the owner's settings decide
 what the run may do. The audit researches new unfamiliar findings and its check proposals through
 `/discovery:research` when that skill is available (audit SKILL.md, step 5), so the run reads web
 pages and writes a notes file beside the report. Say so to the owner with the task. Before step 1
@@ -383,8 +374,6 @@ It prints the report folder the monthly runs will write to: show it to the owner
   and ["Missed runs"](https://code.claude.com/docs/en/desktop-scheduled-tasks#missed-runs); the
   modes a task can take are in
   ["Permissions for scheduled tasks"](https://code.claude.com/docs/en/desktop-scheduled-tasks#permissions-for-scheduled-tasks).
-  **As of**: 2026-10-22. **Recheck trigger**: any of those sections changes when a task runs, what
-  happens to a missed run, or which permission modes a task can take.
 
 **Task Scheduler fallback** (no Desktop app): a monthly task that runs a copied wrapper, which calls
 `claude -p "/machine-health:audit on-demand --scheduled"` in auto mode under the wrapper's time
@@ -430,13 +419,8 @@ changes the wrapper leaves the copy stale, and `check` step 6 FAILs it and offer
 - **Pointer**: print mode and the `--permission-mode` and `--bare` flags are in
   [CLI reference, "CLI flags"](https://code.claude.com/docs/en/cli-reference#cli-flags); the
   wrapper never passes `--bare`.
-  **As of**: 2026-11-10. **Recheck trigger**: that row changes what `--bare` loads, or a
-  [Claude Code CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) entry
-  makes `--bare` the `-p` default or adds a `--no-bare`-style flag.
 - **Pointer**: Git Bash's rewriting of slash-led arguments is in
   [MSYS2, "Filesystem Paths"](https://www.msys2.org/docs/filesystem-paths/#automatic-unix-windows-path-conversion).
-  **As of**: 2026-10-22. **Recheck trigger**: that section stops converting slash-led arguments
-  passed to a native program.
 
 ## Output
 

@@ -24,8 +24,7 @@ is not a bound.
 
 - **Pointer**: when deciding how much of a command's output reaches context, fetch
   [tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
-  live. **As of**: 2026-11-10. **Recheck trigger**: that section changes how much of a valid
-  result reaches context inline.
+  live.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
@@ -108,5 +107,5 @@ Graceful degradation: where a named step below is not available in the consuming
 
 Failure modes this lens runs into, each stated as the rule it implies.
 
-- **The durable candidate artifact is a per-project memory-tier file, never `${CLAUDE_PLUGIN_DATA}`.** Even resolved it points at a plugin-global dir with no project dimension that collides candidates across projects. Pointer: when deciding what may live in that directory and when it is removed, fetch [plugins reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables) and [plugin components § Reference plugin paths and store data](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data) live. As of: 2026-11-10. Recheck trigger: either section changes the directory's lifecycle or its intended contents. The artifact lands in the memory tier, default `.work/<topic-slug>/`. A `${CLAUDE_PROJECT_DIR}/.claude/...` path is also wrong: `.claude/` generated output is reserved for observability, and an unignored artifact there leaks scan output into git.
+- **The durable candidate artifact is a per-project memory-tier file, never `${CLAUDE_PLUGIN_DATA}`.** Even resolved it points at a plugin-global dir with no project dimension that collides candidates across projects. Pointer: when deciding what may live in that directory and when it is removed, fetch [plugins reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables) and [plugin components § Reference plugin paths and store data](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data) live. The artifact lands in the memory tier, default `.work/<topic-slug>/`. A `${CLAUDE_PROJECT_DIR}/.claude/...` path is also wrong: `.claude/` generated output is reserved for observability, and an unignored artifact there leaks scan output into git.
 - **Scan-agent claims are shipped only after Phase 1.5 reproduction.** Exploration subagents infer from partial reads, so a claim that a service is unused or a call path is dead can be wrong in a way a single grep settles. Any candidate headed for a `Strong` badge and any runtime-bug / dead-code claim is reproduced against the actual code before it reaches the user-facing report. The report lends every claim its authority, so an unreproduced overstatement is cheap to make and expensive to reputation.

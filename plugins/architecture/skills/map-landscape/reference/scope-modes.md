@@ -42,8 +42,7 @@ into; skip `node_modules`, `vendor`, and `.venv`; the canonical checkout is the 
 
 - **Pointer**: when checking which record of that list is the main worktree, fetch
   [git-worktree § List output format](https://git-scm.com/docs/git-worktree#_list_output_format)
-  live. **As of**: 2026-11-10. **Recheck trigger**: that section changes the order or meaning of
-  the porcelain records.
+  live.
 
 ## `--remote` facts
 

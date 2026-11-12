@@ -311,14 +311,14 @@ its report line is printed. Procedure:
   every environment inside it as its own deployment environment; `--env` narrows the block to
   one. The diff is a table, not a picture. Pointer: when checking a deployment view's scope or
   elements, fetch [C4 deployment diagram § Scope](https://c4model.com/diagrams/deployment#scope) and [§ Primary and supporting elements](https://c4model.com/diagrams/deployment#primary-and-supporting-elements)
-  live. As of: 2026-11-10. Recheck trigger: that page changes the scope or the primary elements.
+  live.
 - **C4-PlantUML deployment syntax: read against the README, never run.** The renderer writes the
   macros. The `C4_Deployment` include name is our inference from the README's container
   example. No PlantUML run has parsed this output. `Rel` is drawn from a container to a network
   node its placement names, and from a Kubernetes Service or Ingress node to a container in the
   record's `relationships`. Pointer: when checking the macros or the include the renderer
   writes, fetch [C4-PlantUML README § Deployment diagram](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#deployment-diagram) and
-  [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library) live. As of: 2026-11-10. Recheck trigger: that README changes the deployment macros or the
+  [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library) live. Recheck trigger: that README changes the deployment macros or the
   include path, or a host with Java can run PlantUML over a rendered block.
 - **LikeC4 deployment syntax: parsed by the CLI.** The record is a probe: `likec4@1.59.4
   validate` exits 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
@@ -359,26 +359,23 @@ its report line is printed. Procedure:
   <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference.html>.
   Claim: `AWS::ECS::Service` takes `Cluster`, `DesiredCount`, `ServiceName`, and `TaskDefinition`.
   Basis: <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ecs-service.html>.
-  As of: 2026-09-30. Recheck when any of those pages changes a form or property name.
 - **CloudFormation parameters and secrets.** The redaction and resolution rules above read
   `NoEcho`, `Default` and the `{{resolve:...}}` forms. Pointer: when checking what those mean or
   how a dynamic reference is written, fetch
   [Parameters § Properties](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html#parameters-section-structure-properties)
   and
   [Dynamic references](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html#dynamic-references)
-  live. As of: 2026-11-10. Recheck trigger: either section changes the parameter properties or
-  the dynamic-reference syntax. Claim: a parameter file is either the `ParameterKey`/`ParameterValue`
+  live. Claim: a parameter file is either the `ParameterKey`/`ParameterValue`
   array or a template configuration file with a top-level `Parameters` object. Basis:
   <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-using-cli-parameters.html>. No
   document names a per-environment file convention, so the pairing rules above are this skill's own.
-  As of: 2026-09-30. Recheck when those pages change the syntax or add a parameter file shape.
 - **Pulumi YAML program and stack shape.** The reader maps the project file's `runtime`, the
   program's `resources`, `variables` and `outputs`, `config` items, `${...}` interpolation and the
   `fn::toJSON`, `fn::secret` and `fn::join` forms. Pointer: when checking those forms, fetch
   [project file § Attributes](https://www.pulumi.com/docs/concepts/projects/project-file/#attributes), [§ Runtime options](https://www.pulumi.com/docs/concepts/projects/project-file/#runtime-options),
   and the YAML language reference's [§ Config](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#config), [§ Interpolation](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#interpolation),
   [§ Built-in variables](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#built-in-variables), [§ fn::toJSON](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fntojson),
-  [§ fn::secret](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fnsecret) and [§ fn::join](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fnjoin) live. As of: 2026-11-10. Recheck trigger: any of those sections changes a key or a form. Claim:
+  [§ fn::secret](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fnsecret) and [§ fn::join](https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/#fnjoin) live. Claim:
   `Pulumi.<stack>.yaml` holds a `config` map keyed `[<namespace>:]<key>`, the project name is the default
   namespace, and an encrypted value is `secure: <ciphertext>`. Basis:
   <https://www.pulumi.com/docs/concepts/config/> and
@@ -386,8 +383,7 @@ its report line is printed. Procedure:
   `taskDefinition`, `desiredCount`, and `name`, and `aws:ecs:TaskDefinition` takes `containerDefinitions`
   as `fn::toJSON` over a list of `name`, `image`, `portMappings` (`containerPort`). Basis:
   <https://www.pulumi.com/registry/packages/aws/api-docs/ecs/service/> and
-  <https://www.pulumi.com/registry/packages/aws/api-docs/ecs/taskdefinition/>. As of: 2026-09-30.
-  Recheck when any of those pages changes a key, the `secure:` form, or the `runtime` forms.
+  <https://www.pulumi.com/registry/packages/aws/api-docs/ecs/taskdefinition/>.
 - **Bicep and ARM values are resolved, never evaluated.** A parameter resolves from a module
   `params` argument, then the environment's parameters file, then its default, and `${name}` inside
   a Bicep string the same way. An ARM value resolves only when it is exactly
@@ -412,17 +408,17 @@ its report line is printed. Procedure:
   its template, fetch [Bicep modules § Path to a module](https://learn.microsoft.com/azure/azure-resource-manager/bicep/modules#path-to-a-module)
   ([§ Local file](https://learn.microsoft.com/azure/azure-resource-manager/bicep/modules#local-file), [§ File in registry](https://learn.microsoft.com/azure/azure-resource-manager/bicep/modules#file-in-registry), [§ File in template spec](https://learn.microsoft.com/azure/azure-resource-manager/bicep/modules#file-in-template-spec))
   and [parameter files § Define parameters file](https://learn.microsoft.com/azure/azure-resource-manager/bicep/parameter-files#define-parameters-file) and [§ Extendable parameters file](https://learn.microsoft.com/azure/azure-resource-manager/bicep/parameter-files#extendable-parameters-file)
-  live. As of: 2026-11-10. Recheck trigger: either page changes a path form or the `using` statement.
+  live.
 - **ARM expressions are bracketed strings.** The reader resolves only `[parameters('<name>')]`
   and reads `[[` as a literal. Pointer: when checking the expression and escape rules, fetch
   [template expressions § Escape characters](https://learn.microsoft.com/azure/azure-resource-manager/templates/template-expressions#escape-characters)
-  live. As of: 2026-11-10. Recheck trigger: that section changes the escape rule.
+  live.
 - **A nested child resource carries one type segment.** The reader lists a child nested in its
   parent under the parent's full type plus the child's segment (`Microsoft.Web/sites/slots`).
   Pointer: when checking how a nested child writes its type, fetch
   [Bicep child resource name and type § Within parent resource](https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type#within-parent-resource) and
   [ARM child resource name and type § Within parent resource](https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type#within-parent-resource)
-  live. As of: 2026-11-10. Recheck trigger: either section changes the single-segment rule or the nesting depth.
+  live.
 - **A slot with its own image is placed on its site's plan.** A `DOCKER|` slot places as
   `<site>/<slot>` on the site's App Service plan, naming it by its full resource name, whether it is
   nested in the site or names it with a Bicep `parent`. **Pointer**: when deciding how a child's full
@@ -430,7 +426,7 @@ its report line is printed. Procedure:
   [Bicep child resource name and type § Full resource name outside parent](https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type#full-resource-name-outside-parent),
   [ARM child resource name and type § Outside parent resource](https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type#outside-parent-resource) and
   [App Service plans § Considerations for running and scaling an app](https://learn.microsoft.com/azure/app-service/overview-hosting-plans#considerations-for-running-and-scaling-an-app)
-  live. **As of**: 2026-11-10. **Recheck trigger**: a read of any of those sections diverges from the placement above.
+  live. **Recheck trigger**: a read of any of those sections diverges from the placement above.
 - **Terraform values are resolved, never evaluated.** `var.X` resolves from a module call argument,
   then the root's tfvars files, then the variable `default`, and `${var.X}` inside a string the
   same way. A variable declared `sensitive = true`, or named for a credential, is redacted wherever
@@ -448,17 +444,16 @@ its report line is printed. Procedure:
 - **Only `./` and `../` sources are local.** The reader treats only those module sources as
   local. Pointer: when checking how a local module path is written, fetch
   [module block § Local paths](https://developer.hashicorp.com/terraform/language/block/module#local-paths)
-  live. As of: 2026-11-10. Recheck trigger: that section changes how a local path is written.
+  live.
 - **Auto-loaded tfvars rank below the environment's file.** The reader ranks the environment's
   `<env>.tfvars` above the auto-loaded tfvars files, and a variable `default` lowest. Pointer:
   when checking Terraform's precedence, fetch
   [input variables § Assign values to variables](https://developer.hashicorp.com/terraform/language/values/variables#assign-values-to-variables)
-  live. As of: 2026-11-10. Recheck trigger: that section changes the precedence list.
+  live.
 - **A `.tf.json` block may be an array of objects at any level.** Claim: each label level of a
   block (a resource's type and name) and its body may be a JSON object or a JSON array of objects,
   so `"resource": [{"aws_s3_bucket": {"b": {}}}]` declares the same resource as the object form.
-  Basis: <https://raw.githubusercontent.com/hashicorp/hcl/main/json/spec.md> (Blocks). As of:
-  2026-09-30. Recheck when that spec changes where an array may stand in for an object.
+  Basis: <https://raw.githubusercontent.com/hashicorp/hcl/main/json/spec.md> (Blocks).
 - **One task definition, several services.** Each service that runs a shared task definition places
   the task definition's containers on its own cluster with its own desired count, named
   `<container>@<service>`. The `@` separates the two parts, and a label prints it as `(at)`, like
@@ -468,14 +463,13 @@ its report line is printed. Procedure:
   [services](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html),
   [`name`](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_ContainerDefinition.html#ECS-Type-ContainerDefinition-name)
   and [`serviceName`](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_CreateService.html#ECS-CreateService-request-serviceName)
-  live. **As of**: 2026-10-04. **Recheck trigger**: a read of any of those sections diverges from
+  live. **Recheck trigger**: a read of any of those sections diverges from
   the `<container>@<service>` placement above.
 - **Helm reached through IaC is still Helm.** Claim: the Terraform Helm provider declares a release
   as `resource "helm_release"`, and the Pulumi Kubernetes provider as the type
   `kubernetes:helm.sh/v3:Release`. Basis:
   <https://raw.githubusercontent.com/hashicorp/terraform-provider-helm/main/docs/resources/release.md>
-  and <https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/release/>. As of:
-  2026-09-30. Recheck when either page renames the type. Either one declines Helm, which refuses the
+  and <https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/release/>. Either one declines Helm, which refuses the
   whole record as `partial-read`, because the chart's workloads are not read. `kubernetes_manifest`
   and the `kubernetes_*` types the Terraform reader does not map appear under `## Unmapped
   resources`, since the Kubernetes tool itself is a shipped reader.

@@ -59,8 +59,7 @@ That fixes what this lens can check:
 ## Findings rows
 
 The findings file follows review's findings-file shape:
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/reference/findings-file-shape.md>.
-As of 2026-10-04; recheck when that file's "Findings-file shape" section changes. The values this
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/reference/findings-file-shape.md>. The values this
 lens writes:
 
 - Frontmatter: `type: review-findings`, `date:` the instant of the write in ISO-8601 UTC,

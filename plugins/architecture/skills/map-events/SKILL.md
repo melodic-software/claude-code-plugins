@@ -133,9 +133,7 @@ hand-written; the shared medium resolver decides the destination, with this plug
   each call means, fetch
   [MassTransit consumers § Message consumers](https://masstransit.io/documentation/concepts/consumers#message-consumers),
   [producers § Send](https://masstransit.io/documentation/concepts/producers#send) and
-  [§ Publish](https://masstransit.io/documentation/concepts/producers#publish) live. As of:
-  2026-11-10. Recheck trigger: the consumers page stops using `IConsumer<T>` as the consumer
-  contract, or the producers page stops distinguishing publish from send.
+  [§ Publish](https://masstransit.io/documentation/concepts/producers#publish) live.
 - **Identity is the resolved type.** `Billing.Contracts.OrderPlaced` and
   `Shipping.Contracts.OrderPlaced` are different messages. A short name that matches two types
   stays unresolved rather than being joined, and a dotted name that matches no declared type

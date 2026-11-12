@@ -22,8 +22,7 @@ is not a bound.
 
 - **Pointer**: when deciding how much of a command's output reaches context, fetch
   [tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes how much of a valid
-  result reaches context inline.
+  live.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls, one plain command each, rather than pre-compute lines.
@@ -33,8 +32,7 @@ separate body Bash calls, one plain command each, rather than pre-compute lines.
   [skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
   and
   [worktrees § How Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)
-  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes how a skill's injected
-  commands run or which command shapes an isolated session refuses.
+  live.
 
 ## Variables
 
@@ -176,8 +174,7 @@ records carry no such wording, say so and ask for it.
    place or the person declined.
    - **Pointer**: when choosing the surface, fetch
      [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)
-     live. **As of**: 2026-11-10. **Recheck trigger**: that section changes when a nested
-     `AGENTS.md` loads.
+     live.
 
 Done when `git status --porcelain` shows the new record, the one retirement or partial-status
 change, and the line's file if it was written, and nothing else.
@@ -219,8 +216,6 @@ as carrying its own license, and names the license when it declines to paste.
 
 - **Pointer**: for the repository's license terms, see
   `https://raw.githubusercontent.com/joelparkerhenderson/architecture-decision-record/main/LICENSE.md`.
-- **As of**: 2026-09-06
-- **Recheck trigger**: that `LICENSE.md` changes, or the repository moves.
 
 Rule beside it: catalog templates are cited for the human to read, never pasted into this skill, into
 the reference file, or into a record. When asked to paste one, decline, name the URL and the license,
