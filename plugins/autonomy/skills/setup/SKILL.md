@@ -116,8 +116,7 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
 3. **Agent-session wiring (Claude Code specifics)**. Turn the session's telemetry export on with
    the variables
    [monitoring: common configuration variables](https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables)
-   names, read live (as of 2026-11-03; recheck when that section renames the enable or exporter
-   variables), and for work-item-dispatched sessions set
+   names, read live, and for work-item-dispatched sessions set
    `OTEL_RESOURCE_ATTRIBUTES` carrying `autonomy.work_item.url=<canonical item URL>`. The
    slice treats spans as optional and never depends on beta span shapes. It joins on
    `autonomy.work_item.url`, never on inbound trace context; relying on native inbound-context
@@ -202,9 +201,7 @@ a watched repository's own settings cannot supply plugin options, so a repo cann
 verification. The slice proposes neither as a binding field.
 
 - **Pointer**: when checking which settings scopes plugin options are read from, fetch
-  <https://code.claude.com/docs/en/settings-reference#pluginconfigs> live. **As of**: 2026-10-11.
-  **Recheck trigger**: a Claude Code changelog entry changes the scopes `pluginConfigs` is read
-  from.
+  <https://code.claude.com/docs/en/settings-reference#pluginconfigs> live.
 
 **Layered resolution order.** Org-policy-home defaults → settings-as-code per-repo
 security binding → repo-local non-security remaps. Later layers refine earlier ones for

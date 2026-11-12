@@ -11,9 +11,6 @@ for Text to Dialogue only, but a live with-timestamps call returned clean word t
 
 - **Pointer**: when choosing a model or rechecking a limit, fetch
   <https://elevenlabs.io/docs/overview/models> live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: that page changes a model's character limit, or lists `eleven_v4` under
-  Text to Speech.
 
 ## Writing a script for a voice
 
@@ -26,9 +23,6 @@ not the plugin.
   [Prompting Eleven v4](https://elevenlabs.io/docs/overview/capabilities/text-to-speech/best-practices#prompting-eleven-v4)
   and
   [Prompting Eleven v3](https://elevenlabs.io/docs/overview/capabilities/text-to-speech/best-practices#prompting-eleven-v3).
-- **As of**: 2026-10-04
-- **Recheck trigger**: either section is renamed or removed, or a new model gets its own prompting
-  section.
 
 ## Voice cloning
 
@@ -40,8 +34,6 @@ id passed with `--voice`.
   or
   [Professional Voice Cloning](https://elevenlabs.io/docs/eleven-creative/voices/voice-cloning/professional-voice-cloning)
   live.
-- **As of**: 2026-10-04
-- **Recheck trigger**: either page moves, or the plugin starts creating voices itself.
 
 ## Cost and quota
 
@@ -50,9 +42,6 @@ remaining quota and links the pricing page; the `character-cost` header it recor
 `words.json` is what ElevenLabs counted for the call.
 
 - **Pointer**: when the user asks what a run costs, fetch <https://elevenlabs.io/pricing> live.
-- **As of**: 2026-10-04
-- **Recheck trigger**: the pricing page moves, or ElevenLabs stops billing text to speech by
-  characters.
 
 ## The API the script calls
 
@@ -67,16 +56,11 @@ retries only HTTP 429 and 5xx.
   [errors](https://elevenlabs.io/docs/eleven-api/resources/errors) live, and the machine-readable
   spec at <https://api.elevenlabs.io/openapi.json> (download it with curl; it is too large to read
   through a page fetch).
-- **As of**: 2026-10-04
-- **Recheck trigger**: a call fails with a status or body shape the script does not handle, or the
-  spec changes the with-timestamps request body.
 
 ## Finding anything else
 
 - **Pointer**: when a topic is not above, fetch the docs index <https://elevenlabs.io/docs/llms.txt>
   live.
-- **As of**: 2026-10-04
-- **Recheck trigger**: the index moves.
 
 ## ElevenLabs' own agent tooling
 
@@ -87,6 +71,5 @@ The hosted MCP server returns no word timings, so it cannot replace `elevenlabs.
 - **Pointer**: when comparing the plugin with ElevenLabs' own tooling, read
   <https://github.com/elevenlabs/skills>, <https://github.com/elevenlabs/plugin> and the hosted MCP
   server at <https://elevenlabs.io/mcp> live.
-- **As of**: 2026-10-04
 - **Recheck trigger**: the hosted MCP server gains a text-to-speech tool that returns per-character
   or per-word timings.

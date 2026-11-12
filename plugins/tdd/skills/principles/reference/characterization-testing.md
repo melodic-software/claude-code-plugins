@@ -6,9 +6,8 @@ them proves sameness rather than correctness.
 
 **Provenance, read first.** This file is **not** a book distillation. Michael Feathers' *Working
 Effectively with Legacy Code* (2004) was **not** read; his definition and recipe below come from
-his 2016 web page only. The other sources are tool documentation and one 2025 blog post, read on
-2026-10-06. The sources, their read depth, and the recheck trigger are in [Sources](#sources) at
-the end.
+his 2016 web page only. The other sources are tool documentation and one 2025 blog post. The
+sources and their read depth are in [Sources](#sources) at the end.
 
 ## What a Characterization Test Is
 
@@ -79,8 +78,7 @@ Two consequences, stated as this file's reading of the sources:
 
 ## Sources
 
-Read on 2026-10-06, at the depth noted. Recheck trigger: Feathers' or Seemann's page moves or is
-revised, or ApprovalTests, Verify or Jest changes its acceptance workflow.
+Each source was read at the depth noted.
 
 - Michael Feathers, "Characterization Testing" (2016-08-08,
   <https://michaelfeathers.silvrback.com/characterization-testing>). Page read. His book

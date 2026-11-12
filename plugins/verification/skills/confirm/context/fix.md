@@ -57,7 +57,7 @@ Reproduction test: returns_null_when_user_is_deleted  # name it per your framewo
 
 If no reproduction test exists, flag this as a gap.
 
-**Reproduce at the level the symptom was reported.** When the report came from a user-facing surface (a UI, an API response), the reproduction is a user-flow test through that surface that fails on the pre-fix code. A unit test at the guessed root cause proves the guessed code changed; if the guess was wrong, it passes while the reported symptom remains. Keep the unit test as well when it pins the root cause. When no user-flow test can run here (no browser, no running app), say so and mark the user-level reproduction NOT VERIFIED rather than counting the unit test in its place. Basis: the end-to-end slice of the agent-self-check research, 2026-10-06 (repo gap; the external guidance behind it is held there as a Gap, not settled). Recheck trigger: that slice's Gap row is graded.
+**Reproduce at the level the symptom was reported.** When the report came from a user-facing surface (a UI, an API response), the reproduction is a user-flow test through that surface that fails on the pre-fix code. A unit test at the guessed root cause proves the guessed code changed; if the guess was wrong, it passes while the reported symptom remains. Keep the unit test as well when it pins the root cause. When no user-flow test can run here (no browser, no running app), say so and mark the user-level reproduction NOT VERIFIED rather than counting the unit test in its place. Basis: the end-to-end slice of the agent-self-check research (repo gap; the external guidance behind it is held there as a Gap, not settled). Recheck trigger: that slice's Gap row is graded.
 
 ### 5. Verify regression
 

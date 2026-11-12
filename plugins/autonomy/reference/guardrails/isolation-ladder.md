@@ -13,9 +13,7 @@ document names substrate classes as marked examples only, never an instance list
   tools, hooks, and protocol-connected tool surfaces still execute on the host. An attended
   ergonomics tier, not an autonomy tier. Which level a harness's own sandbox reaches is read live:
   see the guardrail slice's
-  [sandbox rating record](../../skills/setup/context/guardrail-slice.md#harness-records-for-the-vendor-neutral-leaves)
-  (as of 2026-10-11; recheck when that record's trigger fires, or the linked heading is renamed or
-  removed).
+  [sandbox rating record](../../skills/setup/context/guardrail-slice.md#harness-records-for-the-vendor-neutral-leaves).
 - **`L2`: whole-process OS-enforced boundary with default-deny egress, credential
   protection, contained workspace host-writes, and policy nothing the run can install may
   widen.** The minimum for any unattended run, except on the

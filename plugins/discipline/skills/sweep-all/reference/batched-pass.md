@@ -27,8 +27,7 @@ unchanged and bind every member.
    typed subagent and a skill-level `context: fork` are not used for it (what
    each one starts with: fetch
    [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)
-   live; as of 2026-10-11; recheck when that section changes what a fork or a
-   typed subagent inherits). The dated record for every fork claim in this pass is
+   live). The dated record for every fork claim in this pass is
    [`inheritance-preflight.md`](inheritance-preflight.md), whose stamp opens
    that file. The forks read the live working tree. Do NOT isolate them
    (see Gotchas: isolation would hide the uncommitted work in flight, which is
@@ -71,8 +70,7 @@ unchanged and bind every member.
    (the discipline plugin's `scripts/fetch-docs.sh --cache`, following its
    `reference/docs-lookup-procedure.md`; both sit two levels above this
    skill's directory), rather than
-   from this file (as of 2026-10-02; recheck when that section
-   changes the default, what takes a slot, or the exemptions). The concurrency
+   from this file. The concurrency
    and depth limits are the only ones to plan around.
 
    - **Pointer**: when planning the wave against these limits, fetch the
@@ -82,17 +80,11 @@ unchanged and bind every member.
      [Variables](https://code.claude.com/docs/en/env-vars#variables) and
      [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
      live; correlate with <https://code.claude.com/docs/en/whats-new/2026-w32>.
-   - **As of**: 2026-11-10
-   - **Recheck trigger**: a per-session subagent total starts to apply, or the
-     concurrency variable starts to cap how many subagents are dispatched
-     rather than how many run at once.
 
    - **Pointer**: when deciding whether the session running this pass can
      spawn forks at all, fetch
      [Turn fork mode off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
-     live. **As of**: 2026-10-11. **Recheck trigger**: that section changes
-     which sessions have fork mode on by default, or how
-     `CLAUDE_CODE_FORK_SUBAGENT` overrides it.
+     live.
 
    So even a fully-admitted set, every core plus every situational corrector, dispatches in one wave in an
    otherwise-quiet session.
@@ -115,8 +107,7 @@ unchanged and bind every member.
    failure: a spawn refused at the concurrent subagent limit. For that error's
    wording and how the harness handles it, read
    [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
-   live (as of 2026-10-11; recheck when that section changes the error or its
-   retry guidance). That is a capacity race, not a failed audit. Wait for
+   live. That is a capacity race, not a failed audit. Wait for
    capacity and dispatch, rather than retrying into the same wall. A retry is anchored by construction, one wave or
    many: it spawns after other members' ledgers have landed, so it inherits
    them. There is no un-anchored rerun available inside this conversation; re-running the whole pass would inherit MORE, not less, since every ledger

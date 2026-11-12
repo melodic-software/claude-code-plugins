@@ -59,8 +59,7 @@ script written in the session.
    - `artifact`: publish that file with the Artifact tool and give the link; who can see it, and how it is
      shared, is read live from
      [artifacts: create an artifact](https://code.claude.com/docs/en/artifacts#create-an-artifact) and
-     [artifacts: share an artifact](https://code.claude.com/docs/en/artifacts#share-an-artifact) (as of
-     2026-10-11; recheck when either section changes who can see a new artifact). When the Artifact tool is
+     [artifacts: share an artifact](https://code.claude.com/docs/en/artifacts#share-an-artifact). When the Artifact tool is
      unavailable, hand back the path and say why in one line.
    - `terminal`: build nothing and stop; the report line step 3 printed names what chose it.
 6. **Read the reply as data.** A copied reply holds the reader's note plus ids the builder assigned: `<list>-N`

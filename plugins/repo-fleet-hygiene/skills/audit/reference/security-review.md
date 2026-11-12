@@ -31,8 +31,7 @@ confirmation or `--yes`, re-derives OIDs before every delete, and skips fail-clo
    the same install-local path. The plugin writes no cache or persistent state and has no
    sibling-plugin reach-outs. Pointer: when checking where that token is substituted, fetch
    [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
-   live. As of: 2026-11-10. Recheck trigger: that section stops substituting the token in
-   `allowed-tools` Bash rules.
+   live.
 5. **Data egress:** `git` reads local metadata. `gh api` (REST identity GET and aliased GraphQL
    merged-PR queries) contacts only `github.com` and transmits repository identity, the non-default local branch names
    under audit for that repository, and any remote-only head names read from the local

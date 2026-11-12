@@ -195,9 +195,6 @@ command's exit code alone. For everything else `apply` only points:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 - no Biome config: offer to create a minimal `biome.json` in the repository root only when
   explicitly asked. The plugin imposes no rules of its own.
 

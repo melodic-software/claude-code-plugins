@@ -95,8 +95,7 @@ lane; a non-local or security-relevant one, and every finding from an unattended
 the output the plugin relies on to outlive the session, and it is what the next rotation reads
 back. When checking where the plugin data directory lives and how long it is kept, fetch
 [plugins manifest reference: Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
-live (as of 2026-11-03; recheck trigger: that section changes where `${CLAUDE_PLUGIN_DATA}` lives
-or when it is deleted).
+live.
 
 ## Configuration
 
@@ -111,8 +110,7 @@ Two surfaces with two different owners.
 Changes to it go through Claude Code's own plugin configuration. When checking when Claude Code
 prompts for the value and where it stores it, fetch
 [plugins manifest reference: User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
-live (as of 2026-11-03; recheck trigger: that section changes when an option is prompted for or
-where its value is stored).
+live.
 
 **Team, the tracked `docs/conventions/bugs.yaml`**, which `/bugs:scan` reads for its lanes
 (`lanes`), checked against
@@ -186,8 +184,7 @@ gh issue create --type Bug --body-file <report-path>
 
 Let `gh` prompt for the title interactively. On a repository without native Issue Types, omit
 `--type Bug` and add a `type: bug` label instead. When checking what `--type` takes, fetch
-[gh issue create: Options](https://cli.github.com/manual/gh_issue_create#options) live (as of
-2026-11-03; recheck trigger: that section renames or drops `--type`). If filing
+[gh issue create: Options](https://cli.github.com/manual/gh_issue_create#options) live. If filing
 non-interactively, never paste the reporter's title text into the command string. Write it to a file and pass
 `--title "$(cat <title-file>)"`: the substitution result is a quoted argument value and
 is not re-parsed, so backticks or `$( )` in reporter text cannot execute.

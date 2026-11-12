@@ -102,8 +102,7 @@ medium keeps delivery on the machine (its `publishes` is false), do not offer it
 Where the medium permits publishing, offer it as an explicit alternative, never a
 silent default: the canvas is a published, persistent Artifact the person edits
 and shares (how, per the pointer in
-[the catalog's design canvas section](context/decision-matrix.md#design-canvas-bundled-design-skill-presence-gated-preview),
-as of 2026-10-11; recheck when that heading is renamed or its pointer moves), where
+[the catalog's design canvas section](context/decision-matrix.md#design-canvas-bundled-design-skill-presence-gated-preview)), where
 this skill's page paths are throwaway or plain-static. The Boundary section below carries the sentence to offer and its gate
 basis; the canvas surface facts and their verified-on/recheck record live in the
 catalog spoke.
@@ -148,8 +147,7 @@ default" for auto.
 **Surface gate: the rich page is a capability that can be absent.** A published
 Artifact is gated;
 [the catalog's availability entry](context/decision-matrix.md#availability-gating-why-the-surface-is-often-absent)
-points at the live conditions (as of 2026-10-11; recheck when that heading is renamed
-or its pointer moves). So when a page is warranted:
+points at the live conditions. So when a page is warranted:
 publish an Artifact only if that surface is available; otherwise write a
 self-contained local HTML file and open it; if neither page surface is available,
 degrade **visibly** to the best terminal form with a one-line notice. Never assume
@@ -164,8 +162,7 @@ instead of a page, except for a diagram that will be committed (Step 2). A canva
 for a page, so a resolved medium with no page (`page` false) draws none, and one that keeps delivery
 on the machine (`publishes` false) uses a local server only, as under `deny` below. The surface facts behind
 this rule, and the optional servers a person can install, are in
-[the catalog's canvas section](context/decision-matrix.md#mcp-app-canvas-connected-canvas-server)
-(as of 2026-11-10; recheck when that heading is renamed or its pointer moves).
+[the catalog's canvas section](context/decision-matrix.md#mcp-app-canvas-connected-canvas-server).
 
 Before drawing on a canvas, resolve `hosted_canvas` (`allow` or `deny`) from three layers: the
 option `${user_config.hosted_canvas}` (empty, or still an unsubstituted placeholder, is unset);
@@ -240,8 +237,8 @@ create a private run directory and echo it in the same call,
 page to `<echoed dir>/visualize.html`. Echo it in that call: the directory name
 is random, so an unechoed path is unrecoverable in the call that writes the file
 (what carries between Bash calls:
-[Tools reference, "What persists between commands"](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands),
-as of 2026-11-10; recheck when that section says shell variables persist between calls). Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable.
+[Tools reference, "What persists between commands"](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands)).
+Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable.
 That is why the page takes a fixed name inside the generated directory rather
 than a `visualize-XXXXXX.html` template, which macOS cannot create at all. On Windows,
 a user-scoped temp under
@@ -252,9 +249,8 @@ Linux) and report the absolute path.
 
 A **mermaid diagram** is the sharp case. A local HTML file renders it only if the
 page **embeds** a mermaid renderer inline. What a published Artifact page may load
-is in [Artifacts: Page constraints](https://code.claude.com/docs/en/artifacts#page-constraints)
-(as of 2026-11-03; recheck when that table changes what a page may load). Keep
-the file self-contained; never load a renderer from the network, which breaks offline use and, for output kept local or otherwise sensitive,
+is in [Artifacts: Page constraints](https://code.claude.com/docs/en/artifacts#page-constraints).
+Keep the file self-contained; never load a renderer from the network, which breaks offline use and, for output kept local or otherwise sensitive,
 would expose the page to a third party. A plain file with a bare `mermaid` block
 does not render. So if no mermaid-capable surface is reachable and no trusted
 renderer can be embedded, deliver the mermaid **source** fence in the terminal and
@@ -282,9 +278,8 @@ only (why: [the catalog's Published Artifact entry](context/decision-matrix.md#p
 - The gate uses `mmdc` only at the minimum version in `prerequisites.json` or newer, found on PATH
   or at `node_modules/.bin/mmdc` under the working directory. An older one is treated as absent.
   A failure that is not a parse error (no Chrome) falls back to source with the failure as the
-  reason. Pointer: <https://github.com/mermaid-js/mermaid-cli/releases>. As of 2026-10-03.
-  Recheck when the Artifact runtime's Mermaid version (see `context/decision-matrix.md`) moves to
-  a different major.
+  reason. Pointer: <https://github.com/mermaid-js/mermaid-cli/releases>. Recheck when the
+  Artifact runtime's Mermaid version (see `context/decision-matrix.md`) moves to a different major.
 - Check the prerequisites with
   `node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" check "${CLAUDE_PLUGIN_ROOT}" --data-dir "${CLAUDE_PLUGIN_DATA}"`.
 
@@ -311,8 +306,7 @@ first, when either is genuinely ambiguous:
 The pasted-code case honors `${user_config.thin_context_prompt}`. Read an empty
 value, or one that still reads as an unsubstituted `${user_config…}` placeholder,
 as unset, and apply `auto` (how a saved option reaches skill content:
-[Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
-as of 2026-11-03; recheck when that section says what an unset option renders).
+[Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)).
 `auto` is the behavior above; `always` offers the
 ranked menu on any bare code paste; `never` renders the recommended form without
 asking. Any other value is reported and treated as `auto`.
@@ -377,9 +371,8 @@ hand-tweakable layouts, so a request for a mockup or a one-pager can mean either
 
 - **`design` (bundled skill)**: drafts artboards on one canvas the person keeps and edits
   (what it publishes and where it is edited:
-  [Artifacts: Draft a design canvas](https://code.claude.com/docs/en/artifacts#draft-a-design-canvas),
-  as of 2026-11-10; recheck when that section changes what a canvas publishes or where it is
-  edited). It is reserved for the person to run; the model does not invoke it.
+  [Artifacts: Draft a design canvas](https://code.claude.com/docs/en/artifacts#draft-a-design-canvas)).
+  It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin)**: picks the form and medium and renders a throwaway or
   plain-static page.
 
@@ -388,9 +381,8 @@ render this skill's page and tell the person: If /design is available in your se
 basis: the verification record below), you can run it instead of or alongside this skill for a
 hand-editable design canvas. Treat a `design` entry in your skill listing as a local skill
 shadowing the bundled command (how same-name skills resolve:
-[Skills, "Resolve skills that share a name"](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name),
-as of 2026-11-10; recheck when that section lets a bundled skill and a local one of the same name
-both appear): do not make the offer, and tell the person a local
+[Skills, "Resolve skills that share a name"](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)):
+do not make the offer, and tell the person a local
 `design` skill shadows the bundled canvas command. A local `design` skill that disables model
 invocation shadows it too and is hidden from you, so every offer adds that `/design`'s description
 should read "Make a new Design artifact from a brief"; anything else is a local skill, not the
@@ -406,8 +398,7 @@ bundled `design` registration as model-invocation-disabled, user-invocable and g
 why this skill only ever offers it. Settings can remove it; which settings, and how, are read from
 the pointers in the catalog spoke's design canvas section
 ([context/decision-matrix.md](context/decision-matrix.md#design-canvas-bundled-design-skill-presence-gated-preview)),
-which owns the remaining surface facts (as of 2026-10-11; recheck when that heading is renamed or
-its settings pointers move).
+which owns the remaining surface facts.
 
 - **Pointer**: probe: the `design` records in `docs/native-surfaces/records.json`.
 - **As of**: 2026-09-29
@@ -421,8 +412,7 @@ then it means that project, not a new render:
 - **`ClaudeDesign` (built-in tool)**: the editor for a claude.ai/design project the person
   already has; the model calls it by name. A new Design artifact comes from the bundled `design`
   skill above, which the person runs
-  ([Artifacts: Draft a design canvas](https://code.claude.com/docs/en/artifacts#draft-a-design-canvas),
-  as of 2026-11-03; recheck when that section changes how a new design canvas is made).
+  ([Artifacts: Draft a design canvas](https://code.claude.com/docs/en/artifacts#draft-a-design-canvas)).
 - **This skill (marketplace plugin)**: picks the form and medium and renders its own output.
 
 **Routing:** when the person names or links an existing claude.ai/design project, or asks for the
@@ -434,8 +424,7 @@ editor; this skill is the form and medium router.
 to the project the person named, and only after they asked for the change. When the tool asks for
 an approval or refuses a write, report it and never retry around it. The approval and refusal
 cases are probed behavior recorded in
-[context/claude-design-tool.md](context/claude-design-tool.md#the-built-in-claudedesign-tool-verification-record)
-(as of 2026-10-11; recheck when that record's approval and denial row changes or moves).
+[context/claude-design-tool.md](context/claude-design-tool.md#the-built-in-claudedesign-tool-verification-record).
 
 ## What this skill does NOT do
 

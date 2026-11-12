@@ -16,8 +16,7 @@ surface: Claude Code prompts for it and stores it. This skill never writes it.
 
 - **Pointer**: when deciding which settings file holds the stored value, or which scopes Claude
   Code reads it from, fetch <https://code.claude.com/docs/en/settings-reference#pluginconfigs>
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section or its table row changing the
-  scopes it lists for `pluginConfigs`, or a release note naming `pluginConfigs` scope.
+  live.
 
 Action routing: no argument or `check` runs the check. Non-interactive, never prompts.
 
@@ -58,9 +57,6 @@ surface, which setup must not hand-edit (Check-only carve-out, native `userConfi
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 - **One-run override (no persistence):** for a single run against a different root, the checker also
   honors the `CHECK_SKILL_SKILLS_ROOT` environment variable; do not persist that variable on the user's
   behalf.
@@ -69,9 +65,8 @@ After any reconfiguration, rerun `check` **in a fresh session** and verify by in
 `/skill-quality:check` via the Skill tool, without turning setup into the full quality audit. The
 fresh session is not optional: a same-session rerun still resolves the OLD root and would report a
 correct write as a failure (when Claude Code substitutes `${user_config.skills_root}`:
-[Plugins reference, "Reference a saved value"](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
-as of 2026-11-10; recheck when that section says a changed value reaches a skill already loaded in
-the session). Re-running `check` when the root resolves and enumerates changes nothing and reports
+[Plugins reference, "Reference a saved value"](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)).
+Re-running `check` when the root resolves and enumerates changes nothing and reports
 "already configured".
 
 ## What this skill does NOT do

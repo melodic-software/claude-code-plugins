@@ -21,7 +21,7 @@ MCP availability: if `mcp__context7__resolve-library-id` and `mcp__context7__que
 
 `/context7:lookup` works through either of two paths: the **CLI** (`ctx7` via npm) or the
 **Context7 MCP server** (configured by the consuming project). `CONTEXT7_API_KEY` is optional for
-both; what it changes is [Context7 CLI § When is authentication required?](https://context7.com/docs/clients/cli#when-is-authentication-required) (as of 2026-11-10; recheck when that section makes a key required).
+both; what it changes is [Context7 CLI § When is authentication required?](https://context7.com/docs/clients/cli#when-is-authentication-required).
 
 - No argument or `check`: run the check.
 - `apply`: run the check, then the guidance-only remediations (auth, MCP).

@@ -14,8 +14,7 @@
 # $RUNNER_TEMP/hygiene. <check-name> is the gate's name in the job's
 # CHECK_RESULTS feed, which is how the aggregator finds the file.
 #
-# Custom shell syntax, as of 2026-10-11 (recheck when a gate's capture file goes
-# missing on a run): https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#custom-shell
+# Custom shell syntax: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#custom-shell
 #
 # Capture is best effort. When the output file cannot be created the body
 # still runs, uncaptured, with a warning, and the aggregator reports the gate

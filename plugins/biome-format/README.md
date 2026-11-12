@@ -22,8 +22,6 @@ runs only when your repo has opted into Biome.
     launcher and one `bash`.
   - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
     [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.
-    **As of**: 2026-10-15. **Recheck trigger**: that section adds a matcher or an `if` for the
-    event, or changes the `tool_calls` fields.
 - **Opt-in on `biome.json`.** Biome runs **only when a `biome.json` or
   `biome.jsonc` governs the edited file**, found by walking up from the file to
   the repository root. A repo without a Biome config is left untouched rather
@@ -40,7 +38,6 @@ runs only when your repo has opted into Biome.
   until you fix it; the pre-commit entry reports it.
   - **Pointer**: when deciding what `--write` applies, fetch
     [CLI: --write, --fix](https://biomejs.dev/reference/cli/#--write---fix) live.
-    **As of**: 2026-11-03. **Recheck trigger**: that section changes which fixes the flag applies.
 - **Pre-existing drift is rewritten whole.** The batch payload carries no pre-edit bytes, so a
   file that already drifted from your config is formatted in full, as the pre-commit entry would.
 - **Respects your ignores.** Biome honors your config's `files.includes` ignore rules even for an

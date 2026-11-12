@@ -49,9 +49,6 @@ qualify it:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 - **External prerequisites**: `node` and the Claude Code version, which `check` probes and whose
   install is the person's.
 
@@ -81,9 +78,6 @@ line.
    yourself and restart Claude Code.
    - **Pointer**: when whether a Claude Code install supplies `node` is in doubt, fetch
      [setup § Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live.
-   - **As of**: 2026-11-10
-   - **Recheck trigger**: that page says the native binary bundles Node, or the hook row stops
-     using `node`.
 2. **Module state.** The plugin's module (`hooks/register.tsx`) writes the snapshot file and sends
    the rate-limit lines; it loads only where mods can. Decide this session's state from inside this
    session, never from a separate process: a `claude` you launch through Bash reads neither this
@@ -174,9 +168,6 @@ line.
      - **Pointer**: for when a saved value reaches skill content and hook processes, fetch
        [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
        live.
-     - **As of**: 2026-11-11
-     - **Recheck trigger**: that section changes where or when a saved value is substituted or
-       exported.
 
 ## Uninstalling
 

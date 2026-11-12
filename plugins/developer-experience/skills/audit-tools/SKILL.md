@@ -41,8 +41,7 @@ Inventory everything, then judge it; an item left out of the inventory gets no v
 - Git hooks and hook-manager config.
 - Agent tooling in the repository: skills, legacy `.claude/commands` files, Claude Code hooks
   wherever the repository defines them, subagents, and the project `.mcp.json`. Every location
-  is read live from the agent tooling pointer in [Gotchas](#gotchas) (as of 2026-10-11; recheck
-  when that pointer moves out of Gotchas, is dropped, or its as-of date changes).
+  is read live from the agent tooling pointer in [Gotchas](#gotchas).
 
 Read the repository's developer tooling conventions file when `AGENTS.md` names one. When none
 exists, or it misstates what the repository has, say so and tell the user to run
@@ -107,8 +106,6 @@ is not, do the part this skill can, say the plugin is missing and print
   <https://code.claude.com/docs/en/skills#where-skills-live>, project MCP config at
   <https://code.claude.com/docs/en/mcp#mcp-installation-scopes>, hooks at
   <https://code.claude.com/docs/en/hooks#hook-locations>, and subagents at
-  <https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope>. **As of**: 2026-10-11.
-  **Recheck trigger**: one of those sections moves a location or drops legacy command files.
+  <https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope>.
 - **Pointer**: when writing an install line, fetch
   <https://code.claude.com/docs/en/plugins/cli-reference#plugin-install> live for its form.
-  **As of**: 2026-10-11. **Recheck trigger**: that section changes the plugin argument form.

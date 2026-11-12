@@ -78,10 +78,8 @@ matter.
 of in-session subagents. Same discovery, different executor. Pointers for what a workflow run
 offers: [How a workflow runs](https://code.claude.com/docs/en/workflows#how-a-workflow-runs) and
 [Save the workflow for reuse](https://code.claude.com/docs/en/workflows#save-the-workflow-for-reuse).
-As of: 2026-10-11. Recheck trigger: either section changes how a run executes, resumes, or is
-saved. This applies only when your environment provides a
-background/saved-workflow execution surface; the in-session fan-out above is the default. Reach for
-the workflow form only when you want a fire-and-forget periodic audit you can walk away from. An
+This applies only when your environment provides a background/saved-workflow execution surface;
+the in-session fan-out above is the default. Reach for the workflow form only when you want a fire-and-forget periodic audit you can walk away from. An
 interactive audit you are actively driving stays with the in-session fan-out.
 
 ## What to report

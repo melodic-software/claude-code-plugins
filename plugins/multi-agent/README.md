@@ -70,9 +70,6 @@ here, not in the agent bodies, so neither agent spends a fetch on it.
   [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
   and [sub-agents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: the sub-agents `omitClaudeMd` row or the startup
-  section changes what the field drops or keeps.
 
 A `PreToolUse` hook on `WebFetch` (`hooks/drift-checker-fetch-gate.mjs`) makes
 the host rule a gate: inside a `drift-checker` subagent it denies any fetch
@@ -96,8 +93,6 @@ through.
   live; for what `onFailure` does with a failed gate and which Claude Code release honors it, fetch
   [hooks: Block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails)
   live.
-- **As of:** 2026-11-03.
-- **Recheck trigger:** either section changes how an undecided call or a failed hook is handled.
 
 The row is always-on: it fires on every `Bash` call, at a budget of one process
 (`node`) per call, ratcheted in `.performance/ratchets.json` as `multi-agent-pretooluse-bash-docs-fetcher-gate-spawns`.
@@ -108,8 +103,6 @@ relative to mod hooks is read live:
 
 - **Pointer:** [mods events: where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)
   and [mods events: approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked).
-- **As of:** 2026-10-11.
-- **Recheck trigger:** either section changes where settings hooks run relative to mod hooks.
 
 ## The fan-out guard
 

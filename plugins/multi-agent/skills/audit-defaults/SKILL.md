@@ -48,8 +48,7 @@ web access.
    Workflow tool is in this session's toolset (listed or loadable). If
    availability cannot be positively confirmed, take the main-thread fallback
    below. For the switches that turn workflows off, see
-   [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off)
-   (as of 2026-10-02; recheck when those switches are renamed).
+   [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off).
 2. **Roles.** When `/multi-agent:route` resolves in this session, invoke it as
    `/multi-agent:route all session=<this session's model alias>` and keep the
    `roles` object of the JSON it prints. Otherwise omit `args.roles`; the
@@ -86,8 +85,7 @@ web access.
 
 If the workflow is interrupted, relaunch it with the same `args`; which agents
 return saved results is in
-[Resume after a pause](https://code.claude.com/docs/en/workflows#resume-after-a-pause)
-(as of 2026-10-02; recheck when the resume rules change).
+[Resume after a pause](https://code.claude.com/docs/en/workflows#resume-after-a-pause).
 
 ## Main-thread fallback (workflows unavailable)
 

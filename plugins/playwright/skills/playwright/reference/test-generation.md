@@ -105,7 +105,7 @@ Basis for the Plan and Generate rules above: three independent research groups f
 
 Upstream's healer agent carries the same guardrail: when it believes the functionality is broken it skips the test rather than patching it green. Playwright's Test Agents (`npx playwright init-agents --loop=claude`) are the upstream alternative to this hand-driven loop, generating planner, generator and healer definitions into the project.
 
-- **Pointer**: [Playwright Test Agents](https://playwright.dev/docs/test-agents) for the setup command, the agents' outputs and the healer's behavior. **As of**: 2026-10-06, Playwright 1.63. **Recheck trigger**: a Playwright release whose notes touch Test Agents or `init-agents`, or this loop and the healer disagreeing on what to do with a broken feature.
+- **Pointer**: [Playwright Test Agents](https://playwright.dev/docs/test-agents) for the setup command, the agents' outputs and the healer's behavior.
 
 ## Running generated tests
 

@@ -7,9 +7,6 @@ memory.
 - **Pointer**: when comparing what a command file and a skill each produce and support, fetch
   [How a skill gets its command name](https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes how a command file's name is formed, or the skills page
-  changes what command files support.
 
 ## Read first
 
@@ -23,8 +20,7 @@ memory.
 - **Naming collisions**: flag a command that shares its name with a skill, and say which one runs.
   When deciding which wins, fetch
   [Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)
-  live. As of 2026-10-11. Recheck trigger: that section changes the precedence between a skill and
-  a command.
+  live.
 - **Frontmatter**: argument handling, tool permissions.
 - **Determinism & escape hatches**: same as any workflow, meaning reliable steps and a clean bypass.
 - **Migration**: would it be better as a skill (supporting files, progressive disclosure,

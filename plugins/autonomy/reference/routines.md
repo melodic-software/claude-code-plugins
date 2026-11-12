@@ -351,10 +351,8 @@ commentary, and a leaf that contradicts one is non-conforming.
   the app-control, playwright and source-control plugins plus a browser, and the network allowlist
   admits the browser download. *Basis:* the harness documentation page for cloud environments,
   section on what carries over from your setup, whose table states that a cloud session does not
-  install the plugins a repository enables in its settings. *As of:* 2026-10-04. This supersedes
-  the 2026-09-06 transfer-path record below on plugin loading. *Recheck trigger:* that table's
-  repository-settings plugin row changes, or a release note names plugin loading in cloud
-  sessions. The consumer picks the cadence (daily is a reasonable start); a
+  install the plugins a repository enables in its settings. This supersedes the transfer-path
+  record below on plugin loading. The consumer picks the cadence (daily is a reasonable start); a
   pass with no change since the last clean one skips, by the skill's own rule. No leaf under
   `routines/` is written until a consumer records a manual run of the skill.
 
@@ -476,18 +474,16 @@ Hosting stance below. The following are illustrative bindings, not fixed require
   not reach the run and must be committed to the repository, or declared as a repository
   plugin, to bind.
 
-  **Dated record for that transfer path.** *Basis:* the harness documentation page for skills,
+  **Record for that transfer path.** *Basis:* the harness documentation page for skills,
   section on skills in cloud sessions, which states that cloud sessions do not read the
   machine's user-scope skills directory, that they additionally load project skills committed
   to the cloned repository's skills directory, and that a plugin declared in the repository's
   settings installs at session start while a plugin enabled only in user settings does not
-  transfer. *Verified:* 2026-09-06, against harness version 2.1.263 and that page as fetched
-  the same day. *One correction the record carries:* the same section states that these
+  transfer. *One correction the record carries:* the same section states that these
   sessions also load the skills enabled for the operator's hosted account, so an
   account-enabled skill does reach the run even though a machine-local one does not; the
   committed-artifact rule above is the binding path this contract requires, not the only path
-  that exists. *Recheck trigger:* that section stops naming the cloned repository's skills
-  directory, or a release note names skill loading in cloud or scheduled sessions.
+  that exists.
   *Superseded on plugin loading (2026-10-04):* the cloud environments page now states that a
   cloud session does not install the plugins a repository enables in its settings, so the
   repository-plugin route above no longer binds; see the `control-skill-upkeep` bullet in

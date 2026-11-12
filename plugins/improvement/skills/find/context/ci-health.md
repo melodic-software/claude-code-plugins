@@ -31,9 +31,6 @@ which repositories and endpoints the proxy serves are read live, not assumed.
 
 - **Pointer:** [cloud environments: work with GitHub issues and pull requests](https://code.claude.com/docs/en/cloud-environments#work-with-github-issues-and-pull-requests)
   and [cloud environments: GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy).
-- **As of:** 2026-10-11.
-- **Recheck trigger:** either section changes which GitHub tools or `gh` paths a cloud session
-  has, or which repositories or endpoints the proxy serves.
 
 Derive `<owner>/<repo>` from the first configured remote URL (`git remote` /
 `git remote get-url`), not from directory names.
@@ -46,9 +43,6 @@ anything on it. Every duration number below comes from run timestamps instead.
 - **Pointer**: when checking the endpoint's status, fetch
   [Get workflow run usage](https://docs.github.com/en/rest/actions/workflow-runs#get-workflow-run-usage)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section drops its retirement notice, or the endpoint is removed and the
-  call starts returning 404.
 
 ## Iterate by `created` date windows, never deep pagination
 
@@ -67,10 +61,6 @@ buckets (record at the end of the list below). Use the documented `created` date
   - **Pointer**: for the per-search result cap, the filters it applies to and the page-size
     limit (the `per_page` parameter), read
     [List workflow runs for a repository](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository).
-  - **As of**: 2026-11-10
-  - **Recheck trigger**: that section drops the per-search cap, stops applying it to `created`,
-    changes the `per_page` maximum, or a page past the cap starts returning an error instead of an
-    empty list.
 
 ## Metrics
 
@@ -115,9 +105,6 @@ iteration needs the REST call above (`gh api` or an equivalent raw-request path)
 
 - **Pointer**: for the filters `actions_list` takes and the options `get_job_logs` offers, fetch
   [GitHub MCP Server: Tools](https://github.com/github/github-mcp-server#tools) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: `actions_list` documents a date filter, or `get_job_logs` changes its
-  options.
 
 Derived signals:
 

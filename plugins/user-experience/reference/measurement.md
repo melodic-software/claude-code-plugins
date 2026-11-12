@@ -81,9 +81,6 @@ owner. Read the current list at the pointer below rather than from here. Basis: 
 - **Pointer**: for the current list and how each indicator is defined, read the GOV.UK Service
   Manual, "Data you must publish", at
   <https://www.gov.uk/service-manual/measuring-success/data-you-must-publish>.
-- **As of**: 2026-10-04
-- **Recheck trigger**: GDS updates that page or the Service Standard point on publishing
-  performance data.
 
 ## By stage
 

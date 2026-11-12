@@ -111,9 +111,6 @@ includes them. Basis: judgment.
   - **Pointer**: for who to involve, when, and how user involvement relates to conformance
     evaluation, read W3C WAI "Involving Users in Evaluating Web Accessibility" at
     <https://www.w3.org/WAI/test-evaluate/involving-users/>.
-  - **As of**: 2026-10-04
-  - **Recheck trigger**: WAI revises that page, or publishes involvement guidance for apps beyond
-    the web.
 
 An inclusive-research plan covers, as judgment over the WAI guidance:
 

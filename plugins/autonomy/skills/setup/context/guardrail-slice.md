@@ -120,9 +120,6 @@ from memory.
 
 - **Pointer**: when rating it, fetch
   <https://code.claude.com/docs/en/sandboxing#what-runs-outside-the-sandbox> live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a Claude Code changelog entry changes what runs outside the sandbox, or that
-  section is renamed or removed.
 
 **Escalation transports.** The
 [runner escalation leaf](../../../reference/runner/escalation.md)'s channel leg binds to a hook
@@ -133,11 +130,7 @@ that posts to an endpoint, and its push leg to the agent's own push-notification
   <https://code.claude.com/docs/en/settings-reference#agentpushnotifenabled> live for the opt-in,
   and <https://code.claude.com/docs/en/tools-reference> live for the `PushNotification` row of
   its tools table, which says where push delivery is unavailable. That table has no section
-  anchor as of this date, so the pointer names the row.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the hooks page drops the HTTP hook type, the tools reference drops or
-  renames the `PushNotification` row, a release note names either surface, or either anchored
-  section is renamed or removed.
+  anchor, so the pointer names the row.
 
 **Pause and resume.** The escalation leaf's deferred mid-run interrupt would build on Claude Code's
 permission modes and on session and subagent resume, as the sections below define them.
@@ -146,6 +139,3 @@ permission modes and on session and subagent resume, as the sections below defin
   <https://code.claude.com/docs/en/permission-modes#available-modes>,
   <https://code.claude.com/docs/en/sessions#resume-a-session>, and
   <https://code.claude.com/docs/en/sub-agents#resume-subagents> live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a release note names an await-human-input pause, or the resume rule changes
-  on either the sessions or the subagents page.

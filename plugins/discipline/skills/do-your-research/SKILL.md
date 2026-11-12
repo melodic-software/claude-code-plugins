@@ -147,8 +147,6 @@ out.
 
 - **Pointer**: whether a fork's Agent tool can spawn,
   [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
-- **As of**: 2026-10-10.
-- **Recheck trigger**: that section changes whether a fork's Agent tool can spawn.
 
 **Depth**, resolved once before enumerating: the invocation argument (`tiered`
 or `full`) wins, except that a `strict` verification level resolves `full` ahead of it; otherwise the configured default,

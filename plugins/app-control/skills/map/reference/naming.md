@@ -59,6 +59,4 @@ the import, and report the import as not followed.
 ## Upstream recipes
 
 Where `/run-skill-generator` writes and what a `verify` skill records are upstream specifics. Read
-them live at <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-24;
-recheck when a Claude Code release note names `/run-skill-generator`, `/verify` or the per-commit
-verify run).
+them live at <https://code.claude.com/docs/en/skills#run-and-verify-your-app>.

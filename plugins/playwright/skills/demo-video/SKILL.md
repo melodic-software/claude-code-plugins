@@ -43,8 +43,7 @@ option: use its Default.
 | `demo_captions` | `${user_config.demo_captions}` | `true` | step and outcome captions |
 | `demo_narration` | `${user_config.demo_narration}` | `false` | voice-over |
 
-Pointer: [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value);
-as of 2026-10-11; recheck when that section changes what an unset option renders as.
+Pointer: [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value).
 
 `plain` removes the title, camera and captions whatever their toggles say; a toggle set to `false`
 removes its layer in either style. Pass them to `build_edl.py` as
@@ -76,7 +75,7 @@ removes its layer in either style. Pass them to `build_edl.py` as
    uses device-pixel screenshots, not Chromium's screencast. Pointer: when weighing the screencast
    as a capture source, fetch
    [Page.startScreencast](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-startScreencast)
-   live. As of: 2026-11-03. Recheck trigger: that method changes its frame size parameters.
+   live.
 4. **Narration (only when `demo_narration` is true).** When the speech plugin is installed, run
    `/speech:narrate` once per line into `<work>/audio/<step>/`, `<work>/audio/<step>.outcome/` and,
    for a typing step, `<work>/audio/<step>.results/`; each folder gets `narration.wav` and
@@ -112,7 +111,7 @@ removes its layer in either style. Pass them to `build_edl.py` as
    evidence when that step does not resolve, goes locally through `gh pr comment --attach`, and in
    CI as a non-zipped Actions artifact plus a comment linking it. Pointer: when checking what
    `--attach` takes, fetch [gh pr comment: Options](https://cli.github.com/manual/gh_pr_comment#options)
-   live. As of: 2026-11-03. Recheck trigger: that list renames or drops `--attach`.
+   live.
 
 ## Next
 

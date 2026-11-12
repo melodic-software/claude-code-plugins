@@ -54,23 +54,18 @@ note.
 resolves to per provider, see
 [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases);
 for the model an agent with no `model` runs on, see
-[workflows: cost](https://code.claude.com/docs/en/workflows#cost). Both as of
-2026-10-02; recheck when either section changes.
+[workflows: cost](https://code.claude.com/docs/en/workflows#cost).
 
 The subagent `model` field accepts the aliases `sonnet`, `opus`, `haiku` and
 `fable`, a full model ID, or `inherit`, and a subagent with none falls back to
 the main conversation's model after the per-invocation parameter and the
 `CLAUDE_CODE_SUBAGENT_MODEL` variable; see
-[sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model),
-as of 2026-10-18; recheck when that section adds or drops an alias or changes
-the resolution order.
+[sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
 
 The `effort` values are the full set this resolver accepts; which of them a
 spawn can use depends on the model it runs on. For each model's supported
 levels, see
-[model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
-as of 2026-10-10; recheck when that section changes the levels or which models
-support them.
+[model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
 
 `pointer*`, `basis_*`, `claim_*`, `reason_*`, `as_of` and `recheck` record
 where each bundled default's basis lives. A role's `basis_model` and
@@ -109,9 +104,6 @@ level is its own `lanes[].effort`, not the `orchestrator` role.
 - Pointer: [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level),
   [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
   and [model config: effort level of subagents and teammates](https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates)
-- As of: 2026-11-04
-- Recheck: any of those sections changes which source wins for a subagent's
-  effort, or what an unset `effort` field inherits on either model.
 
 ## Hard cap
 
@@ -124,9 +116,6 @@ alongside it, and the lower of the two wins.
 
 - Pointer: [settings reference: `maxEffortLevel`](https://code.claude.com/docs/en/settings-reference#maxeffortlevel);
   [model config: organization effort limits](https://code.claude.com/docs/en/model-config#organization-effort-limits)
-- As of: 2026-10-04
-- Recheck: either entry changes which scopes can set the cap, how scopes
-  combine, or which effort sources it covers.
 
 ## The fan-out guard
 
@@ -138,9 +127,8 @@ or that names a frontier alias, takes `fanout.model` instead. So the resolver
 never emits a frontier session's own model for a fan-out stage. What the agent
 runs on is the harness's call: see
 [sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) and
-[run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model)
-(as of 2026-10-31; recheck when either section changes how an alias, a blocked
-value or a forced model resolves). Under an Opus session `opus` and `inherit`
+[run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model).
+Under an Opus session `opus` and `inherit`
 name the same model, so the guard changes nothing there.
 
 Setting `fanout.frontier_guard: false` is an explicit opt-in to frontier

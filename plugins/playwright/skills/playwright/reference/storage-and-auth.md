@@ -127,7 +127,7 @@ For a real site the owner uses (GitHub first), one state file per site lets ever
 
 The owner saves the file once, from a headed session, and re-saves it only when the site expires the login (a loaded session lands on a sign-in page). Agents never run these steps: the owner, not an agent, decides when a login is written to disk. In one session on 2026-10-09 the auto-mode classifier also denied an agent's `state-save` as credential materialization; that single session is the only evidence, so treat it as an observation, not a guarantee.
 
-- **Pointer**: when an agent's save step is denied or allowed unexpectedly, fetch [Permission modes: How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions) live. **As of**: 2026-10-11. **Recheck trigger**: that section changes what auto mode blocks by default.
+- **Pointer**: when an agent's save step is denied or allowed unexpectedly, fetch [Permission modes: How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions) live.
 
 Linux and macOS, in a shell (in Claude Code, prefix each command line with `!`):
 
@@ -153,7 +153,7 @@ What the file means:
 - It lives outside every repository, in an owner-only directory (mode 700, file mode 600; an owner-only ACL on Windows). It is never committed, copied, or read into an agent's context.
 - To revoke it, delete the file and sign that session out on the site (GitHub: Settings, Sessions).
 
-- **Pointer**: the default directory follows `$XDG_STATE_HOME` from the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir/latest/); what a state file holds and why it is sensitive is in [Playwright authentication](https://playwright.dev/docs/auth). **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves, or the spec changes `XDG_STATE_HOME`.
+- **Pointer**: the default directory follows `$XDG_STATE_HOME` from the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir/latest/); what a state file holds and why it is sensitive is in [Playwright authentication](https://playwright.dev/docs/auth).
 
 ## Security invariants
 

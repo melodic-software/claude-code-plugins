@@ -73,8 +73,6 @@ for operators: uninstalling the plugin from its last scope deletes this whole tr
 - **Pointer**: when writing that note, fetch
   [plugins CLI reference: plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section drops `--keep-data` or changes what it preserves.
 
 ## Persisted report shape
 

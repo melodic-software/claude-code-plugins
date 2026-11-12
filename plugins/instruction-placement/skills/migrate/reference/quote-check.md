@@ -16,8 +16,7 @@ lists. It prints one line per record: `verified <id>`; `drift <id> <url>`, with 
 fetched sentences on the next two lines; or `unverified <id> as of <date>` when the page could not
 be read fresh. It exits 0 whatever the results, so a run with no network still completes. Its grant
 names the script with no `*` (how such a rule matches:
-<https://code.claude.com/docs/en/permissions#wildcard-patterns>, as of 2026-11-10; recheck when that
-section changes how such a rule matches).
+<https://code.claude.com/docs/en/permissions#wildcard-patterns>).
 
 A proposed move relies on the records its destination's row of the surface table cites.
 

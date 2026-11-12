@@ -251,9 +251,6 @@ Steps 1 to 10 are the `team` flow. The other two layers change what is written:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 
   Say that steps 7 to 10 were skipped
   because nothing in the repository was written, so `git status` is unchanged, and that a

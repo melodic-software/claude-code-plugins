@@ -53,7 +53,7 @@ firecrawl search "<query>" --limit <N> --json -o <path>
 firecrawl search "<query>" --limit <N> --scrape --scrape-formats markdown --json -o <path>
 ```
 
-`--limit 5` suffices for research (the default and maximum: [Search Options](https://github.com/firecrawl/cli#search-options), as of 2026-11-10; recheck when `/firecrawl:update` reports a CLI release). `--scrape` is a **boolean** enabling result scraping; `--scrape-formats` controls which scrape formats are included (markdown/html/links/etc., comma-separated). No `--format` or `--pretty` flag. Use `--json` for structured output, pipe through `jq` for pretty-printing.
+`--limit 5` suffices for research (the default and maximum: [Search Options](https://github.com/firecrawl/cli#search-options)). `--scrape` is a **boolean** enabling result scraping; `--scrape-formats` controls which scrape formats are included (markdown/html/links/etc., comma-separated). No `--format` or `--pretty` flag. Use `--json` for structured output, pipe through `jq` for pretty-printing.
 
 ## crawl: follow links from a seed URL
 
@@ -71,7 +71,7 @@ firecrawl crawl <job-id> --status -o <path>
 firecrawl crawl <job-id> --wait -o <path>
 ```
 
-`-o <path>` writes a **single JSON file** with all page results inside, not a directory of per-page files. Bulk and expensive; set `--limit` to cap total pages and `--max-depth` to stop runaway crawls. Prefer `map` first to estimate scope. Use `--wait` for simple scripts; for long crawls capture the job-id and check on it or block on it as `firecrawl crawl --help` says, keeping `-o` so results reach the spill file; read that help before relying on an exit code or on what `--status` returns (as of 2026-11-07, CLI 1.29.0; recheck when `/firecrawl:update` reports a CLI release).
+`-o <path>` writes a **single JSON file** with all page results inside, not a directory of per-page files. Bulk and expensive; set `--limit` to cap total pages and `--max-depth` to stop runaway crawls. Prefer `map` first to estimate scope. Use `--wait` for simple scripts; for long crawls capture the job-id and check on it or block on it as `firecrawl crawl --help` says, keeping `-o` so results reach the spill file; read that help before relying on an exit code or on what `--status` returns.
 
 ## map: fast URL discovery, no content
 
@@ -118,7 +118,7 @@ Flags: `-p/--prompt` is the long form of the positional prompt; `-c/--code` swit
 firecrawl agent "<prompt>" [--model <model>] -o <path>
 ```
 
-Hosted agent (different from the Anthropic model running this conversation). Use for "find me the latest X and summarize" tasks where Firecrawl plans the browse path. Which models it takes and which is the default: [Agent Options](https://github.com/firecrawl/cli#agent-options) (as of 2026-11-10; recheck when `/firecrawl:update` reports a CLI release).
+Hosted agent (different from the Anthropic model running this conversation). Use for "find me the latest X and summarize" tasks where Firecrawl plans the browse path. Which models it takes and which is the default: [Agent Options](https://github.com/firecrawl/cli#agent-options).
 
 ## monitor: scheduled scrapes + change tracking
 

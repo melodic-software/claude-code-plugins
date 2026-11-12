@@ -18,8 +18,8 @@ mcp__context7__resolve-library-id(libraryName: "<name>", query: "<query>")
 
 ## Result fields
 
-The fields each result carries are listed in [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation)
-(as of 2026-11-10; recheck when that section's result fields change). How this skill reads them:
+The fields each result carries are listed in [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation).
+How this skill reads them:
 
 - **Library ID**: the `/org/project` identifier the next step passes
 - **Code Snippets**: higher means better coverage
@@ -58,9 +58,8 @@ MSYS_NO_PATHCONV=1 ctx7 docs /websites/twilio "How to send an SMS" --language Ru
 
 - **Pointer**: when deciding whether `--language` exists and what it changes, read the installed
   CLI's `ctx7 docs --help` output live (the probe above).
-- **As of**: 2026-10-13
-- **Recheck trigger**: that help output renames or drops `--language`, or this plugin starts
-  requiring a minimum `ctx7` version, which would let the probe go.
+- **Recheck trigger**: this plugin starts requiring a minimum `ctx7` version, which would let the
+  probe go.
 
 ### Version-specific IDs
 

@@ -349,5 +349,4 @@ The repro is cheap: a temp git repo with canary tokens on each surface, an `Inst
 appending each payload to a log, one headless run that reads a file in the subtree, and a read of
 the log. The repro relies on `InstructionsLoaded` being an observe-only event, so the measurement
 does not perturb what it measures (see
-<https://code.claude.com/docs/en/hooks#instructionsloaded>, as of 2026-10-01; recheck when that
-section gives the event a decision control).
+<https://code.claude.com/docs/en/hooks#instructionsloaded>).

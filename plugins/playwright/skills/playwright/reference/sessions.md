@@ -39,7 +39,7 @@ playwright-cli -s=<name> delete-data  # remove persistent profile data
 
 If a headless session reports the browser is not open after a pause, run `open` again and redo any in-memory setup. Before a long pause mid-flow, raise the idle limit with `open --idle-timeout=<ms>`.
 
-- **Pointer**: when you need the idle-shutdown default or which sessions it applies to, run `playwright-cli open --help` live; for the change, fetch the [v0.1.20 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.20). **As of**: 2026-11-03. **Recheck trigger**: the frontmatter `upstream-version` moves.
+- **Pointer**: when you need the idle-shutdown default or which sessions it applies to, run `playwright-cli open --help` live; for the change, fetch the [v0.1.20 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.20).
 
 ## Implicit session via env
 
@@ -61,7 +61,7 @@ playwright-cli -s=auth close
 playwright-cli -s=auth open https://app.example.com    # still logged in
 ```
 
-- **Pointer**: for what a session keeps without `--persistent`, read upstream's [storage-state reference, "Security Notes"](https://github.com/microsoft/playwright-cli/blob/main/skills/playwright-cli/references/storage-state.md#security-notes). **As of**: 2026-11-10. **Recheck trigger**: the playwright skill's frontmatter `upstream-version` moves.
+- **Pointer**: for what a session keeps without `--persistent`, read upstream's [storage-state reference, "Security Notes"](https://github.com/microsoft/playwright-cli/blob/main/skills/playwright-cli/references/storage-state.md#security-notes).
 
 For explicit profile location:
 

@@ -26,8 +26,6 @@ imposes no rules of its own.
   **Pointer**: when working out how `text`, `-text` and `text=auto` decide
   whether a path is text, fetch
   [gitattributes: text](https://git-scm.com/docs/gitattributes#_text) live.
-  **As of**: 2026-11-03. **Recheck trigger**: that section changes how
-  `text=auto` tells a binary file from text.
 - **Unspecified is a no-op.** A path with no `eol=` attribute is left untouched.
   There is no hardcoded extension list. Resolution is entirely
   `.gitattributes`-driven, so narrow rules (a single `eol=lf` path) correctly
@@ -55,8 +53,8 @@ imposes no rules of its own.
   starts Bash. The plugin does not assume a Claude Code install brings Node, so without `node` the
   hook does not launch and nothing is normalized. Pointer: when deciding whether an install
   brings Node, fetch [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)
-  live. As of: 2026-10-11. Recheck trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
-  install needs Node at runtime. [Install Node.js](https://nodejs.org/en/download).
+  and [System requirements](https://code.claude.com/docs/en/setup#system-requirements) live.
+  [Install Node.js](https://nodejs.org/en/download).
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.

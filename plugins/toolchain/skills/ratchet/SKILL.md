@@ -74,10 +74,8 @@ Native per-file baselines, read live from each linter's own docs:
 | ESLint | [Bulk Suppressions, Suppressions File](https://eslint.org/docs/latest/use/suppressions#suppressions-file) |
 | PHPStan | [The Baseline, Generating the baseline](https://phpstan.org/user-guide/baseline#generating-the-baseline) |
 
-- **As of:** 2026-11-01.
-- **Recheck trigger:** either page renames its baseline file or flags, changes which severity its
-  baseline covers, or stops recording violations per file. A linter not in the table: read its docs
-  for a checked-in per-file baseline before falling back to the ratchet.
+A linter not in the table: read its docs for a checked-in per-file baseline before falling back to
+the ratchet.
 
 A suppression count of `0` lands the same way only when the tool has a rule that forbids the
 suppression comment itself (for example an ESLint rule that reports every disable directive): turn
@@ -106,9 +104,6 @@ directly: no ratchet.
 
 The vendor's own side-by-side setup, read live:
 [Oxlint, Running Oxlint and ESLint together](https://oxc.rs/docs/guide/usage/linter/migrate-from-eslint#running-oxlint-and-eslint-together).
-
-- **As of:** 2026-11-11.
-- **Recheck trigger:** the page renames or drops that section, or changes when it says to run both.
 
 ## 3. The ceilings file
 
@@ -292,9 +287,6 @@ stored as a secret avoids the wait.
 
 - **Pointer:** for the setting's default and the approval rule, fetch [Actions settings: creating or approving pull requests](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#preventing-github-actions-from-creating-or-approving-pull-requests)
   and [when GITHUB_TOKEN triggers workflow runs](https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs) live.
-- **As of:** 2026-11-10.
-- **Recheck trigger:** either page renames the "Allow GitHub Actions to create and approve pull
-  requests" setting or changes what a `GITHUB_TOKEN`-created pull request triggers.
 
 ## Output
 

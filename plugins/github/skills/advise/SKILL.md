@@ -80,8 +80,7 @@ built-in command performs it.
   GitHub App on one repository; the model does not invoke it. What it sets up is read live from
   the pointer in the "What `/install-github-app` installs and sets up" row of
   [reference/native-install-github-app.md](reference/native-install-github-app.md) (the file
-  has no section heading to anchor; as of 2026-10-11; recheck when that row's pointer or as-of
-  date changes).
+  has no section heading to anchor).
 - **This skill (marketplace plugin).** Read-only design guidance across the GitHub settings plane,
   grounded in live `gh` state and the fetched GitHub docs; changes only through `--apply`.
 
@@ -130,8 +129,6 @@ A bare invocation of this skill performs zero mutations, stated in write-capabil
 - No browser automation fires from this skill on a bare invocation.
 
 Which `gh api` flags send a request body or set the method: [`gh api` options](https://cli.github.com/manual/gh_api#options).
-As of 2026-11-10. Recheck when a `gh` release note names a new `gh api` request-body or request-method flag, or when
-a read from this skill returns a non-GET method the list above does not explain.
 
 Requests to "just set it up for me" do not override this: emit the exact proposed change and point
 to `--apply`, which routes through the consumer's declared change routing.

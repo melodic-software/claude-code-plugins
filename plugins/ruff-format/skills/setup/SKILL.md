@@ -164,8 +164,7 @@ Principles, in order. They decide every case, whatever the tool:
    the tool's next sync or clean silently removes.
 3. **Never create or mutate an environment.** When no environment exists yet, use the
    tool's record-only mode when it has one (e.g. `uv add --dev ruff --no-sync`; pointer:
-   [`uv add`](https://docs.astral.sh/uv/reference/cli/#uv-add), as of 2026-11-10, recheck trigger:
-   `--no-sync` stops skipping the environment sync) and hand the sync/install step to the
+   [`uv add`](https://docs.astral.sh/uv/reference/cli/#uv-add)) and hand the sync/install step to the
    consumer as their own command; when the tool's add command cannot avoid
    creating/instantiating an environment, don't run it. Give it as guidance instead.
 4. **Only where the hook resolves.** The hook resolves repo-ancestor `.venv` interpreters
@@ -206,9 +205,6 @@ only points:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 - no Ruff config: offer to create a minimal Ruff config in the repository root only when
   explicitly asked. The plugin imposes no rules of its own.
 

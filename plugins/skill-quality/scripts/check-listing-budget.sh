@@ -7,8 +7,7 @@
 # each turn. Two independent limits apply to it:
 #   - Per-entry cap (skillListingMaxDescChars): check-skill.sh check 2 already
 #     guards this, and the comment above `DESC_CHAR_CAP=` in check-skill.sh
-#     owns that constant (a script, so no section anchor; as of 2026-10-11;
-#     recheck trigger: that constant being renamed or its pointer changing).
+#     owns that constant (a script, so no section anchor).
 #   - Shared/aggregate cap (skillListingBudgetFraction): NOTHING checks this
 #     before now. An overflowing aggregate degrades some skills'
 #     auto-invocation with no local signal that it happened.
@@ -16,8 +15,7 @@
 # https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction,
 # https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars
 # and https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short
-# live. As of: 2026-10-11. Recheck trigger: any of those sections changing a
-# default, the budget's basis, or what an overflow drops.
+# live.
 #
 # What counts, and what deliberately does not:
 #   - This models DESCRIPTION characters only. Names are a floor this report
@@ -28,12 +26,9 @@
 #     it would overstate the aggregate. Pointer: for which skills'
 #     descriptions reach the listing, fetch
 #     https://code.claude.com/docs/en/skills#control-who-invokes-a-skill live.
-#     As of: 2026-10-11. Recheck trigger: that section changing whether that
-#     frontmatter keeps a description out of the listing.
 #   - A consumer's `skillOverrides` can free further description characters
-#     (pointer: https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings,
-#     as of 2026-10-11; recheck trigger: that section changing what an override
-#     frees). That is consumer settings.json state, not repository content, so
+#     (pointer: https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings).
+#     That is consumer settings.json state, not repository content, so
 #     a static check cannot observe it; this report is therefore an UPPER
 #     bound for any consumer who sets it.
 #

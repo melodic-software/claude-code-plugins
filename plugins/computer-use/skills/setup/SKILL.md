@@ -34,8 +34,6 @@ Determine which surface is in play, because the answer changes what is even poss
   - **Pointer**: when deciding the surface, fetch
     [Computer use: Differences from the Desktop app](https://code.claude.com/docs/en/computer-use#differences-from-the-desktop-app)
     live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section's Platforms or Enable row changes.
 
 Report the surface as INFO. It is context for everything below, not a pass/fail.
 
@@ -44,8 +42,7 @@ Report the surface as INFO. It is context for everything below, not a pass/fail.
 Confirm the computer-use tools are actually reachable in this session. Call
 `list_granted_applications`: it is this check's probe. For what it returns, read its
 description in the `computer-use` server's tool listing (`/mcp`); no docs page names the
-computer-use tools (as of 2026-11-03; recheck when a docs page documents them, or the server
-renames or drops `list_granted_applications`).
+computer-use tools.
 
 - Tools reachable → PASS, and report what the probe returned as INFO.
 - Tools absent → FAIL. Remediation: enable the `computer-use` MCP server for this project, and
@@ -56,16 +53,12 @@ renames or drops `list_granted_applications`).
     live for the CLI's eligibility checks, and
     [Desktop: Let Claude use your computer](https://code.claude.com/docs/en/desktop#let-claude-use-your-computer)
     for the Desktop surface.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: either section changes which plans, providers or session modes it names.
 
 Do **not** call `request_access` during a check: a check stays read-only, and an access request
 is not.
 
 - **Pointer**: for what an app-access request does, see
   [Computer use: Approve apps per session](https://code.claude.com/docs/en/computer-use#approve-apps-per-session).
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes how an app is approved for a session.
 
 ### 3. Session-killing timeouts (the one that actually bites)
 
@@ -118,8 +111,6 @@ blocker: in our measurement the gate refused the action rather than sending it t
 
 - **Pointer**: for the per-app approval gate such a window runs into, see
   [Computer use: Approve apps per session](https://code.claude.com/docs/en/computer-use#approve-apps-per-session).
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes which apps Claude may act on in a session.
 
 ## Reporting
 

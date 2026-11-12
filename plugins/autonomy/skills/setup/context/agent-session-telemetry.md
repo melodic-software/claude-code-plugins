@@ -15,9 +15,6 @@ for the signal events ride beside `CLAUDE_CODE_ENABLE_TELEMETRY`.
 - **Pointer**: when choosing which exporters a binding sets, fetch
   <https://code.claude.com/docs/en/monitoring-usage#events> and
   <https://code.claude.com/docs/en/monitoring-usage#code-edit-tool-decision-counter> live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a Claude Code changelog entry touching the logs exporter or the code edit
-  decision counter, or either section is renamed or removed.
 
 ## Resource attributes on every datapoint and event
 
@@ -27,9 +24,6 @@ metrics on that attribute never sets `OTEL_METRICS_INCLUDE_RESOURCE_ATTRIBUTES=f
 - **Pointer**: when checking which signals carry resource attributes and what that variable
   changes, fetch <https://code.claude.com/docs/en/monitoring-usage#multi-team-organization-support>
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a Claude Code changelog entry touching resource attributes or
-  `OTEL_METRICS_INCLUDE_RESOURCE_ATTRIBUTES`, or that section is renamed or removed.
 
 ## Cloud session identity
 
@@ -39,9 +33,6 @@ A binding that groups or filters telemetry by cloud session keys on `ccr.session
 - **Pointer**: when attributing telemetry to a cloud or Claude Tag session, fetch the "Attribute
   telemetry to cloud sessions" section,
   <https://code.claude.com/docs/en/monitoring-usage#attribute-telemetry-to-cloud-sessions>, live.
-- **As of**: 2026-10-31
-- **Recheck trigger**: a Claude Code changelog entry touching `ccr.session.id` or cloud-session
-  attributes, or that section is renamed or removed.
 
 ## Inbound trace context in headless sessions
 
@@ -69,9 +60,6 @@ The slice treats spans as optional and never depends on beta span shapes.
 
 - **Pointer**: when a binding wires spans, fetch
   <https://code.claude.com/docs/en/monitoring-usage#traces-beta> live for the variables spans need.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the page drops the beta label from that section or drops the
-  `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA` flag.
 
 ## Evidence that a guardrail fired
 
@@ -85,9 +73,6 @@ rule or one hook from that event alone, and it takes no rejection evidence from
   <https://code.claude.com/docs/en/monitoring-usage#tool-decision-event>,
   <https://code.claude.com/docs/en/monitoring-usage#tool-result-event>, and
   <https://code.claude.com/docs/en/monitoring-usage#map-security-questions-to-events> live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a Claude Code changelog entry touching `claude_code.tool_decision` or its
-  `source` values, or any of those sections is renamed or removed.
 
 ## GenAI mirrors on beta spans
 
@@ -96,8 +81,6 @@ records why nothing in that namespace can be pinned yet.
 
 - **Pointer**: when a binding reads span attributes, fetch
   <https://code.claude.com/docs/en/monitoring-usage#traces-beta> live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section's span attribute tables are renamed or removed.
 
 ## Memory observability gap
 

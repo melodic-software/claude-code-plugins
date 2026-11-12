@@ -33,8 +33,7 @@ cap. `/user-experience:evaluate` dispatches it; it is not for direct use.
 
 - **Pointer**: when changing those frontmatter values, fetch
   [Supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes what `model`, `effort` or
-  `maxTurns` does.
+  live.
 
 A flow ready for screens goes to
 `/user-interface:design` when that plugin is installed. The plugin writes research instruments but

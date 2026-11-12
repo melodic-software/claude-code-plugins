@@ -23,15 +23,12 @@ skills already available.
 A skill listing is loaded into context so the model knows which
 **model-invocable** skills are available; what the listing carries for each
 skill, and when the full body loads:
-[Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill),
-as of 2026-11-10; recheck when that section changes what the listing carries
-or when a skill's body enters context.
+[Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill).
 A **manual-only** skill never reaches the model's listing; which frontmatter
 makes a skill manual-only, and which only hides it from the `/` menu while
 leaving it model-visible:
-[Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill),
-as of 2026-10-14; recheck when that section changes which flag removes a skill
-from the model's listing. This corrector therefore audits only what the model
+[Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill).
+This corrector therefore audits only what the model
 could actually have reached: a **model-visible** skill that sat in the listing
 and went unused, its procedure reinvented or skipped instead of invoked. It
 does not fault the model for not auto-firing a manual-only skill.
@@ -57,9 +54,6 @@ The discipline, at each of the three surfaces where skills apply:
     <https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents>
     live; for what a non-fork subagent's context holds at startup, fetch
     <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: either section changes which skills a subagent can
-    preload or invoke, or what a non-fork subagent receives at startup.
 
 ## Audit. What to look for
 
@@ -93,9 +87,8 @@ those:
 - **The listing budget across all installed skills.** On overflow,
   descriptions are dropped, so a real skill can silently lose its triggering
   keywords (how the budget is set and what gets dropped:
-  [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short),
-  as of 2026-10-13; recheck when that section changes the budget or the drop
-  order). That machine-level overflow is a configuration concern; route to
+  [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)).
+  That machine-level overflow is a configuration concern; route to
   `/harness-config:audit`, invoked via the Skill tool (degrade to prose).
   `/doctor` estimates the listing's cost.
 - **Deterministic per-prompt routing.** A `UserPromptSubmit` hook that injects a

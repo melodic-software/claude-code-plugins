@@ -189,9 +189,7 @@ the repo's own Yarn: run `yarn config get nodeLinker` in the repo. `pnp` → ski
 and give guidance, because Plug'n'Play generates a loader file, not the `node_modules/.bin`
 shim the hook resolves; install `markdownlint-cli2` on `PATH` or switch the linker.
 `node-modules`/`pnpm`, or Yarn Classic → install. For the setting's values and default, fetch
-[`nodeLinker`](https://yarnpkg.com/configuration/yarnrc#nodeLinker) live (as of 2026-11-10;
-recheck when its default or values change, or a linker other than `pnp` stops writing
-`node_modules/.bin`). The
+[`nodeLinker`](https://yarnpkg.com/configuration/yarnrc#nodeLinker) live. The
 verify-after-remediation rule below is the backstop when an install still yields no
 usable shim. After ANY remediation, re-run the
 relevant `check` probe live via Bash (a pre-computed row predates the remediation) and report
@@ -218,9 +216,6 @@ install command's exit code alone. For everything else `apply` only points:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 - no markdownlint config: this is why the plugin does nothing here, so lead with it rather
   than leaving it as a footnote under the passing prerequisites. Then offer to create a
   minimal `.markdownlint-cli2.jsonc` in the repository root only when explicitly asked.

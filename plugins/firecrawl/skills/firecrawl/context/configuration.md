@@ -2,12 +2,12 @@
 
 Env vars, global flags, and built-in defaults for the `firecrawl-cli` binary. SKILL.md points here from its Configuration pointer.
 
-**Environment variables**: set these three. This skill needs none of the others the CLI reads; see its [Telemetry section](https://github.com/firecrawl/cli#telemetry) (as of 2026-11-07, CLI 1.29.0; recheck when `/firecrawl:update` reports a CLI release). Extended `FIRECRAWL_RETRY_*` and `FIRECRAWL_CREDIT_*_THRESHOLD` vars found in older setups were **specific to the `firecrawl-mcp` server**; the CLI ignores them and uses built-in retry/backoff. Don't set them.
+**Environment variables**: set these three. This skill needs none of the others the CLI reads; see its [Telemetry section](https://github.com/firecrawl/cli#telemetry). Extended `FIRECRAWL_RETRY_*` and `FIRECRAWL_CREDIT_*_THRESHOLD` vars found in older setups were **specific to the `firecrawl-mcp` server**; the CLI ignores them and uses built-in retry/backoff. Don't set them.
 
 | Var | Purpose | Default |
 |---|---|---|
 | `FIRECRAWL_API_KEY` | Cloud API auth | (required) |
-| `FIRECRAWL_API_URL` | Override API endpoint (self-hosted) | Firecrawl's cloud API; see [Self-hosted / Local Development](https://github.com/firecrawl/cli#self-hosted--local-development) (as of 2026-11-10; recheck when `/firecrawl:update` reports a CLI release) |
+| `FIRECRAWL_API_URL` | Override API endpoint (self-hosted) | Firecrawl's cloud API; see [Self-hosted / Local Development](https://github.com/firecrawl/cli#self-hosted--local-development) |
 | `FIRECRAWL_NO_TELEMETRY` | Disable usage analytics | telemetry on |
 
 **Global flags** apply to every subcommand:
@@ -23,7 +23,7 @@ Env vars, global flags, and built-in defaults for the `firecrawl-cli` binary. SK
 | `-V`, `--version` | CLI version only |
 | `-h`, `--help` | Subcommand help |
 
-**Built-in defaults** (knobs NOT exposed as env vars). Their current values are in the README's [Check Status](https://github.com/firecrawl/cli#check-status) example and per-command option tables such as [Search Options](https://github.com/firecrawl/cli#search-options) (as of 2026-11-10; recheck when `/firecrawl:update` reports a CLI release):
+**Built-in defaults** (knobs NOT exposed as env vars). Their current values are in the README's [Check Status](https://github.com/firecrawl/cli#check-status) example and per-command option tables such as [Search Options](https://github.com/firecrawl/cli#search-options):
 
 - **Concurrency**: the CLI throttles itself; `firecrawl --status` shows the real limit for the account
 - **Retry / backoff**: built in. If you need deterministic control, fail-fast with `--timeout` and handle retry in the agent turn

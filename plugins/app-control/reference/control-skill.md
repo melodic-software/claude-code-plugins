@@ -162,46 +162,38 @@ person hands over, can be read frame by frame. It is not a capture kind. Drive's
 whether this session can run it and read the images it writes; a hub with no `frames` row, or a
 session that cannot read images, is a capability gap.
 
-Manuals, each record a pointer, as-of date and recheck trigger:
+Manuals, each record a pointer:
 
 - Node.js CLI options: CPU profile <https://nodejs.org/api/cli.html#--cpu-prof>, heap profile
   <https://nodejs.org/api/cli.html#--heap-prof>, heap snapshot signal
-  <https://nodejs.org/api/cli.html#--heapsnapshot-signalsignal>. As of 2026-10-23. Recheck on a
-  Node.js major release.
+  <https://nodejs.org/api/cli.html#--heapsnapshot-signalsignal>.
 - Chrome DevTools Performance panel:
   <https://developer.chrome.com/docs/devtools/performance/reference#record>. Memory panel heap
   snapshots:
   <https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#take_a_snapshot>.
-  As of 2026-10-23. Recheck when either page changes how a recording is saved.
-- py-spy: <https://github.com/benfred/py-spy>. memray: <https://bloomberg.github.io/memray/>. As of
-  2026-10-04. Recheck on a new major release of either. py-spy dump:
-  <https://github.com/benfred/py-spy#dump>. As of 2026-10-23. Recheck on a py-spy major release.
+- py-spy: <https://github.com/benfred/py-spy>. memray: <https://bloomberg.github.io/memray/>.
+  py-spy dump: <https://github.com/benfred/py-spy#dump>.
 - JDK `jcmd`, `Thread.print` included:
-  <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jcmd.html#commands-for-jcmd>. As of
-  2026-10-27. JDK `jfr`: <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jfr.html#subcommands>.
-  As of 2026-10-23. Recheck either when the project moves to a newer LTS JDK.
+  <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jcmd.html#commands-for-jcmd>. JDK
+  `jfr`: <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jfr.html#subcommands>.
 - .NET diagnostics tools:
   <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-trace#dotnet-trace-collect>,
   <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-gcdump#dotnet-gcdump-collect>.
-  As of 2026-10-23. Recheck on a .NET major release. dotnet-stack:
-  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-stack#dotnet-stack-report>. As
-  of 2026-10-27. Recheck on a .NET major release. dotnet-counters:
+  dotnet-stack:
+  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-stack#dotnet-stack-report>.
+  dotnet-counters:
   <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-counters#dotnet-counters-collect>.
-  As of 2026-10-30. Recheck on a .NET major release.
 - Go profiling endpoints: <https://pkg.go.dev/net/http/pprof#hdr-Usage_examples>; the pprof tool:
-  <https://github.com/google/pprof>. As of 2026-10-23. Recheck on a Go minor release.
+  <https://github.com/google/pprof>.
 - GDB: `thread apply all`
   <https://sourceware.org/gdb/current/onlinedocs/gdb.html/Threads.html#thread-apply-all>; attaching
   by pid and running one command
   <https://sourceware.org/gdb/current/onlinedocs/gdb.html/File-Options.html#File-Options>; batch
-  mode <https://sourceware.org/gdb/current/onlinedocs/gdb.html/Mode-Options.html#Mode-Options>. As
-  of 2026-10-27. Recheck on a GDB major release.
-- Linux `perf record`: <https://man7.org/linux/man-pages/man1/perf-record.1.html>. As of
-  2026-10-04. Recheck when the host kernel's perf version changes.
-- heaptrack: <https://github.com/KDE/heaptrack>. As of 2026-10-04. Recheck on a new major release.
-- macOS `sample`, `spindump` and `leaks`: no Apple docs page covers their flags as of 2026-10-23,
-  so read the man pages on the host (`man sample`). Recheck on a macOS major release, or when an
-  Apple docs page starts to cover these tools' flags.
+  mode <https://sourceware.org/gdb/current/onlinedocs/gdb.html/Mode-Options.html#Mode-Options>.
+- Linux `perf record`: <https://man7.org/linux/man-pages/man1/perf-record.1.html>.
+- heaptrack: <https://github.com/KDE/heaptrack>.
+- macOS `sample`, `spindump` and `leaks`: no Apple docs page covers their flags, so read the man
+  pages on the host (`man sample`).
 
 ## The Mask section
 

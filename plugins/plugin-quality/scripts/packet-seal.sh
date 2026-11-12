@@ -5,9 +5,8 @@
 # registers a `PostToolUse` hook on the `Write|Edit` matcher post-processes
 # every one of them, whatever the destination directory. When and how
 # PostToolUse may rewrite is the pointer record in
-# skills/audit/reference/evidence-packet.md#packet-files-are-write-once-evidence-sibling-hooks-rewrite-them-in-place
-# (as of 2026-10-11; recheck when that section is renamed or moved, or its
-# pointer stops covering PostToolUse). Observed in this fleet: a formatter
+# skills/audit/reference/evidence-packet.md#packet-files-are-write-once-evidence-sibling-hooks-rewrite-them-in-place.
+# Observed in this fleet: a formatter
 # plugin such as `markdown-format` registers that matcher and rewrites in
 # place, damaging exactly what a packet exists to preserve — verbatim
 # quotations and code-span identifiers.

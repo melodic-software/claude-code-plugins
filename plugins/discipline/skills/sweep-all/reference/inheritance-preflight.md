@@ -34,9 +34,6 @@ what stage 2 finds; it never replaces stage 2 and never aborts on its own.
   and [Agent tool behavior](https://code.claude.com/docs/en/tools-reference#agent-tool-behavior)
   live; for how fork mode relates to an omitted `run_in_background`, fetch
   [the SDK's Agent tool reference](https://code.claude.com/docs/en/agent-sdk/python#agent) live.
-- **As of**: 2026-11-04
-- **Recheck trigger**: a page documents how fork mode shows in the `Agent` tool's
-  schema, or makes the parameter's presence in a schema depend on fork mode.
 
 **Stage 1b. Explicit fork-off short-circuit (zero dispatch).** We read
 `CLAUDE_CODE_FORK_SUBAGENT` explicitly `0` as fork mode off. Do not dispatch the
@@ -49,8 +46,6 @@ in every case but the explicit `0` above stage 2 remains the authoritative test.
   [Turn fork mode off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
   and the [`CLAUDE_CODE_FORK_SUBAGENT` row](https://code.claude.com/docs/en/env-vars#variables)
   live.
-- **As of**: 2026-11-04
-- **Recheck trigger**: that section or row changes what turns fork mode off.
 
 **Stage 2, an inheritance-proof canary. The decider, and it costs one fork.**
 Dispatch ONE fork alone, ahead of the first wave, that answers the proof

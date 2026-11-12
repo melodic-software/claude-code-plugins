@@ -65,7 +65,5 @@ When the request is vague (no subject, or no checkable done criterion) or high-s
 This skill offers `/planning:interview` only when the planning plugin is installed, and says which path was taken, because another plugin's skill cannot be assumed present.
 
 - **Pointer**: when deciding whether another plugin's skill can be offered, fetch [Plugins overview: Decide whether you need a plugin](https://code.claude.com/docs/en/plugins/overview#decide-whether-you-need-a-plugin) and [What an enabled plugin adds to your sessions](https://code.claude.com/docs/en/plugins/overview#what-an-enabled-plugin-adds-to-your-sessions) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes whether plugins install as units, or when a plugin's skills are present in a session.
 
 `craft-static.md` is in-repo. Re-read it when its silhouette, palette, or grid sections change; those sections are why proportions, style references, and palette are fields and why the rest default.

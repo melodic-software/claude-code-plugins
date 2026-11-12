@@ -75,9 +75,6 @@ the project rung below reachable at all.
   [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions),
   and which processes receive the variable is in
   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
-  **As of**: 2026-10-11. **Recheck trigger**: the first section stops substituting
-  `${CLAUDE_PROJECT_DIR}` in skill content, the second starts listing the Bash tool among the
-  processes that receive it, or either is renamed.
 
 If no explicit scope and no config-supplied `fleet.root`/`fleet.repo` resolve, the run uses the
 shared no-scope ladder: `--named` paths, then `ghq root --all` when `ghq` is installed, then the
@@ -125,8 +122,7 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    repository's **main worktree**, read from `git worktree list --porcelain`, never from the
    checkout discovery reached first. Which record is the main worktree: git-worktree's
    [`list`](https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-list) entry and
-   [List output format](https://git-scm.com/docs/git-worktree#_list_output_format), as of 2026-11-03; recheck when that entry changes the order it lists worktrees
-   in. When a supplied or discovered path resolves to a different main
+   [List output format](https://git-scm.com/docs/git-worktree#_list_output_format). When a supplied or discovered path resolves to a different main
    worktree, the header states the substitution on one `Resolved to main worktree:` line per
    repository, naming every path that resolved into it. Relay it, because the operator named one
    path and the report is about another. The report always shows
@@ -340,8 +336,8 @@ Related fleet contracts that remain separate:
   as an `UNKNOWN` `discovery-symlink-skip` finding and counted on the discovery-skips header line.
   Like `discovery-skip`, it is disclosure-only and does not make the fleet BLOCKED. What a Windows
   directory junction is:
-  [Creating directory junctions](https://gitforwindows.org/symbolic-links.html#creating-directory-junctions),
-  as of 2026-11-03; recheck when that page moves or covers how Git Bash tests a junction. Symlinked
+  [Creating directory junctions](https://gitforwindows.org/symbolic-links.html#creating-directory-junctions).
+  Symlinked
   discovery *roots* remain a hard refusal (CLI) or `stale-config-entry` (configured).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
@@ -379,7 +375,7 @@ Related fleet contracts that remain separate:
 | `ls-remote-fleet-unavailable` | Confirm `git ls-remote --heads` works by hand with the operator's usual Git transport, then rerun |
 | `worktree-root-pluginconfigs-unreadable` | Install `jq`, or set `worktreeroot.path`; do not treat the fleet as unconfigured |
 | `worktree-placement-unverifiable` | Inspect the canonical checkout; placement was not checked for any of its worktrees, so their placement is unknown rather than confirmed |
-| `bare-repo-with-working-tree` | Manual review: `core.bare=true` coincides with working-tree content or registered linked worktrees. What the setting does: the [`core.bare`](https://git-scm.com/docs/git-config#Documentation/git-config.txt-corebare) entry, as of 2026-11-03; recheck when that entry changes |
+| `bare-repo-with-working-tree` | Manual review: `core.bare=true` coincides with working-tree content or registered linked worktrees. What the setting does: the [`core.bare`](https://git-scm.com/docs/git-config#Documentation/git-config.txt-corebare) entry |
 | `github-remote-moved` | Human-reviewed `git remote set-url`; this plugin never changes remotes |
 
 This plugin remains useful if those optional collaborators are absent: the report names the local

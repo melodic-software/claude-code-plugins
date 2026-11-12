@@ -17,9 +17,6 @@ this surface.
 
 - **Pointer**: where the token is substituted is in
   [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
-  **As of**: 2026-10-11. **Recheck trigger**: that section stops naming `allowed-tools` rules or
-  the skill body among the places it substitutes, or a release note names string substitution in
-  skills.
 
 ## Interpreter-led form: bundled `context/*.md`
 
@@ -76,13 +73,7 @@ decide. Never work around it with a hand-rolled `rm` or another script.
   [Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions), and what a
   hook decision can override is in
   [Extend permissions with hooks](https://code.claude.com/docs/en/permissions#extend-permissions-with-hooks).
-  **As of**: 2026-10-11. **Recheck trigger**: either section changes the evaluation order or what
-  a hook decision can override, or is renamed.
 - **Pointer**: which leading assignments a rule matches past is in
-  [Wrappers](https://code.claude.com/docs/en/permissions#process-wrappers). **As of**: 2026-10-11.
-  **Recheck trigger**: that section lists the known-safe variables, changes how allow and deny
-  rules treat a leading assignment, or is renamed.
+  [Wrappers](https://code.claude.com/docs/en/permissions#process-wrappers).
 - **Pointer**: the classifier's default block list is in
   [What the classifier blocks by default](https://code.claude.com/docs/en/permission-modes#what-the-classifier-blocks-by-default).
-  **As of**: 2026-10-11. **Recheck trigger**: that list stops covering stash discards and similar
-  removals, `claude auto-mode defaults` shows otherwise, or the section is renamed.

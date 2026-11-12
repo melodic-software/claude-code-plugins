@@ -15,9 +15,6 @@ names a source, not a mistake, so section 1's exceptions do not lift the thresho
      <https://code.claude.com/docs/en/memory#choose-where-to-put-claude-md-files> and
      <https://code.claude.com/docs/en/memory#user-level-rules>; for user output styles, see
      <https://code.claude.com/docs/en/output-styles#create-a-custom-output-style>.
-   - **As of**: 2026-10-04
-   - **Recheck trigger**: either page moves the user-level location of instructions, rules or
-     output styles.
 3. **Window.** Unless the person passed `--since`, use the UTC date the target was last modified, so
    a second pass reads only sessions newer than the last write:
 
