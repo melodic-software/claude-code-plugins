@@ -67,10 +67,13 @@ export const CLAUDE_PROTECTED_FILES = new Set([
   ".mcp.json",
   ".claude.json",
 ]);
-const claudeDirWritable = (s, i) => s[i + 1] === "worktrees" || (i === 0 && ["agent-memory", "agent-memory-local"].includes(s[1]) && s.at(-1).endsWith(".md"));
+// A protected directory counts named bare too (`.vscode/`, `.config/git`), as
+// admission reads an issue that adds files under it; the root agent-memory
+// directories count as writable, since Markdown under them is.
+const claudeDirWritable = (s, i) => s[i + 1] === "worktrees" || (i === 0 && ["agent-memory", "agent-memory-local"].includes(s[1]) && (s.length === 2 || s.at(-1).endsWith(".md")));
 const claudeProtected = (s) =>
   CLAUDE_PROTECTED_FILES.has(s.at(-1)) ||
-  s.slice(0, -1).some((part, i) => CLAUDE_PROTECTED_DIRS.has(part) || (part === ".config" && s[i + 1] === "git" && i + 2 < s.length) || (part === ".claude" && !claudeDirWritable(s, i)));
+  s.some((part, i) => CLAUDE_PROTECTED_DIRS.has(part) || (part === ".config" && s[i + 1] === "git") || (part === ".claude" && !claudeDirWritable(s, i)));
 
 export const PATH_RULES = {
   // The lane token has no workflows permission, so GitHub refuses the push.

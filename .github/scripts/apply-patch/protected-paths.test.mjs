@@ -43,12 +43,22 @@ test("claude-protected refuses Claude Code's protected directories and files at 
     ".devcontainer.json",
     ".Claude/Rules/A.md",
     "a/../.claude/rules/a.md",
+    ".claude",
+    ".claude/",
+    ".claude/hooks/",
+    "plugins/x/.claude",
+    ".vscode",
+    ".vscode/",
+    ".git/",
+    ".config/git",
+    ".config/git/",
+    "a/.husky/",
   ]) {
     assert.equal(claudeProtected(path), true, path);
   }
 });
 
-test("claude-protected keeps .claude/worktrees/ at any depth, root agent-memory Markdown, and every other path", () => {
+test("claude-protected keeps .claude/worktrees/ at any depth, root agent-memory Markdown and its directory, and every other path", () => {
   for (const path of [
     ".claude/worktrees/x",
     ".claude/worktrees/feature/src/a.mjs",
@@ -66,6 +76,14 @@ test("claude-protected keeps .claude/worktrees/ at any depth, root agent-memory 
     "plugins/x/hooks/hooks.json",
     "src/git/a.mjs",
     "README.md",
+    ".claude/worktrees/",
+    ".claude/agent-memory/",
+    ".config",
+    ".config/",
+    ".config/gitx/",
+    ".vscodex/",
+    "docs/vscode/",
+    "plugins/",
   ]) {
     assert.equal(claudeProtected(path), false, path);
   }
