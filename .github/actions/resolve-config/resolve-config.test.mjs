@@ -1082,9 +1082,8 @@ test("issueLaneWebHostsFromBase: resolve-issue's web-access domains from the bas
   assert.deepEqual(issueLaneWebHostsFromBase(workspace().env), []);
 });
 
-// Empty in this repository, so its refine job sends no dispatch beyond fix-docs.
 test("refineDispatchActivitiesFromBase: the base's refine-dispatch.activities as set, [] when absent, and a non-name refused by the schema", () => {
-  assert.deepEqual(refineDispatchActivitiesFromBase({ BASE_PATH: join(HERE, "../../..") }), []);
+  assert.deepEqual(refineDispatchActivitiesFromBase(workspace().env), []);
   const listed = workspace().env;
   const file = join(listed.BASE_PATH, CONFIG_PATH);
   writeFileSync(file, `${readFileSync(file, "utf8")}\nrefine-dispatch:\n  activities: [fix-marker]\n`);
