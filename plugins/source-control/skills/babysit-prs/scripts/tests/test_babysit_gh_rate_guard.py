@@ -99,6 +99,29 @@ class SharedServerErrorVectors(unittest.TestCase):
                 )
 
 
+class SharedStopCauses(unittest.TestCase):
+    """The cause file beside the job's stop file, read by the shared
+    `stop_causes` vectors at `vector_now`."""
+
+    def test_every_stop_causes_vector(self) -> None:
+        table = json.loads(VECTORS.read_text(encoding="utf-8"))
+        for vector in table["stop_causes"]:
+            with self.subTest(vector["name"]), tempfile.TemporaryDirectory() as tmp:
+                budget = pathlib.Path(tmp, "api-budget")
+                budget.mkdir()
+                (budget / "stop").write_text(vector["stop"], encoding="utf-8")
+                if vector["cause"] is not None:
+                    (budget / "cause").write_text(vector["cause"], encoding="utf-8")
+                gh.reset_rate_guard()
+                with mock.patch.dict(os.environ, {"RUNNER_TEMP": tmp}):
+                    got = {
+                        pool: gh.stop_server_status(pool, now=table["vector_now"])
+                        for pool in ("core", "graphql")
+                    }
+                gh.reset_rate_guard()
+                self.assertEqual(got, vector["server"])
+
+
 class GuardCase(unittest.TestCase):
     """gh is faked at `babysit_gh.run_command`; each answer is consumed in
     order, and `sent` is every argv that reached it."""
@@ -317,6 +340,31 @@ class AServerErrorWithRetryAfterIsHeldButNotARateLimit(GuardCase):
                 line = self.trip(["api", "repos/o/r/pulls/1"]).error_line()
                 self.assertRegex(line, RATE_LIMIT_LINE)
                 self.assertIn(f"HTTP {status})", line)
+
+    def test_a_later_process_words_the_recorded_stop_by_its_cause(self) -> None:
+        cause_file = self.stop_file.with_name("cause")
+        self.answer(1, head(503, **core(4000, Retry_After="120")), "gh: (HTTP 503)")
+        first = self.trip(["api", "repos/o/r/pulls/1"])
+        self.assertEqual(
+            cause_file.read_text(encoding="utf-8"),
+            f"* {int(first.reset)} server-503\n",
+        )
+        # A later process reads the stop from the job's files alone.
+        gh.reset_rate_guard()
+        later = self.trip(["api", "repos/o/r/pulls/2"])
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(later.error_line(), first.error_line())
+        # A rate limit's stop reads as one.
+        gh.reset_rate_guard()
+        self.stop_file.unlink()
+        cause_file.unlink()
+        self.answer(1, head(403, **core(0)) + "{}", "gh: (HTTP 403)")
+        self.trip(["api", "repos/o/r/pulls/3"])
+        self.assertRegex(cause_file.read_text(encoding="utf-8"), r"^core \d+ limit\n$")
+        gh.reset_rate_guard()
+        line = self.trip(["api", "repos/o/r/pulls/4"]).error_line()
+        self.assertTrue(line.startswith("::error title=GitHub rate limit::"), line)
+        self.assertIn("(a stop this job recorded)", line)
 
     def test_a_5xx_without_retry_after_holds_nothing(self) -> None:
         self.answer(

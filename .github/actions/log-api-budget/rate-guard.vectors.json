@@ -434,6 +434,50 @@
       "until": { "core": null, "graphql": null, "search": 1792749000, "code_search": null }
     }
   ],
+  "stop_causes": [
+    {
+      "name": "a server error hold's stop with its cause line reads as a server error for every pool it holds",
+      "stop": "* 1792748120\n",
+      "cause": "* 1792748120 server-503\n",
+      "server": { "core": 503, "graphql": 503 }
+    },
+    {
+      "name": "a stop with no cause file reads as a rate limit",
+      "stop": "* 1792748120\n",
+      "cause": null,
+      "server": { "core": null, "graphql": null }
+    },
+    {
+      "name": "a rate limit's cause line reads as a rate limit",
+      "stop": "core 1792751600\n",
+      "cause": "core 1792751600 limit\n",
+      "server": { "core": null, "graphql": null }
+    },
+    {
+      "name": "a stop with no cause line beside another's reads as a rate limit, and the later stop decides",
+      "stop": "core 1792751600\n* 1792748120\n",
+      "cause": "* 1792748120 server-502\n",
+      "server": { "core": null, "graphql": 502 }
+    },
+    {
+      "name": "a rate limit and a server error hold ending the same second read as a rate limit",
+      "stop": "* 1792748120\n* 1792748120\n",
+      "cause": "* 1792748120 server-503\n* 1792748120 limit\n",
+      "server": { "core": null, "graphql": null }
+    },
+    {
+      "name": "a cause line for another pool, or for a stop that has passed, counts for nothing",
+      "stop": "core 1792748120\n",
+      "cause": "graphql 1792748120 server-503\n* 1792747000 server-503\n",
+      "server": { "core": null, "graphql": null }
+    },
+    {
+      "name": "a cause line not shaped `<pool> <1-12 digits> limit|server-5xx`, or with no newline, counts for nothing",
+      "stop": "* 1792748120\n",
+      "cause": "* 1792748120 server-403\n* 1792748120 server-5xx\n* 1792748120  server-503\n* 1792748120 server-503\r\n* 1792748120 server-503",
+      "server": { "core": null, "graphql": null }
+    }
+  ],
   "stop_file_errors": [
     {
       "name": "a missing stop file holds nothing",

@@ -647,6 +647,40 @@ for (const vector of VECTORS.stop_files) {
     }));
 }
 
+// The cause file beside the stop file: rate-guard.vectors.json's stop_causes,
+// read through a latch at vector_now. No cause, the safe reading, is a rate
+// limit.
+for (const vector of VECTORS.stop_causes) {
+  test(`stop cause: ${vector.name}`, () =>
+    withDir((dir) => {
+      const stopFile = join(dir, "stop");
+      writeFileSync(stopFile, vector.stop);
+      if (vector.cause !== null) {
+        writeFileSync(join(dir, "cause"), vector.cause);
+      }
+      const latch = createRateLimitLatch({ now: () => NOW, log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
+      assert.deepEqual({ core: latch.serverStatus(POOL_URLS.core), graphql: latch.serverStatus(POOL_URLS.graphql) }, vector.server);
+    }));
+}
+
+test("each stop's cause goes in the job's cause file, and a later latch words a server error hold from it", async () =>
+  withDir(async (dir) => {
+    const stopFile = join(dir, "api-budget", "stop");
+    const lines = [];
+    const options = { now: () => NOW, log: (line) => lines.push(line), fail: () => {}, limits: () => ({}), stopFile };
+    const gh = fakeGitHub([[503, { "retry-after": "120" }, ""], PRIMARY]);
+    await createRateLimitLatch(options).guard(gh.fetch)(URL_A);
+    assert.equal(readFileSync(join(dir, "api-budget", "cause"), "utf8"), "* 1792748120 server-503\n");
+    lines.length = 0;
+    await assert.rejects(createRateLimitLatch(options).guard(gh.fetch)(URL_B), RateLimitStop);
+    assert.deepEqual(lines, [`::error title=GitHub server error::GET ${URL_B} was not sent: GitHub answered HTTP 503 with a Retry-After; no call to it before 2026-10-23T09:35:20Z`]);
+    await createRateLimitLatch({ ...options, now: () => NOW + 121_000 }).guard(gh.fetch)(URL_A);
+    assert.equal(readFileSync(join(dir, "api-budget", "cause"), "utf8"), "* 1792748120 server-503\ncore 1792751600 limit\n");
+    lines.length = 0;
+    await assert.rejects(createRateLimitLatch({ ...options, now: () => NOW + 121_000 }).guard(gh.fetch)(URL_B), RateLimitStop);
+    assert.deepEqual(lines, [`::error::GET ${URL_B} was not sent: GitHub's core API rate limit holds until 2026-10-23T10:33:20Z`]);
+  }));
+
 // A stop file that exists but cannot be read holds every pool, with an error
 // naming it; a missing one holds nothing (rate-guard.vectors.json's
 // stop_file_errors).

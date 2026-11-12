@@ -568,6 +568,36 @@ function readStops(path, log) {
   return stops;
 }
 
+// The job's cause file beside the stop file: one line `<pool> <reset epoch>
+// <cause>` per stop a port wrote, cause `limit` or `server-<5xx>` for a
+// serverErrorHold. Read by STOP_LINE's rule (rate-guard.vectors.json's
+// stop_causes); a missing or unreadable file holds no cause.
+const CAUSE_LINE = /^([a-z_]+|\*) (\d{1,12}) (limit|server-5\d\d)$/;
+
+function readCauses(path) {
+  let text = "";
+  try {
+    text = path ? readFileSync(path, "utf8") : "";
+  } catch {
+    text = "";
+  }
+  return text
+    .split("\n")
+    .slice(0, -1)
+    .map((line) => CAUSE_LINE.exec(line))
+    .filter(Boolean)
+    .map(([, pool, reset, cause]) => ({ pool, reset: Number(reset), cause }));
+}
+
+// The 5xx of the stops of `pools` that end at `at` when each one with a cause
+// is a server error hold, else null: a rate limit among them, or no cause at
+// all (a stop an older writer left), reads as a rate limit, the safe reading.
+function serverHeld(causes, pools, at) {
+  const ending = at === null ? [] : causes.filter((c) => c.reset === at && pools.includes(c.pool));
+  const server = ending.filter((c) => c.cause !== "limit");
+  return server.length && server.length === ending.length ? Number(server.at(-1).cause.slice("server-".length)) : null;
+}
+
 // hold: a refusal logs a notice and leaves the exit to the caller, which must
 // then hold (no write, no merge, green with a notice). A gate that holds green
 // would pass what it could not read, so hold is for lanes only.
@@ -581,10 +611,8 @@ export function createRateLimitLatch({
   hold = process.env.API_BUDGET_HOLD === "1",
 } = {}) {
   const stops = readStops(stopFile, log);
-  // pool -> { reset, status } of a stop this latch set on a serverErrorHold.
-  // The stop file carries no cause, so a stop read from it is worded as a
-  // rate limit.
-  const serverHolds = new Map();
+  const causeFile = stopFile ? join(dirname(stopFile), "cause") : null;
+  const causes = readCauses(causeFile);
   const low = new Map();
   const warned = new Set();
   // The resets waited out, summed; the extra second only lands the call after one.
@@ -613,12 +641,8 @@ export function createRateLimitLatch({
   // The pool whose stop holds url until `at`: its own, else "*".
   const heldBy = (url, at) => (stops.get(poolOf(url)) === at ? poolOf(url) : "*");
 
-  // The 5xx when url's stop is a server error hold this latch set, else null.
-  function serverStatus(url) {
-    const at = until(url);
-    const hold = at === null ? undefined : serverHolds.get(heldBy(url, at));
-    return hold?.reset === at ? hold.status : null;
-  }
+  // The 5xx when url's stop is a server error hold, else null (serverHeld).
+  const serverStatus = (url) => serverHeld(causes, [poolOf(url), "*"], until(url));
 
   const resetMs = (url) => {
     const at = until(url);
@@ -672,9 +696,17 @@ export function createRateLimitLatch({
     const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: margin(pool, "read-floor", token), limitCap, stopFloor });
     low.set(pool, verdict.low);
     if (verdict.latched) {
+      const refused = await refusedForLimit(response);
+      const get = headerReader(response.headers);
+      const [limit, remaining] = ["limit", "remaining"].map((name) => Number(get(`x-ratelimit-${name}`)));
+      const floored = !refused && stopFloor !== null && remaining > 0 && remaining <= stopFloor * limit;
+      const server = !floored && serverErrorHold({ status: response.status, headers: response.headers, body });
+      const cause = server ? `server-${response.status}` : "limit";
       stops.set(verdict.pool, Math.max(stops.get(verdict.pool) ?? 0, verdict.reset));
+      causes.push({ pool: verdict.pool, reset: verdict.reset, cause });
       // The in-process stop holds either way; a later step only sees a
-      // recorded one, so a failed write is named.
+      // recorded one, so a failed write is named. A cause the cause file
+      // cannot take only words a later step's refusal as a rate limit.
       let unrecorded = "";
       if (stopFile) {
         try {
@@ -683,21 +715,16 @@ export function createRateLimitLatch({
         } catch (error) {
           unrecorded = `; the stop could not be recorded in the job's stop file (${error?.code ?? error?.message}), so later steps do not see it`;
         }
+        try {
+          appendFileSync(causeFile, `${verdict.pool} ${verdict.reset} ${cause}\n`);
+        } catch {
+          // Read as a rate limit, the safe reading.
+        }
       }
-      const refused = await refusedForLimit(response);
       // A stop later steps cannot see is a fault, not a limit to hold on.
       const resent = !unrecorded && resend && waits(url) && refused;
       const holds = resent || (hold && !unrecorded);
       const then = resent ? "it is sent again after the reset" : `this step ${holds ? "holds" : "fails"}`;
-      const get = headerReader(response.headers);
-      const [limit, remaining] = ["limit", "remaining"].map((name) => Number(get(`x-ratelimit-${name}`)));
-      const floored = !refused && stopFloor !== null && remaining > 0 && remaining <= stopFloor * limit;
-      const server = !floored && serverErrorHold({ status: response.status, headers: response.headers, body });
-      if (server) {
-        serverHolds.set(verdict.pool, { reset: verdict.reset, status: response.status });
-      } else {
-        serverHolds.delete(verdict.pool);
-      }
       const what = floored
         ? `left GitHub's ${poolLabel(verdict.pool)} ${remaining} of ${limit} requests, at or under its stop-floor share ${stopFloor} (status ${response.status})`
         : server
@@ -729,7 +756,9 @@ export function createRateLimitLatch({
       for (const [pool, reset] of readStops(stopFile, log)) {
         stops.set(pool, Math.max(stops.get(pool) ?? 0, reset));
       }
+      causes.push(...readCauses(causeFile));
     },
+    serverStatus,
     belowFloor: (url) => low.get(poolOf(url)) === true,
     // Waits out url's stop when it fits the budget (with wait, the latch's own
     // sleep when unset), so a caller can wait before it starts its own timers.

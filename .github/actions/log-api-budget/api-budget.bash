@@ -60,6 +60,12 @@
 #                               the epoch second <pool> is stopped until, if
 #                               it is
 #   api_budget_guessed <epoch>  whether a stop until <epoch> is a guess
+#   api_budget_server_status <pool> <epoch>
+#                               the 5xx when <pool>'s stop until <epoch> is a
+#                               server error hold (API_BUDGET_SERVER_ERROR), by
+#                               $RUNNER_TEMP/api-budget/cause, where each stop
+#                               also writes `<pool> <reset> limit|server-<5xx>`;
+#                               a stop with no cause reads as a rate limit
 #   api_budget_known_reset <pool> <route>
 #                               the reset of <pool>'s one open window in the
 #                               token's earlier readings of <route>, if there
@@ -408,24 +414,54 @@ api_budget_when() { jq -rn --argjson t "$1" '$t | todate'; }
 # a gate that does not hold still fails on it.
 api_budget_level() { [[ ${API_BUDGET_HOLD:-} == 1 ]] && echo notice || echo error; }
 
+# api_budget_server_status <pool> <epoch>: the 5xx when the stops of <pool>
+# (every pool for `any`) and `*` ending at <epoch> are server error holds by
+# the job's cause file (lines `<pool> <reset epoch> limit|server-<5xx>`, read
+# by the stop file's rule): each one there with a cause is `server-<5xx>`.
+# Returns 1 otherwise, a missing file or a stop no cause line names included,
+# so it reads as a rate limit (rate-guard.mjs serverHeld).
+api_budget_server_status() {
+  local dir=${RUNNER_TEMP:-/tmp}/api-budget
+  [[ ${2:-} =~ ^[0-9]{1,12}$ && -f $dir/cause ]] || return 1
+  # The stop file, then a \001 that ends its last line, then the cause file.
+  # For `any`, a cause counts only for a stop the stop file holds.
+  { cat -- "$dir/stop" 2>/dev/null; printf '\001\n'; cat -- "$dir/cause" 2>/dev/null; printf x; } | awk -v pool="$1" -v t="$2" '
+    !causes { if (index($0, "\001")) causes = 1; else if (/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12) stop[$1 " " ($2 + 0)]; next }
+    /^([a-z_]+|\*) [0-9]+ (limit|server-5[0-9][0-9])$/ && length($2) <= 12 && $2 + 0 == t + 0 && ($1 == pool || $1 == "*" || (pool == "any" && ($1 " " ($2 + 0)) in stop)) { if ($3 == "limit") limit = 1; else s = substr($3, 8) }
+    END { if (s == "" || limit) exit 1; print s }'
+}
+
 api_budget_refuse() {
-  local until
+  local until status
   if [[ -n ${API_BUDGET_UNRECORDED:-} ]]; then
     echo "::error::'$2' was not sent: GitHub's $(api_budget_label "$API_BUDGET_UNRECORDED") stop could not be recorded, so this step sends no further call" >&2
     return 1
   fi
   until=$(api_budget_stop_until "$1")
   [[ -z $until ]] && return 0
-  echo "::$(api_budget_level)::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
+  if status=$(api_budget_server_status "$1" "$until"); then
+    echo "::$(api_budget_level) title=GitHub server error::'$2' was not sent: GitHub answered HTTP $status with a Retry-After; no call to it before $(api_budget_when "$until")" >&2
+  else
+    echo "::$(api_budget_level)::'$2' was not sent: GitHub's $(api_budget_label "$1") rate limit holds until $(api_budget_when "$until")" >&2
+  fi
   return 1
 }
 
+# api_budget_stop <pool> <reset> <source> <what> [then] [5xx]: the 5xx is a
+# server error hold's status (api_budget_observe), worded and recorded as one.
 api_budget_stop() {
-  local dir=${RUNNER_TEMP:-/tmp}/api-budget lines
-  lines=("::$(api_budget_level)::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
-  # One printf per line: the line and its newline go in one write.
+  local dir=${RUNNER_TEMP:-/tmp}/api-budget lines cause=limit
+  if [[ ${6:-} =~ ^5[0-9][0-9]$ ]]; then
+    cause=server-$6
+    lines=("::$(api_budget_level) title=GitHub server error::'$4' got a GitHub server error, HTTP $6 with a Retry-After: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
+  else
+    lines=("::$(api_budget_level)::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}")
+  fi
+  # One printf per line: the line and its newline go in one write. A cause
+  # the cause file cannot take reads as a rate limit.
   if mkdir -p "$dir" 2>/dev/null && { printf '%s %s\n' "$1" "$2" >>"$dir/stop"; } 2>/dev/null &&
     { [[ $3 == retry-after || $3 == x-ratelimit-reset ]] || { printf '%s %s\n' "$1" "$2" >>"$dir/guessed"; } 2>/dev/null; }; then
+    { printf '%s %s %s\n' "$1" "$2" "$cause" >>"$dir/cause"; } 2>/dev/null || :
     printf '%s\n' "${lines[@]}" >&2
     return 1
   fi
@@ -477,8 +513,25 @@ API_BUDGET_CLASSIFY='def num: if type == "string" and test("^[0-9]{1,12}$") then
        pool: (if $ra != null or $secondary or (($msg or $many) and $rem != 0) then "*" elif ($res | test("^[a-z_]+$")) then $res else $in.pool end)}
     end'
 
+# A jq filter over {status, headers, body}: whether a stop has a Retry-After on
+# a 5xx as its only cause, with no x-ratelimit-remaining of 0, no message
+# naming a rate limit or abuse detection and no RATE_LIMITED error, whatever
+# the call (rate-guard.mjs serverErrorHold). GitHub documents its rate limits
+# as 403 or 429 answers, so such a hold is held the same but worded as a server
+# error.
+# shellcheck disable=SC2016 # a jq program
+API_BUDGET_SERVER_ERROR='def num: if type == "string" and test("^[0-9]{1,12}$") then tonumber else null end;
+  . as $in | ($in.headers // {}) as $h
+  | (if ($in.body | type) == "string" then ($in.body | try fromjson catch null) else $in.body end) as $b
+  | (if ($b | type) == "object" then $b else {} end) as $o
+  | (if (($o.errors // null) | type) == "array" then $o.errors else [] end) as $errors
+  | ($in.status | type) == "number" and $in.status >= 500 and $in.status <= 599
+    and ($h["retry-after"] | num) != null and ($h["x-ratelimit-remaining"] | num) != 0
+    and (([$o.message] + [$errors[] | if type == "object" then .message else null end]) | map(. // "" | tostring) | any(.[]; test("rate limit|abuse detection"; "i")) | not)
+    and (any($errors[]; type == "object" and .type == "RATE_LIMITED") | not)'
+
 api_budget_observe() {
-  local file=$1 pool=$2 what=$3 start verdict latched low source reset stop status dir=${RUNNER_TEMP:-/tmp}/api-budget
+  local file=$1 pool=$2 what=$3 start verdict latched low source reset stop server status dir=${RUNNER_TEMP:-/tmp}/api-budget
   start=$(awk 'NR == 1 && !/^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { exit } { sub(/\r$/, "") } NR > 1 && $0 == "" { print NR; exit }' "$file")
   [[ -n $start ]] || return 0
   verdict=$(jq -rn --rawfile raw "$file" --argjson start "$start" --arg pool "$pool" --argjson now "$(($(date +%s) * 1000))" \
@@ -487,15 +540,17 @@ api_budget_observe() {
     | ([$l[1:$start - 1][] | sub("\r$"; "") | capture("^(?<k>[^:]+):[ \t]*(?<v>.*)$") | {(.k | ascii_downcase): .v}] | add // {}) as $headers
     | {status: $status, headers: $headers, body: ($l[$start:] | join("\n")), now: $now, pool: $pool,
        floor: ($floor | tonumber? // null), cap: ($cap | tonumber? // null)}
-    | '"$API_BUDGET_CLASSIFY"' | "\(.latched) \(.low) \(.reset_source) \(.reset) \(.pool)"' 2>/dev/null) || return 0
-  read -r latched low source reset stop <<<"$verdict"
+    | . as $in | ($in | '"$API_BUDGET_CLASSIFY"') as $v | ($in | '"$API_BUDGET_SERVER_ERROR"') as $s
+    | "\($v.latched) \($v.low) \($v.reset_source) \($v.reset) \($v.pool) \(if $s then $in.status else "-" end)"' 2>/dev/null) || return 0
+  read -r latched low source reset stop server <<<"$verdict"
+  [[ $server =~ ^5[0-9][0-9]$ ]] || server=
   if [[ $latched == true ]]; then
     read -r _ status _ <"$file"
     if [[ $status == 2[0-9][0-9] ]]; then
       api_budget_stop "$stop" "$reset" "$source" "$what" "its answer stands, and later calls to it are refused" || :
       return 0
     fi
-    api_budget_stop "$stop" "$reset" "$source" "$what" || return 1
+    api_budget_stop "$stop" "$reset" "$source" "$what" "" "$server" || return 1
   elif [[ $low == true ]] && mkdir -p "$dir" 2>/dev/null && [[ ! -e $dir/low-$pool ]]; then
     : >"$dir/low-$pool"
     echo "::warning::GitHub's $pool API has under its read floor left; reads continue" >&2

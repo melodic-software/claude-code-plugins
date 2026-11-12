@@ -4142,19 +4142,44 @@ test("a run a GitHub rate-limit stop failed before any model turn is re-fired as
   }
 });
 
-// rate-guard.mjs's line for a server error hold (a 5xx whose only signal was
-// Retry-After): held like a rate limit, and re-fired the same way.
-test("a run a server error hold failed before any model turn is re-fired as a failed mint once the hold it names has passed", async () => {
-  const line = `GET https://api.github.com/repos/${REPO}/issues/30 got a GitHub server error, HTTP 503 with a Retry-After: no call to it before ${RESET} (retry-after); this step fails`;
+// rate-guard.mjs's and api-budget.bash's lines for a server error hold (a 5xx
+// whose only signal was Retry-After): held like a rate limit, re-fired the
+// same way, and the record names the server error. The job log's
+// `##[error]<message>` form is read, and so is the workflow command itself:
+// no saved log in this repository shows how a titled annotation is logged.
+const SERVER_HELD = [
+  `GET https://api.github.com/repos/${REPO}/issues/30 got a GitHub server error, HTTP 503 with a Retry-After: no call to it before ${RESET} (retry-after); this step fails`,
+  `'gh api repos/${REPO}/issues/30' got a GitHub server error, HTTP 503 with a Retry-After: no call to it before ${RESET} (retry-after); the call returns 1`,
+];
+const serverCause = (reset) =>
+  `The work-resolve-issue run that \`agent-ready\` started stopped on a GitHub server error hold (HTTP 503 with a Retry-After) before any model turn; the hold passed at ${reset}.`;
+const commandLog = (line) => limitLog(line).replace("##[error]", "::error title=GitHub server error::");
+test("a run a server error hold failed before any model turn is re-fired as a failed mint once the hold passed, its record naming the server error", async () => {
   for (const [job, jobs] of Object.entries(PRE_MODEL_LIMITED)) {
-    const logs = { [LIMIT_ID]: limitLog(line) };
-    const early = stalledRun({ jobs, logs });
-    assert.equal(await sweep({ github: early.github, actions: early.actions }), 0, job);
-    assert.deepEqual(writes(early.calls), [], `${job}: re-fired before the hold passed`);
-    const due = stalledRun({ jobs, logs });
-    assert.equal(await sweep({ github: due.github, actions: due.actions, now: AFTER_RESET }), 0, job);
-    assert.deepEqual(writes(due.calls), limitRefired(RESET), `${job}: not re-fired after the hold passed`);
+    for (const [form, logOf] of [["##[error]", limitLog], ["::error title=", commandLog]]) {
+      for (const line of SERVER_HELD) {
+        const name = `${job}, ${form}, ${line.slice(0, 5)}`;
+        const logs = { [LIMIT_ID]: logOf(line) };
+        const early = stalledRun({ jobs, logs });
+        assert.equal(await sweep({ github: early.github, actions: early.actions }), 0, name);
+        assert.deepEqual(writes(early.calls), [], `${name}: re-fired before the hold passed`);
+        const due = stalledRun({ jobs, logs });
+        assert.equal(await sweep({ github: due.github, actions: due.actions, now: AFTER_RESET }), 0, name);
+        assert.deepEqual(
+          writes(due.calls),
+          [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refireComment(KEY, serverCause(RESET)) })}`, ...restarted(30)],
+          `${name}: not re-fired after the hold passed, or not named a server error`,
+        );
+      }
+    }
   }
+});
+
+test("the rate-limit stop line is read in its workflow command form too", async () => {
+  const jobs = PRE_MODEL_LIMITED.admit;
+  const due = stalledRun({ jobs, logs: { [LIMIT_ID]: limitLog(STOP_LINES["hit the limit"]).replace("##[error]", "::error::") } });
+  assert.equal(await sweep({ github: due.github, actions: due.actions, now: AFTER_RESET }), 0);
+  assert.deepEqual(writes(due.calls), limitRefired(RESET));
 });
 
 test("a rate-limit stop before any model turn is on the failed-mint bound and backoff, not the failed-run one", async () => {
