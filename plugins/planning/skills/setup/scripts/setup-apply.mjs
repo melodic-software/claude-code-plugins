@@ -1,10 +1,7 @@
 #!/usr/bin/env node
 // Write or check the repository layer of the planning plugin's settings,
-// docs/conventions/planning.yaml, against schemas/planning.schema.json.
-//
-// Usage:
-//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
-//   setup-apply.mjs [--root <dir>] --check
+// <home>/planning.yaml, against schemas/planning.schema.json. <home> is the
+// repository's convention home.
 //
 // Each key is written exactly as the schema names it, so a quoted key with
 // spaces around its name is refused. The options, guarantees and exit codes
