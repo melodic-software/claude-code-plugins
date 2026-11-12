@@ -48,7 +48,6 @@ for mem in "$projects_root"/*/memory; do
   topics=$(mtopics::count "$mem")
   printf '%s\tMEMORY.md:%s\ttopics:%s\n' "$mem" "$lines" "$topics"
 done
-shopt -u nullglob
 
 if [[ "$found" -eq 0 ]]; then
   echo "No per-project memory directories under $projects_root."

@@ -92,3 +92,18 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 ^https://api\.github\.com/repos/anthropics/claude-code/releases$
 ^https://api\.github\.com/repos/anthropics/claude-code/releases/tags/v2\.1\.269$
 ^https://api\.github\.com/repos/anthropics/claude-code/tags$
+
+# Publisher bot block: 403 to the runner and to a browser User-Agent; the DOI resolves to the cited Parnas paper on dl.acm.org (verified 2026-11-11).
+^https://doi\.org/10\.1145/361598\.361623$
+
+# claude.ai connectors settings page behind sign-in: 403 on the runner (online run 42809150911) and to a signed-out browser User-Agent (verified 2026-11-11).
+^https://claude\.ai/customize/connectors$
+
+# Section anchors rendered only by the page's JavaScript: lychee reads the served HTML, which carries no heading ids (1 id on staticcheck.dev and the Chrome DevTools Protocol page, 6 on Apple HIG pages, verified 2026-11-11). The anchors are kept because skill pointers must name their section.
+^https://staticcheck\.dev/docs/configuration/#ignoring-problems-with-linter-directives$
+^https://chromedevtools\.github\.io/devtools-protocol/tot/Page/#method-startScreencast$
+^https://developer\.apple\.com/design/human-interface-guidelines/color#iOS-iPadOS$
+^https://developer\.apple\.com/design/human-interface-guidelines/dark-mode#iOS-iPadOS$
+
+# Unfilled placeholder link in the absorb-upstream record template: filled per record, never a real URL.
+^https://github\.com/(%3C|<)owner(%3E|>)/(%3C|<)repo(%3E|>)$
