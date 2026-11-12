@@ -4387,8 +4387,8 @@ def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] |
 # fails: run 43155083740 ended at 04:40:05Z, the second #15535 left the queue.
 REMOVAL_RUN_WINDOW = timedelta(minutes=2)
 # The rate-limit lines the gate job's guards write: the pinned ci-workflows
-# composites (pr-require-checks/aggregate-results/run.sh:266 and
-# check-contract/run.sh:221 at ac4d878), this repo's rate guard
+# composites (pr-require-checks/aggregate-results/run.sh:266 at ac4d878 and
+# check-contract/run.sh:184 at 2476d5d), this repo's rate guard
 # (.github/actions/log-api-budget/api-budget.bash, api_budget_refuse and the
 # line after it) and ci-status's gh_read (pr-require-checks.yml, "API rate
 # limit blocks").
