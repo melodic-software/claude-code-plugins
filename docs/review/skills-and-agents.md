@@ -2,7 +2,7 @@
 
 - Skill and agent bodies never restate a volatile upstream specific (behavior, limit, default,
   version), even with a stamp; they point at the exact section, and the pointer carries no as-of
-  date or recheck trigger (a stored value keeps both):
+  date or recheck trigger (a copied or measured upstream number or string keeps both):
   [rule](../../.claude/rules/skill-bodies-state-current-rules.md).
 - Skill and agent text meets the skill standard, and a cut to an existing skill ships only with
   eval evidence of no loss, except a restated upstream fact swapped for a pointer:
