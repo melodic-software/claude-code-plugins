@@ -45,11 +45,13 @@ telemetry..."`), not a generic `"Running hook..."`.
 A JSON output field (`hookSpecificOutput` sibling) addressed to the user. We compose it on any exit
 code, exit 2 included, and size it under the cap in
 [Output caps](#output-caps-stated-by-the-reference). Pointer: for which exit codes still read JSON
-output, see <https://code.claude.com/docs/en/hooks#exit-code-2>. Composed via
+output, see <https://code.claude.com/docs/en/hooks#exit-code-2>. As of: 2026-09-27. Recheck
+trigger: that section changes whether JSON output is read on exit 2. Composed via
 `hook::emit_channels` / `hook::emit_skip_notice`
 (`lib/hook-utils.sh`) alongside `additionalContext` in one JSON document: a hook with both
 agent-channel content and a pending notice composes them there and never prints two objects.
 Pointer: for how stdout is parsed as JSON, see <https://code.claude.com/docs/en/hooks#exit-code-0>.
+As of: 2026-10-01. Recheck trigger: that section changes how a multi-object stdout is read.
 
 **Scope, required for exactly one situation:** a missing runtime prerequisite (binary, config
 file, `jq`) causes the hook to silently no-op instead of performing its check. Doctrine
@@ -87,7 +89,9 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 
 - **Exit-2 blocking paths.** A block already delivers its reason, so repeating it on
   `systemMessage` is redundant, not more observable. Pointer: for where the blocking message goes,
-  see <https://code.claude.com/docs/en/hooks#exit-code-2>. A blocking hook may still carry a `systemMessage` (see above), but only for content that meets the
+  see <https://code.claude.com/docs/en/hooks#exit-code-2>. As of: 2026-10-04. Recheck trigger:
+  that section changes what a `PreToolUse` block shows or which text becomes its reason. A
+  blocking hook may still carry a `systemMessage` (see above), but only for content that meets the
   carve-out below, never for the reason itself.
 - **Legitimate advisory findings *the model can act on*.** A hook that surfaces a finding to Claude
   for it to act on (e.g. a lint result, a suggested fix) belongs on `additionalContext` only. That
@@ -144,7 +148,8 @@ external binary keeps the same cadence, with the install route in its user notic
 
 **Important exit-code caveat:** a bare `echo "..." >&2; exit 0` skip is **not a notice**; only
 stdout JSON carries one. Pointer: for where exit-0 stderr goes, see
-<https://code.claude.com/docs/en/hooks#exit-code-0>. `scripts/check-silent-skips.sh` **still treats a bare
+<https://code.claude.com/docs/en/hooks#exit-code-0>. As of: 2026-10-04. Recheck trigger: that
+section starts showing exit-0 stderr in the transcript or to the model. `scripts/check-silent-skips.sh` **still treats a bare
 stderr write as a sanctioned visibility signal as of this doc's introduction.** That is incorrect
 for the exit-0 skip shapes the gate inspects, and the gate does not yet enforce the rule this doc
 states. **Gate correction is pending**, scoped into the same fleet-adoption follow-up PR (against

@@ -121,8 +121,8 @@ claude plugin install smoketest@<marketplace> --scope local </dev/null
   `/plugin configure` was an interactive slash command only), so headless reconfiguration was
   another `--config` install, not uninstall then reinstall. Claude Code now documents a
   non-interactive `claude plugin configure`
-  ([plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)),
-  and the
+  ([plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+  as of 2026-10-11; recheck when that section drops the subcommand), and the
   [plugin-reconfiguration convention § The routes](contracts/plugin-reconfiguration/README.md#the-routes)
   owns which route setups print; it prefers `claude plugin configure --values-stdin` headless.
 - **CI implication.** Seed every required option with `--config` at install time. A bare headless

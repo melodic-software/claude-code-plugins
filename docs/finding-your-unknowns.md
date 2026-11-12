@@ -224,7 +224,8 @@ Two more from Addy Osmani's "Critical thinking when agents do the work"
 (`https://x.com/addyosmani/status/2117512471930167377`, published 2026-11-03), both
 BEHAVIORAL under ADR 0025; the dispositions are in
 [the upstream record](upstream/x-com-addyosmani-status-2117512471930167377.md). The page
-returned HTTP 402 to an unattended fetch, so no snapshot or hash is recorded.
+returned HTTP 402 to an unattended fetch on 2026-11-03, so no snapshot or hash is recorded.
+Recheck trigger: a raw retrieval, which records its date and hash here.
 
 - **Prediction-first** (delegation, BEHAVIORAL): before handing a non-trivial task to an
   agent, write the answer you expect, then compare it with what comes back. Evidence: the
@@ -245,7 +246,7 @@ participant chose to consult the AI, about half of the faulty ones. The authors 
 setting, a single task and a single exposure as limits, and suggest feedback, aligned incentives
 and uncertainty cues as remedies; neither practice above is tested, and Study 3 gave feedback
 only together with per-question rewards. No journal publication or independent replication was
-found.
+found as of 2026-11-09. Recheck trigger: a journal version or a replication appears.
 
 ## Sources and citation shape
 

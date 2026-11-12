@@ -54,6 +54,9 @@ a dead end, and it is why no hook here needs to rewrite a call to get the right 
 - **Pointer**: when checking what Claude sees of a denial, by the JSON `deny` or by `exit 2`, fetch
   [hooks § PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
   live.
+- **As of**: 2026-11-03
+- **Recheck trigger**: that section changes who sees a `deny` reason, or how `exit 2` compares with
+  a JSON `deny`.
 
 Auto mode can make the escape hatch a refusal: Claude Code can refuse a tool call whose input a hook
 changed after the server-side classifier reviewed it. Which sessions, tools and hooks that covers is
