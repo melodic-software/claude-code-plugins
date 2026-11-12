@@ -16,7 +16,7 @@ Four of `check`'s read-only probes run at load time. Read the values below; do n
 `jq` (a path = present, `absent` = missing): !`command -v jq 2>/dev/null || echo "absent"`
 `node` (a path = present, `absent` = missing): !`command -v node 2>/dev/null || echo "absent"`
 `zones.json` contents, capped at 40 lines, or one token distinguishing an absent file from an unreadable one: !`if [ -e "$HOME/.claude/context-usage/zones.json" ]; then head -40 "$HOME/.claude/context-usage/zones.json" 2>&1 || echo "(present but unreadable)"; else echo "(absent)"; fi`
-Leftover directory from the plugin's earlier name (its entries, or `(absent)`): !`if [ -d "$HOME/.claude/context-guard" ]; then ls -A "$HOME/.claude/context-guard" 2>&1; else echo "(absent)"; fi`
+Leftover directory from the plugin's earlier name (its entries, or `(absent)`): !`if [ -d "$HOME/.claude/context-guard" ]; then ls -A "$HOME/.claude/context-guard" 2>&1; echo "compaction markers: $(find "$HOME/.claude/context-guard/context" -maxdepth 1 -name '*.compacted' 2>/dev/null | wc -l)"; else echo "(absent)"; fi`
 
 ## Purpose
 
@@ -153,8 +153,9 @@ paths this skill names, with the `Read` tool; never Glob or Grep the plugin dire
      start.
 8. **Directory left by the earlier name** (migration). Read the pre-computed leftover value.
    `(absent)` → PASS. Otherwise FAIL "drift: `~/.claude/context-guard/` is left from the plugin's
-   earlier name", list its entries, and say whether the user `settings.json` `statusLine` command
-   names that directory. Remediation: `apply`, which moves it (see "Earlier-name directory" below).
+   earlier name", list its entries and its compaction-marker count (each marker records a
+   session compacted before the rename; the module still reads them there until they move), and say
+   whether the user `settings.json` `statusLine` command names that directory. Remediation: `apply`, which moves it (see "Earlier-name directory" below).
    A session still running the plugin under its earlier name recreates `context/` there until it
    ends.
 
@@ -172,9 +173,15 @@ Runs first, on every `apply` form, when `~/.claude/context-guard/` exists:
    When the `statusLine` in effect (found as in `apply cache-line` step 2) names the old path,
    print the same `statusLine` with that path replaced by `~/.claude/context-usage/cache-line.mjs`
    for the operator to paste; never write it.
-3. Remove `~/.claude/context-guard/` (its snapshots and markers are per-session state the module
-   writes afresh) unless step 1 stopped or the `statusLine` still names it. Report what moved,
-   what was copied and what was removed.
+3. Compaction markers: move each `context/<session_id>.compacted` to
+   `~/.claude/context-usage/context/` (create it with mode 700), never over a marker already there.
+   A marker is written only at a compaction, so a resumed session that lost it would read as never
+   compacted.
+4. Remove `~/.claude/context-guard/` (its snapshots are per-session state the module writes
+   afresh) unless step 1 stopped, a marker could not move, the `statusLine` still names it, or a
+   file in its `context/` changed within the reader contract's 10-minute staleness window (a
+   session still running the plugin under its earlier name; a later `apply` finishes it). Report
+   what moved, what was copied and what was removed.
 
 ### Zone bands
 

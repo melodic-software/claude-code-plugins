@@ -2,6 +2,9 @@ import type { EngineInterface, PromptOrigin, Register, Timer } from 'claude-code
 import { alias, followWindow, ofWindow, RANK, readBands, resolveZone, tokenShape, type Bands, type TokenShape, type Zone } from './zone.ts'
 
 const CONTRACT_DIR = 'context-usage'
+// Migration: a session compacted before the rename has its marker under the earlier directory.
+// Remove once every lane has converged on context-usage and no lane holds that directory.
+const EARLIER_DIR = 'context-guard'
 const PREFIX = 'context-usage: '
 const NEXT_ZONE: Partial<Record<Zone, Zone>> = { light: 'moderate', moderate: 'heavy' }
 const SESSION_ID = /^[A-Za-z0-9_-]+$/
@@ -444,6 +447,7 @@ async function refresh($: EngineInterface, st: State) {
   })
   if (!s.compacted && home !== undefined && SESSION_ID.test(sid)) {
     s.compacted = await $.fs.exists(`${home}/.claude/${CONTRACT_DIR}/context/${sid}.compacted`).catch(() => false)
+      || await $.fs.exists(`${home}/.claude/${EARLIER_DIR}/context/${sid}.compacted`).catch(() => false)
     // The settings hook's marker alone is reported once, as a compaction is.
     if (s.compacted) s.restate = true
   }

@@ -86,7 +86,8 @@ contract scopes its resolver invocation to.
    something, and never synthesize a zone from another source to replace it.
 4. **Compaction overrides the resolved word:** if the main thread knows this session was compacted
    or summarized, including when the context-usage evidence-degraded marker
-   `~/.claude/context-usage/context/<session_id>.compacted` exists. Treat it as
+   `~/.claude/context-usage/context/<session_id>.compacted` exists (or, for a session compacted
+   before the plugin's rename, `~/.claude/context-guard/context/<session_id>.compacted`). Treat it as
    evidence-degraded: the heavy row applies regardless of a green zone (a compacted session's
    numbers reset while its evidence is already gone). The resolver does not read that marker;
    this check is the consumer's.

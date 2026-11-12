@@ -795,6 +795,14 @@ test('compaction: the settings hook marker alone is reported once, beside the zo
   expect((await walk($, w, [10, 12])).flat()).toEqual([restated('lightCompacted')])
 })
 
+// Migration: remove with EARLIER_DIR in register.tsx.
+test('compaction: a marker left under the earlier plugin directory is reported once', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30])
+  w.files[`${HOME}/.claude/context-guard/context/sess-1.compacted`] = { text: '{}', mtimeMs: 1 }
+  expect((await walk($, w, [10, 12])).flat()).toEqual([restated('lightCompacted')])
+})
+
 test('resume: a light verdict is not restated after an in-process resume', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30])
