@@ -1,10 +1,7 @@
 #!/usr/bin/env node
 // Write or check the repository layer of the session-flow plugin's settings,
-// docs/conventions/session-flow.yaml, against schemas/session-flow.schema.json.
-//
-// Usage:
-//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
-//   setup-apply.mjs [--root <dir>] --check
+// <home>/session-flow.yaml, against schemas/session-flow.schema.json. <home>
+// is the repository's convention home.
 //
 //   --check  validate the existing file and print its keys as `PASS <key>: <value>`
 //            lines, or a `WARN` line per problem; write nothing.
