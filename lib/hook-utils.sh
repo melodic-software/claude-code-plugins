@@ -40,8 +40,7 @@ readonly _HOOK_UTILS_LOADED=1
 #     (https://code.claude.com/docs/en/settings-reference#disableallhooks)
 #   * `claude plugin disable|enable <name>`
 #     (https://code.claude.com/docs/en/plugins/cli-reference#plugin-disable)
-# Each pointer says what the control covers (as of 2026-10-11; recheck when one
-# of those sections is removed or stops covering hooks).
+# Each pointer says what the control covers.
 # This helper stays scoped to the one thing it owns: the plugin's own
 # `<name>_enabled` userConfig boolean, surfaced to hook processes as the native
 # `$CLAUDE_PLUGIN_OPTION_<KEY>` mirror.
@@ -107,8 +106,7 @@ hook::json_escape() {
 # user-channel message (systemMessage) as ONE document, so a run that has both
 # lint findings and a pending skip notice composes them here rather than
 # printing twice; how stdout is parsed as JSON is
-# https://code.claude.com/docs/en/hooks#exit-code-0 (as of 2026-10-11; recheck
-# when that section starts reading more than one JSON object from stdout). Either
+# https://code.claude.com/docs/en/hooks#exit-code-0. Either
 # channel may be empty; emits nothing when both are. One entry point for both
 # channels, so a hook with only one of them passes "" for the other rather
 # than picking between two spellings of the same emit.
@@ -187,9 +185,7 @@ hook::stdin_cut_short_notice() {
 }
 
 # systemMessage-only variant for a hook with nothing for the model. Notification
-# hooks do not use it, per https://code.claude.com/docs/en/hooks#notification
-# (as of 2026-10-11; recheck when that section starts showing a Notification
-# hook's systemMessage).
+# hooks do not use it, per https://code.claude.com/docs/en/hooks#notification.
 hook::emit_system_message() {
   hook::emit_channels "" "" "$1"
 }
@@ -419,11 +415,7 @@ hook::raw_file_path() {
 # https://code.claude.com/docs/en/hooks#exit-code-2 (Claude receives it as the
 # tool's error); on other events,
 # https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event. Where
-# exit-0 stderr goes: https://code.claude.com/docs/en/hooks#exit-code-0. As of
-# 2026-10-11; recheck when the exit-code-2 section stops saying Claude receives
-# a blocked PreToolUse hook's stderr, the exit-code-2-behavior-per-event table
-# changes which events show exit-2 stderr to Claude, or the exit-code-0 section
-# starts showing exit-0 stderr to Claude. The --no-path and stderr-deny notes
+# exit-0 stderr goes: https://code.claude.com/docs/en/hooks#exit-code-0. The --no-path and stderr-deny notes
 # below rest on this record.
 hook::require() {
   command -v "$1" >/dev/null 2>&1 && return 0
@@ -2107,9 +2099,7 @@ hook::repo_relative_path_to() {
 #
 # The trade this makes: a producer trickling bytes indefinitely is never cut off
 # here. That is deliberate: the harness already caps a `command` hook at its
-# timeout (https://code.claude.com/docs/en/hooks#common-fields, as of
-# 2026-10-11; recheck when that section drops the default timeout for command
-# hooks), and blocking a live
+# timeout (https://code.claude.com/docs/en/hooks#common-fields), and blocking a live
 # producer is exactly the failure this function had.
 #
 # `read` reports which stop condition it hit — EOF returns 1, an exceeded -t

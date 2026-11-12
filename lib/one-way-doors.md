@@ -16,5 +16,4 @@ When the evidence cannot settle the call, treat it as a one-way door.
 
 Source: Jeff Bezos, 2015 letter to shareowners,
 [Amazon.com exhibit 99.1 to SEC Form 8-K](https://www.sec.gov/Archives/edgar/data/1018724/000119312516530910/d168744dex991.htm)
-(filed 2016), the passage on Type 1 and Type 2 decisions. As of 2026-10-18; recheck when the filing
-URL moves.
+(filed 2016), the passage on Type 1 and Type 2 decisions.
