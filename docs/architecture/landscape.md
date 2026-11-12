@@ -17,7 +17,7 @@ C4Context
     System(melodic_software_ci_runner, "ci-runner", "not checked out here")
     System(melodic_software_ci_workflows, "ci-workflows", "not checked out here")
     System(melodic_software_claude_code_account_rotation, "claude-code-account-rotation", "not checked out here")
-    System(melodic_software_claude_code_plugins, "claude-code-plugins", "python")
+    System(melodic_software_claude_code_plugins, "claude-code-plugins", "shell")
     System(melodic_software_claude_code_plugins_ci, "claude-code-plugins-ci", "not checked out here")
     System(melodic_software_claude_lane_sandbox, "claude-lane-sandbox", "not checked out here")
     System(melodic_software_dotfiles, "dotfiles", "not checked out here")
@@ -25,7 +25,6 @@ C4Context
     System(melodic_software_knowledge_corpus, "knowledge-corpus", "not checked out here")
     System(melodic_software_medley, "medley", "not checked out here")
     System(melodic_software_miro_mcp, "miro-mcp", "not checked out here")
-    System(melodic_software_other, "other", "not checked out here")
     System(melodic_software_pr_pipeline_sandbox, "pr-pipeline-sandbox", "not checked out here")
     System(melodic_software_probe_repo, "probe-repo", "not checked out here")
     System(melodic_software_provisioning, "provisioning", "not checked out here")
@@ -44,29 +43,28 @@ C4Context
   Rel(melodic_software_claude_code_plugins, cursor_plugins, "cites (200)")
   Rel(melodic_software_claude_code_plugins, melodic_software__github, "cites (6)")
   Rel(melodic_software_claude_code_plugins, melodic_software_architecture, "cites (3)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_azure_iac, "cites (18)")
+  Rel(melodic_software_claude_code_plugins, melodic_software_azure_iac, "cites (17)")
   Rel(melodic_software_claude_code_plugins, melodic_software_ci_runner, "cites (2)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "cites (499)")
+  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "cites (484)")
   Rel(melodic_software_claude_code_plugins, melodic_software_claude_code_account_rotation, "cites (14)")
   Rel(melodic_software_claude_code_plugins, melodic_software_claude_code_plugins_ci, "cites (1)")
   Rel(melodic_software_claude_code_plugins, melodic_software_claude_lane_sandbox, "cites (2)")
   Rel(melodic_software_claude_code_plugins, melodic_software_dotfiles, "cites (12)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_github_iac, "cites (43)")
+  Rel(melodic_software_claude_code_plugins, melodic_software_github_iac, "cites (40)")
   Rel(melodic_software_claude_code_plugins, melodic_software_knowledge_corpus, "cites (10)")
   Rel(melodic_software_claude_code_plugins, melodic_software_medley, "cites (11)")
   Rel(melodic_software_claude_code_plugins, melodic_software_miro_mcp, "cites (1)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_other, "cites (7)")
   Rel(melodic_software_claude_code_plugins, melodic_software_pr_pipeline_sandbox, "cites (24)")
   Rel(melodic_software_claude_code_plugins, melodic_software_probe_repo, "cites (1)")
   Rel(melodic_software_claude_code_plugins, melodic_software_provisioning, "cites (11)")
   Rel(melodic_software_claude_code_plugins, melodic_software_runner_policy_runtime, "cites (1)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_standards, "cites (135)")
+  Rel(melodic_software_claude_code_plugins, melodic_software_standards, "cites (134)")
   Rel(melodic_software_claude_code_plugins, actions_checkout, "uses-workflow (216)")
   Rel(melodic_software_claude_code_plugins, actions_upload_artifact, "uses-workflow (151)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "uses-workflow (367)")
+  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "uses-workflow (368)")
 ```
 
-212 external repositories are referenced but not drawn; the record carries
+200 external repositories are referenced but not drawn; the record carries
 every one of them.
 
 ## Annotations
