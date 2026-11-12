@@ -4,8 +4,7 @@ The project's design system, tokens and conventions override everything in this 
 `{{key}}` placeholder as [`values.md`](../../../reference/values.md) says. Other numbers in the
 examples illustrate the technique.
 
-Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
-2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
+Each `Baseline:` line links the live compat entry; never copy version numbers from it.
 
 Contents: `long-text-that-wraps-truncates-or-clamps`, `image-box-that-holds-any-upload`,
 `tabular-numbers`, `label-centered-on-its-letters-with-text-box`, `icon-sized-by-the-text-beside-it`.
@@ -18,7 +17,6 @@ few-line clamp up front keeps it from breaking the layout.
 Baseline: [`text-overflow`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-overflow#browser_compatibility),
 [`line-clamp`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/line-clamp#browser_compatibility),
 [`overflow-wrap`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/overflow-wrap#browser_compatibility).
-As of 2026-10-29, recheck on a status change.
 
 Use it on names, titles, URLs and excerpts that come from a user or a CMS.
 
@@ -68,7 +66,7 @@ so nothing shifts.
 Baseline: [`aspect-ratio`](https://developer.mozilla.org/en-US/docs/Web/CSS/aspect-ratio#browser_compatibility),
 [`object-fit`](https://developer.mozilla.org/en-US/docs/Web/CSS/object-fit#browser_compatibility),
 [`outline`](https://developer.mozilla.org/en-US/docs/Web/CSS/outline#browser_compatibility) (following
-the radius). As of 2026-10-11, recheck on a status change.
+the radius).
 
 Use it on every image, video or embed whose file you do not control: thumbnails, cover photos,
 avatars.
@@ -119,7 +117,6 @@ Rules:
 Why: equal-width digits keep changing numbers from jittering and keep columns aligned.
 
 Baseline: [`font-variant-numeric`](https://developer.mozilla.org/en-US/docs/Web/CSS/font-variant-numeric#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it on any number that changes or sits in a column: prices, tables, timers, counters.
 
@@ -142,7 +139,6 @@ Rules:
 Why: trimming the line box to cap height and baseline makes equal padding look equal in any font.
 
 Baseline: [`text-box`](https://developer.mozilla.org/en-US/docs/Web/CSS/text-box#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it on single-line labels in buttons, badges and chips.
 
@@ -182,7 +178,6 @@ Why: the icon takes its size from the font, so it follows the text and never nee
 variant.
 
 Baseline: [`cap` and `lh` units](https://developer.mozilla.org/en-US/docs/Web/CSS/length#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it on every icon next to a label: buttons, links, list rows, notices.
 
