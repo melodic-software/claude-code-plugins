@@ -247,3 +247,25 @@ test("main exits 0 and counts a filed row when every write succeeds", async () =
     assert.match(summary, /- filed #901 for `ci-pins`/);
   });
 });
+
+test("main without an injected call spends CALL_BUDGET through the shared client and reports the calls used", async (t) => {
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    requests.push(`${init.method} ${url}`);
+    return new Response("[]", { status: 200, headers: { "content-type": "application/json" } });
+  });
+  await withSchedule([row()], async (dir) => {
+    const lines = [];
+    const code = await main({
+      argv: [join(dir, "schedule.json")],
+      env: { TODAY, REPOSITORY: REPO, GITHUB_TOKEN: "t", GITHUB_API_URL: "https://api.test", CALL_BUDGET: "1" },
+      log: (line) => lines.push(line),
+      wait: noWait,
+    });
+    assert.equal(code, 1);
+    assert.deepEqual(requests, ["GET https://api.test/repos/o/r/issues?labels=recurring&state=open&per_page=100&page=1"]);
+    const failed = JSON.parse(lines[0].slice("file-due ".length));
+    assert.deepEqual([failed.id, failed.outcome, failed.reason], ["ci-pins", "failed", "call budget of 1 spent"]);
+    assert.match(lines.at(-2), /, failed 1, calls 1$/);
+  });
+});
