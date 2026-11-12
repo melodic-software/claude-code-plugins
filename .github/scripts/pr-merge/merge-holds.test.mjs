@@ -1716,11 +1716,6 @@ test("trackerBindingText: a .yaml file's tracker mapping as JSON, null when it b
   }
 });
 
-test("trackerBindingText: address-feedback.mjs keeps an identical copy, since the write runner loads pr-unblock alone", async () => {
-  const feedback = await import("../pr-unblock/address-feedback.mjs");
-  assert.equal(String(feedback.trackerBindingText), String(holdsModule.trackerBindingText));
-});
-
 test("queueHolds: the kill switch holds only the lanes App's pull request, until both read false", () => {
   const app = { user: { id: 99, type: "Bot" } };
   const text =

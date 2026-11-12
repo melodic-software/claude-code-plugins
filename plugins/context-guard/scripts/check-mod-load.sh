@@ -7,11 +7,9 @@
 # The session row is INFO because only the agent sees its own tool list; a child
 # process never sees this session's flags or settings overlay.
 # What turns mods off, and the floor's source:
-# https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off (as
-# of 2026-10-11; recheck when that section changes the version or adds a way).
+# https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off
 # Reading `claude plugin test`:
 # https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load
-# (as of 2026-10-03; recheck when that table changes a message).
 set -uo pipefail
 
 if [[ $# -gt 0 ]]; then

@@ -82,8 +82,6 @@ on the turn the edit happens (the 0.41.1 note in the README).
 
 - **Pointer**: when an async hook's output reaches Claude is in
   [How async hooks execute](https://code.claude.com/docs/en/hooks#how-async-hooks-execute).
-  **As of**: 2026-10-11. **Recheck trigger**: that section changes which turn
-  an async hook's `additionalContext` reaches Claude on, or is renamed.
 
 **As of:** 2026-09-28.
 

@@ -77,9 +77,7 @@ the file and line behind it and one remediation line per FAIL:
    `claude plugin install instruction-placement@<marketplace>` and the line still stands alone.
    Load rules: pointer, when judging whether `AGENTS.md` loads, fetch
    <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
-   <https://code.claude.com/docs/en/memory#share-one-file-with-other-coding-tools> live; as of
-   2026-11-10; recheck when either section changes its import or file-discovery rules or a
-   release note touches CLAUDE.md loading.
+   <https://code.claude.com/docs/en/memory#share-one-file-with-other-coding-tools> live.
 3. **Conventions file**: missing at the configured path; the path in the existing line points at a
    file that does not exist; or tooling conventions found in an old location: a file under
    `.claude/` holding `written_against: developer-experience@`, a `# Developer tooling
@@ -179,4 +177,4 @@ and exited 1. Recheck when that page documents the unmanaged case.
   <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>; for
   the install-line form, <https://code.claude.com/docs/en/plugins/cli-reference#plugin-install>;
   for allowlist matching, <https://code.claude.com/docs/en/permissions#compound-commands>; each
-  live. **As of**: 2026-11-10. **Recheck trigger**: one of those sections changes.
+  live.
