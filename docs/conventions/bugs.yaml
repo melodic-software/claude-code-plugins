@@ -43,4 +43,4 @@ lanes:
       - 'scripts/lib/*.sh'
       - 'plugins/*/skills/setup/scripts/**'
       - 'plugins/*/lib/*config*'
-      - 'plugins/context-guard/scripts/*.sh'
+      - 'plugins/context-usage/scripts/*.sh'

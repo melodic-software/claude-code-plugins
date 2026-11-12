@@ -5,7 +5,7 @@
       "id": 1,
       "name": "check-reports-acting-account-and-provenance",
       "prompt": "/plugin-quality:setup check",
-      "expected_output": "Reports gh presence with the ACTING account and host, the context-guard seam state with the resulting dispatch mode, the convention-home resolver outcome, and the effective value of each key with the source that supplied it (topic doc, dual-read retired file, or default); edits nothing.",
+      "expected_output": "Reports gh presence with the ACTING account and host, the context-usage seam state with the resulting dispatch mode, the convention-home resolver outcome, and the effective value of each key with the source that supplied it (topic doc, dual-read retired file, or default); edits nothing.",
       "files": [],
       "expectations": [
         "Names the acting gh account explicitly, not just 'authenticated'",

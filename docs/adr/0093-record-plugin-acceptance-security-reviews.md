@@ -145,7 +145,7 @@ today. The re-review was not performed when this note was written; it is logged 
 conform; 5 bounded to two justified, non-telemetry channels; 6 dual third-party surfaces both
 gated (credential scope + human-reviewed sync).
 
-### Review record: `context-guard` (ACCEPT, 2026-07-24)
+### Review record: `context-usage` (ACCEPT, 2026-07-24)
 
 Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review.
 
@@ -161,9 +161,9 @@ Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this 
   wires it, and unwiring is the same one-line edit.
 - **MCP servers (2).** None.
 - **Consumer config (3).** No `userConfig`. The one machine file the plugin owns
-  (`~/.claude/context-guard/zones.json`) is written only by the setup skill's explicit `apply`.
+  (`~/.claude/context-usage/zones.json`) is written only by the setup skill's explicit `apply`.
 - **Cache isolation (4).** Skills reference bundled files via `${CLAUDE_PLUGIN_ROOT}`; no `../`
-  reach-outs. Writes go only to `~/.claude/context-guard/`, the operator-home carve-out,
+  reach-outs. Writes go only to `~/.claude/context-usage/`, the operator-home carve-out,
   deliberately outside `${CLAUDE_PLUGIN_DATA}` because the directory is a documented cross-plugin
   artifact location (per-session snapshots + zones SSOT) that sibling-plugin sessions read by path;
   `${CLAUDE_PLUGIN_DATA}` resolves per-plugin-identity and would hide that location. Same accepted
@@ -183,7 +183,7 @@ Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this 
 with sanitized untrusted input; 3 empty; 4 conforms under the documented operator-home
 carve-out.
 
-### Delta review: statusline shim (`context-guard` 0.2.0, `rate-limit-guard` 0.2.0, ACCEPT, 2026-07-24)
+### Delta review: statusline shim (`context-usage` 0.2.0, `rate-limit-guard` 0.2.0, ACCEPT, 2026-07-24)
 
 Triggered by the review record's own rule: both plugins' `setup apply` now writes an EXECUTABLE
 (`bin/statusline-shim.sh`) into the plugin's operator-home directory, where `apply` previously
@@ -202,7 +202,7 @@ wrote only data (`zones.json`) or nothing at all. Reviewed as a delta; the base 
   documented in the script.
 - **Consumer config (3).** Unchanged. The shim is not configurable and reads no config.
 - **Cache isolation (4).** The write stays inside the same operator-home carve-out already accepted
-  for these plugins (`~/.claude/context-guard/`, `~/.claude/rate-limit-guard/`); each plugin's
+  for these plugins (`~/.claude/context-usage/`, `~/.claude/rate-limit-guard/`); each plugin's
   `apply` is explicitly forbidden from writing into the sibling's directory. `${CLAUDE_PLUGIN_DATA}`
   was considered and rejected as the shim's home: it is deleted on uninstall, which would leave a
   wired statusline pointing at a missing file, the exact 127-exit failure this change removes,
@@ -219,7 +219,7 @@ into an already-accepted directory, on explicit operator request, with the no-ki
 justification intact. Uninstall leaves the shim behind by design; it then degrades to running the
 operator's statusline unchanged, and both setup skills document the two-step manual cleanup.
 
-### Delta review: mods replace the status-line tees (`context-guard` 0.11.0, `rate-limit-guard` 0.12.0, ACCEPT, 2026-10-03)
+### Delta review: mods replace the status-line tees (`context-usage` 0.11.0, `rate-limit-guard` 0.12.0, ACCEPT, 2026-10-03)
 
 Triggered by the review record's own rule: the writer of both guards' contract files changes from
 an operator-wired status-line tee to a mod, a hooks module (`hooks/register.tsx`) Claude Code runs
@@ -230,21 +230,21 @@ class are unchanged. Reviewed as a delta; the base records and the shim delta st
 - **Code execution (1).** New: in-process code on `tool.call`, `prompt.submit`, `session.*`,
   `turn.*`, `command.run` and `ui.render`, running whenever the plugin is enabled, where the tee ran
   only once the operator wired it. Neither mod uses `tool.check`, so neither can approve a call a
-  rule or hook refused. context-guard's `tool.call` hook denies a call only in blocking mode, the
+  rule or hook refused. context-usage's `tool.call` hook denies a call only in blocking mode, the
   capability its retired `PreToolUse` gate already had. Each mod starts one program, the bundled
   snapshot helper (`node lib/write-snapshot.mjs`, argv built by the mod, body on stdin), once per
-  write; context-guard also starts the consumer's own `HOOK_TELEMETRY_SINK` when one is set. The
+  write; context-usage also starts the consumer's own `HOOK_TELEMETRY_SINK` when one is set. The
   untrusted input that reaches a path is still only the session id, accepted as `[A-Za-z0-9_-]+`;
   the helper validates `captured_at` and caps the body at 1 MiB. The kill switch, once unneeded
   because nothing ran unwired, is now the plugin's `/plugin` switch, plus each plugin's enable
-  option (`context_guard_hooks_enabled`, `rate_limit_guard_enabled`).
+  option (`context_usage_hooks_enabled`, `rate_limit_guard_enabled`).
 - **MCP servers (2).** None. Each mod registers a read-only `status` tool with `$.tool.register`;
   it is a local tool, not an MCP server, that takes no input and returns the session's figures and
   the guard's verdict as JSON.
-- **Consumer config (3).** New: `userConfig` options (eight on context-guard, seven on
+- **Consumer config (3).** New: `userConfig` options (eight on context-usage, seven on
   rate-limit-guard), read from settings; none names a path or a program.
 - **Cache isolation (4).** Unchanged directories: writes stay in the accepted operator-home
-  carve-out (`~/.claude/context-guard/context/<session_id>.json`,
+  carve-out (`~/.claude/context-usage/context/<session_id>.json`,
   `~/.claude/rate-limit-guard/rate-limits.json`), created owner-only (directory 0700, file 0600,
   best-effort where the filesystem has no POSIX modes). Setup no longer writes
   `bin/statusline-shim.sh`; its check detects a tee or shim left from an earlier version and
@@ -282,8 +282,8 @@ surfaces named exhaustively, because this plugin READS more than most, and that 
   read per criterion 4's carve-out), keys documented in the plugin's `reference/config.md`.
 - **Cache isolation (4).** Reads that leave the plugin's own directory, each justified: (a) the
   audited plugin's installed source under the plugin cache and its marketplace registration, which
-  IS the audit subject; (b) `~/.claude/context-guard/context/<session_id>.json` +
-  `~/.claude/context-guard/zones.json`, the context-guard reader contract's documented
+  IS the audit subject; (b) `~/.claude/context-usage/context/<session_id>.json` +
+  `~/.claude/context-usage/zones.json`, the context-usage reader contract's documented
   cross-plugin interface, consumed read-only per its inline-floor rule; (c) the documented config
   layers above. Writes: the evidence packet (session-derived data such as hook failures, transcript
   path, tool errors, and contract-lock notes) under `${CLAUDE_PLUGIN_DATA}/evidence/…` with a stated

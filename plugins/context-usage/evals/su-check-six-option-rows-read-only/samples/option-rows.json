@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| context_usage_hooks_enabled | true |\n| model_notices | false |\n| zone_report_mode | automatic |\n| zone_line_data | zone |\n| context_usage_band | false |\n| context_usage_toast | true |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| context_usage_hooks_enabled | true |\n| model_notices | false |\n| zone_report_mode | automatic |\n| zone_line_data | zone |\n| context_usage_band | false |",
+      "why": "near miss: the toast option missing"
+    },
+    {
+      "answer": "Options: all at their defaults, plugin active.",
+      "why": "collapsed into one status"
+    }
+  ]
+}

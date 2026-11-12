@@ -41,8 +41,8 @@ let sessions = 0;
 const session = () => `t${process.pid}-${++sessions}`;
 
 test('launch runs claude restricted, MCP-strict, on the plugin dir, never bare', () => {
-  const { argv } = buildLaunch({ pluginDir: '/repo/plugins/context-guard' }, {});
-  assert.deepEqual(argv, ['claude', '--restricted', '--strict-mcp-config', '--plugin-dir', '/repo/plugins/context-guard']);
+  const { argv } = buildLaunch({ pluginDir: '/repo/plugins/context-usage' }, {});
+  assert.deepEqual(argv, ['claude', '--restricted', '--strict-mcp-config', '--plugin-dir', '/repo/plugins/context-usage']);
   assert.ok(!argv.includes('--bare'));
 });
 

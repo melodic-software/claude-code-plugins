@@ -52,10 +52,10 @@ Substitute `<old>` with the actual old token. Anchor with word boundaries (`\b`)
 - **Trailing boundary excludes a hyphen, and that matters on a Certain form.** A bare `\b`
   prevents `/confirm` matching in `/confirmation` but NOT in `/confirm-changes`, because `\b`
   treats a hyphen as a boundary. Names are kebab-case, so renaming `context` would match
-  `/context-guard` and, Form 1 being on container mode's Certain allowlist, auto-apply a rewrite
+  `/context-usage` and, Form 1 being on container mode's Certain allowlist, auto-apply a rewrite
   of another command's name. The consumed `([^\w-]|$)` terminator fixes both, the same shape
   Forms 13 and 15 use. Verified: `/context`, `/context:sub` (a namespaced invocation, `:` is a
-  valid terminator) and `see /context.` match; `/context-guard`, `/contextual` and
+  valid terminator) and `see /context.` match; `/context-usage`, `/contextual` and
   `path/context` do not.
 - **The consumed terminator is not part of the reference.** Replace only the `/<old>` span and
   leave it in place; this form participates in the survey's cursor rule (`audit.md` Phase 2)
@@ -256,13 +256,13 @@ See `triage.md` "Verb-sense collision the blocklist cannot serve".
 - **Why the leading `[^\w/-]` alternation:** keeps `.../plugin install x` (a path) from
   matching while allowing a line start, a space, or a backtick before the slash.
 - **Both ends exclude hyphens.** Container IDs are kebab-case, so a word boundary lets `<old>`
-  match inside a hyphenated SUPERSTRING: renaming `guard` would match `context-guard@marketplace`,
-  and renaming `context` would match `/plugin configure context-guard@acme-tools`, a silent
+  match inside a hyphenated SUPERSTRING: renaming `usage` would match `context-usage@marketplace`,
+  and renaming `context` would match `/plugin configure context-usage@acme-tools`, a silent
   auto-rewrite of an unrelated plugin's identifier, so both alternatives exclude an adjacent `-`
   on each side (`[^\w-]`). Verified against a marketplace with 32
   hyphenated plugin names: `/plugin configure context@acme-tools` matches while
-  `/plugin configure context-guard@acme-tools` does not; `context@acme-tools` matches while
-  `context-guard@acme-tools` does not.
+  `/plugin configure context-usage@acme-tools` does not; `context@acme-tools` matches while
+  `context-usage@acme-tools` does not.
 - **Optional backtick before `<old>`:** these usually sit in inline code spans
   (`` `/plugin configure <old>@<marketplace>` ``); without `` `? `` the pattern misses the most
   common rendering.
@@ -467,10 +467,10 @@ See `triage.md` "Verb-sense collision the blocklist cannot serve".
 - **`[Tt]he`, because sentence-initial is the common shape.** "The `<old>` plugin ships…" misses
   a lowercase-only `the`, leaving only a Form 2 hit that container mode suppresses as residue.
   Only the article is case-flexible; the token stays case-sensitive.
-- **Hyphen boundary, same reason as Form 13.** Renaming `guard` would otherwise match
-  `` `context-guard` ``'s; the leading `(^|[^\w-])` excludes an adjacent hyphen. The appositive
+- **Hyphen boundary, same reason as Form 13.** Renaming `usage` would otherwise match
+  `` `context-usage` ``'s; the leading `(^|[^\w-])` excludes an adjacent hyphen. The appositive
   alternative is already safe because the noun-class word must follow the token. Verified:
-  `` `guard` ``'s and `guard's` match, `` `context-guard` ``'s does not.
+  `` `usage` ``'s and `usage's` match, `` `context-usage` ``'s does not.
 - **Inline-code wrapping is the common case:** in markdown the token is usually a code span, so
   the text is `` `<old>` `` followed by `'s`, never the literal `<old>'s`. Without the optional
   backticks this form misses its own motivating example. Form 13 carries the same allowance.

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Black-box contract test for context-zone.sh (the context-guard zone
+# Black-box contract test for context-zone.sh (the context-usage zone
 # resolver).
 #
 # Contract: `context-zone.sh <session_id>` reads that session's snapshot
-# ($HOME/.claude/context-guard/context/<session_id>.json — tests redirect via
-# HOME) plus the optional $HOME/.claude/context-guard/zones.json override and
+# ($HOME/.claude/context-usage/context/<session_id>.json — tests redirect via
+# HOME) plus the optional $HOME/.claude/context-usage/zones.json override and
 # prints EXACTLY ONE of: light / moderate / heavy / unknown. Fail-open:
 # absent, stale (captured_at older than the 10-minute staleness window), or
 # unparsable snapshot → unknown; used_percentage null / missing / non-numeric
@@ -37,7 +37,7 @@ WORK="$(mktemp -d)"
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
-CTX_REL=".claude/context-guard/context"
+CTX_REL=".claude/context-usage/context"
 
 # write_snapshot <home> <sid> <used_percentage-json> [<captured_at>] [<current_usage-json>]
 # used_percentage-json / current_usage-json are raw JSON fragments (numbers,
@@ -128,14 +128,14 @@ expect "snapshot session_id mismatch (copied/renamed file)" unknown "$H" simpost
 
 # --- zones.json override -----------------------------------------------------
 HO="$WORK/h-override"
-mkdir -p "$HO/.claude/context-guard"
-printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"$HO/.claude/context-guard/zones.json"
+mkdir -p "$HO/.claude/context-usage"
+printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"$HO/.claude/context-usage/zones.json"
 write_snapshot "$HO" o40 40 && expect "override 30/60: used=40" moderate "$HO" o40
 write_snapshot "$HO" o25 25 && expect "override 30/60: used=25" light "$HO" o25
 write_snapshot "$HO" o61 61 && expect "override 30/60: used=61" heavy "$HO" o61
 
 # --- zones.json preserves unrecognized keys' file (read-only resolver) -------
-if [[ "$(<"$HO/.claude/context-guard/zones.json")" == '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}' ]]; then
+if [[ "$(<"$HO/.claude/context-usage/zones.json")" == '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}' ]]; then
   ok "resolver never rewrites zones.json"
 else
   fail "resolver mutated zones.json"
@@ -143,21 +143,21 @@ fi
 
 # --- Malformed zones.json → shipped defaults + visible stderr notice ---------
 HM="$WORK/h-malformed"
-mkdir -p "$HM/.claude/context-guard"
-printf 'not json' >"$HM/.claude/context-guard/zones.json"
+mkdir -p "$HM/.claude/context-usage"
+printf 'not json' >"$HM/.claude/context-usage/zones.json"
 write_snapshot "$HM" m40 40
 GOT="$(resolve "$HM" m40 2>"$WORK/m-stderr")"
 if [[ "$GOT" == "light" ]]; then ok "malformed zones.json → shipped defaults applied"; else fail "malformed zones.json: got '$GOT'"; fi
 if grep -qi 'zones' "$WORK/m-stderr"; then ok "malformed zones.json → visible stderr notice"; else fail "malformed zones.json: silent fallback"; fi
 
 # Ordering violation (light_max >= moderate_max) is malformed too
-printf '{"light_max_used_percentage":80,"moderate_max_used_percentage":60}\n' >"$HM/.claude/context-guard/zones.json"
+printf '{"light_max_used_percentage":80,"moderate_max_used_percentage":60}\n' >"$HM/.claude/context-usage/zones.json"
 GOT="$(resolve "$HM" m40 2>"$WORK/m2-stderr")"
 if [[ "$GOT" == "light" ]]; then ok "inverted bands → shipped defaults applied"; else fail "inverted bands: got '$GOT'"; fi
 if grep -qi 'zones' "$WORK/m2-stderr"; then ok "inverted bands → visible stderr notice"; else fail "inverted bands: silent fallback"; fi
 
 # Wrong types are malformed
-printf '{"light_max_used_percentage":"low","moderate_max_used_percentage":60}\n' >"$HM/.claude/context-guard/zones.json"
+printf '{"light_max_used_percentage":"low","moderate_max_used_percentage":60}\n' >"$HM/.claude/context-usage/zones.json"
 GOT="$(resolve "$HM" m40 2>/dev/null)"
 if [[ "$GOT" == "light" ]]; then ok "non-numeric band → shipped defaults applied"; else fail "non-numeric band: got '$GOT'"; fi
 
@@ -225,18 +225,18 @@ write_snapshot_tok "$HT" w2 40 40000 10000 100000 && expect "window below all cl
 
 # token_bands override honored.
 HTB="$WORK/h-tokenbands"
-mkdir -p "$HTB/.claude/context-guard"
+mkdir -p "$HTB/.claude/context-usage"
 printf '{"light_max_used_percentage":50,"moderate_max_used_percentage":75,"token_bands":{"200000":{"light_max_tokens":50000,"moderate_max_tokens":80000}}}\n' \
-  >"$HTB/.claude/context-guard/zones.json"
+  >"$HTB/.claude/context-usage/zones.json"
 write_snapshot_tok "$HTB" b1 null 60000 10000 200000 && expect "override token bands 50k/80k: occ=70k" moderate "$HTB" b1
 write_snapshot_tok "$HTB" b2 null 40000 5000 200000 && expect "override token bands 50k/80k: occ=45k" light "$HTB" b2
 
 # Malformed token_bands → shipped token defaults + visible stderr notice;
 # valid percentage keys in the same file still apply.
 HTM="$WORK/h-tokenmal"
-mkdir -p "$HTM/.claude/context-guard"
+mkdir -p "$HTM/.claude/context-usage"
 printf '{"light_max_used_percentage":50,"moderate_max_used_percentage":75,"token_bands":{"200000":{"light_max_tokens":300000,"moderate_max_tokens":400000}}}\n' \
-  >"$HTM/.claude/context-guard/zones.json"
+  >"$HTM/.claude/context-usage/zones.json"
 write_snapshot_tok "$HTM" tm1 null 150000 20000 200000
 GOT="$(resolve "$HTM" tm1 2>"$WORK/tb-stderr")"
 if [[ "$GOT" == "heavy" ]]; then ok "malformed token_bands (moderate>class) → shipped token defaults"; else fail "malformed token_bands: got '$GOT'"; fi
@@ -245,8 +245,8 @@ if grep -qi 'token_bands' "$WORK/tb-stderr"; then ok "malformed token_bands → 
 # v1 percentage-only zones.json: token_bands absent is zero-config (shipped
 # token defaults apply, silently).
 HTV="$WORK/h-tokenv1"
-mkdir -p "$HTV/.claude/context-guard"
-printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"$HTV/.claude/context-guard/zones.json"
+mkdir -p "$HTV/.claude/context-usage"
+printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"$HTV/.claude/context-usage/zones.json"
 write_snapshot_tok "$HTV" v1 null 150000 20000 200000
 GOT="$(resolve "$HTV" v1 2>"$WORK/v1-stderr")"
 if [[ "$GOT" == "heavy" ]]; then ok "v1 zones.json: shipped token defaults still apply"; else fail "v1 zones.json token defaults: got '$GOT'"; fi
@@ -255,14 +255,14 @@ if [[ -s "$WORK/v1-stderr" ]]; then fail "v1 zones.json: unexpected stderr notic
 # A zones.json with no edge keys that holds only known keys is a valid file
 # whose absent keys mean the defaults: right zone, no stderr.
 HQ="$WORK/h-quiet"
-mkdir -p "$HQ/.claude/context-guard"
+mkdir -p "$HQ/.claude/context-usage"
 write_snapshot "$HQ" q60 60
 for QCASE in \
   '{"thresholds":{"light":40}}' \
   '{"actions":{"edit":"warn"}}' \
   '{"approach_margin":5}' \
   '{"thresholds":{"light":40},"actions":{"heavy":{"text":"stop"}},"approach_margin":5}'; do
-  printf '%s\n' "$QCASE" >"$HQ/.claude/context-guard/zones.json"
+  printf '%s\n' "$QCASE" >"$HQ/.claude/context-usage/zones.json"
   GOT="$(resolve "$HQ" q60 2>"$WORK/q-stderr")"
   if [[ "$GOT" == "moderate" ]]; then ok "no edge keys, known keys only $QCASE → default bands"; else fail "no edge keys $QCASE: got '$GOT'"; fi
   if [[ -s "$WORK/q-stderr" ]]; then fail "no edge keys $QCASE: unexpected stderr: $(<"$WORK/q-stderr")"; else ok "no edge keys $QCASE → silent"; fi
@@ -277,7 +277,7 @@ for QCASE in \
   '{"text":{"heavy":"stop"}}' \
   '{"light_max_used_percentage":30}' \
   '{"thresholds":{"light":40},"light_max_used_percentage":"30","moderate_max_used_percentage":60}'; do
-  printf '%s\n' "$QCASE" >"$HQ/.claude/context-guard/zones.json"
+  printf '%s\n' "$QCASE" >"$HQ/.claude/context-usage/zones.json"
   GOT="$(resolve "$HQ" q60 2>"$WORK/q-stderr")"
   if [[ "$GOT" == "moderate" ]]; then ok "malformed $QCASE → default bands"; else fail "malformed $QCASE: got '$GOT'"; fi
   if grep -q 'zones.json malformed' "$WORK/q-stderr"; then ok "malformed $QCASE → notice"; else fail "malformed $QCASE: silent fallback"; fi
@@ -354,7 +354,7 @@ else
 fi
 # With an override present the file is read in ONE pass, not one per shape.
 printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' \
-  >"$TRACE_H/.claude/context-guard/zones.json"
+  >"$TRACE_H/.claude/context-usage/zones.json"
 TRACE_LOG2="$WORK/zone-xtrace-zones.log"
 HOME="$TRACE_H" BASH_XTRACEFD=9 bash -x "$ZONE" strace >/dev/null 2>/dev/null 9>"$TRACE_LOG2"
 T_JQ2=$(trace_count '^\++ jq ' "$TRACE_LOG2")
@@ -462,11 +462,11 @@ else
     const out = [];
     cases.forEach((c, i) => {
       const home = `${root}/${i}`;
-      mkdirSync(`${home}/.claude/context-guard/context`, { recursive: true });
+      mkdirSync(`${home}/.claude/context-usage/context`, { recursive: true });
       if (c.snapshot !== null && /^[A-Za-z0-9_-]+$/.test(c.sid)) {
-        writeFileSync(`${home}/.claude/context-guard/context/${c.sid}.json`, text(c.snapshot, now));
+        writeFileSync(`${home}/.claude/context-usage/context/${c.sid}.json`, text(c.snapshot, now));
       }
-      if (c.zones !== null) writeFileSync(`${home}/.claude/context-guard/zones.json`, text(c.zones, now));
+      if (c.zones !== null) writeFileSync(`${home}/.claude/context-usage/zones.json`, text(c.zones, now));
       out.push([i, c.sid, c.word, c.notices.join(","), c.name].join("\x1f"));
     });
     process.stdout.write(out.join("\n") + "\n");

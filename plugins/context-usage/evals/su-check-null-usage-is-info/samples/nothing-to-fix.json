@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing to do; the next response fills it in."
+    },
+    {
+      "answer": "No action: the resolver answers unknown until the figures arrive."
+    },
+    {
+      "answer": "On this machine jq is absent: FAIL, install jq (https://jqlang.org/download/). For your teammate's null used_percentage there is nothing to do.",
+      "why": "a fix for this host's own row, none for the null"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Reinstall the plugin to restore the figures.",
+      "why": "reinstall"
+    },
+    {
+      "answer": "Nothing is broken, but re-run /context-usage:setup apply to be safe.",
+      "why": "near miss: apply advised"
+    },
+    {
+      "answer": "Restart Claude Code and re-enable the mod.",
+      "why": "near miss: rewire"
+    }
+  ]
+}

@@ -515,7 +515,7 @@ consumer-project file on demonstrated need, never a custom env channel.
 A mod follows the same ownership. Its `register` receives the plugin's `userConfig` values as
 `options`, read from `pluginConfigs` in user settings or in managed settings for an organization.
 A project turns the plugin, and with it the mod, on or off through `enabledPlugins`.
-Structured machine tuning lives in a documented machine file, as context-guard's `zones.json` does.
+Structured machine tuning lives in a documented machine file, as context-usage's `zones.json` does.
 A mod is extended through those surfaces, never a private signal between scripts, and ships no
 compatibility shim for builds below its declared version floor (pointers:
 [reference: files](https://code.claude.com/docs/en/plugins/mods/reference#files),

@@ -138,7 +138,7 @@ plugins/knowledge/skills/course-digest/extraction/*
 # (2.1.287), so the coverage holds only where the pinned CLI resolves.
 plugins/*/hooks/register.tsx
 plugins/*/hooks/*.test.ts
-plugins/context-guard/hooks/zone.ts
+plugins/context-usage/hooks/zone.ts
 
 # Session-local working docs and this checkout's own Claude Code configuration
 # prose. Ships to no one; the hooks under .claude/hooks/ are NOT covered by

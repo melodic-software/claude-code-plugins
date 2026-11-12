@@ -238,7 +238,7 @@ lib/resolve-convention-home.sh -> plugins/*/lib/resolve-convention-home.sh
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/context-zone.sh. The plugin-quality audit and setup skills call their own
 # copy because plugin caches are per-plugin isolated, which is the
-# "same-plugin or path-provisioned callers" case the context-guard reader
+# "same-plugin or path-provisioned callers" case the context-usage reader
 # contract scopes its resolver-invocation block to.
 scripts/context-zone.sh
 
@@ -287,7 +287,7 @@ lib/view-registry.mjs
 lib/view-registry.mjs -> plugins/*/lib/view-registry.mjs
 
 # No dedicated check: the resolver's contract test, which travels with it.
-# Canonical copy: plugins/context-guard/scripts/context-zone.test.sh; copy it
+# Canonical copy: plugins/context-usage/scripts/context-zone.test.sh; copy it
 # into plugins/plugin-quality/scripts/ to fix a drift failure.
 scripts/context-zone.test.sh
 
@@ -307,7 +307,7 @@ lib/context-zone.fixtures.mjs -> plugins/*/scripts/context-zone.fixtures.mjs
 tsconfig.json
 
 # No dedicated check: accepted. The ck-notice-runs-bundled-checker eval case
-# gives context-guard, multi-agent and review the same two graders, so each
+# gives context-usage, multi-agent and review the same two graders, so each
 # commits the same sample tool calls; this script's own --check is the gate.
 # Canonical copy: the file under plugins/multi-agent/evals/; copy it into the
 # other plugins to fix a drift failure, or remove the line when one plugin's
@@ -352,7 +352,7 @@ lib/mermaid-gate.mjs
 lib/mermaid-gate.mjs -> plugins/*/lib/mermaid-gate.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/write-snapshot.mjs. The rate-limit-guard and context-guard plugins carry
+# lib/write-snapshot.mjs. The rate-limit-guard and context-usage plugins carry
 # the generated copies.
 lib/write-snapshot.mjs
 

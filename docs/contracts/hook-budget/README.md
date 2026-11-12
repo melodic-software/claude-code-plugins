@@ -62,12 +62,12 @@ A new always-on hook adds itself to one of the two.
 Neither list above counts a mod's hooks, so mods get their own form. A mod hook on `tool.call` or
 `prompt.submit` is always-on. Its budget is k = 0 on the steady path: a fire that writes nothing
 spawns no process. A fire that writes a contract file costs one process, the snapshot helper that renames it into
-place. When the consumer sets `HOOK_TELEMETRY_SINK`, context-guard's mod also starts that sink,
+place. When the consumer sets `HOOK_TELEMETRY_SINK`, context-usage's mod also starts that sink,
 fire-and-forget, once per fire that acts: lines sent to Claude, an operator-mode suggestion shown,
 or a gated call denied. A fire that changes nothing starts no sink. The plugin's own
 `claude plugin test` cases enforce both by stubbing `$.process.run` and
-counting the calls per scenario: context-guard's
-`hooks/context-guard.test.ts` ("budget: no process on calls that write nothing, one per write,
+counting the calls per scenario: context-usage's
+`hooks/context-usage.test.ts` ("budget: no process on calls that write nothing, one per write,
 none for the gate") and rate-limit-guard's `hooks/rate-limit-guard.test.ts` ("budget: no
 process on events that write nothing, one per write"). A new always-on mod hook adds such a case.
 
@@ -126,7 +126,7 @@ The "after" spawn-equivalents read higher than "before" on the Write and Edit ro
 before run's samples lived outside the repository, so every Write and verifier guard early-exited
 and measured a no-op; the harness now writes its samples under the measured cwd. Per-plugin
 READMEs carry the paired before-and-after figures for each change (guardrails, typos-format,
-eol-normalizer, markdown-format). context-guard's and rate-limit-guard's figures retired with the
+eol-normalizer, markdown-format). context-usage's and rate-limit-guard's figures retired with the
 shell hooks and status-line tee they measured; their mods' budget is under
 [Mods](#mods-a-third-enforcement-form). The run's transcript, the
 installed versions and shas, the per-file cache compare and every `hooks.json` entry measured are

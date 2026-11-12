@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "Run /context-usage:setup apply defaults to get the shipped values."
+    },
+    {
+      "answer": "For the shipped bands, use apply defaults.",
+      "why": "sentence-final"
+    },
+    {
+      "answer": "`apply defaults` sets them explicitly"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Delete the file and run apply again.",
+      "why": "another route"
+    },
+    {
+      "answer": "Run apply --reset.",
+      "why": "near miss: a made-up flag"
+    },
+    {
+      "answer": "Run apply-defaults-now.",
+      "why": "near miss: another word"
+    }
+  ]
+}

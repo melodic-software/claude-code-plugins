@@ -1,0 +1,784 @@
+# Context guard: reader contract
+
+## Contents
+
+- [Operable floor (consumers inline these values verbatim)](#operable-floor-consumers-inline-these-values-verbatim)
+- [Snapshot file shape](#snapshot-file-shape)
+- [Capability detection (fail-open)](#capability-detection-fail-open)
+- [Occupancy and combination rule](#occupancy-and-combination-rule)
+- [The module (first shipped consumer)](#the-module-first-shipped-consumer)
+- [Evidence-degraded marker](#evidence-degraded-marker)
+- [Zone is not a compaction indicator](#zone-is-not-a-compaction-indicator)
+- [Zones (machine-scope tuning, optional)](#zones-machine-scope-tuning-optional)
+- [Session-id discovery (how a consumer learns its own id)](#session-id-discovery-how-a-consumer-learns-its-own-id)
+- [Idle sessions](#idle-sessions)
+- [Sessions with no writer (`unknown` is structural)](#sessions-with-no-writer-unknown-is-structural)
+- [Invariants and boundaries](#invariants-and-boundaries)
+- [Consumers](#consumers)
+
+The consumer-facing contract for the per-session context-window snapshots this plugin produces.
+The writer is the plugin's module (`hooks/register.tsx`, a Claude Code mod), which writes through
+`lib/write-snapshot.mjs` in interactive, `-p` and `--bg` sessions alike.
+`scripts/context-zone.sh` is the bundled resolver over the same data. Readers are sibling-plugin sessions (e.g. an audit skill deciding
+whether to dispatch deep work to a fresh subagent). An installed plugin cannot read a sibling
+plugin's files at runtime, so **consumers inline the operable floor below verbatim** and cite this
+file for provenance only.
+
+**Inline-floor ownership:** this file owns the operable floor: the snapshot path pattern, the
+staleness value, and the default zone bands. Inlined copies in consumers must stay
+**byte-identical** to the values printed here; a consumer lane carries a drift check that
+grep-matches its inlined values against this file.
+
+**Recheck trigger for every dated record in this file:** re-read the record's pointer, re-derive
+the decision, and re-date the record when any of these change. The status line's documented
+`context_window` fields, whose names and meanings the snapshot keeps, including the
+`used_percentage` formula, and the session usage and version the mods API reports, which the
+module maps onto them. The auto-compact trigger,
+meaning how the published default thresholds relate to the bands, and which models and environments
+compact before the model's context limit. The surfaces that set or turn off the auto-compact
+window (the tunable table below), including per-model values, their units, ranges, and
+precedence. The skills substitution table
+that documents `${CLAUDE_SESSION_ID}`. The published statements about how a 1M window behaves
+across its length, which the band rationale cites when it declines a folklore number. Where mods
+run, which decides where a snapshot can be written at all. A release note touching the status
+line, mods, compaction, settings, or skills is the usual way one of the first four moves; a
+prompting-guide revision or a change to the mods overview moves the last two. The empirical stamps,
+the transcript-history check and the capture measurements, are re-run rather than re-read, on the
+same triggers. These stamps are probe results with a date, not standing facts.
+
+## Operable floor (consumers inline these values verbatim)
+
+- **Snapshot path pattern (fixed):** `~/.claude/context-usage/context/<session_id>.json`
+- **Zones file (fixed path, optional):** `~/.claude/context-usage/zones.json`
+- **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
+  the zone as **unknown** for that decision.
+- **Default percentage bands (over `context_window.used_percentage`, uppers inclusive):**
+  `light` ≤ **50** < `moderate` ≤ **75** < `heavy`. These shipped defaults apply only when
+  `zones.json` is absent or malformed; when the file is present and valid, its bands win (see
+  Zones below).
+- **Default token bands (over occupancy = `total_input_tokens` + `total_output_tokens`, uppers
+  inclusive, selected by window class as described under "Occupancy and combination rule"):**
+  window class **200000**: `light` ≤ **100000** < `moderate` ≤ **150000** < `heavy`;
+  window class **1000000**: `light` ≤ **128000** < `moderate` ≤ **500000** < `heavy`.
+- **Token-shape version floor (fixed):** the token shape is computable only when the snapshot's
+  `cli_version` is present, purely numeric dotted, and **≥ 2.1.132**, the release from which the
+  token fields mean current occupancy rather than cumulative session totals.
+- **Combination rule (verbatim, consumers inline this sentence):** when both shapes are
+  computable, the worse zone wins (conservative-min); when only one is computable, it stands
+  alone; when neither is, the zone is unknown.
+- **Evidence-degraded marker (fixed path, optional):**
+  `~/.claude/context-usage/context/<session_id>.compacted`. Presence means the session was
+  compacted. It is read beside the zone, which reports room only; it never changes the zone.
+- **Zone vocabulary:** `light` / `moderate` / `heavy` / `unknown`. `unknown` is the conservative
+  word; consumers treat it as "assume degraded".
+
+## Snapshot file shape
+
+One JSON object per session, rewritten atomically by the module (temp file + rename, so a reader
+never sees torn JSON). Files are **per-session**, not machine-scope last-writer-wins: concurrent
+sessions each own the file named by their `session_id`.
+
+The module writes after every tool call, at each measurement after a response, from a 15-second
+timer that runs only while a turn runs, and when the session ends. Each write runs
+`node lib/write-snapshot.mjs`, so where `node` is missing or the module cannot start a process,
+nothing is written and readers read `unknown`, as with no file.
+
+```json
+{
+  "captured_at": "2026-07-24T05:32:48Z",
+  "session_id": "abc123",
+  "cli_version": "2.1.218",
+  "context_window": {
+    "total_input_tokens": 42000,
+    "total_output_tokens": 3100,
+    "context_window_size": 200000,
+    "used_percentage": 21,
+    "remaining_percentage": 79,
+    "current_usage": {
+      "input_tokens": 6000,
+      "output_tokens": 3100,
+      "cache_creation_input_tokens": 9000,
+      "cache_read_input_tokens": 27000
+    }
+  },
+  "zone": "light",
+  "evidence_degraded": false,
+  "bands": {
+    "light_max_used_percentage": 50,
+    "moderate_max_used_percentage": 75,
+    "light_max_tokens": 100000,
+    "moderate_max_tokens": 150000
+  }
+}
+```
+
+**The published zone (public consumer contract).** `zone`, `evidence_degraded` and `bands` let a
+reader such as a status line show the zone and its edges without re-implementing the band lookup
+or importing plugin code. A reader that predates these fields, or reads a file an older module
+wrote, falls back to its own lookup over `context_window` and `zones.json` as this contract
+describes; the fields are additive, and a reader ignores keys it does not know.
+
+- `zone`: `light`, `moderate`, `heavy` or `unknown`, as the module resolved this body: the
+  combination rule over the bands below. It reports room only: a compaction does not change it,
+  and `evidence_degraded` reports the compaction beside it. It is as of `captured_at`, so the
+  staleness rule still applies: a stale file means `unknown`. For one release a reader
+  also accepts `smart`, `acceptable` and `dumb` as `light`, `moderate` and `heavy`: a session
+  still running the earlier module writes them, with `bands` under the old key names
+  (`smart_max_*`, `acceptable_max_*`).
+- `evidence_degraded`: `true` once the module saw a compaction or the marker for this session,
+  whatever `zone` says.
+- `bands`: the edges in force after `zones.json`: `light_max_used_percentage` and
+  `moderate_max_used_percentage` always; `light_max_tokens` and `moderate_max_tokens` for
+  the session's window class, `null` when the token shape is not computable (see "Version
+  floor"); and `auto_compact_window` only when the auto-compact window is smaller than
+  `context_window_size`, in which case the percentage edges are already scaled to it (see "The
+  module follows the effective window" below). A reader running its own lookup scales its
+  percentage edges by `auto_compact_window / context_window_size` to reach the same `zone`.
+- They are written whenever the snapshot is, whatever the `model_notices` option says.
+
+- `captured_at`: ISO-8601 UTC write time; always present. Drives the staleness rule. A write
+  whose other fields are unchanged since the last one happens at most once per 60 seconds (the
+  writer's no-change floor), and the timer ticks every 15 seconds, so during a turn `captured_at`
+  trails the latest reading by up to 75 seconds, well inside the 10-minute window.
+- `session_id`: always present; also the filename stem. The module writes only for an id of
+  `[A-Za-z0-9_-]`, and an id outside that class gets no file.
+- `cli_version`: the Claude Code version the session reports, present only when it is a
+  non-empty string; absent otherwise, never guessed. It gates the token shape (see "Version
+  floor"), so an absent one is not a defect. It just leaves the percentage shape standing alone.
+- `context_window`: always present, built from the session's live usage in the status line's field
+  names and meanings: `total_input_tokens` and `total_output_tokens` (absent before the session's
+  first response), `context_window_size`, `used_percentage`, `remaining_percentage` and
+  `current_usage`. A field the status line adds later does not appear here until the module maps
+  it. A null `used_percentage`, `remaining_percentage`, or `current_usage` is a normal
+  state, not a defect; the capability table below says what each one does to the zone. A body
+  with null figures never replaces a file that has them. Pointer: for the field meanings and when each field is
+  null, see <https://code.claude.com/docs/en/statusline#available-data>.
+- **File modes and siblings.** The snapshot file is owner-only (`0600`) and the directory `0700`
+  where POSIX modes work. For each write the writer creates a lock file,
+  `.<session_id>.json.lock`, and removes it when the write ends; one is left behind only when that
+  removal fails, and the next write steals it once it is 60 seconds old. It writes through a temp
+  file, `.<session_id>.json.tmp.w<pid>-<hex>`, removed after the rename. A `.<session_id>.json.last` file is one that versions before 0.11.0
+  left behind; the writer's hourly prune deletes it, and every lock file, after 14 days. Readers
+  read only `<session_id>.json` and `<session_id>.compacted` and ignore every file whose name
+  starts with a dot.
+- Treat all values as **untrusted data**: parse with a JSON parser; validate any value against its
+  documented format before handing it to a lenient parser (the bundled resolver format-gates
+  `captured_at` to strict ISO-8601 before date parsing, and requires the embedded `session_id` to
+  equal the requested one); never pass snapshot values to anything that executes them (`eval`,
+  `sh -c`, a string-built jq program) and never string-interpolate them into a prompt.
+- **No writer authentication exists.** The directory is owner-only where POSIX modes work
+  (`chmod 700`, best-effort); on filesystems without them (e.g. Windows ACL volumes under Git
+  Bash) other local users could read or forge snapshots. A forged-but-well-formed snapshot is
+  indistinguishable from a real one; the zone is a routing hint, so the worst case of forgery is
+  a wrong dispatch decision, never an egress or execution decision. Consumers must not attach
+  security decisions to zone words.
+
+## Capability detection (fail-open)
+
+A consumer classifies before every zone-informed decision. Capability is **per shape**, because the
+combination rule below already says what to do when only one shape is computable. A row that
+dropped straight to `unknown` on a single missing field would contradict it. Only the snapshot-wide
+rows answer `unknown` on their own:
+
+| Observation | Effect |
+|---|---|
+| Snapshot absent, stale, or unparsable | **unknown** (snapshot-wide) |
+| Embedded `session_id` not equal to the requested id | **unknown** (snapshot-wide) |
+| `current_usage` null or missing (early-session or post-`/compact` state) | **unknown** (snapshot-wide: a compacted session's numbers are not evidence for either shape) |
+| jq (or equivalent JSON parsing) unavailable to the consumer | **unknown** (snapshot-wide) |
+| `used_percentage` null / missing / non-numeric / outside 0–100 | **percentage shape not computable** |
+| `total_input_tokens` / `total_output_tokens` null, missing, non-numeric, or negative | **token shape not computable** |
+| `context_window_size` null, missing, non-positive, or below every configured band class | **token shape not computable** |
+| `cli_version` absent, non-numeric, or below the version floor (see below) | **token shape not computable** |
+| occupancy greater than `context_window_size` | **token shape not computable** |
+| Both shapes computable | combine per the combination rule (worse zone wins) |
+
+A "not computable" shape drops out of the combination rule; the surviving shape stands alone, and
+`unknown` follows only when neither survives. Absurd values fail open, never closed: the consumer
+never skips its conservative path on data it cannot trust, and never fabricates a zone. `unknown`
+always means "take the conservative route".
+
+## Occupancy and combination rule
+
+The contract carries two zone shapes because the two underlying measures answer different
+questions. Never equate them without normalizing:
+
+- **Percentage shape**: `context_window.used_percentage` against the percentage bands. We rely on
+  it counting the input side only, and read it as *distance to compaction*, because compaction
+  thresholds key off the same accounting. Pointer: for how the percentage is computed, see
+  <https://code.claude.com/docs/en/statusline#context-window-fields>.
+- **Token shape**: **occupancy**, defined as `total_input_tokens + total_output_tokens`, against
+  the window-class token bands. Occupancy counts both directions because both occupy the window,
+  and we treat quality loss as tracking **absolute tokens in context, not window fraction**. It
+  answers *distance to quality loss*. That is also why the token bands are absolute numbers
+  selected by window class rather than percentages: 50% of a 1M window is a materially different
+  cognitive state than 50% of a 200k window. This is a declared judgment: no published study
+  compares absolute tokens with window fraction, and Anthropic publishes no context-quality
+  threshold. Recheck trigger: Anthropic publishes a context-quality threshold, or a study compares
+  the two.
+
+**Window-class selection:** use the band row whose class key is the **largest one ≤
+`context_window_size`**. A window smaller than every configured class has no row, so the token
+shape is then not computable (never borrow a larger class's looser bands).
+
+**Combination rule (consumers inline this sentence verbatim):** when both shapes are computable,
+the worse zone wins (conservative-min); when only one is computable, it stands alone; when
+neither is, the zone is unknown. Rationale: the two shapes disagree exactly when one measure has
+information the other lacks (a deep window made mostly of cache reads, a small window near compaction), and
+a routing hint must degrade toward caution, never toward optimism.
+
+**Version floor:** we read `total_input_tokens` / `total_output_tokens` as *current context
+occupancy* only from Claude Code **2.1.132** on (the source note below gives the basis). Before
+that they were cumulative session totals, which would misfire the token bands badly. Cumulative
+semantics are **not observable from the numbers**: a cumulative 170k in a 200k window is a
+perfectly plausible current occupancy, sits inside the window, and resolves `heavy` while the live
+context may be in the light zone. So the token shape requires
+an explicit version signal: the snapshot's `cli_version`, the Claude Code version the session
+reports to the module (Pointer: `$.session.version()` in
+<https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods>. As of: 2026-10-03,
+Claude Code 2.1.288. Recheck trigger: that table renames or drops the method). **The token shape is
+computable only when
+`cli_version` is present, purely numeric dotted, and ≥ 2.1.132**; absent, malformed, or older
+leaves the percentage shape to stand alone.
+
+> **Source of the 2.1.132 floor.** We do not trust `total_input_tokens` /
+> `total_output_tokens` as current occupancy below Claude Code 2.1.132, the release whose
+> changelog entry names the statusline token-count fix.
+>
+> - **Pointer**: when deciding where the floor sits, fetch
+>   [Changelog 2.1.132](https://code.claude.com/docs/en/changelog#2-1-132) live; for the fields'
+>   present meaning,
+>   [status line: context window fields](https://code.claude.com/docs/en/statusline#context-window-fields).
+> - **As of**: 2026-10-11
+> - **Recheck trigger**: any change that relaxes the floor, or the changelog entry moves or is reworded.
+
+**Plausibility guard (independent, retained):** **occupancy greater than `context_window_size`
+also marks the token shape not-computable**. That is corrupt or forged data, and it catches what
+a version field cannot (there is no writer authentication, so `cli_version` is untrusted like
+every other snapshot value). The bundled resolver implements both gates.
+
+**Band provenance:** the shipped token bands are **declared judgment**, not benchmark-derived
+constants. Anthropic's system cards for the current Claude models give no per-length
+long-context scores (the pointer below names the sections); as observed 2026-10-09, and again
+for the Fable 5.2 card on 2026-11-09, each card reports one aggregate ProgramBench score, an
+agentic task whose episodes run up to the full 1M window. The published per-length data is retrieval and graph traversal, not agentic work, and no
+study we found links those scores to agentic task quality. We read two such sources, both at the
+pointer below. As observed 2026-10-09: on GraphWalks BFS, run by Google at max reasoning and
+published with Gemini 4 Argon, Opus 5.5 scored 90.6% up to 128K and 66.8% from 256K to 1M, and
+Fable 5.1 91.4% and 65.0%; on Context Arena's 8-needle MRCR (max effort), Claude Opus 5 scored
+0.913 at 128K, 0.656 at 256K and 0.425 at 512K, and Claude Sonnet 5 0.529, 0.522 and 0.320. The 1M
+row's `light` edge, 128000, is the last length at which those current-model scores were still near
+their best when we set it. Its `moderate` edge,
+500000, sits below 512K, the first MRCR length at which both Claude rows scored under one half.
+Between the two, scores sag without a measured cliff, so a reading there is `moderate`, not `heavy`: an
+`moderate` edge of 250000 read `heavy` at 26% of a 1M window on no evidence for current models
+or agentic work (#6644). The 200k row's `moderate` edge, 150000, is a declared judgment
+default with no measured basis. `zones.json` is the correction path, and
+the numeric agreement of the 200k row's percentage translation with the shipped 50/75 percentage
+defaults is coincidence, not validation.
+
+- **Pointer**: when re-deriving a 1M band edge, fetch live:
+  [Context Arena, 8 needles](https://contextarena.ai/api/needle-summary?needles=8), the Claude
+  Opus 5 and Claude Sonnet 5 rows; [Gemini models](https://deepmind.google/models/gemini), the
+  Gemini 4 Argon table's Opus 5.5 and Fable 5.1 GraphWalks BFS rows; the absence of per-length data, the
+  [Opus 5.5 system card](https://www-cdn.anthropic.com/fc1b44717c85dc068bc6ba5024219938094694bd/Claude%20Opus%205.5%20System%20Card.pdf)
+  section 8.10, the [Fable 5.1 system card](https://www-cdn.anthropic.com/0339e6a7c5c7b87f5c07798616dc32c215d14235/Claude%20Fable%205.1%20&%20Claude%20Mythos%205.1%20System%20Card.pdf)
+  section 8.11 and the [Fable 5.2 system card](https://www.anthropic.com/document/claude-fable-5-2-mythos-5-2-system-card)
+  section 8.10. For the 200k row, correlate with [AI Hero, "Smart Zone"](https://www.aihero.dev/ai-coding-dictionary/smart-zone)
+  and [Geoffrey Huntley, "Ralph"](https://ghuntley.com/ralph/); no docs page covers where quality
+  degrades on a 200K window as of 2026-10-04.
+- **As of**: 2026-10-09; 2026-11-09 for the Fable 5.2 card (read as extracted text, charts excluded)
+- **Recheck trigger**: Opus 5.5, Fable 5.1 or Sonnet 5.5 appear on Context Arena; Google's table
+  splits the 256K-1M GraphWalks bin; a new or revised
+  Anthropic system card publishes per-length scores; or a docs page starts covering where quality degrades on a 200K window, at which point the
+  200k row's pointer moves there.
+
+## The module (first shipped consumer)
+
+The plugin's module (`hooks/register.tsx`, a Claude Code mod, so it needs a Claude Code build that
+can run mods) is the
+first shipped consumer. It decides from the live session's figures, the same ones it writes to the
+snapshot, through a TypeScript copy of the resolver's band function; the shared fixture
+`scripts/context-zone.fixtures.mjs` (generated from the repo's `lib/context-zone.fixtures.mjs`)
+holds the two resolvers to the same word and notices. Where mods cannot load (see the setup
+skill's module check), none of the following runs except the PostCompact marker.
+
+- **Pointer**: when deciding which Claude Code builds can run mods, fetch
+  [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+  live.
+
+- **Zone lines** (on each tool result of the main conversation and each prompt; the model channel
+  below only with the `model_notices` option on, which is off by default): on a transition
+  into a zone worse than any this session has already reported, report the crossing on **two
+  channels with two audiences**. The **model channel** (the `context` a `tool.call` or
+  `prompt.submit` hook adds) carries by default the zone word and its rank of three, and past
+  `light` one options line after the verdict lines at a carrier (below). A
+  line carries no figure unless `zone_line_data` adds one (percent, tokens, window); it never
+  carries a session id. Beside the
+  crossings the module sends one approach line per boundary per cycle (`approach_margin`
+  percentage points before it), one line per `thresholds` entry passed, and the verdict restated
+  once after an in-process resume and on a reload or a worker respawn (a load with earlier
+  turns), only when it is past `light`; once after a compaction (not a `precompute` one), and on
+  any of those loads when the session has the marker, at any zone. Each line
+  sent is also written as sent to the debug log. Lines due
+  at one carrier: a crossing or restatement recorded before a pending restatement merges into it;
+  a crossing recorded after it is the newer verdict and replaces it. After
+  `/clear` it sends nothing: the new session starts in `light`. Lines go to the main conversation
+  only, never to a subagent. In `operator` report mode a turn a person typed holds the lines and
+  offers them as the prompt box's suggestion plus a notice row when the turn ends; headless,
+  loop, schedule and notification turns get the lines either way. The **operator channel** (a
+  transcript line Claude does not read and a toast, plus a notice row on every surface but the
+  terminal, where a toast may not show) carries the same crossing plus the continuation menu that
+  is the human's call to make (continue / `/compact` / `/clear` / `/session-flow:handoff` then
+  `/clear`), at the reading that saw the crossing rather than at the carrier that takes Claude's
+  line (a measurement, a tool call, a prompt, or a `/context-usage` or status-tool read), and not
+  for a first reading already past `light`, which has no earlier zone to name. A crossing already
+  shown in an unattended turn is not offered again as a typed turn's suggestion. The
+  transcript line ends `more: /context-usage`. `/context-usage` replies with the verdict, its
+  figures and the settings in force only, because a command's reply is stored as a transcript row
+  Claude reads; it writes the router pointer and the docs link as a separate transcript line
+  Claude does not read. The menu does not say which option fits when, so that line says to route
+  the next step with `/session-flow:workflow` (if installed). Without session-flow, we send the
+  operator to the docs section on a filling context and restate none of it. Pointer: for the
+  command reply reaching the model and `$.ui.log` not, see the `CommandRunResult`, `CommandOutput`
+  and `ui.log` doc comments in the build's `claude-code/index.d.ts` types. Pointer: for what to do
+  when the context fills up, see
+  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. **Neither the
+  person's menu nor the
+  router pointer ever reaches the model channel.** I23 of `/harness-config:audit-instructions`
+  holds that a menu injected into model context manufactures the model's own initiative to stop,
+  summarize, or hand off. The options line below is a deliberate, owner-decided exception to that
+  row (2026-10-11, issue #7118): an audit that flags it records it as this known exception rather
+  than a new finding. By default the module sends the
+  verdict, any operator-configured `zones.json` action, and past `light` one options line: record
+  decisions and pending items in a durable file, then continue, `/compact`, or hand off as the
+  model and the user choose, and a zone never calls for terser output, fewer agents, or lower
+  quality. The verdict alone, with no such line, pushed the model toward handoffs and terse
+  delegation (observed 2026-10-11, issue #7118), so the line states the durable-state step and
+  says what a zone does not mean; it lists compaction and a handoff only as choices beside
+  continuing. `/session-flow:workflow` and the user's own instructions own when to compact or hand
+  off. The model
+  channel never says the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
+  claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or
+  `unknown`. **Hysteresis**: the gate is the worst zone already *reported*, not the zone last
+  *seen*. That marker decays only when the session returns to `light`, the bottom of the ladder.
+  Occupancy does not climb monotonically, so a session sitting on a band edge crosses it
+  repeatedly; without the rule each re-crossing reads as a fresh transition and re-injects the
+  guidance block. A `/clear` needs no rule: it starts a new session id, hence a fresh baseline.
+  The rule is a declared judgment default, on the same footing as the bands above and with the
+  same provenance status. **The property**: within one arming cycle each
+  zone is announced at most once, and only a return to `light` opens a new cycle. A genuine
+  recovery followed by a relapse therefore re-injects exactly once for the band it relapses into,
+  from any armed band. **The residual**: at the `light`/`moderate` edge a flap and a full recovery are the
+  same observation, so a session oscillating there re-announces `moderate` once per down-up cycle;
+  the hook sees one word per observation, never the occupancy behind it, and separating those two
+  cases needs a numeric deadband or a dwell the single-observation recovery could not survive.
+- **No gate**: the module never denies a tool call. A zone is reported, never enforced.
+- **PostCompact marker** (a settings hook, so it runs where mods are off): writes the
+  evidence-degraded marker file (below).
+- **The zone lines report the marker beside the zone**: when the marker exists, or the module saw
+  the compaction itself, the lines, toast and band row add "compacted" beside the resolved zone,
+  and the verdict is restated once at any zone, so the marker is never write-only. The zone itself
+  stays the room reading.
+- **Status tool** `mcp__context-usage__status`: returns the session's latest figures (the last API
+  response's), its zone, whether the evidence is degraded, the bands in force (the token edges of
+  the session's window class as `light_max_tokens` and `moderate_max_tokens`, `null` when the
+  token shape is not computable), as JSON. A zone lookup for a session that has the module loaded; it has no switch.
+
+Module state (last-seen zone, armed rank) lives in the module's memory, per session
+id; it is plugin-private and not part of this contract. The module adds no new snapshot
+semantics.
+
+- **Pointer**: for how a mod works and the mods API methods the module calls, see
+  [mods overview: how a mod works](https://code.claude.com/docs/en/plugins/mods/overview#how-a-mod-works)
+  and [mods reference: mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods).
+
+## Evidence-degraded marker
+
+`~/.claude/context-usage/context/<session_id>.compacted`, written by the PostCompact hook,
+last-write-wins per session:
+
+```json
+{ "compacted_at": "2026-07-26T12:00:00Z", "trigger": "auto", "hook_event_name": "PostCompact" }
+```
+
+`trigger` is `manual` | `auto` | `unknown`. **Presence alone is the signal**: a consumer that
+finds the marker knows earlier conversation survives only as a summary, so constraints stated only
+in conversation may be gone, whatever the zone says (see the next section for why). The zone keeps
+reporting room; each consumer decides what the marker means for its own routing. Consumers should not gate on `compacted_at` freshness. Compaction's evidence
+loss does not expire with time in the same session. The marker is part of this contract's
+documented interface (fixed path, same character-class and trust rules as snapshots); it closes
+the documented gap
+that the snapshot alone cannot reveal compaction. Housekeeping: the writer hook prunes sibling
+markers older than 14 days on each write, the same cutoff the snapshot writer applies, far
+above any live session's horizon, so a marker is never deleted out from under the session it
+describes.
+
+**Do not differentiate on `trigger`.** Evidence degradation is trigger-independent: the marker's
+rationale is that the evidence is already gone from the model-visible context, which holds
+identically for a steered `/compact` and an auto-compact. Consumers therefore treat all three
+values the same, and that sameness is deliberate, not an omission. The writer
+(`hooks/post-compact-mark.sh`) records the field and writes the marker unconditionally: a hook
+cannot observe intent, and a marker written conditionally stops being evidence, so there is no
+boundary-timed carve-out.
+
+## Zone is not a compaction indicator
+
+A compacted session's `used_percentage` **resets downward** while the evidence in its
+conversational context is already gone. The zone then reports the room regained, not the evidence
+lost, so a consumer that knows its session was compacted (or summarized by the harness) reads that
+fact beside the zone, including a green `light` reading. The snapshot's figures cannot tell you
+compaction happened; `evidence_degraded`, the marker, or the session itself can.
+
+**The docs publish the default thresholds; we state no figure.** The default depends on the model,
+the window it runs with, and the environment. This is a documentation pointer, not something read
+at run time: the docs' default-thresholds section,
+[Claude Code model config, "Default auto-compact thresholds"](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds).
+`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` implies a percentage default that no page publishes as a number. **Pointer:** when deciding what
+that variable does, fetch
+[Claude Code environment variables: variables](https://code.claude.com/docs/en/env-vars#variables)
+live. The empirical
+check (2026-07-24, execution session): no auto-compact event exists in the producing machine's
+entire transcript history; the largest session ran to 308k total input tokens uncompacted on a
+1M-class window. So the shipped bands keep the provenance stated under "Band provenance" above,
+with a declared margin: the heavy band leads the default trigger that table gives for the model in
+use. The trigger is **model- and environment-dependent**, so no single band set is
+correct everywhere; `zones.json` is the correction path if compaction is ever observed earlier.
+
+Two adjacent decisions. We read the statusline percentage as of the last API response, not the
+next request, so it can trail `/context`. With auto-compact turned off, the heavy band is the
+*only* tripwire, so it matters strictly more, never less.
+
+- **Pointer**: for how the statusline percentage relates to `/context`, see
+  <https://code.claude.com/docs/en/statusline#troubleshooting>; for turning auto-compact off, see
+  <https://code.claude.com/docs/en/settings-reference#autocompactenabled>.
+
+### The trigger is operator-tunable
+
+The docs publish the default thresholds (pointer above), and the point at which auto-compact fires
+is a configured value the operator can set. The table lists the surfaces we hold a decision about,
+not a closed set: the pointers hold the full set of surfaces, their units, ranges, forms, and
+precedence.
+
+| Surface | Kind | What this plugin relies on | Pointer |
+|---|---|---|---|
+| `autoCompactWindow` | settings key (top level or per model) | A token count that moves the trigger for the model it applies to. Unset, the default is the docs' default-thresholds section (pointer above). Set, the module reads the window the engine settled on and, when it is smaller than the model's window, publishes it as `bands.auto_compact_window`, which the shell resolver reads too (below). Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [settings-reference: `modelSettings`](https://code.claude.com/docs/en/settings-reference#modelsettings); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window. The snapshot cannot see that window, and the surface is not probed, so we never assume a subagent shares the session's trigger. | [sub-agents: Subagent auto-compact window](https://code.claude.com/docs/en/sub-agents#subagent-auto-compact-window) |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window ahead of the setting, the command, and the flag, unless Claude Code ignores its value. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables); [model-config: values and warnings](https://code.claude.com/docs/en/model-config#claude_code_auto_compact_window-values) |
+| `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Read as able only to move the trigger earlier, never later. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
+| `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key / environment variable | Either one turning auto-compact off leaves the heavy band as the only tripwire. `DISABLE_AUTO_COMPACT` leaves the manual `/compact` command available. | [settings-reference: `autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled); [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
+| `DISABLE_COMPACT` | environment variable | A separate, broader switch the plugin does not read. The env-vars page documents it as: "Set to `1` to disable all compaction: both automatic compaction and the manual `/compact` command". It turns off manual `/compact` too, which `DISABLE_AUTO_COMPACT` does not. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
+
+We read a configured window above the model's context window as the model's window: it extends
+nothing.
+
+- **Pointer**: per row above.
+- **As of**: 2026-10-15 for the `DISABLE_COMPACT` row, which quotes the page; none for the
+  other rows, which are pointers.
+- **Recheck trigger**: for the `DISABLE_COMPACT` row, a release note or one of those sections
+  changes a surface's units, range, precedence, or the set of surfaces itself; none for the
+  other rows.
+
+**The module follows the effective window.** It never reads a configured window or resolves
+precedence itself: it reads the window the engine settled on, the `rawMaxTokens` of
+`$.session.usage({ breakdown })` (the `/context` breakdown), whose `autocompactSource` says
+which surface set it (`env`, `settings`, the model's default, and the rest). When that window is
+smaller than `context_window_size`, it scales the percentage edges, the `thresholds` and the
+approach margin by their ratio, so `zones.json` percentages are of the auto-compact window, and it
+publishes the scaled edges with `bands.auto_compact_window`. Token bands are not scaled. Without a
+breakdown, or with a window at or above the model's, the edges stay as set. A probe on Claude Code
+2.1.317 (2026-11-03, one `claude -p` turn on a 1000000-token model) read `rawMaxTokens` 400000 with
+source `env` under `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000`, 300000 with source `settings` under a
+top-level `autoCompactWindow`, and 250000 under a per-model `modelSettings` value, where a
+`$.settings.read` of the top-level key returned nothing.
+
+The shell resolver (`scripts/context-zone.sh`) and its copies read `bands.auto_compact_window`
+from the snapshot and scale the percentage edges from `zones.json` by the same ratio, so under a
+lowered window they reach the module's `zone`. Absent, or not a number above 0 and below
+`context_window_size`, the edges stay as set. The shared fixture holds both a lowered and a
+default window.
+
+- **Pointer**: when a decision depends on where the window is stored or which value wins for the
+  active model, fetch
+  <https://code.claude.com/docs/en/settings-reference#modelsettings> and
+  <https://code.claude.com/docs/en/model-config#set-the-auto-compact-window> live; for the
+  breakdown's fields, the per-build mod types (`SessionContextBreakdown`).
+
+A dated observation, not the order of record (the pointers above hold that, and no decision here
+depends on it): on Claude Code 2.1.296, in a throwaway config directory, `/autocompact` saved the
+window at user settings `modelSettings.<model id>.autoCompactWindow`, and the effective window
+followed, highest first, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `--autocompact`, a project top-level
+`autoCompactWindow`, the user per-model value, then the user top-level key. Managed settings follow
+the docs, not this probe. The project-scope, flag and environment-variable rows, plus a project
+per-model value outranking the project top-level key, are rerun as `/harness-ops:behavior-probes`
+cases in its `autocompact` area, which passed on Claude Code 2.1.312 on 2026-10-28; the user-scope
+rows have no case yet.
+
+- **Pointer**: <https://code.claude.com/docs/en/model-config#set-the-auto-compact-window>,
+  <https://code.claude.com/docs/en/settings-reference#modelsettings>, and
+  <https://code.claude.com/docs/en/cli-reference#cli-flags> for `--autocompact`.
+- **As of**: 2026-10-10
+- **Recheck trigger**: a release note touches `/autocompact`, `--autocompact`, or `modelSettings`,
+  or those sections publish an order that differs from this one.
+
+**Normalize before comparing: the trigger is not in occupancy.** The two zone shapes answer
+different questions and must never be equated (see "Occupancy and combination rule"), and the
+trigger belongs to the **percentage** shape's accounting, not the token shape's: `used_percentage`
+is input-token-based and answers *distance to compaction*, while the token bands measure
+**occupancy** (`total_input_tokens + total_output_tokens`) and answer *distance to quality loss*.
+A configured window is a fill threshold, so compare it against the percentage shape and let the
+occupancy bands move independently.
+
+We read `used_percentage` as a share of the
+whole window the model offers, so after the auto-compact window is lowered, **we never read the
+percentage as a forecast of when compaction will run**. A consumer reading only the percentage
+will not see the trigger coming. Pointer: for the `CLAUDE_CODE_AUTO_COMPACT_WINDOW` row, see
+<https://code.claude.com/docs/en/env-vars#variables>.
+
+**Tune bands below the effective trigger, never above it.** Whatever the trigger resolves to on a
+machine, the `heavy` band should be reached first. A zone reading exists so the session arrives at a
+boundary decision while that decision is still being made deliberately, through the operator menu
+above. If auto-compact fires first, the harness has already made a lossy choice
+on the session's behalf and the boundary was reached too late. We read a firing diagnostically,
+as **a missed boundary**, not as a sign that the window was managed. Lowering the window moves the trigger, and the module moves the percentage
+bands with it. A 400000-token window on a 1M-class model puts the trigger at **40% of the full
+window**; with the shipped bands the module's edges become 20 and 30 points of the full window
+(50 and 75 of 400000), so the percentage shape reaches `heavy` before auto-compact fires. Without
+that scaling the percentage shape would still read light at the trigger, inside the shipped
+`light` band (≤ 50). The window is never compared against the token bands' occupancy edges, which
+measure a different quantity. The shell resolver scales the same way from the published
+`bands.auto_compact_window`; pulling `zones.json` under the trigger by hand would now scale twice,
+in the module and in the shell resolver.
+Pointer: for what a hook can do before an automatic compaction, see
+<https://code.claude.com/docs/en/hooks#precompact>.
+
+That diagnostic reading is adopted; the prescription that usually travels with it is not. **Leave
+auto-compact enabled.** Disabling it is a defensible operator choice on an attended machine, but it
+is not this plugin's guidance: unattended cloud and autonomous sessions have no human at the
+boundary, and for them a degraded continuation beats a hard stall at the window. The shipped ladder
+is instrumentation, not prohibition: observable zones and advisory injection, with auto-compact
+remaining the last-resort safety net beneath both (recheck when Claude Code removes the
+auto-compact setting or changes what it does at the window).
+
+**On folklore numbers.** The auto-compact window figure in the vendored Boris playbook, §64, is a
+widely-cited practitioner anchor. We record it as a **named anchor, never an adopted number**: its
+calibration predates the 1M-window models these sessions run on, and we do not treat its
+context-degradation premise as holding on them. A lowered window remains a legitimate cost and
+compaction-timing choice on its own terms.
+
+- **Pointer**: for the practitioner figure, see `/playbooks:boris` §64 ("Lower Your Auto-Compact
+  Threshold"); for the current models' context windows, see
+  [Latest models comparison](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
+
+## Prompt cache
+
+The statusline payload's `prompt_cache` object is the only first-party source of the main
+conversation's cache state (warm or cold, expiry, re-cache size, hit ratio, misses and the last
+miss's cause). A mod's `$.session.usage()` does not carry it, so the module neither reads nor
+snapshots it: the snapshot carries `context_window` only. `plugins/context-usage/scripts/cache-line.mjs`
+reads the object from a statusline JSON payload on stdin and prints one status-line segment, or
+nothing when the object is absent. It prints whatever cause names `last_miss_cause.causes` carries,
+with no fixed list of its own. The segment covers the main conversation only: the object leaves
+out subagent and workflow requests, and a status line does not run in cloud or `-p` sessions
+(see `reference/cloud-headless-capture.md`). Pointer: for the object, its fields and the
+`expires_at` re-run, see <https://code.claude.com/docs/en/statusline#prompt-cache-fields> and
+<https://code.claude.com/docs/en/statusline#last-miss-cause>; for what a mod receives, see
+<https://code.claude.com/docs/en/plugins/mods/reference>. Recheck trigger: the mods reference adds
+prompt-cache state to `$.session.usage()`, at which point the band row can carry this line
+instead.
+
+## Zones (machine-scope tuning, optional)
+
+`~/.claude/context-usage/zones.json` is the single source of truth for band tuning on a machine.
+The operator's own statusline display may read the same file, which eliminates band drift between
+what the human sees and what consumers decide on. Zones say *where you are*; consumers decide
+*what to do*.
+
+```json
+{
+  "light_max_used_percentage": 50,
+  "moderate_max_used_percentage": 75,
+  "token_bands": {
+    "200000": { "light_max_tokens": 100000, "moderate_max_tokens": 150000 },
+    "1000000": { "light_max_tokens": 128000, "moderate_max_tokens": 500000 }
+  }
+}
+```
+
+Validity is **per shape, independently**:
+
+- **Percentage keys:** both values numeric, `0 < light_max < moderate_max ≤ 100`. Malformed
+  (unparsable file, not an object, non-numeric, inverted, out of range, one key without the
+  other, or both absent from an object holding a key outside `token_bands`, `actions`,
+  `approach_margin` and `thresholds`) → shipped percentage defaults with a visible stderr notice
+  from the resolver. An object with neither key and only those four keys keeps the shipped
+  percentage defaults silently.
+- **`token_bands` (optional):** when present, an object whose every key is a decimal window-class
+  string and every value carries numeric `light_max_tokens` and `moderate_max_tokens` with
+  `0 < light < moderate ≤ class`. Malformed as a whole → shipped token bands with its own
+  visible stderr notice. **Absent is zero-config** (shipped token bands, silently): a
+  percentage-only file is valid.
+
+**Old key names (one release).** Before validation, `smart_max_used_percentage`,
+`acceptable_max_used_percentage`, and `smart_max_tokens` and `acceptable_max_tokens` in a
+`token_bands` row, read as their `light_`/`moderate_` names, and `actions.smart`,
+`.acceptable` and `.dumb` as `actions.light`, `.moderate` and `.heavy`. Where both names are set
+the new one wins; the old key is then ignored. A consumer that re-implements the lookup applies
+the same rule.
+
+Unrecognized keys are permitted and preserved (the setup skill's `apply` seeds/refreshes this
+file idempotently; the resolver only reads it).
+
+**The module's keys (optional).** The module reads three more keys; the resolver ignores them, and
+an absent or invalid one means its default, so a file without them keeps working:
+
+```json
+{
+  "approach_margin": 5,
+  "actions": {
+    "moderate": { "action": "none" },
+    "heavy": { "action": "save-state" }
+  },
+  "thresholds": [{ "at_percent": 60, "action": "handoff" }]
+}
+```
+
+- `approach_margin`: percentage points before each boundary (each zone edge and each threshold)
+  for the one approach line; a number from 0 (no approach lines) to below 100. Default 5. Where a
+  token band edge sits below the percentage edge, that boundary's approach line comes the same
+  points of the window early in tokens (50000 tokens at 5 on a 1000000-token window); with no
+  known window size there is no token-shape approach line.
+- `actions.<zone>`: `action` is `none`, `save-state` or `handoff`; `block` reads as `none` with its text dropped, and any other value is ignored. Optional `text`
+  replaces the default wording, which names the action. The
+  action's sentence appears at that zone's crossing and
+  restatement, never on an approach line, labeled "operator setting for the <zone> zone".
+  Default: `none` everywhere.
+- `thresholds`: extra boundaries at a percentage that is not a zone edge (`at_percent`, 0 to
+  100), each with an `action` and optional `text`; each fires once per cycle like a zone
+  boundary and has its own approach line.
+
+**Consumers read `zones.json` directly** (it is a shared data file): under plugin cache isolation a
+consumer cannot invoke this plugin's `context-zone.sh`, so it re-implements the band lookup:
+file present and valid → its bands; absent or malformed → the inlined default bands above. The
+byte-identity rule covers the inlined defaults only.
+
+Resolver invocation (for same-plugin or path-provisioned callers):
+
+```bash
+bash "<plugin-root>/scripts/context-zone.sh" <session_id>   # prints one zone word
+```
+
+## Session-id discovery (how a consumer learns its own id)
+
+A skill learns its session id via the **`${CLAUDE_SESSION_ID}` substitution** in skill markdown
+content. The skill body interpolates it into the snapshot path directly. Pointer:
+<https://code.claude.com/docs/en/skills#available-string-substitutions>.
+
+**Fallback:** when the substitution is unavailable (older Claude Code, non-skill context, or the
+literal string `${CLAUDE_SESSION_ID}` survives unexpanded), the consumer must not guess a session
+id. It takes the **unknown/conservative path** exactly as if the snapshot were absent.
+
+## Idle sessions
+
+The module writes only while something happens: after a tool call, after a response, during a
+turn and at the session's end. A live-but-idle session's snapshot therefore goes stale by the
+10-minute rule and resolves `unknown` until the next turn writes it again. That is correct
+fail-open behavior, not a bug. An idle session asking for a zone gets a fresh snapshot from its
+next tool call, which the question itself usually is. A session that has ended keeps its last real
+reading on disk until it ages out. The writer's stale-file pruning cutoff (14 days) is deliberately
+far above the staleness window, so idle sessions' files are never deleted out from under them.
+
+## Sessions with no writer (`unknown` is structural)
+
+The single capture channel is the module, so **a session where the module does not run has no
+instrument at all**. No snapshot is written for it, and this contract resolves `unknown` for that
+session permanently. The module runs in interactive, `-p`, SDK and `--bg` sessions alike; it does
+not run:
+
+- **In a WSL session of the Desktop app**, where plugins are not available.
+- **Where mods are off**: on a build too old for mods, or wherever a setting, flag, policy or Claude Code itself turned mods off (the pointer below). The
+  PostCompact marker, a settings hook, still runs there wherever settings hooks do.
+- **Where the plugin is not enabled** for the session, for example a project that disables it in
+  `enabledPlugins`, or a cloud session the plugin does not reach. A cloud session that does load
+  the plugin runs its hooks, per the table at the pointer below; no run of this plugin in a cloud
+  session has been made.
+
+- **Pointer**: [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run)
+  and [turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: that table changes a row, or that section changes what stops a mod.
+- **Pointer** (WSL sessions): the first bullet's "plugins are not available" rests on
+  [Claude Code Desktop in WSL: What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session),
+  which lists connectors and plugins among the features not yet available there.
+
+This is not a degraded install and not a missing dependency. Before the module, the only writer
+was a statusline tee, and `reference/cloud-headless-capture.md` records the channel inventory made
+then: every channel checked, its live URL, the date read, what it does and does not carry, and why
+the OpenTelemetry `claude_code.api_request` event and the session transcript, which do carry live
+occupancy, still cannot supply a snapshot.
+
+**What a consumer must do.** Nothing changes about the resolution rules. `unknown` still means
+take the conservative route. What changes is how a consumer *reports* it:
+
+- Report `unknown` in such a session as **"no instrument in this environment"**, never as a defect,
+  a broken install, or a reason to ask the operator to fix something.
+- **Never synthesize a zone from another source.** Each reachable near-substitute requires
+  inventing or trusting something the channel does not supply: the OpenTelemetry
+  `claude_code.api_request` event carries live per-session token counts but no window size and no
+  local sink, so a zone from it needs a fabricated denominator; the session transcript reachable
+  through the documented `transcript_path` hook field carries the right numbers behind an entry
+  format we do not treat as a stable interface, where a field can keep its name and stop meaning
+  full-context occupancy with nothing to detect it; and the OpenTelemetry token metric is
+  a cumulative counter, not occupancy. A wrong zone is strictly worse than `unknown`: `unknown`
+  routes to the conservative path, while a misread occupancy can read `light` on a nearly full
+  window.
+- **`unknown` carries no direction.** It is not evidence of a full window and not evidence of an
+  empty one. A consumer that wants a fork or handoff trigger in an environment with no instrument
+  must drive it from something else, either an explicit operator request or an observation it
+  makes itself, and must not present that trigger as instrument-backed.
+
+**Telling structural absence from breakage.** Both print `unknown`, and the discriminator is on the
+writer side: whether the module runs in the session. A session with the module loaded has the
+`mcp__context-usage__status` tool in its own tool list (deferred names included).
+
+- **The tool is absent** (the module does not run here, or a policy refused its tool): structural.
+  Report "no instrument in this environment" or "mods off", and never offer a fix the session
+  cannot apply.
+- **The tool is present, and after a tool call there is still no fresh snapshot**: a real defect,
+  usually a missing `node` or an unwritable `~/.claude/context-usage/context/`. Run
+  the bundled checker and `scripts/check-mod-load.sh` for what the session can check itself
+  (`node`, `jq`, whether the mod loads), and ask the operator to run `/context-usage:setup check`, which is user-only, for the
+  rest of the diagnosis.
+- **The tool is present and answers**: its zone is the module's live reading, and a consumer may
+  use it in place of the file.
+
+## Invariants and boundaries
+
+- **Per-session semantics.** One file per session id; no cross-session last-writer-wins collapse.
+  Concurrent sessions never contend on the same target (atomic rename protects same-session
+  refresh races).
+- **Fixed paths, deliberately outside `${CLAUDE_PLUGIN_DATA}`.** The contract directory
+  `~/.claude/context-usage/` is a documented cross-plugin artifact location: sibling-plugin
+  sessions read it by the documented path, the same for every consumer whatever plugin it belongs
+  to. Pointer: for where `${CLAUDE_PLUGIN_DATA}` resolves, see
+  <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables>.
+- **No shipped Monitor config.** Consumers that want write-triggered re-evaluation arm their own
+  session Monitor on their snapshot path. The plugin ships no `experimental.monitors` entry.
+  Monitors is an experimental Claude Code component, and this plugin takes no dependency on one
+  until it stabilizes.
+- **Fixed staleness constant.** The 10-minute value is a contract constant, deliberately not
+  configurable: cross-plugin consumers inline the documented value, so a per-user override would
+  silently split writer and readers. Band numbers are the one tunable, via `zones.json`, which
+  display and consumers share.
+
+## Consumers
+
+- The plugin's own module (first shipped consumer, see "The module"), and through it the
+  `mcp__context-usage__status` tool, which any session with the module loaded can call as its
+  zone lookup.
+- The `plugin-quality` audit skill (context-gate: zone-informed dispatch and evidence-flush
+  decisions, conservative on `unknown`). It resolves the zone through a generated copy
+  of this plugin's `scripts/context-zone.sh`. Its co-located `zones-inline-drift.test.sh` lane,
+  which runs in the repo's plugin-gate CI job, checks that resolver copy and the evidence-degraded
+  marker path in its skill body against the values this file prints. That the copy matches
+  its canonical, `lib/context-zone.sh`, is a separate gate, `scripts/sync-shared-copies.sh --check`.

@@ -59,15 +59,15 @@ TypeScript; read that file first.
   ```
 
 - **Narrow with a check the compiler runs; write a claim only where none can.** A type predicate
-  and an `as` are claims: the compiler takes your word for them. This repository's context-guard
+  and an `as` are claims: the compiler takes your word for them. This repository's context-usage
   hooks show where each one belongs, in the order a value meets them:
 
   | Where the value is | What this repository does | Kind |
   |---|---|---|
-  | Just arrived as `unknown` and no compiler check settles it | `isZone(word: unknown): word is Zone` tests the word against the closed `ZONES` list (`plugins/context-guard/hooks/zone.ts`) | claim |
-  | Data a validation step has already checked | `asRule` casts `v.action as Action` only after `ACTIONS.includes(...)` passed (`plugins/context-guard/hooks/register.tsx`) | claim |
+  | Just arrived as `unknown` and no compiler check settles it | `isZone(word: unknown): word is Zone` tests the word against the closed `ZONES` list (`plugins/context-usage/hooks/zone.ts`) | claim |
+  | Data a validation step has already checked | `asRule` casts `v.action as Action` only after `ACTIONS.includes(...)` passed (`plugins/context-usage/hooks/register.tsx`) | claim |
   | A union whose members carry a literal tag | `e.kind === 'crossing'` picks the crossing events out of the event list (`register.tsx`) | compiler check |
-  | An object whose possible shapes differ in which keys they have | A key test such as `'raw' in v` narrows only when `v` is declared as a union of those shapes. After a cast to `Record<string, unknown>`, as in `plugins/context-guard/hooks/zone.test.ts`, it narrows nothing, so declare the union first | compiler check, on a union only |
+  | An object whose possible shapes differ in which keys they have | A key test such as `'raw' in v` narrows only when `v` is declared as a union of those shapes. After a cast to `Record<string, unknown>`, as in `plugins/context-usage/hooks/zone.test.ts`, it narrows nothing, so declare the union first | compiler check, on a union only |
   | A caught error, another class instance, or a primitive | `error instanceof Error ? error.message : String(error)` (`register.tsx`) | compiler check |
 
   When more than one compiler check fits, use the most specific: a tag names the member outright,
@@ -111,7 +111,7 @@ TypeScript; read that file first.
   "at least one" is a tuple with a rest element, `[Phase, ...Phase[]]`. To choose between `Phase[]`
   and that tuple, read the code that consumes the list. Where an empty list is a normal case the
   consumer has a branch for, the plain array stays: `showCrossing` in
-  `plugins/context-guard/hooks/register.tsx` takes `due.at(-1)` and tests it against `undefined`
+  `plugins/context-usage/hooks/register.tsx` takes `due.at(-1)` and tests it against `undefined`
   before using it, so `Crossing[]` is the right type there. Where the consumer has no such branch
   and still needs a first element, the guarantee lives only in the author's head; move it into the
   tuple type so the compiler enforces it.

@@ -73,7 +73,7 @@ The driving tool's `## Mask`.
 - codebase-health | features/codebase-health/README.md | entry points: 4 | sources: plugins/codebase-health/skills/*/SKILL.md
 - computer-use | features/computer-use/README.md | entry points: 4 | sources: plugins/computer-use/skills/*/SKILL.md
 - context-budget | features/context-budget/README.md | entry points: 4 | sources: plugins/context-budget/skills/*/SKILL.md
-- context-guard | features/context-guard/README.md | entry points: 4 | sources: plugins/context-guard/skills/*/SKILL.md
+- context-usage | features/context-usage/README.md | entry points: 4 | sources: plugins/context-usage/skills/*/SKILL.md
 - context7 | features/context7/README.md | entry points: 4 | sources: plugins/context7/skills/*/SKILL.md
 - corrections | features/corrections/README.md | entry points: 4 | sources: plugins/corrections/skills/*/SKILL.md
 - coupling | features/coupling/README.md | entry points: 4 | sources: plugins/coupling/skills/*/SKILL.md

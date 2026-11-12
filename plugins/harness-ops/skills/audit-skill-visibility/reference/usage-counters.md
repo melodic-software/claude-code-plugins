@@ -76,7 +76,7 @@ measurement is what `is_usage_evidence()` in the engine exists to enforce.
 binary reading above, usage is recorded whenever a slash command, skill, agent, MCP tool or resource, or hook is
 dispatched from that plugin, plus LSP servers delivering diagnostics or code
 navigation. Hook-only plugins therefore dominate any raw ranking: on one machine
-`guardrails` showed 200,804 and `context-guard` 106,752, against low hundreds for
+`guardrails` showed 200,804 and `context-usage` 106,752, against low hundreds for
 skill-shaped plugins. A hook plugin's count is a per-tool-call tally; a skill
 plugin's count is an invocation tally. Ranking plugins by raw count ranks them by
 hook chattiness, not by value.

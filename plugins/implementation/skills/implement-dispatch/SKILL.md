@@ -253,7 +253,7 @@ When the run wrote no `DEVIATIONS.md`, criterion 1 is the only one. **Model:** w
 
 The orchestrator stays resident across phase boundaries by default. Clear and resume from the emitted prompt only when one of these holds:
 
-- **(a) The harness or operator signals a heavy window**: a compaction notice, a context-guard line, or the user saying the session is heavy. Route the next step with `/session-flow:workflow`, handing it the PLAN.md path and the next phase; clear and resume from the emitted prompt when it routes there. Do not poll your own context statistics; a budget reading is not a decay signal (see `/implementation:implement` Step 4, "Mid-phase")
+- **(a) The harness or operator signals a heavy window**: a compaction notice, a context-usage line, or the user saying the session is heavy. Route the next step with `/session-flow:workflow`, handing it the PLAN.md path and the next phase; clear and resume from the emitted prompt when it routes there. Do not poll your own context statistics; a budget reading is not a decay signal (see `/implementation:implement` Step 4, "Mid-phase")
 - **(b) The next phase is inline-routed** per the routing table (it wants a fresh window for its own reads)
 - **(c) A model/domain switch is pending** for the next phase
 

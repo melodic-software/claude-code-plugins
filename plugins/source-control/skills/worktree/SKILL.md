@@ -113,7 +113,7 @@ Create a worktree with guided naming and setup verification. Full procedure (pre
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-claim.sh" check-enter <path> --session-id "${CLAUDE_SESSION_ID}"
 ```
 
-`${CLAUDE_SESSION_ID}` is the skill-markdown substitution (same token as `plugins/context-guard/reference/reader-contract.md`). Pass it explicitly: the PostToolUse hook records the payload `session_id` in the lock. Without `--session-id`, the script falls back to `CLAUDE_CODE_SESSION_ID` from the Bash environment, then `CLAUDE_SESSION_ID`; with none of the three, `check-enter` cannot prove ownership and treats even this session's claim as foreign. If the literal `${CLAUDE_SESSION_ID}` survives unexpanded, do not guess an id: surface that and stop.
+`${CLAUDE_SESSION_ID}` is the skill-markdown substitution (same token as `plugins/context-usage/reference/reader-contract.md`). Pass it explicitly: the PostToolUse hook records the payload `session_id` in the lock. Without `--session-id`, the script falls back to `CLAUDE_CODE_SESSION_ID` from the Bash environment, then `CLAUDE_SESSION_ID`; with none of the three, `check-enter` cannot prove ownership and treats even this session's claim as foreign. If the literal `${CLAUDE_SESSION_ID}` survives unexpanded, do not guess an id: surface that and stop.
 
 Exit 4 prints `FOREIGN CLAIM: <reason>`: stop, another session holds a live claim. Exit 3 prints `UNCLAIMED`: claim it (`claim <path> --session-id "${CLAUDE_SESSION_ID}"`) or leave it. Exit 0 is this session's claim, or a path that is not a linked worktree. `report` lists every linked worktree that still has no reason. The lock does not block writes; the reason is the claim other agents can read.
 

@@ -1,0 +1,64 @@
+{
+  "name": "context-usage",
+  "description": "Per-session context-window observability. A mod writes each session's context-window figures to a snapshot file and shows the person a toast and a transcript line when the context zone (light, moderate or heavy, from bands in zones.json) worsens; with model_notices on (off by default) it also tells Claude the zone at each crossing, approach and compaction. /context-usage prints status and toggles an optional band row. It answers a status tool. A PostCompact hook leaves a marker.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "version": "5.0.6",
+  "license": "MIT",
+  "keywords": [
+    "context-window",
+    "mod",
+    "zones",
+    "context-degradation",
+    "session",
+    "hooks",
+    "skill"
+  ],
+  "metadata": {
+    "category": "claude-code"
+  },
+  "userConfig": {
+    "context_usage_hooks_enabled": {
+      "type": "boolean",
+      "title": "Zone notices and compaction marker",
+      "description": "Runs the module's zone lines and toasts and the PostCompact marker hook. On by default; off, none of them acts. Snapshot writes continue either way.",
+      "default": true
+    },
+    "model_notices": {
+      "type": "boolean",
+      "title": "Model notices",
+      "description": "Sends Claude one line when the session enters a worse context zone, nears a boundary or passes a zones.json threshold, and restates the zone after a resume, reload or compaction (with no figures yet, says the reading is unavailable). Off by default; the rest of the plugin works either way.",
+      "default": false
+    },
+    "zone_report_mode": {
+      "type": "string",
+      "title": "Zone report mode",
+      "description": "Acts only with model_notices on. automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row when the turn ends. Headless, loop and schedule turns get automatic lines either way.",
+      "default": "automatic",
+      "options": [
+        "automatic",
+        "operator"
+      ]
+    },
+    "zone_line_data": {
+      "type": "string",
+      "title": "Zone line data",
+      "description": "Comma list of what a line carries beside its zone, which every line has: percent, tokens and window. Default zone.",
+      "default": "zone"
+    },
+    "context_usage_band": {
+      "type": "boolean",
+      "title": "Context band row",
+      "description": "Draws the context figure and zone in a row above the prompt. Off by default. Turn it on in /config, or for one session with /context-usage band on.",
+      "default": false
+    },
+    "context_usage_toast": {
+      "type": "boolean",
+      "title": "Zone-change toast",
+      "description": "Shows a short toast when the session crosses into a worse context zone, beside the transcript line that records it, and when zones.json is malformed. On by default; off, only the crossing's transcript line remains.",
+      "default": true
+    }
+  }
+}

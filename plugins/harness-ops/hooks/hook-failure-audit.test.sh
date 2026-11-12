@@ -227,7 +227,7 @@ assert_contains "bare exit 126 still offers the restart remedy" "$OUT_126" "rest
 
 # STALE CONFIG: the session's startup-loaded config names a script the checkout
 # has since deleted, and bash reports its missing script operand at exit 127.
-# The first two stderr forms are copied from real records (context-guard
+# The first two stderr forms are copied from real records (context-usage
 # zone-gate.sh, source-control pr-ready-evidence-gate.sh); the backslash-only
 # and MSYS forms are synthetic. Backslashes are JSON-escaped here. Every
 # statusMessage-shaped command is a real row's statusMessage, which is what
@@ -250,23 +250,23 @@ assert_stale() { # <name> <output>
   assert_absent "$1: remedy given once, not twice" "$2" "If a plugin update"
 }
 OUT_S=$(stale_case observed-mixed "$STATUS_MSG" \
-  "${PFX}/usr/bin/bash: C:\\\\code\\\\melodic\\\\claude-code-plugins\\\\plugins\\\\context-guard/hooks/zone-gate.sh: No such file or directory")
+  "${PFX}/usr/bin/bash: C:\\\\code\\\\melodic\\\\claude-code-plugins\\\\plugins\\\\context-usage/hooks/zone-gate.sh: No such file or directory")
 assert_stale "observed mixed separators" "$OUT_S"
 OUT_S=$(stale_case observed-forward "Checking the ready-for-review flip against the mandatory pre-PR skill evidence..." \
   "${PFX}bash: C:/code/melodic/claude-code-plugins/plugins/source-control/hooks/pr-ready-evidence-gate.sh: No such file or directory")
 assert_stale "observed forward-slash drive" "$OUT_S"
 OUT_S=$(stale_case backslash "$STATUS_MSG" \
-  "${PFX}bash: C:\\\\code\\\\plugins\\\\context-guard\\\\hooks\\\\zone-gate.sh: No such file or directory")
+  "${PFX}bash: C:\\\\code\\\\plugins\\\\context-usage\\\\hooks\\\\zone-gate.sh: No such file or directory")
 assert_stale "backslash-only Windows path" "$OUT_S"
 OUT_S=$(stale_case msys "$STATUS_MSG" \
-  "${PFX}/usr/bin/bash: /c/code/plugins/context-guard/hooks/zone-gate.sh: No such file or directory")
+  "${PFX}/usr/bin/bash: /c/code/plugins/context-usage/hooks/zone-gate.sh: No such file or directory")
 assert_stale "MSYS /c/ path" "$OUT_S"
 # shellcheck disable=SC2016 # literal ${CLAUDE_PLUGIN_ROOT} must not expand
 OUT_S=$(stale_case literal-root 'node ${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs ${CLAUDE_PLUGIN_ROOT}/hooks/zone-gate.sh' \
-  "${PFX}/usr/bin/bash: C:\\\\code\\\\plugins\\\\context-guard/hooks/zone-gate.sh: No such file or directory")
+  "${PFX}/usr/bin/bash: C:\\\\code\\\\plugins\\\\context-usage/hooks/zone-gate.sh: No such file or directory")
 assert_stale "command with literal CLAUDE_PLUGIN_ROOT" "$OUT_S"
-OUT_S=$(stale_case expanded-root 'node C:\\code\\plugins\\context-guard\\hooks\\exec-bash.mjs C:\\code\\plugins\\context-guard\\hooks\\zone-gate.sh' \
-  "${PFX}/usr/bin/bash: /c/code/plugins/context-guard/hooks/zone-gate.sh: No such file or directory")
+OUT_S=$(stale_case expanded-root 'node C:\\code\\plugins\\context-usage\\hooks\\exec-bash.mjs C:\\code\\plugins\\context-usage\\hooks\\zone-gate.sh' \
+  "${PFX}/usr/bin/bash: /c/code/plugins/context-usage/hooks/zone-gate.sh: No such file or directory")
 assert_stale "command with CLAUDE_PLUGIN_ROOT expanded" "$OUT_S"
 
 # STAY QUIET: shapes that must keep today's classification.

@@ -56,11 +56,11 @@ Before delegating, write **2-3 lines** of your own in-flight state: what you are
 what feels off, where you are stuck or repeating, any correction you sense coming. The transcript on
 disk holds what *happened*, not the acting agent's present read of it; this note seeds the analysis.
 
-**Ground the note in the instrument when one is present.** When the `context-guard` plugin is
+**Ground the note in the instrument when one is present.** When the `context-usage` plugin is
 enabled, resolve this session's zone word per its reader contract (the contract owns the
 snapshot path, staleness rule, and bands, read them there; this note carries only the resulting
 word, no band values) and include it in the note. Absent plugin, absent snapshot, or `unknown`: say
-so in the note rather than substituting an estimate. If context-guard's evidence-degraded marker
+so in the note rather than substituting an estimate. If context-usage's evidence-degraded marker
 exists for this session, record that too. It outranks a healthy-feeling self-read.
 
 ### 2. Resolve inputs for the subagent

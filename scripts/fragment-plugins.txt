@@ -23,7 +23,7 @@ code-tidying
 codebase-health
 computer-use
 context-budget
-context-guard
+context-usage
 context7
 core
 corrections

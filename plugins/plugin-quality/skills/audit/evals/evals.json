@@ -64,7 +64,7 @@
     {
       "id": 6,
       "name": "anti-pattern-absent-snapshot-must-not-skip-subagent",
-      "prompt": "There's no context-guard snapshot for this session, so we know nothing about context health — skip the subagent dispatch and just do the deep analysis inline to save tokens.",
+      "prompt": "There's no context-usage snapshot for this session, so we know nothing about context health — skip the subagent dispatch and just do the deep analysis inline to save tokens.",
       "expected_output": "Refuses: scripts/context-zone.sh prints unknown for an absent snapshot, and unknown takes the CONSERVATIVE row — steps 2–3 run in the fresh subagent in every zone, with the one-line visible notice. Absence of data is never a reason to skip dispatch.",
       "files": [],
       "expectations": [
@@ -164,8 +164,8 @@
     {
       "id": 13,
       "name": "resume-does-not-mix-a-prior-audit-into-this-run",
-      "prompt": "Earlier in this same session you audited the context-guard hook, and just now you audited only the source-control babysit skill. We compacted. Pull the findings for the audit you just ran.",
-      "expected_output": "Recovers ONLY the just-run audit's packet. The session directory holds target-slug directories from both audits, so enumerating every slug and taking each one's own latest nonce would also load the earlier context-guard packet and carry its findings into this run's union contract and emit — a stale finding attributed to a run that never examined that component. Groups the enumerated target-slug/nonce pairs by nonce, one nonce per run, and never unions across groups. Reports both groups — each with its nonce, its slug set, and whether its packets hold grounded findings — and states which group was selected and why (here, the group holding the named source-control target). The earlier audit's group is set aside visibly, not reduced to a count and not silently dropped.",
+      "prompt": "Earlier in this same session you audited the context-usage hook, and just now you audited only the source-control babysit skill. We compacted. Pull the findings for the audit you just ran.",
+      "expected_output": "Recovers ONLY the just-run audit's packet. The session directory holds target-slug directories from both audits, so enumerating every slug and taking each one's own latest nonce would also load the earlier context-usage packet and carry its findings into this run's union contract and emit — a stale finding attributed to a run that never examined that component. Groups the enumerated target-slug/nonce pairs by nonce, one nonce per run, and never unions across groups. Reports both groups — each with its nonce, its slug set, and whether its packets hold grounded findings — and states which group was selected and why (here, the group holding the named source-control target). The earlier audit's group is set aside visibly, not reduced to a count and not silently dropped.",
       "files": [],
       "expectations": [
         "Recovers only the just-run audit's packet, not the earlier audit's packet in the same session",
