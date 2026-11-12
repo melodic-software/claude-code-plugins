@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.1.3
+standards-contract: 1.1.4
 ---
 
 <!-- GENERATED from docs/contracts/standards/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:

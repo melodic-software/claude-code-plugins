@@ -1,5 +1,11 @@
 # Changelog for the standards convention
 
+## 1.1.4 - 2026-11-12
+
+Wording only. The memory-rules pointer in the `.claude/rules` seam no longer carries an as-of date
+or recheck trigger, per the upstream-drift convention 5.0.0. The layers, the precedence rule, the
+schema, the index shape and the migration rules are unchanged.
+
 ## 1.1.3 - 2026-11-04
 
 Wording only. The personal layer, `<standards_dir>/*.local.md`, is called the personal override
