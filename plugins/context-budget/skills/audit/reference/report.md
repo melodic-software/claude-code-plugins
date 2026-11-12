@@ -34,8 +34,7 @@ mode; the displayed fraction in cli-parse mode).
    not measurable rather than as not additive. Unmeasured tools (candidates this run
    that were not priced) are listed as unmeasured, not omitted. Silence reads as "measured
    zero". Some tools exist only in an interactive session; [`interactive-only-tools.json`](interactive-only-tools.json)
-   names them, plus the interactive-only MCP server class (relayed as of 2026-10-11; recheck when
-   that file moves or its `tools` list or `notes` change). These are listed as
+   names them, plus the interactive-only MCP server class. These are listed as
    **known-uncovered**, a distinct category from unmeasured-but-candidate, because they were
    never candidates in this headless sweep. The names come from the attribution record's
    `knownUncovered.tools` (product-level surfaces) plus `knownUncovered.notes` (the
@@ -49,16 +48,15 @@ mode; the displayed fraction in cli-parse mode).
    emitted config, and the official citation. A row with `saving: "runtime-resolved"` does not
    print its stored category as the saving; print the measured resolution, including an explained
    zero when the listing cap is saturated; what the cap counts is read at
-   [skills § Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
-   (as of 2026-11-03; recheck when that section changes the listing budget's unit). A row with `measurementScope: "unmeasurable-in-this-session-kind"` is its own group,
+   [skills § Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short).
+   A row with `measurementScope: "unmeasurable-in-this-session-kind"` is its own group,
    "unmeasurable in this session kind", and is not reported as a measured zero. Grouped by
    category, `removes-weight` first. Postures bind: `never-recommend` rows appear under a
    "priced, not recommended" heading; `report-only` vendor weight closes the group as the honest
    floor.
 6. **Routes.** The catalogue's route-outs (`/skill-doctor` and `/doctor`, both of which the
    operator runs; what each covers is read at their rows in
-   [commands § All commands](https://code.claude.com/docs/en/commands#all-commands), as of
-   2026-11-03; recheck when either row is renamed, removed, or changes what it covers; memory
+   [commands § All commands](https://code.claude.com/docs/en/commands#all-commands); memory
    files, hooks, live occupancy to their owners), each in one line.
 7. **Degradations and caveats.** Every `caveats[]` entry from the records used, plus anything the
    engine could not measure and why. The attribution record already merges the baseline with
