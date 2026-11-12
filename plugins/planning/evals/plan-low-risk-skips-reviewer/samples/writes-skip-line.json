@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Blast radius: LOW\nReviewer: skipped (blast radius LOW, no trigger)\nStress-test needed: No",
+      "why": "the skip line beside the assessment"
+    },
+    {
+      "answer": "- **Reviewer:** skipped (blast radius LOW, no trigger matched)",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Reviewer: ran (blast radius LOW). Dispatched planning:plan-reviewer; no plan gaps found.",
+      "why": "the reviewer ran"
+    },
+    {
+      "answer": "verification: skipped (light)",
+      "why": "a different skip reason"
+    }
+  ]
+}
