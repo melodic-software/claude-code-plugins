@@ -40,6 +40,7 @@ lychee-online-changed ci-only network check, scripts/check-changed-links-online.
 marketplace-schema ci-only ci-workflows composite: check-jsonschema
 plugin-schema ci-only ci-workflows composite: check-jsonschema
 workflow-schema ci-only ci-workflows composite: check-jsonschema
+workflow-naming ci-only ci-workflows composite: standards' github-actions-conventions naming lint
 zizmor ci-only pinned third-party scanner
 runner-policy ci-only node check over the workflows, see its step in the workflow
 queued-pr ci-only merge queue only
