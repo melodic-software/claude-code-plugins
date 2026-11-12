@@ -36,7 +36,7 @@ on:
   # Runs this file from the default branch and executes no code from the
   # link-check run: the artifact is data, checked before use.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [Maintenance Check Links Online Claude Code Plugins]
+    workflows: [Maintenance Check Links Online, Maintenance Check Links Online Claude Code Plugins]
     types: [completed]
     branches: [main]
 
