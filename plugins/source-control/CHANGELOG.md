@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.1.4] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
 ## [11.1.3] - 2026-11-12
 
 ### Fixed
