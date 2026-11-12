@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "### Contract tests\n- [ ] BillingClient → billing-service POST /invoices — records the request body and relies on invoice_id and status; billing-service's CI verifies it",
+      "why": "contract heading lists the billing client"
+    },
+    {
+      "answer": "src/billing_client.py: consumer-driven contract test, since billing-service verifies its consumers' contracts.",
+      "why": "contract test named on the billing client's line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "### Unit tests\n- [ ] BillingClient.create_invoice posts the order with a stubbed opener",
+      "why": "unit test only"
+    },
+    {
+      "answer": "Contract test for WeatherClient against the forecast API.",
+      "why": "contract test on the wrong client"
+    },
+    {
+      "answer": "### Contract tests\n- none\n\n### Integration tests\n- [ ] BillingClient posts to /invoices",
+      "why": "contract heading lists nothing for the billing client"
+    }
+  ]
+}
