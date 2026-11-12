@@ -712,7 +712,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 - dotnet's lint/format check no longer imposes Roslyn's built-in formatting
   defaults on a repo that never configured `.editorconfig`/analyzer
   preferences, matching the same "never impose an unconfigured opinion"
-  posture already applied at the hook layer by `ruff-format`/`typos-format`.
+  posture already applied at the hook layer by `ruff-format`/`spelling`.
 
 ## [0.5.2]
 

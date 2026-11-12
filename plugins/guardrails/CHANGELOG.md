@@ -1601,7 +1601,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Changed
 
-- **PostToolUse verifiers reuse a deleted-path set, the tracked-file list, and the plugin index** ([#4390](https://github.com/melodic-software/claude-code-plugins/issues/4390)). `stale-path-verify` stores `git log HEAD --diff-filter=D` under the common git dir, keyed by the HEAD sha, and a later edit at that commit does not walk history. A shallow clone is still the `.git/shallow` file, not a second git process, and a failed walk is not cached. The tracked-file list is reused while the cache is strictly newer than the index. `skill-reference-verify` stores the one manifest jq under the git dir and skips it while every manifest is older than that file. A cold finding fire fell from 38 to 25 process creations and execs, the same fire at that HEAD fell to 19, and a cold no-finding markdown edit from 13 to 9: a fixed-string anchor is matched in-process, and the index is not listed until a candidate asks. Verdicts are unchanged. The verify rows stay synchronous: an async hook's `additionalContext` arrives on the next turn, `claude -p` kills a hook still running at teardown, and these findings are only useful beside the edit that produced them (hooks reference, re-fetched 2026-09-28; the same decision as typos-format #4677). Blocking guards stay synchronous. The k × S targets are not set here.
+- **PostToolUse verifiers reuse a deleted-path set, the tracked-file list, and the plugin index** ([#4390](https://github.com/melodic-software/claude-code-plugins/issues/4390)). `stale-path-verify` stores `git log HEAD --diff-filter=D` under the common git dir, keyed by the HEAD sha, and a later edit at that commit does not walk history. A shallow clone is still the `.git/shallow` file, not a second git process, and a failed walk is not cached. The tracked-file list is reused while the cache is strictly newer than the index. `skill-reference-verify` stores the one manifest jq under the git dir and skips it while every manifest is older than that file. A cold finding fire fell from 38 to 25 process creations and execs, the same fire at that HEAD fell to 19, and a cold no-finding markdown edit from 13 to 9: a fixed-string anchor is matched in-process, and the index is not listed until a candidate asks. Verdicts are unchanged. The verify rows stay synchronous: an async hook's `additionalContext` arrives on the next turn, `claude -p` kills a hook still running at teardown, and these findings are only useful beside the edit that produced them (hooks reference, re-fetched 2026-09-28; the same decision as spelling #4677). Blocking guards stay synchronous. The k × S targets are not set here.
 
 ## [0.41.0] - 2026-09-28
 
@@ -2630,7 +2630,7 @@ Not released as its own version; see 0.38.0.
   `.txt`, the matching `.md` row unchanged at 95.8 ms (N = 15, Linux CI host).
   `run-guards.test.sh` pins the predicate set to the union of the verifiers'
   own `case "$FILE"` gates in both directions. What each verifier checks is
-  unchanged. Closes #3751; the same issue's `typos-format` and `eol-normalizer`
+  unchanged. Closes #3751; the same issue's `spelling` and `eol-normalizer`
   rows take no predicate, for reasons recorded in this plugin's README budget
   entry.
 
@@ -5798,7 +5798,7 @@ not that.)
   session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
-  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  opt out with; the reported case was `spelling` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
   project root is outside it. The exemption is deliberate and required: when the project root
   itself lives under temp, a `mktemp -d` fixture checkout, which is how this repository's own hook

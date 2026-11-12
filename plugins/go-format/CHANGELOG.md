@@ -1450,7 +1450,7 @@ No behavior change.
   session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
-  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  opt out with; the reported case was `spelling` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
   project root is outside it. The exemption is deliberate and required: when the project root
   itself lives under temp, its files are still accepted. That covers a `mktemp -d` fixture checkout,
@@ -1584,7 +1584,7 @@ No behavior change.
 - Initial release: a `PostToolUse` hook that runs `goimports -w` on
   `Write`/`Edit` of a `.go` file, unconditionally, with no consumer-config
   opt-in gate (the one deliberate shape difference from the
-  `ruff-format`/`typos-format` pattern; see issue #832's field survey).
+  `ruff-format`/`spelling` pattern; see issue #832's field survey).
   Skips files carrying Go's `// Code generated ... DO NOT EDIT.` marker.
   Syntax errors goimports can't parse surface via `additionalContext` as an
   advisory finding, never a tool break. Advisory only, never blocks the

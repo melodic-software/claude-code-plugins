@@ -216,7 +216,7 @@ No behavior change.
 
 ### Changed
 
-- `/typos-format:setup`: the reconfiguration guidance names `claude plugin configure typos-format@<marketplace> --values-stdin` as the preferred headless route and keeps the `claude plugin install --config` rerun as its fallback for a Claude Code release before 2.1.285, with each route's scope rule and failure signal, per the plugin-reconfiguration convention.
+- `/spelling:setup`: the reconfiguration guidance names `claude plugin configure spelling@<marketplace> --values-stdin` as the preferred headless route and keeps the `claude plugin install --config` rerun as its fallback for a Claude Code release before 2.1.285, with each route's scope rule and failure signal, per the plugin-reconfiguration convention.
 
 ## [0.12.10] - 2026-10-30
 
@@ -313,7 +313,7 @@ No behavior change.
 
 ### Fixed
 
-- **Git hook entry:** `typos-check.sh` starts under `sh` and starts no `bash` by name, which on Windows can be System32's WSL launcher. The vendored check lib reruns it under the first bash on `PATH` outside System32; with none, bash is a missing tool under the check-placement contract (`checks.skipmissing`, else fail for an agent and a notice for a person). The vendored installer's plain dispatcher runs an entry that starts `#!/bin/sh` with `sh` (an older copy by its own first line until it is refreshed), its lefthook and husky run lines read `sh <path>`, and it replaces a dispatcher an earlier release wrote instead of refusing it as modified. Rerun `/typos-format:setup apply install-git-hooks` to pick it up ([#9774](https://github.com/melodic-software/claude-code-plugins/issues/9774)).
+- **Git hook entry:** `typos-check.sh` starts under `sh` and starts no `bash` by name, which on Windows can be System32's WSL launcher. The vendored check lib reruns it under the first bash on `PATH` outside System32; with none, bash is a missing tool under the check-placement contract (`checks.skipmissing`, else fail for an agent and a notice for a person). The vendored installer's plain dispatcher runs an entry that starts `#!/bin/sh` with `sh` (an older copy by its own first line until it is refreshed), its lefthook and husky run lines read `sh <path>`, and it replaces a dispatcher an earlier release wrote instead of refusing it as modified. Rerun `/spelling:setup apply install-git-hooks` to pick it up ([#9774](https://github.com/melodic-software/claude-code-plugins/issues/9774)).
 
 ## [0.11.4] - 2026-10-24
 
@@ -382,13 +382,13 @@ No behavior change.
 
 ### Added
 
-- A git pre-commit entry, `typos-check`, that blocks a commit only on a typo in a line the commit adds, with the bundled `config/default-typos.toml` copied beside it. `/typos-format:setup apply install-git-hooks [scope=local|shared]` registers it with lefthook, husky or plain git hooks, and `check` reports its drift.
-- The opt-in `typos_format_end_of_turn` option: when a turn ends, the same check runs over the uncommitted changes and hands its findings back, at most once per turn.
+- A git pre-commit entry, `typos-check`, that blocks a commit only on a typo in a line the commit adds, with the bundled `config/default-typos.toml` copied beside it. `/spelling:setup apply install-git-hooks [scope=local|shared]` registers it with lefthook, husky or plain git hooks, and `check` reports its drift.
+- The opt-in `spelling_end_of_turn` option: when a turn ends, the same check runs over the uncommitted changes and hands its findings back, at most once per turn.
 - The SessionStart probe reports a missing, stale or edited git-hook entry once per session.
 
 ### Removed
 
-- The per-edit PostToolUse spell-check row: findings now arrive at commit time from the pre-commit entry, or at turn end with `typos_format_end_of_turn` on. Its write mode, the `typos_format_write_changes` and `typos_format_lint_gitignored` options, and the SessionStart `compact|clear` row that re-sent its findings went with it.
+- The per-edit PostToolUse spell-check row: findings now arrive at commit time from the pre-commit entry, or at turn end with `spelling_end_of_turn` on. Its write mode, the `spelling_write_changes` and `spelling_lint_gitignored` options, and the SessionStart `compact|clear` row that re-sent its findings went with it.
 - jq as a requirement: no remaining row needs it, so a host without jq no longer gets a notice at session start.
 
 ## [0.9.14] - 2026-10-13
@@ -453,7 +453,7 @@ No behavior change.
 
 ### Changed
 
-- **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** A report-only run reads `typos-format: <file> has N typo(s):` with no "report-only, NOT modified" status line; a write-mode run on a denied path adds why it was not rewritten in the heading. The residual heading loses "(advisory)". The allow-list pointer is one line, once per file, on each channel. An unchanged typo set on a re-edit sends nothing; it is sent again after a clean run, or after compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. A typos break reads `typos-format: typos failed on <file>:` and is sent once per distinct output. The missing-typos notice is composed from `prerequisites.json`, with the install route on the user's copy only, and no longer says it renews every eighth skip; its `degrade` text drops "edits still go through".
+- **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** A report-only run reads `spelling: <file> has N typo(s):` with no "report-only, NOT modified" status line; a write-mode run on a denied path adds why it was not rewritten in the heading. The residual heading loses "(advisory)". The allow-list pointer is one line, once per file, on each channel. An unchanged typo set on a re-edit sends nothing; it is sent again after a clean run, or after compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. A typos break reads `spelling: typos failed on <file>:` and is sent once per distinct output. The missing-typos notice is composed from `prerequisites.json`, with the install route on the user's copy only, and no longer says it renews every eighth skip; its `degrade` text drops "edits still go through".
 
 ## [0.9.7] - 2026-10-04
 
@@ -506,7 +506,7 @@ No behavior change.
 
 ### Added
 
-- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/typos-format:check` and is silenced by the plugin's kill switch. The row is shared across plugins, so a session with several of them sees one notice.
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/spelling:check` and is silenced by the plugin's kill switch. The row is shared across plugins, so a session with several of them sees one notice.
 - `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
 
 ### Changed
@@ -552,8 +552,8 @@ No behavior change.
 ### Changed
 
 - Option titles follow the plugin-option-naming convention
-  (`docs/conventions/plugin-option-naming/`): `typos_format_enabled` is titled `Spell-check on edit`
-  and `typos_format_write_changes` is titled `In-place spelling corrections`. No key, type or
+  (`docs/conventions/plugin-option-naming/`): `spelling_enabled` is titled `Spell-check on edit`
+  and `spelling_write_changes` is titled `In-place spelling corrections`. No key, type or
   default changed.
 
 ## [0.8.10] - 2026-10-02
@@ -591,13 +591,13 @@ No behavior change.
 
 ### Changed
 
-- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/typos-format:check`, which probes it.
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/spelling:check`, which probes it.
 
 ## [0.8.5] - 2026-10-01
 
 ### Changed
 
-- **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name `/typos-format:check`, which probes it.
+- **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name `/spelling:check`, which probes it.
 
 - **The SessionStart probe reports every missing tool in one hook document.** With `jq` declared beside the formatter, a host missing both used to print two JSON documents, which Claude Code cannot read as one hook result.
 
@@ -629,11 +629,11 @@ No behavior change.
 
 ### Added
 
-- The manifest declares its prerequisites, a SessionStart probe prints a notice when one is missing, and `/typos-format:check` reports whether the binary resolves without installing.
+- The manifest declares its prerequisites, a SessionStart probe prints a notice when one is missing, and `/spelling:check` reports whether the binary resolves without installing.
 
 ### Changed
 
-- The SessionStart probe uses the same latch key as the PostToolUse missing-`typos` notice (`typos-format-typos`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal. The notice also names `/typos-format:check`.
+- The SessionStart probe uses the same latch key as the PostToolUse missing-`typos` notice (`spelling-typos`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal. The notice also names `/spelling:check`.
 
 ## [0.7.9] - 2026-09-29
 
@@ -658,7 +658,7 @@ No behavior change.
 ### Changed
 
 - **The missing-`typos` notice uses the `prerequisite` notice class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).** It latches once per session, shared by every agent, instead of once per session and agent, and the renewal on every eighth skip keeps the install route. The notice text says so. The missing-`jq` notice keeps its per-session-and-agent latch.
-- **The gitignore check runs after the typos binary is resolved ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)).** The `git check-ignore` spawn is paid only when typos is about to run. On a host without `typos`, an edit to a gitignored file now emits the once-per-session missing-`typos` notice instead of skipping silently first. The `typos_format_lint_gitignored` default and its meaning are unchanged.
+- **The gitignore check runs after the typos binary is resolved ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)).** The `git check-ignore` spawn is paid only when typos is about to run. On a host without `typos`, an edit to a gitignored file now emits the once-per-session missing-`typos` notice instead of skipping silently first. The `spelling_lint_gitignored` default and its meaning are unchanged.
 - **The setup skill records its basis for the policy-disabled row and for step 1's limit ([#4566](https://github.com/melodic-software/claude-code-plugins/pull/4566)).** Both carry a dated four-part record against the skills docs. Step 1 says why it only reports a Bash version: on Windows without Git Bash the `shell: bash` skill fails to load, and the README Requirements now say to install Git for Windows and rerun. The skill's notice wording matches the hook's latch scopes, and a new eval covers the Windows case.
 - CHANGELOG: corrected the 0.7.5 entry, which claimed a session-start probe and `prerequisites.json` this plugin does not ship. The probe and manifest for the remaining binary-probing format plugins are tracked in [#5286](https://github.com/melodic-software/claude-code-plugins/issues/5286).
 
@@ -673,7 +673,7 @@ No behavior change.
 
 ### Changed
 
-- **The shared `hooks/hook-utils.sh` gained the optional `prerequisite` notice class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).** A `prerequisite` notice latches once per session and keeps its install route on renewal. `typos-format` adopts it for the missing-`typos` notice only, in the next release. It ships no session-start probe, no `prerequisites.json` and no model-invocable check: its hook fires on every Write, Edit and NotebookEdit of any file, so the missing-binary branch is reached on the first edit. `biome-format` and `go-format` are gated by config or extension, and were the silent ones in #4240.
+- **The shared `hooks/hook-utils.sh` gained the optional `prerequisite` notice class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).** A `prerequisite` notice latches once per session and keeps its install route on renewal. `spelling` adopts it for the missing-`typos` notice only, in the next release. It ships no session-start probe, no `prerequisites.json` and no model-invocable check: its hook fires on every Write, Edit and NotebookEdit of any file, so the missing-binary branch is reached on the first edit. `biome-format` and `go-format` are gated by config or extension, and were the silent ones in #4240.
 
 ## [0.7.4] - 2026-09-28
 
@@ -697,13 +697,13 @@ No behavior change.
 
 ### Changed
 
-- The spelling row is exec form. `hooks/exec-bash.mjs --run-if-unset-or-true TYPOS_FORMAT_ENABLED` exits 0 before bash when the option is set to something other than `true` ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
+- The spelling row is exec form. `hooks/exec-bash.mjs --run-if-unset-or-true SPELLING_ENABLED` exits 0 before bash when the option is set to something other than `true` ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
 
 ## [0.7.0] - 2026-09-28
 
 ### Changed
 
-- **A file the repository gitignores is left alone by default** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). An edit to a gitignored path, such as a `.work/` scratch file, is now neither reported nor rewritten in write mode. Set `typos_format_lint_gitignored` to `true` to act on gitignored files again. The check is `hook::gitignored_out_of_scope` in the shared `rewrite-guard.sh`.
+- **A file the repository gitignores is left alone by default** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). An edit to a gitignored path, such as a `.work/` scratch file, is now neither reported nor rewritten in write mode. Set `spelling_lint_gitignored` to `true` to act on gitignored files again. The check is `hook::gitignored_out_of_scope` in the shared `rewrite-guard.sh`.
 
 ## [0.6.70] - 2026-09-28
 
@@ -756,7 +756,7 @@ No behavior change.
 
 ### Changed
 
-- typos-format.sh: in report-only mode the finding classifier is built with bash builtins instead of a jq process when every line of typos' output is a finding in its own field order with printable-ASCII text and no quote or backslash, and the output is at most 16 KB. Byte-identical to the jq program's output; anything else, write mode, and every Windows bash still run jq.
+- spelling.sh: in report-only mode the finding classifier is built with bash builtins instead of a jq process when every line of typos' output is a finding in its own field order with printable-ASCII text and no quote or backslash, and the output is at most 16 KB. Byte-identical to the jq program's output; anything else, write mode, and every Windows bash still run jq.
 - hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
 - hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
 - hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
@@ -766,7 +766,7 @@ No behavior change.
 - hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
-- typos-format.sh: the finding classifier returns its counts and arrays through `tostring`, so every field it returns is a string and `hook::jq_fields` reads them with the builtin parser instead of a second jq process. Same values.
+- spelling.sh: the finding classifier returns its counts and arrays through `tostring`, so every field it returns is a string and `hook::jq_fields` reads them with the builtin parser instead of a second jq process. Same values.
 
 ## [0.6.61] - 2026-09-25
 
@@ -778,13 +778,13 @@ No behavior change.
 
 ### Fixed
 
-- `hooks/typos-format.test.sh`: `run_hook_env` feeds the hook its payload through a here-string instead of a pipe. On the kill-switch case the hook exits before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+- `hooks/spelling.test.sh`: `run_hook_env` feeds the hook its payload through a here-string instead of a pipe. On the kill-switch case the hook exits before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
 
 ## [0.6.59] - 2026-09-24
 
 ### Changed
 
-- The opt-in hook row runs `exec bash` on `hooks/typos-format.sh` instead of executing the script,
+- The opt-in hook row runs `exec bash` on `hooks/spelling.sh` instead of executing the script,
   so an enabled fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash.
   Hook behavior is unchanged (#4442).
 
@@ -798,10 +798,10 @@ No behavior change.
 
 ### Changed
 
-- The `hooks/hooks.json` row reads `typos_format_enabled` in the shell Claude Code runs it
-  in and execs `hooks/typos-format.sh` only when the switch is on, so a disabled hook no
+- The `hooks/hooks.json` row reads `spelling_enabled` in the shell Claude Code runs it
+  in and execs `hooks/spelling.sh` only when the switch is on, so a disabled hook no
   longer starts the script's `env` and bash. The option is spelled brace-free
-  (`$CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED`), so the shell reads it from the
+  (`$CLAUDE_PLUGIN_OPTION_SPELLING_ENABLED`), so the shell reads it from the
   environment at run time and the value is never spliced into the command text, and the
   row pins `"shell": "bash"` because the hooks reference says the shell "Defaults to
   `bash`, or to `powershell` on Windows when Git Bash isn't installed"
@@ -983,15 +983,15 @@ disclosure from the tool's own report rather than from an exit-code map.
   none, which is every run in the default report-only mode. The key is omitted
   on a skip arm, where typos never ran. This is what fills the per-session
   observability report's "Rewrote" block (#3755).
-  `docs/conventions/hook-telemetry/data/typos-format.schema.json` gains the
+  `docs/conventions/hook-telemetry/data/spelling.schema.json` gains the
   optional key, and the suite pins it on a rewriting run and a no-op run.
 
 ## [0.6.42]
 
 ### Changed
 
-- **`hooks/typos-format.sh` reads its kill switch before sourcing the library.**
-  `typos_format_enabled` was read through `hook::check_enabled`, which only
+- **`hooks/spelling.sh` reads its kill switch before sourcing the library.**
+  `spelling_enabled` was read through `hook::check_enabled`, which only
   exists once the 2,766-line `hook-utils.sh` is sourced, so a DISABLED hook
   parsed the whole library before learning it had nothing to do. The predicate
   is now inlined above the `source` line, in the one shape
@@ -1173,7 +1173,7 @@ disclosure from the tool's own report rather than from an exit-code map.
   the repo root names a different file. The hook now records whether the helper
   degraded and falls back to the absolute path in that case, so the scan still
   reads the edited file while the emitted `data.file` stays redacted. A
-  symlinked-root regression case in `hooks/typos-format.test.sh` pins it: the
+  symlinked-root regression case in `hooks/spelling.test.sh` pins it: the
   case fails without the branch.
 
 ## [0.6.31]
@@ -1201,7 +1201,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 
 ### Changed
 
-- **Instruction-surface de-slop (#2891, typos-format cluster).** Rewrote this plugin's `README.md` and every
+- **Instruction-surface de-slop (#2891, spelling cluster).** Rewrote this plugin's `README.md` and every
   `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
   `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
   parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
@@ -1359,12 +1359,12 @@ disclosure from the tool's own report rather than from an exit-code map.
 
 - **Write mode denies known lockfile basenames** even when the extension is otherwise
   allowlisted (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.lock`, …),
-  so generated dependency graphs stay report-only under `typos_format_write_changes`.
+  so generated dependency graphs stay report-only under `spelling_write_changes`.
 
 - **Write mode honors an explicit extension allowlist before `--write-changes` (#2650).** The
   read-only scan stays language-agnostic (any edited file). Opt-in write mode no longer rewrites
   unknown extensions, extensionless paths, or fixture/lock/binary-adjacent types. Those stay
-  report-only even when `typos_format_write_changes` is true. `--write-changes` emits nothing for
+  report-only even when `spelling_write_changes` is true. `--write-changes` emits nothing for
   a correction it applies, so an unbounded write path was unbounded blast radius; the allowlist is
   defense in depth on top of `--force-exclude`. Denied paths still surface findings, with a note
   that write was skipped for the extension.
@@ -1463,7 +1463,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 
 - **Upstream doc stamps re-verified against the live pages (2026-08-10).** Each dated claim below was re-checked against the complete raw markdown source of the page it cites (`https://code.claude.com/docs/en/<page>.md`), not a summarized fetch, and each was confirmed by a verbatim quote before its stamp was refreshed. No claim changed; only the verification dates moved.
 
-  - `hooks/typos-format.sh`: the same `${user_config.*}` shell-form rejection and
+  - `hooks/spelling.sh`: the same `${user_config.*}` shell-form rejection and
     `CLAUDE_PLUGIN_OPTION_<KEY>` export guarantee (plugins reference, "User configuration").
 
 ## [0.6.3]
@@ -1529,7 +1529,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 - **A residual finding that moved between the hook's two passes is no longer disclosed as a rewrite
   typos never made.** Classification keyed each residual by `line_num` + token, which assumes both
   passes saw the same file. They need not: Claude Code runs every matching `PostToolUse` hook in
-  parallel, and `typos-format` and `markdown-format` both declare the matcher `"Write|Edit"`, so a
+  parallel, and `spelling` and `markdown-format` both declare the matcher `"Write|Edit"`, so a
   sibling formatter can reflow the file between the scan and the write and carry an untouched
   finding to a different line. The moved residual then failed to match its own scan entry and was
   reported as an applied correction, a false mutation disclosure on the one channel this hook
@@ -1564,7 +1564,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 ### Changed
 
 - **Wrapper coaching prose trimmed from the hook's injected reports (#2021, remediation line 3).**
-  The hook-surface classification pass marked typos-format a hybrid whose wired surface is mostly
+  The hook-surface classification pass marked spelling a hybrid whose wired surface is mostly
   injected wrapper prose around the report-only findings. The per-finding remediation tail ("if
   intentional, add it to extend-words…"), formerly repeated on every residual line, is replaced by
   one trailing pointer for the whole list; the applied-path disclosure keeps its facts (dictionary
@@ -1593,7 +1593,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 ### Changed
 
 - **Report-only is now the default; write mode is an explicit opt-in (#1809).** The
-  `typos_format_write_changes` userConfig default flips `true` → `false` in both the manifest and
+  `spelling_write_changes` userConfig default flips `true` → `false` in both the manifest and
   the script fallback, so the out-of-the-box hook reports findings and never modifies a file. A
   dictionary autocorrect is a content mutation the user never asked for (#1257's silent SHA
   corruption is one instance), and an unconditional writer here raced the sibling
@@ -1616,7 +1616,7 @@ disclosure from the tool's own report rather than from an exit-code map.
   session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
-  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  opt out with; the reported case was `spelling` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
   project root is outside it. The exemption is deliberate and required: when the project root
   itself lives under temp, its files are still accepted. This repository's own hook suites run
@@ -1704,17 +1704,17 @@ disclosure from the tool's own report rather than from an exit-code map.
 
 ### Added
 
-- **`typos_format_write_changes` userConfig (default `true`).** Set it to
+- **`spelling_write_changes` userConfig (default `true`).** Set it to
   `false` for a report-only hook: findings are reported and no file is
-  modified. Read from the `CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_WRITE_CHANGES`
+  modified. Read from the `CLAUDE_PLUGIN_OPTION_SPELLING_WRITE_CHANGES`
   environment mirror, because shell-form hook commands reject
   `${user_config.*}` substitution outright.
 - **`data.applied` on the telemetry envelope**: the corrections this run wrote,
   as `{typo, correction, line}`. Additive; `data.findings` keeps its existing
   residual-only meaning and shape.
-- **`/typos-format:setup check` reports the effective write mode.** The setup
-  skill described a single tunable and probed only `typos_format_enabled`, so
-  with `typos_format_write_changes=false` it could report the hook fully
+- **`/spelling:setup check` reports the effective write mode.** The setup
+  skill described a single tunable and probed only `spelling_enabled`, so
+  with `spelling_write_changes=false` it could report the hook fully
   operational to a user who invoked it precisely because spell-fixing was not
   happening. Write mode is now a reported INFO row with its own remediation,
   including the alternative that usually fits better, allow-listing the specific
@@ -1793,7 +1793,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 
 ### Changed
 
-- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only, with no hook behavior change. Part of #1527 (`typos-format.test.sh`).
+- **Test scaffolding: migrated `mktemp -p` temp file/dir creation to the portable `mktemp "$DIR/template"` form.** BSD/macOS `mktemp` has no `-p` flag; the directory now rides in the positional TEMPLATE argument instead, which both GNU and BSD `mktemp` accept identically. Test-only, with no hook behavior change. Part of #1527 (`spelling.test.sh`).
 
 ## [0.3.3]
 
@@ -1869,6 +1869,6 @@ disclosure from the tool's own report rather than from an exit-code map.
   with remediation guidance pointing at `extend-words` / `extend-identifiers` /
   `extend-ignore-re` allowlist entries. Advisory only, never blocking the edit.
 - `hook-telemetry` conformance: emits a schema-valid envelope
-  (`docs/conventions/hook-telemetry/data/typos-format.schema.json`) via the
+  (`docs/conventions/hook-telemetry/data/spelling.schema.json`) via the
   shared `hook::emit_telemetry` helper.
-- `/typos-format:setup check|apply` skill for prerequisite verification.
+- `/spelling:setup check|apply` skill for prerequisite verification.
