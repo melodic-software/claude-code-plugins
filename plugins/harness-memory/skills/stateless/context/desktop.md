@@ -33,6 +33,3 @@ UI changes, so treat these as directions to the right area, and confirm against 
   the [Turn memory on or off for your account](https://support.claude.com/en/articles/11817273-use-claude-s-chat-search-and-memory-to-build-on-previous-context#h_c9b905eb3f)
   and [View and manage your memory](https://support.claude.com/en/articles/11817273-use-claude-s-chat-search-and-memory-to-build-on-previous-context#h_463c0c336e)
   sections.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the article is retitled or moved, either section is renamed, or the app's
-  memory controls no longer match the guided steps above.

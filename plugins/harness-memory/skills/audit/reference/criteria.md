@@ -14,8 +14,7 @@ Source: official Claude Code docs, chiefly
 [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short),
 [Enable persistent memory](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory) and
 [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle). Each check
-cites the exact section it rests on beside it. As of 2026-10-11; recheck when any of those sections
-is renamed or moved.
+cites the exact section it rests on beside it.
 
 `<skill-dir>` in the commands below is the parent of this file's `reference/` directory. SKILL.md
 "Script paths" renders its absolute path; put it in place of the placeholder before running a
@@ -25,9 +24,7 @@ This file defines every check the audit runs. Each check has a severity, descrip
 for evaluation. The audit applies checks per-entity-type (CLAUDE.md, rules, memory).
 
 Every firing rule here is our decision, in our words; a doc-derived check names the docs section it
-rests on as a **Pointer** and stores none of the page's text. Unless a check says otherwise, each
-pointer's as-of date is 2026-09-20 and its recheck trigger is a
-Claude Code release note or docs change touching the section it points at.
+rests on as a **Pointer** and stores none of the page's text.
 
 To refresh this file against current official guidance, run the skill's `update` action.
 
@@ -46,8 +43,6 @@ against `AGENTS.md`, not against a CLAUDE.md that is not there.
 - **Pointer**: for when Claude Code reads `AGENTS.md`, see
   [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md);
   the condition discovery applies is recorded in `scripts/lib/agents-md.sh`.
-- **As of**: 2026-09-20
-- **Recheck trigger**: the recheck trigger recorded in `scripts/lib/agents-md.sh` fires.
 
 ### C1: Line Budget [FAIL]
 
@@ -147,9 +142,8 @@ future session instead of relocating them.
 Rather than reading a single scope, resolve the **effective** state with the algorithm the sibling
 `stateless` skill already owns in
 [Step 3: Resolve the effective state](../../stateless/context/status.md#step-3-resolve-the-effective-state),
-which also holds the precedence it applies and its pointers (as of 2026-10-11; recheck when that
-step is renamed or moved, or stops carrying its own precedence pointers). A `false` in a
-lower-precedence scope does not by itself disable the destination.
+which also holds the precedence it applies and its pointers. A `false` in a lower-precedence scope
+does not by itself disable the destination.
 When the resolved state is off, either name a destination that does load or state that enabling auto
 memory is a precondition of the move, rather than proposing it unconditionally.
 
@@ -158,8 +152,7 @@ memory is a precondition of the move, rather than proposing it unconditionally.
 correctly defers, so moving content into a path-scoped rule and pulling it in by import saves
 nothing. Reproduced first-party on Claude Code 2.1.219 (2026-07-24); no official page states it.
 The same caveat, with its pointer, is in
-[official-guidance.md, Rules files](official-guidance.md#rules-files) (as of 2026-10-11; recheck
-when that section is renamed or moved, or drops the caveat or its pointer).
+[official-guidance.md, Rules files](official-guidance.md#rules-files).
 **Provenance**: empirical extension, not doc-derived, so the `update` action must not overwrite it
 with doc-sourced text, and it needs re-verification on a current version rather than a doc re-fetch.
 
@@ -195,10 +188,6 @@ live in [official-guidance.md](official-guidance.md), not here.
   [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
   [Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)
   and [Override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings).
-- **As of** (the listing-entry pointer): 2026-10-11
-- **Recheck trigger** (the listing-entry pointer): a fetch of those sections changes the per-entry
-  listing cap or how it is configured, or no longer supports the zero-cost rule or the plugin-skill
-  exclusion above; re-derive this paragraph and the listing-entry cost from them.
 
 ### C4: Specificity [WARN]
 
@@ -235,7 +224,7 @@ live in [official-guidance.md](official-guidance.md), not here.
 4. WARN per instance
 
 **Provenance**: the KEEP branch is a **repo extension, not doc-derived**: we found no navigation
-posture in the docs' include list (checked 2026-10-30), so the `update` action must not
+posture in the docs' include list, so the `update` action must not
 overwrite it.
 
 **Why**: Step 1 applies, in our words, the docs' test that CLAUDE.md holds only what Claude cannot
@@ -246,10 +235,6 @@ and 3 are our judgment: no docs section lists them.
   [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short); for
   the architecture and file-layout row, see
   [What you can stop doing](https://code.claude.com/docs/en/best-practices#what-you-can-stop-doing).
-- **As of**: 2026-10-30
-- **Recheck trigger**: the include list gains a navigation-pointer entry, the section drops its
-  only-what-Claude-cannot-work-out test, or the stop-doing table drops the architecture and
-  file-layout row.
 
 ### C6: Consistency [FAIL]
 
@@ -426,8 +411,7 @@ already loads would spend budget restating it), so "unreferenced" alone proves n
 set-difference: enumerate always-loaded rules without `description:`, `git grep` each basename across
 tracked files excluding the rule's own file; zero hits = orphan). Path-scoped rules are exempt: they
 load only on demand, so being unreferenced costs nothing per session. What fires one is read at
-[Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) (as of 2026-11-04;
-recheck when that section stops loading a rule on demand). WARN per orphan.
+[Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules). WARN per orphan.
 Each finding carries the file's provenance (see "Provenance routing" below): a synced rule is still a
 finding, but its fix line names the sync's source rather than a local edit.
 
