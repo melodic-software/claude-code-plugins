@@ -568,6 +568,13 @@ for raw_path in "$@"; do
   # requirements file is preferred over a development-scope one: taking the
   # first sorted hit reports the repository as tooling merely because
   # `requirements-dev.txt` sorts ahead of `requirements.txt`.
+  #
+  # Only a ROOT-LEVEL runtime-scope requirements file claims the runtime. A
+  # requirements file declares no package, so a nested one speaks for its own
+  # directory (one plugin's optional extras), not the repository; letting it win
+  # reported a shell repository as python and discarded its CI requirements. A
+  # nested Python package still claims the runtime through pyproject.toml or
+  # setup.py, which `find_first` reads at any depth.
   py_manifest=""
   py_dev_manifest=""
   py_scope="runtime"
@@ -579,7 +586,7 @@ for raw_path in "$@"; do
       [[ -n "$hit" ]] || continue
       if [[ "$(effective_scope "$hit" "$(requirements_scope "$hit")")" == "development" ]]; then
         [[ -n "$py_dev_manifest" ]] || py_dev_manifest="$hit"
-      else
+      elif [[ "$hit" != */* ]]; then
         py_manifest="$hit"
         break
       fi

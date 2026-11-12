@@ -403,6 +403,41 @@ out="$(bash "$SCRIPT" "$devreq_repo")"
 assert_equals "dev-req: python is tooling, not the runtime" "$(field "$out" tooling)" "python"
 assert_contains "dev-req: the tool is a dev dependency" "$(array_field "$out" dev_dependencies)" '"pytest"'
 
+# One component's requirements file speaks for that component, not the
+# repository: it must neither claim the runtime nor hide the CI requirements.
+nestedreq_repo="$(make_repo plugin-extras)"
+mkdir -p "$nestedreq_repo/.github" "$nestedreq_repo/plugins/anim"
+printf 'ruff==0.16.5\npytest==9.1.1\n' >"$nestedreq_repo/.github/requirements-ci.txt"
+printf 'numpy>=2\n' >"$nestedreq_repo/plugins/anim/requirements.txt"
+printf '#!/usr/bin/env bash\necho hi\n' >"$nestedreq_repo/run.sh"
+commit_repo "$nestedreq_repo"
+out="$(bash "$SCRIPT" "$nestedreq_repo")"
+assert_equals "nested-req: a component's requirements do not claim the runtime" "$(field "$out" runtime)" "shell"
+assert_equals "nested-req: the CI requirements still report python tooling" "$(field "$out" tooling)" "python"
+assert_contains "nested-req: the CI tools are dev dependencies" "$(array_field "$out" dev_dependencies)" '"ruff"'
+assert_not_contains "nested-req: the component's package is not a repository dependency" "$out" '"numpy"'
+
+# A root-level requirements file still claims the runtime beside the CI one.
+rootreq_repo="$(make_repo py-app)"
+mkdir -p "$rootreq_repo/.github" "$rootreq_repo/plugins/anim"
+printf 'ruff==0.16.5\n' >"$rootreq_repo/.github/requirements-ci.txt"
+printf 'flask>=3\n' >"$rootreq_repo/requirements.txt"
+printf 'numpy>=2\n' >"$rootreq_repo/plugins/anim/requirements.txt"
+commit_repo "$rootreq_repo"
+out="$(bash "$SCRIPT" "$rootreq_repo")"
+assert_equals "root-req: a root requirements file claims the runtime" "$(field "$out" runtime)" "python"
+assert_contains "root-req: its packages are runtime dependencies" "$(array_field "$out" dependencies)" '"flask"'
+assert_not_contains "root-req: a component's file adds nothing" "$out" '"numpy"'
+
+# A nested Python package declares itself, so it still claims the runtime.
+nestedpkg_repo="$(make_repo py-monorepo)"
+mkdir -p "$nestedpkg_repo/services/api"
+printf '[project]\nname = "api"\ndependencies = ["fastapi"]\n' >"$nestedpkg_repo/services/api/pyproject.toml"
+commit_repo "$nestedpkg_repo"
+out="$(bash "$SCRIPT" "$nestedpkg_repo")"
+assert_equals "nested-pkg: a nested pyproject still claims the runtime" "$(field "$out" runtime)" "python"
+assert_contains "nested-pkg: its dependencies are collected" "$(array_field "$out" dependencies)" '"fastapi"'
+
 # Runtime and tooling coexist: the runtime is claimed by the runtime-scope
 # manifest, and the dev-only manifest still reports its family as tooling.
 both_repo="$(make_repo svc-with-tooling)"
