@@ -128,7 +128,7 @@ a determinism gate, and including it in either property would make the gate repo
 run does not have.
 
 - **Pointer**: when deciding whether `/doctor` still runs as a model-driven skill, fetch
-  [skills: check your setup with `/doctor`](https://code.claude.com/docs/en/skills#check-your-setup-with-doctor)
+  [skills: check your setup with `/doctor`](https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor)
   live.
 - **As of**: 2026-11-03
 - **Recheck trigger**: that section stops listing `/doctor` among the bundled skills, or moves.
