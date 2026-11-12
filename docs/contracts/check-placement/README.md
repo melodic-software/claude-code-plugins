@@ -147,6 +147,12 @@ rewrites, so a file with unstaged changes fails with the Rewrites message below 
 
 `event` is `pre-commit` | `pre-push` | `commit-msg`; `rewrites: true` with `pre-push` is rejected.
 
+A renamed plugin adds an optional top-level `earlierNames` array of its former plugin names
+(`"earlierNames": ["old-name"]`), each matching the entry-name rule and never its own name.
+The installer looks for artifacts and decline keys under those names only, so another plugin that
+ships an entry of the same name is never touched. Each name is a migration line: the rename adds
+it, and it is removed once no consumer repository still holds artifacts under that name.
+
 An entry may add an optional `assets` array: files the script reads at run time, such as a default
 config (`"assets": ["config/default-typos.toml"]`).
 
@@ -288,7 +294,7 @@ each asset in manifest order, a NUL and that asset's LF-normalized bytes. The st
 version stamp would flag drift on every release, and at shared scope each rerun would add a commit
 to every consumer repository.
 
-`verify` reports one of five states per entry:
+`verify` reports one of five states per entry, plus one `superseded` row per declared earlier name an entry has artifacts under:
 
 | State | Meaning | Output |
 |---|---|---|
@@ -296,12 +302,14 @@ to every consumer repository.
 | stale | stamp differs from the current source hash (a changed source script, check lib or asset) | drift line |
 | modified | the installed copy, or an installed asset, no longer hashes to its stamp | drift line; the agent decides (D1) |
 | missing | not installed and not declined | drift line |
-| declined | `checks.<plugin>.<name>.declined` true at any git config scope, or unset with `checks.git-hooks.declined` true | silent until `verify` runs by hand |
+| declined | `checks.<plugin>.<name>.declined` true at any git config scope; unset, the same entry's key under a declared earlier name (`earlierNames`) true by git's precedence (its detail names the carry-over; that key false is an opt-in, as the entry's own false is); both unset, `checks.git-hooks.declined` true | silent until `verify` runs by hand |
+| superseded | an artifact of this entry under a former name the plugin declares in `earlierNames`, as an install made before the rename leaves: a copy whose stamp names the entry, its `<event>.d/` marker, a lefthook job running it, a config-hook copy under the user git config directory with its `includeIf` and `hook.<name>-<entry>` keys, or a decline key under the earlier name in this clone's own local or worktree config, or one whose value this clone has not yet carried to its own local key | drift line naming each artifact; `plan` returns them as a `superseded` decision, and the setup agent removes them and carries this clone's resolved decline or opt-in to its own local key on the user's yes (D1). An earlier-name decline line in a system or global file, or a file one includes, is never edited: `plan` reports it with the command to remove it once every clone relying on it has its own key, and `verify` stays silent about it once this clone has one |
 
 Drift line, shown to the user only:
 
 ```text
 <plugin>: git hook <name> <state>; run /<plugin>:setup apply install-git-hooks
+<plugin>: git hook <name> left under an earlier plugin name (remove <dir> and <marker> and any hook-manager line that runs <script>; ...); run /<plugin>:setup apply install-git-hooks
 ```
 
 The SessionStart drift check runs inside the plugin's `prerequisites.mjs probe`, which harness-ops'

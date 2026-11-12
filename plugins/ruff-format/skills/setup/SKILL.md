@@ -97,8 +97,8 @@ or `modified` entry): the entry runs at commit outside Claude Code and reads no 
    in-process hit that is not ephemeral is INFO beside that result, not a PASS by itself.
 8. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
    from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
-   INFO (this clone said no; silent at session start), and `missing`, `stale` or `modified` is a
-   FAIL whose remediation is `apply install-git-hooks`. A `tool\t<tool>\tmissing` line means the
+   INFO (this clone said no; silent at session start), and `missing`, `stale`, `modified` or `superseded` is a
+   FAIL whose remediation is `apply install-git-hooks`; a `superseded` detail lists what an install under an earlier plugin name left, which that action removes on the user's yes. A `tool\t<tool>\tmissing` line means the
    installed entry cannot run here: list every such tool with its install method from the
    `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
    auto-mode session commits. Outside a git repository, report INFO and skip the step.

@@ -75,8 +75,8 @@ than "missing". An absent optional prerequisite is not a failure.
 
 **5. Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
 from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is INFO
-(this clone said no; silent at session start), and `missing`, `stale` or `modified` is a FAIL
-whose remediation is `apply install-git-hooks`. The entry needs no external tool. Outside a git
+(this clone said no; silent at session start), and `missing`, `stale`, `modified` or `superseded` is a FAIL
+whose remediation is `apply install-git-hooks`; a `superseded` detail lists what an install under an earlier plugin name left, which that action removes on the user's yes. The entry needs no external tool. Outside a git
 repository, report INFO and skip the step.
 
 **6. Effective configuration.** Print each value with its **source**, so a surprising number is
@@ -104,7 +104,7 @@ one write path is `apply install-git-hooks`, which writes only files this plugin
 | No index home | Name the file `render-index.sh write` would target, and offer to create the block |
 | `git` absent | State the degradation; there is nothing to install on the consumer's behalf |
 | `node` absent | Name it and the consequence (the git-hook entry cannot be installed or verified); install nothing |
-| Git entry `missing`, `stale` or `modified` | `apply install-git-hooks` |
+| Git entry `missing`, `stale`, `modified` or `superseded` | `apply install-git-hooks` |
 | `jq` or CLI absent | Name the tool and that only `verify-load.sh` is affected |
 
 After an accepted change, re-run the reachability check and report the new verdict. An `apply` that
