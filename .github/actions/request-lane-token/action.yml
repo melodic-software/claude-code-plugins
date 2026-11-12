@@ -351,7 +351,8 @@ runs:
         # jitter cut to fit the budget, never less. github-unavailable and an
         # OIDC failure back off with full jitter, up to 20 s and then 40 s, or
         # wait a longer Retry-After. An OIDC failure still transient after the
-        # budget is titled "GitHub server error".
+        # budget is titled "GitHub rate limit" on a 429, as the repository's
+        # other rate-limit stops are, and "GitHub server error" otherwise.
         # mint-unavailable is a failed mint after the job's one reservation, so
         # it is final, as is every other answer and no answer: a 200 lost in
         # transit is revoked by nobody. With its 30 s OIDC and 60 s broker
@@ -363,7 +364,8 @@ runs:
         attempt=0 waited=0 retried="" rate_limit=""
         # The whole seconds of header file $1's Retry-After, or "".
         retry_after() {
-          tr -d '\r' <"$1" 2>/dev/null |
+          [ -f "$1" ] || return 0
+          tr -d '\r' <"$1" |
             awk -F': *' 'tolower($1) == "retry-after" && $2 ~ /^[0-9]+$/ && length($2) <= 6 { v = $2 + 0 } END { print v }'
         }
         # Sets delay to full jitter up to this attempt's backoff, or to the
@@ -379,17 +381,21 @@ runs:
           raw=$(printf 'Authorization: bearer %s\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" |
             curl -sS --fail --max-time 30 -D "$oidc_headers" -H @- "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE") || rc=$?
           if [ "$rc" -ne 0 ]; then
-            code=$(tr -d '\r' <"$oidc_headers" 2>/dev/null | awk '$1 ~ /^HTTP\// { c = $2 } END { print c }') || code=""
+            code=""
+            [ ! -f "$oidc_headers" ] ||
+              code=$(tr -d '\r' <"$oidc_headers" | awk '$1 ~ /^HTTP\// { c = $2 } END { print c }') || code=""
+            title="GitHub server error"
             case $rc in
             22) [[ $code =~ ^(5[0-9][0-9]|429)$ ]] || fail "the OIDC token request failed"
+              [ "$code" != 429 ] || title="GitHub rate limit"
               why="HTTP $code" ;;
             6 | 7 | 16 | 18 | 28 | 35 | 52 | 55 | 56) why="curl exit $rc" ;;
             *) fail "the OIDC token request failed" ;;
             esac
             final="the OIDC token request failed: $why on attempt $((attempt + 1)) of $((${#backoff[@]} + 1))"
-            [ "$attempt" -lt ${#backoff[@]} ] || fail "$final" "GitHub server error"
+            [ "$attempt" -lt ${#backoff[@]} ] || fail "$final" "$title"
             after=$(retry_after "$oidc_headers") || after=""
-            backoff_delay "$after" || fail "$final; the next wait would pass the 1-minute retry budget" "GitHub server error"
+            backoff_delay "$after" || fail "$final; the next wait would pass the 1-minute retry budget" "$title"
             retried="a failed OIDC token request ($why)"
             attempt=$((attempt + 1))
             waited=$((waited + delay))

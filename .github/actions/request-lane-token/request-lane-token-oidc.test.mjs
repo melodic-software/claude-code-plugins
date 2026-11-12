@@ -197,6 +197,11 @@ for (const [label, answer, why] of [
   ["a refused connection (curl exit 7)", curlExit(7), "curl exit 7"],
   ["an unresolved host (curl exit 6)", curlExit(6), "curl exit 6"],
   ["a reset connection (curl exit 56)", curlExit(56), "curl exit 56"],
+  ["an HTTP/2 framing error (curl exit 16)", curlExit(16), "curl exit 16"],
+  ["a partial transfer (curl exit 18)", curlExit(18), "curl exit 18"],
+  ["a failed TLS handshake (curl exit 35)", curlExit(35), "curl exit 35"],
+  ["an empty reply (curl exit 52)", curlExit(52), "curl exit 52"],
+  ["a failed send (curl exit 55)", curlExit(55), "curl exit 55"],
 ]) {
   test(`an OIDC token request that fails with ${label} is retried with backoff and then mints`, () => {
     const run = request({ oidc: [answer, OK] });
@@ -218,16 +223,58 @@ test("an OIDC 503 with a Retry-After longer than the backoff waits the Retry-Aft
   assert.deepEqual(run.sleeps, [45]);
 });
 
-test("an OIDC 429 on every attempt fails red after three requests, titled GitHub server error", () => {
+test("an OIDC 429 on every attempt fails red after three requests, titled GitHub rate limit", () => {
   const run = request({ oidc: [http(429), http(429), http(429)] });
   assert.equal(run.status, 1);
   assert.equal(run.oidcRequests, 3, "at most three OIDC requests");
   assert.equal(run.brokerRequests, 0, "the broker is never asked without an OIDC token");
   assert.equal(run.sleeps.length, 2);
   assert.ok(run.sleeps[0] <= 20 && run.sleeps[1] <= 40, `waits ${run.sleeps}`);
-  assert.deepEqual(errors(run), ["::error title=GitHub server error::the OIDC token request failed: HTTP 429 on attempt 3 of 3"]);
+  assert.deepEqual(errors(run), ["::error title=GitHub rate limit::the OIDC token request failed: HTTP 429 on attempt 3 of 3"]);
   assert.equal(run.output, "failure-reason=the OIDC token request failed: HTTP 429 on attempt 3 of 3\n");
+  assert.deepEqual(run.leftovers, [], "the step leaves no OIDC header file behind");
   assertNoSecret(run);
+});
+
+test("an OIDC 503 on every attempt fails red after three requests, titled GitHub server error", () => {
+  const run = request({ oidc: [http(503), http(503), http(503)] });
+  assert.equal(run.status, 1);
+  assert.equal(run.oidcRequests, 3);
+  assert.deepEqual(errors(run), ["::error title=GitHub server error::the OIDC token request failed: HTTP 503 on attempt 3 of 3"]);
+  assert.deepEqual(run.leftovers, [], "the step leaves no OIDC header file behind");
+});
+
+test("an OIDC failure that writes no header file prints no shell error about the missing file", () => {
+  const run = request({ oidc: [curlExit(28), OK] });
+  assert.equal(run.status, 0, run.log);
+  assert.doesNotMatch(run.log, /No such file/);
+});
+
+// A later attempt's Retry-After is its own: a curl failure that writes no
+// header file reads none, never the earlier answer's 45 s. With 45 s spent,
+// a fresh full-jitter wait (0-40 s) fits the 60 s budget when it is at most
+// 15 s, about 2 runs in 5; the stale 45 s never fits.
+test("a curl failure after an OIDC 503 with a 45 s Retry-After waits full jitter, not the earlier Retry-After", () => {
+  let minted = 0;
+  for (let i = 0; i < 40 && minted === 0; i += 1) {
+    const run = request({ oidc: [http(503, "Retry-After: 45\r\n"), curlExit(7), OK] });
+    assert.equal(run.sleeps[0], 45);
+    assert.ok(run.sleeps.length < 2 || run.sleeps[1] <= 40, `the second wait is full jitter up to 40 s, got ${run.sleeps[1]}`);
+    if (run.status === 0) minted += 1;
+  }
+  assert.equal(minted, 1, "a fitting jitter wait mints within 40 runs");
+});
+
+test("check mode retries a transient OIDC failure and then gets the allow", () => {
+  const run = request({
+    oidc: [http(502), OK],
+    broker: [{ status: "200", body: { decision: "allow", lane: "work-resolve-issue", activity: "resolve-issue" } }],
+    inputs: { MODE: "check", ISSUE_NUMBER: "", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "" },
+  });
+  assert.equal(run.status, 0, run.log);
+  assert.equal(run.oidcRequests, 2);
+  assert.equal(run.brokerRequests, 1);
+  assert.match(run.output, /^allowed=true$/m);
 });
 
 test("an OIDC timeout on every attempt fails red after three requests, naming the curl exit", () => {
@@ -299,6 +346,34 @@ test("an OIDC retry spends the same 60 s as a broker retry: after a 45 s broker 
   assert.deepEqual(errors(run), [
     "::error title=GitHub server error::the OIDC token request failed: HTTP 503 on attempt 2 of 3; the next wait would pass the 1-minute retry budget",
   ]);
+});
+
+test("a broker retry spends the seconds an OIDC retry already waited: after a 45 s OIDC wait a 30 s broker Retry-After is not waited", () => {
+  const run = request({
+    oidc: [http(503, "Retry-After: 45\r\n"), OK],
+    broker: [{ ...GITHUB_UNAVAILABLE, headers: "HTTP/2 503\r\nRetry-After: 30\r\n\r\n" }, { status: "200", body: MINT }],
+  });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.sleeps, [45], "only the OIDC wait is taken");
+  assert.equal(run.brokerRequests, 1);
+  assert.equal(
+    run.output,
+    "failure-reason=lane-token-denied: the broker answered 503 with reason github-unavailable: d, after a failed OIDC token request (HTTP 503)\n",
+  );
+});
+
+const RATE_LIMITED_NOW = {
+  status: "503",
+  body: { error: "unavailable", reason: "github-rate-limited", detail: "d", limit: "secondary", resource: "core", retry_after: 0 },
+  headers: "HTTP/2 503\r\nRetry-After: 0\r\n\r\n",
+};
+
+test("a broker retry spends the attempts an OIDC retry already took: one OIDC retry leaves room for one broker retry", () => {
+  const run = request({ oidc: [http(503), OK, OK], broker: [RATE_LIMITED_NOW, RATE_LIMITED_NOW, { status: "200", body: MINT }] });
+  assert.equal(run.status, 1);
+  assert.equal(run.oidcRequests, 3);
+  assert.equal(run.brokerRequests, 2, "the third request was the OIDC retry's, so no third broker request");
+  assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered 503 with reason github-rate-limited: d/m);
 });
 
 test("a broker failure after an OIDC retry names the OIDC failure it followed", () => {
