@@ -303,7 +303,9 @@ UNVERIFIED / low-confidence (flagged, not asserted):
   (present upstream in the bundled version; see the Published Artifact record): verify
   empirically before use.
 - Public sharing of an artifact is reported to fail for pages containing mermaid
-  blocks, SVG `data:` URIs, or AVIF images (anthropics/claude-code#79824, #81410 a
-  sibling); the mechanism is unconfirmed; private and org sharing are unaffected.
+  blocks, SVG `data:` URIs, or AVIF images (anthropics/claude-code#79824 open,
+  #81410 a sibling, as of 2026-09-04); the mechanism is unconfirmed; private and
+  org sharing are unaffected. Recheck when either issue closes or a changelog
+  entry names artifact public sharing.
 - Third-party repo maintenance signals (last-commit dates, exact star counts) and
   the AntV egress claim (from its README, not empirically exercised).
