@@ -25,5 +25,4 @@ different property library, apply the same page with that library's docs.
 Verification record. Claim: `fc.assert` takes a property and an optional parameters object whose
 `numRuns`, `seed`, `path` and `examples` options set the run count, replay a failure, and add values
 tried before generated ones. Basis: <https://fast-check.dev/docs/core-blocks/runners/> and
-<https://fast-check.dev/docs/api/interfaces/Parameters/>. As of 2026-10-04. Recheck when a fast-check
-major release renames those options or changes the runner signature.
+<https://fast-check.dev/docs/api/interfaces/Parameters/>.

@@ -11,9 +11,6 @@ This skill's decision: a browser whose cookies yt-dlp cannot read counts as a fa
 - **Pointer**: when Chromium-based cookie extraction fails on Windows, fetch
   <https://github.com/yt-dlp/yt-dlp/issues/7271> (database locked while the browser runs) and
   <https://github.com/yt-dlp/yt-dlp/issues/10927> (DPAPI decryption) live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: either issue closes, or a yt-dlp release note changes `--cookies-from-browser`
-  on Windows.
 
 ## HTTP 429 throttling
 
@@ -37,7 +34,7 @@ A successful `close` removes those recorded dirs on purpose, after it marks the 
 
 ## Video download blocked (HTTP 403 on the media stream)
 
-Captions and metadata can come through while the video itself is refused: yt-dlp fetches the caption track and then fails the media download with HTTP 403. YouTube applies this most to requests from datacenter IP ranges, so a cloud container sees it where a home connection does not. The full acquisition runs the video pass first, so `run-watch.js` exits non-zero before any slice is written, and the watch stops there ("No video, no watch" in `SKILL.md`). The fix path is to run the watch from a machine whose connection YouTube serves, such as a local session. Cookies (the `yt_dlp_cookies_file` option) and a proof-of-origin token provider plugin are the other levers; before reaching for either, read what each can and cannot clear and what it risks for the account in the yt-dlp [PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide), the [cookies FAQ](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp), and the [bgutil-ytdlp-pot-provider README](https://github.com/Brainicism/bgutil-ytdlp-pot-provider), as of 2026-10-06; recheck when a yt-dlp release changes which clients need a token or how cookies are passed.
+Captions and metadata can come through while the video itself is refused: yt-dlp fetches the caption track and then fails the media download with HTTP 403. YouTube applies this most to requests from datacenter IP ranges, so a cloud container sees it where a home connection does not. The full acquisition runs the video pass first, so `run-watch.js` exits non-zero before any slice is written, and the watch stops there ("No video, no watch" in `SKILL.md`). The fix path is to run the watch from a machine whose connection YouTube serves, such as a local session. Cookies (the `yt_dlp_cookies_file` option) and a proof-of-origin token provider plugin are the other levers; before reaching for either, read what each can and cannot clear and what it risks for the account in the yt-dlp [PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide), the [cookies FAQ](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp), and the [bgutil-ytdlp-pot-provider README](https://github.com/Brainicism/bgutil-ytdlp-pot-provider).
 
 ## Phase state lives only in `watch.json`
 

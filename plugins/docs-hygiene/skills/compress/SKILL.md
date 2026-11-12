@@ -20,9 +20,7 @@ The pipe is the bound and belongs in the command. A read-time cap ("read only th
 limits only what is read after the command returns, never what it returns.
 
 - **Pointer**: when deciding how much command output reaches context, fetch
-  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live. **As of**:
-  2026-11-10. **Recheck trigger**: that section changes how much output arrives inline or what
-  arrives in place of output past the inline limit.
+  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls, not pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
@@ -88,7 +86,7 @@ The real file is replaced only on success. Consumers may add a defensive `**/*.o
 
 - **Pointer**: when checking where caveman writes its backup, fetch
   [caveman-compress, Purpose](https://github.com/JuliusBrussee/caveman/blob/main/skills/caveman-compress/SKILL.md#purpose)
-  live. **As of**: 2026-11-10. **Recheck trigger**: that section changes where the backup is written.
+  live.
 
 **Step B fallback. In-session Edit (`compress_articles: keep`, or caveman absent, unknown, or unwanted):**
 
@@ -177,8 +175,7 @@ Audit action output: table with `target`, `expected_yield_pct`, `classify` (SKIP
 
   - **Pointer**: when a design question turns on whether a subagent can spawn its own, fetch
     [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
-    live. **As of**: 2026-11-10. **Recheck trigger**: that section changes whether or how deep
-    subagents nest by default.
+    live.
 - **Sub-N% diffs auto-revert unless `--force`.** Pass `--force` only when a targeted sub-N% diff is intentional; the user owns the result.
 - **Run caveman on a temp copy, never the real file.** Step B's `mktemp -d` wrapper keeps caveman's edit on the copy, so the real file changes only when caveman succeeds. Where caveman keeps its backup: the Step B pointer.
 

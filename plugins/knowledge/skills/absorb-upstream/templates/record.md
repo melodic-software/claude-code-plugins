@@ -15,10 +15,8 @@ read upstream at each row's link for what it says.
 
 **Recheck trigger:** <the fixed wording from the convention's "Pinned git upstreams" section>
 
-<!-- A page source: replace the two lines above with the convention's required parts. -->
+<!-- A page source: replace the two lines above with the convention's pointer record. -->
 <!-- - **Pointer**: when <situation>, fetch <page URL with section anchor> live. -->
-<!-- - **As of**: YYYY-MM-DD -->
-<!-- - **Recheck trigger**: <an observable event, never a bare date> -->
 
 ## Attribution table
 

@@ -44,7 +44,7 @@ extraction waits for the third (Rule of Three).
   not have, so take every Basis anchor from the rendered page's `id`s, and cite an id that keeps
   a typographic apostrophe (U+2019) percent-encoded (`%E2%80%99`). Probe for a page: list its
   rendered ids with `grep -o 'id="[^"]*"'` and compare them with the anchors the `.md` fetch
-  implies (as of 2026-10-25; recheck trigger: a `.md` fetch carries every rendered heading id).
+  implies.
   Digest text reproduces these artifacts
   byte-exact and never repairs them. The reader-facing exception under **Archive-reading
   conventions** covers escaped links: a downstream artifact written *for a reader* repairs the
@@ -96,10 +96,7 @@ extraction waits for the third (Rule of Three).
   - **Pointer**: when the `.md` channel's shape or figure handling matters, read the probe in the
     Verification section of
     [#7214](https://github.com/melodic-software/claude-code-plugins/pull/7214); no docs page
-    covers this channel as of 2026-10-11.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: a `.md` fetch returns a non-markdown content type, or its body lacks the
-    article's H1 title.
+    covers this channel.
 - **Figure data decoded from a framework payload is a derived file (both blog hosts).** When a
   figure's values sit in a script payload inside `source.html` (for example a `self.__next_f`
   script) rather than in its text, decode the payload into a file beside the originals, never
@@ -124,8 +121,7 @@ extraction waits for the third (Rule of Three).
   the claim, never evidence of absence. A rendered `WebFetch` result is never trusted to hold the
   whole page (**Pointer**: when judging what a rendered fetch returned of a page, fetch
   [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes how much of a page one
-  call reads, what it does to the content, or how a result reports content it left out). The
+  live). The
   asymmetry is what makes this binding: a fetch that misses part of a page cannot fabricate a
   PRESENCE, only an ABSENCE. A re-fetch through the same channel reproduces
   the blind spot rather than testing it, so the recheck uses the raw channel, not a repeat of the
@@ -190,8 +186,7 @@ asserts:
   own command and count over that corpus, so every row of every slice rests on the same set. A
   search over a hand-picked subset is a sample: the row says so, and a sample never certifies
   absence.
-  Pointer: <https://code.claude.com/docs/llms.txt>. As of: 2026-10-01. Recheck trigger: that URL
-  stops serving the full page index.
+  Pointer: <https://code.claude.com/docs/llms.txt>.
 - **Every absence statement is scoped to the pages the run actually read.** A row or prose line
   saying no page states something names the corpus it searched, and names any page the corpus
   index lists that the run could not fetch or read. An unread page is a gap the statement
@@ -354,8 +349,7 @@ asserts:
   rules as an `api-only` basis. A row that searched only the harness corpus has not established
   blog-only. When a platform page states the same assertion, the row cites that page and drops
   the marker.
-  Pointer: <https://platform.claude.com/llms.txt>. As of: 2026-10-01. Recheck trigger: that URL
-  stops serving the docs page index.
+  Pointer: <https://platform.claude.com/llms.txt>.
 - **A prescribed method no docs page states is vendor-claimed.** A directive that prescribes a
   method or structure no docs page states carries `vendor-claimed`. A directive that applies a
   documented method to a new case carries `unverified-inference` only.
@@ -392,9 +386,6 @@ against the live page; this profile stores no generation rule.
 - **Pointer**: for which model IDs are pinned snapshots, see
   <https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions#model-id-format>
   and <https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions#dateless-ids-are-pinned-snapshots>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: that page changes how a dateless ID or alias resolves, or a new model
-  generation ships.
 
 **Known gap: a plain Agent tool spawn cannot pin a model ID.** Our probe on 2026-10-01: the
 Agent tool's per-call `model` parameter, as this harness exposes it, takes only the family
@@ -441,7 +432,7 @@ undecided). The handoff records the candidate target per finding; the interview 
 ## Hedge preservation, and the residual-risk footer
 
 A source's own hedge stays attached to the content it qualifies. An artifact graduated from this
-publisher carries a pointer to the hedge (exact section, as-of date, recheck trigger) beside the
+publisher carries a pointer to the hedge (exact section) beside the
 content it qualifies. It never carries the hedge's text, quoted or paraphrased, and never drops
 the pointer or widens it to content the hedge does not qualify. The residual-risk footer below is
 the standing instance; the harness best-practices material's hedge on its own recommendations is
@@ -461,8 +452,6 @@ nor an artifact stores its text, and a reader follows the pointer.
 
 - **Pointer**: for the residual-risk sentence, see
   <https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations#advanced-techniques>.
-- **As of**: 2026-08-03
-- **Recheck trigger**: that section drops, moves, or rewords its residual-risk sentence.
 
 An artifact says nothing about that sentence's scope or mechanism beyond the pointer. Naming the
 failure mode it covers more broadly than the section does, or naming who acts on it, states

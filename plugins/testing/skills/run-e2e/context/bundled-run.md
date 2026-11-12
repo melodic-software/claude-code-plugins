@@ -1,17 +1,17 @@
 # The bundled `run` skill: verification record
 
 Detail behind the `## Native step: run` section of [own-driving.md](own-driving.md) and the
-`## Boundary` section of [SKILL.md](../SKILL.md). Each row is a four-part record: what we rely on,
-the pointer or probe, date checked, and recheck trigger. The `/verify` handoff keeps its own dated
-record in the body's Handoff section.
+`## Boundary` section of [SKILL.md](../SKILL.md). Each row records what we rely on,
+the pointer or probe, the date a probe was run, left empty for a pointer row, and the
+recheck trigger. The `/verify` handoff keeps its own record in the body's Handoff section.
 
 | What we rely on | Pointer or probe | As of | Recheck when |
 |---|---|---|---|
-| `run` is a bundled skill this skill can compose for the launch with no setup; which skills sit beside it and how they find the launch is the pointer's to state | [Extend Claude with skills § Run and verify your app](https://code.claude.com/docs/en/skills#run-and-verify-your-app) | 2026-11-10 | That section changes which skills it lists or how they find the launch |
+| `run` is a bundled skill this skill can compose for the launch with no setup; which skills sit beside it and how they find the launch is the pointer's to state | [Extend Claude with skills § Run and verify your app](https://code.claude.com/docs/en/skills#run-and-verify-your-app) |  | That section changes which skills it lists or how they find the launch |
 | `run` is registered as a bundled skill with no invocation-control field, so Claude can invoke it on its own | Probe: the invocation-mode evidence line, dated 2026-09-11 (Claude Code 2.1.263), on the `run` x `testing:run-e2e` row of `docs/native-surfaces/records.json` | 2026-09-11 | A new extraction or binary search changes that evidence line |
 | Its registration carries `menuDescription:"Launch this project's app to see your change working"` and `userInvocable` | Probe: string search of the installed 2.1.263 binary | 2026-09-11 | A release changes the registration |
-| This skill suggests `/verify` to the user rather than invoking it; who may invoke `/run` and `/verify` is the pointer's to state | [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands), the `/run` row and the legend above the table | 2026-11-10 | The `/run` row changes, or the legend changes `/verify`'s invocability |
-| Neither bundled skill captures evidence to a contract, and neither has a non-UI mode | Our reading of the section in the first row: it names launching, driving, building, and confirming; nothing names screenshots, response captures, logs as artifacts, or libraries, MCP servers, hooks, and scripts | 2026-10-11 | Either skill gains an evidence-capture or non-app target mode |
+| This skill suggests `/verify` to the user rather than invoking it; who may invoke `/run` and `/verify` is the pointer's to state | [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands), the `/run` row and the legend above the table |  | The `/run` row changes, or the legend changes `/verify`'s invocability |
+| Neither bundled skill captures evidence to a contract, and neither has a non-UI mode | Our reading of the section in the first row: it names launching, driving, building, and confirming; nothing names screenshots, response captures, logs as artifacts, or libraries, MCP servers, hooks, and scripts |  | Either skill gains an evidence-capture or non-app target mode |
 | `run` defers to a project skill that already covers launching the app; a project skill named `run` is a legitimate target of that deferral | String search of the installed 2.1.284 binary: the `run` registration description contains "First looks for a project skill that already covers launching the app". The named-`run` half rests on the evidence line dated 2026-09-11 (2.1.263) on the `run` x `testing:run-e2e` row of `docs/native-surfaces/records.json` | 2026-09-29 (binary); 2026-09-11 (named `run`) | A release changes the registration description, or the store row's evidence line changes |
 
 ## Why the verdict is complementary and the integration is wrap
@@ -30,8 +30,7 @@ per verification, never both, and an app already running is not launched again.
 ## Presence
 
 Which bundled skills a session has, and the settings that turn them off, are
-[Extend Claude with skills § Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)
-(as of 2026-10-11; recheck when that section changes what makes a bundled skill unavailable).
+[Extend Claude with skills § Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills).
 Nothing here depends on `run` being present: every skip state in the Native step falls back to
 this skill's own launch playbook, which is complete on its own.
 

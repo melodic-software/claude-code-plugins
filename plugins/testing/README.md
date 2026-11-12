@@ -83,9 +83,6 @@ In a session that loads a mod, don't rely on this plugin's `PreToolUse` hooks al
   and
   [precedence among rules, hooks, and mods](https://code.claude.com/docs/en/permissions#precedence-among-rules-hooks-and-mods)
   live for how a mod can skip or override these hooks.
-- **As of**: 2026-11-01
-- **Recheck trigger**: either section changes where plugin `PreToolUse` hooks run in the mod chain
-  or when a mod's `tool.check` approval overrides them.
 
 ### Judge pass
 

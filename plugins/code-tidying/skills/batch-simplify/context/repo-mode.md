@@ -105,9 +105,7 @@ Run **4–6 simplifiers concurrently** as a soft cap.
 This is a cost and quality choice, not a ceiling imposed by the tooling. The harness has its own
 per-session cap on concurrent subagents, with exemptions; for its default, the variable that sets
 it, and what happens past it, see
-[Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
-(as of 2026-10-02; recheck when that section changes the default, the variable's name, or the
-exemptions). The lower number here
+[Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit). The lower number here
 is chosen because a repo-scale run is long enough that rate-limit pressure is likely, and because a
 wave whose groups all finish at once produces more results than can be checked carefully at once.
 Read the consumer's own value rather than assuming the default.
@@ -119,15 +117,12 @@ Three things make the real slot count higher than the simplifier count:
 - A resumed subagent occupies a slot too, so count resumes rather than assume the cap covers
   them. Pointer for how a resume interacts with the limit:
   [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit).
-  As of: 2026-10-11. Recheck trigger: that section changes whether a resume is checked against
-  the limit.
 
 Budget against the total, not the simplifier count. When rate-limit pressure appears, **degrade to
 sequential**. Finish the wave one group at a time. Do not retry into the cap: a retry loop against
 the limit burns the run's remaining budget producing nothing. Pointer for what the limit error
 tells the agent:
 [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit).
-As of: 2026-10-11. Recheck trigger: that section changes whether the limit error says to retry.
 
 ## Execution and spawn contract
 
@@ -156,15 +151,12 @@ target. It accepts one. There are two concrete reasons:
 
 1. Repo mode budgets one concurrency slot per group dispatch, and a `/simplify` dispatch is not
    held to one slot (how it runs: the `/simplify` row in
-   [All commands](https://code.claude.com/docs/en/commands#all-commands); As of: 2026-11-10;
-   Recheck trigger: that row stops running review agents in parallel; record in
-   [bundled-simplify.md](bundled-simplify.md#decision-records), relay as of 2026-10-11, recheck
-   when that table is renamed or moved). At a 4–6 soft cap that can leave a single group in
+   [All commands](https://code.claude.com/docs/en/commands#all-commands); recheck
+   trigger: that row stops running review agents in parallel; record in
+   [bundled-simplify.md](bundled-simplify.md#decision-records)). At a 4–6 soft cap that can leave a single group in
    flight, not four.
 2. Spawn depth is limited, and what a subagent at the limit can still spawn is upstream behavior
-   ([Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents);
-   as of 2026-10-11, recheck when that section changes the depth default or the at-limit
-   behavior). A `/simplify` dispatched from a worker near the limit may not get to fan out its own
+   ([Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)). A `/simplify` dispatched from a worker near the limit may not get to fan out its own
    review agents, so a per-group worker's thoroughness would depend on how deep in the spawn tree
    it happens to land, and the run would report uniform coverage while delivering uneven coverage.
 

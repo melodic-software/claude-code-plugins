@@ -30,5 +30,4 @@ When the bug is fixed, copy the reduced input into a plain `[Fact]` or `[Test]`.
 Verification record. Claim: FsCheck.Xunit's `PropertyAttribute` takes `MaxTest` and `Replay`, with
 `PropertiesAttribute` for class-level defaults; CsCheck's `Sample` takes `iter`, `time` and `seed`,
 and a failure prints the seed to replay. Basis: <https://fscheck.github.io/FsCheck/RunningTests.html>
-and <https://github.com/AnthonyLloyd/CsCheck>. As of 2026-10-04. Recheck when either library ships a
-major release that renames those parameters.
+and <https://github.com/AnthonyLloyd/CsCheck>.

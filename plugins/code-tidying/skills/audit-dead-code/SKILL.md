@@ -117,13 +117,11 @@ Bounded by design. Evidence catalogue: [context/adjudication.md](context/adjudic
 5. Fan out to fresh-context subagents in batches when the set is large; if spawn depth is
    exhausted, say so and adjudicate inline at the same cap rather than silently shrinking the set
    (the depth-limit pointer record is in
-   [context/adjudication.md, Bounding the pass](context/adjudication.md#bounding-the-pass); relay
-   as of 2026-10-11, recheck when that record's pointer moves out of that section).
+   [context/adjudication.md, Bounding the pass](context/adjudication.md#bounding-the-pass)).
 6. **Optional LSP assist**, never required and never a lane: when Claude Code's `LSP` tool is
    available, `findReferences` on one candidate is one more evidence source. Read what it returns
    in [LSP tool behavior](https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior)
-   before reading a count as dead (as of 2026-11-03; recheck when that section changes what
-   `findReferences` returns). Done when every emitted candidate has a `dead`, `uncertain` or
+   before reading a count as dead. Done when every emitted candidate has a `dead`, `uncertain` or
    `alive` verdict with evidence, or the cap stopped the batch and the report says so.
 
 ## Hard rules
@@ -141,8 +139,7 @@ Bounded by design. Evidence catalogue: [context/adjudication.md](context/adjudic
   counted as a finding. A fourth verdict landing there is the alarm, not the answer.
 - **Exit codes are never run health.** Run health comes from the detector's output, never its
   exit code. The documented codes: [vulture](https://github.com/jendrikseipp/vulture#exit-codes),
-  [knip](https://knip.dev/reference/cli#--no-exit-code). As of 2026-11-03; recheck when one of
-  those sections changes its exit codes.
+  [knip](https://knip.dev/reference/cli#--no-exit-code)..
 - **Presence is proven by invocation**, never by a locator hit (measured: `command -v
   rust-analyzer` succeeds while invocation fails).
 - **knip evaluates repo-controlled config through jiti.** Disclose it on every run that loads one.
@@ -213,8 +210,7 @@ verdicts live in the report and in a comment at the declaration, and the same ca
 Say so rather than emitting a directive. The probe behind the Go half is in
 [context/adjudication.md](context/adjudication.md#suppression-formats) "Suppression formats"; `//lint:ignore` belongs
 to staticcheck, per
-[Ignoring problems with linter directives](https://staticcheck.dev/docs/configuration/#ignoring-problems-with-linter-directives)
-(as of 2026-11-03; recheck when that section names gopls among the tools that read it).
+[Ignoring problems with linter directives](https://staticcheck.dev/docs/configuration/#ignoring-problems-with-linter-directives).
 
 `dead` and `uncertain` verdicts are session-scoped: an un-suppressed `uncertain` returns next run.
 A committed vulture whitelist raises `F821` under a consumer's ruff config; say so when you emit

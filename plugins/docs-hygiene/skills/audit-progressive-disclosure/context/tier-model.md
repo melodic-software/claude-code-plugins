@@ -102,8 +102,6 @@ disagree on the reference-file length above which a TOC is expected.
   [When to add to CLAUDE.md](https://code.claude.com/docs/en/memory#when-to-add-to-claude-md); for
   the ignored-rule symptom, see
   [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short).
-- **As of**: 2026-10-30
-- **Recheck trigger**: one of those sections stops supporting the trigger that cites it.
 
 Mixed-concern signals *(corroborated)*: one category per skill (a skill that straddles several
 is confused), one topic per rules file, cross-file contradiction as a smell, one topic per
@@ -131,7 +129,7 @@ A pointer is good when *(Anthropic-prescribed unless noted)*:
    and `mcp__plugin_<plugin>_<server>__<tool>` for a server a plugin bundles.
    Pointer: [permissions, "MCP"](https://code.claude.com/docs/en/permissions#mcp) and
    [MCP, "Plugin-provided MCP servers"](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers).
-   As of: 2026-09-10. Recheck trigger: either page changes the form. The platform page's
+ The platform page's
    [MCP tool references](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#mcp-tool-references)
    form applies to other surfaces; we grade against the harness form.
 
@@ -140,8 +138,6 @@ A pointer is good when *(Anthropic-prescribed unless noted)*:
   [Provide utility scripts](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#provide-utility-scripts),
   [Runtime environment](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#runtime-environment)
   and [Structure longer reference files with a table of contents](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-table-of-contents).
-- **As of**: 2026-10-01
-- **Recheck trigger**: one of those sections stops supporting the criterion that cites it.
 
 Description-as-trigger (the always-loaded pointer to a skill body): name the skill's job AND the
 situations that call for it, third person, key use case first (tail-first truncation strips
@@ -151,7 +147,6 @@ trailing keywords; the cap is `/playbooks:skill-authoring` `## Descriptions`). A
 promote its content to the hub; never-read spoke → demote, re-signal, or delete; failed
 reference-follow → make the link more explicit. Pointer:
 [Observe how Claude navigates Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#observe-how-claude-navigates-skills).
-As of: 2026-10-01. Recheck trigger: that section is removed or changes the method.
 
 ## Boundaries this audit honors
 

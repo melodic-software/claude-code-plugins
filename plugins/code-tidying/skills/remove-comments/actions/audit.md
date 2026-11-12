@@ -3,7 +3,6 @@
 Scripts below are in the skill's `scripts/` directory, cited as `<skill-dir>/scripts/<name>`, never
 through a substitution variable. Pointer for where those variables resolve:
 [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
-As of: 2026-11-10. Recheck trigger: that section changes where plugin variables are substituted.
 
 ## Purpose
 

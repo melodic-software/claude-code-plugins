@@ -16,7 +16,6 @@ hooks:
         # Pointer: when checking how exec form spawns `command` with `args`,
         # fetch https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
         # and https://code.claude.com/docs/en/hooks#command-hook-fields live.
-        # As of: 2026-10-11.
         # Recheck trigger: either section changes how `args` and `shell`
         # interact, or a skill hook gains another placeholder.
         - type: command
@@ -119,7 +118,7 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   probe need the guard's absolute Python interpreter as `<hook-python>`, and every engine call
   needs its authorized `--data-root`; bare `python`/`python3` is rejected because Bash aliases and
   functions can replace them. The expansion of a typed `/disk-hygiene:clean` normally carries a `disk-hygiene guard values`
-  note (which loads fire the hook that adds it: [UserPromptExpansion](https://code.claude.com/docs/en/hooks#userpromptexpansion), as of 2026-11-10; recheck when that section changes which invocations fire the event) naming `hook_python` (the `<hook-python>`), `engine` (the engine path) and `data_root` (every
+  note (which loads fire the hook that adds it: [UserPromptExpansion](https://code.claude.com/docs/en/hooks#userpromptexpansion)) naming `hook_python` (the `<hook-python>`), `engine` (the engine path) and `data_root` (every
   `--data-root` value), resolved by the guard's own code; use them from the first call. Only when the
   note is absent, submit the probe once with bare `python`: the guard denies that read-only call and names its interpreter. Rerun the probe with that interpreter and
   take `data_root` from the probe's `data_root` field. Never submit a scan to learn either value.
@@ -141,8 +140,7 @@ What a valid answer must *name* is per question, because a target prompt has no 
 name and cannot be held to a bar built for one.
 
 **Question surface.** Prefer `AskUserQuestion`: its answer is the user's own and cannot be
-fabricated. It is not always usable ([dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode),
-as of 2026-11-10; recheck when that section changes which tools it denies). Fall back to the same
+fabricated. It is not always usable ([dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)). Fall back to the same
 question asked inline as a numbered choice whenever the tool is absent, denied, **or otherwise
 unusable**. Including a denial discovered only by calling it; a denied call is an unanswered
 question, never an answer. Then wait for the reply.
@@ -456,8 +454,7 @@ and what the guard does when no Python resolves → "Hook launch form".
   lane's container re-enumeration rule applies this same changed-since-scan discipline where no
   snapshot token exists.
 - This destructive skill intentionally sets no `allowed-tools`, so it adds no tool approvals of its own
-  ([Pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill),
-  as of 2026-10-11; recheck when that section changes what the field grants). Consumer permission
+  ([Pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill)). Consumer permission
   policy remains authoritative.
 - The belt holds only while a clean run is open. A `preview` opens the run, and it stays open through the gap before `apply` until the run's `apply` or `handoff-apply` writes its report, or until the preview itself ends in `manual-handoff-lane` or `blocked`. A `handoff-apply` with no preview before it holds the belt until its report is written, and each manual-lane `handoff-verify` holds it until an hour passes with no engine call, which also ends any other open run. A `scan` alone opens no run. Outside a run, the belt denies nothing that does not name the engine, unless the kill switch is off: in audit-only mode it keeps its deny on every lane, run or no run ([the safety model](reference/safety-model.md), "When a run is open").
 - While a run is open, the Bash lane is deny-by-default: only the literal-word bundled scan, inventory, preview,
@@ -480,12 +477,11 @@ and what the guard does when no Python resolves → "Hook launch form".
   rule behaves in each mode, fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
   [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode) and
   [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
-  live. **As of:** 2026-11-06. **Recheck trigger:** a section changes whether either kind of `ask`
-  prompts in a mode, or a release note names hook permission decisions.
+  live.
   The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
   unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain
   the deletion authority, except inside the opt-in elevated script, which no guard sees.
-- A `permissions.allow` rule cannot remove the deletion prompts. Those prompts are hook `ask` verdicts; the engine's read-only scan, preview, and `handoff-verify` calls already get hook `allow`, so an allow rule adds nothing there. Do not reach for a broad interpreter allow rule either. **Pointer:** when checking how a hook `ask` combines with an allow rule, fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control) live; for which allow rules survive auto mode, [How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions). **As of:** 2026-11-10. **Recheck trigger:** either section changes how a hook `ask` meets an allow rule or which allow rules auto mode drops, or a release note names auto-mode rule handling.
+- A `permissions.allow` rule cannot remove the deletion prompts. Those prompts are hook `ask` verdicts; the engine's read-only scan, preview, and `handoff-verify` calls already get hook `allow`, so an allow rule adds nothing there. Do not reach for a broad interpreter allow rule either. **Pointer:** when checking how a hook `ask` combines with an allow rule, fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control) live; for which allow rules survive auto mode, [How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions).
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.

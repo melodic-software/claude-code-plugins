@@ -49,8 +49,7 @@ You name the target skill when you invoke `/knowledge:distill`, so output
 lands somewhere you chose (`.claude/skills/<target>/` under the session's git top-level, per [`reference/work-root.md`](reference/work-root.md)): either an existing skill it extends or a new one it creates. Cross-session state
 (the file plan, page map, and a checklist) persists under `${CLAUDE_PLUGIN_DATA}`; for how long
 that directory is kept, see
-[Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
-(as of 2026-10-11; recheck when that section changes when the directory is kept or deleted).
+[Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables).
 
 ## Usage caution. Copyright
 
@@ -84,8 +83,7 @@ the rest of the knowledge stack.
 
 - A PDF or EPUB you have the right to read. EPUB requires unzipping and text
   extraction first. For what the Read tool needs to read a PDF, see
-  [Tools reference: Read tool behavior](https://code.claude.com/docs/en/tools-reference#read-tool-behavior)
-  (as of 2026-11-03; recheck when that section changes how Read handles a PDF).
+  [Tools reference: Read tool behavior](https://code.claude.com/docs/en/tools-reference#read-tool-behavior).
   A web corpus needs public https pages or an export you supply.
 - **`gh` signed in** for `distill`'s visibility check on a GitHub remote, and
   for `absorb-upstream` to read a repository URL through the GitHub API.
@@ -126,8 +124,7 @@ plugin's ingestion pipelines read to find where artifacts land. The `video-diges
 options above tune yt-dlp authentication and throttling; **course-platform
 credentials are intentionally not** `userConfig`. They stay in shell env vars.
 For where Claude Code stores a `sensitive` option, see
-[Plugin manifest reference: Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
-(as of 2026-11-03; recheck when that section changes where sensitive values go).
+[Plugin manifest reference: Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored).
 
 ### Option details
 
