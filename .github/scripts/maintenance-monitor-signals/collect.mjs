@@ -48,13 +48,20 @@ export const LIMITS = {
   // up to holdListPages run list pages (pr-verify's and pr-merge's own 5,
   // pr-review-main's 4), then each run's jobs and the annotations of each
   // green job that prints a hold. Every lane's jobs are read in one GraphQL
-  // query per 25 runs, and its annotations in one per 25 jobs, so at most
-  // 4 × 3 + 5 + 4 + 5 list pages, 1 + 1 + 1 + 2 + 4 + 3 + 4 list queries
-  // and 1 + 1 + 1 + 2 + 4 + 3 + 4 annotation queries (58 calls, 32 of them
-  // GraphQL) while each run has one such job, plus one lane-hold marker list
-  // per lane (7). A re-run, or a node GraphQL does not answer, is read
-  // through REST, one call a jobs or annotation read. Past the cap, the span
-  // stops at the last run read and the window is a gap.
+  // query per 25 runs, and its annotations in one per 25 jobs. A run has one
+  // green hold job (pr-verify's one of three), but pr-review-main's about 3
+  // (its trigger and two review legs) and pr-merge's up to 2, so at most
+  // 4 × 3 + 5 + 4 + 5 list pages, 1 + 1 + 1 + 2 + 4 + 3 + 4 list queries and
+  // 1 + 1 + 1 + 2 + 4 + 9 + 7 annotation queries (67 calls, 41 of them
+  // GraphQL), plus one lane-hold marker list per lane (7). A re-run, or a
+  // node GraphQL does not answer, is read through REST, one call a jobs or
+  // annotation read; a REST list has steps, so pr-verify and pr-review-main
+  // (holdStep) read only a job whose `Note the hold` ran. With GraphQL
+  // refused, those two lanes spend 7 + 150 list calls and one annotation
+  // read per held job, not 290 for every green hold job; the other lanes'
+  // 152 jobs and about 232 annotation reads put the source past
+  // CALL_BUDGET at the caps either way. Past the cap, the span stops at the
+  // last run read and the window is a gap.
   holdRuns: 6,
   // Run list pages of 100 per hold lane, unless the lane sets its own
   // (HOLD_LANES listPages): intake-triage listed up to 151 green runs over the
@@ -726,7 +733,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       // of them, so the next run reads the rest and this one reports a gap.
       let readThrough = now.getTime();
       const cut = [];
-      for (const { lane, workflow, jobs: ids, names, holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, statuses = ["success"] } of HOLD_LANES) {
+      for (const { lane, workflow, jobs: ids, names, holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
         // A job by its name, or by its id on a run from before the job rename.
         const jobs = [...names, ...ids];
         // By id: a run that starts between two page reads shifts one onto the next page.
@@ -751,9 +758,14 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
           readThrough = Math.min(readThrough, Date.parse(unread[cap - 1].updated_at));
           cut.push(`${lane} (cap ${cap})`);
         }
-        // A lane's hold notice prints only when its job held, so each green
-        // hold job's annotations are read and no step is.
-        const holding = (listed) => listed.filter((j) => j.conclusion === "success" && holdJob(jobs, j.name));
+        // Each lane's jobs are listed through GraphQL, which carries no steps,
+        // so every green hold job's annotations are read in its batch. A list
+        // read through REST has steps: with holdStep, only a job whose listing
+        // shows that step succeeded printed a hold, so only its annotations
+        // are read one call each; a job listed with no steps is read too.
+        const printed = (j) =>
+          holdStep === undefined || !Array.isArray(j.steps) || j.steps.length === 0 || j.steps.some((s) => s?.name === holdStep && s.conclusion === "success");
+        const holding = (listed) => listed.filter((j) => j.conclusion === "success" && holdJob(jobs, j.name) && printed(j));
         const toRead = unread.slice(0, cap);
         await warmLists(toRead);
         const jobsFor = await prefetch(toRead, jobListOf, holding);

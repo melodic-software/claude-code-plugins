@@ -476,10 +476,11 @@ export const HOLD_LANES = [
   { lane: "intake-triage", workflow: "intake-triage.yml", jobs: ["apply-verdict"], names: ["Apply Verdict"], area: "Intake lane (intake-triage apply-verdict)", holdRuns: 40 },
   // One run per checks run: the 24 hours to 2026-11-06T12:00Z had 504 green
   // runs, a peak of 58 created in one hour and 267 in one 7-hour created span.
-  // 80 a window and 5 list pages leave headroom over both. Each green hold
-  // job's annotations are read: both notices print only when `Note the hold`
-  // runs (its `if:` is the resolver's `held` or the gate's `read-fault`), so
-  // a green job with a notice is a held one.
+  // 80 a window and 5 list pages leave headroom over both. Both notices print
+  // only when `Note the hold` runs (its `if:` is the resolver's `held` or the
+  // gate's `read-fault`), so a GraphQL list, which has no steps, has each
+  // green hold job's annotations read, and a REST list only a job whose
+  // `Note the hold` ran (`holdStep`).
   {
     lane: "pr-verify",
     workflow: "pr-verify.yml",
@@ -488,6 +489,7 @@ export const HOLD_LANES = [
     area: "Verify lane (pr-verify)",
     holdRuns: 80,
     listPages: 5,
+    holdStep: "Note the hold",
   },
   // One run per pr-require-checks run, as pr-verify: 425 green runs on
   // 2026-11-05. Scaled by pr-verify's measured shape (a peak hour 2.8 times
@@ -495,8 +497,8 @@ export const HOLD_LANES = [
   // an hour and 225 a span, so 70 a window and 4 list pages leave headroom.
   // The legs are matrix jobs, listed as `Review (claude-review, ...)`, so a
   // job matches by name or as a matrix leg (holdJob). Each select step that
-  // prints the notice sets `held`, which runs `Note the hold`, so a green job
-  // with a notice is a held one.
+  // prints the notice sets `held`, which runs `Note the hold`, so its
+  // annotations are read as pr-verify's are.
   {
     lane: "pr-review-main",
     workflow: "pr-review-main.yml",
@@ -505,6 +507,7 @@ export const HOLD_LANES = [
     area: "Review lanes (pr-review-main)",
     holdRuns: 70,
     listPages: 4,
+    holdStep: "Note the hold",
   },
   // pr-merge's two token steps (rate-limit-hold-ok) hold on a rate limit the
   // lane-token request could not wait out. Its runs are the 2 cron ticks an

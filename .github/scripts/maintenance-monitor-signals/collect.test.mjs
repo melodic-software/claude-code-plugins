@@ -1515,9 +1515,10 @@ test("lane holds: a run list past one page reads the next, and past three pages 
 });
 
 // pr-verify green runs from 4000: 4000 held by the resolver, 4001 by the
-// trigger gate (a later job), 4002 judged with no hold, its green hold job
-// read and found unheld and its other job never read, and 4003 a green hold
-// job whose only notice is no hold.
+// trigger gate (a later job), 4002 judged with no hold, and 4003 a green hold
+// job listed with no steps whose only notice is no hold. Listed through REST,
+// with steps, only 40000, 40011 and the stepless 40030 have their
+// annotations read; listed through GraphQL, every green hold job's are.
 const verifyJob = (id, name, held) => ({ id, name, conclusion: "success", steps: [{ name: "Resolve the pull request", conclusion: "success" }, { name: "Note the hold", conclusion: held ? "success" : "skipped" }] });
 const verifyRoutes = (listing) => [
   [/workflows\/pr-verify\.yml\/runs/, listing],
@@ -1533,9 +1534,12 @@ const verifyRoutes = (listing) => [
 ];
 const verifyRuns = (count, from = 4000) =>
   Array.from({ length: count }, (_, i) => run(from + i, { event: "workflow_run", updated_at: new Date(Date.parse("2026-10-19T15:40:00Z") + i * 30_000).toISOString().replace(".000Z", "Z") })).reverse();
-const laneScanned = (data, lane) => data.heldCarry.scanned.filter((s) => s.lane === lane).map((s) => s.runId).sort();
+// The check runs whose annotations were read through REST, among `ids`.
+const restAnnotationReads = (api, ids) =>
+  api.calls.map((c) => Number(/check-runs\/(\d+)\/annotations/.exec(c)?.[1])).filter((id) => ids.includes(id)).sort((a, b) => a - b);
+const VERIFY_JOBS = [40000, 40010, 40011, 40020, 40021, 40030];
 
-test("lane holds: pr-verify counts resolver and trigger-gate holds in its green hold jobs", async () => {
+test("lane holds: pr-verify counts resolver and trigger-gate holds, reading REST-listed annotations only where Note the hold ran", async () => {
   const api = fakeApi(verifyRoutes({ workflow_runs: verifyRuns(4) }));
   const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
   assert.deepEqual(data.gaps, []);
@@ -1543,8 +1547,7 @@ test("lane holds: pr-verify counts resolver and trigger-gate holds in its green 
     [4001, null, "trigger gate fault"],
     [4000, null, "resolver fault"],
   ]);
-  assert.deepEqual(laneScanned(data, "pr-verify"), [4002, 4003]);
-  assert.ok(!api.calls.some((c) => c.includes("check-runs/40021/")), "a job that is no hold job is not read");
+  assert.deepEqual(restAnnotationReads(api, VERIFY_JOBS), [40000, 40011, 40030]);
 });
 
 // The same routes read with and without node ids: the hold data each read
@@ -1563,7 +1566,8 @@ test("lane holds: pr-verify's runs are listed through GraphQL, with no REST jobs
   assert.deepEqual(after.heldCarry, before.heldCarry);
   assert.equal(after.laneHolds.filter((h) => h.lane === "pr-verify").length, 2);
   assert.deepEqual(restLeft, []);
-  for (const id of ["WFR_4000", "WFR_4003", "CR_40000", "CR_40011"]) assert.ok(listed.includes(id), id);
+  // A GraphQL list has no steps, so every green hold job's annotations are read in the batch.
+  for (const id of ["WFR_4000", "WFR_4003", "CR_40000", "CR_40010", "CR_40011", "CR_40020", "CR_40030"]) assert.ok(listed.includes(id), id);
 });
 
 test("lane holds: pr-verify reads up to its own cap of 80 runs and 5 list pages", async () => {
@@ -1586,7 +1590,8 @@ test("lane holds: pr-verify reads up to its own cap of 80 runs and 5 list pages"
 });
 
 // pr-review-main green runs: 7000 held in a matrix leg, 7001 held in the
-// trigger job, 7002 reviewed with no hold, its Record job never read.
+// trigger job, 7002 reviewed with no hold. Listed through REST, only 70001
+// and 70010 have their annotations read; Record (70021) is no hold job.
 const reviewJob = (id, name, held) => ({ id, name, conclusion: "success", steps: [{ name: "Select a lane-source pull request", conclusion: "success" }, { name: "Note the hold", conclusion: held ? "success" : "skipped" }] });
 const unreadList = "held: the file list did not read (HTTP 502); no review, and the lost-run reconciler re-runs this run once";
 const reviewRoutes = () => [
@@ -1600,7 +1605,9 @@ const reviewRoutes = () => [
   ...holdRoutes(),
 ];
 
-test("lane holds: pr-review-main counts a held trigger job or matrix leg in its green hold jobs", async () => {
+const REVIEW_JOBS = [70000, 70001, 70002, 70010, 70020, 70021];
+
+test("lane holds: pr-review-main counts a held trigger job or matrix leg, reading REST-listed annotations only where Note the hold ran", async () => {
   const api = fakeApi(reviewRoutes());
   const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
   assert.deepEqual(data.gaps, []);
@@ -1608,8 +1615,7 @@ test("lane holds: pr-review-main counts a held trigger job or matrix leg in its 
     [7001, "file list unread"],
     [7000, "file list unread"],
   ]);
-  assert.deepEqual(laneScanned(data, "pr-review-main"), [7002]);
-  assert.ok(!api.calls.some((c) => c.includes("check-runs/70021/")), "a job that is no hold job is not read");
+  assert.deepEqual(restAnnotationReads(api, REVIEW_JOBS), [70001, 70010]);
 });
 
 test("lane holds: pr-review-main's runs are listed through GraphQL, with no REST jobs or annotations read, and find the same holds", async () => {
@@ -1628,6 +1634,21 @@ test("lane holds: a re-run of pr-verify is listed through REST and its hold stil
   assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-verify").map((h) => h.runId), [4001, 4000]);
   assert.ok(api.calls.some((c) => c.includes("runs/4000/jobs?filter=latest")));
   assert.ok(!api.queries.some((q) => q.variables?.ids?.includes("WFR_4000")));
+});
+
+test("lane holds: with GraphQL refused, pr-verify and pr-review-main list through REST and read annotations only where Note the hold ran", async () => {
+  // Each lane's own routes, ahead of holdRoutes, which list every other lane empty.
+  const own = (routes) => routes.slice(0, routes.length - holdRoutes().length);
+  const routes = [...own(verifyRoutes({ workflow_runs: verifyRuns(4) })), ...own(reviewRoutes()), ...holdRoutes()];
+  const api = fakeApi([[GRAPHQL, new Error("POST /graphql: HTTP 502")], ...withNodeIds(routes)]);
+  const data = await collect(input(api, { holds: { rule: RULE, carried: CARRIED } }));
+  assert.ok(api.queries.some((q) => q.variables?.ids?.includes("WFR_4000")), "the GraphQL list was tried");
+  assert.ok(api.queries.some((q) => q.variables?.ids?.includes("CR_70001")), "the GraphQL annotations read was tried");
+  for (const r of [4000, 4001, 4002, 4003, 7000, 7001, 7002]) assert.ok(api.calls.some((c) => c.includes(`runs/${r}/jobs?filter=latest`)), r);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-verify").map((h) => h.runId), [4001, 4000]);
+  assert.deepEqual(data.laneHolds.filter((h) => h.lane === "pr-review-main").map((h) => h.runId), [7001, 7000]);
+  assert.deepEqual(restAnnotationReads(api, VERIFY_JOBS), [40000, 40011, 40030]);
+  assert.deepEqual(restAnnotationReads(api, REVIEW_JOBS), [70001, 70010]);
 });
 
 // pr-merge green runs: 7100 a sweep whose merge job held on its lane token,
@@ -1852,9 +1873,13 @@ test("with node ids listed, job lists and annotations are read through GraphQL a
   assert.deepEqual(after, before);
   assert.deepEqual(detect(after), detect(before));
   const replaced = ["runs/10/jobs", "runs/20/jobs", "runs/30/jobs", "runs/81/jobs", "runs/85/jobs", "runs/86/jobs", "runs/87/jobs", "runs/7000/jobs"]
-    .concat(["check-runs/100/", "check-runs/300/", "check-runs/810/", "check-runs/850/", "check-runs/870/", "check-runs/70000/", "check-runs/70001/"]);
+    .concat(["check-runs/100/", "check-runs/300/", "check-runs/810/", "check-runs/850/", "check-runs/870/", "check-runs/70001/"]);
   assert.deepEqual(restGets(gql), restGets(rest).filter((c) => !replaced.some((p) => c.includes(p))));
   for (const path of replaced) assert.ok(restGets(rest).some((c) => c.includes(path)), `the REST read makes ${path}`);
+  // pr-review-main's trigger job, whose Note the hold was skipped: a REST list
+  // shows it, so its annotations go unread; a GraphQL list does not, so they are read in the batch.
+  assert.ok(!restGets(rest).some((c) => c.includes("check-runs/70000/")));
+  assert.ok(nodeQueries(gql).some((q) => q.variables.ids.includes("CR_70000")));
   // A source that reads steps still lists its run's jobs through REST, and that read is still carried.
   assert.ok(restGets(gql).some((c) => c.includes("runs/50/jobs")));
   assert.deepEqual(after.jobsCarry.map((e) => e.id), [50]);
