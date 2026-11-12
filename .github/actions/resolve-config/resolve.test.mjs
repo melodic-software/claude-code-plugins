@@ -358,6 +358,8 @@ const LIMITS = {
   "restarts-per-run": 5,
   // Kill-switch re-fires fill the issue lane to two runs per slot (owner decision Q109).
   "refire-queue-per-slot": 2,
+  // A lane run still queued an hour after it was created is lost, not counted.
+  "stale-queued-minutes": 60,
   // A work-resolve-issue run's sweep waits 15 minutes after the last full sweep.
   "sweep-gap-minutes": 15,
   "readmit-per-run": 20,
