@@ -3,6 +3,14 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.1] - 2026-11-12
+
+### Changed
+
+- References to the spell-check plugin use its new name, `spelling`.
+
+- Corrected in place: the released entries [0.2.8], [0.1.0] now name the spell-check plugin `spelling`, its current name.
+
 ## [1.1.0] - 2026-11-12
 
 ### Added
