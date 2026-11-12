@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FILE_ONLY_FIELDS, isContentWrite, poolOf, RateLimitStop, serverErrorHold } from "./rate-guard.mjs";
+import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, FILE_ONLY_FIELDS, headerStop, isContentWrite, poolOf, RateLimitStop, serverErrorHold } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
@@ -40,6 +40,44 @@ for (const vector of VECTORS.vectors) {
     assert.deepEqual(classify(vector.input, { now: NOW, readFloor: READ_FLOOR, limitCap: vector.limit_cap ?? null }), vector.expect);
   });
 }
+
+// headerStop is set before the body is read, so it must hold no more than
+// classify's verdict with any body: run every vector's headers against every
+// vector's body, and the header stop has that verdict's reset and its pool or
+// `*`. Where the headers give no time, the body decides and there is none.
+test("headerStop is a stop every body's verdict keeps, and none where the body decides the time", () => {
+  const bodies = [null, ...VECTORS.vectors.map((vector) => vector.input.body)];
+  const taken = [];
+  for (const vector of VECTORS.vectors) {
+    const options = { now: NOW, readFloor: READ_FLOOR, limitCap: vector.limit_cap ?? null };
+    const early = headerStop(vector.input, options);
+    if (!early) {
+      continue;
+    }
+    taken.push(vector.name);
+    for (const body of bodies) {
+      const verdict = classify({ ...vector.input, body }, options);
+      assert.ok(verdict.latched, `${vector.name}: latched with body ${JSON.stringify(body)}`);
+      assert.equal(verdict.reset, early.reset, `${vector.name}: same reset with body ${JSON.stringify(body)}`);
+      assert.ok(verdict.pool === early.pool || verdict.pool === "*", `${vector.name}: pool ${verdict.pool} holds ${early.pool}`);
+    }
+  }
+  assert.ok(taken.length > 0 && taken.length < VECTORS.vectors.length, "some vectors latch from headers, some leave it to the body");
+  const fallback = VECTORS.vectors.filter((vector) => vector.expect.latched && vector.expect.reset_source === "fallback");
+  assert.ok(fallback.length > 0, "the vectors hold a stop whose time no header gave");
+  for (const vector of fallback) {
+    assert.equal(headerStop(vector.input, { now: NOW, readFloor: READ_FLOOR }), null, vector.name);
+  }
+});
+
+test("a 429 with no reset headers and a secondary-limit body holds every pool for 60 s, set after its body is read", async () => {
+  const gh = fakeGitHub([[429, {}, { message: "You have exceeded a secondary rate limit." }], [200]]);
+  const { latch } = latchFor();
+  const fetch = latch.guard(gh.fetch);
+  assert.equal((await fetch(URL_A)).status, 429);
+  assert.equal(latch.until(URL_A), VECTORS.vector_now + 60);
+  assert.equal(latch.until("https://api.github.com/graphql"), VECTORS.vector_now + 60);
+});
 
 test("the vectors mark both server error holds and rate limits", () => {
   assert.deepEqual(new Set(VECTORS.vectors.filter((v) => "server_error" in v).map((v) => v.server_error)), new Set([true, false]));

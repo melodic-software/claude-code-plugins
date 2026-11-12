@@ -483,6 +483,18 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   return { latched, low, reset_source: source, reset: Math.min(at, MAX_RESET), pool };
 }
 
+// The stop an answer's headers set whatever its body says, or null: the
+// headers alone latch with a time a header gave (Retry-After, or
+// x-ratelimit-reset at remaining 0 or the stop floor). classify takes that
+// time from the headers only, and a body only ORs in signals, so with any
+// body classify returns the same reset and this pool or `*`, which holds it
+// too. With no header time (a 403 or 429 the body decides, a GraphQL
+// RATE_LIMITED), the body sets the fallback, so there is none.
+export function headerStop({ url, status, headers }, options) {
+  const verdict = classify({ url, status, headers, body: null }, options);
+  return verdict.latched && verdict.reset_source !== "fallback" ? { pool: verdict.pool, reset: verdict.reset } : null;
+}
+
 export const resetLabel = (seconds) => new Date(seconds * 1000).toISOString().replace(".000Z", "Z");
 const poolLabel = (pool) => (pool === "*" ? "API" : `${pool} API`);
 
@@ -697,7 +709,10 @@ export function createRateLimitLatch({
   // refusal fails nothing.
   async function observe(url, response, method = "GET", token = undefined, resend = false) {
     const pool = poolOf(url);
-    const needsBody = SIGNALS.statuses.includes(response.status) || pool === "graphql" || response.status >= 500;
+    // classify reads the body of a 403, a 429 and a GraphQL answer; a 5xx's
+    // body is read only for serverErrorHold's cause, never for the stop.
+    const classifiesBody = SIGNALS.statuses.includes(response.status) || pool === "graphql";
+    const needsBody = classifiesBody || response.status >= 500;
     const limitCap = margin(pool, "limit-cap", token);
     const stopFloor = margin(pool, "stop-floor", token);
     const options = { now: now(), readFloor: margin(pool, "read-floor", token), limitCap, stopFloor };
@@ -722,15 +737,14 @@ export function createRateLimitLatch({
       }
       return recorded.get(key);
     };
-    // What the headers alone latch is set before any await, so a call in
-    // flight beside this one is refused while the body is read. The body
-    // can only add a latch (a message, RATE_LIMITED): classify ORs it in.
-    const early = classify({ url, status: response.status, headers: response.headers, body: null }, options);
-    if (early.latched) {
+    // A stop every body agrees on is set before any await, so a call in
+    // flight beside this one is refused while the body is read.
+    const early = headerStop({ url, status: response.status, headers: response.headers }, options);
+    if (early) {
       record(early);
     }
     const body = needsBody ? await response.clone().text().catch(() => "") : null;
-    const verdict = needsBody ? classify({ url, status: response.status, headers: response.headers, body }, options) : early;
+    const verdict = classify({ url, status: response.status, headers: response.headers, body: classifiesBody ? body : null }, options);
     low.set(pool, verdict.low);
     if (verdict.latched) {
       const unrecorded = record(verdict);
