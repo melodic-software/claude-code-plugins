@@ -40,8 +40,7 @@ isolation: worktree
 ```
 
 The `model:` line is illustrative; `isolation: worktree` is the point. For choosing a subagent's
-model now, see [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) (as of
-2026-10-02; recheck when that section changes).
+model now, see [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
 
 ### Non-Git Source Control
 

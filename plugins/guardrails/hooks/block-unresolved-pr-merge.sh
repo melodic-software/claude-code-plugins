@@ -986,8 +986,10 @@ _bupm_runs="$(jq -c '. as $all
 # `superseded by full run <url>/actions/runs/<id> in flight on <sha>`; its
 # output summary is empty. Such a run does not count: the named full run's run
 # of the same check and app decides, and the check is pending until that run
-# exists. Only a GitHub Actions run named ci-status is read: any step can print
-# the marker, so on another check it proves nothing. Any other failure
+# exists. Only the gate's GitHub Actions run is read, CI Status (ci-status on a
+# head tested before the rename): any step can print the marker, so on another
+# check it proves nothing. The ci-status alias job of a superseded CI Status in
+# the same Actions run repeats its failure and is superseded with it. Any other failure
 # annotation beside the marker and the runner's `Process completed with exit
 # code <n>.` is a failure of the run's own steps (a contract check), which the
 # full run cannot clear, so the failure stands. A failed annotations read leaves
@@ -1006,8 +1008,15 @@ while IFS= read -r _bupm_id; do
   read -r _bupm_frun _bupm_fsha <<<"$BUPM_OUT"
   [[ -n "$_bupm_frun" && "$_bupm_fsha" == "$_bupm_sha" ]] || continue
   _bupm_sup="$(jq -c --arg k "$_bupm_id" --arg v "$_bupm_frun" '.[$k] = $v' <<<"$_bupm_sup")" || _bupm_sup='{}'
-done < <(jq -r '[.[] | select(.status == "completed" and .conclusion == "failure"
-  and .name == "ci-status" and .app.slug == "github-actions") | .id][:3][]' <<<"$_bupm_runs")
+done < <(jq -r '([.[] | select(.name == "CI Status" and .app.slug == "github-actions")] | if length > 0 then . else null end)
+  // [.[] | select(.name == "ci-status" and .app.slug == "github-actions")]
+  | [.[] | select(.status == "completed" and .conclusion == "failure") | .id][:3][]' <<<"$_bupm_runs")
+# shellcheck disable=SC2016
+_bupm_sup="$(jq -c --argjson sup "$_bupm_sup" '
+  def actions_run: (.details_url // "") | if type == "string" then (capture("/actions/runs/(?<r>[0-9]+)(/|$)").r // "") else "" end;
+  (map(select(.name == "CI Status" and $sup[.id | tostring] and actions_run != "") | {key: actions_run, value: $sup[.id | tostring]}) | from_entries) as $by
+  | reduce (.[] | select(.name == "ci-status" and .app.slug == "github-actions" and .status == "completed" and .conclusion == "failure")) as $a
+      ($sup; ($a | actions_run) as $r | if $r != "" and $by[$r] then .[$a.id | tostring] = $by[$r] else . end)' <<<"$_bupm_runs")" || _bupm_sup='{}'
 # shellcheck disable=SC2016
 BUPM_OUT="$(printf '%s\n%s\n' "$_bupm_all" "$_bupm_runs" | jq -rs --argjson sup "$_bupm_sup" '
   .[0] as $all | .[1]

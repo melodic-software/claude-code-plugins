@@ -1,3 +1,4 @@
+# test-scope: .github/workflows/*.yml
 # test-scope: plugins/source-control/lib/parse-concern-value.sh
 """The post-merge check and its remediation (`babysit_postmerge`).
 
@@ -2749,6 +2750,15 @@ class Baseline(CheckCase):
         self.assertEqual(verdict.failures, ())
         self.assertEqual(verdict.unattributed, (self.SIGHTING,))
 
+    def test_ci_status_and_its_alias_beside_a_gitleaks_failure_add_nothing(self) -> None:
+        jobs = self.gitleaks_red(312)
+        jobs[1]["name"] = "CI Status"
+        alias = failed_job(314, "ci-status", "Report the conclusion of `CI Status`")
+        self.red_after_merge(*jobs, alias)
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.unattributed, (self.SIGHTING,))
+
     def test_a_new_gate_beside_a_gitleaks_failure_is_charged(self) -> None:
         self.before_merge("failure", *self.gitleaks_red(301))
         self.red_after_merge(
@@ -5062,8 +5072,8 @@ class RoleLabelRead(unittest.TestCase):
             return pm._role_label("o", "r", **kw)
 
     def test_a_mapped_label(self) -> None:
-        legacy = {"config": {"role_labels": {"human-gated": " human-review "}}}
-        files = {pm.tracker_binding.LEGACY_PATH: json.dumps(legacy)}
+        yaml = "tracker:\n  config:\n    role_labels:\n      human-gated: ' human-review '\n"
+        files = {pm.tracker_binding.YAML_PATH: yaml}
         self.assertEqual(self._read_files(files, strict=True), "human-review")
 
     def test_a_label_the_yaml_binding_maps(self) -> None:

@@ -16,7 +16,7 @@ It does not restate skill syntax, frontmatter, or invocation rules. The authorit
 are [Skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)
 (harness) and
 [Skill authoring best practices: Skill structure](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#skill-structure)
-(platform). Read those for the schema. As of 2026-10-11; recheck when either section moves.
+(platform). Read those for the schema.
 
 Each section is our decision, followed by a pointer to the page section behind it. Where no docs
 page covers a point and only Anthropic's verification-loops blog post does, the section says so
@@ -33,9 +33,6 @@ and links the post as a correlate note, never as the pointer.
 Prefer the middle route before adding a dependency, not because the plugin is undocumented, but
 because a dependency should earn itself.
 
-- **As of**: 2026-08-04
-- **Recheck trigger**: a re-read of a pointed section no longer documents that route.
-
 ### Write the invocation namespaced
 
 Write the plugin route `/skill-creator:skill-creator`, not the bare `/skill-creator`. The qualified
@@ -48,9 +45,6 @@ the nested variant.
   [How a skill gets its command name](https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name)
   and
   [Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name).
-- **As of**: 2026-08-31
-- **Recheck trigger**: a re-read of either section no longer supporting the qualified form as
-  unconditional.
 
 ## Attaching a check to a skill you do not own
 
@@ -60,8 +54,7 @@ where you own the file. Two cases where you do not, and they have different answ
 - **Plugin-managed skills.** Do not edit a plugin's installed files. Pointer: for why such an edit
   does not last, fetch
   [Versions and updates](https://code.claude.com/docs/en/plugins/loading#versions-and-updates)
-  live. As of: 2026-11-10. Recheck trigger: that section changes where an updated version's
-  files live.
+  live.
 - **Bundled skills.** Two options, not one: chain a wrapper after the bundled skill, or shadow it
   with a same-name skill at project or personal level. Read the pointer for what shadowing does
   and does not replace.
@@ -76,14 +69,11 @@ its end, several skills invoked in one user message
 ([Pass arguments to skills](https://code.claude.com/docs/en/skills#pass-arguments-to-skills)), or
 several Skills combined for one multi-step task
 ([Why use Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#why-use-skills)).
-As of 2026-10-11; recheck when either section moves.
 
 - **Pointer**: for same-name skills and bundled skills, see
   [Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)
   (correlate with <https://claude.com/blog/building-verification-loops-in-claude-code-with-skills>
   for the chaining approach).
-- **As of**: 2026-08-04
-- **Recheck trigger**: a re-read of that section no longer supporting shadowing a bundled skill.
 
 ## When the embedded step does not run
 
@@ -117,11 +107,7 @@ plugin is present.
   [Develop Skills iteratively with Claude](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#develop-skills-iteratively-with-claude)
   and
   [Observe how Claude navigates Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#observe-how-claude-navigates-skills);
-  for step 3, no docs page covered it as of the date below
-  (correlate with <https://claude.com/blog/building-verification-loops-in-claude-code-with-skills>).
-- **As of**: 2026-08-04
-- **Recheck trigger**: a re-read of either section no longer supporting steps 1 and 2, or a docs
-  page covering step 3.
+  for step 3, no docs page covers it (correlate with <https://claude.com/blog/building-verification-loops-in-claude-code-with-skills>).
 
 ## Validator preference and plan-validate-execute
 
@@ -153,5 +139,3 @@ aimed at the plan instead of the output.
   [Workflows and feedback loops](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#workflows-and-feedback-loops)
   and
   [Advanced: Skills with executable code](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#advanced-skills-with-executable-code).
-- **As of**: 2026-09-10
-- **Recheck trigger**: either page changes the pattern's steps or drops the pass/fail framing.

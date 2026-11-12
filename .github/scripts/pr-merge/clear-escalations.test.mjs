@@ -1499,7 +1499,7 @@ test("a ci-fix stop comes off once a trusted push moved the head and no check bu
     await run(w, TRUST_ENV);
     assert.equal(w.writes().length, 2, reason);
     assert.match(w.writes()[0].body.body, new RegExp(`reason=${reason} head=${HEAD}`));
-    assert.match(w.writes()[0].body.body, /no check other than ci-status fails/);
+    assert.match(w.writes()[0].body.body, /no check other than CI Status fails/);
   }
 });
 
@@ -1799,16 +1799,24 @@ test("a needs-session stop on an older head comes off once the new head carries 
     const { code, logs } = await run(w);
     assert.equal(code, 0);
     assert.deepEqual(w.writes(), [{ method: "DELETE", path: `/repos/${REPO}/issues/8/labels/needs-session`, body: undefined }], reason);
-    const cleared = new RegExp(`#8 needs-session cleared: ${reason} stopped at ${KEY}, and no ${laneContext(reason)} status fails at the new head ${HEAD}; no check other than ci-status fails`);
+    const cleared = new RegExp(`#8 needs-session cleared: ${reason} stopped at ${KEY}, and no ${laneContext(reason)} status fails at the new head ${HEAD}; no check other than CI Status fails`);
     assert.ok(logs.some((line) => cleared.test(line)), logs.join("\n"));
   }
+});
+
+test("a red CI Status and its ci-status alias are not counted either", async () => {
+  const headChecks = [check("test-node", "success"), check("CI Status", "failure", { id: 2 }), check("ci-status", "failure", { id: 3 })];
+  const keyStatuses = [status("failure", ACTIONS_BOT, "2026-10-18T10:00:01Z", laneContext("ci-fix-escalated"))];
+  const w = sessionWorld({ timeline: [sessionLabeled(BOT), stopped("ci-fix-escalated", KEY)], keyStatuses, headChecks });
+  assert.equal((await run(w)).code, 0);
+  assert.deepEqual(w.writes(), [{ method: "DELETE", path: `/repos/${REPO}/issues/8/labels/needs-session`, body: undefined }]);
 });
 
 test("a new head keeps needs-session while the stop's status fails there or its checks do not pass", async () => {
   for (const [options, kept] of [
     [{ statuses: [status("failure")], headChecks: NEW_HEAD_GREEN }, /pr-unblock\/fix-ci reads failure at the new head/],
     [{ statuses: [status("pending"), status("success")], headChecks: NEW_HEAD_GREEN }, /pr-unblock\/fix-ci reads pending at the new head/],
-    [{ headChecks: RED }, /stays at the new head: a check other than ci-status fails/],
+    [{ headChecks: RED }, /stays at the new head: a check other than CI Status fails/],
     [{ headChecks: [check("ci-status", "failure")] }, /stays at the new head/],
     [{ headChecks: [{ ...check("test-node", "success"), status: "in_progress", conclusion: null }] }, /stays at the new head/],
     [{ headChecks: new Error("HTTP 403") }, /stays at the new head/],

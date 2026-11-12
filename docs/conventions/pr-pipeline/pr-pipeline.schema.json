@@ -107,6 +107,13 @@
           "default": 2,
           "description": "Kill-switch re-fires' queue target per issue-lane slot (SLOTS in work-resolve-issue.yml): a work-unblock sweep re-fires breaker-stranded issues, oldest first, only until the work-resolve-issue runs not yet finished reach this times SLOTS, within restarts-per-run."
         },
+        "stale-queued-minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440,
+          "default": 60,
+          "description": "Minutes after it was created past which a work-resolve-issue run still at status queued is not counted toward refire-queue-per-slot's room: its first job never got a runner, so GitHub lost it and it will never start. A reopened fix issue's in-flight check also ignores such a run when it names no issue; one that names the issue still holds it."
+        },
         "sweep-gap-minutes": {
           "type": "integer",
           "minimum": 0,

@@ -194,7 +194,6 @@ FAILED_CONCLUSIONS = (
     "startup_failure",
     "action_required",
 )
-LANE_AGGREGATE_JOB = "ci-status"
 HYGIENE_AGGREGATE_STEP = "Aggregate hygiene results"
 UNATTRIBUTABLE_GATES = frozenset({"gitleaks failed"})
 # A newly failing check demotes only when one of its failing suites is in the
@@ -1966,6 +1965,10 @@ class _Context:
                 "jobs",
             )
             jobs = [j for j in listed if j.get("conclusion") in FAILED_CONCLUSIONS]
+            # The ci-status alias repeats CI Status's conclusion: the two are
+            # one check, CI Status.
+            if any(j.get("name") == policy.GATE_CHECK for j in jobs):
+                jobs = [j for j in jobs if j.get("name") != policy.GATE_ALIAS]
             self.passed_jobs[key] = frozenset(
                 str(j.get("name") or "")
                 for j in listed
@@ -1980,7 +1983,7 @@ class _Context:
             unknown: set[str] = set()
             for job in jobs:
                 name = str(job.get("name") or "")
-                if name == LANE_AGGREGATE_JOB and len(jobs) > 1:
+                if name in policy.GATE_NAMES and len(jobs) > 1:
                     continue
                 by_name[name] = job
                 gates = self._failed_gates(job.get("id"))

@@ -24,7 +24,20 @@
 // so a failed job whose list is not whole (stepsKnown) is neither infra nor
 // real: the reconciler leaves its run for a later pass.
 
-export const AGGREGATE_JOBS = new Set(["ci-status"]);
+// The gate job's check name, CI Status. Its alias job reports CI Status's
+// conclusion under the old required context, ci-status, until the ruleset
+// requires CI Status; a run from before the rename has only ci-status, the gate.
+export const GATE_CHECK = "CI Status";
+export const GATE_ALIAS = "ci-status";
+export const AGGREGATE_JOBS = new Set([GATE_CHECK, GATE_ALIAS]);
+// The gate's own entries in a listing of jobs or check runs: CI Status's, else
+// ci-status's. Never the alias's beside CI Status's: a re-run of the alias
+// replays its old `needs` result, and its steps and output are not the gate's.
+export const gateEntries = (entries) => {
+  const list = Array.isArray(entries) ? entries : [];
+  const gate = list.filter((entry) => entry?.name === GATE_CHECK);
+  return gate.length > 0 ? gate : list.filter((entry) => entry?.name === GATE_ALIAS);
+};
 export const INSTALL_STEP = /^(Install |Set up (job|Node|Python)$)/;
 export const FAILED = new Set(["failure", "cancelled", "timed_out", "startup_failure"]);
 // A run that ended without a result; reconcile.mjs re-runs its first attempt once.

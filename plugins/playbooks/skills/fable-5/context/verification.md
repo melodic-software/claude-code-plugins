@@ -56,19 +56,14 @@ Verification support exists before anyone writes anything custom, and it spans t
 | Rubrics in Claude Managed Agents | The work runs on that platform API product, not in this harness | [Managed Agents: define outcomes](https://platform.claude.com/docs/en/managed-agents/define-outcomes) |
 
 - **Pointer**: for each surface, the row's Canonical page.
-- **As of**: 2026-10-01 (Code Review and skill rows re-anchored 2026-10-11; the Code Review setup pointer moved to its own page 2026-11-01)
-- **Recheck trigger**: a row's page moves its section, or the surface it covers is added, removed, or changes product.
 
 The two rows carrying no harness artifact are the ones to read twice:
 
 - **Spec validation's absence is dated, not permanent.** We found no bundled skill for it.
   - **Pointer**: for the bundled-skill rosters, see [Skills: Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) and [Commands: All commands](https://code.claude.com/docs/en/commands#all-commands).
-  - **As of**: 2026-10-01
   - **Recheck trigger**: a release note adds a bundled skill that checks changes against a spec.
 - **Managed Agents rubrics belong to a different product.** Inside a session, build the equivalent yourself: a fresh-context subagent grades the artifact against the rubric and hands failures back. To start on that product, the bundled `/claude-api` skill has a Managed Agents onboarding subcommand.
   - **Pointer**: for that subcommand, see [Skills: Work on Claude API projects](https://code.claude.com/docs/en/skills#work-on-claude-api-projects).
-  - **As of**: 2026-10-01
-  - **Recheck trigger**: that table drops or renames the onboarding subcommand.
 - **A worked Managed Agents automation checks its own output before reporting it.** It re-checks each item against its live source just before posting, and counts a post as sent only once delivery is confirmed.
   - **Pointer**: for the code, see [Building effective agent automations: Get the code](https://claude.dev/blog/building-effective-agent-automations/#get-the-code) (Lance Martin and CJ Avilla, 2026-10-08), which links the reference implementation, `anthropics/claude-quickstarts` [`managed-agents/daily-brief`](https://github.com/anthropics/claude-quickstarts/tree/main/managed-agents/daily-brief), and gives the `/claude-api managed-agents-onboard <post URL>` walkthrough command; for the two checks, see the same post's [Agent](https://claude.dev/blog/building-effective-agent-automations/#agent) and [Destination](https://claude.dev/blog/building-effective-agent-automations/#destination) sections.
   - **As of**: 2026-10-31
@@ -77,8 +72,6 @@ The two rows carrying no harness artifact are the ones to read twice:
 **Provided never means automatic.** These surfaces are different kinds of thing: bundled skills, a hosted service, and a platform API. Before a project's verification story depends on one, check its plan availability, client version, and who may invoke it on the page that owns it.
 
 - **Pointer**: for who invokes `/verify` and `/code-review`, see [Commands: All commands](https://code.claude.com/docs/en/commands#all-commands); for Code Review's availability and setup, see [Code Review](https://code.claude.com/docs/en/code-review) and [Set up Code Review](https://code.claude.com/docs/en/code-review-setup).
-- **As of**: 2026-08-10 (the Code Review setup pointer moved to its own page 2026-11-01)
-- **Recheck trigger**: a Claude Code release whose changelog names `/verify`, `/code-review`, or bundled-skill invocability, or a Code Review release note changing its plan or preview status.
 
 ## The check is the spec until proven wrong
 
@@ -98,7 +91,7 @@ Switch roles from author to attacker, because the inputs you designed for pass b
 - Walk every caller of the thing you changed that you did not modify, because contract changes break at the call sites you were not looking at.
 - Force the error path once and observe it fail loudly and correctly, with a real error, the right message, and no partial state left behind, because unexercised error paths silently succeed or corrupt.
 - If the change is one member of a symmetric family (one handler of several, one platform of several, one half of a read/write pair), check the siblings: either they need the same change, or state why they do not.
-- Above the floor, scaled with blast radius: when an independent oracle exists or costs little to build, check the change against it. A reference implementation that skips the optimization, a brute-force solver, or a random-input generator each answers a question your own cases cannot, because they were not designed around the change. The complementary check, that a test fails on a half-finished fix, is the debugging chapter's toggle for a bug fix and the planning chapter's red-to-green rule for new behavior. Pointer: for how verification depth scales with the effort level in a Claude Code session, see [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level) (correlate with <https://claude.dev/blog/spending-your-effort>). As of: 2026-11-01. Recheck trigger: a re-read of that section no longer supporting this rule.
+- Above the floor, scaled with blast radius: when an independent oracle exists or costs little to build, check the change against it. A reference implementation that skips the optimization, a brute-force solver, or a random-input generator each answers a question your own cases cannot, because they were not designed around the change. The complementary check, that a test fails on a half-finished fix, is the debugging chapter's toggle for a bug fix and the planning chapter's red-to-green rule for new behavior. Pointer: for how verification depth scales with the effort level in a Claude Code session, see [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level) (correlate with <https://claude.dev/blog/spending-your-effort>).
 
 **This pass is a floor, never the final gate for multi-file work:** after a multi-file edit batch, and before declaring any multi-part task complete, a fresh-context verifier is required in addition, unless every batch the trigger covers is mechanical, wholly behavior-preserving, narrow in blast radius, and free of any subjective verdict. The orchestration chapter, section "Fresh-context verification", owns that gate and its exception.
 

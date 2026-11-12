@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# Apply line discounts on invoices\n\n## Brief\n\n### Problem\nSales enters line discounts on the order form, which stores `discount_pct`, but invoices ignore it: customers are billed full price and sales writes credit notes by hand.\n\n### Goal\nInvoices charge the discounted price and show the discount.\n\n### Acceptance criteria\n- AC1: `line_total` applies `discount_pct`: 3 at 10.00 with 15 percent off totals 25.50.\n- AC2: The invoice subtotal and tax use the discounted line totals.\n- AC3: An item with `discount_pct` 0 totals as today.\n- AC4: The text invoice shows each discounted line's percentage beside its total, as `-15%`.\n\n### Out-of-scope\n- Invoice-level discounts.\n- Changes to the order form.\n\n### Captured assumptions\n- `discount_pct` is between 0 and 100: revisit if sales asks to record credit lines as discounts above 100.\n\n## Design\n\nEarly exit (tier C): Uses the existing `discount_pct` field; no new types or fields.\n\n## Plan\n\n### Behavior\n- B1: A discounted line totals at the discounted price; an undiscounted line totals as today (AC1, AC3). Delivered by Phase 1.\n- B2: Invoice subtotal and tax follow the discounted lines (AC2). Delivered by Phase 2.\n- B3: The invoice text shows each line's discount percentage (AC4). Delivered by Phase 2.\n\n### Load-bearing assumptions\n\n| Assumption | Source | Falsifying check | Response if false |\n|---|---|---|---|\n| Tax is computed on the subtotal, not per line | plan | Phase 2 Sanity Check | Moderate: flag and continue |\n\n### Phase 1: Discount line totals [TODO]\n**Satisfies:** AC1, AC3\n**Delivers:** B1\n\n- In `billing/pricing.py`, compute `item.quantity * item.unit_price * (100 - item.discount_pct) / 100` and pass it through `money.round_cents`.\n- In `tests/test_pricing.py`, add cases for 15 percent and 0 percent.\n\n**Sanity Check:** `python -m unittest tests.test_pricing` exits 0.\n\n### Phase 2: Carry discounted totals through the invoice [TODO]\n**Satisfies:** AC2, AC4\n**Delivers:** B2, B3\n\n- `billing/invoice.py` keeps summing `pricing.line_total`, which now returns the discounted amount.\n- In `billing/render.py`, print `-<discount_pct>%` beside each discounted line's total.\n- In a new `tests/test_invoice.py`, assert the subtotal and tax of an invoice with one discounted line.\n\n**Sanity Check:** `python -m unittest discover -s tests` exits 0.\n\n### Files affected\n| File | Action |\n|---|---|\n| `billing/pricing.py` | modify |\n| `tests/test_pricing.py` | modify |\n| `tests/test_invoice.py` | create |\n",
+      "why": "the plan with the seeded defect fixed"
+    },
+    {
+      "answer": "### Phase 2: Next step [TODO]\n- Show `-15%` next to each discounted total in the text invoice.\n",
+      "why": "output paraphrase"
+    },
+    {
+      "answer": "### Phase 2: Next step [TODO]\n- Update `render_text` to append the discount percentage.\n",
+      "why": "function name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Apply line discounts on invoices\n\n## Brief\n\n### Problem\nSales enters line discounts on the order form, which stores `discount_pct`, but invoices ignore it: customers are billed full price and sales writes credit notes by hand.\n\n### Goal\nInvoices charge the discounted price and show the discount.\n\n### Acceptance criteria\n- AC1: `line_total` applies `discount_pct`: 3 at 10.00 with 15 percent off totals 25.50.\n- AC2: The invoice subtotal and tax use the discounted line totals.\n- AC3: An item with `discount_pct` 0 totals as today.\n- AC4: The text invoice shows each discounted line's percentage beside its total, as `-15%`.\n\n### Out-of-scope\n- Invoice-level discounts.\n- Changes to the order form.\n\n### Captured assumptions\n- `discount_pct` is between 0 and 100: revisit if sales asks to record credit lines as discounts above 100.\n\n## Design\n\nEarly exit (tier C): Uses the existing `discount_pct` field; no new types or fields.\n\n## Plan\n\n### Behavior\n- B1: A discounted line totals at the discounted price; an undiscounted line totals as today (AC1, AC3). Delivered by Phase 1.\n- B2: Invoice subtotal and tax follow the discounted lines (AC2). Delivered by Phase 2.\n- B3: The invoice text shows each line's discount percentage (AC4). Delivered by Phase 2.\n\n### Load-bearing assumptions\n\n| Assumption | Source | Falsifying check | Response if false |\n|---|---|---|---|\n| Tax is computed on the subtotal, not per line | plan | Phase 2 Sanity Check | Moderate: flag and continue |\n\n### Phase 1: Discount line totals [TODO]\n**Satisfies:** AC1, AC3\n**Delivers:** B1\n\n- In `billing/pricing.py`, compute `item.quantity * item.unit_price * (100 - item.discount_pct) / 100` and pass it through `money.round_cents`.\n- In `tests/test_pricing.py`, add cases for 15 percent and 0 percent.\n\n**Sanity Check:** `python -m unittest tests.test_pricing` exits 0.\n\n### Phase 2: Carry discounted totals through the invoice [TODO]\n**Satisfies:** AC2, AC4\n**Delivers:** B2, B3\n\n- `billing/invoice.py` keeps summing `pricing.line_total`, which now returns the discounted amount.\n- In a new `tests/test_invoice.py`, assert the subtotal and tax of an invoice with one discounted line.\n\n**Sanity Check:** `python -m unittest discover -s tests` exits 0.\n\n### Files affected\n| File | Action |\n|---|---|\n| `billing/pricing.py` | modify |\n| `tests/test_pricing.py` | modify |\n| `tests/test_invoice.py` | create |\n",
+      "why": "the draft as seeded"
+    },
+    {
+      "answer": "### Phase 2: Next step [TODO]\n- Keep summing line totals.\n",
+      "why": "no render step"
+    },
+    {
+      "answer": "- B3: The invoice text shows each line's discount percentage (AC4).\n### Phase 2: Next step [TODO]\n- Keep summing line totals.\n",
+      "why": "only the Behavior item mentions it"
+    }
+  ]
+}

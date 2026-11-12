@@ -8207,6 +8207,20 @@ class AFailJudgedFromADraftRunCountsAsNone(unittest.TestCase):
         self.assertTrue(draft_run(DRAFT_JOBS))
         self.assertFalse(draft_run(READY_JOBS))
 
+    def test_the_draft_state_is_ci_status_s_not_its_alias_s(self) -> None:
+        def renamed(jobs: dict[str, Any]) -> dict[str, Any]:
+            alias = {"id": 9009, "name": "ci-status", "conclusion": "success", "steps": []}
+            return {"total_count": 2, "jobs": [alias, {**jobs["jobs"][0], "name": "CI Status"}]}
+
+        def draft_run(jobs: dict[str, Any]) -> bool:
+            fake = FakeGitHub([], {})
+            fake.jobs[DRAFT_CHECKS] = jobs
+            with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+                return ve.Reader(REPO, "main")._draft_run(DRAFT_CHECKS)
+
+        self.assertTrue(draft_run(renamed(DRAFT_JOBS)))
+        self.assertFalse(draft_run(renamed(READY_JOBS)))
+
     def test_an_unreadable_draft_state_keeps_the_fail(self) -> None:
         for label, jobs in UNREADABLE_DRAFT_STATE.items():
             with self.subTest(label):

@@ -55,10 +55,6 @@ prompt line for it only after comparing quality with and without it; the line st
   a higher level adds to verifying work, see
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
   (correlate with <https://claude.dev/blog/spending-your-effort>).
-- **As of**: 2026-10-10
-- **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above,
-  a Claude Code release note that changes thinking or effort controls for this model, or the
-  model-config effort sections change.
 
 ## Long runs
 
@@ -81,11 +77,10 @@ task is done, or check in with the person pairing on it. `[CC: prompt-authoring]
 - **Pointer**: when authoring an unattended-run steer, read
   [Unattended agentic runs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#unattended-agentic-runs)
   live through the docs lookup (`fetch-docs.sh --cache --profile platform`, the fable-5 skill's
-  Chapter routing) and adapt its sample paragraph. No docs page covers scope hedging as of 2026-10-10
+  Chapter routing) and adapt its sample paragraph. No docs page covers scope hedging
   (correlate with <https://claude.dev/blog/how-we-made-claude-ai-faster#steering>).
-- **As of**: 2026-10-10
-- **Recheck trigger**: a re-read of that section no longer supporting the decisions above, or an
-  official guide or system card covers scope hedging (move the correlate beside that page).
+- **Recheck trigger**: an official guide or system card covering scope hedging (move the correlate
+  beside that page).
 
 ## Reports and questions
 
@@ -100,8 +95,6 @@ instead, such as the rationale in a few sentences or the evidence list. `[CC: pr
   [User-facing progress updates](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#user-facing-progress-updates);
   for reasoning extraction, see
   [Safeguard refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#safeguard-refusals).
-- **As of**: 2026-10-10
-- **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above.
 
 ## Delegation
 
@@ -116,8 +109,6 @@ and enforce the deadline in the harness itself, never in the prompt alone. `[CC:
   [Capabilities relevant to prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#capability-improvements)
   and
   [Time signals for multiagent harnesses](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#time-signals-for-multi-agent-harnesses).
-- **As of**: 2026-10-10
-- **Recheck trigger**: a re-read of either section no longer supporting the decision above.
 
 ## Review
 
@@ -133,9 +124,8 @@ separate pass. `[CC: prompt-authoring]`
   for what a higher level adds to verifying work, see
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
   (correlate with <https://claude.dev/blog/spending-your-effort>).
-- **As of**: 2026-10-10 for the guide and model-config; 2026-10-01 for the effort floor.
-- **Recheck trigger**: a re-read of the guide section, or a later page, addresses whether a severity
-  bar lowers this model's recall, or the model-config section changes.
+- **Recheck trigger**: the guide section, or a later page, addressing whether a severity bar lowers
+  this model's recall.
 
 ## Stated facts
 
@@ -146,8 +136,6 @@ problem and say where it is. The stated-facts adjustment specific to Opus 5 does
 
 - **Pointer**: for knowledge work, see
   [Capabilities relevant to prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#capability-improvements).
-- **As of**: 2026-10-10
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Vision
 
@@ -158,8 +146,6 @@ dense to read reliably, apply the aids at the pointer before asking the same que
 
 - **Pointer**: for visual inputs, see
   [Tools for complex visual inputs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#tools-for-complex-visual-inputs).
-- **As of**: 2026-10-10
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Design
 
@@ -169,8 +155,6 @@ next pass. `[CC: direct]`
 
 - **Pointer**: for design defaults, see
   [Frontend design defaults](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#frontend-design-defaults).
-- **As of**: 2026-10-10
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Chat system prompts
 
@@ -180,8 +164,6 @@ analysis, this playbook, or any agentic surface. `[CC: prompt-authoring]`
 
 - **Pointer**: for thinking instructions in chat, see
   [Thinking instructions in chat system prompts](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#thinking-instructions-in-chat-system-prompts).
-- **As of**: 2026-10-10
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Safeguards and fallback
 
@@ -198,9 +180,6 @@ hidden thinking in the reply. `[CC: prompt-authoring]`
   [Safeguard refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#safeguard-refusals)
   and
   [Refusals and fallback](https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5#refusals-and-fallback).
-- **As of**: 2026-10-10
-- **Recheck trigger**: a re-read of the fallback section naming different targets, or a refusal
-  category added or removed for this model.
 
 ## Speed
 
@@ -210,9 +189,6 @@ runs where latency is not the constraint. Availability and prices resolve at the
 
 - **Pointer**: for fast mode, see
   [Decide when to use fast mode](https://code.claude.com/docs/en/fast-mode#decide-when-to-use-fast-mode).
-- **As of**: 2026-11-01
-- **Recheck trigger**: the page's opening stops listing this model as supported, or that section
-  changes which work it suits.
 
 ## API-side, for integrations you author
 
@@ -233,8 +209,6 @@ resolve through the `claude-api` skill at the moment of use; this chapter carrie
   [Mark pasted text in user messages](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#mark-pasted-text-in-user-messages),
   and
   [Calibrate effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#calibrate-effort).
-- **As of**: 2026-10-10
-- **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above.
 
 ## What carries from the Opus 5 chapter, and what does not
 

@@ -39,27 +39,21 @@ Read the house style (`<plugin-root>/reference/issue-house-style.md`) before fil
 
 ### Body format (use as-is, fill in the angle-bracket placeholders)
 
+The sections follow the `task` type of the org issue-body contract, which `/work-items:track add`
+reads from its plugin's `reference/issue-body-contract.json`: Context, Proposed work and Acceptance
+criteria are its required fields, so the item passes intake's body check.
+
 ```markdown
 ## Context
 
 Deferred from tidy run on `<branch-name>` (anchor: `<anchor-sha>`). The hunt found this candidate but the PR scope budget's hard cap was reached before it could be included.
 
-## Tidying type
+## Proposed work
 
-<one of the named tidyings from reference/tidyings.md, e.g., "Beck #5: Reading Order">
-
-## Files
-
-- `<path/to/file1.ext>` (<estimated LOC delta>)
-- `<path/to/file2.ext>` (<estimated LOC delta>)
-
-## Estimated scope
-
-<estimate>: ~<N> LOC across <M> files. Should fit within the scope budget's target as a future tidy run.
-
-## Lane
-
-`<lane-name>`
+- Tidying: <one of the named tidyings from reference/tidyings.md, e.g., "Beck #5: Reading Order">
+- Files: `<path/to/file1.ext>` (<estimated LOC delta>), `<path/to/file2.ext>` (<estimated LOC delta>)
+- Estimated scope: ~<N> LOC across <M> files; should fit the scope budget's target as a future tidy run.
+- Lane: `<lane-name>`
 
 ## Acceptance criteria
 

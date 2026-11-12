@@ -12,8 +12,7 @@ setting is named as one: a `/skill-quality:check` setting, or a choice of this p
 The deletion test governs every line, in the description, the body, a reference file or an agent:
 could the model already know this, or do the job without it? If so, cut it. Cruft is not length:
 never justify a deletion by character count alone, and never keep a line because it is short
-(per the `claude-api` skill's prompt audit, as of 2026-10-06; recheck when that audit's
-cruft criterion changes). Explaining what the agent already knows doesn't just waste space, it
+(per the `claude-api` skill's prompt audit). Explaining what the agent already knows doesn't just waste space, it
 dilutes the lines that actually matter, because the agent's attention is spread across everything
 you wrote. The agent already knows how to write decent CSS or React; it doesn't know the nuances,
 like increasing the duration of an animation if the object is larger. Domain expertise is what
@@ -69,9 +68,7 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   Enumerating
   every phrasing a user might type is the trigger-case defect the prompt audit flags. Use the
   nouns a user would type, and lead with the main use case. Why:
-  [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
-  (as of 2026-11-10; recheck when that section changes which part of a description the listing
-  keeps).
+  [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short).
 - **Hook terms.** Models latch onto particular words, and which ones is found by trial, not
   guessed. Keep at most three, each a quoted user idiom that shares no word with the rest of the
   description (a jargon or slang name for the job) and that probes show moves triggering
@@ -146,10 +143,9 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   skill by progressive disclosure (reference files, scripts, a spoke per use case) instead of
   splitting it. Depth costs nothing until it's used (a file read then meets the deletion test like
   the body), while every extra model-invoked skill costs listing context
-  ([Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill),
-  as of 2026-11-10; recheck when that section changes which skills' descriptions load into
-  context). A split is the exception: split only when the
-  parts change independently or answer different requests.
+  ([Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)).
+  A split is the exception: split only when the parts change independently or answer different
+  requests.
 - **SKILL.md is a router, under 5,000 tokens.** It is the hub: it holds the standing rules and
   routes each action to its own spoke under `actions/`, one file per action, so a run loads the
   router and the one action it needs. The cap is a house setting; `/skill-quality:check` estimates the count at 4
@@ -157,8 +153,7 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   ([Measurement](#measurement)).
 - Standing rules go in the body; bulk goes in reference files. Put a workflow or checklist first
   after the frontmatter, so it survives compaction
-  ([Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle), as
-  of 2026-11-10; recheck when that section changes how much of an invoked skill compaction keeps).
+  ([Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)).
 - For structured output, the framing sentence sets strictness: an exact template for
   machine-read output, a default with a release line otherwise. Give a few diverse, canonical
   examples that portray the expected behavior, not a laundry list of edge cases that tries to
@@ -364,8 +359,6 @@ recheck trigger. Re-read the pointer before acting on a figure.
   [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle); the
   fresh-session loop at
   [Evaluate and iterate on a skill](https://code.claude.com/docs/en/skills#evaluate-and-iterate-on-a-skill).
-  As of 2026-10-06. Recheck: the listing cap, the listing budget, an invocation default, or the
-  user-invoked context rule changes.
 - **Platform best practices**: description cap at
   [YAML frontmatter requirements](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#yaml-frontmatter-requirements);
   voice at
@@ -376,39 +369,29 @@ recheck trigger. Re-read the pointer before acting on a figure.
   [Avoid deeply nested references](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-deeply-nested-references);
   [Evaluation and iteration](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#evaluation-and-iteration);
   [Checklist for effective Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#checklist-for-effective-skills).
-  As of 2026-10-06. Recheck: the description cap, the voice rule, the line limit, the nesting
-  rule, or a checklist item changes.
 - **Agent Skills specification**: the portable `description` limit at
-  [description field](https://agentskills.io/specification#description-field). As of 2026-10-06.
-  Recheck: that field's limit changes.
+  [description field](https://agentskills.io/specification#description-field).
 - **Cursor skills docs**: the skill frontmatter fields at
-  [Frontmatter fields](https://cursor.com/docs/skills#frontmatter-fields). As of 2026-11-04.
-  Recheck: that section's field list changes.
+  [Frontmatter fields](https://cursor.com/docs/skills#frontmatter-fields).
 - **Prompt audit**, `shared/prompt-audit.md` in the `claude-api` skill bundled with Claude Code
   (read at 2.1.292). As of 2026-10-06. Recheck: a Claude Code release changes that file.
 - **Subagent docs**: [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
   for the model resolution order and the Agent-tool alias set,
   [Run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model)
   for the force setting that overrides frontmatter `model`, and
-  [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools). As of 2026-11-01.
-  Recheck: the model resolution order, the omitted-field fallback, the force setting or the
-  Agent-tool alias list changes.
+  [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
 - **Pocock's skills**, <https://github.com/mattpocock/skills> at commit `6fd9479`, measured by us
   over 38 skills. As of 2026-10-06. Recheck: a re-measure at a newer commit moves a median or a
   shape.
 - **Skill-creator**, <https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md>
-  (eval modes, description voice). As of 2026-10-06. Recheck: its eval modes or frontmatter
-  voice change.
+  (eval modes, description voice).
 - **Skill-creator reasons**,
   [How to think about improvements](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#how-to-think-about-improvements).
-  As of 2026-10-29. Recheck: that section moves or changes its guidance on explaining the why.
 - **Skill-creator comparator**,
   [agents/comparator.md](https://github.com/anthropics/skills/blob/main/skills/skill-creator/agents/comparator.md)
-  (blind A/B judgment of two versions' outputs). As of 2026-11-06. Recheck: the file moves or is
-  renamed, or it stops judging the two versions blind.
+  (blind A/B judgment of two versions' outputs).
 - **Context engineering post**,
   [The anatomy of effective context](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents#the-anatomy-of-effective-context).
-  As of 2026-10-29. Recheck: that section moves or changes its guidance on examples.
 - **Vendored playbook**, `vendor/upstream-skill.md`, maintained by `/playbooks:update`. For its current
   drift state, read `/playbooks:update --check` and the `SKILL.md` metadata. Recheck: the next
   `/playbooks:update` run.

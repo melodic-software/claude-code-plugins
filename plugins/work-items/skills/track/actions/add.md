@@ -5,7 +5,7 @@ Create a new work item with labels from the taxonomy.
 **Defaults applied by this action:**
 
 - **Priority.** When the `--priority` flag is absent, set no priority, on the `Priority` field or as a `priority:` label. Urgency is assigned at triage, not at filing. Apply the bare floor label `needs-triage` when that exact name exists in the live set ([`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)). Do not pass it as `--priority`, and do not substitute a low priority or a prefixed `needs-triage` spelling. Omit the floor when the live set has no `needs-triage` label.
-- **Body template.** When `--body` is not provided, fall back to the default skeleton: a `## Context` paragraph (what observation surfaced this item, what's the cost of leaving it), a `## Proposed work` bullet list (concrete next actions), `## Acceptance criteria` (one verifiable assertion per bullet), and `## References` (cross-references to rules, files, prior PRs, or external docs). The concrete body the workflow builds is detailed in step "Build body" below.
+- **Body template.** When `--body-file` is not provided, the body's sections come from the issue-body contract ([`reference/issue-body-contract.json`](../../../reference/issue-body-contract.json)), the record the org issue forms are generated from: the contract type matching the resolved issue type, or `agent-ready` with `--agent-ready`. The concrete body the workflow builds is detailed in step "Build body" below.
 - **Label taxonomy.** Labels are validated against the structure documented in [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md).
 - **Title shape.** The item title follows the convention in [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md).
 
@@ -52,25 +52,9 @@ Create a new work item with labels from the taxonomy.
 
 1. **Build labels list** `{labels}` (comma-separated for the seam) from the remaining flags. With no `--priority` and no `--agent-ready`, include no `priority:` label and include the bare `needs-triage` floor when the live set has it. A supplied `--priority`, or `--agent-ready`, does not leave the floor on: a known tier or a complete brief is already past intake. Also start from `category:general` and replace it with a supplied `--category`. Append `--area`/`--ecosystem` labels when provided. When `--agent-ready` is set, also append the autonomous-eligible role label (default `agent-ready`) so the item is eligible for autonomous pickup. A default that the consuming repo doesn't define is omitted rather than passed. With `--parent`, or a `--label` that is the binding's container label (`config.container_label`, default `work-map`), skip the `category:general` default and the `needs-triage` floor: a container or its child is not intake. Append each `--label` verbatim, after checking them as the flag says.
 
-1. **Build body.** With `--body-file`, the file is the body. With `--parent` or the container label and no `--body-file`, the description is the body. Otherwise, if `--agent-ready`, use the agent-brief template from [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) (Type, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
+1. **Build body.** With `--body-file`, the file is the body. With `--parent` or the container label and no `--body-file`, the description is the body. Otherwise, if `--agent-ready`, use the agent-brief template from [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md), whose fields are the issue-body contract's `agent-ready` type. Otherwise take the contract type for the resolved issue type (`Bug` → `bug`, `Feature` → `feature`, `Task` → `task`) and write one `## <heading>` section per entry of its `fields`, in contract order, each filled from the description and `--context` as its `description` asks, with every required field filled (a field nothing backs reads `unknown`, never invented). Then append the sections below, which the contract does not hold:
 
 ```markdown
-## Context
-
-{what observation surfaced this item; the cost of leaving it, from the description and --context}
-
-## Proposed work
-
-- {concrete next action derived from the description}
-
-## Acceptance criteria
-
-- [ ] {one verifiable assertion per bullet}
-
-## References
-
-- {cross-references to rules, files, prior PRs, or external docs, or "none"}
-
 ## Metadata
 
 | Field | Value |

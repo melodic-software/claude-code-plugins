@@ -22,9 +22,6 @@ Quick settings to make Claude Code feel right:
 > - **Pointer**: before running `/terminal-setup` for newlines, fetch
 >   [Enter multiline prompts](https://code.claude.com/docs/en/terminal-config#enter-multiline-prompts)
 >   live.
-> - **As of**: 2026-10-11
-> - **Recheck trigger**: that section's terminal table changes which terminals need
->   `/terminal-setup`.
 
 ---
 
@@ -46,8 +43,6 @@ Boris uses High for everything.
 >
 > - **Pointer**: before picking a level for a given model, fetch
 >   [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) live.
-> - **As of**: 2026-11-09
-> - **Recheck trigger**: a new model release, or that section's levels table changes.
 
 ---
 
@@ -74,16 +69,12 @@ Drop `.md` files in `.claude/agents`. Each agent gets custom name, color, tool s
 > - **Pointer**: when writing an agent file, fetch the
 >   [subagent frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
 >   live.
-> - **As of**: 2026-11-01
-> - **Recheck trigger**: that frontmatter table adds, renames or removes a field.
 
 **Little-known feature:** Set the default agent for the main conversation. Set `"agent"` in `settings.json` or use `--agent`.
 
 > - **Pointer**: before setting a default agent for a session, fetch
 >   [Invoke subagents explicitly](https://code.claude.com/docs/en/sub-agents#invoke-subagents-explicitly)
 >   live.
-> - **As of**: 2026-11-01
-> - **Recheck trigger**: the `agent` setting or the `--agent` flag is renamed, or that section moves.
 
 `/agents` to get started.
 
@@ -193,5 +184,3 @@ Use `"env"` in `settings.json` to avoid wrapper scripts.
 - **Pointer**: for the current settings and environment variables, fetch
   [All settings](https://code.claude.com/docs/en/settings-reference#all-settings) and
   [Environment variables](https://code.claude.com/docs/en/env-vars#variables) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either page is renamed or moves its list to another section.

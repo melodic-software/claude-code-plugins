@@ -46,9 +46,7 @@ Claude Code's page, never from the API guide; in an integration you author, read
   (correlate with <https://x.com/alexalbert__/status/2119869724247077229>); for Claude Code's
   levels and its default for this model, see
   [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-- **As of**: 2026-11-09
-- **Recheck trigger**: a re-read of either section no longer supporting the decisions above, or
-  the two surfaces' defaults for this model becoming the same.
+- **Recheck trigger**: the two surfaces' defaults for this model becoming the same.
 
 ## The consent gate's reach
 
@@ -74,9 +72,7 @@ standing grant, as the gate's total rule states. `[CC: direct]`
   and
   [Keep caution from piling up](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#keep-caution-from-piling-up)
   (correlate with <https://x.com/alexalbert__/status/2119869724247077229>).
-- **As of**: 2026-11-09
-- **Recheck trigger**: a re-read of either section no longer supporting the decision above, or the
-  gate's trigger list or total rule changing.
+- **Recheck trigger**: the gate's trigger list or total rule changing.
 
 ## Code ownership
 
@@ -92,9 +88,7 @@ Under a grant, your closing message lists every change you made, small ones incl
 
 - **Pointer**: see the guide's
   [Say who owns the code](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#say-who-owns-the-code).
-- **As of**: 2026-11-09
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above, or a
-  lane prompt or convention file in this repository adding an ownership grant.
+- **Recheck trigger**: a lane prompt or convention file in this repository adding an ownership grant.
 
 ## Delegation and self-review
 
@@ -109,8 +103,6 @@ changing anything else. `[CC: direct]`
 
 - **Pointer**: see the guide's
   [Set expectations for subagents](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#set-expectations-for-subagents).
-- **As of**: 2026-11-09
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Cautions in durable notes
 
@@ -125,8 +117,6 @@ file keeps its force under meta-rule 1. `[CC: direct]`
   [Keep caution from piling up](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#keep-caution-from-piling-up)
   and
   [Review instructions written for earlier models](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#review-instructions-written-for-earlier-models).
-- **As of**: 2026-11-09
-- **Recheck trigger**: a re-read of either section no longer supporting the decision above.
 
 ## Earlier answers stay open
 
@@ -139,8 +129,6 @@ guide's settled-answers lines into a prompt you run under or author for this mod
 
 - **Pointer**: see the guide's
   [Review instructions written for earlier models](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#review-instructions-written-for-earlier-models).
-- **As of**: 2026-11-09
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Writing form
 
@@ -153,8 +141,6 @@ guidance, and add no sentence or word cap of your own. `[CC: prompt-authoring]`
   [Review instructions written for earlier models](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#review-instructions-written-for-earlier-models);
   for report guidance, see
   [Make reports easy to follow](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#make-reports-easy-to-follow).
-- **As of**: 2026-11-09
-- **Recheck trigger**: a re-read of either section no longer supporting the decision above.
 
 ## Sources
 

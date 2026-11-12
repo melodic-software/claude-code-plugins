@@ -187,6 +187,16 @@ J
     echo '{"total_count":3,"check_runs":[{"id":901,"name":"ci-status","app":'"$app"',"check_suite":{"id":1},"status":"completed","conclusion":"success","details_url":"https://github.com/acme/widgets/actions/runs/5000/job/1"},'"$full$sup"']}' >"$FIX/checks.json"
     echo '['"$extra"'{"annotation_level":"failure","message":"Process completed with exit code 1."},{"annotation_level":"failure","message":"superseded by full run https://github.com/acme/widgets/actions/runs/5001 in flight on '"$sha"': its own ci-status check run is newer than this one and decides the merge gate."}]' >"$FIX/annotations_903.json"
     ;;
+  # The same superseded contract-only run (5002) with the gate job shown as
+  # CI Status and its ci-status alias beside it in each run; the alias of the
+  # superseded CI Status failed with it and carries no marker of its own.
+  ci-renamed-superseded-full-success | ci-renamed-superseded-full-absent)
+    local app='{"id":15368,"slug":"github-actions"}' full=''
+    local gate='"app":'"$app"',"status":"completed","conclusion":"failure","details_url":"https://github.com/acme/widgets/actions/runs/5002/job/'
+    [[ "$3" == *-full-success ]] && full='{"id":901,"name":"CI Status","app":'"$app"',"check_suite":{"id":2},"status":"completed","conclusion":"success","details_url":"https://github.com/acme/widgets/actions/runs/5001/job/1"},{"id":902,"name":"ci-status","app":'"$app"',"check_suite":{"id":2},"status":"completed","conclusion":"success","details_url":"https://github.com/acme/widgets/actions/runs/5001/job/2"},'
+    echo '{"total_count":4,"check_runs":['"$full"'{"id":903,"name":"CI Status","check_suite":{"id":3},'"$gate"'3"},{"id":904,"name":"ci-status","check_suite":{"id":3},'"$gate"'4"}]}' >"$FIX/checks.json"
+    echo '[{"annotation_level":"failure","message":"Process completed with exit code 1."},{"annotation_level":"failure","message":"superseded by full run https://github.com/acme/widgets/actions/runs/5001 in flight on abc123: its own ci-status check run is newer than this one and decides the merge gate."}]' >"$FIX/annotations_903.json"
+    ;;
   # A lone failed ci-status whose annotations carry no superseded marker.
   ci-failed-plain)
     echo '{"total_count":1,"check_runs":[{"id":903,"name":"ci-status","app":{"id":15368},"check_suite":{"id":3},"status":"completed","conclusion":"failure","details_url":"https://github.com/acme/widgets/actions/runs/5002/job/3"}]}' >"$FIX/checks.json"
@@ -343,6 +353,14 @@ assert_contains "malformed marker -> failing" "$ERR" "Failing checks: ci-status"
 scenario none none ci-superseded-other-check green
 run "marker on a check that is not ci-status, --auto" 'gh pr merge 42 --auto --squash' 2
 assert_contains "marker on another check -> failing" "$ERR" "Failing checks: test"
+scenario none none ci-renamed-superseded-full-success green
+run "superseded CI Status and its alias, full run succeeded" 'gh pr merge 42 --squash' 0
+assert_eq "renamed superseded, full success -> no stderr" "" "$ERR"
+assert_absent "renamed superseded -> the alias's annotations are not read" "$(calls)" "check-runs/904/annotations"
+scenario none none ci-renamed-superseded-full-absent green
+run "superseded CI Status and its alias, full run not reported" 'gh pr merge 42 --squash' 2
+assert_contains "renamed superseded, full absent -> both pending" "$ERR" "Pending checks (use --auto to merge once they pass): CI Status, ci-status"
+assert_absent "renamed superseded, full absent -> not failing" "$ERR" "Failing checks"
 scenario none none ci-failed-plain green
 run "lone failed ci-status" 'gh pr merge 42 --squash' 2
 assert_contains "lone failure -> names ci-status" "$ERR" "Failing checks: ci-status"

@@ -3385,7 +3385,7 @@ const BREAKER_ISSUES = [
   [34, "2026-10-16T08:30:00Z", 6],
   [35, "2026-10-16T07:30:00Z", 1],
 ];
-const afterClear = (unfinished, failOn) => {
+const afterClear = (unfinished, failOn, extra = []) => {
   const end = (at) => new Date(Date.parse(at) + 5 * 60_000).toISOString();
   const statuses = ["queued", "in_progress", "pending", "waiting"];
   const others = Array.from({ length: unfinished }, (_, index) => ({
@@ -3399,6 +3399,7 @@ const afterClear = (unfinished, failOn) => {
       ...BREAKER_ISSUES.map(([n, at]) => ({ ...laneRun({ number: n, at: new Date(Date.parse(at) + 3000).toISOString() }), updated_at: end(at) })),
       { ...laneRun({ number: 36 }), updated_at: "2026-10-16T10:05:00Z" },
       ...others,
+      ...extra,
     ],
     jobs: { ...Object.fromEntries(BREAKER_ISSUES.map(([n]) => [5000 + n, BROKER_REFUSED])), 5036: MINT_FAILED },
     logs: CHECK_KILLED,
@@ -3437,6 +3438,41 @@ test("after the switch clears, breaker re-fires top the unfinished lane runs up 
   const narrow = afterClear(1);
   assert.equal(await sweep({ github: narrow.github, actions: narrow.github }, clearLimits({ "refire-queue-per-slot": 1 })), 0);
   assert.deepEqual(restarts(narrow.calls), ["RESTART 35", "RESTART 32", "RESTART 36"]);
+});
+
+// Other issues' lane runs still unfinished at NOW (12:00), created at `at`.
+const unfinishedRuns = (count, at, status = "queued", from = 800) =>
+  Array.from({ length: count }, (_, index) => laneRun({ number: from + index, at, status, conclusion: null }));
+const STALE_NOTICE = "::notice title=label-unblocked::12 work-resolve-issue run(s) queued 60+ minutes not counted toward the kill-switch re-fire room";
+
+test("a run still queued stale-queued-minutes after it was created is left out of the re-fire room, with a notice naming how many", async (t) => {
+  // 3 fresh unfinished plus 12 queued exactly 60 minutes: room 6 - 3 = 3, as with no lost runs.
+  const lost = afterClear(3, undefined, unfinishedRuns(12, "2026-10-16T11:00:00Z"));
+  const { code, lines } = await printedBy(t, () => sweep({ github: lost.github, actions: lost.github }, clearLimits()));
+  assert.equal(code, 0);
+  assert.deepEqual(restarts(lost.calls), ["RESTART 35", "RESTART 32", "RESTART 34", "RESTART 36"]);
+  assert.ok(lines.some((line) => line.startsWith(STALE_NOTICE)), lines.join("\n"));
+  assert.ok(lines.includes("label-unblocked: 3 work-resolve-issue run(s) unfinished, kill-switch re-fire room 3 of 6"), lines.join("\n"));
+});
+
+test("a queued run under stale-queued-minutes, an old run in another unfinished status, or one with no creation time still fills the re-fire room", async (t) => {
+  for (const [name, extra] of [
+    ["queued 59:59", unfinishedRuns(3, "2026-10-16T11:00:01Z")],
+    ["in progress for four hours", unfinishedRuns(3, "2026-10-16T08:00:00Z", "in_progress")],
+    ["pending for four hours", unfinishedRuns(3, "2026-10-16T08:00:00Z", "pending")],
+    ["queued with no creation time", unfinishedRuns(3, undefined).map((run) => ({ ...run, created_at: "not a time" }))],
+  ]) {
+    const full = afterClear(3, undefined, extra);
+    const { lines } = await printedBy(t, () => sweep({ github: full.github, actions: full.github }, clearLimits()));
+    assert.deepEqual(restarts(full.calls), ["RESTART 36"], name);
+    assert.ok(!lines.some((line) => line.includes("not counted toward the kill-switch re-fire room")), name);
+  }
+});
+
+test("limits.stale-queued-minutes sets the age: at 120 a run queued an hour still fills the re-fire room", async () => {
+  const full = afterClear(3, undefined, unfinishedRuns(3, "2026-10-16T11:00:00Z"));
+  assert.equal(await sweep({ github: full.github, actions: full.github }, clearLimits({ "stale-queued-minutes": 120 })), 0);
+  assert.deepEqual(restarts(full.calls), ["RESTART 36"]);
 });
 
 const QUEUE_HOLD = "::notice title=label-unblocked::the kill-switch re-fire queue listing failed";
@@ -4851,7 +4887,8 @@ test("a reopened fix issue with an open lane PR, a lane run in flight, a hold, o
   for (const [name, setup, withActions = true] of [
     ["an open lane PR from before the reopen", { pulls: [closingPull(), openPull] }],
     ["a run in progress", { runs: [laneRun({ status: "in_progress", conclusion: null })] }],
-    ["a queued run", { runs: [laneRun({ status: "queued", conclusion: null })] }],
+    // Created at 10:00:03, two hours before NOW: past stale-queued-minutes, which only the re-fire room ignores.
+    ["a queued run, one queued past stale-queued-minutes included", { runs: [laneRun({ status: "queued", conclusion: null })] }],
     ["an in-flight run naming no issue", { runs: [{ ...laneRun({ status: "in_progress", conclusion: null }), display_title: "Fix the thing" }] }],
     ["a hold label", { issues: [fixIssue(30, { labels: ["needs-human"] })] }],
     ["no Actions token", {}, false],
@@ -4866,6 +4903,22 @@ test("a reopened fix issue with an open lane PR, a lane run in flight, a hold, o
     assert.equal(await sweep({ github, actions }), 0);
     assert.deepEqual(writes(calls), relabeled(30));
   }
+});
+
+test("a stale queued run naming no issue does not refuse a reopened fix issue's relabel; a fresh one does, and a stale one naming the issue still holds it", async () => {
+  const untitled = (at, number) => ({ ...laneRun({ number, at, status: "queued", conclusion: null }), display_title: "Fix the thing" });
+  // Twelve runs queued since 10:00, two hours before NOW: lost, so not unsure.
+  const lost = reopened({ runs: Array.from({ length: 12 }, (_, index) => untitled("2026-10-16T10:00:00Z", 800 + index)) });
+  assert.equal(await sweep({ github: lost.github, actions: lost.actions }), 0);
+  assert.deepEqual(writes(lost.calls), relabeled(30));
+  // One queued at 11:50, ten minutes before NOW, may still start.
+  const fresh = reopened({ runs: [untitled("2026-10-16T11:50:00Z", 800)] });
+  assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0);
+  assert.deepEqual(writes(fresh.calls), [], "a fresh untitled queued run");
+  // This issue's own run, queued two hours, still counts as in flight.
+  const own = reopened({ runs: [laneRun({ number: 30, at: "2026-10-16T10:00:00Z", status: "queued", conclusion: null })] });
+  assert.equal(await sweep({ github: own.github, actions: own.actions }), 0);
+  assert.deepEqual(writes(own.calls), [], "a stale queued run naming the issue");
 });
 
 // A listed human's open PR for the fix issue is work running on it.

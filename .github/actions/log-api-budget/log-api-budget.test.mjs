@@ -431,9 +431,11 @@ test("outside names the job-token steps no counted client sees in an api-uncount
 test("ci-status ends with the same api-budget and api-calls notices the action writes", () =>
   withDir((dir) => {
     readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));
-    // ci-status is the workflow's last job, and its notices come from its last
-    // step, which runs on failure too, so every earlier step's reads are in them.
-    const job = CI.slice(CI.indexOf("\n  ci-status:\n"));
+    // ci-status's notices come from its last step, which runs on failure too,
+    // so every earlier step's reads are in them. The job ends at the next job key.
+    const start = CI.indexOf("\n  ci-status:\n");
+    const next = CI.slice(start + 1).search(/\n {2}[a-z][a-z0-9-]*:/);
+    const job = CI.slice(start, next < 0 ? undefined : start + 1 + next);
     assert.equal(job.match(/api_budget_emit github-token;/g)?.length, 1, "ci-status emits its notices once");
     const last = job.split(/\n {6}- name: /).at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
     assert.match(last, /^Log the API budget at the end\n {8}if: always\(\)\n/, "ci-status ends with the log step");

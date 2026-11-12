@@ -23,7 +23,7 @@ const dependabotCommit = (sha, message = "bump") => ({
   commit: { message, author: { name: "dependabot[bot]", email: "49699333+dependabot[bot]@users.noreply.github.com" }, ...SIGNED },
 });
 
-function fakeApi({ pull = {}, comments = [], ciRuns = [], annotations = {}, files = [], modelRuns = {}, commits = null, commitFiles = {}, texts = {} } = {}) {
+function fakeApi({ pull = {}, comments = [], gateRuns = [], ciRuns = [], annotations = {}, files = [], modelRuns = {}, commits = null, commitFiles = {}, texts = {} } = {}) {
   const listed = commits ?? [HEAD, ...Object.keys(modelRuns).filter((sha) => sha !== HEAD)].map((sha) => dependabotCommit(sha));
   return {
     getCommit: async (sha) => ({ sha, files: (commitFiles[sha] ?? []).map((filename) => ({ filename })) }),
@@ -42,7 +42,7 @@ function fakeApi({ pull = {}, comments = [], ciRuns = [], annotations = {}, file
     listIssueComments: async () => comments,
     listPullFiles: async () => files,
     listPullCommits: async () => listed,
-    listCheckRuns: async (sha, name) => (name === "ci-status" ? ciRuns : (modelRuns[sha] ?? [])),
+    listCheckRuns: async (sha, name) => ({ "CI Status": gateRuns, "ci-status": ciRuns })[name] ?? modelRuns[sha] ?? [],
     listAnnotations: async (id) => {
       if (!Object.hasOwn(annotations, id)) throw new Error(`GET check-runs/${id}/annotations returned 500`);
       return annotations[id];
@@ -167,6 +167,20 @@ test("select does not read a ci-status a full run in flight superseded as red", 
   const result = await patchBump({ 9: [EXIT, superseded(HEAD), NOTICE] });
   assert.equal(result.decision, "skip");
   assert.equal(result.skipReason, "not-applicable");
+  assert.equal(result.classification.reasons.includes("ci-status-red"), false);
+});
+
+test("select reads CI Status's superseded note, not its ci-status alias's red", async () => {
+  const alias = { id: 10, app: { slug: "github-actions" }, status: "completed", conclusion: "failure" };
+  const result = await select({
+    api: fakeApi({ pull: { title: "bump x from 1.4.0 to 1.4.1" }, gateRuns: [supersededRun], ciRuns: [alias], annotations: { 9: [EXIT, superseded(HEAD)] } }),
+    pr: 7,
+    headSha: HEAD,
+    appId: APP,
+    dependabotId: DEPENDABOT,
+    config: [],
+  });
+  assert.equal(result.decision, "skip");
   assert.equal(result.classification.reasons.includes("ci-status-red"), false);
 });
 

@@ -804,3 +804,5 @@ docs/contracts/plugin-reconfiguration/README.md plugins/user-interface/reference
 .github/scripts/lib/lane-binding.mjs plugins/work-items/lib/lane-binding.mjs
 .github/scripts/lib/lane-binding.fixtures.mjs plugins/review/lib/lane-binding.fixtures.mjs
 .github/scripts/lib/lane-binding.fixtures.mjs plugins/work-items/lib/lane-binding.fixtures.mjs
+docs/contracts/issue-body/contract.json plugins/bugs/reference/issue-body-contract.json
+docs/contracts/issue-body/contract.json plugins/work-items/reference/issue-body-contract.json

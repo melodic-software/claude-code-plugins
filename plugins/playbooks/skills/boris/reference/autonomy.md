@@ -104,9 +104,6 @@ Pair with proactive `/compact <hint>` when you feel bad-compact risk.
 >   long-context bullet under
 >   [Capability improvements](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#capability-improvements)
 >   live.
-> - **As of**: 2026-10-11
-> - **Recheck trigger**: that bullet changes its long-context claim, or a later model's guide
->   states a different one.
 
 Docs: [Environment variables](https://code.claude.com/docs/en/env-vars)
 Source: [@trq212 status 2044548257058328723](https://x.com/trq212/status/2044548257058328723)
@@ -162,8 +159,6 @@ Source: [@_catwu status 2044808533905178822](https://x.com/_catwu/status/2044808
 > **Superseded:** this tip describes Opus 4.7 only. Default effort differs by model and has changed
 > since; do not read `xhigh` as the default for the model you run. For the current defaults, see
 > [Claude Code model config, "Adjust effort level"](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-> **As of:** 2026-11-01. **Recheck trigger:** that section is renamed or removed, or stops listing
-> a default level per model.
 
 Opus 4.7 in Claude Code defaults to `xhigh`, a new effort level beyond the low/medium/high/max scale tip 34 describes. Model reasons longer before acting, pairing with the delegation shift: think harder once, rather than iterate fast and bounce back to you.
 
@@ -177,8 +172,6 @@ $ /effort
 Drop it down for speed over depth. Available through `/effort` like other levels. For which level
 suits most work on the model you run, see
 [Claude Code model config, "Choose an effort level"](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
-**As of:** 2026-11-01. **Recheck trigger:** that section is renamed or removed, or changes which
-level it recommends for most work.
 
 Source: [@_catwu status 2044808533905178822](https://x.com/_catwu/status/2044808533905178822)
 
@@ -193,8 +186,6 @@ Auto mode routes permission prompts to a model-based classifier. Safe = auto-app
 Shift-tab in the CLI, dropdown in Desktop or VSCode. For who can use auto mode (plan, organization,
 model, provider), see
 [Permission modes, "Eliminate prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode).
-**As of:** 2026-11-01. **Recheck trigger:** that section's requirements list changes, or the
-section is renamed or removed.
 
 Source: [@bcherny status 2044847849662505288](https://x.com/bcherny/status/2044847849662505288)
 
@@ -244,8 +235,6 @@ Source: [@bcherny status 2044847855006024147](https://x.com/bcherny/status/20448
 Opus 4.7 uses adaptive thinking instead of fixed thinking budgets. Model decides when thinking is beneficial: less overthinking, smarter resource use.
 For which models always use adaptive reasoning, see
 [Claude Code model config, "Adaptive reasoning and fixed thinking budgets"](https://code.claude.com/docs/en/model-config#adaptive-reasoning-and-fixed-thinking-budgets).
-**As of:** 2026-11-01. **Recheck trigger:** that section is renamed or removed, or changes which
-models always use adaptive reasoning.
 
 Boris's setup: "I use xhigh effort for most tasks, and max effort for the hardest tasks."
 
@@ -253,8 +242,6 @@ The effort scale: low → medium → high → xhigh → max (Speed ← → Intel
 
 Which of these levels a model accepts depends on the model. For the current levels per model, see
 [Claude Code model config, "Adjust effort level"](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-**As of:** 2026-11-01. **Recheck trigger:** that section's levels table changes, or the section is
-renamed or removed.
 
 **Key detail:** Max applies only to current session. All other effort levels (including xhigh) are sticky and persist for next session too.
 
@@ -262,8 +249,6 @@ renamed or removed.
 > rule. Which level a session starts at, which levels persist, and each model's default now depend
 > on the model and on how the level was set. For the current rules, see
 > [Claude Code model config, "Adjust effort level"](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-> **As of:** 2026-09-30. **Recheck trigger:** that section is renamed or removed, or stops stating
-> how a session's effort level is resolved.
 
 To steer thinking without changing effort level:
 
@@ -276,8 +261,6 @@ To steer thinking without changing effort level:
 > [Claude Code model config, "Extended thinking"](https://code.claude.com/docs/en/model-config#extended-thinking);
 > for why such lines can go, see
 > [Prompting Claude Opus 5.5, "Thinking instructions in chat system prompts"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#thinking-instructions-in-chat-system-prompts).
-> **As of:** 2026-11-01. **Recheck trigger:** either section is renamed or removed, or the first
-> stops naming the models whose thinking cannot be turned off.
 
 `/effort` to set your level.
 
@@ -306,10 +289,9 @@ Source: [@bcherny status 2044847858634064115](https://x.com/bcherny/status/20448
 > **History:** these three shifts describe Opus 4.7 against Opus 4.6, from the post cited below.
 > Treat them as 4.7-specific, not as guidance for a later model; for a later model, read its own
 > prompting guide. **Pointer**: the post cited below is the only source; no docs page covers
-> Opus 4.7's behavior shifts against 4.6 as of 2026-11-01 (a fetch of
+> Opus 4.7's behavior shifts against 4.6 (a fetch of
 > <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-7>
-> on that date returned 404). **As of:** 2026-11-01. **Recheck trigger:** a docs page starts
-> covering Opus 4.7's behavior changes, at which point this note points there.
+> returned 404).
 
 Upgrading from 4.6? Three changes matter. Don't assume old habits carry over.
 
@@ -385,7 +367,5 @@ Surfaced by @ClaudeDevs on May 12, 2026, described as "shipped recently" (exact 
 
 - **Pointer**: when deciding what ends a goal, fetch
   [How evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works) live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section changes what checks a goal or what clears one.
 
 Source: [@ClaudeDevs status 2054351031279186040](https://x.com/ClaudeDevs/status/2054351031279186040)

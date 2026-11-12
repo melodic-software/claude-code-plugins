@@ -766,7 +766,7 @@ def split_child_header(
 def ticked_forms(line: str, task_list: str) -> list[str]:
     """admit.mjs tickedForms: `line`, a task-list line, with its box ticked,
     the one `[ ]` in `task_list` written `[x]` or `[X]`, indent and text
-    unchanged. None when `task_list` does not hold exactly one `[ ]`."""
+    unchanged. Empty when `task_list` does not hold exactly one `[ ]`."""
     if task_list.count("[ ]") != 1:
         return []
     rest = line.lstrip(JS_SPACE)
@@ -1083,9 +1083,10 @@ def listing_cap() -> tuple[float, str]:
     left = limit - _elapsed() - DEADLINE_MARGIN_SECONDS
     if left >= cap[0]:
         return cap
+    left = max(left, 0.0)
     caller = os.environ.get(CALLER_ENV, "").strip()[:80] or "the caller"
-    return max(left, 0.0), (
-        f"the {max(left, 0.0):.0f} s left of {caller}'s {limit:.0f} s limit "
+    return left, (
+        f"the {left:.0f} s left of {caller}'s {limit:.0f} s limit "
         f"(less {DEADLINE_MARGIN_SECONDS:.0f} s for the reads after it)"
     )
 
@@ -1133,12 +1134,16 @@ def _bot_login(identity: str | None) -> str:
     return (identity or "").strip().lower().removesuffix("[bot]")
 
 
+def _first_line(body: Any) -> str:
+    """The first line of a comment body, without a trailing carriage return."""
+    return str(body or "").split("\n", 1)[0].rstrip("\r")
+
+
 def _started_attempt(body: Any) -> int | None:
     """The pull request a capped-close record names when its first line is one
     that started a fresh attempt (`CAPPED_CLOSE_RE` naming an attempt, not
     parked); a parked or attempt-less record, None. `_spent` counts by it."""
-    first = str(body or "").split("\n", 1)[0].rstrip("\r")
-    match = CAPPED_CLOSE_RE.fullmatch(first)
+    match = CAPPED_CLOSE_RE.fullmatch(_first_line(body))
     if match is None or match[3] is None or match[5]:
         return None
     return int(match[1])
@@ -1169,9 +1174,7 @@ def _capped_records(issue: Any, identity: str | None) -> list[Any]:
         )
         if _by_lane(node.get("author"), identity)
         and (not node.get("editor") or _by_lane(node.get("editor"), identity))
-        and CAPPED_CLOSE_RE.fullmatch(
-            str(node.get("body") or "").split("\n", 1)[0].rstrip("\r")
-        )
+        and CAPPED_CLOSE_RE.fullmatch(_first_line(node.get("body")))
     ]
 
 
@@ -1250,9 +1253,7 @@ def change_digest(diff: str) -> str | None:
                 lines.append(line[0] + content)
         elif line.startswith("rename from "):
             lines.append("rename " + line.removeprefix("rename from "))
-        elif line.startswith("rename to "):
-            lines.append("rename to " + line.removeprefix("rename to "))
-        elif line.startswith(MODE_LINES) or (
+        elif line.startswith((*MODE_LINES, "rename to ")) or (
             line.startswith("Binary files ") and line.endswith(" differ")
         ):
             lines.append(line)
@@ -3895,7 +3896,8 @@ class Reader:
         return bool(before) and all(self._draft_run(i) for i in before)
 
     def _draft_run(self, run_id: Any) -> bool:
-        """Whether checks run `run_id`'s latest ci-status job lists DRAFT_STEP
+        """Whether checks run `run_id`'s latest gate job (CI Status, else
+        ci-status, never CI Status's ci-status alias) lists DRAFT_STEP
         as `success` (a draft's run) or `skipped` (not), a condition that
         reads the run's own event, which a re-run keeps. The jobs API can list
         a finished job's steps empty or cut short (pr-require-checks.yml's
@@ -3918,7 +3920,7 @@ class Reader:
             jobs = listed.get("jobs")
             if not is_json_array(jobs) or listed.get("total_count") != len(jobs):
                 raise _Unreadable(f"the jobs of run {run_id} could not be read whole")
-            ci = [j for j in map(json_object, jobs) if j.get("name") == "ci-status"]
+            ci = merge_policy.gate_entries(list(map(json_object, jobs)))
             listed_steps = json_array(ci[0].get("steps")) if len(ci) == 1 else []
             steps = [
                 step

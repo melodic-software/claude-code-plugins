@@ -2204,6 +2204,16 @@ test("a lanes App PR whose ci-status the kill switch failed has it re-run once t
   });
 });
 
+test("the re-run reads CI Status's kill-switch note, not its alias's", async () => {
+  await withLaneList(async (env) => {
+    const [lane, gate] = switchJobs();
+    const jobs = [lane, { id: 503, name: "ci-status", status: "completed", conclusion: "failure", steps: [], notes: [] }, { ...gate, name: "CI Status" }];
+    const { code, failedJobReruns } = await reconcile({ pulls: [lanePr(1)], runs: [failed(101, sha(1), { jobs })], env });
+    assert.equal(code, 0);
+    assert.deepEqual(failedJobReruns, [101]);
+  });
+});
+
 test("while the kill switch is on, no lanes App PR is read", async () => {
   await withLaneList(async (env) => {
     const { code, calls } = await reconcile({ pulls: [lanePr(1)], runs: [failed(101, sha(1), { jobs: switchJobs() })], env: { ...env, KILL_SWITCH: "" } });

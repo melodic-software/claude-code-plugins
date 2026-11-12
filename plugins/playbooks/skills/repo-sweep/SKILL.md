@@ -158,9 +158,7 @@ After the last step, to update the branch from its base, verify, and mark the sw
   - **Pointer**: when deciding whether a running session has picked up an updated plugin, fetch
     [When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs)
     live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes when a running session applies an update, or a
-    plugin env var exposes the loaded version.
+  - **Recheck trigger**: a plugin env var exposes the loaded version.
 - One session per sweep. `tick.sh` verifies its own write but takes no lock; two sessions ticking
   one PR body can lose a tick.
 - An override exists only while a skill hardcodes its own branch, PR, or commit structure and

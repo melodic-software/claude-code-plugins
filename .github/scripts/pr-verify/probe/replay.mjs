@@ -75,6 +75,7 @@ export const UPSTREAM_JOBS = Object.freeze([
   "test-node",
   "check-managed-files",
   "check-tests",
+  "CI Status",
   "ci-status",
 ]);
 
@@ -302,12 +303,12 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
       repository: { full_name: REPOSITORY },
       head_repository: { full_name: REPOSITORY },
     },
-    // A ready pull request's run: ci-status skipped its draft step (resolve-pr draftRun).
+    // A ready pull request's run: CI Status skipped its draft step (resolve-pr draftRun).
     jobs: UPSTREAM_JOBS.map((name, i) => ({
       name,
       conclusion: "success",
       html_url: jobUrl(runId, 8000 + i),
-      ...(name === "ci-status" && { steps: [{ name: "Note a draft", conclusion: "skipped" }] }),
+      ...(name === "CI Status" && { steps: [{ name: "Note a draft", conclusion: "skipped" }] }),
     })),
     // The pull requests the body's `Siblings:` line names, each `Refs:` the
     // issue (`{issue}` in its body), merged into main or not, by the lanes

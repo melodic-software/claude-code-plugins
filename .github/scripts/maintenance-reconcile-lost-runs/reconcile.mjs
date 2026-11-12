@@ -212,6 +212,7 @@ import {
   AGGREGATE_JOBS,
   FAILED,
   firstFailure,
+  gateEntries,
   INFRA_BACKOFF_MINUTES,
   infraOnly,
   LOOKBACK_HOURS,
@@ -569,7 +570,7 @@ const isFailedChecks = (r) => isRedChecks(r) && r.run_attempt === 1;
 // The failed ci-status job when it is the run's only failed job, else undefined.
 const onlyAggregateFailed = (jobs) =>
   Array.isArray(jobs) && jobs.every((job) => !FAILED.has(job?.conclusion) || AGGREGATE_JOBS.has(job.name))
-    ? jobs.find((job) => AGGREGATE_JOBS.has(job?.name) && job.conclusion === "failure" && Number.isSafeInteger(job.id))
+    ? gateEntries(jobs).find((job) => job.conclusion === "failure" && Number.isSafeInteger(job.id))
     : undefined;
 // True when one of the ci-status job's check-run annotations is the kill-switch
 // error: a re-run with the switch off passes that step.

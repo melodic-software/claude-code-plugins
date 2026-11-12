@@ -69,6 +69,7 @@ import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
+import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { carriesSplit, loadRules, personChecks, readSchedule, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 
@@ -348,11 +349,13 @@ async function heldShape(read) {
     if (!Array.isArray(jobs) || listed.total_count !== jobs.length) {
       return null;
     }
-    const ci = jobs.filter((job) => job?.name === "ci-status");
+    // The gate's job: CI Status, whose ci-status alias only repeats its conclusion.
+    const ci = gateEntries(jobs);
     if (ci.length !== 1 || ci[0].conclusion !== "failure" || !Number.isSafeInteger(ci[0].id)) {
       return null;
     }
-    if (jobs.some((job) => job !== ci[0] && !["success", "skipped", "neutral"].includes(job?.conclusion))) {
+    const alias = (job) => job?.name === GATE_ALIAS && job !== ci[0];
+    if (jobs.some((job) => job !== ci[0] && !alias(job) && !["success", "skipped", "neutral"].includes(job?.conclusion))) {
       return null;
     }
     const steps = Array.isArray(ci[0].steps) ? ci[0].steps : [];
@@ -412,7 +415,7 @@ export async function draftRun(github, repository, runId, read) {
   if (!Array.isArray(jobs) || listed.total_count !== jobs.length) {
     throw shortList(`the jobs of run ${runId} could not be read whole`, listed?.total_count, 100);
   }
-  const ci = jobs.filter((job) => job?.name === "ci-status");
+  const ci = gateEntries(jobs);
   const steps = ci.length === 1 && Array.isArray(ci[0].steps) ? ci[0].steps.filter((step) => step?.name === DRAFT_STEP) : [];
   const conclusion = steps.length === 1 ? steps[0].conclusion : undefined;
   if (conclusion === "success" || conclusion === "skipped") {

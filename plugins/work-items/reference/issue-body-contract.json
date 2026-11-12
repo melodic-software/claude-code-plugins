@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "headingLevels": [2, 3],
+  "emptyAnswer": "_No response_",
+  "floorLabels": ["needs-triage"],
+  "types": {
+    "bug": {
+      "form": "bug-report.yml",
+      "name": "Bug Report",
+      "description": "Report an unexpected problem or behavior.",
+      "nativeType": "Bug",
+      "labels": ["needs-triage"],
+      "fields": [
+        {
+          "id": "steps",
+          "heading": "Steps to reproduce",
+          "kind": "textarea",
+          "required": true,
+          "description": "Minimal steps that reproduce the behavior.",
+          "placeholder": "1. ...\n2. ...\n3. ..."
+        },
+        {
+          "id": "expected",
+          "heading": "Expected behavior",
+          "kind": "textarea",
+          "required": true,
+          "description": "What should happen?"
+        },
+        {
+          "id": "actual",
+          "heading": "Actual behavior",
+          "kind": "textarea",
+          "required": true,
+          "description": "What actually happens? Include error messages, stack traces, or screenshots."
+        },
+        {
+          "id": "severity",
+          "heading": "Severity",
+          "kind": "dropdown",
+          "required": true,
+          "description": "How bad is it? Say why under Severity justification.",
+          "options": ["low", "medium", "high", "critical"]
+        },
+        {
+          "id": "severity-justification",
+          "heading": "Severity justification",
+          "kind": "textarea",
+          "required": true,
+          "description": "One sentence: the blast radius, what it blocks, or the data at risk."
+        },
+        {
+          "id": "fix-location",
+          "heading": "Suggested fix location",
+          "kind": "input",
+          "required": false,
+          "description": "The file and function or class where the fix likely belongs, if known. No patch."
+        },
+        {
+          "id": "environment",
+          "heading": "Environment",
+          "kind": "input",
+          "required": false,
+          "description": "OS, runtime and tool versions, and anything else relevant."
+        }
+      ]
+    },
+    "feature": {
+      "form": "feature-request.yml",
+      "name": "Feature Request",
+      "description": "Propose a new feature or enhancement.",
+      "nativeType": "Feature",
+      "labels": ["needs-triage"],
+      "fields": [
+        {
+          "id": "user-story",
+          "heading": "User story",
+          "kind": "textarea",
+          "required": true,
+          "description": "Who benefits and why?",
+          "placeholder": "As a [role], I want [capability] so that [benefit]."
+        },
+        {
+          "id": "acceptance-criteria",
+          "heading": "Acceptance criteria",
+          "kind": "textarea",
+          "required": true,
+          "description": "How do we know this is done? One verifiable check per line.",
+          "placeholder": "- [ ] Criterion 1\n- [ ] Criterion 2"
+        },
+        {
+          "id": "area",
+          "heading": "Affected area / component",
+          "kind": "input",
+          "required": false,
+          "description": "Which part of the project would this affect?"
+        }
+      ]
+    },
+    "task": {
+      "form": "task.yml",
+      "name": "Task",
+      "description": "A chore, maintenance task, audit, or other housekeeping item.",
+      "nativeType": "Task",
+      "labels": ["needs-triage"],
+      "fields": [
+        {
+          "id": "context",
+          "heading": "Context",
+          "kind": "textarea",
+          "required": true,
+          "description": "What surfaced this, and what leaving it costs."
+        },
+        {
+          "id": "proposed-work",
+          "heading": "Proposed work",
+          "kind": "textarea",
+          "required": true,
+          "description": "The concrete next actions.",
+          "placeholder": "- ..."
+        },
+        {
+          "id": "acceptance-criteria",
+          "heading": "Acceptance criteria",
+          "kind": "textarea",
+          "required": true,
+          "description": "One verifiable check per line.",
+          "placeholder": "- [ ] ..."
+        },
+        {
+          "id": "references",
+          "heading": "References",
+          "kind": "textarea",
+          "required": false,
+          "description": "Rules, files, pull requests, or docs this relates to."
+        }
+      ]
+    },
+    "agent-ready": {
+      "form": "agent-ready.yml",
+      "name": "Agent-Ready Work Item",
+      "description": "Work written as an agent brief. Triage decides its type and whether it is agent-ready.",
+      "nativeType": null,
+      "labels": ["needs-triage"],
+      "fields": [
+        {
+          "id": "summary",
+          "heading": "Summary",
+          "kind": "input",
+          "required": true,
+          "description": "The change, in one line."
+        },
+        {
+          "id": "root-cause",
+          "heading": "Root cause",
+          "kind": "input",
+          "required": false,
+          "description": "Bugs only: unknown, or known: the cause in one line."
+        },
+        {
+          "id": "current-behavior",
+          "heading": "Current behavior",
+          "kind": "textarea",
+          "required": true,
+          "description": "What the code does today."
+        },
+        {
+          "id": "desired-behavior",
+          "heading": "Desired behavior",
+          "kind": "textarea",
+          "required": true,
+          "description": "What is true once this lands, edge cases and failure handling included. The end state, not edit instructions."
+        },
+        {
+          "id": "key-interfaces",
+          "heading": "Key interfaces",
+          "kind": "textarea",
+          "required": false,
+          "description": "The types, signatures, config keys, or observable behaviors that change, named by contract rather than file path or line."
+        },
+        {
+          "id": "acceptance-criteria",
+          "heading": "Acceptance criteria",
+          "kind": "textarea",
+          "required": true,
+          "description": "Checks that each give a yes or no.",
+          "placeholder": "- [ ] ..."
+        },
+        {
+          "id": "out-of-scope",
+          "heading": "Out of scope",
+          "kind": "textarea",
+          "required": true,
+          "description": "The neighboring code and features this change leaves as they are."
+        }
+      ]
+    },
+    "decomposed-item": {
+      "form": null,
+      "name": "Decomposed work item",
+      "description": "A vertical slice /work-items:decompose publishes, born triaged; no public form.",
+      "nativeType": null,
+      "labels": [],
+      "fields": [
+        {
+          "id": "outcome",
+          "heading": "Outcome",
+          "kind": "textarea",
+          "required": true,
+          "description": "The one observable change a user gets when this slice merges, end to end."
+        },
+        {
+          "id": "key-interfaces",
+          "heading": "Key interfaces",
+          "kind": "textarea",
+          "required": true,
+          "description": "The design this slice touches, named by contract, or None."
+        },
+        {
+          "id": "done-when",
+          "heading": "Done when",
+          "kind": "textarea",
+          "required": true,
+          "description": "The slice's acceptance criteria, each a check with a pass or fail answer."
+        },
+        {
+          "id": "out-of-scope",
+          "heading": "Out of scope",
+          "kind": "textarea",
+          "required": true,
+          "description": "Adjacent work this slice must not change."
+        }
+      ]
+    }
+  }
+}

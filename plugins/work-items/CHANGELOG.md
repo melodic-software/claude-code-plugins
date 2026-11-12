@@ -3,6 +3,42 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.0.0] - 2026-11-12
+
+### Changed
+
+- With no binding, the seam's exit `3` message (`wit_no_binding_reason` in `lib/binding.sh`) says why and names `/work-items:setup apply`: a repo-root `.work-item-tracker.json` that no longer binds, a `work-items.yaml` with no `tracker` mapping, a root where no convention home applies, or a missing `WORK_ITEM_TRACKER_BINDING` file. A broken convention-home pointer names `/work-items:setup check` instead, and missing shared resolver copies name a plugin reinstall. The jira, gitea and linear seeds and the onboard-adapter template print the same message.
+- `/work-items:setup check` reports a binding that exists only in `.work-item-tracker.json` as FAIL, remediation `/work-items:setup apply`, instead of INFO.
+- The seam contract, setup skill, README, schema and the skill bodies that resolve role labels no longer describe a JSON fallback.
+
+### Removed
+
+- The tracker seam no longer reads a repo-root `.work-item-tracker.json`. The binding is only the `tracker` mapping of `<home>/work-items.yaml` (or a file `WORK_ITEM_TRACKER_BINDING` names). A repository bound only by the JSON file now gets exit `3` from every seam verb. **Fix: run `/work-items:setup apply`**, which copies the JSON binding and its `.work-item-tracker.local.json` personal override under `tracker:` in `<home>/work-items.yaml` and `<home>/work-items.local.yaml`, and leaves the JSON files in place.
+- The one-line `notice:` the seam printed when it read the JSON file is gone.
+
+## [12.10.0] - 2026-11-12
+
+### Added
+
+- read issue-body skeletons from the org issue-body contract
+
+  track add, decompose, the agent brief and bugs:write now take their
+  issue-body headings from the issue-body contract the standards sync
+  delivers into each plugin's reference/ directory, the same record the
+  org issue forms are generated from. triage checks an issue body against
+  the contract with scripts/check-body.mjs, which accepts a field under
+  a `##` or `###` heading and treats a form's skipped answer as empty. The tidy
+  deferred-item body follows the task type.
+
+- fan the synced issue-body contract into the plugins
+
+  The standards sync delivers the contract once, to
+  docs/contracts/issue-body/contract.json. sync-shared-copies.sh now
+  copies a JSON canonical byte for byte (JSON has no comment syntax for a
+  header) and generates plugins/bugs and plugins/work-items
+  reference/issue-body-contract.json from it; the cross-plugin registry
+  records the cluster.
+
 ## [12.9.6] - 2026-11-11
 
 ### Changed

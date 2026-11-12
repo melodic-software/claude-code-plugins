@@ -762,6 +762,17 @@ test("a run that failed only on a hold an approval of the head lifts is judged",
   assert.equal(await held(logOf(OLD_WORDING)), "ok");
 });
 
+// The gate job shows as CI Status, beside its ci-status alias that repeats its
+// conclusion; the log read is CI Status's, never the alias's.
+test("a held run reads CI Status's log, and its ci-status alias is no other failure", async () => {
+  const gate = { ...ciJob(), name: "CI Status" };
+  const alias = { id: 9009, name: "ci-status", conclusion: "failure", steps: [{ name: "Report the conclusion of `CI Status`", conclusion: "failure" }] };
+  const jobs = heldJobs(gate, [{ id: 9002, name: "lint-repo", conclusion: "success" }, alias]);
+  assert.equal(await held(logOf(PATH_HOLD), { jobs }), "ok");
+  const failedLane = heldJobs(gate, [{ id: 9002, name: "lint-repo", conclusion: "failure" }, alias]);
+  assert.equal(await held(logOf(PATH_HOLD), { jobs: failedLane }), "not-a-passing-run");
+});
+
 test("a run that failed on anything but a hold an approval lifts starts nothing", async () => {
   const cases = {
     "a cost hold beside it": [logOf(PATH_HOLD, COST)],
@@ -1135,6 +1146,13 @@ test("a run that started while its pull request was a draft is not judged, thoug
   assert.equal(draft.proceed, false);
   assert.equal(draft.reason, "draft-run");
   assert.equal(await reason({ jobs: READY_JOBS }), "ok");
+});
+
+test("the draft state is CI Status's draft step, not its ci-status alias's steps", async () => {
+  const alias = { id: 9009, name: "ci-status", conclusion: "success", steps: [{ name: "Report the conclusion of `CI Status`", conclusion: "success" }] };
+  const renamed = (jobs) => ({ total_count: 2, jobs: [alias, { ...jobs.jobs[0], name: "CI Status" }] });
+  assert.equal((await resolve({ jobs: renamed(DRAFT_JOBS) })).reason, "draft-run");
+  assert.equal(await reason({ jobs: renamed(READY_JOBS) }), "ok");
 });
 
 // The jobs API can list a finished job's steps empty or cut short

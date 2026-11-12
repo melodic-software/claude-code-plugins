@@ -76,15 +76,22 @@ EVENT=""
 SESSION_ID=""
 [[ "$INPUT" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"([A-Za-z0-9._-]+)\" ]] && SESSION_ID="${BASH_REMATCH[1]}"
 
+# emit::subject <subject> <hook-id> <event> <status>
+# Emits one envelope whose data is the subject alone.
+emit::subject() {
+  local data
+  data=$(jq -nc --arg session_id "$SESSION_ID" --arg subject "$1" \
+    '{subject: $subject} + (if $session_id == "" then {} else {session_id: $session_id} end)')
+  hook::emit_telemetry "$2" "$3" "$4" "$START" "$data" "${CLAUDE_PROJECT_DIR:-}"
+}
+
 # emit::subject_row <jq-filter> <hook-id> <event> <status>
 # The rows whose whole projection is one payload field as the subject. An
 # absent or empty field is a silent skip.
 emit::subject_row() {
-  local subject data
+  local subject
   subject=$(hook::jq_field "$INPUT" "$1") || return 0
-  data=$(jq -nc --arg session_id "$SESSION_ID" --arg subject "$subject" \
-    '{subject: $subject} + (if $session_id == "" then {} else {session_id: $session_id} end)')
-  hook::emit_telemetry "$2" "$3" "$4" "$START" "$data" "${CLAUDE_PROJECT_DIR:-}"
+  emit::subject "$subject" "$2" "$3" "$4"
 }
 
 # emit::tool_row <hook-id> <event> <status>
@@ -119,7 +126,7 @@ emit::tool_row() {
 # back in for one-off debugging with
 # CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START=true.
 emit::instructions_loaded_row() {
-  local file_path load_reason file_disp project_dir subject data
+  local file_path load_reason file_disp project_dir
   # Both payload fields in ONE jq process; see emit::tool_row for why.
   hook::jq_fields "$INPUT" '.file_path' '.load_reason' || return 0
   file_path="${HOOK_JQ_FIELDS[0]}"
@@ -146,11 +153,7 @@ emit::instructions_loaded_row() {
     esac
   fi
 
-  subject="${file_disp}:${load_reason}"
-  data=$(jq -nc --arg session_id "$SESSION_ID" --arg subject "$subject" \
-    '{subject: $subject} + (if $session_id == "" then {} else {session_id: $session_id} end)')
-  hook::emit_telemetry "instructions-loaded-audit" "InstructionsLoaded" "ok" \
-    "$START" "$data" "${CLAUDE_PROJECT_DIR:-}"
+  emit::subject "${file_disp}:${load_reason}" "instructions-loaded-audit" "InstructionsLoaded" "ok"
 }
 
 # The UserPromptExpansion row: user-typed slash-command / MCP-prompt

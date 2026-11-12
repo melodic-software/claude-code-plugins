@@ -6,6 +6,11 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.6.1] - 2026-11-11
+
+Clarification. The Boundary reference-file example of a stored value names a measured figure
+instead of a probed behavior, per upstream-drift 6.0.0.
+
 ## [3.6.0] - 2026-11-11
 
 Minor: guidance change. No required part of the description phrase, no canonical gate token and no

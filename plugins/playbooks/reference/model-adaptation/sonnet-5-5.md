@@ -48,8 +48,7 @@ mid-session change, read the Claude Code pointers. `[CC: direct]`
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level),
   and
   [Changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level).
-- **As of**: 2026-10-01
-- **Recheck trigger**: the effort floor changing, or any pointed section moving.
+- **Recheck trigger**: the effort floor changing.
 
 ## Where a run stops and what it covers
 
@@ -66,9 +65,7 @@ the pointer. `[CC: direct]` `[CC: prompt-authoring]`
 
 - **Pointer**: see
   [Steer initiative and scope](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#steer-initiative-and-scope).
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section moving, or an agent's "When you are done" section being
-  renamed or removed.
+- **Recheck trigger**: an agent's "When you are done" section being renamed or removed.
 
 ## Review at the top effort levels
 
@@ -87,8 +84,7 @@ the pointers. `[CC: direct]`
   [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
   and
   [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit).
-- **As of**: 2026-10-01
-- **Recheck trigger**: P12 changing, or any pointed section moving.
+- **Recheck trigger**: P12 changing.
 
 ## Verification
 
@@ -102,9 +98,7 @@ behind it, read the guide's section at the pointer before changing that surface.
 
 - **Pointer**: see
   [Verification on coding tasks](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#verification-on-coding-tasks).
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section moving, or a transcript from a surface we own showing the
-  symptom.
+- **Recheck trigger**: a transcript from a surface we own showing the symptom.
 
 ## Thinking
 
@@ -119,9 +113,6 @@ you author, read the pointers. `[CC: direct]` `[CC: API-side]`
   [Running without up-front thinking](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#running-without-up-front-thinking)
   and
   [Turn off up-front thinking](https://platform.claude.com/docs/en/models/sonnet-5-5/whats-new-sonnet-5-5#turn-off-up-front-thinking).
-- **As of**: 2026-10-01
-- **Recheck trigger**: any pointed section moving, or a Claude Code release note adding a thinking
-  setting for this model.
 
 ## Progress updates
 
@@ -134,8 +125,6 @@ responses, come too rarely, too late, or not at all, read the guide's section at
 
 - **Pointer**: see
   [User-facing progress updates](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#user-facing-progress-updates).
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section moving.
 
 ## Mid-turn messages and hook text
 
@@ -153,8 +142,7 @@ add a hook that writes into context after tool results, read the pointers.
   [Add context for Claude](https://code.claude.com/docs/en/hooks#add-context-for-claude); for our
   convention, see the
   [hook-observability convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-observability/README.md).
-- **As of**: 2026-10-01
-- **Recheck trigger**: either upstream section moving, or the convention changing.
+- **Recheck trigger**: the hook-observability convention changing.
 
 ## Current specifics
 
@@ -166,8 +154,6 @@ needed, read the guide's section at the pointer. `[CC: prompt-authoring]`
 
 - **Pointer**: see
   [Tool use in chat and knowledge work](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#tool-use-in-chat-and-knowledge-work).
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section moving.
 
 ## JSON output and tool-call handling
 
@@ -181,9 +167,8 @@ read the guide's sections at the pointers. `[CC: API-side]`
   [Reasoning tasks with JSON output](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#reasoning-tasks-with-json-output)
   and
   [Tolerant tool-call handling](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#tolerant-tool-call-handling).
-- **As of**: 2026-10-01
-- **Recheck trigger**: either section moving, or this repository gaining code that parses model
-  output or dispatches tool calls.
+- **Recheck trigger**: this repository gaining code that parses model output or dispatches tool
+  calls.
 
 ## API requests carried over from Sonnet 5
 
@@ -196,8 +181,7 @@ request that worked on Sonnet 5 is rejected on this one, read the migration guid
 
 - **Pointer**: see the
   [Sonnet 5.5 migration guide](https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide).
-- **As of**: 2026-10-01
-- **Recheck trigger**: that page moving, or this repository gaining code that sends API requests.
+- **Recheck trigger**: this repository gaining code that sends API requests.
 
 ## Dense images
 
@@ -208,8 +192,6 @@ section at the pointer. `[CC: direct]` `[CC: API-side]`
 
 - **Pointer**: see
   [Tools for complex visual inputs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#tools-for-complex-visual-inputs).
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section moving.
 
 ## Which surfaces we author as system prompt
 
@@ -224,9 +206,7 @@ of those two. `[CC: prompt-authoring]`
   [Write subagent files](https://code.claude.com/docs/en/sub-agents#write-subagent-files); for the
   flags, see
   [System prompt flags](https://code.claude.com/docs/en/cli-reference#system-prompt-flags).
-- **As of**: 2026-10-01
-- **Recheck trigger**: any pointed section moving, or Claude Code documenting how skill bodies are
-  delivered.
+- **Recheck trigger**: Claude Code documenting how skill bodies are delivered.
 
 ## Safeguards and fallback
 
@@ -245,9 +225,6 @@ asks a model for its reasoning in the reply, read the guide's refusals section.
   [Safeguard refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#safeguard-refusals)
   and
   [Refusals, fallback, and billing](https://platform.claude.com/docs/en/models/sonnet-5-5/whats-new-sonnet-5-5#refusals-fallback-and-billing).
-- **As of**: 2026-10-01
-- **Recheck trigger**: the fallback section naming different targets for this model, or a refusal
-  category added or removed for it.
 
 ## Caching and speed
 
@@ -262,13 +239,10 @@ limitations at the pointer; for which models fast mode supports, read the fast m
 - **Pointer**: see
   [Cache limitations](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#cache-limitations),
   [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode) (the supported
-  model list sits in the page's opening, which has no section anchor as of 2026-11-11), and, for
+  model list sits in the page's opening, which has no section anchor), and, for
   the
   tier,
   [Capability tiers](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#3-capability-tiers).
-- **As of**: 2026-10-01; 2026-11-11 for fast mode.
-- **Recheck trigger**: any pointed section moving, or the supported-model list in the fast mode
-  page's opening changing.
 
 ## Disagreements between pages
 
@@ -288,10 +262,6 @@ docs on Claude Code delivery.
   [Compare models](https://platform.claude.com/docs/en/models/overview#latest-models-comparison)
   section and the launch post's model-choice table disagree
   (correlate with <https://claude.dev/blog/building-with-claude-sonnet-5-5#choosing-between-sonnet-55-and-opus-55>).
-
-- **As of**: 2026-10-01
-- **Recheck trigger**: any section named above changing, or a docs page replacing the post on
-  either topic.
 
 ## What carries from the Sonnet 5 chapter, and what does not
 

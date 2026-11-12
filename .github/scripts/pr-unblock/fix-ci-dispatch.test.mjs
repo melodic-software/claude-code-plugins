@@ -1532,6 +1532,21 @@ test("a head whose fix-ci stop fails with every check passed is dispatched fix-c
   assert.equal(error.api.calls.dispatch.length, 1);
 });
 
+test("a fix-ci stop is cleared over a red CI Status and its ci-status alias, as over ci-status alone", async () => {
+  const renamed = [lanes("SUCCESS"), check("lint", "SUCCESS"), check("CI Status", "FAILURE"), check("ci-status", "FAILURE"), fixCiStop()];
+  const { api } = await run({ pages: [[settled(renamed)]] });
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.equal(staleStop(settled(renamed), { base: "main", appSenderId: APP, holdLabels: [], gateLabel: "needs-human" }).state, "FAILURE");
+});
+
+test("a red CI Status or ci-status beside passed lanes is no advisory failure", async () => {
+  for (const name of ["CI Status", "ci-status"]) {
+    const { api, result } = await run({ pages: [[pr(5, { checks: [lanes("SUCCESS"), check(name, "FAILURE")] })]] });
+    assert.deepEqual(result.dispatched, [], name);
+    assert.deepEqual(api.calls.paths, [], name);
+  }
+});
+
 test("a fix-ci stop is left on a head with a check failing or going, a run since the stop, another account's status or a hold label", async () => {
   for (const [label, page, options] of [
     ["a check is going", settled([lanes("SUCCESS"), check("lint", null), fixCiStop()]), {}],

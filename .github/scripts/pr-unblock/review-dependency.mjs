@@ -97,8 +97,8 @@ export function countCheckRounds(checkRunsByCommit) {
 
 const newestOf = (checkRuns) => checkRuns.filter((run) => run.app?.slug === "github-actions").sort((a, b) => b.id - a.id)[0];
 
-// The newest ci-status run GitHub Actions posted on the head: its conclusion
-// once completed, else pending.
+// The newest gate run GitHub Actions posted on the head: its conclusion once
+// completed, else pending.
 export function ciStatusOf(checkRuns) {
   const newest = newestOf(checkRuns);
   return newest?.status === "completed" ? String(newest.conclusion) : "pending";
@@ -117,10 +117,19 @@ export function supersededOnly(annotations, headSha) {
   return failures.some(marks) && failures.every((message) => marks(message) || EXIT_LINE.test(message));
 }
 
+// The gate's check runs on a head, listed by `list(name)`: CI Status's, else
+// ci-status's on a head tested before the rename. Never its ci-status alias's
+// beside CI Status's: only CI Status carries the gate's annotations. Literals,
+// since apply-dependency-verdict.mjs runs from a copy of this directory alone.
+export async function gateCheckRuns(list) {
+  const runs = await list("CI Status");
+  return newestOf(runs) ? runs : list("ci-status");
+}
+
 // ciStatusOf, with a superseded contract-only failure read as pending. A
 // failed annotations read leaves the failure standing.
 export async function readCiStatus(api, headSha) {
-  const runs = await api.listCheckRuns(headSha, "ci-status");
+  const runs = await gateCheckRuns((name) => api.listCheckRuns(headSha, name));
   const status = ciStatusOf(runs);
   if (status !== "failure") {
     return status;

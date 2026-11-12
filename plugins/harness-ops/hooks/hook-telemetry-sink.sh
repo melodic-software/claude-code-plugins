@@ -95,26 +95,10 @@ CHANGED="${FIELDS[8]}"
 # error/failed-then-fixed analysis keys on exit_code != 0. A clean/no-op run is 0;
 # error and blocked are non-clean (2).
 case "$STATUS" in
-ok)
-  STATUS_OUT=success
-  EXIT_CODE=0
-  ;;
-skipped)
-  STATUS_OUT=skipped
-  EXIT_CODE=0
-  ;;
-error)
-  STATUS_OUT=error
-  EXIT_CODE=2
-  ;;
-blocked)
-  STATUS_OUT=blocked
-  EXIT_CODE=2
-  ;;
-*)
-  STATUS_OUT=error
-  EXIT_CODE=2
-  ;;
+ok) STATUS_OUT=success EXIT_CODE=0 ;;
+skipped) STATUS_OUT=skipped EXIT_CODE=0 ;;
+blocked) STATUS_OUT=blocked EXIT_CODE=2 ;;
+*) STATUS_OUT=error EXIT_CODE=2 ;;
 esac
 
 project_dir=""
@@ -157,19 +141,18 @@ max_bytes="${CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES:-}"
 #   append_capped <file> <line> <max_bytes>
 append_capped() {
   local file="$1" line="$2" max="$3" size
-  if command -v flock >/dev/null 2>&1; then
-    (
-      flock -w 2 9 || exit 0
-      size=$(wc -c <"$file" 2>/dev/null) || size=0
-      ((size > max)) && mv -f "$file" "${file}.1" 2>/dev/null
-      printf '%s\n' "$line" >>"$file"
-    ) 9>"${file}.lock" 2>/dev/null
-  else
-    size=$(wc -c <"$file" 2>/dev/null) || size=0
-    ((size > max)) && mv -f "$file" "${file}.1" 2>/dev/null
-    printf '%s\n' "$line" >>"$file" 2>/dev/null
-  fi
+  size=$(wc -c <"$file" 2>/dev/null) || size=0
+  ((size > max)) && mv -f "$file" "${file}.1" 2>/dev/null
+  printf '%s\n' "$line" >>"$file"
 }
-append_capped "${root}/hook-events.jsonl" "$LINE" "$max_bytes"
+events_file="${root}/hook-events.jsonl"
+if command -v flock >/dev/null 2>&1; then
+  (
+    flock -w 2 9 || exit 0
+    append_capped "$events_file" "$LINE" "$max_bytes"
+  ) 9>"${events_file}.lock" 2>/dev/null
+else
+  append_capped "$events_file" "$LINE" "$max_bytes" 2>/dev/null
+fi
 
 exit 0

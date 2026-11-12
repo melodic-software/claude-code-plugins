@@ -9,8 +9,7 @@ Each section is our practice, followed by a pointer to the page section that exp
 holds the current specifics. Beta features name their beta explicitly; a beta header is part of
 the request contract, not decoration. Current prices, model lists, and TTL values resolve through
 the pricing page or the bundled `claude-api` skill at the moment of use; this chapter carries
-practices, not numbers. The pages behind the pointers were re-read whole on 2026-11-01 through
-the docs lookup; each section below carries its own recheck trigger.
+practices, not numbers.
 
 ## Prefix stability
 
@@ -23,9 +22,6 @@ models mid-conversation where the cache matters.
   [Structuring your prompt](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#structuring-your-prompt);
   for model changes and the cache, see
   [Cache miss reason types](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics#cache-miss-reason-types).
-- **As of**: 2026-11-01
-- **Recheck trigger**: a re-read of a pointed section no longer supporting the practice above, or
-  an API release note touching this topic.
 
 ## Deferred tools
 
@@ -34,9 +30,6 @@ search loads them.
 
 - **Pointer**: for deferred loading and the cache, see
   [defer_loading and cache preservation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-use-with-prompt-caching#defer-loading-and-cache-preservation).
-- **As of**: 2026-11-01
-- **Recheck trigger**: a re-read of a pointed section no longer supporting the practice above, or
-  an API release note touching this topic.
 
 ## Mid-conversation system messages
 
@@ -53,9 +46,6 @@ mid-conversation tool changes are each a separate beta, named in that same note.
   [When to use a mid-conversation system message](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages#when-to-use-a-mid-conversation-system-message),
   [Limitations](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages#limitations), and
   [Combining with prompt caching](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages#combining-with-prompt-caching).
-- **As of**: 2026-11-01
-- **Recheck trigger**: a re-read of a pointed section no longer supporting the practice above, or
-  an API release note touching this topic.
 
 ## Effort and the cache
 
@@ -68,14 +58,11 @@ This section covers requests you send through the API; for what an effort change
 session does to the cache, read Claude Code's own page instead of applying this section.
 
 - **Pointer**: for per-message effort and its model list, see
-  [Change effort mid-conversation](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation)
+  [Change effort mid-conversation](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation-beta)
   and its "Per-message effort (beta)" subsection (correlate with Cognition's devin-fusion post,
-  2026-06-29, for the compaction-moment practice, which no docs page covers as of 2026-11-01);
+  2026-06-29, for the compaction-moment practice, which no docs page covers);
   for a Claude Code session, see
   [Changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level).
-- **As of**: 2026-11-01
-- **Recheck trigger**: a re-read of a pointed section no longer supporting the practice above, or
-  an API release note touching this topic.
 
 ## Breakpoints and pre-warming
 
@@ -91,9 +78,6 @@ typing. Check the page's limitations before combining pre-warming with another r
   for pre-warming and its limitations, see
   [Pre-warming the cache](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#pre-warming-the-cache)
   and the bundled `claude-api` skill's caching reference.
-- **As of**: 2026-11-01
-- **Recheck trigger**: a re-read of a pointed section no longer supporting the practice above, or
-  an API release note touching this topic.
 
 ## TTL
 
@@ -108,9 +92,6 @@ with long waits when the extra write cost pays for itself.
   and [1-hour cache duration](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#1-hour-cache-duration);
   for write multipliers, see
   [Prompt caching pricing](https://platform.claude.com/docs/en/about-claude/pricing#prompt-caching).
-- **As of**: 2026-11-01
-- **Recheck trigger**: a re-read of a pointed section no longer supporting the practice above, or
-  an API release note touching this topic.
 
 ## Diagnosing misses
 
@@ -118,8 +99,7 @@ Monitor the cache hit rate, and when requests miss, use the cache diagnostics AP
 of the request to stabilize. Read the page's limitations for its availability by platform and its
 retention window before wiring it in.
 
-A Claude Console request-comparison view for the same data: no docs page covers one as of
-2026-11-01 (correlate with
+A Claude Console request-comparison view for the same data: no docs page covers one (correlate with
 <https://claude.com/blog/reducing-cost-and-improving-performance-with-claude-platform>); recheck
 trigger: a docs page covering a Console view of cache diagnostics, at which point the pointer
 moves there.
@@ -128,9 +108,6 @@ moves there.
   [How cache diagnostics works](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics#how-cache-diagnostics-works),
   [Cache miss reason types](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics#cache-miss-reason-types), and
   [Limitations](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics#limitations).
-- **As of**: 2026-11-01
-- **Recheck trigger**: a re-read of a pointed section no longer supporting the practice above, or
-  an API release note touching this topic.
 
 ## Cost levers beyond caching
 
@@ -139,13 +116,10 @@ moves there.
   [Batch processing pricing](https://platform.claude.com/docs/en/about-claude/pricing#batch-processing);
   for how the batch discount stacks with caching, see
   [Using prompt caching with Message Batches](https://platform.claude.com/docs/en/build-with-claude/batch-processing#using-prompt-caching-with-message-batches).
-  As of: 2026-11-01. Recheck trigger: a re-read of either section no longer supporting this row.
 - **Profile before trimming.** Use the organization's usage and cost API to see where its tokens
   go, picking the API the page recommends for the organization's product; an application without
   an Admin key logs each response's `usage` object instead. Pointer: for which API to use, see
   [Which API do you need](https://platform.claude.com/docs/en/manage-claude/usage-cost-api#which-api-do-you-need).
-  As of: 2026-11-01. Recheck trigger: a re-read of that section no longer supporting this row,
-  or an API release note touching this topic.
 - **Bound output where the task allows.** Constraining an agent's output length is an
   API-request cost lever. It is scope-disjoint from instruction-surface hygiene: a numeric
   output ceiling written into a skill body is an anti-pattern the prompt-audit discipline
@@ -155,7 +129,6 @@ moves there.
   together and steer the request with the note at the pointer rather than a ceiling in a
   standing instruction. Pointer: for long outputs at the top effort levels, see
   [Leave room for long outputs at xhigh and max effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#leave-room-for-long-outputs-at-xhigh-and-max-effort).
-  As of: 2026-11-01. Recheck trigger: a re-read of that section no longer supporting this row.
 - **Automation.** When the bundled `claude-api` skill resolves in this session, wrap or point to
   its `cost-optimize` subcommand rather than rebuilding the cost audit. Pointer: when deciding what
   that subcommand covers, fetch
@@ -204,9 +177,6 @@ across models.
   [Tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort)
   (correlate with <https://claude.com/blog/reducing-cost-and-improving-performance-with-claude-platform>,
   whose benchmark comparison is vendor-reported and unreproduced).
-- **As of**: 2026-11-09
-- **Recheck trigger**: a re-read of any pointed section no longer supporting the practice beside
-  it, or a model release that changes a row in either table.
 
 ## Session-side counterparts
 
@@ -218,5 +188,4 @@ skill, and the byte-identical-prefix rule as it reaches shared-prefix fleets in 
 `docs-hygiene` extract-ssot skill's anti-patterns reference.
 
 What a Claude Code session itself does to the cache, and why its usage climbs as it runs, are on
-[Actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache) and [Manage costs: Why usage climbs in a long session](https://code.claude.com/docs/en/costs#why-usage-climbs-in-a-long-session)
-(as of 2026-11-01; recheck when either section moves).
+[Actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache) and [Manage costs: Why usage climbs in a long session](https://code.claude.com/docs/en/costs#why-usage-climbs-in-a-long-session).

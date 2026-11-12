@@ -5157,10 +5157,23 @@ def lane_eligibility(
 
 # A commit's file list stops at this many entries, so a full one may hide more.
 COMMIT_FILES_LIMIT = 300
-CI_STATUS_CHECK = "ci-status"
-# GitHub Actions, the app the ruleset requires `ci-status` from; another app's
+# The gate job's check name. Its alias job reports CI Status's conclusion under
+# the old required context, `ci-status`, until the ruleset requires CI Status;
+# a head tested before the rename has only `ci-status`, the gate itself.
+GATE_CHECK = "CI Status"
+GATE_ALIAS = "ci-status"
+GATE_NAMES = frozenset({GATE_CHECK, GATE_ALIAS})
+# GitHub Actions, the app the ruleset requires the gate from; another app's
 # run of that name, with any start time it chooses, never decides the gate.
 ACTIONS_APP_ID = 15368
+
+
+def gate_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The gate's own jobs or check runs in a listing: CI Status's, else
+    `ci-status`'s. Never the alias's beside CI Status's: its steps and output
+    are not the gate's, and a re-run of it alone replays its old `needs`."""
+    gate = [e for e in entries if e.get("name") == GATE_CHECK]
+    return gate or [e for e in entries if e.get("name") == GATE_ALIAS]
 
 
 def is_dependabot_pull_request(pr: Mapping[str, Any]) -> bool:
@@ -5419,17 +5432,27 @@ def _commit_files(owner: str, name: str) -> Callable[[str], list[str] | None]:
 
 
 def _ci_status(owner: str, name: str, head: str) -> str:
-    """`success`, `pending`, or the conclusion of a finished `ci-status` run on
+    """`success`, `pending`, or the conclusion of a finished gate run on
     `head` that did not succeed; `unreadable` when the runs cannot be read.
+    The gate's runs are CI Status's, else `ci-status`'s on a head tested
+    before the rename.
     `filter=latest` keeps the latest run of each check suite, so a re-triggered
     workflow leaves an older run beside a newer one: the runs that started last
     decide, and any failure among them decides, as it does among all runs when
     one has no readable start time. Only GitHub Actions' runs are read."""
-    status, payload = _get(
-        f"repos/{owner}/{name}/commits/{head}/check-runs"
-        f"?check_name={CI_STATUS_CHECK}&app_id={ACTIONS_APP_ID}&filter=latest&per_page=100"
-    )
-    runs = [json_object(r) for r in json_array(json_object(payload).get("check_runs"))]
+
+    def read(check: str) -> tuple[int, list[dict[str, Any]]]:
+        status, payload = _get(
+            f"repos/{owner}/{name}/commits/{head}/check-runs"
+            f"?check_name={quote(check)}&app_id={ACTIONS_APP_ID}&filter=latest&per_page=100"
+        )
+        return status, [
+            json_object(r) for r in json_array(json_object(payload).get("check_runs"))
+        ]
+
+    status, runs = read(GATE_CHECK)
+    if status == 200 and not runs:
+        status, runs = read(GATE_ALIAS)
     if status != 200 or not SHA_RE.fullmatch(head):
         return "unreadable"
     try:

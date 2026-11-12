@@ -61,7 +61,7 @@ api\ repos/*)
   runs=${FAKE_RUNS:-"[{\"started_at\":\"2026-10-18T01:00:00Z\",\"status\":\"completed\",\"conclusion\":\"$FAKE_CI\",\"app\":{\"id\":15368}}]"}
   # Filter on app_id and check_name as the API does, when the query asks for them.
   app=$(sed -n 's/.*[?&]app_id=\([0-9]*\).*/\1/p' <<<"$2")
-  name=$(sed -n 's/.*[?&]check_name=\([^&]*\).*/\1/p' <<<"$2")
+  name=$(sed -n 's/.*[?&]check_name=\([^&]*\).*/\1/p' <<<"$2" | sed 's/%20/ /g')
   all=$(jq -c --arg app "$app" --arg name "$name" '[.[] | select(($app == "" or (.app.id | tostring) == $app) and ($name == "" or (.name // "ci-status") == $name))]' <<<"$runs")
   size=${FAKE_PAGE_SIZE:-100} page=0
   while
@@ -273,6 +273,16 @@ check 'ci-status: a later success passes' success "$(ci_status "[$(run "$t1" fai
 check 'ci-status: a tied cancel and failure is failure' failure "$(ci_status "[$(run "$t1" cancelled),$(run "$t1" failure)]")"
 check 'ci-status: a tied failure and cancel is failure' failure "$(ci_status "[$(run "$t1" failure),$(run "$t1" cancelled)]")"
 check 'ci-status: a lone cancel is cancelled' cancelled "$(ci_status "[$(run "$t1" cancelled)]")"
+
+# named <name> <started_at> <conclusion>: one completed GitHub Actions run of check <name>.
+named() { printf '{"name":"%s","started_at":%s,"status":"completed","conclusion":"%s","app":{"id":15368}}' "$1" "$2" "$3"; }
+check 'ci-status: CI Status decides, not an older ci-status' success "$(ci_status "[$(named 'CI Status' "$t1" success),$(named ci-status "$t2" failure)]")"
+check 'ci-status: a red CI Status is failure' failure "$(ci_status "[$(named 'CI Status' "$t1" failure),$(named ci-status "$t1" failure)]")"
+check 'ci-status: ci-status decides a SHA with no CI Status run' failure "$(ci_status "[$(named ci-status "$t1" failure)]")"
+CI_LOG="$TMP/ci-status.log"
+: >"$CI_LOG"
+env PATH="$TMP/bin:$PATH" GH_LOG="$CI_LOG" HEAD_SHA="$HEAD_SHA" GITHUB_REPOSITORY=o/r FAKE_RUNS="[$(named 'CI Status' "$t1" success)]" bash "$SCRIPT_DIR/ci-status.sh" "$HEAD_SHA" >/dev/null
+check 'ci-status: a SHA with a CI Status run reads it alone' '1 0' "$(grep -c 'check_name=CI%20Status&app_id=15368' "$CI_LOG") $(grep -c 'check_name=ci-status' "$CI_LOG")"
 
 echo '# gate error'
 new_fixture no

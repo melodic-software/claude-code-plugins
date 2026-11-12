@@ -712,3 +712,11 @@ evals/fixtures/scaffold-guard.sh
 # repository but the run's own temporary home with the same guard. Canonical copy:
 # plugins/bugs/evals/fixtures/repo-scaffold-guard.sh.
 evals/fixtures/repo-scaffold-guard.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# docs/contracts/issue-body/contract.json, synced from melodic-software/standards.
+reference/issue-body-contract.json
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the synced canonical contract and the copies.
+docs/contracts/issue-body/contract.json -> plugins/*/reference/issue-body-contract.json

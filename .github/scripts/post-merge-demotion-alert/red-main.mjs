@@ -2,6 +2,7 @@
 // confirmed, which merge in the failing range is the culprit, whether the bot
 // may revert it, and the report. docs/conventions/pr-pipeline/README.md,
 // "Red main", states the rule; report.mjs reads GitHub and calls these.
+import { AGGREGATE_JOBS, GATE_ALIAS, GATE_CHECK } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 
 // The `red-main` leaf of pr-pipeline.yaml (pr-pipeline.schema.json); the one
 // copy of its defaults.
@@ -48,10 +49,12 @@ export const ALERT_FAILED = Object.freeze(["failure", "timed_out", "cancelled", 
 // `_baseline` leaves it: a baseline check excuses the same check later, and
 // unknown steps prove no failure to excuse.
 export function failingChecks(jobs, annotations = {}, { failed: conclusions = ["failure"], baseline = false, noFailedJobs = false } = {}) {
-  const failed = jobs.filter((job) => conclusions.includes(job.conclusion));
+  const listed = jobs.filter((job) => conclusions.includes(job.conclusion));
+  // The ci-status alias repeats CI Status's conclusion: the two are one check, CI Status.
+  const failed = listed.some((job) => job.name === GATE_CHECK) ? listed.filter((job) => job.name !== GATE_ALIAS) : listed;
   const checks = noFailedJobs && failed.length === 0 ? ["pr-require-checks.yml: no failed jobs"] : [];
   for (const job of failed) {
-    if (job.name === "ci-status" && failed.length > 1) continue;
+    if (AGGREGATE_JOBS.has(job.name) && failed.length > 1) continue;
     const gates = (annotations[job.id] ?? [])
       .filter((a) => a.annotation_level === "failure" && (a.title ?? "").length > 0)
       .map((a) => a.title);

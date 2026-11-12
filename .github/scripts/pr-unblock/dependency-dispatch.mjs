@@ -27,7 +27,7 @@ import { DEPENDABOT_ID, DEPENDABOT_LOGIN, RED } from "./dependency-classify.mjs"
 import { emptyRecord, isHandled, markHandled, sendDispatch } from "./dispatch-record.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { anyHandles, headLagStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
-import { ciStatusOf, classifyPull, commitFilesReader } from "./review-dependency.mjs";
+import { ciStatusOf, classifyPull, commitFilesReader, gateCheckRuns } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -104,7 +104,7 @@ export async function dispatchDependencyReviews({
     let tier;
     let existing;
     try {
-      const ci = await api.listCheckRuns({ sha: node.headRefOid, checkName: "ci-status", appId });
+      const ci = await gateCheckRuns((name) => api.listCheckRuns({ sha: node.headRefOid, checkName: name, appId }));
       const ciStatus = ciStatusOf(ci);
       // The same reads the model job's select step classifies from.
       tier = RED.has(ciStatus) ? "review" : (

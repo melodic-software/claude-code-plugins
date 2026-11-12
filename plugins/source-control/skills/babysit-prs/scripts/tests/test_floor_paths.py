@@ -90,21 +90,21 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
     change updates these pins in the pull request that makes it."""
 
     def test_each_glob_keeps_its_class(self):
-        self.assertEqual(len(FLOOR.classes), 142)
+        self.assertEqual(len(FLOOR.classes), 141)
         self.assertEqual(
             digest(f"{g}\t{c}" for g, c in FLOOR.classes),
-            "1fd5e974e269507e1e7b8344c275a3c297a4122eff791d797b4d215c0da13694",
+            "7ea3b7246c628d7055a1a7498d7f69e6075aff04775f12a75d5fd5f14a95ddb3",
         )
 
     def test_each_clearing_route_keeps_its_globs(self):
         pins = {
             FLOOR.high: "50995e04145f91f762b167347702d4482afdd1a9d51410a6db7054574c6182c6",
-            FLOOR.review: "f6b325f90a93d1608527508ad3e4f29f9195eaa8cbd07ed6f7f477a942b40ad7",
+            FLOOR.review: "9d32e36744c30473d21337376b65cab135f125daed70bf39a3e0d1cf5ac56a7c",
             FLOOR.author_review: "3d4a1b8fb32242f93fa18fd50035d3e4c0cdf325faae46a83767007616c17a27",
         }
         self.assertEqual(
             (len(FLOOR.high), len(FLOOR.review), len(FLOOR.author_review)),
-            (82, 60, 18),
+            (82, 59, 18),
         )
         for globs, pin in pins.items():
             self.assertEqual(digest(globs), pin)
@@ -170,7 +170,7 @@ class TheBuiltInFloorIsShared(unittest.TestCase):
         self.assertEqual(len(risk.FLOOR_CLASSES), 32)
 
     def test_every_other_row_sits_in_the_config(self):
-        self.assertEqual(len(ROWS), 142 - 32)
+        self.assertEqual(len(ROWS), 141 - 32)
         self.assertFalse(table(ROWS) & set(risk.FLOOR_CLASSES))
 
     def test_the_config_every_consumer_reads_is_held_by_a_built_in_row(self):

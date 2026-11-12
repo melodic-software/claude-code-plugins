@@ -101,10 +101,16 @@ load_registry() {
 # JavaScript copy takes a two-line comment header after any shebang; a Markdown
 # copy takes the same header as an HTML comment after any frontmatter block; an
 # HTML copy takes it as an HTML comment after a leading doctype line, which a
-# browser needs first to stay out of quirks mode.
+# browser needs first to stay out of quirks mode. JSON has no comment syntax, so
+# a JSON copy is the canonical's bytes unchanged; shared-copies.txt and --check
+# are what mark it generated.
 render() {
   local src="$1" prefix first="" close=""
   case "$src" in
+  *.json)
+    cat "$src"
+    return 0
+    ;;
   *.mjs | *.cjs | *.js | *.ts) prefix='//' ;;
   *.sh | *.bash | *.py | *.ps1 | *.psm1 | *.awk) prefix='#' ;;
   *.html)
