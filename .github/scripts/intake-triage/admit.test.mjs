@@ -4129,7 +4129,21 @@ describe("bodyUnpushablePaths", () => {
     });
   });
 
-  test("a bare protected file name counts, quoted or not; a .claude/worktrees/ path and a .claude-plugin/ path do not", () => {
+  test("a bare protected directory counts, with or without its trailing slash; an unrelated directory does not", () => {
+    assert.deepEqual(paths("## Fix\n\nAdd a new configuration file under `.vscode/`."), [".vscode/"]);
+    assert.deepEqual(paths("## Fix\n\nAdd a new config under `.claude/` and an ignore file under .config/git/."), [".claude/", ".config/git/"]);
+    assert.deepEqual(paths("## Fix\n\nAdd a launch profile to `.vscode`."), [".vscode"]);
+    assert.deepEqual(paths("## Fix\n\nAdd a note under `.claude/agent-memory/`, a file under `.config/` and one under docs/vscode/."), []);
+    assert.equal(decide(facts({ issue: issueOf({ body: "## Fix\n\nAdd a new configuration file under `.vscode/`.\n\n## Done when\n\n- [ ] The file exists." }) })).verdict, "refuse");
+  });
+
+  test("a bare dot-led protected name counts only in backticks or with a path, so a home directory file in prose does not", () => {
+    assert.deepEqual(paths("## Fix\n\nTell the user to add the alias to your .bashrc, .zshrc, .profile, .gitconfig, .npmrc or .envrc."), []);
+    assert.deepEqual(paths("## Fix\n\nWrite the token to `.npmrc` and plugins/x/.envrc."), [".npmrc", "plugins/x/.envrc"]);
+    assert.deepEqual(paths("## Fix\n\nSource ~/.bashrc first."), []);
+  });
+
+  test("a bare protected file name that is not dot-led counts, quoted or not; a .claude/worktrees/ path and a .claude-plugin/ path do not", () => {
     assert.deepEqual(paths("## Fix\n\nAdd a pre-push job to lefthook.yml and register the server in `.mcp.json`."), [".mcp.json", "lefthook.yml"]);
     assert.deepEqual(paths("## Fix\n\nEdit plugins/x/.claude-plugin/plugin.json and .claude/worktrees/x/README.md."), []);
     assert.deepEqual(decide(facts({ issue: issueOf({ body: "## Fix\n\nEdit plugins/x/.claude-plugin/plugin.json.\n\n## Done when\n\n- [ ] The version is 1.2.0." }) })), { verdict: "admit", reasons: [] });

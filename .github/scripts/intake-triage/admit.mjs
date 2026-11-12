@@ -130,7 +130,7 @@ import { fileURLToPath } from "node:url";
 import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { carried, DECISION_LABELS, isStatusLabel, readyWhileDeferred } from "../../actions/resolve-config/read-status.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { CLAUDE_PROTECTED_FILES, PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
+import { CLAUDE_PROTECTED_FILES, PATH_RULES, PROTECTED_REFUSALS, segments } from "../apply-patch/protected-paths.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
 import { writeAdmissionRecord } from "../lib/admission-record.mjs";
@@ -1024,12 +1024,17 @@ export function workflowFiles() {
 // case, counts: any other bare file name or an absolute runner path names no
 // file of this repository. Outside a backticked span a root name counts only
 // as `CODEOWNERS` or a dot-led `.gitmodules`, so prose such as "the
-// codeowners check" names no file. A file name Claude Code protects
-// (CLAUDE_PROTECTED_FILES), such as `lefthook.yml` or `.mcp.json`, counts
-// quoted or not: each is dot-led or has an extension, so prose never forms one.
+// codeowners check" names no file. A bare name Claude Code protects
+// (claude-protected), such as `lefthook.yml`, `.mcp.json` or `.vscode`, counts
+// in a backticked span; outside one only a name that is not dot-led, such as
+// lefthook.yml, counts, so "your .bashrc" or "your .gitconfig", a home
+// directory file, names no file of this repository.
 const ROOT_NAMES = new Set(["codeowners", ".gitmodules", "gitmodules"]);
+const claudeName = (token) => PATH_RULES["claude-protected"](segments(token));
 const isRootName = (token, quoted) =>
-  CLAUDE_PROTECTED_FILES.has(token.toLowerCase()) || (quoted ? ROOT_NAMES.has(token.toLowerCase()) : token === "CODEOWNERS" || token.toLowerCase() === ".gitmodules");
+  quoted
+    ? ROOT_NAMES.has(token.toLowerCase()) || claudeName(token)
+    : token === "CODEOWNERS" || token.toLowerCase() === ".gitmodules" || (!token.startsWith(".") && CLAUDE_PROTECTED_FILES.has(token.toLowerCase()));
 const pathTokens = (text, workflows) => {
   const lowerWorkflows = new Set([...workflows].map((name) => name.toLowerCase()));
   return [
