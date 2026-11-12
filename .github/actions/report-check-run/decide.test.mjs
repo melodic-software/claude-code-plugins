@@ -639,6 +639,12 @@ test("a ci-status name is refused even for a cancelled run with no verdict", () 
   assert.equal(decision.kind, "refuse");
 });
 
+test("a CI Status name part is refused: the gate's check name is no convention name", () => {
+  for (const part of [{ lane: "CI Status" }, { activity: "CI Status" }]) {
+    assert.equal(decide(verdict(part), inputs(part)).kind, "refuse");
+  }
+});
+
 test("a lane or activity that is not a convention name is refused", () => {
   for (const [lane, activity] of [
     ["Pr-Refine", "simplify"],

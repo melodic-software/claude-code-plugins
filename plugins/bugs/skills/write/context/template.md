@@ -1,36 +1,33 @@
 # `/bugs:write` template
 
-Loaded on demand by `/bugs:write`. Contains: the full Markdown template (5 fields), the `--file` frontmatter, and the "No bug confirmed" form.
+Loaded on demand by `/bugs:write`. Contains: the full Markdown template (5 fields, laid out by the issue-body contract), the `--file` frontmatter, and the "No bug confirmed" form.
 
 ## Full template
+
+The body sections come from the org issue-body contract, so a filed report matches the org bug form
+and passes the intake heading check. Read the `bug` type of
+[`reference/issue-body-contract.json`](../../../reference/issue-body-contract.json)
+and write one `## <heading>` section per entry of its `fields`, in that order, never a heading the
+contract does not name except `## Notes`. Fill each from the matching part of the five fields:
+
+- Steps to reproduce: a numbered list.
+- Expected and actual behavior: one section each.
+- Severity: one of the field's `options`, alone; Severity justification: the one sentence that
+  justifies it (blast radius, blocking factor, data-integrity impact).
+- Suggested fix location: `` `<file path>` `<function or class name>` ``, no patch.
+- A field the report cannot back, required or not, gets the placeholder.
 
 Default emission (stdout), no frontmatter:
 
 ```markdown
 # Bug: <title in present tense, one line>
 
-**Severity**: <low | medium | high | critical>
-**Suggested fix location**: `<file path>` `<function or class name>` (no patch)
 **Reported by**: <reporter identity, or session ID>
 **Reported at**: <ISO-8601 timestamp>
 
-## Steps to reproduce
+## <each contract field heading, in contract order>
 
-1. <step>
-2. <step>
-3. <step>
-
-## Expected behavior
-
-<what should happen>
-
-## Actual behavior
-
-<what does happen>
-
-## Severity justification
-
-<one sentence: why this severity. Cite blast radius / blocking factor / data-integrity impact>
+<its value>
 
 ## Notes
 

@@ -719,6 +719,11 @@ ALLOWLIST = [
     ),
     phrase(
         "contract-brief",
+        r"\bissue-body contract\b",
+        "The brief's fields are the agent-ready type of the issue-body contract.",
+    ),
+    phrase(
+        "contract-brief",
         r"\bcontract case\b",
         "Contract case for the hand-off once the Brief is locked.",
     ),

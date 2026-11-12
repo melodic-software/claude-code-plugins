@@ -211,6 +211,11 @@ cursor_advance() {
   [[ -n "$CURSOR_FILE" ]] || return 0
   printf 'b%s\n%s\n' "$SCANNED" "$TRANSCRIPT" 2>/dev/null >"$CURSOR_FILE" || :
 }
+# The scanned lines need no warning: record them as audited and stop.
+dispose_and_exit() {
+  cursor_advance
+  exit 0
+}
 
 # Bounded COLD read: the first Stop of a session (or a reset) is the one read
 # the cursor cannot bound, so the byte cap stays. When the cap truncates, the
@@ -402,10 +407,7 @@ if ((CURSOR == 0)); then
   fi
 fi
 LINES=()
-[[ -n "$RECORDS" ]] || {
-  cursor_advance
-  exit 0
-}
+[[ -n "$RECORDS" ]] || dispose_and_exit
 # `printf | jq` and NOT a here-string, even though the pipeline costs a process
 # the here-string would not. What is known, stated as known: hook::jq_field in
 # the shared library documents this hazard and refuses the here-string form for
@@ -459,10 +461,7 @@ SUMMARY=$(printf '%s' "$RECORDS" |
 # it stood so the same lines are audited again. `[]` is a document, and one that
 # disposes of them.
 [[ -n "$SUMMARY" ]] || exit 0
-[[ "$SUMMARY" != "[]" ]] || {
-  cursor_advance
-  exit 0
-}
+[[ "$SUMMARY" != "[]" ]] || dispose_and_exit
 
 # Once per session per hook name. Markers live under ${CLAUDE_PLUGIN_DATA}
 # (survives plugin updates) in the directory resolved above; stale sessions'
@@ -488,10 +487,7 @@ NEW=$(jq -cn --argjson summary "$SUMMARY" --arg warned "$WARNED" '
   ($warned | split("\n") | map(rtrimstr("\r")) | map(select(length > 0))) as $seen
   | [$summary[] | select((.hookName + "	" + .command) as $k | $seen | index($k) | not)]')
 [[ -n "$NEW" ]] || exit 0
-[[ "$NEW" != "[]" ]] || {
-  cursor_advance
-  exit 0
-}
+[[ "$NEW" != "[]" ]] || dispose_and_exit
 
 TOTAL=$(jq -rn --argjson new "$NEW" '[$new[].count] | add')
 

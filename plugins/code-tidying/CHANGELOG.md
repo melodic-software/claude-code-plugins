@@ -3,6 +3,20 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.0] - 2026-11-12
+
+### Added
+
+- read issue-body skeletons from the org issue-body contract
+
+  track add, decompose, the agent brief and bugs:write now take their
+  issue-body headings from the issue-body contract the standards sync
+  delivers into each plugin's reference/ directory, the same record the
+  org issue forms are generated from. triage checks an issue body against
+  the contract with scripts/check-body.mjs, which accepts a field under
+  a `##` or `###` heading and treats a form's skipped answer as empty. The tidy
+  deferred-item body follows the task type.
+
 ## [0.42.7] - 2026-11-11
 
 ### Changed

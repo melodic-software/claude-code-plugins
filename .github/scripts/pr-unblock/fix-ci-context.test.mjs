@@ -170,13 +170,14 @@ test("a finding's body and the number of findings are capped", async () => {
   assert.equal(result.file.review_findings[0].body.length, 2000);
 });
 
-test("ci-status, passing checks and a check whose later run passed are left out", async () => {
+test("CI Status, its ci-status alias, passing checks and a check whose later run passed are left out", async () => {
   const api = fakeApi({
     checkRuns: [
       run(11, "lint-shell", "failure"),
       run(14, "lint-shell", "success"),
       run(12, "test-node", "success"),
-      run(13, "ci-status", "failure"),
+      run(13, "CI Status", "failure"),
+      run(15, "ci-status", "failure"),
     ],
   });
   const result = await selectWith(api);

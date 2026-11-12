@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Blast radius: LOW\nReason: two files.",
+      "why": "plain line"
+    },
+    {
+      "answer": "**Blast radius:** LOW",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# notes list --since\n\n## Brief\n\n### Problem\n`notes list` prints every note ever written, so people with hundreds of notes scroll to find this week's.\n\n### Goal\n`notes list --since DATE` shows only notes created on or after DATE.\n\n### Acceptance criteria\n- AC1: `notes list` without `--since` prints what it prints today.\n- AC2: `notes list --since 2026-03-01` prints only notes created on or after that date.\n- AC3: An unparsable `--since` value exits with status 2 and an error naming the flag.\n\n### Out-of-scope\n- Relative dates such as \"last week\".\n- An `--until` flag.\n\n### Work size\nAppetite: half a day.\n\n### Captured assumptions\n- Every note's `created` value is an ISO 8601 date (YYYY-MM-DD): revisit if a note file from the old mobile app shows another format.\n\n## Design\n\nEarly exit (tier C): One flag on an existing subcommand; no new types.\n\n## Plan\n\n### Behavior\n- B1: Without the flag the listing is unchanged (AC1). Delivered by Phase 1.\n- B2: The flag hides notes created before the given date (AC2). Delivered by Phase 1.\n- B3: A bad date is refused with a usage error naming the flag (AC3). Delivered by Phase 1.\n\n### Load-bearing assumptions\n\n| Assumption | Source | Falsifying check | Response if false |\n|---|---|---|---|\n| argparse reports a `type=` conversion error with exit status 2 | plan | Phase 1 Sanity Check | Minor: proceed and note |\n\n### Phase 1: Add --since [TODO]\n**Satisfies:** AC1, AC2, AC3\n**Delivers:** B1, B2, B3\n\n- In `notes/cli.py`, add `--since` to the `list` subparser with `type=date.fromisoformat`, so argparse reports a bad value as a usage error naming `--since`.\n- Keep only notes whose `date.fromisoformat(note[\"created\"])` is on or after the value.\n- In `tests/test_cli.py`, add one case per criterion.\n\n**Sanity Check:** `python -m unittest discover -s tests` exits 0.\n\n### Files affected\n| File | Action |\n|---|---|\n| `notes/cli.py` | modify |\n| `tests/test_cli.py` | modify |\n",
+      "why": "the draft as seeded has no assessment"
+    },
+    {
+      "answer": "Blast radius: MEDIUM\nReason: shared code.",
+      "why": "another tier"
+    }
+  ]
+}
