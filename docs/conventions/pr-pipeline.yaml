@@ -1875,6 +1875,8 @@ merge:
         class: enforcement
       - glob: ".github/scripts/apply-patch/protected-paths.mjs"
         class: enforcement
+      - glob: ".github/scripts/lib/run-main.mjs"
+        class: enforcement
       - glob: ".github/scripts/pr-unblock/fix-ci-context.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/feedback-dispatch.mjs"

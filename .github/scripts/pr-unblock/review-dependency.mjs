@@ -21,8 +21,8 @@
 
 import { createHash } from "node:crypto";
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 
+import { runAsScript } from "../lib/run-main.mjs";
 import { countedFetch, createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
 import {
   classifierGaps,
@@ -443,14 +443,4 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.argv.slice(2), process.env).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.log(`::error::review-dependency failed: ${error.message}`);
-      process.exitCode = 1;
-    },
-  );
-}
+runAsScript(import.meta.url, "review-dependency", () => main(process.argv.slice(2), process.env));

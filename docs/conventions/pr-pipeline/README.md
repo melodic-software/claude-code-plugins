@@ -1424,7 +1424,7 @@ the rules that only tighten in
     `publish-feedback.mjs`, which decide and resolve threads, and
     `.github/scripts/apply-patch/apply-patch.mjs`, which holds fix-ci escalations) with every module
     they import (`request-budget.mjs`, `dependency-classify.mjs`, and `predicates.mjs` and
-    `protected-paths.mjs` in `apply-patch/`),
+    `protected-paths.mjs` in `apply-patch/`, and `.github/scripts/lib/run-main.mjs`),
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence

@@ -26,8 +26,9 @@
 
 import { createHash } from "node:crypto";
 import { appendFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
+import { runAsScript } from "../lib/run-main.mjs";
 import { loadRules, webHostsFrom } from "../intake-triage/admit.mjs";
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { linkedIssues } from "../pr-verify/resolve-pr.mjs";
@@ -415,14 +416,4 @@ export async function main(env, { api, actions, log = (line) => console.log(line
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.env).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.log(`::error::fix-ci-context failed: ${error.message}`);
-      process.exitCode = 1;
-    },
-  );
-}
+runAsScript(import.meta.url, "fix-ci-context", () => main(process.env));

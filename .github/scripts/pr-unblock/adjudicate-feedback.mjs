@@ -37,8 +37,8 @@
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
 
+import { runAsScript } from "../lib/run-main.mjs";
 import { claimsSecurity, contractIssues, createGitHubApi, FINDING_STANDS, linkedSpec, need, SECURITY_PERSON_SEVERITY, securityNeedsPerson, severityOf, SEVERITY_SHAPED, SHA } from "./address-feedback.mjs";
 
 export { contractIssues };
@@ -969,14 +969,4 @@ export async function main(argv, env, { api, readContract, log = (line) => conso
   throw new Error("usage: adjudicate-feedback.mjs prepare|collect");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.argv.slice(2), process.env).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.log(`::error::adjudicate-feedback failed: ${error.message}`);
-      process.exitCode = 1;
-    },
-  );
-}
+runAsScript(import.meta.url, "adjudicate-feedback", () => main(process.argv.slice(2), process.env));
