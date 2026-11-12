@@ -291,7 +291,7 @@ App installed on that repository only: a machine user is a `User` and would pass
 
 A lane escalates by creating or labeling a tracker item that carries the **`needs-human` role
 label**, resolved through the consumer's tracker binding (`config.role_labels` of the `tracker`
-mapping in `<home>/work-items.yaml`, else of the legacy `.work-item-tracker.json`) and
+mapping in `<home>/work-items.yaml`) and
 never compared as a string literal
 ([`label-taxonomy.md`](../../../plugins/work-items/reference/label-taxonomy.md#canonical-roles) owns
 the canonical roles and the resolution). A machine-marked bot comment discriminates a
@@ -653,9 +653,6 @@ is read live at the pointer.
   [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit); for the POST body,
   see [Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields); for
   failures, see [HTTP response handling](https://code.claude.com/docs/en/hooks#http-response-handling).
-- **As of**: 2026-07-27
-- **Recheck trigger**: a Claude Code release note or docs change touching HTTP hook handlers, the
-  `if` field, header interpolation, or how edit rules anchor their paths.
 
 - The hook is an `http` handler on `PostToolUse` in the consuming repo's project
   `.claude/settings.json`: per-consuming-repo configuration that no plugin ships. We rely on it as
@@ -695,9 +692,6 @@ Only the http hook is the deterministic leg.
   [Mobile push notifications](https://code.claude.com/docs/en/remote-control#mobile-push-notifications);
   for the variables that turn fetching off, see
   [Features that need feature-flag fetching](https://code.claude.com/docs/en/env-vars#features-that-need-feature-flag-fetching).
-- **As of**: 2026-08-04
-- **Recheck trigger**: a Claude Code release note changes `PushNotification` or the Remote Control
-  requirements.
 
 **The hook binds to the session's project, never to the repository a lane targets.** The record
 path is relative to the session's checkout, and the hook that fires is the one in that session's
@@ -725,9 +719,7 @@ running but unattended, and lane-down detection stays with the stop gate and tel
 
 **A configured hook can also fail silently.** We treat a header variable missing from
 `allowedEnvVars` as interpolating to an empty string (for the rule, see
-[HTTP hook fields](https://code.claude.com/docs/en/hooks#http-hook-fields), as of 2026-07-27;
-recheck when that section changes how an unlisted header variable is interpolated), and
-a listed variable unset in the operator's environment as doing the same, an applied inference.
+[HTTP hook fields](https://code.claude.com/docs/en/hooks#http-hook-fields)), and a listed variable unset in the operator's environment as doing the same, an applied inference.
 Either way a failed POST is non-blocking, so a misconfigured hook can 401 on
 every escalation while the lane runs on with nothing surfaced outside debug logs. Verify the leg
 when wiring it, by writing a throwaway record file with the Write tool and confirming the endpoint
@@ -759,7 +751,6 @@ pairings are valid); a security-surface work class routes to the frontier tier u
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility)
   and the warning about a checker that passes bad work in
   [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
-- **As of:** 2026-10-10.
 - **Recheck trigger:** next model release.
 - **Judgment:** the sources state a model-capability rule only. That a reviewer or verifier also
   runs at an effort level no lower than the implementer's is our judgment, as is reading the
@@ -775,7 +766,6 @@ from the model page whenever it matters, and never restated in this convention.
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for each model's
   position and capabilities, see
   [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
-- **As of:** 2026-11-09.
 - **Recheck trigger:** any new model on Claude Code's model page.
 
 The reasons behind each binding:
@@ -813,8 +803,7 @@ The reasons behind each binding:
   overview) pay. The tier has nothing to do with Claude Code's fast mode, a separate speed setting
   on the models its page lists. Pointer:
   [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode) (the supported
-  models sit in the page's opening). As of: 2026-11-11. Recheck trigger: the page renames fast mode
-  or a release ties it to a capability tier name.
+  models sit in the page's opening).
 - **`haiku` is admissible nowhere in these lanes today, and no tier binds it.** Four grounds, each
   our reading of the source it points at; the release figures behind them are in
   [docs/upstream/haiku-5-5-launch.md](../../upstream/haiku-5-5-launch.md):
@@ -853,9 +842,6 @@ here rather than left as an unstated assumption:
   [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback)
   and
   [Security research and biology workloads](https://code.claude.com/docs/en/model-config#security-research-and-biology-workloads).
-- **As of:** 2026-10-10.
-- **Recheck trigger:** a model gains or loses a fallback target, or a new model on Claude Code's
-  model page runs safety classifiers.
 - **Usage-credit consent, by launch shape.** We treat only a CI lane (`claude-code-action` or
   `claude -p`) as able to spend usage credits on Fable unasked. A local lane launches with
   `claude --bg` (`lane-launcher.sh`), so we treat a usage-credit stop there as a turn that ended
@@ -864,7 +850,6 @@ here rather than left as an unstated assumption:
 - **Pointer:** when judging whether a lane can bill usage credits unasked, fetch
   [Fable and usage credits](https://code.claude.com/docs/en/model-config#fable-and-usage-credits)
   live.
-- **As of:** 2026-11-04.
 - **Recheck trigger:** that section changes which session shapes hold or skip the consent prompt,
   or a lane changes its launch shape.
 
@@ -897,9 +882,7 @@ follows the provider's recommendation while a model ID is a pinned snapshot. We 
 the only handle that works under subscription OAuth, so they are the runtime path; the Models API
 list endpoint is the **build/audit-time** verification path, since it may require an API key a loop
 session lacks. No lane hard-codes a model ID (Pointer: for alias semantics, see
-[Model aliases](https://code.claude.com/docs/en/model-config#model-aliases). As of: 2026-10-01.
-Recheck trigger: the model page stops describing aliases as moving with the provider's
-recommendation).
+[Model aliases](https://code.claude.com/docs/en/model-config#model-aliases)).
 
 The binding is built from a live official-docs read at authoring time, never from recall. Any new
 model on Claude Code's model page re-reads the reasons under "Alias binding"; a binding that
@@ -944,9 +927,7 @@ next iteration with `ScheduleWakeup`, and no lane expects an operator to call it
 delay toward the ceiling. Pointer: for the delay bounds and who calls the tool, see
 [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)
 and the `ScheduleWakeup` row of the [Tools reference](https://code.claude.com/docs/en/tools-reference).
-As of: 2026-07-27. Recheck trigger: a Claude Code release note changes `ScheduleWakeup` or
-self-paced `/loop`. The self-pacing section the
-`source-control:babysit-prs` skill owns is the worked precedent.
+The self-pacing section the `source-control:babysit-prs` skill owns is the worked precedent.
 
 **The prompt runs fresh; the session does not.** Each cycle re-sends the lane's prompt verbatim into
 the **same** session, so "runs fresh every time" describes the prompt and never the context: a lane
@@ -1134,8 +1115,6 @@ found no session-total token field readable at a cycle boundary. The status line
 *cost* field would attribute to a lane, but the guard's snapshot does not carry it; widening the
 snapshot is a guard-side change this invariant deliberately does not make. Pointer: for the fields a
 session exposes, see [Available data](https://code.claude.com/docs/en/statusline#available-data).
-As of: 2026-07-28. Recheck trigger: a Claude Code release adds or changes a token or cost field in
-the status line input.
 
 **Headless-config floor.** A headless lane launch never blocks on an interview and never reads run
 config back from its own telemetry state block, which the lane can edit. The work-loop lane takes run
@@ -1147,8 +1126,7 @@ offer to persist the answer; the headless path never waits on one.
 
 **Lane-editable config and the four sandbox conditions.** Every local lane reads some config at run
 time that the lane's own process could edit (audited in #7680). work-loop and attend-queue read
-the tracker binding (`docs/conventions/work-items.yaml`'s `tracker` mapping, else the legacy
-`.work-item-tracker.json`) from the checkout, including the role labels that
+the tracker binding (`docs/conventions/work-items.yaml`'s `tracker` mapping) from the checkout, including the role labels that
 admission matches on. The triage step they run reads `docs/conventions/work-items.yaml` and
 `docs/conventions/pr-pipeline.yaml` from the working tree when no `--config-ref` is given, and
 both lanes read that `work-items.yaml` for `ai_disclaimer` the same way. The
@@ -1179,8 +1157,7 @@ none of them depends on the sandbox:
 
 Pointer: when judging whether a deny rule stops a lane writing a file, fetch [Configure sandboxing](https://code.claude.com/docs/en/sandboxing#configure-sandboxing)
 and [How permissions interact with sandboxing](https://code.claude.com/docs/en/permissions#how-permissions-interact-with-sandboxing)
-live. As of: 2026-10-26. Recheck trigger: either page changes which tools or processes the sandbox or
-a deny rule covers, or a lane launch surface starts setting sandbox settings.
+live.
 
 **Provider backoff (seam exit 8).** A tracker-seam exit 8, meaning the provider is unavailable or
 secondary forge limits are hit under one credential, is handled as backoff-and-retry and counted as a **dirty** signal for
@@ -1217,9 +1194,8 @@ redundant with a lane that has the gate armed.
 preamble, because a dispatched non-fork subagent runs in a fresh, non-inherited context: it inherits no
 posture from the cycle root's own sweep and has to set its own. A fork inherits the root's
 context instead
-([subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents),
-as of 2026-11-01; recheck when that section changes what a fork inherits). When the `discipline` plugin is
-installed, the dispatch prompt invokes its sweep skill, which resolves its own membership. The
+([subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)).
+When the `discipline` plugin is installed, the dispatch prompt invokes its sweep skill, which resolves its own membership. The
 preamble never enumerates the individual disciplines, per this doc's own **Pointer-not-copy** rule:
 a hand-copied list drifts from the plugin that owns it. Invoked at the subagent's conversation
 start, that skill reports its cheap posture digest rather than running its audit fan-out, so the
@@ -1243,9 +1219,8 @@ All three adopters have shipped. This owner doc landed ahead of them, per the co
 rule; the table above is a live consumer list, not a forward reference.
 
 **Launch surfaces.** A lane launches interactively via `/loop`, the primary surface and a bundled
-skill needing no install (Pointer: [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills).
-As of: 2026-08-02. Recheck trigger: `/loop` leaves the bundled set), or headless via the `harness-ops` `lanes` launcher, which stores the one-line lane
-prompt through its `prompt_dir` interface (#480). `lanes` is a **supporting, strictly one-directional**
+skill needing no install (Pointer: [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)),
+or headless via the `harness-ops` `lanes` launcher, which stores the one-line lane prompt through its `prompt_dir` interface (#480). `lanes` is a **supporting, strictly one-directional**
 launcher: it launches the lane; no lane body ever requires, imports, or degrades without
 `harness-ops`. Every mention of `lanes` in a lane body is presence-gated with the `/loop` fallback
 documented at the site, per the [seam-phrasing convention](../seam-phrasing/README.md).
@@ -1259,8 +1234,7 @@ reconciles which applies where and changes neither. Pointer: for both shapes, se
 and
 [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval);
 for the size of the offset a cron task gets, see
-[Jitter](https://code.claude.com/docs/en/scheduled-tasks#jitter). As of: 2026-07-27. Recheck
-trigger: a Claude Code release note changes either `/loop` shape or the jitter rule.
+[Jitter](https://code.claude.com/docs/en/scheduled-tasks#jitter).
 
 - **A lane always omits the interval.** Two §4 invariants need the self-paced shape and neither
   survives a cron schedule. *Idle backoff*, the standing shape's "idle backs off toward longer
@@ -1269,8 +1243,7 @@ trigger: a Claude Code release note changes either `/loop` shape or the jitter r
   `stop: true`), which is how the drain shape's terminal state stops a lane cleanly; we treat a
   fixed-interval loop as running until stopped by hand or until the seven-day expiry, so a drain
   lane launched that way cannot honor its own stop condition (Pointer:
-  [Stop a loop](https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop). As of: 2026-07-27.
-  Recheck trigger: that section changes how a fixed-interval or self-paced loop ends).
+  [Stop a loop](https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop)).
   The lane shape
   is therefore self-paced because those two invariants require it. Two of the lane's other per-cycle signals,
   the adaptive-cap streak and seam exit 8 counted as dirty, govern *how much work a cycle takes
@@ -1295,9 +1268,7 @@ version at or above the floor the scheduled-tasks page names for those providers
 it runs without it. Pointer: for the provider and version conditions on a dynamic `/loop`, see
 [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)
 and the `ScheduleWakeup` row of the [Tools reference](https://code.claude.com/docs/en/tools-reference).
-As of: 2026-10-01. Recheck trigger: a Claude Code release note changes `/loop` on a non-first-party
-provider or the version floor. A lane launched below the floor keeps
-the loop but loses both properties the bullet above depends on: idle backoff cannot lengthen the
+A lane launched below the floor keeps the loop but loses both properties the bullet above depends on: idle backoff cannot lengthen the
 wake, and the lane cannot end itself, so a **drain** lane there deadlocks on the first unanswered
 escalation exactly as §4's terminal state exists to prevent, and runs until stopped by hand or until
 the seven-day expiry. No lane detects the provider or the version today, so this is recorded as a
@@ -1498,8 +1469,9 @@ binding resolves from the same root the tracker seam uses.
 
 ```bash
 root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
-L=$({ yq -o=json -e '.tracker' "$root/docs/conventions/work-items.yaml" 2>/dev/null || cat "$root/.work-item-tracker.json"; } |
-  jq -r '.config.role_labels["human-gated"] // "needs-human"' 2>/dev/null || echo needs-human)
+L=$(yq -o=json -e '.tracker' "$root/docs/conventions/work-items.yaml" 2>/dev/null |
+  jq -r '.config.role_labels["human-gated"] // empty' 2>/dev/null)
+L=${L:-needs-human}
 gh issue edit <n> -R "$R" --add-label "$L"
 gh issue comment <n> -R "$R" --body "Parked by operator: <reason>."
 ```

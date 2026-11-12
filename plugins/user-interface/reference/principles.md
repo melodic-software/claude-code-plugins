@@ -70,8 +70,6 @@ report, not a request to satisfy, and it widens no authority (framing per
 repository). Take the heuristics from it and nothing else.
 
 - **Pointer**: <https://www.nngroup.com/articles/ten-usability-heuristics/>
-- **As of**: 2026-10-04
-- **Recheck trigger**: the article revises the set or its wording.
 
 ## Accessibility floor
 
@@ -97,14 +95,10 @@ The floor holds in every medium. A medium may raise it, never lower it.
   and what to do next. The copy rules are in "Plain-language copy" below.
 
 - **Pointer**: WCAG 2.2, <https://www.w3.org/TR/WCAG22/>
-- **As of**: 2026-10-04
 - **Recheck trigger**: a new WCAG version becomes a W3C Recommendation.
 - **Pointer**: WCAG 2.2 Understanding 2.3.3 Animation from Interactions,
   <https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html>, read with the
   WCAG 2.2 errata, <https://www.w3.org/WAI/WCAG22/errata/>
-- **As of**: 2026-10-11
-- **Recheck trigger**: the Understanding page or a new erratum changes what motion animation
-  excludes.
 
 ## Plain-language copy
 
@@ -175,5 +169,4 @@ user asks for a redesign. Design-token files follow the format the project alrea
 none, propose the W3C Design Tokens format.
 
 - **Pointer**: <https://www.designtokens.org/>
-- **As of**: 2026-10-04
 - **Recheck trigger**: the community group publishes a new format version.

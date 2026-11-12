@@ -82,8 +82,6 @@ Stumble: no planning step owns per-tenant variation today.
 - **Pointer**: when a design sets per-tenant variation, fetch the AWS Well-Architected SaaS Lens
   [General design principles](https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/general-design-principles.html)
   live, the entries on one-off requirements and multiple tenant experiences.
-- **As of**: 2026-10-18
-- **Recheck trigger**: AWS revises the SaaS Lens or retires that page.
 
 - **Pointer**: when a design separates flags from entitlements, fetch the Azure Architecture
   Center
@@ -91,12 +89,7 @@ Stumble: no planning step owns per-tenant variation today.
   live, with its
   [feature flags](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/approaches/deployment-configuration#feature-flags)
   section.
-- **As of**: 2026-10-18
-- **Recheck trigger**: either section changes its advice on flags, tiers or tenant-specific
-  customization.
 
 - **Pointer**: when a design sets a flag's owner or removal, fetch Microsoft's
   [Progressive experimentation with feature flags: considerations](https://learn.microsoft.com/en-us/devops/operate/progressive-experimentation-feature-flags#considerations-for-feature-flags)
   live.
-- **As of**: 2026-10-18
-- **Recheck trigger**: that section changes its advice on retiring flags.

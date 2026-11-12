@@ -768,8 +768,9 @@ the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's p
    (a bare `git diff` on such a path reads it as `--no-index`). `Bash(git *)` stays denied. It is
    also denied `Edit` on each path `apply-issue-patch` refuses: `deny-rules.mjs` builds the rules
    from `protected-paths.mjs`'s path rules for the `issue` row's `refuse` list, matching no path that
-   row would push (a plugin's `settings.json` stays writable), and the preamble names the
-   patterns and says that when the change needs one, the run stops with `exit` `stopped` and a
+   row would push (a plugin's `settings.json` stays writable). `claude-protected` adds no rule, since
+   Claude Code itself denies those writes under `dontAsk`. The preamble names the patterns and
+   Claude Code's protected paths, and says that when the change needs one, the run stops with `exit` `stopped` and a
    `reason` starting `patch-protected-path`. The rules cover the file tools and shell redirects,
    not a wrapper's subprocess, so `apply-issue-patch` still refuses every path. The no-prepare patch skill gets
    the tools `Read`, `Glob`, `Grep`, `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules
@@ -1276,9 +1277,9 @@ A `tests-only` verdict (the finding asks only that tests or checks CI runs be ru
 model text, and only on an `UNCERTAIN` reply to a finding that is not security-review's, in a round that pushed no fix (the snapshot is of the
 head before any fix). The select job holds `checks: read`, so it records
 the head's CI in `run.json`'s `ci` (`address-feedback.mjs` `ciSnapshot`): it runs the base copy of
-`scripts/plan-test-lanes.sh` over the pull request's files and reads the latest real run of each github-actions check its lanes post (`test-bash (<leg>)` and
-`test-python (<leg>)` for each leg the plan lists, `test-node` and each `pr-test-platforms.yml` job it
-names). The plan reads the base tree, so it can name fewer lanes than the head ran. The state is
+`scripts/plan-test-lanes.sh` over the pull request's files and reads the latest real run of each github-actions check its lanes post (`Test Bash (<leg>)` and
+`Test Python (<leg>)` for each leg the plan lists, `Test Node` and each `pr-test-platforms.yml` job it
+names; a head tested before the jobs got display names shows their job ids, `test-bash (<leg>)` and so on). The plan reads the base tree, so it can name fewer lanes than the head ran. The state is
 `red` when any `test-*` run on the head failed, planned or not (a cancelled run is `unsettled`, since fix-ci does not take a cancelled-only head), `green` when every
 planned check has a run, each one passed, and no unplanned `test-*` lane ran, and
 `unsettled` otherwise. On `green` the reply job posts a fixed reply citing those runs and resolves

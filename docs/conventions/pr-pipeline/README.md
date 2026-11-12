@@ -1006,8 +1006,9 @@ trusted-actor list (`.github/standards/trusted-actors/trusted-actors.json`) in a
 any `..` segment (`lane-grants`: they decide what every admitted repository's lanes may mint and
 who may start them, [ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)
 Decision 6), a symbolic link, a gitlink, and a rename into any of those.
-The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`, `lib/`,
-`scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: only the
+The rest of `.github/`, `.claude/` and `.mcp.json` (outside the `issue` row, below), plugin hooks,
+`.claude-plugin/`, `lib/`, `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review,
+and merge on it: only the
 narrow [path floor](#merge-authority) (`resolve-config`, whose code the token broker runs from
 main, `request-lane-token`, the trusted-trigger check, `check-kill-switch`, the rate guard,
 `CODEOWNERS`, `.gitmodules` and the merge gate's own code; the other files that enforce the floor
@@ -1026,6 +1027,14 @@ and `.lefthook-local` with `.yml`, `.yaml`, `.toml`, `.json` or `.jsonc`; under 
 `lefthook` and `lefthook-local` with those extensions; and a path whose first segment is `.lefthook`
 or `.lefthook-local`. Each changes what git, or a hook it runs, does on the next checkout or commit,
 so fix-ci and address-feedback cannot change them. No other row names these three.
+The `issue` row alone also refuses (`claude-protected`), at any depth, every path Claude Code
+denies writes to under the lanes' `dontAsk` permission mode
+([protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths)) except
+`.gitmodules`, which has its own refusal (`gitmodules`): its run can never write one, so
+intake admission refuses an issue whose work names one before a run is spent on it. The other
+lanes also run under `dontAsk` but have no admission step to feed, and the `merge-base` and
+`shared-copies` patches carry the base's own changes, which may touch such a path, so no other row
+names it, and a rename into such a path is not `rename-into-refused`.
 The `ci-context`, `docs`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
@@ -1415,7 +1424,7 @@ the rules that only tighten in
     `publish-feedback.mjs`, which decide and resolve threads, and
     `.github/scripts/apply-patch/apply-patch.mjs`, which holds fix-ci escalations) with every module
     they import (`request-budget.mjs`, `dependency-classify.mjs`, and `predicates.mjs` and
-    `protected-paths.mjs` in `apply-patch/`),
+    `protected-paths.mjs` in `apply-patch/`, and `.github/scripts/lib/run-main.mjs`),
     and the rest of the Python that decides the holds (`babysit_verify_evidence.py`, which
     `enable-auto-merge.mjs` runs, and the `babysit-prs/scripts/` modules it and `babysit_risk.py`
     import). It scores HIGH as `review-path:<glob>` until the `claude-security-review` evidence
@@ -3133,8 +3142,9 @@ them on every `pull_request` run, contract-only runs included:
   ci-status's merge-holds step still fails on the veto comment until a later comment by the same
   member lifts it, so the veto holds before the label lands and if the label is removed.
 - **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
-  head must have a successful status job (`pr-review / review-status`,
-  `pr-review-security / review-status`) whose `Apply the hold` step ran. A summary-mode run or
+  head must have a successful status job (`PR Review / review-status`,
+  `PR Review Security / review-status`; the lower-case caller on a head tested before the rename)
+  whose `Apply the hold` step ran. A summary-mode run or
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
   the cause named. A lane a kill switch stopped (the switch was on when the review run started)
   fails too: the kill switch pauses review and never waives it. Once it is off, the lost-run

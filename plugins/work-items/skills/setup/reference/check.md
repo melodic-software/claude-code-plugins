@@ -14,24 +14,26 @@ check.
    reference's install remediation, the schedule snippets parse with `jq` unconditionally.
 2. **Tracker provider binding**, resolve the convention home and `BINDING` (SKILL.md "Resolving the
    paths"). A broken pointer (resolver exit `3`) is FAIL, naming the resolver's message. Where no home
-   applies (exit `4` or `5`) → INFO: the seam reads only the legacy JSON file there, and setup
-   writes no binding until the repository binds a convention home. Then branch on which files bind:
+   applies (exit `4` or `5`) → INFO: nothing binds the repository there, and setup writes no
+   binding until the repository binds a convention home. Then branch on which files bind:
    - **Neither** `BINDING` nor `LEGACY` → INFO: the tracker seam is not bound, so every seam verb
      hard-errors (exit 3) until `apply` seeds it, and the role remap has nothing to configure; the
      remediation is `/work-items:setup apply`.
    - **`LEGACY` only** (`.work-item-tracker.json` exists and `<home>/work-items.yaml` has no
-     `tracker` key) → INFO: the binding exists only in the legacy JSON file, which the seam still
-     reads with a notice; `/work-items:setup apply` copies it into `<home>/work-items.yaml` and
-     keeps the JSON file. Validate the JSON file as below.
-   - **`BINDING`, with `LEGACY` too** → INFO: the JSON file is kept for the readers that still read
-     only it (SKILL.md "Provider binding" step 1); name any `provider` or `config` value that
-     differs between the two. When a `.work-item-tracker.local.json` exists and
+     `tracker` key) → FAIL: the binding exists only in the retired JSON file, which the seam no
+     longer reads, so every seam verb hard-errors (exit 3); the remediation is
+     `/work-items:setup apply`, which copies it into `<home>/work-items.yaml` and keeps the JSON
+     file. Validate the JSON file as below, so the copy's findings show up front.
+   - **`BINDING`, with `LEGACY` too** → INFO: the JSON file no longer binds and is kept only for
+     readers outside the plugin that still read it (SKILL.md "Provider binding" step 1); name any
+     `provider` or `config` value that differs between the two. When a `.work-item-tracker.local.json` exists and
      `<home>/work-items.local.yaml` has no `tracker` key, say the seam no longer reads that
      personal override, since it reads the one beside the YAML binding; `apply` copies it.
 
    Validate the binding that binds without mutating: `<home>/work-items.yaml` parses with
    `awk -f <plugin-root>/skills/triage/scripts/yaml-subset.awk` and its `tracker` mapping carries no
-   key outside `schema_version`, `provider`, `config` and `docs`, or the legacy file parses as JSON.
+   key outside `schema_version`, `provider`, `config` and `docs`, or, for `LEGACY` only, the JSON
+   file parses as JSON.
    It carries `schema_version` and a `provider`, and that provider resolves to a bundled
    adapter (`github`, `local-markdown`) or a consumer-local one at
    `<project root>/tools/work-item-tracker/adapters/<provider>/` ([`tracker-seam.md`](../../../reference/tracker-seam.md)
@@ -43,8 +45,8 @@ check.
    unknown/unresolvable provider, or a missing required config key is FAIL, naming what is wrong.
    The ignore rule for `OVERRIDE` (`<home>/work-items.local.yaml`) is required whether or not the
    personal override file exists. A present personal override must parse (the YAML file with the same parser, its
-   `tracker` mapping; a legacy `.work-item-tracker.local.json`, still read beside a legacy-only
-   binding, as JSON), carry only allowlisted keys
+   `tracker` mapping; a legacy `.work-item-tracker.local.json`, which `apply` copies beside a
+   legacy-only binding, as JSON), carry only allowlisted keys
    (CONTRACT.md "Setup (binding file)"), and be gitignored, never tracked. Otherwise FAIL.
    Ignored and untracked are **two independent probes**: run the same pair "Provider binding" step 5 uses, per
    [`reference/personal-override-ignore-probes.md`](personal-override-ignore-probes.md). A bare

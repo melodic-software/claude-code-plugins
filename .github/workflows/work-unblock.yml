@@ -130,6 +130,7 @@ jobs:
     # sweeps whatever its conclusion, since a failed or cancelled run can free
     # room too; a skipped one, from a label other than agent-ready, ran no job.
     # A label event is sync-status's, never this job's.
+    name: Label Unblocked
     if: >-
       ((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main')
       || (github.event_name == 'issues' && github.event.action == 'closed' && github.event.sender.type != 'Bot')
@@ -457,6 +458,7 @@ jobs:
   # lanes App calls, so it hands over no readings and decide() holds L.
   # Schedule only: the broker mints publish-lane-level on no other event.
   publish-lane-level:
+    name: Publish Lane Level
     needs: label-unblocked
     if: ${{ !cancelled() && github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}
     concurrency:
@@ -659,6 +661,7 @@ jobs:
   # themselves) starts no job; one by an account not listed as a human gets no
   # token and writes nothing.
   sync-status:
+    name: Sync Status
     if: >-
       github.event_name == 'issues' && github.event.action != 'closed'
       && github.event.sender.type != 'Bot' && !github.event.issue.pull_request
@@ -771,7 +774,7 @@ jobs:
       # its labels) from the API; nothing is taken from the event but the
       # action, the issue number, the label name and whether it is a pull
       # request.
-      - name: Write the added status label into the Work status field
+      - name: Write the added status label into the `Work status` field
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}

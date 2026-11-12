@@ -97,7 +97,7 @@ settings or environment, plan, platform or provider, host surface; and the enabl
 documented start command per [e2e.md](e2e.md); mutation detected exits degraded
 instead of launching a second time.
 
-How long the `run` body stays in context once invoked: [skills § Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle) (as of 2026-11-10; recheck trigger: that section changes how long an invoked skill's body stays in context).
+How long the `run` body stays in context once invoked: [skills § Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle).
 
 **Result block.** The drive subagent's evidence output carries this block after the Route block,
 whichever state the step ended in:

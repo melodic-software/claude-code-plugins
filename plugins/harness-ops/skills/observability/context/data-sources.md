@@ -9,7 +9,7 @@
 - [2.6 Toggles and retention in effect](#26-toggles-and-retention-in-effect)
 - [3. Tool call decisions: which calls were denied, and why](#3-tool-call-decisions-which-calls-were-denied-and-why)
 - [4. Recurring tool-call patterns](#4-recurring-tool-call-patterns)
-- [4.5 Hallucination-guard catches (`cli-flag-verify` violations)](#45-hallucination-guard-catches-cli-flag-verify-violations)
+- [4.5 Hallucination-guard catches (`cli-flag-verify`)](#45-hallucination-guard-catches-cli-flag-verify)
 - [5. Drift candidates (rules-vs-code mismatches)](#5-drift-candidates-rules-vs-code-mismatches)
 - [6. Calibration signal: dismissed observations](#6-calibration-signal-dismissed-observations)
 - [7. Git + GH activity (context for severity)](#7-git--gh-activity-context-for-severity)
@@ -360,42 +360,15 @@ jq -s 'map(select(.hook != null)) | sort_by(.ts) as $e
 ' "${HOOK_FILES[@]}"
 ```
 
-## 4.5 Hallucination-guard catches (`cli-flag-verify` violations)
+## 4.5 Hallucination-guard catches (`cli-flag-verify`)
 
-`cli-flag-verify` PostToolUse hook (advisory exit 1) emits one `PostToolUse` event per unverifiable `<bin> --<flag>` pair detected in a Write/Edit, discriminated from other `PostToolUse` writers via the `hook` field. Subject format: `<bin>:<sha16>`, with bin in clear (groupable) and sha16 = first 16 hex of `sha256("<bin> <flag>")` (flag content protected). Schema: whatever envelope the consumer's hook emitter writes; the fields used here are `hook` and `subject`. Per-period count + per-binary breakdown calibrates the verifier (false-positive rate, hallucination hot-spots) and gates the future advisory→blocking exit-2 graduation.
-
-**Per-period count + per-binary breakdown:**
-
-```bash
-jq -s --arg since "$SINCE_ISO" '
-  map(select(.hook_event_name == "PostToolUse" and .hook == "cli-flag-verify" and .ts >= $since))
-  | { total: length,
-      unique_pairs: (map(.subject) | unique | length),
-      by_binary: (group_by(.subject | split(":")[0])
-                  | map({ bin: .[0].subject | split(":")[0],
-                          count: length,
-                          unique: (map(.subject) | unique | length) })
-                  | sort_by(-.count)) }
-' "${HOOK_FILES[@]}"
-```
-
-**Top recurring hallucinations** (same `<bin>:<sha16>` repeating = same flag re-hallucinated):
-
-```bash
-jq -s --arg since "$SINCE_ISO" '
-  map(select(.hook_event_name == "PostToolUse" and .hook == "cli-flag-verify" and .ts >= $since) | .subject)
-  | group_by(.) | map({ subject: .[0], count: length })
-  | sort_by(-.count) | .[0:10]
-' "${HOOK_FILES[@]}"
-```
-
-**Flag rules:**
-
-- HIGH: same `<bin>:<sha16>` appearing 3+ times (recurring agent confusion, an escalation candidate for blocking exit 2 once FP rate < 1%)
-- MEDIUM: per-binary count > 5 in window (binary's `--help` may be non-exhaustive, a candidate for the guardrails `cli_flag_verify_skip_bins` option)
-- INFO: total count, unique-pair count, per-binary distribution
-
-Empty: `"no cli-flag-verify violations: verifier may be advisory-clean OR the consumer's telemetry sink is not wired/enabled"`.
+guardrails runs `cli-flag-verify` at push time, in its `reference-verify` git hook, not after each
+Write or Edit: the `reference-verify` entry is a `pre-push` hook whose assets carry
+`hooks/cli-flag-verify.sh` (`plugins/guardrails/git-hooks/entries.json:43-52`), and
+`plugins/guardrails/hooks/hooks.json` registers no `cli-flag-verify` hook. A git hook writes no
+Claude Code hook event, so the hook event log holds no catches to count. Report the section as
+`not collected: cli-flag-verify runs at push time in guardrails' reference-verify git hook`, and
+never read an empty count as a clean verifier.
 
 ## 5. Drift candidates (rules-vs-code mismatches)
 

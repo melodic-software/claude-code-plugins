@@ -61,9 +61,11 @@ const thread = (severity, lane = "claude-security-review", { isResolved = false,
 const heldFinding = () => thread("severity: CRITICAL", "claude-security-review", { isResolved: true, path: "plugins/x/y.py", commit: OLD });
 const notice = (lane) => ({ annotation_level: "notice", message: `claude-lane-review-complete lane=${lane} sha=${HEAD} findings=0 inline=0 scope=whole` });
 const LANES = {
-  "pr-review-hosted.yml": { check: "pr-review / review-status", lane: "claude-review" },
-  "pr-review-security-hosted.yml": { check: "pr-review-security / review-status", lane: "claude-security-review" },
+  "pr-review-hosted.yml": { check: "PR Review / review-status", lane: "claude-review" },
+  "pr-review-security-hosted.yml": { check: "PR Review Security / review-status", lane: "claude-security-review" },
 };
+// The status job names on a head tested before the caller jobs' rename.
+const PRE_RENAME_CHECKS = { "pr-review-hosted.yml": "pr-review / review-status", "pr-review-security-hosted.yml": "pr-review-security / review-status" };
 // The status job names pr-review-cli.yml gave before it named both review-status.
 const RETIRED_CHECKS = { "pr-review-hosted.yml": "pr-review / claude-review-status", "pr-review-security-hosted.yml": "pr-review-security / security-review" };
 const pushes = [
@@ -141,6 +143,12 @@ test("ci-status's recheck accepts the App's removal while the hold still no long
   assert.equal(code, 0, log);
   assert.match(log, new RegExp(`the hold at ${OLD} no longer stands at ${HEAD}: kyle-sexton moved the head`));
   assert.ok(w.calls.every((call) => call.startsWith("GET ") || call === "POST /graphql"), "the recheck writes nothing");
+});
+
+test("ci-status's recheck reads a head tested before the caller jobs' rename", async () => {
+  const { code, log } = await run(world({ checks: PRE_RENAME_CHECKS }));
+  assert.equal(code, 0, log);
+  assert.match(log, new RegExp(`the hold at ${OLD} no longer stands at ${HEAD}: kyle-sexton moved the head`));
 });
 
 test("ci-status's recheck fails when a lane's status job runs under its retired name", async () => {

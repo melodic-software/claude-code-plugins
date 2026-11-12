@@ -61,6 +61,7 @@ defaults:
 
 jobs:
   prep:
+    name: Prep
     if: >-
       github.event.workflow_run.event == 'push'
       && github.event.workflow_run.conclusion == 'success'
@@ -160,6 +161,7 @@ jobs:
   # No secret, no model, no checkout; every failure runs the key. Probing is
   # off.
   key-credit:
+    name: Key Credit
     needs: prep
     if: needs.prep.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
@@ -231,6 +233,7 @@ jobs:
   # generates the mutants (skill Phases 0 to 2) and runs no test. A credit stop, or a 401 or 402, hands off to
   # generate-subscription; an empty key, or one the gate skipped, runs nothing here.
   generate:
+    name: Generate
     needs: [prep, key-credit]
     if: >-
       ${{ !cancelled() && needs.prep.outputs.proceed == 'true'
@@ -563,6 +566,7 @@ jobs:
   # a limit stop, a credit stop, or a 401 or 402 hands off to generate-fallback,
   # and so does an empty token.
   generate-subscription:
+    name: Generate Subscription
     needs: [prep, key-credit, generate]
     if: >-
       ${{ !cancelled() && needs.prep.outputs.proceed == 'true'
@@ -870,6 +874,7 @@ jobs:
   # subscription leg handed off or found its token empty, and only when the
   # fallback token is set. It never hands off.
   generate-fallback:
+    name: Generate Fallback
     needs: [prep, key-credit, generate-subscription]
     if: >-
       ${{ !cancelled() && needs.prep.outputs.proceed == 'true'
@@ -1162,6 +1167,7 @@ jobs:
   # comes from a fresh checkout of main, since a mutant's code can rewrite any
   # file this job reads later.
   mutate:
+    name: Mutate
     needs: [prep, generate, generate-subscription, generate-fallback]
     if: >-
       ${{ !cancelled() && needs.prep.outputs.proceed == 'true'
@@ -1315,6 +1321,7 @@ jobs:
   # triages the survivors the mutate job ran (skill Phase 4) and runs no test. A credit stop, or a 401 or 402, hands off to
   # triage-subscription; an empty key, or one the gate skipped, runs nothing here.
   triage:
+    name: Triage
     needs: [prep, key-credit, mutate]
     if: >-
       ${{ !cancelled() && needs.mutate.result == 'success' && needs.mutate.outputs.survivors != '' && needs.mutate.outputs.survivors != '0'
@@ -1676,6 +1683,7 @@ jobs:
   # a limit stop, a credit stop, or a 401 or 402 hands off to triage-fallback,
   # and so does an empty token.
   triage-subscription:
+    name: Triage Subscription
     needs: [prep, key-credit, mutate, triage]
     if: >-
       ${{ !cancelled() && needs.mutate.result == 'success' && needs.mutate.outputs.survivors != '' && needs.mutate.outputs.survivors != '0'
@@ -2012,6 +2020,7 @@ jobs:
   # subscription leg handed off or found its token empty, and only when the
   # fallback token is set. It never hands off.
   triage-fallback:
+    name: Triage Fallback
     needs: [prep, key-credit, mutate, triage-subscription]
     if: >-
       ${{ !cancelled() && needs.mutate.result == 'success' && needs.mutate.outputs.survivors != '' && needs.mutate.outputs.survivors != '0'
@@ -2325,6 +2334,7 @@ jobs:
           tokens: github-token
 
   report:
+    name: Report
     needs: [prep, generate, generate-subscription, generate-fallback, mutate, triage, triage-subscription, triage-fallback]
     if: ${{ !cancelled() && needs.prep.outputs.proceed == 'true' }}
     runs-on: ubuntu-24.04

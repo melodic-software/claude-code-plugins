@@ -17,7 +17,7 @@ As models improve, instruction surfaces written for older models become the ceil
 every standing line every session, and lines that correct mistakes it no longer makes cost context
 and constrain behavior. We take the official pruning test as the premise (Pointer: when citing it,
 fetch [best practices: keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short)
-live. As of: 2026-10-30. Recheck trigger: that section drops or changes its per-line pruning test);
+live);
 the strongest form of that test is empirical: delete, run, watch. This skill operationalizes the experiment its sibling
 `audit-instructions` can only reason about: instead of judging instruction *text* against doctrine,
 it measures the *model* against the repo with the instructions gone, and lets observed stumbles,
@@ -188,8 +188,7 @@ rendered, never a guessed level; the value changes nothing else about the experi
    ship, fetch
    [plugin manifest reference: standard layout](https://code.claude.com/docs/en/plugins/manifest-reference#standard-layout)
    and [plugin manifest reference: hooks](https://code.claude.com/docs/en/plugins/manifest-reference#hooks)
-   live. **As of:** 2026-11-03. **Recheck trigger:** that page names another hook location or
-   component type.
+   live.
    Classify each wired
    entry with the "Classifying a hook" rubric linked above; do not restate it and do not invent
    a second hook rubric. A plugin whose every component is policy (or behavioral with a
@@ -253,15 +252,14 @@ Apply the confirmed strip plan:
   passed over one can end the strip with an instruction surface still loading.
   **Pointer:** when deciding whether removing the `CLAUDE.md` names makes an `AGENTS.md` live,
   fetch [memory: when Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)
-  live. **As of:** 2026-11-03. **Recheck trigger:** that section changes which files displace an
-  `AGENTS.md`. **What candidacy is conditional on is whether the strip could make the
+  live. **What candidacy is conditional on is whether the strip could make the
   file live at all.** Removing the `CLAUDE.md` names is what makes a session read an `AGENTS.md`,
   but only in a session where `AGENTS.md` support is available and the instruction-files mode reads
   one: where either condition is known to rule that out, the file stays unread after the strip, so stripping it changes nothing about the baseline being
   measured and only perturbs the other tools that read it. Leave it out of the candidate set only
   when a condition is known to rule it out **and** no `CLAUDE.md` imports or symlinks it; a merely
   unresolved condition keeps it, and so does a shim or import, since that import is itself a live
-  path into context regardless of native support. The conditions carry their dated records in this
+  path into context regardless of native support. The conditions are recorded in this
   plugin's [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md); read them there
   rather than restating them here. What the classification then says is binding on an `AGENTS.md`
   exactly as on a `CLAUDE.md`: one classified `policy` or `convention` is kept and never named to
@@ -291,8 +289,7 @@ Apply the confirmed strip plan:
   `plugin@marketplace` key. **Pointer:** when deciding which scope's `enabledPlugins` value wins,
   fetch
   [settings reference: enabledPlugins](https://code.claude.com/docs/en/settings-reference#enabledplugins)
-  live. **As of:** 2026-10-11. **Recheck trigger:** that section changes the precedence between
-  project and user settings for the key. Do not call an arm stripped until a fresh session's
+  live. Do not call an arm stripped until a fresh session's
   `claude plugin list --json` omits the plugin. One that is still listed is a confound; local or
   managed scope can still win.
 - Print the "you are bare" summary: what a fresh session will now load, which plugins were
@@ -461,8 +458,8 @@ scheduling surfaces vary per consumer and are the operator's choice.
   the `--bare` flag's section,
   [headless: start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode),
   and the two variables' rows in
-  [environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live. As
-  of: 2026-10-18. Recheck trigger: any of them starts turning off a surface the operator owns, or
+  [environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live.
+  Recheck trigger: any of them starts turning off a surface the operator owns, or
   two of them merge): the experiment here ablates *your* instructions, which is the part you
   own. (Measuring what those product-side switches buy belongs to a context-budget audit, not to
   this experiment.)

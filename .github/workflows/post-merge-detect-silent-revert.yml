@@ -45,7 +45,7 @@ permissions:
 
 jobs:
   detect-silent-revert:
-    name: Silent-revert canary
+    name: Silent-Revert Canary
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

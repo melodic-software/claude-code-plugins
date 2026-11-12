@@ -24,5 +24,3 @@ Pointers: [`@given`](https://hypothesis.readthedocs.io/en/latest/reference/api.h
 [`@example`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.example),
 [`@settings`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.settings)
 and the [example database](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.database.DirectoryBasedExampleDatabase).
-As of 2026-11-10. Recheck when a Hypothesis major release changes those decorators, the settings
-names, or the default database.

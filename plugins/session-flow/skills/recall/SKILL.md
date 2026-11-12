@@ -138,8 +138,6 @@ the oldest transcript read is recent, say so.
 - **Pointer**: for transcript retention, see
   <https://code.claude.com/docs/en/data-usage#data-retention>; for where transcripts are stored,
   see <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>.
-- **As of**: 2026-10-04
-- **Recheck trigger**: either section changes how long transcripts are kept or where they live.
 
 ## Read-only and redaction
 

@@ -2,18 +2,12 @@
 # assemble.sh — §7 assembly: the epoch-scoped append-only partial becomes
 # `findings.json`, and `findings.json` becomes the human-readable `report.md`.
 #
-# WHY THIS EXISTS. Assembly decides WHICH ROWS REACH THE REPORT, and it shipped
-# as prose for the run to perform. That put the one step whose output every
-# determinism property is stated over into the same class as the steps a run
-# improvises: a selection rule performed differently on two runs is a P1 failure
-# the gate cannot attribute, because both runs believe they followed the rule.
-#
-# And a run whose only artifact is `findings.json` has done the work and
-# delivered none of it. That file is large, deeply nested, and lives at a
-# key-derived path under the plugin data directory, which a remote session
-# cannot open and a terminal cannot usefully print. `report.md` is a RENDERING
-# and never a source: it carries no fact the assembled document does not,
-# nothing reads it back, and `--resume` still reads the partial.
+# Assembly decides WHICH ROWS REACH THE REPORT, so it runs as code: a selection
+# rule performed differently on two runs is a P1 failure the gate cannot
+# attribute. `report.md` exists because `findings.json` is large, nested, and at
+# a path a remote session cannot open. It is a RENDERING and never a source: it
+# carries no fact the assembled document does not, nothing reads it back, and
+# `--resume` still reads the partial.
 #
 # THE SELECTION RULES, from §7:
 #   - read only the HIGHEST EPOCH partial present. A fenced writer appends to
@@ -104,65 +98,55 @@ highest_epoch() {
   printf '%s' "$best"
 }
 
+require_run_dir() {
+  [[ -n "$1" ]] || die "--run-dir is required"
+  [[ -d "$1" ]] || die "--run-dir is not a directory: $1"
+}
+
+# Sets EPOCH rather than printing it, so the `die` exits the script and not a
+# command substitution's subshell.
+require_epoch() {
+  EPOCH="$(highest_epoch "$1")"
+  [[ -n "$EPOCH" ]] || die "no findings.partial.<epoch>.jsonl under $1"
+}
+
 cmd_epoch() {
-  local run_dir="" arg
+  local run_dir=""
   while [[ $# -gt 0 ]]; do
-    arg="$1"
-    case "$arg" in
-    --run-dir)
-      [[ $# -ge 2 ]] || die "--run-dir needs a value"
-      run_dir="$2"
-      shift 2
-      ;;
-    *) die "unknown argument: $arg" ;;
+    case "$1" in
+    --run-dir) run_dir="${2-}" ;;
+    *) die "unknown argument: $1" ;;
     esac
+    [[ $# -ge 2 ]] || die "$1 needs a value"
+    shift 2
   done
-  [[ -n "$run_dir" ]] || die "--run-dir is required"
-  [[ -d "$run_dir" ]] || die "--run-dir is not a directory: $run_dir"
-  local ep
-  ep="$(highest_epoch "$run_dir")"
-  [[ -n "$ep" ]] || die "no findings.partial.<epoch>.jsonl under $run_dir"
-  printf '%s\n' "$ep"
+  require_run_dir "$run_dir"
+  require_epoch "$run_dir"
+  printf '%s\n' "$EPOCH"
 }
 
 cmd_assemble() {
-  local run_dir="" out_dir="" meta="" arg
+  local run_dir="" out_dir="" meta=""
   while [[ $# -gt 0 ]]; do
-    arg="$1"
-    case "$arg" in
-    --run-dir)
-      [[ $# -ge 2 ]] || die "--run-dir needs a value"
-      run_dir="$2"
-      shift 2
-      ;;
-    --out-dir)
-      [[ $# -ge 2 ]] || die "--out-dir needs a value"
-      out_dir="$2"
-      shift 2
-      ;;
-    --meta)
-      [[ $# -ge 2 ]] || die "--meta needs a value"
-      meta="$2"
-      shift 2
-      ;;
-    *) die "unknown argument: $arg" ;;
+    case "$1" in
+    --run-dir) run_dir="${2-}" ;;
+    --out-dir) out_dir="${2-}" ;;
+    --meta) meta="${2-}" ;;
+    *) die "unknown argument: $1" ;;
     esac
+    [[ $# -ge 2 ]] || die "$1 needs a value"
+    shift 2
   done
-  [[ -n "$run_dir" ]] || die "--run-dir is required"
-  [[ -d "$run_dir" ]] || die "--run-dir is not a directory: $run_dir"
+  require_run_dir "$run_dir"
   [[ -z "$meta" || -r "$meta" ]] || die "--meta is not readable: $meta"
   require_python
-
-  local epoch partial
-  epoch="$(highest_epoch "$run_dir")"
-  [[ -n "$epoch" ]] || die "no findings.partial.<epoch>.jsonl under $run_dir"
-  partial="$run_dir/findings.partial.$epoch.jsonl"
+  require_epoch "$run_dir"
 
   [[ -n "$out_dir" ]] || out_dir="$run_dir"
   mkdir -p "$out_dir" || die "could not create --out-dir: $out_dir"
 
-  AP_PARTIAL="$partial" AP_EPOCH="$epoch" AP_META="$meta" AP_OUT="$out_dir" \
-    python3 - <<'PY' || die "assembly failed"
+  AP_PARTIAL="$run_dir/findings.partial.$EPOCH.jsonl" AP_EPOCH="$EPOCH" AP_META="$meta" \
+    AP_OUT="$out_dir" python3 - <<'PY' || die "assembly failed"
 import json
 import os
 import sys
@@ -260,8 +244,7 @@ for lane, (ordinal, term) in sorted(terminated.items()):
         "verification": term.get("verification", "skipped"),
     }
     for key in ("skipped", "suppressed", "verification", "inventory"):
-        for item in term.get(key, []) or []:
-            sections[key].append(item)
+        sections[key].extend(term.get(key) or [])
 
 for row in rows:
     kind = row.get("record")
@@ -311,8 +294,7 @@ PY
 # document as the one assembly wrote.
 render_report() {
   require_python
-  export AP_FINDINGS="$1" AP_REPORT="$2"
-  python3 - <<'PY' || die "rendering failed"
+  AP_FINDINGS="$1" AP_REPORT="$2" python3 - <<'PY' || die "rendering failed"
 import json
 import os
 
@@ -470,22 +452,15 @@ PY
 }
 
 cmd_render() {
-  local findings="" out="" arg
+  local findings="" out=""
   while [[ $# -gt 0 ]]; do
-    arg="$1"
-    case "$arg" in
-    --findings)
-      [[ $# -ge 2 ]] || die "--findings needs a value"
-      findings="$2"
-      shift 2
-      ;;
-    --out)
-      [[ $# -ge 2 ]] || die "--out needs a value"
-      out="$2"
-      shift 2
-      ;;
-    *) die "unknown argument: $arg" ;;
+    case "$1" in
+    --findings) findings="${2-}" ;;
+    --out) out="${2-}" ;;
+    *) die "unknown argument: $1" ;;
     esac
+    [[ $# -ge 2 ]] || die "$1 needs a value"
+    shift 2
   done
   [[ -n "$findings" ]] || die "--findings is required"
   [[ -r "$findings" ]] || die "--findings is not readable: $findings"

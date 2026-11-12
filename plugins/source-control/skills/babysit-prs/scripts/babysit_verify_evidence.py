@@ -766,7 +766,7 @@ def split_child_header(
 def ticked_forms(line: str, task_list: str) -> list[str]:
     """admit.mjs tickedForms: `line`, a task-list line, with its box ticked,
     the one `[ ]` in `task_list` written `[x]` or `[X]`, indent and text
-    unchanged. None when `task_list` does not hold exactly one `[ ]`."""
+    unchanged. Empty when `task_list` does not hold exactly one `[ ]`."""
     if task_list.count("[ ]") != 1:
         return []
     rest = line.lstrip(JS_SPACE)
@@ -1083,9 +1083,10 @@ def listing_cap() -> tuple[float, str]:
     left = limit - _elapsed() - DEADLINE_MARGIN_SECONDS
     if left >= cap[0]:
         return cap
+    left = max(left, 0.0)
     caller = os.environ.get(CALLER_ENV, "").strip()[:80] or "the caller"
-    return max(left, 0.0), (
-        f"the {max(left, 0.0):.0f} s left of {caller}'s {limit:.0f} s limit "
+    return left, (
+        f"the {left:.0f} s left of {caller}'s {limit:.0f} s limit "
         f"(less {DEADLINE_MARGIN_SECONDS:.0f} s for the reads after it)"
     )
 
@@ -1133,12 +1134,16 @@ def _bot_login(identity: str | None) -> str:
     return (identity or "").strip().lower().removesuffix("[bot]")
 
 
+def _first_line(body: Any) -> str:
+    """The first line of a comment body, without a trailing carriage return."""
+    return str(body or "").split("\n", 1)[0].rstrip("\r")
+
+
 def _started_attempt(body: Any) -> int | None:
     """The pull request a capped-close record names when its first line is one
     that started a fresh attempt (`CAPPED_CLOSE_RE` naming an attempt, not
     parked); a parked or attempt-less record, None. `_spent` counts by it."""
-    first = str(body or "").split("\n", 1)[0].rstrip("\r")
-    match = CAPPED_CLOSE_RE.fullmatch(first)
+    match = CAPPED_CLOSE_RE.fullmatch(_first_line(body))
     if match is None or match[3] is None or match[5]:
         return None
     return int(match[1])
@@ -1169,9 +1174,7 @@ def _capped_records(issue: Any, identity: str | None) -> list[Any]:
         )
         if _by_lane(node.get("author"), identity)
         and (not node.get("editor") or _by_lane(node.get("editor"), identity))
-        and CAPPED_CLOSE_RE.fullmatch(
-            str(node.get("body") or "").split("\n", 1)[0].rstrip("\r")
-        )
+        and CAPPED_CLOSE_RE.fullmatch(_first_line(node.get("body")))
     ]
 
 
@@ -1250,9 +1253,7 @@ def change_digest(diff: str) -> str | None:
                 lines.append(line[0] + content)
         elif line.startswith("rename from "):
             lines.append("rename " + line.removeprefix("rename from "))
-        elif line.startswith("rename to "):
-            lines.append("rename to " + line.removeprefix("rename to "))
-        elif line.startswith(MODE_LINES) or (
+        elif line.startswith((*MODE_LINES, "rename to ")) or (
             line.startswith("Binary files ") and line.endswith(" differ")
         ):
             lines.append(line)
@@ -1740,6 +1741,15 @@ class Reader:
             "GitHub's live artifact count"
         )
 
+    @staticmethod
+    def _print_miss(miss: dict[str, Any]) -> None:
+        """One `LISTING_MISS_PREFIX` line on stderr carrying `miss`."""
+        print(
+            f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
+            file=sys.stderr,
+            flush=True,
+        )
+
     def _incremental(
         self,
         base: tuple[datetime, list[dict[str, Any]]] | None = None,
@@ -1876,21 +1886,13 @@ class Reader:
                 NEAR_EXPIRY_DEADLINE_CAUSE,
             )
             miss["cause"] = unsettled
-            print(
-                f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
-                file=sys.stderr,
-                flush=True,
-            )
+            self._print_miss(miss)
             return None
         if len(listing) == total:
             return listing
         # Fewer than the live count: the pages skipped an artifact. More: the
         # base holds one GitHub no longer lists below the pages read.
-        print(
-            f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
-            file=sys.stderr,
-            flush=True,
-        )
+        self._print_miss(miss)
         if len(listing) > total:
             return COUNT_OVER
         # Short once the pages near expiry were read: they dropped only ids
@@ -1972,7 +1974,7 @@ class Reader:
         for first, last in groups:
             top, bottom = listing[first]["id"], listing[last]["id"]
             page = max(0, first - surplus) // size + 1
-            ups = 1 + surplus // size + 1
+            ups = surplus // size + 2
             downs = (last - first) // size + 2 + surplus // size + 1
             seen: dict[int, dict[str, Any]] = {}
             ended = False
@@ -2053,15 +2055,12 @@ class Reader:
             or not (self._near_expiry_reads or self._artifact_reads)
         ):
             return False
-        miss = {
-            "stage": stage,
-            "whole_listings": reads,
-            "cause": NEAR_EXPIRY_DEADLINE_CAUSE,
-        }
-        print(
-            f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
-            file=sys.stderr,
-            flush=True,
+        self._print_miss(
+            {
+                "stage": stage,
+                "whole_listings": reads,
+                "cause": NEAR_EXPIRY_DEADLINE_CAUSE,
+            }
         )
         return True
 
@@ -2110,6 +2109,7 @@ class Reader:
             left = deadline - _listing_clock()
             if left <= 0:
                 return None
+            self._page_transient = False
             try:
                 proc, headers = gh_api_with_headers(
                     ["api", *conditional, path],
@@ -2117,23 +2117,17 @@ class Reader:
                     env_overrides=self._env(),
                 )
             except (RuntimeError, ValueError, OSError):
-                self._page_transient = False
                 return None
             if proc.returncode == 0:
                 try:
-                    body = json_object(json.loads(proc.stdout))
+                    return json_object(json.loads(proc.stdout)), headers
                 except ValueError:
                     pass  # A body cut short: read again.
-                else:
-                    self._page_transient = False
-                    return body, headers
             else:
                 detail = (proc.stderr or "").strip()
                 if conditional and NOT_MODIFIED_RE.search(detail):
-                    self._page_transient = False
                     return dict(EMPTY_NAMED, artifacts=[]), headers
                 if not _transient(detail):
-                    self._page_transient = False
                     return gh_http_status(detail)
             self._page_transient = True
             if wait is None or deadline - _listing_clock() - wait <= 0:
@@ -2141,35 +2135,17 @@ class Reader:
             _listing_sleep(wait)
         return None
 
-    def _failed_path(self) -> Path | None:
-        """Where a failed whole listing is noted beside `listing_path`, for
-        the job's later Readers (`FAILED_LISTING_SUFFIX`)."""
+    def _beside(self, suffix: str) -> Path | None:
+        """The job's note file `suffix` names beside `listing_path`, for the
+        job's later Readers; None with no `listing_path`."""
         if not self.listing_path:
             return None
-        return Path(f"{self.listing_path}{FAILED_LISTING_SUFFIX}")
+        return Path(f"{self.listing_path}{suffix}")
 
-    def _failed_listing(self) -> str | None:
-        """Why an earlier Reader of this job could not list, if one noted it."""
-        path = self._failed_path()
-        if path is None:
-            return None
-        try:
-            text = path.read_text(encoding="utf-8").strip()
-        except OSError:
-            return None
-        return text or "repository artifacts: an earlier listing in this job failed"
-
-    def _overcount_path(self) -> Path | None:
-        """Where the job's over-count whole listing is noted beside
-        `listing_path` (`OVERCOUNT_FALLBACK_SUFFIX`)."""
-        if not self.listing_path:
-            return None
-        return Path(f"{self.listing_path}{OVERCOUNT_FALLBACK_SUFFIX}")
-
-    def _overcount_taken(self) -> str | None:
-        """How the job's over-count whole listing ended ("" while it pages),
-        or None when no Reader of the job has taken it."""
-        path = self._overcount_path()
+    def _read_beside(self, suffix: str) -> str | None:
+        """The stripped text of the note file `suffix` names (`_beside`), or
+        None when there is none to read."""
+        path = self._beside(suffix)
         if path is None:
             return None
         try:
@@ -2177,12 +2153,35 @@ class Reader:
         except OSError:
             return None
 
+    @staticmethod
+    def _replace_text(path: Path, text: str) -> None:
+        """Best effort: `text` written to `path` through a temporary file
+        beside it, so no reader sees it half written."""
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        with contextlib.suppress(OSError):
+            tmp.write_text(text, encoding="utf-8")
+            os.replace(tmp, path)
+
+    def _failed_listing(self) -> str | None:
+        """Why an earlier Reader of this job could not list, if one noted it
+        (`FAILED_LISTING_SUFFIX`)."""
+        text = self._read_beside(FAILED_LISTING_SUFFIX)
+        if text is None:
+            return None
+        return text or "repository artifacts: an earlier listing in this job failed"
+
+    def _overcount_taken(self) -> str | None:
+        """How the job's over-count whole listing ended ("" while it pages),
+        or None when no Reader of the job has taken it
+        (`OVERCOUNT_FALLBACK_SUFFIX`)."""
+        return self._read_beside(OVERCOUNT_FALLBACK_SUFFIX)
+
     def _claim_overcount(self) -> bool:
         """Whether this Reader may take the job's one whole listing for an
         over-count, noting it taken. With no `listing_path` there is no job
         to note it for, so it may; a failed write leaves the next Reader to
         take it too."""
-        path = self._overcount_path()
+        path = self._beside(OVERCOUNT_FALLBACK_SUFFIX)
         if path is None:
             return True
         try:
@@ -2198,7 +2197,7 @@ class Reader:
     def _note_overcount(self, outcome: str) -> None:
         """Best effort: how the job's over-count whole listing ended, so a
         later Reader's refusal carries a caller-limit refusal's prefix."""
-        path = self._overcount_path()
+        path = self._beside(OVERCOUNT_FALLBACK_SUFFIX)
         if path is not None:
             with contextlib.suppress(OSError):
                 path.write_text(outcome, encoding="utf-8")
@@ -2207,7 +2206,7 @@ class Reader:
         """Best effort: a failed write leaves the next Reader to list. A
         refusal for want of one caller's time (`DEADLINE_UNREADABLE`) is not
         noted: a later caller may have the time."""
-        path = self._failed_path()
+        path = self._beside(FAILED_LISTING_SUFFIX)
         if path is not None and not error.startswith(DEADLINE_UNREADABLE):
             with contextlib.suppress(OSError):
                 note = f"{error} (an earlier listing in this job)"
@@ -2215,14 +2214,9 @@ class Reader:
 
     def _save(self, listing: list[dict[str, Any]], fetched_at: datetime) -> None:
         """Best effort: a failed write leaves the next candidate to list."""
-        if not self.listing_path:
-            return
-        path = Path(self.listing_path)
-        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-        payload = {"fetchedAt": fetched_at.isoformat(), "artifacts": listing}
-        with contextlib.suppress(OSError):
-            tmp.write_text(json.dumps(payload), encoding="utf-8")
-            os.replace(tmp, path)
+        if self.listing_path:
+            payload = {"fetchedAt": fetched_at.isoformat(), "artifacts": listing}
+            self._replace_text(Path(self.listing_path), json.dumps(payload))
 
     def _live_count(self, timeout: float | None = None) -> int:
         """GitHub's live `total_count` of the repository's artifacts, from one
@@ -2423,24 +2417,28 @@ class Reader:
         holds is answered from it, tie or not, with no download."""
         shared = _is_artifact_id(artifact_id)
         key = f"{self.repo}|{artifact_id}"
-        dated = run_cache.get_dated(RECORD_SECTION, key, None) if shared else None
-        if dated is not None and is_json_object(dated[0]):
-            return dated[0].get("head_ref")
-        if shared and artifact_id in self._legacy_refs:
-            return self._legacy_refs[artifact_id]
         if shared:
+            dated = run_cache.get_dated(RECORD_SECTION, key, None)
+            if dated is not None and is_json_object(dated[0]):
+                return dated[0].get("head_ref")
+            if artifact_id in self._legacy_refs:
+                return self._legacy_refs[artifact_id]
             if self._mapped is None:
                 self._mapped = load_head_refs(self.head_refs_path, self.repo)
             if artifact_id in self._mapped:
                 return self._mapped[artifact_id]
-        # A carried head ref ties the FAIL to this PR; one naming another
-        # ref could untie it, so the record is read instead.
-        carried = run_cache.get(CARRIED_RECORD_SECTION, key, None) if shared else None
-        if head_ref and is_json_object(carried) and carried.get("head_ref") == head_ref:
-            return head_ref
-        failed = run_cache.get(UNREAD_RECORD_SECTION, key, None) if shared else None
-        if isinstance(failed, str):
-            raise _Unreadable(failed)
+            # A carried head ref ties the FAIL to this PR; one naming another
+            # ref could untie it, so the record is read instead.
+            carried = run_cache.get(CARRIED_RECORD_SECTION, key, None)
+            if (
+                head_ref
+                and is_json_object(carried)
+                and carried.get("head_ref") == head_ref
+            ):
+                return head_ref
+            failed = run_cache.get(UNREAD_RECORD_SECTION, key, None)
+            if isinstance(failed, str):
+                raise _Unreadable(failed)
         try:
             record = self._record(run_id, name, artifact_id)
         except _Unreadable as exc:
@@ -2532,16 +2530,9 @@ class Reader:
         processes."""
         key = f"{self.repo}@{self.branch}"
         at = run_cache.now()
-        tip = self._tip(self.branch)
         listing = json_object(
-            _read(
-                [
-                    "api",
-                    "-H",
-                    "Accept: application/vnd.github.raw",
-                    f"repos/{self.repo}/contents/{TRUSTED_ACTORS_PATH}?ref={tip}",
-                ],
-                "trusted-actor list",
+            self._raw_file(
+                TRUSTED_ACTORS_PATH, self._tip(self.branch), "trusted-actor list"
             )
         )
         actors = listing.get("actors")
@@ -2588,32 +2579,13 @@ class Reader:
         request's base, shared by the run's gate processes; None when the
         rules hold no string there. A failed read raises `_Unreadable`."""
         if not self._task_list_read:
-            try:
-                default = merge_policy._default_branch(self.repo, shared=True)
-            except merge_policy.PolicyReadError as exc:
-                raise _Unreadable(str(exc)) from exc
-            key = f"{self.repo}@{default}"
-            shared = run_cache.get_dated("task-list", key, run_cache.MAX_AGE)
-            if shared is not None:
-                self._task_list_value, at = shared
-            else:
-                at = run_cache.now()
-                tip = self._tip(default)
-                rules = json_object(
-                    _read(
-                        [
-                            "api",
-                            "-H",
-                            "Accept: application/vnd.github.raw",
-                            f"repos/{self.repo}/contents/{ADMISSION_RULES_PATH}?ref={tip}",
-                        ],
-                        "admission rules",
-                    )
-                )
-                self._task_list_value = rules.get("task-list")
-                run_cache.put("task-list", key, self._task_list_value, at)
+            self._task_list_value, self._task_list_at = self._default_branch_file(
+                "task-list",
+                ADMISSION_RULES_PATH,
+                "admission rules",
+                lambda rules: json_object(rules).get("task-list"),
+            )
             self._task_list_read = True
-            self._task_list_at = at
         if self._task_list_at is not None:
             run_cache.note(self._task_list_at)
         value = self._task_list_value
@@ -2672,32 +2644,49 @@ class Reader:
         request's base or head, shared by the run's gate processes. A failed
         read raises `_Unreadable`."""
         if not self._schedule_read:
-            try:
-                default = merge_policy._default_branch(self.repo, shared=True)
-            except merge_policy.PolicyReadError as exc:
-                raise _Unreadable(str(exc)) from exc
-            key = f"{self.repo}@{default}"
-            shared = run_cache.get_dated("recurring-schedule", key, run_cache.MAX_AGE)
-            if shared is not None:
-                self._schedule_value, at = shared
-            else:
-                at = run_cache.now()
-                tip = self._tip(default)
-                self._schedule_value = _read(
-                    [
-                        "api",
-                        "-H",
-                        "Accept: application/vnd.github.raw",
-                        f"repos/{self.repo}/contents/{RECURRING_SCHEDULE_PATH}?ref={tip}",
-                    ],
-                    "recurring schedule",
-                )
-                run_cache.put("recurring-schedule", key, self._schedule_value, at)
+            self._schedule_value, self._schedule_at = self._default_branch_file(
+                "recurring-schedule", RECURRING_SCHEDULE_PATH, "recurring schedule"
+            )
             self._schedule_read = True
-            self._schedule_at = at
         if self._schedule_at is not None:
             run_cache.note(self._schedule_at)
         return self._schedule_value
+
+    def _raw_file(self, path: str, ref: str, label: str) -> Any:
+        """The repository file at `path` on `ref`, read raw (`_read`)."""
+        return _read(
+            [
+                "api",
+                "-H",
+                "Accept: application/vnd.github.raw",
+                f"repos/{self.repo}/contents/{path}?ref={ref}",
+            ],
+            label,
+        )
+
+    def _default_branch_file(
+        self,
+        section: str,
+        path: str,
+        label: str,
+        pick: Callable[[Any], Any] = lambda raw: raw,
+    ) -> tuple[Any, datetime]:
+        """`pick` of the file at `path` on the repository's default branch's
+        tip, and when it was read, shared by the run's gate processes under
+        `section` for `run_cache.MAX_AGE`. A failed read raises
+        `_Unreadable`."""
+        try:
+            default = merge_policy._default_branch(self.repo, shared=True)
+        except merge_policy.PolicyReadError as exc:
+            raise _Unreadable(str(exc)) from exc
+        key = f"{self.repo}@{default}"
+        shared = run_cache.get_dated(section, key, run_cache.MAX_AGE)
+        if shared is not None:
+            return shared
+        at = run_cache.now()
+        value = pick(self._raw_file(path, self._tip(default), label))
+        run_cache.put(section, key, value, at)
+        return value, at
 
     def _recurring(self, issue: dict[str, Any]) -> bool:
         """Whether recorded linked issue `issue`, which github-actions[bot]
@@ -2892,10 +2881,9 @@ class Reader:
                     else []
                 )
         live = {
-            json_object(node).get("number"): json_object(node)
-            for node in nodes
-            if json_object(json_object(node).get("repository")).get("nameWithOwner")
-            == self.repo
+            node.get("number"): node
+            for node in map(json_object, nodes)
+            if json_object(node.get("repository")).get("nameWithOwner") == self.repo
         }
         live = {
             n: issue
@@ -2989,9 +2977,9 @@ class Reader:
         if self._empty_etag_looked:
             return self._empty_etag
         self._empty_etag_looked = True
-        if not self.listing_path:
+        path = self._beside(EMPTY_ETAG_SUFFIX)
+        if path is None:
             return None
-        path = Path(f"{self.listing_path}{EMPTY_ETAG_SUFFIX}")
         try:
             kept = path.read_text(encoding="utf-8").strip()
         except OSError:
@@ -3002,10 +2990,7 @@ class Reader:
             kept = ""
             if isinstance(read, tuple) and read[0] == EMPTY_NAMED:
                 kept = read[1].get("etag", "")
-            tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-            with contextlib.suppress(OSError):
-                tmp.write_text(kept, encoding="utf-8")
-                os.replace(tmp, path)
+            self._replace_text(path, kept)
         self._empty_etag = kept if kept and ETAG_RE.fullmatch(kept) else None
         return self._empty_etag
 

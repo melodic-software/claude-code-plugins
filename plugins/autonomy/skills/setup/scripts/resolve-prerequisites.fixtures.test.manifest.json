@@ -29,9 +29,9 @@
       "surface": "ci-cron",
       "assert": "positive-verdict"
     },
-    "positive-verdict-yaml-binding": {
+    "retired-json-binding": {
       "surface": "ci-cron",
-      "assert": "positive-verdict-yaml-binding"
+      "assert": "retired-json-binding"
     }
   }
 }

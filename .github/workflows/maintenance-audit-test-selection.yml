@@ -44,6 +44,7 @@ permissions: {}
 
 jobs:
   audit-test-selection:
+    name: Audit Test Selection
     if: github.event_name != 'workflow_run'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -95,7 +96,7 @@ jobs:
           SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fsSL -o "$HOME/.local/bin/shfmt" \
+          curl -fsSL --retry 7 --retry-all-errors -o "$HOME/.local/bin/shfmt" \
             "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
           echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt" | sha256sum -c -
           chmod +x "$HOME/.local/bin/shfmt"
@@ -118,7 +119,7 @@ jobs:
           DUCKDB_SHA256: c61f21485e6e41d3a0c28ce9904ea18346309cf427b4cf9479bc3564348dc885
         run: |
           mkdir -p "$RUNNER_TEMP/duckdb"
-          curl -fsSL -o "$RUNNER_TEMP/duckdb/duckdb.gz" \
+          curl -fsSL --retry 7 --retry-all-errors -o "$RUNNER_TEMP/duckdb/duckdb.gz" \
             "https://github.com/duckdb/duckdb/releases/download/$DUCKDB_VERSION/duckdb_cli-linux-amd64.gz"
           echo "$DUCKDB_SHA256  $RUNNER_TEMP/duckdb/duckdb.gz" | sha256sum -c -
           gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
@@ -155,6 +156,7 @@ jobs:
           retention-days: 7
 
   audit-failed-suite-selection:
+    name: Audit Failed Suite Selection
     if: >-
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'failure' &&
