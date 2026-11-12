@@ -65,9 +65,6 @@ offers are the upstream page's to state; read them there rather than from this s
 - **Pointer**: when the surface, its platforms or its enabling path matters to a diagnosis, fetch
   [Computer use: Differences from the Desktop app](https://code.claude.com/docs/en/computer-use#differences-from-the-desktop-app)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section's table adds, drops or changes a row, or a release note names
-  computer use on either surface.
 
 ## Gotchas
 
@@ -77,8 +74,6 @@ offers are the upstream page's to state; read them there rather than from this s
   - **Pointer**: for how screenshots are downscaled, fetch
     [Computer use: Screenshots are downscaled automatically](https://code.claude.com/docs/en/computer-use#screenshots-are-downscaled-automatically)
     live.
-  - **As of**: 2026-11-03
-  - **Recheck trigger**: that section changes how the target size is set.
 - **`zoom` re-captures; it does not crop.** It therefore fails when capture is failing, and it
   recovers genuine detail when capture is healthy. Both follow from the same fact.
 - **A tool error naming an unexpected app is the safety gate working**, not a defect. Nothing was

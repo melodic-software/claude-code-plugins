@@ -30,9 +30,8 @@ git release that changes the `hook.<name>.*` keys.
    too. Use `gitdir/i:` on Windows. `config-hook` refuses `worktree:` and `worktree/i:` on a git
    older than its worktree floor; use `gitdir:` there. Pointer (how each keyword matches, linked
    worktrees included):
-   <https://git-scm.com/docs/git-config#_conditional_includes>, as of 2026-11-10; recheck trigger:
-   a git release that changes the `includeIf` keywords or what `gitdir` matches for a worktree. When nobody can answer, stop and report:
-   never pick a condition.
+   <https://git-scm.com/docs/git-config#_conditional_includes>. When nobody can answer, stop and
+   report: never pick a condition.
 2. **Install.** Run `node "<installer>" config-hook --include-if '<condition>'` from a
    repository, `<installer>` being the `install.mjs` path the SKILL.md install steps run. It writes the stable copy and the include file
    and prints `dir`, `include`, one `installed` row per entry (`installed`, `refreshed`,

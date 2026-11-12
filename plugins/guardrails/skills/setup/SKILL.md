@@ -138,9 +138,6 @@ the retired-hook cleanup below, writes nothing. It points:
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 
 **Retired hooks.** After the points above, re-run the retirement detection from `check` step 8;
 per finding, individually gated: `delete` → confirm, then run
@@ -219,8 +216,7 @@ registration is a committed change the team reviews. A remote entry stays in the
 `lefthook.yml`, so stop it in this clone alone by skipping its job, `guardrails-remote-<name>`,
 in the clone's gitignored lefthook local config, written as lefthook's docs say at the time
 (pointer: [lefthook-local](https://lefthook.dev/examples/lefthook-local/) and
-[skip](https://lefthook.dev/configuration/skip/); as of 2026-10-23; recheck trigger: a lefthook
-release that changes how a local config overrides a remote's job). This is the way out the `reference-verify`
+[skip](https://lefthook.dev/configuration/skip/)). This is the way out the `reference-verify`
 failure names for a cli-flag finding, which is unverified rather than proven wrong.
 
 ## `apply read-deny [local|shared] [user] [remove]` (opt-in, explicit argument only)
@@ -231,8 +227,6 @@ commands Claude Code applies them to.
 interpreter that opens the file itself (`python3 -c "open('.env')"`). Pointer:
 [What Read and Edit rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover)
 and [Special characters and negation](https://code.claude.com/docs/en/permissions#special-characters-and-negation).
-As of: 2026-11-10. Recheck trigger: either section changes which tools or Bash commands a
-`Read` deny rule reaches, or its pattern syntax.
 
 This is the one `apply` action that changes settings, and only this way: the skill prints the
 rules, then you add them to the chosen file with your edit tools. No script writes settings.

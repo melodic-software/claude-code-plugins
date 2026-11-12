@@ -256,9 +256,6 @@ The component view reads dependency-graph.json.
     and
     [MSBuild items § Create items in a project file](https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-items#create-items-in-a-project-file)
     live.
-  - **As of**: 2026-11-10
-  - **Recheck trigger**: either section changes the lookup rule or the base of a relative
-    `Include`.
 - **Evidence stops at the end of the tag.** A `Version` child element on the following
   lines is not part of the citation. A `Version` attribute on the same tag is.
 - **`bin`, `obj`, `node_modules`, `vendor`, and dot-directories** other than the CI and

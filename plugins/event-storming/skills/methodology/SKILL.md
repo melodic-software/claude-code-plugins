@@ -52,8 +52,6 @@ denotes that tool under whichever prefix the gate found.
   and
   [Server names, tool names, and reloads](https://code.claude.com/docs/en/plugins/components#server-names-tool-names-and-reloads)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: either section changes the MCP tool-name format.
 
 When Miro IS available, query it for recent boards with that prefix's `miro_list_boards`. Look for boards with EventStorming-related names (containing "Big Picture", "Process Model", "Design-Level", "EventStorming", or domain-specific names from prior sessions). Sort by last modified.
 

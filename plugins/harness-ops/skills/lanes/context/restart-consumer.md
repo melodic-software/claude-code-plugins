@@ -31,6 +31,10 @@ The discriminating question is *what survives the failure it remediates*:
 | Stop hook on the dying lane | conditionally | no | no |
 | OS scheduler (chosen) | yes | yes | yes |
 
+The OS schedule keeps running through a lane crash, a harness restart or a reboot, but it
+relaunches only a stopped lane whose telemetry carries a non-null `restart_request`. A crashed
+lane writes none, so it stays down until the operator restarts it.
+
 - A **watchdog lane is circular**: it is itself a `/loop` session bounded by the
   same `/loop` expiry, cycle budget, and crash risk it exists to remediate.
   Nothing restarts the restarter.

@@ -31,8 +31,7 @@ documented upstream:
   clicking, and cannot recover itself once it does. Measured, not inferred.
 - **`zoom` is the lever for screenshot detail**, not the display: it re-captures a region at
   full resolution. For how screenshots are downscaled, see
-  [Computer use: Screenshots are downscaled automatically](https://code.claude.com/docs/en/computer-use#screenshots-are-downscaled-automatically)
-  (as of 2026-11-03; recheck when that section changes how the target size is set).
+  [Computer use: Screenshots are downscaled automatically](https://code.claude.com/docs/en/computer-use#screenshots-are-downscaled-automatically).
 - **Capture and input failures are environment state**, not tool defects, and each has a
   distinct signature worth reading rather than retrying past.
 
@@ -56,8 +55,7 @@ platform-neutral material only.
 Surfaces are not interchangeable, and the skill says so: the Claude Code CLI and the Desktop app
 differ in the platforms they run computer use on and in how they enable it, so guidance written
 for one is wrong on the other. The skills read that split live from
-[Computer use: Differences from the Desktop app](https://code.claude.com/docs/en/computer-use#differences-from-the-desktop-app)
-(as of 2026-10-11; recheck when that section's table changes).
+[Computer use: Differences from the Desktop app](https://code.claude.com/docs/en/computer-use#differences-from-the-desktop-app).
 
 ## What it deliberately does not do
 
@@ -74,6 +72,4 @@ for one is wrong on the other. The skills read that split live from
 The `computer-use` MCP server must be enabled, on an eligible setup, with OS-level permissions
 granted. `/computer-use:setup` probes all of it and reports what is missing; installing and
 enabling remain the operator's. For which plans, providers and session modes are eligible, see
-[Computer use: Troubleshooting](https://code.claude.com/docs/en/computer-use#troubleshooting)
-(as of 2026-10-11; recheck when that section changes the plans, providers or session modes it
-names).
+[Computer use: Troubleshooting](https://code.claude.com/docs/en/computer-use#troubleshooting).

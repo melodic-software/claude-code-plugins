@@ -168,6 +168,15 @@ display_lines() {
   tr -d '\r'
 }
 
+# print_items <block> <jq program over the block> - one `    - <line>` row per
+# display line the program prints.
+print_items() {
+  local line
+  while IFS= read -r line; do
+    [[ -z "$line" ]] || printf '    - %s\n' "$line"
+  done < <(jq -r "$JQ_DEFS $2" <<<"$1" | display_lines)
+}
+
 # --- Rename heuristic ---------------------------------------------------------
 
 # Similar names are likely renames: same prefix or suffix of >= 4 chars, OR one
@@ -481,19 +490,21 @@ audit_marketplace() {
 
   # --- Render -----------------------------------------------------------------
 
-  local orphan_count new_count removed_count rename_count local_count upstream_count
+  local orphan_count new_count removed_count rename_count heuristic_count
   orphan_count=$(jq -j '.orphans | length' <<<"$block")
   new_count=$(jq -j '.new_upstream | length' <<<"$block")
   removed_count=$(jq -j '.removed | length' <<<"$block")
   rename_count=$(jq -j '[.renames[] | select(.source == "renames")] | length' <<<"$block")
-  local_count=$(jq -j --argjson i "$index" "$JQ_DEFS"'mk($i).key as $k | [ep | keys[] | select(endswith("@" + $k))] | length' "$SETTINGS")
-  upstream_count=$(jq -j '[.plugins[]? | objects | .name | strings] | unique | length' <<<"$upstream_json")
+  heuristic_count=$(jq -j '[.renames[] | select(.source != "renames")] | length' <<<"$block")
   ORPHAN_TOTAL=$((ORPHAN_TOTAL + orphan_count))
   NEW_TOTAL=$((NEW_TOTAL + new_count))
   REMOVED_TOTAL=$((REMOVED_TOTAL + removed_count))
   RENAME_TOTAL=$((RENAME_TOTAL + rename_count))
 
   if [[ "$orphan_count" -eq 0 && "$new_count" -eq 0 && "$removed_count" -eq 0 && "$rename_count" -eq 0 ]]; then
+    local local_count upstream_count
+    local_count=$(jq -j --argjson i "$index" "$JQ_DEFS"'mk($i).key as $k | [ep | keys[] | select(endswith("@" + $k))] | length' "$SETTINGS")
+    upstream_count=$(jq -j '[.plugins[]? | objects | .name | strings] | unique | length' <<<"$upstream_json")
     printf '  %sOK%s    no drift (%d local, %d upstream)\n' \
       "$GREEN" "$RESET" "$local_count" "$upstream_count"
   fi
@@ -527,41 +538,26 @@ audit_marketplace() {
     settings_file_is_managed && removed_fix="$REMEDIATION_MANAGED"
     printf '  %sREMOVED%s %d entries the catalog renames map marks removed (%s):\n' \
       "$YELLOW" "$RESET" "$removed_count" "$removed_fix"
-    while IFS= read -r line; do
-      [[ -z "$line" ]] && continue
-      printf '    - %s\n' "$line"
-    done < <(jq -r "$JQ_DEFS"'.removed[] | .name + "@" + .marketplace | san' <<<"$block" | display_lines)
+    print_items "$block" '.removed[] | .name + "@" + .marketplace | san'
   fi
 
   if [[ "$new_count" -gt 0 ]]; then
     printf '  %sNEW%s     %d upstream plugins with no entry in the settings file (report only):\n' \
       "$CYAN" "$RESET" "$new_count"
-    while IFS= read -r line; do
-      [[ -z "$line" ]] && continue
-      printf '    - %s\n' "$line"
-    done < <(jq -r "$JQ_DEFS"'.new_upstream[] | .name + "@" + .marketplace | san' <<<"$block" | display_lines)
+    print_items "$block" '.new_upstream[] | .name + "@" + .marketplace | san'
   fi
 
-  local catalog_renames heuristic_renames rename_fix
-  catalog_renames=$(jq -j '[.renames[] | select(.source == "renames")] | length' <<<"$block")
-  heuristic_renames=$(jq -j '[.renames[] | select(.source != "renames")] | length' <<<"$block")
-  if [[ "$catalog_renames" -gt 0 ]]; then
-    rename_fix="$REMEDIATION_RENAME_FILE"
+  if [[ "$rename_count" -gt 0 ]]; then
+    local rename_fix="$REMEDIATION_RENAME_FILE"
     settings_file_is_managed && rename_fix="$REMEDIATION_MANAGED"
     printf '  %sRENAME%s   %d catalog renames (%s):\n' \
-      "$YELLOW" "$RESET" "$catalog_renames" "$rename_fix"
-    while IFS= read -r line; do
-      [[ -z "$line" ]] && continue
-      printf '    - %s\n' "$line"
-    done < <(jq -r "$JQ_DEFS"'.renames[] | select(.source == "renames") | "\(.from | san) -> \(.to | san)"' <<<"$block" | display_lines)
+      "$YELLOW" "$RESET" "$rename_count" "$rename_fix"
+    print_items "$block" '.renames[] | select(.source == "renames") | "\(.from | san) -> \(.to | san)"'
   fi
-  if [[ "$heuristic_renames" -gt 0 ]]; then
+  if [[ "$heuristic_count" -gt 0 ]]; then
     printf '  %sRENAME?%s possible rename pairs (heuristic, review manually):\n' \
       "$YELLOW" "$RESET"
-    while IFS= read -r line; do
-      [[ -z "$line" ]] && continue
-      printf '    - %s\n' "$line"
-    done < <(jq -r "$JQ_DEFS"'.renames[] | select(.source != "renames") | "\(.from | san) -> \(.to | san)"' <<<"$block" | display_lines)
+    print_items "$block" '.renames[] | select(.source != "renames") | "\(.from | san) -> \(.to | san)"'
   fi
 }
 

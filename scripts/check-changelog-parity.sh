@@ -722,6 +722,17 @@ if changelog_fragments::is_release_pr; then
   release_pr=1
 fi
 
+# New path -> old path for each changelog this change set renamed (a plugin
+# directory rename), read once for the whole diff.
+declare -A rename_source=()
+if ! rename_listing="$(git diff --name-status -M --diff-filter=R "$merge_base" "$head_commit" -- '*CHANGELOG.md')"; then
+  echo "check-changelog-parity: the rename diff from $merge_base to $head_commit failed; refusing to pass without checking." >&2
+  exit 2
+fi
+while IFS=$'\t' read -r _ old new; do
+  [[ -n "${new:-}" ]] && rename_source["$new"]="$old"
+done <<<"$rename_listing"
+
 # touched_changelogs is already unique (the seen_changelog guard where it is
 # built), so each changelog is inspected exactly once.
 for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
@@ -739,9 +750,13 @@ for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
   fi
 
   base_body=""
-  if git cat-file -e "$merge_base:$changelog" 2>/dev/null; then
-    if ! base_body="$(git show "$merge_base:$changelog")"; then
-      echo "check-changelog-parity: 'git show $merge_base:$changelog' failed; refusing to pass without checking." >&2
+  base_path="$changelog"
+  # A changelog moved with its renamed plugin directory is compared with the
+  # file it was renamed from, so only headings the move itself adds count.
+  git cat-file -e "$merge_base:$changelog" 2>/dev/null || base_path="${rename_source[$changelog]:-}"
+  if [[ -n "$base_path" ]] && git cat-file -e "$merge_base:$base_path" 2>/dev/null; then
+    if ! base_body="$(git show "$merge_base:$base_path")"; then
+      echo "check-changelog-parity: 'git show $merge_base:$base_path' failed; refusing to pass without checking." >&2
       exit 2
     fi
   fi

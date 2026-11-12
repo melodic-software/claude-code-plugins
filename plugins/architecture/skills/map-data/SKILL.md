@@ -196,9 +196,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
   skill adds no C4 dialect key and reads `diagram_dialect.data` (`mermaid` or `dbml`). Pointer:
   when checking which views C4 defines, fetch
   [C4 diagrams § Static structure diagrams](https://c4model.com/diagrams#static-structure-diagrams)
-  and [§ Supporting diagrams](https://c4model.com/diagrams#supporting-diagrams) live. As of:
-  2026-11-10. Recheck trigger: C4 adds a diagram type whose subject is entities and their
-  relationships.
+  and [§ Supporting diagrams](https://c4model.com/diagrams#supporting-diagrams) live.
 - **A Prisma one-to-many is read from `@relation(fields:, references:)`.** The reader takes the
   scalar that `fields` names as the foreign key, and reads the relation as required when neither
   the relation field nor that scalar carries `?`. Pointer: when
@@ -206,8 +204,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
   [one-to-many relations § 1-n in the database](https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/one-to-many-relations#1-n-in-the-database)
   and
   [§ Required vs optional relation fields](https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/one-to-many-relations#required-vs-optional-relation-fields)
-  live. As of: 2026-11-10. Recheck trigger: that page stops using `fields` and `references` to
-  name the foreign key.
+  live.
 - **The EF reader is a stated subset of the fluent chain.** It reads `HasMany`/`HasOne`,
   `WithOne`/`WithMany`, `HasForeignKey`, and `IsRequired`, including the lambda form. Without
   `IsRequired` it takes requiredness from the foreign-key property's nullability alone, whatever
@@ -218,8 +215,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
   [foreign and principal keys § Non-nullable foreign key columns](https://learn.microsoft.com/en-us/ef/core/modeling/relationships/foreign-and-principal-keys#non-nullable-foreign-key-columns)
   and
   [one-to-many § Required one-to-many](https://learn.microsoft.com/en-us/ef/core/modeling/relationships/one-to-many#required-one-to-many)
-  live. As of: 2026-11-10. Recheck trigger: either section changes how nullability sets
-  requiredness, or an EF Core major release ships. The script's stderr names the property or chain that stopped a refused read; the
+  live. The script's stderr names the property or chain that stopped a refused read; the
   record's reason stays `ef-fluent-unreadable`. A declaration in the configuration file's own
   module is preferred over the rest of the repository. A chain outside the subset refuses the
   record only when EF is the winning tier. Beside a Prisma schema it is a `not-compared` row, so a
@@ -232,7 +228,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
   diagram names a node `module/Entity` whenever more than one module is in scope, quoted in
   Mermaid (`"orders/User"`). Pointer: when checking which entity names Mermaid needs quoted, fetch
   [entity relationship diagrams § Entities and relationships](https://mermaid.js.org/syntax/entityRelationshipDiagram.html#entities-and-relationships)
-  live. As of: 2026-11-10. Recheck trigger: that section changes its rule for entity names.
+  live.
 - **A required relationship does not mean the principal has at least one dependent.** The diagram
   uses `||--o{` for a required foreign key. That matches both Prisma and EF: the many side may be
   empty. The same EF page states there is no standard way to require a minimum number of
@@ -249,8 +245,7 @@ option `${user_config.medium}`, or `""` when that reads empty or unsubstituted (
   [entity relationship diagrams § Relationship syntax](https://mermaid.js.org/syntax/entityRelationshipDiagram.html#relationship-syntax)
   and
   [one-to-one relations § 1-1 in the database](https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/one-to-one-relations#1-1-in-the-database)
-  live. As of: 2026-11-10. Recheck trigger: either section changes its markers or its uniqueness
-  rule.
+  live.
 - **DBML names the referenced column the declaration names.** Prisma `references: [..]` and SQL
   `REFERENCES t(col)` fill it, and EF `HasPrincipalKey("Col")` does. Where the declaration names
   none, the `Ref` becomes a `//` comment that says so, because DBML needs a column on both sides;

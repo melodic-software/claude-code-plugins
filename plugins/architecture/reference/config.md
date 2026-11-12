@@ -167,9 +167,6 @@ the session is working in.
   [skills § Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
   and [skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes what `${CLAUDE_SKILL_DIR}` expands to or which
-  working directory a skill's commands run in.
 
 ## What writes this surface
 

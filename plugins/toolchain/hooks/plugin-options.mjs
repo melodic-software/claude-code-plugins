@@ -13,8 +13,7 @@
 //     -> {<key>: {value, scope: "user" | "managed", file}} for each key a source sets
 //
 // Sources, highest precedence first (managed settings page, "How Claude Code combines managed
-// sources" and "managed-settings.d", https://code.claude.com/docs/en/managed-settings, read
-// 2026-10-11; recheck when that section or the settings-reference pluginConfigs scope changes):
+// sources" and "managed-settings.d", https://code.claude.com/docs/en/managed-settings):
 //   1. managed-settings.json then every non-hidden *.json in managed-settings.d/ in alphabetical
 //      order, a later file replacing an earlier one's value; the system directory is a fixed
 //      literal per platform, chosen by process.platform.
