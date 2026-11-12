@@ -358,6 +358,7 @@ its report line is printed. Procedure:
   <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference.html>.
   Claim: `AWS::ECS::Service` takes `Cluster`, `DesiredCount`, `ServiceName`, and `TaskDefinition`.
   Basis: <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ecs-service.html>.
+  As of: 2026-09-30. Recheck when any of those pages changes a form or property name.
 - **CloudFormation parameters and secrets.** The redaction and resolution rules above read
   `NoEcho`, `Default` and the `{{resolve:...}}` forms. Pointer: when checking what those mean or
   how a dynamic reference is written, fetch
@@ -368,6 +369,7 @@ its report line is printed. Procedure:
   array or a template configuration file with a top-level `Parameters` object. Basis:
   <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-using-cli-parameters.html>. No
   document names a per-environment file convention, so the pairing rules above are this skill's own.
+  As of: 2026-09-30. Recheck when those pages change the syntax or add a parameter file shape.
 - **Pulumi YAML program and stack shape.** The reader maps the project file's `runtime`, the
   program's `resources`, `variables` and `outputs`, `config` items, `${...}` interpolation and the
   `fn::toJSON`, `fn::secret` and `fn::join` forms. Pointer: when checking those forms, fetch
@@ -382,7 +384,8 @@ its report line is printed. Procedure:
   `taskDefinition`, `desiredCount`, and `name`, and `aws:ecs:TaskDefinition` takes `containerDefinitions`
   as `fn::toJSON` over a list of `name`, `image`, `portMappings` (`containerPort`). Basis:
   <https://www.pulumi.com/registry/packages/aws/api-docs/ecs/service/> and
-  <https://www.pulumi.com/registry/packages/aws/api-docs/ecs/taskdefinition/>.
+  <https://www.pulumi.com/registry/packages/aws/api-docs/ecs/taskdefinition/>. As of: 2026-09-30.
+  Recheck when any of those pages changes a key, the `secure:` form, or the `runtime` forms.
 - **Bicep and ARM values are resolved, never evaluated.** A parameter resolves from a module
   `params` argument, then the environment's parameters file, then its default, and `${name}` inside
   a Bicep string the same way. An ARM value resolves only when it is exactly
@@ -452,7 +455,8 @@ its report line is printed. Procedure:
 - **A `.tf.json` block may be an array of objects at any level.** Claim: each label level of a
   block (a resource's type and name) and its body may be a JSON object or a JSON array of objects,
   so `"resource": [{"aws_s3_bucket": {"b": {}}}]` declares the same resource as the object form.
-  Basis: <https://raw.githubusercontent.com/hashicorp/hcl/main/json/spec.md> (Blocks).
+  Basis: <https://raw.githubusercontent.com/hashicorp/hcl/main/json/spec.md> (Blocks). As of:
+  2026-09-30. Recheck when that spec changes where an array may stand in for an object.
 - **One task definition, several services.** Each service that runs a shared task definition places
   the task definition's containers on its own cluster with its own desired count, named
   `<container>@<service>`. The `@` separates the two parts, and a label prints it as `(at)`, like
@@ -467,7 +471,8 @@ its report line is printed. Procedure:
   as `resource "helm_release"`, and the Pulumi Kubernetes provider as the type
   `kubernetes:helm.sh/v3:Release`. Basis:
   <https://raw.githubusercontent.com/hashicorp/terraform-provider-helm/main/docs/resources/release.md>
-  and <https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/release/>. Either one declines Helm, which refuses the
+  and <https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/release/>. As of:
+  2026-09-30. Recheck when either page renames the type. Either one declines Helm, which refuses the
   whole record as `partial-read`, because the chart's workloads are not read. `kubernetes_manifest`
   and the `kubernetes_*` types the Terraform reader does not map appear under `## Unmapped
   resources`, since the Kubernetes tool itself is a shipped reader.
