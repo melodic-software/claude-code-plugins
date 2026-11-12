@@ -213,7 +213,7 @@ verdicts live in the report and in a comment at the declaration, and the same ca
 Say so rather than emitting a directive. The probe behind the Go half is in
 [context/adjudication.md](context/adjudication.md#suppression-formats) "Suppression formats"; `//lint:ignore` belongs
 to staticcheck, per
-[Ignoring problems with linter directives](https://staticcheck.dev/docs/configuration/)
+[Ignoring problems with linter directives](https://staticcheck.dev/docs/configuration/#ignoring-problems-with-linter-directives)
 (as of 2026-11-03; recheck when that section names gopls among the tools that read it).
 
 `dead` and `uncertain` verdicts are session-scoped: an un-suppressed `uncertain` returns next run.
