@@ -1,8 +1,6 @@
 // A fetch that sends a request again after a transient failure, for scripts
 // that run from a copy of their own directory (collect-base-activity) and so
 // cannot import the shared client in actions/check-trusted-trigger.
-// apply-patch/, pr-unblock/ and work-resolve-issue/ each hold this same file;
-// work-resolve-issue/retry-fetch.test.mjs keeps the copies equal.
 //
 // A request that fails on the network (undici's "fetch failed", or a cause
 // code such as ECONNRESET or UND_ERR_SOCKET) or that GitHub answers 5xx is
