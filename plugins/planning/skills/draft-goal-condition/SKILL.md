@@ -62,11 +62,12 @@ see the result. When either is missing, prompt once instead.
   backlog / existing tickets →
   `/work-items:work` (or the work-loop); undecomposed plan or intent → `/work-items:decompose` then
   `/work-items:work`. When `work-items` is not enabled, tell the user to enable it (installing it
-  first if needed), or draft only if they insist on one-session completion. A single goal-pursuing
-  window keeps going past a full context only through auto-compaction (see
-  [What survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction));
-  we route multi-window work to decomposed items so each item starts in a fresh window. This is an advisory default, not a prohibition: draft when the intent is
-  genuinely one-session completion.
+  first if needed), or draft only if they insist on one-session completion. We route
+  multi-window work to decomposed items so each item starts in a fresh window; what one window
+  carries across a compaction is in
+  [What survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction).
+  This is an advisory default, not a prohibition: draft when the intent is genuinely one-session
+  completion.
 
 Two caveats on the workflow row, each of which turns a plausible recommendation into a dead one:
 
