@@ -2989,12 +2989,17 @@ def _stop_uncovered(judged: list[AutoMerge], listed: list[Run]) -> None:
             raise UncoveredMergeStop(merge.number)
 
 
-def newest_dispatch_before(repo: str, branch: str, merged_at: datetime) -> bool:
+def newest_dispatch_lacks(repo: str, branch: str, lane_sha: str) -> bool:
     """Whether the newest dispatch run `_dispatch_runs` would list on `branch`
-    was created before `merged_at`, read in one call: then `_stop_uncovered`
-    stops for a judged merge at `merged_at`, as no listed run can cover it.
-    No dispatch run at all is True too. Raises `PostMergeReadError` when the
-    listing is unreadable or its newest row is not such a run."""
+    lacks `lane_sha`, read in one call. A dispatch run checks out the branch
+    tip when it is created, so its `head_sha` holds the commit exactly when
+    the run was created after that commit landed; when it does not, no listed
+    run was, and `_stop_uncovered` stops for a judged merge at `lane_sha`. No
+    dispatch run at all is True too. The ancestry is read from a local
+    full-history clone (`_Context._local_contains`); a `head_sha` no clone
+    holds, or any git failure, is False, so the caller runs its check. Raises
+    `PostMergeReadError` when the listing is unreadable or its newest row is
+    not such a run."""
     owner, name = _split_repo(repo)
     label = f"newest {FULL_RUN_WORKFLOW} workflow_dispatch run"
     page = json_object(
@@ -3021,19 +3026,21 @@ def newest_dispatch_before(repo: str, branch: str, merged_at: datetime) -> bool:
     ]
     if not runs:
         raise PostMergeReadError(f"{label}: the newest row is not a run on {branch}")
-    return max(r.created_at for r in runs) < merged_at
+    head = max(runs, key=lambda r: r.created_at).head_sha
+    ctx = _Context(owner, name, "", branch=branch)
+    return ctx._local_contains(lane_sha, head) is False
 
 
-def _uncovered_since(repo: str, branch: str, merged_at: datetime) -> int:
-    """`--uncovered-since`: EXIT_UNCOVERED (6) when `newest_dispatch_before`,
-    0 when not, 3 when the read failed; a rate limit exits 75 through
+def _uncovered_at(repo: str, branch: str, lane_sha: str) -> int:
+    """`--uncovered-at`: EXIT_UNCOVERED (6) when `newest_dispatch_lacks`, 0
+    when not, 3 when the read failed; a rate limit exits 75 through
     babysit_gh. Only 6 ends a pr-merge wake; any other code runs its check."""
     try:
-        uncovered = newest_dispatch_before(repo, branch, merged_at)
+        uncovered = newest_dispatch_lacks(repo, branch, lane_sha)
     except PostMergeReadError as exc:
-        print(f"uncovered-since: {exc}", file=sys.stderr)
+        print(f"uncovered-at: {exc}", file=sys.stderr)
         return EXIT_UNREADABLE
-    _print_json({"uncovered": uncovered, "since": merged_at.isoformat()}, indent=None)
+    _print_json({"uncovered": uncovered, "lane": lane_sha}, indent=None)
     return EXIT_UNCOVERED if uncovered else 0
 
 
@@ -5273,6 +5280,12 @@ def _since(value: str) -> datetime:
     return parsed
 
 
+def _full_sha(value: str) -> str:
+    if not _FULL_SHA.fullmatch(value):
+        raise argparse.ArgumentTypeError("needs a full 40-character commit id")
+    return value
+
+
 def _print_json(payload: Any, indent: int | None = 2) -> None:
     json.dump(payload, sys.stdout, indent=indent)
     sys.stdout.write("\n")
@@ -5544,13 +5557,14 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     mode.add_argument(
-        "--uncovered-since",
-        type=_since,
-        metavar="MERGED_AT",
+        "--uncovered-at",
+        type=_full_sha,
+        metavar="LANE_SHA",
         help=(
-            "with --branch: exit 6 when the branch's newest full dispatch run "
-            "was created before MERGED_AT (ISO 8601 with an offset), 0 when not, "
-            "3 unreadable; one read, before any of the check's (a pr-merge wake's "
+            "with --branch: exit 6 when the branch's newest full dispatch run's "
+            "head commit does not contain LANE_SHA (a full commit id, ancestry "
+            "read from a local clone), 0 when it does or cannot be told, 3 "
+            "unreadable; one read, before any of the check's (a pr-merge wake's "
             "pre-check)"
         ),
     )
@@ -5579,13 +5593,13 @@ def main(argv: list[str] | None = None) -> int:
         or args.settle_from
         or args.judge_run is not None
         or args.lane_alerted is not None
-        or args.uncovered_since is not None
+        or args.uncovered_at is not None
     ):
         parser.error("--stop-uncovered is for a read-only check alone")
-    if args.uncovered_since is not None:
+    if args.uncovered_at is not None:
         if not args.branch:
-            parser.error("--uncovered-since needs --branch")
-        return _uncovered_since(args.repo, args.branch, args.uncovered_since)
+            parser.error("--uncovered-at needs --branch")
+        return _uncovered_at(args.repo, args.branch, args.uncovered_at)
     if args.preflight:
         return _preflight(args.repo, args.agent_identity, args.self_login)
     if args.lane_alerted is not None:

@@ -2093,7 +2093,10 @@ and skips the merge job, `post-merge-dispatch` and every other sweep job. That r
 while `settle --idle-tick` keeps it; when it does not, the wake never reuses it but runs the
 post-merge check fresh on its own read-only token, and arms only when that check passes (exit 0
 or 5) and `settle --idle-tick` keeps the fresh report too, since the wake starts no full run or
-re-run. Its `api-calls` totals, which report the room came from (`report=last`, `fresh` or `none`) and
+re-run. Before those reads, one listing read ends the wake with nothing armed when main's newest
+full dispatch run's head commit lacks the newest commit the lanes App authored on main
+(`babysit_postmerge.py --uncovered-at`), where the fresh check would stop at exit 6; any other
+answer runs the path above. Its `api-calls` totals, which report the room came from (`report=last`, `fresh` or `none`) and
 the outcome land in one `pr-merge-wake` notice. The 30-minute schedule is the backstop that arms
 what a wake missed and disarms what the events missed; a listed human's unlabel wakes it too. A
 `Hold:` line added after arming fails `ci-status` on that edit, on the pull request and in the
