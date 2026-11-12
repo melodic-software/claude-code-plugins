@@ -463,6 +463,7 @@ jobs:
         .github/scripts/apply-patch/apply-patch.mjs
         .github/scripts/apply-patch/predicates.mjs
         .github/scripts/apply-patch/protected-paths.mjs
+        .github/scripts/lib/run-main.mjs
         .github/scripts/pr-unblock/fix-ci-context.mjs
         .github/scripts/pr-unblock/feedback-dispatch.mjs
         .github/scripts/pr-unblock/verify-notes.mjs
