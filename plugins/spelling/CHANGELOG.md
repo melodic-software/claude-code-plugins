@@ -3,10 +3,6 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-Entries released before the plugin was renamed `spelling` were written under its earlier name and
-option prefix. They now show today's names, so a command, option, variable or path named in one
-of them may never have shipped under the name shown.
-
 ## [1.1.0] - 2026-11-12
 
 ### Added
@@ -416,7 +412,7 @@ No behavior change.
 
 ### Removed
 
-- The per-edit PostToolUse spell-check row: findings now arrive at commit time from the pre-commit entry, or at turn end with `spelling_end_of_turn` on. Its write mode, the `spelling_write_changes` and `spelling_lint_gitignored` options, and the SessionStart `compact|clear` row that re-sent its findings went with it.
+- The per-edit PostToolUse spell-check row: findings now arrive at commit time from the pre-commit entry, or at turn end with `spelling_end_of_turn` on. Its write mode, the write-in-place and lint-gitignored options, and the SessionStart `compact|clear` row that re-sent its findings went with it.
 - jq as a requirement: no remaining row needs it, so a host without jq no longer gets a notice at session start.
 
 ## [0.9.14] - 2026-10-13
@@ -581,7 +577,7 @@ No behavior change.
 
 - Option titles follow the plugin-option-naming convention
   (`docs/conventions/plugin-option-naming/`): `spelling_enabled` is titled `Spell-check on edit`
-  and `spelling_write_changes` is titled `In-place spelling corrections`. No key, type or
+  and the write-in-place option is titled `In-place spelling corrections`. No key, type or
   default changed.
 
 ## [0.8.10] - 2026-10-02
@@ -686,7 +682,7 @@ No behavior change.
 ### Changed
 
 - **The missing-`typos` notice uses the `prerequisite` notice class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).** It latches once per session, shared by every agent, instead of once per session and agent, and the renewal on every eighth skip keeps the install route. The notice text says so. The missing-`jq` notice keeps its per-session-and-agent latch.
-- **The gitignore check runs after the typos binary is resolved ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)).** The `git check-ignore` spawn is paid only when typos is about to run. On a host without `typos`, an edit to a gitignored file now emits the once-per-session missing-`typos` notice instead of skipping silently first. The `spelling_lint_gitignored` default and its meaning are unchanged.
+- **The gitignore check runs after the typos binary is resolved ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)).** The `git check-ignore` spawn is paid only when typos is about to run. On a host without `typos`, an edit to a gitignored file now emits the once-per-session missing-`typos` notice instead of skipping silently first. The lint-gitignored option's default and its meaning are unchanged.
 - **The setup skill records its basis for the policy-disabled row and for step 1's limit ([#4566](https://github.com/melodic-software/claude-code-plugins/pull/4566)).** Both carry a dated four-part record against the skills docs. Step 1 says why it only reports a Bash version: on Windows without Git Bash the `shell: bash` skill fails to load, and the README Requirements now say to install Git for Windows and rerun. The skill's notice wording matches the hook's latch scopes, and a new eval covers the Windows case.
 - CHANGELOG: corrected the 0.7.5 entry, which claimed a session-start probe and `prerequisites.json` this plugin does not ship. The probe and manifest for the remaining binary-probing format plugins are tracked in [#5286](https://github.com/melodic-software/claude-code-plugins/issues/5286).
 
@@ -731,7 +727,7 @@ No behavior change.
 
 ### Changed
 
-- **A file the repository gitignores is left alone by default** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). An edit to a gitignored path, such as a `.work/` scratch file, is now neither reported nor rewritten in write mode. Set `spelling_lint_gitignored` to `true` to act on gitignored files again. The check is `hook::gitignored_out_of_scope` in the shared `rewrite-guard.sh`.
+- **A file the repository gitignores is left alone by default** ([#4671](https://github.com/melodic-software/claude-code-plugins/issues/4671)). An edit to a gitignored path, such as a `.work/` scratch file, is now neither reported nor rewritten in write mode. Set the lint-gitignored option to `true` to act on gitignored files again. The check is `hook::gitignored_out_of_scope` in the shared `rewrite-guard.sh`.
 
 ## [0.6.70] - 2026-09-28
 
@@ -1011,7 +1007,7 @@ disclosure from the tool's own report rather than from an exit-code map.
   none, which is every run in the default report-only mode. The key is omitted
   on a skip arm, where typos never ran. This is what fills the per-session
   observability report's "Rewrote" block (#3755).
-  `docs/conventions/hook-telemetry/data/spelling.schema.json` gains the
+  The plugin's hook-telemetry data schema gains the
   optional key, and the suite pins it on a rewriting run and a no-op run.
 
 ## [0.6.42]
@@ -1387,12 +1383,12 @@ disclosure from the tool's own report rather than from an exit-code map.
 
 - **Write mode denies known lockfile basenames** even when the extension is otherwise
   allowlisted (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.lock`, …),
-  so generated dependency graphs stay report-only under `spelling_write_changes`.
+  so generated dependency graphs stay report-only in write mode.
 
 - **Write mode honors an explicit extension allowlist before `--write-changes` (#2650).** The
   read-only scan stays language-agnostic (any edited file). Opt-in write mode no longer rewrites
   unknown extensions, extensionless paths, or fixture/lock/binary-adjacent types. Those stay
-  report-only even when `spelling_write_changes` is true. `--write-changes` emits nothing for
+  report-only even when the write-in-place option is true. `--write-changes` emits nothing for
   a correction it applies, so an unbounded write path was unbounded blast radius; the allowlist is
   defense in depth on top of `--force-exclude`. Denied paths still surface findings, with a note
   that write was skipped for the extension.
@@ -1621,7 +1617,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 ### Changed
 
 - **Report-only is now the default; write mode is an explicit opt-in (#1809).** The
-  `spelling_write_changes` userConfig default flips `true` → `false` in both the manifest and
+  write-in-place userConfig default flips `true` → `false` in both the manifest and
   the script fallback, so the out-of-the-box hook reports findings and never modifies a file. A
   dictionary autocorrect is a content mutation the user never asked for (#1257's silent SHA
   corruption is one instance), and an unconditional writer here raced the sibling
@@ -1732,9 +1728,9 @@ disclosure from the tool's own report rather than from an exit-code map.
 
 ### Added
 
-- **`spelling_write_changes` userConfig (default `true`).** Set it to
+- **A write-in-place userConfig option (default `true`).** Set it to
   `false` for a report-only hook: findings are reported and no file is
-  modified. Read from the `CLAUDE_PLUGIN_OPTION_SPELLING_WRITE_CHANGES`
+  modified. Read from the option's `CLAUDE_PLUGIN_OPTION_*`
   environment mirror, because shell-form hook commands reject
   `${user_config.*}` substitution outright.
 - **`data.applied` on the telemetry envelope**: the corrections this run wrote,
@@ -1742,7 +1738,7 @@ disclosure from the tool's own report rather than from an exit-code map.
   residual-only meaning and shape.
 - **`/spelling:setup check` reports the effective write mode.** The setup
   skill described a single tunable and probed only `spelling_enabled`, so
-  with `spelling_write_changes=false` it could report the hook fully
+  with the write-in-place option off it could report the hook fully
   operational to a user who invoked it precisely because spell-fixing was not
   happening. Write mode is now a reported INFO row with its own remediation,
   including the alternative that usually fits better, allow-listing the specific
@@ -1897,6 +1893,6 @@ disclosure from the tool's own report rather than from an exit-code map.
   with remediation guidance pointing at `extend-words` / `extend-identifiers` /
   `extend-ignore-re` allowlist entries. Advisory only, never blocking the edit.
 - `hook-telemetry` conformance: emits a schema-valid envelope
-  (`docs/conventions/hook-telemetry/data/spelling.schema.json`) via the
+  (the plugin's hook-telemetry data schema) via the
   shared `hook::emit_telemetry` helper.
 - `/spelling:setup check|apply` skill for prerequisite verification.
