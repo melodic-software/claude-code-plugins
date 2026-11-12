@@ -1823,7 +1823,7 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     // A failed job before any model turn: admit, pick-slot, or a call's
     // broker-check or run job, in a run where no model step ran.
     const modelRan = jobs.some((job) => (job.steps ?? []).some((step) => MODEL_STEP.test(String(step?.name)) && step.conclusion && step.conclusion !== "skipped"));
-    const preModel = [...named("admit"), ...named("pick-slot"), ...calls.filter((job) => / \/ (?:broker-check|run)$/.test(String(job.name)))];
+    const preModel = [...named("admit"), ...named("pick-slot"), ...calls.filter((job) => / \/ (?:broker-check|Broker Check|run|Run)$/.test(String(job.name)))];
     const limited = modelRan ? undefined : preModel.find((job) => job.conclusion === "failure");
     const checked = calls.find((job) => failedAt(job, BROKER_STEP));
     const checkStopped = calls.find((job) => job.conclusion === "success" && endedAt(job, BROKER_STEP, "success") && endedAt(job, LEASE_STEP, "skipped"));

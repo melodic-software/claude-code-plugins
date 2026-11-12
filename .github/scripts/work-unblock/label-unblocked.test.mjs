@@ -4100,6 +4100,24 @@ const PRE_MODEL_LIMITED = {
     failedAt("resolve-issue / run", [{ name: "Resolve the config", conclusion: "failure" }, { name: "Run the skill on the API key", conclusion: "skipped" }]),
     { name: "report-outcome", conclusion: "skipped", steps: [] },
   ],
+  "broker-check under its display name": [
+    ADMITTED,
+    pickSlot,
+    failedAt("Resolve Issue / Broker Check", [
+      { name: "Check the kill switch", conclusion: "success" },
+      { name: "Ask the broker whether the lane may run", conclusion: "success" },
+      { name: "Claim the issue with a lane lease", conclusion: "failure" },
+    ]),
+    { name: "Resolve Issue / Run", conclusion: "skipped", steps: [] },
+    { name: "Report Outcome", conclusion: "skipped", steps: [] },
+  ],
+  "a call's run job under its display name": [
+    ADMITTED,
+    pickSlot,
+    { ...BROKER_ALLOWED, name: "Resolve Issue / Broker Check" },
+    failedAt("Resolve Issue / Run", [{ name: "Resolve the config", conclusion: "failure" }, { name: "Run the skill on the API key", conclusion: "skipped" }]),
+    { name: "Report Outcome", conclusion: "skipped", steps: [] },
+  ],
 };
 const AFTER_RESET = Date.parse("2026-10-16T12:31:00Z");
 // A rate-limit stop's records name the GitHub API rate limit and the reset, never the broker.
