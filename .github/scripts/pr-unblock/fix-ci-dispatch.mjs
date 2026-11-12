@@ -265,7 +265,7 @@ export function staleStop(node, { base, appSenderId, holdLabels, gateLabel }) {
   ) {
     return null;
   }
-  const checks = (contexts.nodes ?? []).filter((context) => context?.__typename === "CheckRun" && context.name !== "ci-status");
+  const checks = (contexts.nodes ?? []).filter((context) => context?.__typename === "CheckRun" && !AGGREGATE_JOBS.has(context.name));
   if (checks.some((run) => run.status !== "COMPLETED" || !PASSING.has(run.conclusion))) {
     return null;
   }
@@ -286,7 +286,7 @@ const cancelled = (required) => required?.run?.status === "completed" && require
 // The lanes passed and another check failed: an advisory lane's, if any.
 const advisoryFailed = (node, checks, checkName) =>
   lanesState(node) === "SUCCESS" &&
-  checks.some((run) => run.name !== checkName && run.name !== "ci-status" && run.status === "COMPLETED" && run.conclusion === "FAILURE");
+  checks.some((run) => run.name !== checkName && !AGGREGATE_JOBS.has(run.name) && run.status === "COMPLETED" && run.conclusion === "FAILURE");
 
 // A job or step name comes from the PR head's workflow file: control characters
 // are dropped and the length capped, so it cannot start a workflow command in

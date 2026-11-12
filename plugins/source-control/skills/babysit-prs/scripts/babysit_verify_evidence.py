@@ -3895,7 +3895,8 @@ class Reader:
         return bool(before) and all(self._draft_run(i) for i in before)
 
     def _draft_run(self, run_id: Any) -> bool:
-        """Whether checks run `run_id`'s latest ci-status job lists DRAFT_STEP
+        """Whether checks run `run_id`'s latest gate job (CI Status, else
+        ci-status, never CI Status's ci-status alias) lists DRAFT_STEP
         as `success` (a draft's run) or `skipped` (not), a condition that
         reads the run's own event, which a re-run keeps. The jobs API can list
         a finished job's steps empty or cut short (pr-require-checks.yml's
@@ -3918,7 +3919,7 @@ class Reader:
             jobs = listed.get("jobs")
             if not is_json_array(jobs) or listed.get("total_count") != len(jobs):
                 raise _Unreadable(f"the jobs of run {run_id} could not be read whole")
-            ci = [j for j in map(json_object, jobs) if j.get("name") == "ci-status"]
+            ci = merge_policy.gate_entries(list(map(json_object, jobs)))
             listed_steps = json_array(ci[0].get("steps")) if len(ci) == 1 else []
             steps = [
                 step

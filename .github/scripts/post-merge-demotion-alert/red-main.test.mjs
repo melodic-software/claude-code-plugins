@@ -55,6 +55,14 @@ test("ci-status beside another failed job adds nothing; alone it is the check", 
   assert.deepEqual(failingChecks([job(1, "ci-status", "failure")]), ["ci-status"]);
 });
 
+test("CI Status and its ci-status alias are one check: nothing beside another failed job, CI Status alone", () => {
+  const gate = job(1, "CI Status", "failure");
+  const alias = job(9, "ci-status", "failure");
+  assert.deepEqual(failingChecks([gate, alias, job(2, "lint-repo", "failure")]), ["lint-repo"]);
+  assert.deepEqual(failingChecks([alias, gate]), ["CI Status"]);
+  assert.deepEqual(failingChecks([job(1, "CI Status", "success"), alias]), ["ci-status"]);
+});
+
 test("a hygiene gate is its own check, and the all-branches gitleaks gate counts against no merge", () => {
   const aggregatorOnly = job(7, "lint-repo", "failure", ["Aggregate hygiene results"]);
   const titled = (title) => ({ annotation_level: "failure", title });

@@ -970,8 +970,12 @@ jobs:
             exit 0
           fi
           id=$(jq -r .id <<<"$run")
+          # The gate job: CI Status, else ci-status on a run from before the
+          # rename. Never the ci-status alias beside CI Status: a re-run of the
+          # alias alone replays its old `needs` result.
+          gate_job='([.jobs[] | select(.name == "CI Status")] | if length > 0 then . else null end) // [.jobs[] | select(.name == "ci-status")] | max_by(.id) // empty'
           read_api jobs "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100"
-          job=$(jq -c '[.jobs[] | select(.name == "ci-status")] | max_by(.id) // empty' <<<"$jobs")
+          job=$(jq -c "$gate_job" <<<"$jobs")
           if [ "$(jq -r .status <<<"$run")" != completed ]; then
             case $(jq -r '.status // "absent"' <<<"${job:-null}") in
             in_progress | completed) ;;
@@ -1013,7 +1017,7 @@ jobs:
           # after both lanes finished, a re-run can only pass again.
           if [ -n "${polled:-}" ]; then
             read_api jobs "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100"
-            job=$(jq -c '[.jobs[] | select(.name == "ci-status")] | max_by(.id) // empty' <<<"$jobs")
+            job=$(jq -c "$gate_job" <<<"$jobs")
           fi
           judged_at=$(jq -r 'first((.steps // [])[] | select(.name == "Require both review lanes on this head") | .completed_at | strings) // ""' <<<"${job:-null}")
           if jq -e --arg s "$judged_at" --arg d "$done_at" 'try (.conclusion == "success" and ($s | fromdateiso8601) >= ($d | fromdateiso8601)) catch false' <<<"${job:-null}" >/dev/null; then
