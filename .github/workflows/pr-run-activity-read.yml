@@ -624,7 +624,9 @@ jobs:
       # the run job's go step stops the model, with a comment on the issue
       # saying so. Any other failure fails the job. The TTL outlives the run
       # job; the report job, or the caller in caller-releases-lease mode, ends
-      # it early.
+      # it early. A lease held by an earlier run that died before its release
+      # (session_id run-<id>) costs the claim one run read under this job's
+      # actions: read, and counts as released once that run has completed.
       - name: Claim the issue with a lane lease
         id: lease
         if: inputs.issue-number != '' && steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true'

@@ -647,8 +647,10 @@ issue comment with a machine marker. The GitHub adapter's `claim` has two modes:
   `--holder <h>` names the holder instead of the authenticated login, for a caller whose token
   cannot read `GET /user` (a GitHub App installation token, which a CI job holds). The issue lane
   claims this way, holding `vars.AUTOMATION_LANES_APP_SENDER_ID`, before its model starts.
-  The lane releases its lease when its report job ends; a lane run cancelled by hand before that,
-  or a release that fails, leaves the lease to its TTL, which is accepted behavior.
+  The lane claims with `--session-id run-<run id>` and releases its lease when its report job
+  ends. A lane run that ends before that (cancelled, timed out, or failed on a rate limit), or a
+  release that fails, leaves its lease live, and the next claim treats it as released once the run
+  has completed (claim step 4).
 
 Arbitration is the same in both modes (step 4), so a local claim made while a lane lease is live
 backs off, and a lane run that finds a live local lease backs off without starting its model.
@@ -658,7 +660,8 @@ backs off, and a lane run that finds a live local lease backs off without starti
 ```
 
 - Created at claim; **edited in place** at renew (`renewed_at` bump); superseded at
-  reclaim, back-off, or release by adding `"superseded_at":"<ISO>"` to the JSON.
+  reclaim, back-off, release, or a claim that finds its run completed (claim step 4) by adding
+  `"superseded_at":"<ISO>"` to the JSON.
 - A lease is **live** when it has no `superseded_at` and `renewed_at + ttl_hours×3600 +
   (ttl_minutes×60)` is in the future. `ttl_hours` defaults from binding
   `config.lease_ttl_hours`; `ttl_minutes` defaults to `0` and may be set per claim via
@@ -672,8 +675,9 @@ backs off, and a lane run that finds a live local lease backs off without starti
   (non-superseded) lease but already **expired**, meaning `renewed_at + ttl_hours` elapsed with
   no back-off yet, is refused (exit `7`), never revived: a delayed holder must not undo a
   TTL-based handoff. Recovery from an expired lease is a fresh claim/reclaim, not a renew.
-- `session_id` is diagnostic metadata only, optional and collision-prone; a
-  missing/duplicate `session_id` still counts as a competing lease.
+- `session_id` is optional and collision-prone; a missing/duplicate `session_id` still counts as a
+  competing lease. Its one load-bearing shape is `run-<id>`, a workflow run of the item's
+  repository, which the GitHub adapter's claim step 4 reads; any other value is diagnostic only.
 - `phase` names the work the lease is for: `triage`, `discovery` or `implementation`. The github
   and local-markdown `claim` write it from `--phase <kind>` and refuse any other value (exit 2)
   before any write. A lease with no `phase` field is an implementation claim. `renew-lease`, and
@@ -697,6 +701,12 @@ Claim sequence (race-safe, same-identity aware):
    comment, the foreign lease wins → supersede own comment, exit `7`. (Assignee is left
    in place on a same-login race: it belongs to the winner.)
    The back-off message prints the winner's holder with control characters removed.
+   GitHub adapter: an earlier live lease whose `session_id` is `run-<id>` costs one
+   `GET /repos/{owner}/{repo}/actions/runs/{id}` read (the token needs `actions: read`). A run
+   whose `status` is `completed`, whatever its conclusion, holds nothing, so its lease is
+   superseded in place (best-effort, the same `superseded_at` edit as a back-off) and arbitration
+   moves to the next live lease. A run in any other status, or a read that fails, keeps the lease
+   winning. A lease with any other `session_id` costs no read.
 5. Emit the claim object.
 
 Release (early end of the caller's own lease): `release` supersedes a lease before its TTL

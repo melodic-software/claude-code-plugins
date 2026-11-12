@@ -135,7 +135,28 @@ supersede_our_lease() {
 # lease whose handle never reached the caller does not block the item for its TTL.
 [[ "$lease_only" == false ]] || trap supersede_our_lease EXIT
 
-# 4. Re-read all lease comments; the EARLIEST live lease wins. The rollback
+# released_by_finished_run <comment-id> <lease-json>: a lease whose session_id is
+# run-<id> is held by a workflow run of this repository, and protects nothing once
+# that run has completed (any conclusion). One run read decides it; a completed run's
+# lease is superseded in place (best-effort) and the call returns 0. Any other answer
+# (a live run, an unreadable status) returns 1 and the lease keeps winning. Bare gh,
+# not wit_run_gh: a failed read must back off (exit 7), never fail the claim.
+released_by_finished_run() {
+  local cid="$1" lease="$2" sid run_id status superseded
+  sid="$(jq -r '.session_id // empty' <<<"$lease")"
+  [[ "$sid" =~ ^run-([1-9][0-9]{0,19})$ ]] || return 1
+  run_id="${BASH_REMATCH[1]}"
+  status="$(gh api "repos/$owner/$repo/actions/runs/$run_id" --jq '.status' 2>/dev/null)" || return 1
+  [[ "$(wit_strip_cr <<<"$status")" == completed ]] || return 1
+  superseded="$(jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + {superseded_at: $ts}' <<<"$lease")"
+  gh_write api --method PATCH "repos/$owner/$repo/issues/comments/$cid" \
+    -f body="${WIT_LEASE_MARKER}${superseded} -->" >/dev/null 2>&1 || true
+  printf 'claim: lease comment %s was held by run %s, which has completed; treated as released\n' "$cid" "$run_id" >&2
+  return 0
+}
+
+# 4. Re-read all lease comments; the EARLIEST live lease wins, except a lease held
+# by a completed workflow run (released_by_finished_run). The rollback
 # guard STAYS armed through arbitration: a read failure here (exit "$?" below)
 # would otherwise leave @me assigned with a live lease comment whose id was
 # never returned to the caller — stranded exactly like the pre-lease window,
@@ -151,7 +172,11 @@ while IFS= read -r row; do
   lease_json="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
   [[ -n "$lease_json" ]] || continue
   if wit_lease_is_live "$lease_json" "$now_epoch"; then
-    winner_id="$(jq -r '.id' <<<"$row")"
+    row_id="$(jq -r '.id' <<<"$row")"
+    if [[ "$row_id" != "$our_comment_id" ]] && released_by_finished_run "$row_id" "$lease_json"; then
+      continue
+    fi
+    winner_id="$row_id"
     winner_holder="$(jq -r '.holder // empty' <<<"$lease_json")"
     break
   fi
