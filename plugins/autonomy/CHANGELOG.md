@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.1] - 2026-11-12
+
+### Changed
+
+- Synced the shared library copies this plugin carries; their pointer records no longer carry an as-of date or recheck trigger.
+
 ## [5.0.0] - 2026-11-12
 
 ### Changed

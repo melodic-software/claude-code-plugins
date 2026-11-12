@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "1.2.12",
+  "version": "1.2.13",
   "license": "MIT AND Apache-2.0",
   "userConfig": {
     "demo_style": {

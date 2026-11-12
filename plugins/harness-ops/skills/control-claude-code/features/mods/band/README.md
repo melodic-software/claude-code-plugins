@@ -37,5 +37,4 @@ saved values.
 - Every loaded mod can draw in the band. Load only the plugin under test, so a screenshot shows its
   content alone.
 - Where the band is and how mods share it:
-  <https://code.claude.com/docs/en/plugins/mods/interface#pick-where-to-draw> (as of 2026-10-26;
-  recheck when that section changes where the band draws).
+  <https://code.claude.com/docs/en/plugins/mods/interface#pick-where-to-draw>.

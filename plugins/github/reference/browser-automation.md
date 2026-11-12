@@ -41,10 +41,7 @@ user names an integration, their choice is honored over this order.
 
 - **Pointer**: when deciding whether Claude in Chrome works under WSL, fetch the platform note
   above the first heading of <https://code.claude.com/docs/en/chrome> live; that note has no
-  section anchor as of 2026-10-11.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the page moves its platform support into a section with its own anchor, or
-  changes which platforms it supports.
+  section anchor.
 
 ## The routing precondition: resolved `guided-apply` only
 

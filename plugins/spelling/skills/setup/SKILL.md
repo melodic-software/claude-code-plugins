@@ -91,8 +91,7 @@ without Claude Code. Node.js (step 5) is a FAIL either way too.
    version-manager shim or a shell function resolves there yet cannot run the launcher. FAIL when
    the command is absent or exits non-zero: the hook rows run `node hooks/exec-bash.mjs` and the
    installer is a node script. Node is a prerequisite separate from Claude Code. Pointer:
-   [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm). As of: 2026-11-10.
-   Recheck trigger: that section says the installed `claude` binary runs Node itself.
+   [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm).
 6. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`
    from the repository. Each line is `<state>\t<entry>[\t<detail>]`: `ok` is PASS, `declined` is
    INFO (this clone said no; silent at session start), and `missing`, `stale`, `modified` or `superseded` is a
@@ -173,9 +172,6 @@ Never claim resolved without re-verifying. For everything else `apply` only poin
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 - no typos config: offer to create a minimal `_typos.toml` in the repository root only when
   explicitly asked. The plugin imposes no rules of its own.
 

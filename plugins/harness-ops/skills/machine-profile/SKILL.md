@@ -32,7 +32,7 @@ Exit codes: 0 ok, 1 refused, 2 usage or missing tool (`jq`), 3 no profile stored
 
 We keep the profile in the plugin data directory, accepting that an uninstall from the last scope can remove it.
 
-- **Pointer**: when stating where `${CLAUDE_PLUGIN_DATA}` resolves or when uninstall removes it, fetch [plugin manifest reference: environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables) and [plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) live. **As of**: 2026-10-11. **Recheck trigger**: the plugins reference changes the data directory location or its uninstall behavior.
+- **Pointer**: when stating where `${CLAUDE_PLUGIN_DATA}` resolves or when uninstall removes it, fetch [plugin manifest reference: environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables) and [plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) live.
 
 ## Document shape and verdicts
 
@@ -49,9 +49,9 @@ Records live in `machine.facts`, `machine.options`, and per domain in `identity`
 
 Discovery reads identity domains from the `includeIf "gitdir:..."` entries in `git config --list --show-origin`. It attaches a `gh` directory to a tree only when that tree's own `.envrc` exports a literal `GH_CONFIG_DIR`, which it reads as text and never evaluates; otherwise `gh_config_dir` is `default-unexamined` and the machine's directory is not copied to the tree.
 
-We attach a `gh` directory to a tree only through a literal `GH_CONFIG_DIR` in its `.envrc`, because we read `gh`'s lookup as naming no directory per working directory. **Pointer:** when stating where `gh` finds its configuration directory, read [gh help environment](https://cli.github.com/manual/gh_help_environment) live. **As of:** 2026-11-10. **Recheck:** that page changes the `GH_CONFIG_DIR` lookup order.
+We attach a `gh` directory to a tree only through a literal `GH_CONFIG_DIR` in its `.envrc`, because we read `gh`'s lookup as naming no directory per working directory. **Pointer:** when stating where `gh` finds its configuration directory, read [gh help environment](https://cli.github.com/manual/gh_help_environment) live.
 
-We treat one `pluginConfigs` slot as serving the whole machine. **Pointer:** when stating which scopes `pluginConfigs` is read from, fetch [settings reference: pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs) live; for what `claude plugin install --config` writes, read facts 5 and 9 of `docs/contracts/hook-config-delivery` (probes on Claude Code 2.1.292, 2026-10-07, and 2.1.283, 2026-09-27). **As of:** 2026-11-10. **Recheck:** the settings guide stops letting `--settings` set user-scope keys, the documented `pluginConfigs` scope changes, or `--config` starts honoring a scope flag.
+We treat one `pluginConfigs` slot as serving the whole machine. **Pointer:** when stating which scopes `pluginConfigs` is read from, fetch [settings reference: pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs) live; for what `claude plugin install --config` writes, read facts 5 and 9 of `docs/contracts/hook-config-delivery` (probes on Claude Code 2.1.292, 2026-10-07, and 2.1.283, 2026-09-27).
 
 ## Next
 

@@ -33,6 +33,5 @@ Undo what the hook wrote, the way the plugin's README says; a hook that only rep
 
 - Fire the hook through a tool the restricted launch keeps, such as a file read in the working
   directory. Which tools it removes: the `--restricted` row of
-  <https://code.claude.com/docs/en/cli-reference#cli-flags> (as of 2026-10-26; recheck when that
-  row changes which tools it removes).
+  <https://code.claude.com/docs/en/cli-reference#cli-flags>.
 - Never wait on text the prompt itself holds: the typed prompt shows in the transcript first.
