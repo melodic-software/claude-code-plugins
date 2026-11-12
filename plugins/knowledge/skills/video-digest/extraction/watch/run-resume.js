@@ -7,9 +7,9 @@
 
 import fs from "node:fs";
 
-import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { runMain } from "../lib/run-main.js";
 import { normalizePortableTempPath, resolveTempSession } from "../lib/temp-session-paths.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { resolveWorkSliceDir } from "../transcript/derive-video-slug.js";
@@ -110,13 +110,4 @@ export async function runResumeCli(argv) {
   return 0;
 }
 
-if (isMainModule(import.meta.url)) {
-  runResumeCli(process.argv)
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error) => {
-      writeStderr(error instanceof Error ? error.message : String(error));
-      process.exitCode = 1;
-    });
-}
+runMain(import.meta.url, runResumeCli);
