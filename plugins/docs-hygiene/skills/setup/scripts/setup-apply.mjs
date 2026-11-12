@@ -1,17 +1,14 @@
 #!/usr/bin/env node
-// Check or write docs/conventions/docs-hygiene.yaml, the repository layer of
-// the docs-hygiene plugin's settings, against schemas/docs-hygiene.schema.json.
-//
-// Usage:
-//   setup-apply.mjs [--root <dir>] --check
-//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
+// Check or write <home>/docs-hygiene.yaml, the repository layer of the
+// docs-hygiene plugin's settings, against schemas/docs-hygiene.schema.json.
+// <home> is the repository's convention home.
 //
 //   --check  validate the file as it stands and print one line per schema key:
 //            PASS with its value, or WARN when the file's value is invalid and
 //            the key resolves to its default; write nothing.
 //
-// The YAML reader is the plugin's bundled copy under lib/. The
-// other options, the guarantees and the exit codes are in
+// The YAML reader is the plugin's bundled copy under lib/. The usage,
+// the other options, the guarantees and the exit codes are in
 // ../../../lib/setup-apply.mjs.
 
 import { dirname, join } from "node:path";

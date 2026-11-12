@@ -1,14 +1,11 @@
 #!/usr/bin/env node
-// Check or write docs/conventions/education.yaml, the repository layer of the
+// Check or write <home>/education.yaml, the repository layer of the
 // education plugin's settings, against schemas/education.schema.json.
+// <home> is the repository's convention home.
 //
-// Usage:
-//   setup-apply.mjs [--root <dir>] --check
-//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
-//
-// The YAML reader is the copy bundled with /education:explain,
-// under skills/explain/scripts/. The options, guarantees and exit codes are in
-// ../../../lib/setup-apply.mjs.
+// The YAML reader is the copy bundled with /education:explain, under
+// skills/explain/scripts/. The usage, options, guarantees and exit codes are
+// in ../../../lib/setup-apply.mjs.
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
