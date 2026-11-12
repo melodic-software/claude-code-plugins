@@ -38,7 +38,7 @@ import {
   readOutcome,
   readTurnCap,
 } from "./report-outcome.mjs";
-import { retryFetch } from "../lib/retry-fetch.mjs";
+import { retryApi } from "../lib/retry-fetch.mjs";
 
 const PREP_STEPS = new Set(["review", "verify", "checks"]);
 const STEP_STATES = { pass: "success", fail: "failure" };
@@ -102,29 +102,9 @@ export function plan({ outcome, branch, resolveResult, reportResult, turnCap = n
   }));
 }
 
-// A read, and a write marked safeToResend, is sent again after a network
-// error or a 5xx (retry-fetch.mjs), each attempt through the rate guard.
-function api({ fetch, apiUrl, token, sleep }) {
-  const send = retryFetch(fetch, { sleep });
-  return async (method, path, body, { safeToResend = false } = {}) => {
-    const response = await send(`${apiUrl}${path}`, {
-      method,
-      safeToResend,
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    if (!response.ok) {
-      throw new Error(`${method} ${path} answered ${response.status}`);
-    }
-    return response.json();
-  };
-}
-
-// Every call goes through the rate guard (rate-guard.mjs).
+// Every call goes through the rate guard (rate-guard.mjs). A read, and a
+// write marked safeToResend, is sent again after a network error or a 5xx
+// (retry-fetch.mjs), each attempt through the rate guard.
 export async function main({ env = process.env, fetch = rateLimitLatch.guard(globalThis.fetch), sleep } = {}) {
   try {
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
@@ -151,7 +131,7 @@ export async function main({ env = process.env, fetch = rateLimitLatch.guard(glo
       !reuse && !ran && resume !== "" && readBranch(dir, issue, "resume") === resume ? resume : "";
     const checks = resumed ? readChecks(env.RUNNER_CHECKS ?? "", { branch: resumed }) : null;
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
-    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
+    const github = retryApi({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
     const headSha = (branch) =>
       github("GET", `${repo}/git/ref/heads/${branch.split("/").map(encodeURIComponent).join("/")}`).then(
         (answer) => answer?.object?.sha,
