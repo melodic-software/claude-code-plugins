@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [9.23.0] - 2026-11-11
+
+### Changed
+
+- A skill activity's `effect` must be `read`. The schema and resolve-config (rejection 17, `skill-not-read`) refuse any other effect at config load, in any lane, so every skill runs in `pr-run-activity-read.yml` and hands its change to a script activity.
+- `pr-run-activity-write.yml` runs scripts only and fails red with `skill-in-write-runner` before the mint for any skill, not just an issue skill.
+
+### Removed
+
+- The write runner's skill path, which no config can now reach: the claude-code-action step, its lane commit branch and promote step, the turn-cap, model-turn and gate-verdict checks, the skill reply upload, the lane-outcome record, and the unused `claude-code-oauth-token` secret. The write runner's report no longer carries a `lane-outcome`.
+- The schema's head-test-check limits on a skill whose effect is not `read`, which no skill can now have.
+
+## [9.22.0] - 2026-11-11
+
+### Added
+
+- The kill-switch gate (`.github/actions/check-kill-switch`) takes a `budget` input. On a gate that starts new work (`budget: "true"`), it stops the lane while the GITHUB_TOKEN core pool's remaining is under github-token's `start-gate` share (0.1, read from `.github/actions/log-api-budget/rate-limits.json` alone) and the reset is still ahead, from one GET /rate_limit with the job's token: its `x-ratelimit-*` headers, else the body's `resources.core`. A gate that finishes or judges existing work keeps the default, switches only. The stop keeps `reason=kill-switch`. New outputs: `cause` (`switch`, `budget` or `ok`) and `reset`. A failed or unreadable read proceeds with a warning. work-unblock's sweep re-fires a budget-stopped issue run once the window's reset has passed, and never counts it toward `limits.limit-stops-per-issue`.
+
 ## [9.21.1] - 2026-11-11
 
 ### Fixed

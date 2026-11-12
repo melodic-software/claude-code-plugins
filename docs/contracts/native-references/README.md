@@ -22,9 +22,9 @@ This doc owns the phrasing of references **to native surfaces**. It does not own
   committed overlap store rendered into [`docs/native-surfaces.md`](../../native-surfaces.md).
   This doc governs the words once a verdict says a reference is warranted.
 - **The record behind any upstream specific a reference depends on.**
-  [`upstream-drift`](../upstream-drift/README.md) owns its shape (our decision, a pointer to the
-  exact upstream section, the as-of date, the recheck trigger) and the observability bar its
-  triggers must clear.
+  [`upstream-drift`](../upstream-drift/README.md) owns its shape (our decision and a pointer to
+  the exact upstream section; an as-of date and recheck trigger only on a stored value) and the
+  observability bar a trigger must clear.
 - **Instruction economy.** [`plugin-philosophy`](../../plugin-philosophy.md) owns the rule that
   every always-loaded description is a per-session tax. This doc keeps the phrase to one clause
   because of that rule; it does not restate it.
@@ -139,9 +139,10 @@ earns (below) has no reason to hold the section back.
 The section carries the conclusion: the surfaces by provenance class, the routing split, and the
 mutation gate. The records behind it live in a **reference file inside the same skill**, linked
 from the section with a same-plugin relative path, so the body stays short and the detail stays
-reachable. That file holds our decision in our words, a pointer to the exact upstream section, the
-as-of date and the recheck trigger, and no upstream text; a table form uses the header
-`| Decision | Pointer | As of | Recheck when |`. Existing `native-*` and `bundled-*` reference
+reachable. That file holds our decision in our words and a pointer to the exact upstream section,
+and no upstream text; a table form uses the header `| Decision | Pointer |`. A row that keeps a
+stored value (a probed behavior, a recorded default) adds the as-of date and recheck trigger, in a
+table as `| Decision | Pointer | As of | Recheck when |`. Existing `native-*` and `bundled-*` reference
 files keep the older four-part shape until
 [#5684](https://github.com/melodic-software/claude-code-plugins/issues/5684) converts them. Modeled on the `review` plugin's organic pattern (`/review:quality-gate`
 and `/review:fanout` each carry one):
@@ -179,8 +180,8 @@ Six properties the section keeps:
    phrase. Cross-plugin pointers are forbidden.
 5. **Presence-gated language throughout**: the body inherits the description's gate; it never
    promotes a surface to available because the body is longer.
-6. **Upstream specifics are pointed at, never restated**: each carries a pointer, an as-of date
-   and a recheck trigger, per [`upstream-drift`](../upstream-drift/README.md).
+6. **Upstream specifics are pointed at, never restated**: each carries a section-anchored
+   pointer, per [`upstream-drift`](../upstream-drift/README.md).
 
 ## Self-containment: shipped plugins never cite the registry
 
@@ -314,7 +315,7 @@ If /<name> is available in your session (<basis>), run it for <job>.
 ```
 
 `<basis>` names the surface's own gate and links a same-file upstream-drift record for it (our
-decision, a pointer to the section defining the gate, the as-of date, the recheck trigger). For
+decision and a pointer to the section defining the gate). For
 `/doctor` the basis names `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry and not
 `disableBundledSkills`; for every other bundled skill it names `disableBundledSkills` as well. Place the sentence at the start of the run when the
 surface covers everything the skill does, and at the end when coverage is partial. A

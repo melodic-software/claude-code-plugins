@@ -5,6 +5,40 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.5.12] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [3.5.11] - 2026-11-11
+
+### Changed
+
+- The AGENTS.md liveness reference describes its record shape per upstream-drift 5.0.0: our
+  decision and a section-anchored pointer, with an as-of date and recheck trigger only where a
+  record keeps a stored value. Existing records are unchanged.
+
+- The README options reference lists its upstream documentation as pointers only, with no as-of date or recheck trigger.
+
+### Fixed
+
+- `/harness-config:audit-instructions` I40 no longer marks a bare `#N` in an agent definition whose block also cites N upstream (as `owner/repo#N` or an `/issues/N` or `/pull/N` URL), so a pointer record without an as-of date or recheck trigger can name its upstream bug by number. A block with an as-of date and recheck trigger stays exempt.
+
+## [3.5.10] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+- The setup skill's pre-computed context keeps its fallback for a row showing the `disableSkillShellExecution` placeholder and adds a pointer record to the skills docs' "Inject dynamic context" section, where that placeholder text is documented.
+
+## [3.5.9] - 2026-11-11
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [3.5.8] - 2026-11-11
 
 ### Changed

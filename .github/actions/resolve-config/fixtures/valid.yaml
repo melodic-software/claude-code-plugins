@@ -15,6 +15,14 @@ activities:
       paths: ["src/**"]
   fix-prose:
     skill: ai-slop:audit
+    applied-by:
+      patch: apply-prose
+    effect: read
+    gating: advisory
+    reads-untrusted: false
+  apply-prose:
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
     effect: mutate-branch
     gating: advisory
     reads-untrusted: false
@@ -29,3 +37,5 @@ lanes:
     stage: refine
     slots:
       - activity: fix-prose
+      - activity: apply-prose
+        needs: [fix-prose]

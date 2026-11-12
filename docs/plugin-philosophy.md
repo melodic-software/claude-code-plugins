@@ -948,7 +948,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Liveness assertion (false-green / healthy-while-dead surfaces) | [`docs/contracts/liveness-assertion/`](contracts/liveness-assertion/README.md) |
 | Detector findings (non-fanout producers reaching the apply relay) | [`docs/contracts/detector-findings/`](contracts/detector-findings/README.md) |
 | Fresh-eyes declaration pattern contract | `/skill-quality:check`, which owns and enforces the declaration spec |
-| Upstream-drift verification stamps and recheck triggers | [`docs/contracts/upstream-drift/`](contracts/upstream-drift/README.md) |
+| Upstream-drift pointers, stored values and recheck triggers | [`docs/contracts/upstream-drift/`](contracts/upstream-drift/README.md) |
 | Windows path emission across the Git Bash → native boundary | [`docs/contracts/windows-path-emit/`](contracts/windows-path-emit/README.md) |
 | Pre-PR step order (where outcome verification sits) | [`docs/contracts/pre-pr-ordering/`](contracts/pre-pr-ordering/README.md) |
 | Mod authoring: pointers at the upstream mods pages, mod versus settings hook, packaging, version floor, facts upstream does not state | [`docs/contracts/mod-authoring/`](contracts/mod-authoring/README.md) |

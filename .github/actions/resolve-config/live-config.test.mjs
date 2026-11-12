@@ -592,10 +592,9 @@ test("live config: resolve-issue holds no write token; apply-issue-patch may onl
   });
 });
 
-// activity-rules.json is trust-root data: a config that gives resolve-issue a
-// write effect again is refused. The schema takes tidy only on a read skill
-// that hands on a patch, so the write-effect config drops it too, and the
-// refusal comes from the activity rules rather than the schema.
+// A config that gives resolve-issue a write effect again is refused: a skill's
+// effect is read. The write-effect config drops tidy, which the schema takes
+// only on a read skill that hands on a patch.
 test("live config: resolve-issue with a write effect is refused", () => {
   const writes = FILES.config
     .replace(
@@ -606,7 +605,7 @@ test("live config: resolve-issue with a write effect is refused", () => {
   assert.notEqual(writes, FILES.config);
   assert.throws(
     () => resolve({ ...FILES, config: writes }, { lane: "work-resolve-issue", activity: "resolve-issue", configPath: CONFIG_PATH, basePath: ".base", facts: { ...FACTS, ...ISSUE } }),
-    (error) => error.code === "forbidden-by-activity",
+    (error) => error.code === "invalid-config",
   );
 });
 
@@ -823,14 +822,14 @@ test("live config: fix-docs is not asked to fix an instruction surface", () => {
   assert.deepEqual(slot["changed-paths"], ["docs/guide.md"]);
 });
 
-// activity-rules.json is trust-root data: a config that gives fix-docs a
-// write effect again is refused.
+// A config that gives fix-docs a write effect again is refused: a skill's
+// effect is read.
 test("live config: fix-docs with a write effect is refused", () => {
   const writes = FILES.config.replace("effect: read\n    applied-by:\n      patch: apply-patch\n", "effect: mutate-branch\n");
   assert.notEqual(writes, FILES.config);
   assert.throws(
     () => resolve({ ...FILES, config: writes }, { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS }),
-    (error) => error.code === "forbidden-by-activity",
+    (error) => error.code === "invalid-config",
   );
 });
 
