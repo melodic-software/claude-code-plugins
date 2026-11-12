@@ -76,8 +76,17 @@ function getOrCreateEntry(page) {
   return entry;
 }
 
+const HOTMART_PLAYER_HOST = "player.hotmart.com";
+
+/** The page's frame served from the Hotmart player host; a frame URL that does not parse never matches. */
 function findHotmartFrame(page) {
-  return page.frames().find((f) => f.url().includes("player.hotmart.com"));
+  return page.frames().find((f) => {
+    try {
+      return new URL(f.url()).hostname === HOTMART_PLAYER_HOST;
+    } catch {
+      return false;
+    }
+  });
 }
 
 /** Record `url` as the page's HLS master when it matches the packaged-master pattern. */

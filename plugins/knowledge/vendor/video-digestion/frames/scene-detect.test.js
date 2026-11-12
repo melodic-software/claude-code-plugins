@@ -4,9 +4,30 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
 
-import { extractSceneFrames } from "./scene-detect.js";
+import { extractSceneFrames, parseShowinfoPtsTimes } from "./scene-detect.js";
 
 const silentLog = { info() {}, warn() {} };
+
+describe("parseShowinfoPtsTimes", () => {
+  it("reads one time per showinfo frame line, null where the time is not a number", () => {
+    const stderr = [
+      "[Parsed_showinfo_1 @ 0x55] n:   0 pts:      0 pts_time:0       duration: 1",
+      "frame=   1 fps=0.0 q=-0.0 size=N/A",
+      "[Parsed_showinfo_1 @ 0x55] n:  12 pts:   4500 pts_time:12.5   pos: 100\r",
+      "[Parsed_showinfo_1 @ 0x55] n:   3 pts: NOPTS pts_time:NOPTS",
+      "[Parsed_showinfo_1 @ 0x55] pts_time:3 n:   4",
+      "[Parsed_showinfo_1 @ 0x55] n:x pts_time:4",
+    ].join("\n");
+    assert.deepEqual(parseShowinfoPtsTimes(stderr), [0, 12.5, null]);
+  });
+
+  it("stays linear on long lines that repeat the marker or the frame number", () => {
+    const start = performance.now();
+    assert.deepEqual(parseShowinfoPtsTimes("Parsed_showinfo".repeat(20000)), []);
+    assert.deepEqual(parseShowinfoPtsTimes(`Parsed_showinfo n:${"0".repeat(200000)}`), []);
+    assert.ok(performance.now() - start < 1000);
+  });
+});
 
 /** @type {string[]} */
 const tempDirs = [];

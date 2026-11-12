@@ -4,6 +4,13 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.4.8] - 2026-11-12
+
+### Fixed
+
+- course-digest: the Hotmart player frame is now chosen by an exact hostname match on the frame URL, not a substring match, and a frame whose URL does not parse is skipped.
+- video-digestion: reading frame times from ffmpeg `showinfo` output now runs in linear time on long stderr lines.
+
 ## [1.4.7] - 2026-11-12
 
 ### Changed

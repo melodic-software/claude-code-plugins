@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.11] - 2026-11-12
+
+### Fixed
+
+- prior-findings: reading `loop.findings-after-first-review` now runs in linear time on blank and whitespace-only lines, so a crafted pipeline file can no longer stall the read.
+
 ## [8.4.10] - 2026-11-12
 
 ### Changed

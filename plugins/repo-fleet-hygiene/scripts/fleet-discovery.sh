@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GENERATED from lib/fleet-discovery.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # Shared discovery for repo-fleet-hygiene: the default skip list, skip-name resolution, fleet config
 # scope and depth loading, and the one repository walker. Sourced by audit and sync; the caller
 # defines fail() and may set FLEET_GIT_CMD to a wrapper that runs git (default: git).

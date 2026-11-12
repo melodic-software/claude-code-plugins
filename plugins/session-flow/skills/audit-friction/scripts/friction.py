@@ -611,13 +611,6 @@ def cmd_diff(args: argparse.Namespace) -> int:
                 args.format, "\n".join(md))
 
 
-def _positive(value: str) -> int:
-    number = int(value)
-    if number < 1:
-        raise argparse.ArgumentTypeError("must be 1 or more")
-    return number
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -625,7 +618,7 @@ def main(argv: list[str] | None = None) -> int:
     mine.add_argument("--data-dir", required=True)
     mine.add_argument("--since")
     mine.add_argument("--until")
-    mine.add_argument("--days", type=_positive, default=7)
+    mine.add_argument("--days", type=census._positive, default=7)
     mine.add_argument("--project")
     mine.add_argument("--session", nargs="+", action="extend")
     mine.add_argument("--source", nargs="+", action="extend")

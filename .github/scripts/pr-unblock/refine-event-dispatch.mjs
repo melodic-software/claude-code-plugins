@@ -16,8 +16,7 @@
 // SHAs, run ids and counts only. The dispatched run id is appended to
 // RUN_IDS_FILE as soon as the dispatch returns, for the job's record step.
 
-import { pathToFileURL } from "node:url";
-
+import { runAsScript } from "../lib/run-main.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { baseHumanGatedLabel, createGitHubApi, loadBaseLimits, loadBaseTidyCutoffs, TRUSTED_ACTORS_PATH, wrapRunIds } from "./dispatch.mjs";
 import { DEFAULTS, dispatchDocsFixes } from "./fix-docs-dispatch.mjs";
@@ -101,14 +100,4 @@ export async function main(
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.env).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.log(`::error::refine event dispatch failed: ${error.message}`);
-      process.exitCode = 1;
-    },
-  );
-}
+runAsScript(import.meta.url, "refine event dispatch", () => main(process.env));
