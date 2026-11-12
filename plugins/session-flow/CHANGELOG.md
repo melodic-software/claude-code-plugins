@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [7.9.14] - 2026-11-12
+
+### Changed
+
+- Enforcement ladder copy updated to 2.1.1: policy-class names irreversible, secret-exposing and data-egress actions.
+
 ## [7.9.13] - 2026-11-12
 
 ### Fixed
