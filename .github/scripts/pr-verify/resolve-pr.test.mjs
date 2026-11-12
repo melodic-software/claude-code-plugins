@@ -2480,36 +2480,59 @@ const PASS_NAME = `pr-verify-41-${HEAD}-pass`;
 const NOTES_NAME = `pr-verify-41-${HEAD}-pass-notes`;
 const FAIL_I7_NAME = `pr-verify-41-${HEAD}-fail-i7`;
 
-test("after an empty listing that carries an ETag, later names send it and a 304 reads as an empty name", async () => {
+const OTHER_HEAD = { sha: HEAD, ref: "feat/other", repo: { full_name: REPO } };
+const OTHER_FAIL_NAME = `pr-verify-99-${HEAD}-fail`;
+
+test("after an empty listing that carries an ETag, pass names send it and a 304 reads as an empty name", async () => {
   const http = overHttp({});
   assert.equal((await resolveOverHttp(http)).reason, "ok");
   assert.deepEqual(http.listings, [
     { name: FAIL_NAME, page: 1, sent: null, status: 200 },
     { name: PASS_NAME, page: 1, sent: EMPTY_TAG, status: 304 },
     { name: NOTES_NAME, page: 1, sent: EMPTY_TAG, status: 304 },
-    { name: FAIL_I7_NAME, page: 1, sent: EMPTY_TAG, status: 304 },
+    { name: FAIL_I7_NAME, page: 1, sent: null, status: 200 },
   ]);
 });
 
-test("a name that holds an artifact answers 200 under the ETag and its run is judged as before", async () => {
-  // A pass: its run and compare are read and the head is already judged.
+test("no FAIL name is ever listed with If-None-Match", async () => {
+  // An already-judged head: a counted pass.
   const pass = overHttp({ artifacts: [artifact(PASS_NAME, 77)], runs: { 77: verifyRun(77) } });
   assert.equal((await resolveOverHttp(pass)).reason, "already-judged");
-  assert.deepEqual(pass.listings.slice(0, 2), [
+  assert.deepEqual(pass.listings, [
     { name: FAIL_NAME, page: 1, sent: null, status: 200 },
     { name: PASS_NAME, page: 1, sent: EMPTY_TAG, status: 200 },
+    { name: NOTES_NAME, page: 1, sent: EMPTY_TAG, status: 304 },
   ]);
+  // Another pull request's FAIL at the head, read after the empty own FAIL.
+  const other = overHttp({ pulls: [pull(), pull({ number: 99, state: "closed", head: OTHER_HEAD })], artifacts: [artifact(OTHER_FAIL_NAME, 78)], runs: { 78: verifyRun(78) } });
+  assert.equal((await resolveOverHttp(other)).reason, "already-judged");
+  assert.deepEqual(other.listings, [
+    { name: FAIL_NAME, page: 1, sent: null, status: 200 },
+    { name: OTHER_FAIL_NAME, page: 1, sent: null, status: 200 },
+  ]);
+  // This pull request's own FAIL, which no relink lifts.
+  const own = overHttp({ artifacts: [artifact(FAIL_NAME, 79)], runs: { 79: verifyRun(79) } });
+  assert.equal((await resolveOverHttp(own)).reason, "already-judged");
+  assert.deepEqual(own.listings, [{ name: FAIL_NAME, page: 1, sent: null, status: 200 }]);
+  // The same own FAIL after only trusted people linked an issue: the names after
+  // it (afterOwn) are read too, and every FAIL among them goes unconditional.
+  const relink = relinkAnswer({ edits: [{ editedAt: "2026-10-20T07:00:00Z", editor: PERSON }], events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] });
+  const relinkedHead = overHttp(relinked(relink, { pulls: [pull(), pull({ number: 99, state: "closed", head: OTHER_HEAD })] }));
+  assert.equal((await resolveOverHttp(relinkedHead)).reason, "relinked");
+  assert.deepEqual(relinkedHead.listings, [
+    { name: FAIL_NAME, page: 1, sent: null, status: 200 },
+    { name: OTHER_FAIL_NAME, page: 1, sent: null, status: 200 },
+    { name: PASS_NAME, page: 1, sent: EMPTY_TAG, status: 304 },
+    { name: NOTES_NAME, page: 1, sent: EMPTY_TAG, status: 304 },
+    { name: FAIL_I7_NAME, page: 1, sent: null, status: 200 },
+  ]);
+});
+
+test("a pass name that holds an artifact answers 200 under the ETag and its run is judged as before", async () => {
+  const pass = overHttp({ artifacts: [artifact(PASS_NAME, 77)], runs: { 77: verifyRun(77) } });
+  assert.equal((await resolveOverHttp(pass)).reason, "already-judged");
   assert.ok(pass.paths.includes(`/repos/${REPO}/actions/runs/77`), pass.paths.join("\n"));
   assert.ok(pass.paths.includes(`/repos/${REPO}/compare/${MAIN}...main`), pass.paths.join("\n"));
-  // Another pull request's FAIL listed after the empty own FAIL stops the judgment.
-  const other = { sha: HEAD, ref: "feat/other", repo: { full_name: REPO } };
-  const otherFail = `pr-verify-99-${HEAD}-fail`;
-  const fail = overHttp({ pulls: [pull(), pull({ number: 99, state: "closed", head: other })], artifacts: [artifact(otherFail, 78)], runs: { 78: verifyRun(78) } });
-  assert.equal((await resolveOverHttp(fail)).reason, "already-judged");
-  assert.deepEqual(fail.listings, [
-    { name: FAIL_NAME, page: 1, sent: null, status: 200 },
-    { name: otherFail, page: 1, sent: EMPTY_TAG, status: 200 },
-  ]);
   // More than one page: page 1 sends the ETag, later pages read as before, and
   // the one unexpired artifact on page 2 still counts.
   const many = [...Array.from({ length: 100 }, () => artifact(PASS_NAME, 77, true)), artifact(PASS_NAME, 78)];
@@ -2522,22 +2545,27 @@ test("a name that holds an artifact answers 200 under the ETag and its run is ju
   ]);
 });
 
-test("a 304 is never read as artifacts, and only an empty listing's ETag is ever sent", async () => {
-  // A server that answers 304 to every conditional read, even for names that
-  // hold a counted pass and FAIL: the 304s judge nothing, so the head proceeds.
-  const lying = overHttp(
-    { artifacts: [artifact(PASS_NAME, 77), artifact(FAIL_I7_NAME, 78)], runs: { 77: verifyRun(77), 78: verifyRun(78) } },
-    { answer: (listing) => (listing.sent !== null ? new Response(null, { status: 304 }) : undefined) },
-  );
-  assert.equal((await resolveOverHttp(lying)).reason, "ok");
-  assert.ok(!lying.paths.some((apiPath) => /\/actions\/runs\/7[78]$/.test(apiPath)), lying.paths.join("\n"));
+test("a server that answers 304 to every conditional read hides no FAIL, only a pass, which is judged again", async () => {
+  const lie = { answer: (listing) => (listing.sent !== null ? new Response(null, { status: 304 }) : undefined) };
+  // A recorded FAIL with this pull request's issues, and one under another pull request: each still stops the judgment.
+  const ownIssues = overHttp({ artifacts: [artifact(FAIL_I7_NAME, 78)], runs: { 78: verifyRun(78) } }, lie);
+  assert.equal((await resolveOverHttp(ownIssues)).reason, "already-judged");
+  const other = overHttp({ pulls: [pull(), pull({ number: 99, state: "closed", head: OTHER_HEAD })], artifacts: [artifact(OTHER_FAIL_NAME, 78)], runs: { 78: verifyRun(78) } }, lie);
+  assert.equal((await resolveOverHttp(other)).reason, "already-judged");
+  // A hidden pass costs one more judgment: the head proceeds and the pass's run is never read.
+  const pass = overHttp({ artifacts: [artifact(PASS_NAME, 77)], runs: { 77: verifyRun(77) } }, lie);
+  assert.equal((await resolveOverHttp(pass)).reason, "ok");
+  assert.ok(!pass.paths.includes(`/repos/${REPO}/actions/runs/77`), pass.paths.join("\n"));
+});
+
+test("only an empty listing's ETag is sent, and a 304 to a read that sent none throws", async () => {
   // A first listing that is not empty (an expired FAIL) gives no ETag to send:
-  // the next name is read unconditionally, and only its empty answer's ETag is sent after.
+  // the pass name is read unconditionally, and only its empty answer's ETag is sent after.
   const expired = overHttp({ artifacts: [artifact(FAIL_NAME, 77, true)], runs: { 77: verifyRun(77) } });
   assert.equal((await resolveOverHttp(expired)).reason, "ok");
   assert.deepEqual(
     expired.listings.map(({ sent }) => sent),
-    [null, null, EMPTY_TAG, EMPTY_TAG],
+    [null, null, EMPTY_TAG, null],
   );
   // A 304 to a read that sent no ETag is a failed read.
   const unasked = overHttp({}, { answer: (listing) => (listing.sent === null ? new Response(null, { status: 304 }) : undefined) });
@@ -2574,13 +2602,11 @@ test("a conditional listing that fails still throws", async () => {
   await assert.rejects(resolveOverHttp(refused), (error) => error instanceof GitHubError && error.status === 403);
 });
 
-test("a proceeding job bills one artifact listing, and a judged one two", async () => {
-  // Before: an unjudged head billed four listings (own FAIL, pass, pass-notes,
-  // FAIL with -i7), and a head judged by a pass three (own FAIL, pass, pass-notes).
+test("a proceeding job bills two artifact listings, and a pass-judged one two", async () => {
   const billed = (http) => http.listings.filter(({ status }) => status !== 304).map(({ name }) => name);
   const unjudged = overHttp({});
   assert.equal((await resolveOverHttp(unjudged)).reason, "ok");
-  assert.deepEqual(billed(unjudged), [FAIL_NAME]);
+  assert.deepEqual(billed(unjudged), [FAIL_NAME, FAIL_I7_NAME]);
   const judgedByPass = overHttp({ artifacts: [artifact(PASS_NAME, 77)], runs: { 77: verifyRun(77) } });
   assert.equal((await resolveOverHttp(judgedByPass)).reason, "already-judged");
   assert.deepEqual(billed(judgedByPass), [FAIL_NAME, PASS_NAME]);

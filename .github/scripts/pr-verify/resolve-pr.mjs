@@ -470,26 +470,28 @@ export function draftJudgments(github, repository, head) {
 }
 
 // Most names answer empty. The ETag of the first exactly empty first page a
-// client reads is sent as If-None-Match on every later first page, and GitHub
-// answers a name whose listing is still that empty body with a 304, which
-// does not count against the primary rate limit. The ETag follows the body
-// across names (babysit_verify_evidence.py EMPTY_ETAG_SUFFIX); GitHub
-// documents it per URL only. Were that to stop holding, each read is a 200 as
-// before: a 304 can only stand for the body the ETag came from, which was empty.
+// client reads is sent as If-None-Match on a later first page whose caller
+// passes `emptyIsSafe`, and a 304, which does not count against the primary
+// rate limit, reads as no artifacts. On 2026-11-12, with a user token, two
+// different unused names returned the identical weak ETag, and a conditional
+// read of one with the other's ETag answered 304. GitHub documents ETags per
+// URL only, and a name that holds an artifact was not tested, so only names
+// where a false empty costs one more judgment or rating (pass, pass-notes,
+// the rated name) opt in; every FAIL name is read unconditionally.
 //   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api>,
 //   "Use conditional requests".
 //   As-of: 2026-11-12.
-//   Recheck trigger: a name read that sent the ETag answers 304 while it holds
-//   an artifact, or no not-modified reaches the job's api-calls notice.
+//   Recheck trigger: the not-modified count on the pr-verify check intent and
+//   pr-verify-capture capture jobs' api-calls notices falls to 0.
 const emptyListingTags = new WeakMap();
 const ETAG_FORM = /^(W\/)?"[!#-~]{1,200}"$/;
 
 // Every artifact with exactly this name; a read that fails throws.
-async function artifactsNamed(github, repository, name) {
+async function artifactsNamed(github, repository, name, { emptyIsSafe = false } = {}) {
   const artifacts = [];
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     const path = `/repos/${repository}/actions/artifacts?name=${encodeURIComponent(name)}&per_page=100&page=${page}`;
-    const tag = page === 1 ? emptyListingTags.get(github) : undefined;
+    const tag = page === 1 && emptyIsSafe ? emptyListingTags.get(github) : undefined;
     let listing;
     try {
       listing = await (tag === undefined ? github("GET", path) : github("GET", path, undefined, { "If-None-Match": tag }));
@@ -626,7 +628,7 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
   for (const name of names) {
     const [, , , verdict] = NAME.exec(name);
     const created = [];
-    for (const artifact of await artifactsNamed(github, repository, name)) {
+    for (const artifact of await artifactsNamed(github, repository, name, { emptyIsSafe: verdict !== "fail" })) {
       if (artifact?.name !== name || artifact.expired !== false) {
         continue;
       }
@@ -1196,7 +1198,7 @@ export function ratedBy(env) {
   }
   return async ({ github, repository, number, head, base }) => {
     const name = `${prefix}-${number}-${head}`;
-    for (const artifact of await artifactsNamed(github, repository, name)) {
+    for (const artifact of await artifactsNamed(github, repository, name, { emptyIsSafe: true })) {
       const runId = artifact?.workflow_run?.id;
       if (artifact?.name !== name || artifact.expired !== false || !Number.isSafeInteger(runId)) {
         continue;
