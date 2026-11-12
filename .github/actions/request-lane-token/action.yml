@@ -341,7 +341,7 @@ runs:
         # https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit
         # So is a transient failure of the OIDC token request itself: HTTP 5xx
         # or 429, or a curl timeout or connection error. GitHub documents no
-        # error behaviour for that endpoint, so only the status and curl's exit
+        # error behavior for that endpoint, so only the status and curl's exit
         # decide; every other OIDC failure is final. Both kinds of retry share
         # one budget: at most 3 requests, and at most 60 s of waiting in all
         # (the outage posture's element 1 budget, docs/conventions/pr-pipeline/README.md#outage-posture):
