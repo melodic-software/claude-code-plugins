@@ -119,7 +119,7 @@ before its final write, and the gate refuses it with exit 1, which routes to tha
 A run that stops at its turn limit goes through that same ladder, resume first. What the harness
 returns at the limit, and how a resume works, is
 [subagents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents)'s to
-say. Dated record:
+say. Record:
 [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "A turn-limit stop returns partial output, and the parent can resume the agent".
 
@@ -153,7 +153,7 @@ The gate passing is not the end of the parent's work:
 
 - **Re-surface `open_questions`.** The dispatched agent cannot call `AskUserQuestion`, so the
   payload is the only route those questions have to a human. The
-  dated record for that harness behavior is
+  record for that harness behavior is
   [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md#askuserquestion-is-removed-from-every-non-fork-subagent),
   "`AskUserQuestion` is removed from every non-fork subagent".
 - **Dispatch the sibling verifier** against the `index=` path, with the criterion the payload's

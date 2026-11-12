@@ -131,7 +131,7 @@ Run when the findings warrant removal and the user wants it; it takes the same t
   checkout with neither, reported `hook_python` resolved and `data_root: null` on Claude Code
   2.1.285 (Linux); the derivation rule is in
   [safety-model.md](../clean/reference/safety-model.md), "Local-directory marketplace installs".
-  **Recheck:** the guard's data-root derivation changes, or a Claude Code
+  **As of:** 2026-09-30. **Recheck:** the guard's data-root derivation changes, or a Claude Code
   release documents a plugin data path for `--plugin-dir` loads.
 - A hint match is discovery evidence only. Reporting "N hinted entries" as "N safe deletions" is the
   failure this skill exists to avoid.

@@ -121,7 +121,7 @@ extraction waits for the third (Rule of Three).
   the claim, never evidence of absence. A rendered `WebFetch` result is never trusted to hold the
   whole page (**Pointer**: when judging what a rendered fetch returned of a page, fetch
   [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
-  live. The
+  live). The
   asymmetry is what makes this binding: a fetch that misses part of a page cannot fabricate a
   PRESENCE, only an ABSENCE. A re-fetch through the same channel reproduces
   the blind spot rather than testing it, so the recheck uses the raw channel, not a repeat of the

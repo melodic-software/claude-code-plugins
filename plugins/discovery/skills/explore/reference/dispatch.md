@@ -15,7 +15,7 @@ This file does not restate it.
 
 ## Discipline liveness: why a token at all
 
-We never count on the harness to fail a dispatch, or to tell the agent, when a `skills:` entry does not load. The dated record for that harness behavior is
+We never count on the harness to fail a dispatch, or to tell the agent, when a `skills:` entry does not load. The record for that harness behavior is
 [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "Harness facts the dispatch design rests on". The resulting run has no exploration dimensions, no
 output format, and no outcome gate, and it still reads the tree, still writes an artifact, and
@@ -201,12 +201,12 @@ state:
 - **Pointer:** [subagents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents).
 - This ladder covers `discovery:explorer` because it is a **custom** subagent. It does not extend to
   the built-in Explore agent `SKILL.md` names as the fan-out scout, which is one-shot and returns no
-  agent ID. Dated record, with the quoted basis:
+  agent ID. Record, with the quoted basis:
   [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
   "The built-in Explore agent cannot hold this plugin's contract".
 
 At the turn limit, a subagent that reaches `maxTurns` returns its output marked as partial, and
-the parent can resume it. Dated record:
+the parent can resume it. Record:
 [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "A turn-limit stop returns partial output, and the parent can resume the agent".
 

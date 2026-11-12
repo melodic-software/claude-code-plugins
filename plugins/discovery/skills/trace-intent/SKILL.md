@@ -55,7 +55,7 @@ checker before dispatching, and a denied or errored probe **halts** rather than 
 All three reasons in full, and the halt rule: [`context/dispatch.md`](context/dispatch.md).
 
 **Discipline-liveness token.** A dispatched agent receives this body through its `skills:` preload,
-and nothing else in its run shows whether that preload resolved. The dated record for that harness behavior is
+and nothing else in its run shows whether that preload resolved. The record for that harness behavior is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on".
 The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired. A missing or mismatched token is a **hard failure: the parent discards the run**. Provenance is `preload: fired | fallback`; `fallback` is the accepted recovery.

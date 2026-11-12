@@ -115,7 +115,7 @@ never raises it: write the lower of the token and `${CLAUDE_EFFORT}`, and write 
 `Budget:` word. Explore
 and trace-intent write neither line. A research worker that does not receive `Source breadth:`
 treats the run as `high` and names that default in the artifact, the same fallback as an
-unsubstituted body. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
+unsubstituted body. Record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "`${CLAUDE_EFFORT}` is the loading context's level".
 
 Write `Evidence use: publish` when the output will be quoted outside this session: a
@@ -148,7 +148,7 @@ spends `maxTurns: 40`: `researcher` and `intent-tracer` at `effort: high`, and `
 `effort: medium`, the effort floor, because its turns go almost entirely to reading. Why 40 stays
 is the harness-facts record "`maxTurns` is set per definition, so 40 is a checkpoint, not a
 completion budget". How the pin and the per-call parameter rank against the consumer's
-subagent-model environment settings is not restated here. Dated record:
+subagent-model environment settings is not restated here. Record:
 [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "A per-invocation `model` outranks a subagent's frontmatter".
 
@@ -307,13 +307,13 @@ Command deny rules are a partial guardrail, not the boundary. `Bash(git credenti
 `PowerShell`) blocks that one spelling; `printenv`, a `python -c` or `node -e` reader, and every
 other program that opens a file stay open, so we never treat an argument-constraining Bash pattern
 as a boundary (Pointer: for why such patterns are unreliable, see
-[permissions: Bash](https://code.claude.com/docs/en/permissions#bash).
+[permissions: Bash](https://code.claude.com/docs/en/permissions#bash)).
 A `Read(...)` deny does not cover a subprocess either. The stronger layer is the
 operator's sandbox configuration, which `/harness-config:audit` details and dates. A token held in an
 environment variable sits outside any file boundary and stays held by instruction. The plugin
 cannot ship any of this, because a plugin's settings cannot carry permission rules (Pointer: for
 the keys a plugin's settings may set, see
-[plugin manifest reference: `settings`](https://code.claude.com/docs/en/plugins/manifest-reference#settings).
+[plugin manifest reference: `settings`](https://code.claude.com/docs/en/plugins/manifest-reference#settings)).
 
 ## Read each file once, stated once
 
@@ -406,7 +406,7 @@ findings returned in place of an artifact are a failed dispatch, not a fallback.
 
 ## Harness facts the dispatch design rests on
 
-Twelve harness behaviors this plugin's dispatch design depends on, each with one dated record here
+Twelve harness behaviors this plugin's dispatch design depends on, each with one record here
 instead of an undated restatement at every site that relies on it. A skill, context file, or agent
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
 them repeats a pointer. Each record states what we rely on in our words and points at the section
@@ -791,7 +791,7 @@ The quoted and unquoted forms are both listed because we treat quoting as part o
 matches, and the invocation forms above quote the path while a hand-typed call may not (Pointer:
 when deciding how a Bash rule matches the text of a quoted path, fetch
 [permissions: wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns)
-live. Each rule names the script directly, so it is not the interpreter-led shape auto mode drops.
+live). Each rule names the script directly, so it is not the interpreter-led shape auto mode drops.
 The trailing space-and-`*` covers `--help` and every gate argument.
 
 **Why the rules pin the version instead of wildcarding it.** A cache install's plugin root carries
@@ -915,7 +915,7 @@ slice. Both also usually leave a **live agent**. The order is:
 
 The harness supports this: a subagent that reaches `maxTurns` returns its output marked as
 partial, and `SendMessage` to its agent ID resumes it with its history intact. Address it by ID,
-not by name. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
+not by name. Record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "A turn-limit stop returns partial output, and the parent can resume the agent".
 
 **The discard is what happens next, not instead.** Discard the partial slice, clearing it or

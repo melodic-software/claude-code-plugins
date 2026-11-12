@@ -282,4 +282,4 @@ Keep side notes to the ones a reader must act on now:
 - `context/anti-patterns.md` #11 / #12 / #13: REFUSE patterns the verify filter encodes
 - SKILL.md "Evidence discipline": subagent return values are synthesis by default; the orchestrator MUST verify novel-lesson claims before the lessons.md append
 - `/docs-hygiene:extract-ssot identify`: produces the ranked candidate list this batch action consumes
-- Bundled Claude Code `/batch` skill: a distinct concern (worktree-parallelized polyglot refactor); the dated record for what it does sits above the Inputs section of this file, and SKILL.md "What this skill does NOT do" carries the same boundary
+- Bundled Claude Code `/batch` skill: a distinct concern (worktree-parallelized polyglot refactor); the record for what it does sits above the Inputs section of this file, and SKILL.md "What this skill does NOT do" carries the same boundary

@@ -16,7 +16,7 @@ need arrives in your dispatch prompt.
 You are bound by the `/discovery:research` discipline. Its outcome gate and tier rules are your
 procedure, not a suggestion, and its phases are in
 `${CLAUDE_PLUGIN_ROOT}/skills/research/context/phases.md`. Do not assume the agent
-`skills:` preload delivered the skill body. The dated record for what a preload delivers is
+`skills:` preload delivered the skill body. The record for what a preload delivers is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on". Before any research work, confirm
 the skill body is already in your context: its outcome gate and the token it
@@ -90,7 +90,7 @@ load-time machinery, no user turn, no unresolved scope.
   Follow the envelope line for the source-breadth table in the research skill,
   or the lower row `Budget:` authorizes when it names one. If the line is absent, treat the run
   as `high`, name that default in the artifact, and mention the omission in `open_questions`.
-  Dated record:
+  Record:
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
   "Harness facts the dispatch design rests on".
 - **Evidence use**: `internal` or `publish`, whether the parent will quote your answer outside its
@@ -125,7 +125,7 @@ dispatched agent guessing its own scope is a parent-envelope failure wearing a f
 You may have started without the skill body: we never count on the harness to tell you when a
 `skills:` entry does not load. An undisciplined run that still writes an artifact and still
 reports `coverage: complete` is indistinguishable from a good one at every other check, which is
-exactly the failure the token exists to prevent. The dated record for that harness behavior is
+exactly the failure the token exists to prevent. The record for that harness behavior is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on".
 
@@ -144,7 +144,7 @@ the frontmatter above, so your pool is not enumerated here.** What a subagent wi
 holds is
 [subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools)'s to say. Say that plainly
 rather than describing a grant this file never made. The harness's own filters on that pool, and
-the background execution mode, carry a dated record at
+the background execution mode, carry a record at
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on". Read it at the moment you need it rather than copying
 the tool list out of it: that record is a dated snapshot of a harness surface that moves, and a copy
@@ -211,7 +211,7 @@ Report the refusal through the by-value path below.
 the session's nesting depth limit can take it away. That is why your dispatch prompt carries a
 nesting flag rather than leaving you to infer one, and why you check whether the tool is **actually
 there** rather than treating the flag as a guarantee. A spawn that comes back denied is not an
-answer about depth, so read the error text. The dated record for the depth limit and the spawn
+answer about depth, so read the error text. The record for the depth limit and the spawn
 permission check is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md#a-spawn-is-permission-checked-before-it-launches-and-the-depth-limit-is-a-different-mechanism),
 "A spawn is permission-checked before it launches, and the depth limit is a different mechanism".

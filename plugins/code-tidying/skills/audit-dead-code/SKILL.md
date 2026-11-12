@@ -117,7 +117,7 @@ Bounded by design. Evidence catalogue: [context/adjudication.md](context/adjudic
 5. Fan out to fresh-context subagents in batches when the set is large; if spawn depth is
    exhausted, say so and adjudicate inline at the same cap rather than silently shrinking the set
    (the depth-limit pointer record is in
-   [context/adjudication.md, Bounding the pass](context/adjudication.md#bounding-the-pass); relay).
+   [context/adjudication.md, Bounding the pass](context/adjudication.md#bounding-the-pass)).
 6. **Optional LSP assist**, never required and never a lane: when Claude Code's `LSP` tool is
    available, `findReferences` on one candidate is one more evidence source. Read what it returns
    in [LSP tool behavior](https://code.claude.com/docs/en/tools-reference#lsp-tool-behavior)

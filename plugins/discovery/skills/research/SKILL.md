@@ -126,7 +126,7 @@ Rationale for the ceiling over discipline 8, and skipped-phase N/A: the discipli
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that still begins with `${`, this body was read
 directly and the substitution never ran: run as `high`, every phase below. A value the table below
 does not name also runs as `high`.
-Dated record: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`,
+Record: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`,
 "Harness facts the dispatch design rests on". A dispatched run follows envelope `Source breadth:`
 from this load, not the researcher pin. Missing line: `high`, named in the artifact.
 

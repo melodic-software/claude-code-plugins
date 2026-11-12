@@ -169,7 +169,7 @@ that never saw the document.
      what a fork inherits, fetch
      <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> and
      <https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation>
-     live; the dated record is also in SKILL.md "Sources".
+     live; the record is also in SKILL.md "Sources".
 2. Give it the questions the document answers, or ask it to produce the
    document's key conclusions, using **only** native repository exploration. For a routing-only
    doc (pointers to other files), do **not** ask the fresh agent the doc's own trigger question
