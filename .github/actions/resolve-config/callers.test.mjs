@@ -1730,6 +1730,7 @@ test("pr-run-activity-read.yml: an issue run re-checks its blockers inside the s
     // Longer names first: evaluate replaces each name as text.
     "needs.broker-check.outputs.lease-comment-id": "99",
     "needs.broker-check.outputs.lease": "held",
+    "needs.broker-check.outputs.skip-run": "false",
     "inputs.caller-releases-lease": true,
     "needs.issue-fields.outputs.issue-run-started": "false",
     "needs.issue-fields.outputs.reuse-branch": "",
@@ -2982,6 +2983,7 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the patch and the 
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
       "needs.broker-check.outputs.lease-comment-id": "",
       "needs.broker-check.outputs.lease": "",
+      "needs.broker-check.outputs.skip-run": "false",
       "inputs.caller-releases-lease": false,
       "needs.issue-fields.outputs.issue-run-started": "",
       "needs.issue-fields.outputs.reuse-branch": "",
