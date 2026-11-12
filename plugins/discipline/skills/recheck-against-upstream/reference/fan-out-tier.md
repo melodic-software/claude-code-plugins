@@ -18,7 +18,7 @@ subsystem, framework, or repo doc-by-doc, which one context cannot cover from wi
    paths in the brief, so the subagent never depends on a plugin variable resolving in its shell
    (where plugin variables resolve: fetch
    [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
-   live; as of 2026-10-11; recheck when that table changes what reaches the Bash tool). The subagent
+   live). The subagent
    runs `bash "<scripts>/fetch-docs.sh" --cache --profile <profile> --out "$out" <slug-or-url>` as
    the procedure's step 1 gives it. The read that settles a verdict follows the procedure's step 6:
    re-fetch with `--max-age 0`, so a cached copy never stands in for the current docs, and read

@@ -43,8 +43,8 @@ read, because the regime is a constant for that tool. Evidence classes differ pe
 collapsed across tools:
 
 - **StrykerJS `inPlace`** is a documented option
-  ([configuration § inPlace](https://stryker-mutator.io/docs/stryker-js/configuration/#inplace-boolean),
-  as of 2026-11-10; recheck when that section changes what `true` writes). `false` is out-of-tree; `true`
+  ([configuration § inPlace](https://stryker-mutator.io/docs/stryker-js/configuration/#inplace-boolean)).
+  `false` is out-of-tree; `true`
   rewrites the working file once under mutant schemata (in-tree whole-file), not per-mutant
   apply/revert cycles.
 - **Stryker.NET / Stryker4s / Infection `none`** are negatives by enumerating the published options

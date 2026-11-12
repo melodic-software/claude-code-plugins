@@ -25,7 +25,7 @@ export CONTEXT7_API_KEY="<your-key>"
 
 Set it wherever your project manages local environment variables (shell profile, a gitignored local settings file, or your secret manager). Never commit the key.
 
-**Prefer the env var over `ctx7 login`.** How `login` authenticates and where it keeps its token is [Context7 CLI § Authentication](https://context7.com/docs/clients/cli#authentication) (as of 2026-11-10; recheck when that section changes how `login` stores a token). The env-var approach is simpler, cross-machine-portable, and doesn't pollute the user profile. If `login` was run anyway, it's harmless but redundant. Delete `~/.ctx7/` to revert.
+**Prefer the env var over `ctx7 login`.** How `login` authenticates and where it keeps its token is [Context7 CLI § Authentication](https://context7.com/docs/clients/cli#authentication). The env-var approach is simpler, cross-machine-portable, and doesn't pollute the user profile. If `login` was run anyway, it's harmless but redundant. Delete `~/.ctx7/` to revert.
 
 ## Commands
 
@@ -43,8 +43,6 @@ Set it wherever your project manages local environment variables (shell profile,
 
 - **Pointer**: for whether the CLI has either, run `ctx7 --help` and `ctx7 skills` on the installed
   CLI and fetch [upstash/context7#3425](https://github.com/upstash/context7/pull/3425) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: `ctx7 --help` lists `skills` or `generate`.
 
 **Lookups default to `ctx7 library`, then `ctx7 docs`; `ctx7 search` is an option.** The
 selection, ambiguity-probe and version-specific-ID steps in [lookup.md](lookup.md) are built on
@@ -56,9 +54,6 @@ the two steps.
   its calls count, run `ctx7 --help` and `ctx7 search --help` on the installed CLI, and read
   [Search API or Context API?](https://context7.com/docs/search-api#search-api-or-context-api) and
   [Search API: Pricing](https://context7.com/docs/search-api#pricing) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: `ctx7 search --help` adds or drops a flag, the Context7 MCP server gains a
-  one-step search tool, or either docs section changes.
 
 ## Flags
 
@@ -77,7 +72,7 @@ the two steps.
 | `--json` | Structured JSON output (vs. formatted text). Useful for scripts / `jq` extraction |
 | `--language <name>` | `docs` only: passed with the user's language when the installed CLI lists it; the probe and its pointer record are in [lookup.md](lookup.md#step-2-query-documentation) |
 
-**For more content per call, prefer MCP.** Which flags `docs` takes is [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation) (as of 2026-11-10; recheck when that section adds a depth or token flag). Use MCP (`mcp__context7__query-docs`); the measured ratio is in [mcp.md](mcp.md).
+**For more content per call, prefer MCP.** Which flags `docs` takes is [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation). Use MCP (`mcp__context7__query-docs`); the measured ratio is in [mcp.md](mcp.md).
 
 ### Setup / install flags (why this plugin doesn't use them)
 
@@ -94,7 +89,7 @@ the two steps.
 | `CONTEXT7_API_KEY` | Higher rate limits + priority |
 | `CTX7_TELEMETRY_DISABLED` | Set to `1` to disable the CLI's anonymous usage telemetry |
 
-Whether and what the CLI sends as telemetry is [Context7 CLI § Telemetry](https://context7.com/docs/clients/cli#telemetry) (as of 2026-11-10; recheck when that section changes the default or the opt-out variable). In privacy-sensitive environments, disable it per invocation (`CTX7_TELEMETRY_DISABLED=1 ctx7 docs ...`) or permanently by exporting the variable in your shell profile.
+Whether and what the CLI sends as telemetry is [Context7 CLI § Telemetry](https://context7.com/docs/clients/cli#telemetry). In privacy-sensitive environments, disable it per invocation (`CTX7_TELEMETRY_DISABLED=1 ctx7 docs ...`) or permanently by exporting the variable in your shell profile.
 
 ## Windows Git Bash gotcha (REQUIRED for `docs`)
 

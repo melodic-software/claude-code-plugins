@@ -102,8 +102,6 @@ leaving fan-out tiers out.
 
 - **Pointer**: whether a fork's Agent tool can spawn,
   [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
-- **As of**: 2026-10-10.
-- **Recheck trigger**: that section changes whether a fork's Agent tool can spawn.
 
 Then read [reference/fan-out-tier.md](reference/fan-out-tier.md) before
 enumerating surfaces: it owns the doc-by-doc dispatch, the mid-run checkpoint,

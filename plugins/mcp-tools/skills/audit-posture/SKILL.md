@@ -41,8 +41,6 @@ tool: we treat every one of them as holding values that must not reach the trans
 
 - **Pointer**: when deciding what a scope's file can hold, fetch
   [MCP installation scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section adds, moves or renames a scope or the file it is stored in.
 
 The script emits only the columns the audit needs, and
 only values that fully match a strict grammar for their kind: npm, Python, and image specs;
@@ -97,9 +95,6 @@ organization-provided servers from user-configured ones, and no P1-P5 criterion 
 - **Pointer**: when explaining an organization-provided row or what happens on removal, fetch
   [Provide servers through managed settings](https://code.claude.com/docs/en/managed-mcp#provide-servers-through-managed-settings)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes how organization-provided servers are attributed or
-  removed, or is renamed.
 
 ### Phase 2: Evaluate P1-P5
 
@@ -187,8 +182,6 @@ changed rows.
 
 - Every stdio row reads `sandboxed = no`. This is expected; the checklist's
   [sandbox record](reference/checklist.md#sandbox-coverage) gives the decision and its pointer.
-  As of 2026-10-11. Recheck trigger: that record moves, or its decision stops marking stdio rows
-  unsandboxed.
 - A container image tag is mutable. Only an `@sha256:` digest counts as pinned, so a fixed tag such
   as `:1.4` reads `mutable-tag`, not `exact`.
 - Local-scope rows are found by project path. When the operator runs from a different directory
@@ -199,6 +192,3 @@ changed rows.
   - **Pointer**: when checking how local scope is stored or which server sources exist beyond the
     config files, fetch [MCP installation scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes)
     live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes where local scope is stored, or names a server
-    source the coverage footer does not.

@@ -40,20 +40,15 @@ the reviewer to confirm the description still names that intent, or to restore t
   findings.
   - **Record**: the parse-failure behavior is recorded in the unquoted-description comment under
     the `# --- Check 1` header of `scripts/check-skill.sh`, and the name cap in the comment above
-    `NAME_MAX_LEN=` there (a script, so no section anchor). **As of**: 2026-10-11. **Recheck
-    trigger**: that header, that comment's pointer, or `NAME_MAX_LEN` being renamed or moved.
+    `NAME_MAX_LEN=` there (a script, so no section anchor).
   - **Pointer**: when a `compatibility`, `name`, or reserved-word finding is in doubt, fetch
     <https://agentskills.io/specification#compatibility-field>,
     <https://agentskills.io/specification#name-field> and
     <https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill> live.
-    **As of**: 2026-10-11. **Recheck trigger**: the spec's validator, the upload requirements, or
-    a Claude Code release changing either rule.
 - `description` + `when_to_use` within the **per-skill** listing-entry cap. A different, narrower
   limit from the shared budget below.
   - **Pointer**: for the cap's default, fetch
-    <https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars> live. **As of**:
-    2026-10-11. **Recheck trigger**: that section moving the default, which re-derives
-    `DESC_CHAR_CAP` in `scripts/check-skill.sh`.
+    <https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars> live.
 - `description` alone within the Agent Skills spec's `description` field maximum, counted in
   **codepoints**. A separate limit at a separate layer from the listing-entry cap above: a
   description can sit under the combined cap and still breach the field maximum on its own. Over
@@ -65,9 +60,7 @@ the reviewer to confirm the description still names that intent, or to restore t
   repo-relative skill path per line; those downgrade to a WARN, and a row whose skill no longer
   breaches FAILs as stale, so the list can only shrink.
   - **Pointer**: for the field maximum, fetch
-    <https://agentskills.io/specification#description-field> live. **As of**: 2026-10-11.
-    **Recheck trigger**: the spec moving the field maximum, which re-derives `DESC_FIELD_CAP` in
-    `scripts/check-skill.sh`.
+    <https://agentskills.io/specification#description-field> live.
 - Trigger-keyword preservation vs `HEAD` (advisory: a dropped phrase warns naming it and never
   fails the run; a phrase moved to a sibling skill warns naming the host; skipped for a new,
   uncommitted skill).
@@ -88,8 +81,6 @@ the reviewer to confirm the description still names that intent, or to restore t
   form, so a path authored on Windows loads on every platform.
   - **Pointer**: for which component paths Claude Code rejects at load, fetch
     <https://code.claude.com/docs/en/plugins/loading#paths-that-escape-the-plugin-directory> live.
-    **As of**: 2026-10-11. **Recheck trigger**: that section dropping or widening the backslash
-    rule.
 - `markdownlint-cli2` clean (advisory-skips when `npx` is absent).
 - `scripts/*.test.sh` pass where present and inside the current repository. Known limit: if a
   home-directory repository tracks a file inside an installed plugin's skills root, untracked
@@ -181,9 +172,7 @@ exits 0.
 
 - **Pointer**: for the budget's basis, default, and override, fetch
   <https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction> and
-  <https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short> live. **As of**:
-  2026-10-11. **Recheck trigger**: either section changing the basis, the default, or the
-  override, which re-derives the constants in `scripts/check-listing-budget.sh`.
+  <https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short> live.
 
 Only **listing-eligible** skills are counted: the report skips a skill with
 `disable-model-invocation: true`, so a description that never reaches the listing does not inflate
@@ -192,9 +181,7 @@ repository content cannot reveal, so the reported figure is an upper bound for a
 
 - **Pointer**: for which skills' descriptions reach the listing, fetch
   <https://code.claude.com/docs/en/skills#control-who-invokes-a-skill> and
-  <https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings> live. **As
-  of**: 2026-10-11. **Recheck trigger**: either section changing which frontmatter or setting
-  keeps a description out of the listing.
+  <https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings> live.
 
 `check` also takes one or more skills roots as positionals, so several trees are gated in one run.
 Each root is walked on its own under its own header and the run ends with a single
