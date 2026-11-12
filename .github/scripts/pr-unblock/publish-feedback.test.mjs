@@ -1626,13 +1626,15 @@ test("lineChanged reads a patch's new-side hunks", async () => {
 });
 
 // collect-base-activity runs a script activity from a copy of its own
-// directory under $RUNNER_TEMP, beside a copy of the shared ../lib modules, so
-// every import must resolve inside those two.
-test("the script loads from a copy of its own directory and the shared lib alone", async () => {
+// directory under $RUNNER_TEMP, beside a copy of the shared ../lib modules and
+// merge-holds.mjs in ../pr-merge, so every import must resolve inside those.
+test("the script loads from a copy of its own directory, the shared lib and the staged merge-holds alone", async () => {
   const root = tempDir("base-activity-");
   try {
     cpSync(dirname(fileURLToPath(import.meta.url)), join(root, "base-script"), { recursive: true });
     cpSync(fileURLToPath(new URL("../lib", import.meta.url)), join(root, "lib"), { recursive: true });
+    mkdirSync(join(root, "pr-merge"));
+    cpSync(fileURLToPath(new URL("../pr-merge/merge-holds.mjs", import.meta.url)), join(root, "pr-merge", "merge-holds.mjs"));
     const module = await import(pathToFileURL(join(root, "base-script", "publish-feedback.mjs")).href);
     assert.equal(typeof module.main, "function");
   } finally {
