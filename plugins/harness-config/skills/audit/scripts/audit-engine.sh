@@ -2538,8 +2538,8 @@ fi
 lines_json() {
   if [[ $# -gt 0 ]]; then printf '%s\n' "$@" | jq -Rcn '[inputs]'; else echo '[]'; fi
 }
-personal_json="$(lines_json "${PERSONAL_ONLY[@]}")"
-malformed_json="$(lines_json "${MALFORMED[@]}")"
+personal_json="$(lines_json ${PERSONAL_ONLY[@]+"${PERSONAL_ONLY[@]}"})"
+malformed_json="$(lines_json ${MALFORMED[@]+"${MALFORMED[@]}"})"
 layers_json="$(printf '%s\n' "${SUPPRESSION_LAYERS[@]}" | jq -Rcn '[inputs | split("\t") | {layer: .[0], source: .[1], state: .[2]}]')"
 
 inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), mod_plane:(.mod_plane // []), unreadable:(.unreadable // []), divergence:(.divergence // [])}' <<<"$INVENTORY_JSON")"
