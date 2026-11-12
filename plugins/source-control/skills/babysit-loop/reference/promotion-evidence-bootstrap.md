@@ -293,7 +293,8 @@ absent. A set value is compliant only when it is:
   A usage error or a settings file that cannot be read reports its own reason first. Pointer for
   the Windows decision: the Windows ACL note under
   [Node.js `fs.access(path[, mode], callback)`](https://nodejs.org/api/fs.html#fsaccesspath-mode-callback),
-  which the helper's write test calls.
+  which the helper's write test calls. As of 2026-10-13 (Node.js v26 docs). Recheck trigger: that
+  note changes what the access test reports for a path an ACL restricts.
 
 `promotion_evidence_credential_roots` differs: it is optional, empty reads as unset, and it holds a
 comma-separated list of probe-host paths. Each entry must be absolute (`/...` or a drive path such

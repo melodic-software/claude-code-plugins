@@ -167,7 +167,9 @@ For a merge queue send `-f merge_action=merge_queue` and drop `merge_method`. Th
 request `uuid` (a 409 means one is already pending and returns its `uuid`); poll
 `gh api "repos/{owner}/{repo}/pulls/<pr_number>/merge-async/<uuid>" --jq .status` every 60 s until it reads
 `merged`, `enqueued`, or `failed`. Request fields and statuses:
-[merge a pull request asynchronously](https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request-asynchronously).
+[merge a pull request asynchronously](https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request-asynchronously),
+as of 2026-10-02; recheck when a `gh` release adds a command for it or that page changes a field or
+status.
 
 ## Merge after AI review
 

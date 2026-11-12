@@ -45,8 +45,10 @@ told:
    is 3–10× one agent's tokens (returns cost context too), and it is a floor: budget a
    research-shaped fan-out above it. Spend it on value + parallelism, not convenience. Pointer: for
    multi-agent token cost, see <https://code.claude.com/docs/en/costs#agent-team-token-costs>; no
-   docs page covers research fan-out sizing (correlate with
-   <https://www.anthropic.com/engineering/multi-agent-research-system>).
+   docs page covers research fan-out sizing as of 2026-10-01 (correlate with
+   <https://www.anthropic.com/engineering/multi-agent-research-system>). As of: 2026-10-01.
+   Recheck trigger: that section moves or starts stating its own multiplier, or a docs page starts
+   covering fan-out sizing.
    "Would flood context" is a measurement, not a hunch, when the instrument exists: with the
    `context-guard` plugin enabled, resolve this session's zone word per its reader contract
    before a fan-out decision

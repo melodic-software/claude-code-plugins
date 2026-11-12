@@ -152,6 +152,7 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
    Source conflict: the Claude Code 2.1.271 changelog entry and the Monitor tool section disagree on which inputs a command watch accepts. We follow the live tool schema: no `persistent`, an explicit `timeout_ms`.
 
    - **Pointer**: when you need the inputs a command watch accepts, fetch the 2.1.271 entry of the [Claude Code changelog](https://code.claude.com/docs/en/changelog) and [Monitor tool](https://code.claude.com/docs/en/tools-reference#monitor-tool) live.
+   - **As of**: 2026-10-10
    - **Recheck trigger**: the Monitor tool section documents `timeout_ms` for command watches or mentions `persistent`.
 
    The step-2 check rests on this session's own arming record, not on a task-list lookup, because the task-tracking tools are not offered on every model.

@@ -101,9 +101,12 @@ tasks.
 - **Pointer**: one local observation on 2026-09-19: an `awk` scan over a file of about 9 MB hung,
   the dispatching worker returned, and the agent panel still showed it active for hours. For a
   background subagent leaving a command running past its turn, see
-  <https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background>. No docs
-  page covers how such a command affects the agent panel's active state or how a hung one is
-  retired.
+  <https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background>. As of
+  the as-of date no docs page covers how such a command affects the agent panel's active state or
+  how a hung one is retired.
+- **As of**: 2026-09-29
+- **Recheck trigger**: a Claude Code release note or docs change describes background shell
+  lifecycle or the agent panel's active state.
 
 ### SendMessage worker continuation
 
@@ -258,6 +261,8 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   here. Empirical, unpinned datum: a 4-CPU cloud container bound a run at 2 concurrent agents
   (observed 2026-08-15). Pointer: <https://code.claude.com/docs/en/workflows#cost>,
   <https://code.claude.com/docs/en/workflows#set-a-size-guideline> and
-  <https://code.claude.com/docs/en/workflows#behavior-and-limits>. The anchor's small and medium bands follow the
+  <https://code.claude.com/docs/en/workflows#behavior-and-limits>. As of: 2026-10-01. Recheck
+  trigger: that page changes a size-guideline agent count or default, the warning threshold, or
+  the concurrency bound or its override. The anchor's small and medium bands follow the
   size-guideline table; its large band starts where medium ends and is not the guideline's
   `large`, which has its own count in the table.

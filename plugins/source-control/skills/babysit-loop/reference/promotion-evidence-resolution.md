@@ -84,7 +84,8 @@ Inside its `--since` to `--through` window the publisher fails closed instead of
   Pointers: status codes under
   [Get an issue](https://docs.github.com/en/rest/issues/issues#get-an-issue--status-codes) and
   [Converting an issue to a discussion](https://docs.github.com/en/discussions/managing-discussions-for-your-community/moderating-discussions#converting-an-issue-to-a-discussion);
-  probe: `gh api repos/cli/cli/issues/14698` against a discussion number.
+  probe: `gh api repos/cli/cli/issues/14698` against a discussion number, 2026-10-15. Recheck
+  trigger: either section changes, or a live run refuses on a number that holds a discussion.
 - Every `babysit-merge-demotion` record `github-actions[bot]` or a `--lane-login` opened, open or
   closed, whose body or any revision carries the marker or whose edit history is not whole, is a
   gate-failure on every cell at its creation and at each repeat-failure comment one of those

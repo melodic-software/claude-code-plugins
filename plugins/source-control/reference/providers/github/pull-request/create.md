@@ -57,8 +57,9 @@ fi
 proxy is served no GraphQL operation at all, so the call fails with `HTTP 403` whatever token is
 set. Pointer:
 [Configure cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy),
-which names the refusal and the REST fallback. The `2>/dev/null || true` in the block above
-swallows that 403. Substitute the REST
+which names the refusal and the REST fallback. As-of: 2026-10-11. Recheck trigger: that section
+changes its GraphQL entry, or a release note names the GitHub proxy. The `2>/dev/null || true` in
+the block above swallows that 403. Substitute the REST
 issues endpoint, which reports `state` in lower case and `body` as a string or null. Pointer:
 [Get an issue](https://docs.github.com/en/rest/issues/issues#get-an-issue), whose schema is
 [Create an issue](https://docs.github.com/en/rest/issues/issues#create-an-issue)'s. As-of:
