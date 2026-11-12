@@ -1,9 +1,11 @@
-// Intake gate: skip an issue that /work-items:decompose published already
-// triaged. Skip only when the issue carries the born-triaged marker, its
-// author is a listed human or the lanes App (matched by numeric id), and it
-// has an Issue Type and a status: a Work status field a trusted account set to
-// anything but needs-triage (read-status.mjs folds it into the labels), or a
-// status label.
+// Intake gate: skip an issue another skill routes, or one that
+// /work-items:decompose published already triaged. A routing label (the
+// tracker binding's container label, or a label starting with its wayfind
+// prefix) skips on its own. The born-triaged rule, when applied, skips only
+// when the issue carries the born-triaged marker, its author is a listed human
+// or the lanes App (matched by numeric id), and it has an Issue Type and a
+// status: a Work status field a trusted account set to anything but
+// needs-triage (read-status.mjs folds it into the labels), or a status label.
 // Anything else, including any read failure, lets intake run.
 import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
@@ -11,6 +13,7 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
+import { trackerBindingText } from "../../scripts/pr-merge/merge-holds.mjs";
 import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
 import { isStatusLabel, statusReader } from "../resolve-config/read-status.mjs";
@@ -48,6 +51,29 @@ export function humanIds(list) {
 
 const labelNames = (issue) => (issue.labels ?? []).map((label) => label.name ?? "");
 
+export const ROUTING_DEFAULTS = Object.freeze({ container: "work-map", prefix: "wayfind:" });
+
+// The routing labels of a tracker binding (the `tracker` mapping of
+// work-items.yaml): `config.container_label` and `config.wayfind_label_prefix`,
+// each its default when absent or empty. A value of another type throws.
+export function routingLabels(tracker) {
+  const config = tracker?.config ?? {};
+  const pick = (key, fallback) => {
+    const value = config[key];
+    if (value === undefined || value === null || value === "") {
+      return fallback;
+    }
+    if (typeof value !== "string") {
+      throw new Error(`tracker.config.${key} is not a string`);
+    }
+    return value;
+  };
+  return { container: pick("container_label", ROUTING_DEFAULTS.container), prefix: pick("wayfind_label_prefix", ROUTING_DEFAULTS.prefix) };
+}
+
+export const routingLabel = (names, routing = ROUTING_DEFAULTS) =>
+  names.find((name) => name === routing.container || name.startsWith(routing.prefix)) ?? null;
+
 // Why `issue` is not born triaged, or null when it is. `trusted(id)` answers
 // whether its author's numeric id is a listed human's or the lanes App's;
 // `names` are its label names, by default as read.
@@ -79,8 +105,9 @@ export function checkBornTriaged({ issue, list, lanesAppId, names }) {
 
 // `statusOf(number, names)` gives the issue's label names as its Work status
 // field adds to them (read-status.mjs statusReader); it is asked only once the
-// marker, author and type pass.
-export async function run({ fetchIssue, list, lanesAppId, statusOf, sleep = delay, attempts = 6, delayMs = 5000 }) {
+// marker, author and type pass. With `bornTriaged` false only a routing label
+// skips, and the issue is read once.
+export async function run({ fetchIssue, list, lanesAppId, statusOf, routing = ROUTING_DEFAULTS, bornTriaged = true, sleep = delay, attempts = 6, delayMs = 5000 }) {
   if (!isListReadable(list)) {
     return triage("list-unreadable");
   }
@@ -91,6 +118,13 @@ export async function run({ fetchIssue, list, lanesAppId, statusOf, sleep = dela
       issue = await fetchIssue();
     } catch {
       return triage("issue-unreadable");
+    }
+    const label = routingLabel(labelNames(issue), routing);
+    if (label) {
+      return { skip: "true", reason: "routing-label", label };
+    }
+    if (!bornTriaged) {
+      return triage("born-triaged-off");
     }
     result = checkBornTriaged({ issue, list, lanesAppId });
     if (statusOf && (result.reason === "born-triaged" || result.reason === "no-status")) {
@@ -117,14 +151,28 @@ function writeOutputs(outputs, outputPath = process.env.GITHUB_OUTPUT) {
   appendFileSync(outputPath, text);
 }
 
+// The binding's routing labels; a missing file keeps the defaults, and an
+// unreadable one keeps them with a warning.
+function readRouting(path) {
+  try {
+    return routingLabels(JSON.parse(trackerBindingText(path)));
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.log(`::warning::check-born-triaged: cannot read the routing labels from ${path} (${error.message}); using '${ROUTING_DEFAULTS.container}' and '${ROUTING_DEFAULTS.prefix}'`);
+    }
+    return ROUTING_DEFAULTS;
+  }
+}
+
 async function main() {
-  const { GITHUB_API_URL, GITHUB_TOKEN, REPOSITORY, ISSUE_NUMBER, TRUSTED_ACTORS_PATH, LANES_APP_ID } = process.env;
+  const { GITHUB_API_URL, GITHUB_TOKEN, REPOSITORY, ISSUE_NUMBER, TRUSTED_ACTORS_PATH, LANES_APP_ID, TRACKER_CONFIG, BORN_TRIAGED } = process.env;
   let list = null;
   try {
     list = JSON.parse(readFileSync(TRUSTED_ACTORS_PATH, "utf8"));
   } catch {
     // checkBornTriaged reports list-unreadable.
   }
+  const routing = readRouting(TRACKER_CONFIG || ".base/docs/conventions/work-items.yaml");
   // Through the rate guard (rate-guard.mjs): a rate-limited answer logs an
   // error naming the reset and stops the job's later calls to that pool, and
   // a read while a stop holds is refused without a request. The step still
@@ -148,10 +196,13 @@ async function main() {
   const github = createGitHub({ token: GITHUB_TOKEN, apiUrl: GITHUB_API_URL || undefined });
   const statusOf = statusReader({ env: process.env, github, repository: REPOSITORY });
   const result = /^[1-9][0-9]*$/.test(ISSUE_NUMBER ?? "")
-    ? await run({ fetchIssue, list, lanesAppId: LANES_APP_ID, statusOf })
+    ? await run({ fetchIssue, list, lanesAppId: LANES_APP_ID, statusOf, routing, bornTriaged: BORN_TRIAGED !== "false" })
     : triage("issue-unreadable");
   const rateLimited = latch.until(issueUrl) !== null ? "true" : "false";
-  writeOutputs({ ...result, "human-ids": humanIds(list), "rate-limited": rateLimited });
+  writeOutputs({ skip: result.skip, reason: result.reason, label: result.label ?? "", "human-ids": humanIds(list), "rate-limited": rateLimited });
+  if (result.label) {
+    console.log(`::notice::intake skips #${ISSUE_NUMBER}: it carries '${result.label}', a container or wayfind label, so the skill that filed it routes it`);
+  }
   console.log(`check-born-triaged: skip=${result.skip} reason=${result.reason} rate-limited=${rateLimited}`);
 }
 
