@@ -19,6 +19,18 @@
   ],
   "fail": [
     {
+      "answer": "cli-flag-verify runs as a PostToolUse hook after each edit, so the report does not show its catches.",
+      "why": "negation elsewhere"
+    },
+    {
+      "answer": "Per data-sources.md, cli-flag-verify is a PostToolUse hook.",
+      "why": "filename dot"
+    },
+    {
+      "answer": "cli-flag-verify is a PostToolUse hook; it never runs at push time.",
+      "why": "semicolon clause"
+    },
+    {
       "answer": "The cli-flag-verify PostToolUse hook fires after each Write or Edit.",
       "why": "stale"
     },

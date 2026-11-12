@@ -8,7 +8,7 @@ graders:
     target: last_message
   - name: no-posttooluse-claim
     type: regex
-    pattern: '(?:^|[.!?][ \t]+)(?![^.!?\n]*\b(?:not|no longer|never|rather than|instead of|isn[’'']t|doesn[’'']t|wasn[’'']t)\b)[^.!?\n]*(?:\bcli-flag-verify\b[^.!?\n]*\bPostToolUse\b|\bPostToolUse\b[^.!?\n]*\bcli-flag-verify\b)'
+    pattern: '\bcli-flag-verify\b(?:(?![.!?;](?:\s|$))[^\n]){0,200}?(?<!not a )(?<!not an )(?<!not as a )(?<!longer a )(?<!longer an )(?<!n''t a )(?<!n’t a )(?<! run as a )(?<!than a )(?<!than as a )(?<!stead of a )(?<!not )(?<!never )(?<!no )(?<!No )\bPostToolUse\b|(?<!not a )(?<!not an )(?<!not as a )(?<!longer a )(?<!longer an )(?<!n''t a )(?<!n’t a )(?<! run as a )(?<!than a )(?<!than as a )(?<!stead of a )(?<!not )(?<!never )(?<!no )(?<!No )\bPostToolUse\b(?:(?![.!?;](?:\s|$))[^\n]){0,200}?\bcli-flag-verify\b'
     flags: 'im'
     match: not_contains
     target: last_message
