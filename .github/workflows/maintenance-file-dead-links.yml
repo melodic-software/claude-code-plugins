@@ -30,15 +30,13 @@ name: Maintenance File Dead Links
 #   puts the issue in the untriaged queue. A reopened rollup keeps its state.
 #
 # The trigger names the link-check workflow by its `name:`, which the
-# standards component owns: a rename there disconnects this workflow. Both
-# names stay listed until the sync that delivers the caller as
-# maintenance-check-links-online.yml lands; then drop the old one.
+# standards component owns: a rename there disconnects this workflow.
 
 on:
   # Runs this file from the default branch and executes no code from the
   # link-check run: the artifact is data, checked before use.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [Maintenance Check Links Online, Maintenance Check Links Online Claude Code Plugins]
+    workflows: [Maintenance Check Links Online]
     types: [completed]
     branches: [main]
 
