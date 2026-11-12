@@ -414,10 +414,9 @@ recheck trigger, the observable event that obliges re-derivation, beside the dec
 A date alone does not qualify as a trigger. A pointer that stores no such number or string needs
 no stamp, a probe record of behavior or a "no docs page covers X" note included, but
 it conforms only when the passage restates nothing from the source: text that matches or
-paraphrases the source is judged by the criteria whether or not a link sits beside it. *Pointer:* `docs/contracts/upstream-drift/README.md` "Required parts" and
-"The observability bar" in the marketplace repository. *As of:* 2026-10-01. *Recheck trigger:* any
-change to that convention's required parts, or the org standard broadening the accepted trigger
-forms in a way this repository adopts.
+paraphrases the source is judged by the criteria whether or not a link sits beside it.
+*Pointer:* `docs/contracts/upstream-drift/README.md` "Required parts" and "The observability bar"
+in the marketplace repository.
 
 **A date is never authority.** This rubric reads a dated stamp as the last time the record was
 derived from its source, never as standing authority: what obliges re-derivation is the trigger,
