@@ -522,6 +522,16 @@ def is_gate_suite(suite: str) -> bool:
     return suite.startswith(GATE_SUITE_PREFIXES)
 
 
+def check_key(check: str) -> str:
+    """`check` (`<job>`, `<job> (<leg>)` or `<job>: <gate>`) with its job
+    name lower-cased and its spaces made hyphens, so a baseline run tested
+    before the jobs got display names (`test-bash (0)`) matches the same check
+    after (`Test Bash (0)`)."""
+    job, colon, gate = check.partition(": ")
+    name, paren, leg = job.partition(" (")
+    return f"{name.lower().replace(' ', '-')}{paren}{leg}{colon}{gate}"
+
+
 # --- GitHub access ------------------------------------------------------------------
 
 
@@ -1484,7 +1494,12 @@ class _Context:
         attempt = 2 if run.id in self.red_on_rerun else 1
         failing = self.failing_checks(run.id, attempt)
         baseline = self._baseline(signal, merged_at) if failing else None
-        new = failing if baseline is None else failing - baseline
+        before = {check_key(c) for c in baseline or ()}
+        new = (
+            failing
+            if baseline is None
+            else frozenset(c for c in failing if check_key(c) not in before)
+        )
         demote = self.demoting(run, attempt, new) if new else new
         return demote | self.expired(run, attempt, failing - new)
 
@@ -2972,6 +2987,54 @@ def _stop_uncovered(judged: list[AutoMerge], listed: list[Run]) -> None:
         merged_at = _time(merge.merged_at)
         if not any(at >= merged_at for at in dispatched):
             raise UncoveredMergeStop(merge.number)
+
+
+def newest_dispatch_before(repo: str, branch: str, merged_at: datetime) -> bool:
+    """Whether the newest dispatch run `_dispatch_runs` would list on `branch`
+    was created before `merged_at`, read in one call: then `_stop_uncovered`
+    stops for a judged merge at `merged_at`, as no listed run can cover it.
+    No dispatch run at all is True too. Raises `PostMergeReadError` when the
+    listing is unreadable or its newest row is not such a run."""
+    owner, name = _split_repo(repo)
+    label = f"newest {FULL_RUN_WORKFLOW} workflow_dispatch run"
+    page = json_object(
+        _read(
+            [
+                "api",
+                f"repos/{owner}/{name}/actions/workflows/{FULL_RUN_WORKFLOW}/runs"
+                f"?event=workflow_dispatch&branch={quote(branch, safe='')}&per_page=1",
+            ],
+            label,
+        )
+    )
+    items, total = page.get("workflow_runs"), page.get("total_count")
+    if not is_json_array(items) or type(total) is not int:
+        raise PostMergeReadError(f"{label}: no page")
+    if not items:
+        if total:
+            raise PostMergeReadError(f"{label}: total_count {total}, but none returned")
+        return True
+    runs = [
+        r
+        for r in _run_rows((json_object(i) for i in items), "workflow_dispatch", owner, name)
+        if r.head_branch == branch
+    ]
+    if not runs:
+        raise PostMergeReadError(f"{label}: the newest row is not a run on {branch}")
+    return max(r.created_at for r in runs) < merged_at
+
+
+def _uncovered_since(repo: str, branch: str, merged_at: datetime) -> int:
+    """`--uncovered-since`: EXIT_UNCOVERED (6) when `newest_dispatch_before`,
+    0 when not, 3 when the read failed; a rate limit exits 75 through
+    babysit_gh. Only 6 ends a pr-merge wake; any other code runs its check."""
+    try:
+        uncovered = newest_dispatch_before(repo, branch, merged_at)
+    except PostMergeReadError as exc:
+        print(f"uncovered-since: {exc}", file=sys.stderr)
+        return EXIT_UNREADABLE
+    _print_json({"uncovered": uncovered, "since": merged_at.isoformat()}, indent=None)
+    return EXIT_UNCOVERED if uncovered else 0
 
 
 def check(
@@ -5481,6 +5544,17 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     mode.add_argument(
+        "--uncovered-since",
+        type=_since,
+        metavar="MERGED_AT",
+        help=(
+            "with --branch: exit 6 when the branch's newest full dispatch run "
+            "was created before MERGED_AT (ISO 8601 with an offset), 0 when not, "
+            "3 unreadable; one read, before any of the check's (a pr-merge wake's "
+            "pre-check)"
+        ),
+    )
+    mode.add_argument(
         "--settle-from",
         metavar="REPORT",
         help=(
@@ -5505,8 +5579,13 @@ def main(argv: list[str] | None = None) -> int:
         or args.settle_from
         or args.judge_run is not None
         or args.lane_alerted is not None
+        or args.uncovered_since is not None
     ):
         parser.error("--stop-uncovered is for a read-only check alone")
+    if args.uncovered_since is not None:
+        if not args.branch:
+            parser.error("--uncovered-since needs --branch")
+        return _uncovered_since(args.repo, args.branch, args.uncovered_since)
     if args.preflight:
         return _preflight(args.repo, args.agent_identity, args.self_login)
     if args.lane_alerted is not None:

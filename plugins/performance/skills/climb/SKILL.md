@@ -108,7 +108,6 @@ before the first attempt.
 
 - **Pointer**: for what `--keep` refuses and what it moves, see
   [git-reset `--keep`](https://git-scm.com/docs/git-reset#Documentation/git-reset.txt---keep).
-  **As of**: 2026-11-10. **Recheck trigger**: the git-reset page changes the `--keep` description.
 
 ## When the run ends
 
@@ -177,8 +176,7 @@ Changes, oldest first, one line each:
 
 - **Pointer**: for which worktrees `remove` accepts, see
   [git-worktree `remove`](https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt-remove).
-  **As of**: 2026-10-04 (ignored-only output was also checked by hand: removal succeeds). **Recheck
-  trigger**: that section changes what counts as a clean worktree.
+  Ignored-only output was also checked by hand: removal succeeds.
 
 ## Boundary
 

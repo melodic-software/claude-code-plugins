@@ -116,7 +116,7 @@ A test that passes or fails by chance teaches the agent running it to retry inst
 - **Order independence**: each test builds its own state and leaves nothing another test reads. Run the suite in shuffled order (with a printed seed) to prove it
 - **Parallel safety**: unique temp directories, ports, database names and file paths per test; no shared mutable singletons
 
-Runner-level switches exist for several of these (a fake clock in Playwright, seeded shuffling and per-test reseeding in pytest-randomly and `go test -shuffle`, socket blocking in pytest-socket). Read the current options at the source: [Playwright clock](https://playwright.dev/docs/clock), [pytest-randomly](https://github.com/pytest-dev/pytest-randomly), [pytest-socket](https://github.com/miketheman/pytest-socket). As of 2026-10-06. Recheck trigger: a tool renames or drops the switch. Whether to fake a dependency at all follows `/tdd:principles` (when the `tdd` plugin is enabled).
+Runner-level switches exist for several of these (a fake clock in Playwright, seeded shuffling and per-test reseeding in pytest-randomly and `go test -shuffle`, socket blocking in pytest-socket). Read the current options at the source: [Playwright clock](https://playwright.dev/docs/clock), [pytest-randomly](https://github.com/pytest-dev/pytest-randomly), [pytest-socket](https://github.com/miketheman/pytest-socket). Whether to fake a dependency at all follows `/tdd:principles` (when the `tdd` plugin is enabled).
 
 ## Outside-in: the user-flow test first
 

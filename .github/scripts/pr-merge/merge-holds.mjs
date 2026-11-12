@@ -448,6 +448,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/apply-patch/apply-patch.mjs", "enforcement"],
   [".github/scripts/apply-patch/predicates.mjs", "enforcement"],
   [".github/scripts/apply-patch/protected-paths.mjs", "enforcement"],
+  [".github/scripts/lib/run-main.mjs", "enforcement"],
   [".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"],
   [".github/scripts/pr-unblock/feedback-dispatch.mjs", "enforcement"],
   [".github/scripts/pr-unblock/verify-notes.mjs", "enforcement"],
@@ -747,11 +748,12 @@ export function namesPull(text, number) {
 
 // The review lanes whose status job records a `claude-lane-hold` notice, as
 // [workflow file, status job names] (ci-status's cost-hold step reads the same
-// two), as pr-review-cli.yml names it. The notice's head and criteria, and the
+// two), as pr-review-cli.yml names it, new name first; the lower-case name is
+// a head tested before the rename. The notice's head and criteria, and the
 // base branch name a compare takes, as the hold step reads it.
 export const REVIEW_LANES = [
-  ["pr-review-hosted.yml", ["pr-review / review-status"]],
-  ["pr-review-security-hosted.yml", ["pr-review-security / review-status"]],
+  ["pr-review-hosted.yml", ["PR Review / review-status", "pr-review / review-status"]],
+  ["pr-review-security-hosted.yml", ["PR Review Security / review-status", "pr-review-security / review-status"]],
 ];
 const HOLD_NOTICE = /^claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=([a-z,-]+) label=/;
 const BRANCH = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}$/;

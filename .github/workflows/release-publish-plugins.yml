@@ -59,6 +59,7 @@ concurrency:
 
 jobs:
   merge:
+    name: Merge
     if: github.ref == 'refs/heads/main' && (inputs.action || 'merge') == 'merge'
     # The App's private key is an environment secret; the environment admits
     # only main (github-iac RepositoryEnvironments.cs).
@@ -179,6 +180,7 @@ jobs:
           tokens: github-token
 
   build:
+    name: Build
     needs: [merge]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && ((inputs.action || 'merge') != 'merge' || needs.merge.outputs.rebuild == 'true') }}
     environment:

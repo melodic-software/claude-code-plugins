@@ -35,8 +35,6 @@ Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface. In
 This is NOT the bundled Claude Code `/batch` skill, which is codebase-wide parallel change orchestration. This `batch` action is local SSOT-cluster orchestration instead.
 
 - **Pointer**: for what bundled `/batch` does, read its entry at [All commands](https://code.claude.com/docs/en/commands#all-commands) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the reference drops the `/batch` entry or changes what it does, or a release note names the bundled `/batch` skill.
 
 ## Inputs
 
@@ -284,4 +282,4 @@ Keep side notes to the ones a reader must act on now:
 - `context/anti-patterns.md` #11 / #12 / #13: REFUSE patterns the verify filter encodes
 - SKILL.md "Evidence discipline": subagent return values are synthesis by default; the orchestrator MUST verify novel-lesson claims before the lessons.md append
 - `/docs-hygiene:extract-ssot identify`: produces the ranked candidate list this batch action consumes
-- Bundled Claude Code `/batch` skill: a distinct concern (worktree-parallelized polyglot refactor); the dated record for what it does sits above the Inputs section of this file, and SKILL.md "What this skill does NOT do" carries the same boundary
+- Bundled Claude Code `/batch` skill: a distinct concern (worktree-parallelized polyglot refactor); the record for what it does sits above the Inputs section of this file, and SKILL.md "What this skill does NOT do" carries the same boundary

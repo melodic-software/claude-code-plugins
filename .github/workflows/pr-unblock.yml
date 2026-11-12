@@ -113,6 +113,7 @@ jobs:
   # proceeded mint a token whatever the model call did. Only base code and a
   # read-only token; a dispatch with no dispatcher run skips the steps.
   dispatcher-current:
+    name: Dispatcher Current
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -176,6 +177,7 @@ jobs:
   # call's scan job, never from its run job, whose runner head code could
   # forge.
   resolve-conflicts-select:
+    name: Resolve Conflicts Select
     needs: dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'resolve-conflicts'
@@ -442,6 +444,7 @@ jobs:
   # an up-to-date skip, since a neutral check would end the head for the
   # dispatcher should a later default-branch push conflict with it.
   resolve-conflicts-not-run:
+    name: Resolve Conflicts Not Run
     needs: resolve-conflicts-select
     if: >-
       ${{ !cancelled() && inputs.activity == 'resolve-conflicts'
@@ -519,6 +522,7 @@ jobs:
   # measured from the conflict tree. It runs on the pr-unblock role's API
   # key alone, in the per-PR write queue.
   resolve-conflicts:
+    name: Resolve Conflicts
     needs: resolve-conflicts-select
     if: ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true' }}
     permissions:
@@ -555,6 +559,7 @@ jobs:
   # output: the run job runs head code and can forge them. A failed read
   # leaves posted empty, which starts the fallback call.
   resolve-conflicts-handoff:
+    name: Resolve Conflicts Handoff
     needs: [resolve-conflicts-select, resolve-conflicts]
     if: ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true' }}
     runs-on: ubuntu-24.04
@@ -621,6 +626,7 @@ jobs:
   # only when resolve-conflicts-handoff read no check posted, which a credit
   # stop or an empty key leaves, and holds the OAuth token alone.
   resolve-conflicts-subscription:
+    name: Resolve Conflicts Subscription
     needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-handoff]
     if: >-
       ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true'
@@ -659,6 +665,7 @@ jobs:
   # only when resolve-conflicts-handoff found the fallback token set, so with the token empty
   # nothing starts that did not before. A failed read starts no third call.
   resolve-conflicts-subscription-handoff:
+    name: Resolve Conflicts Subscription Handoff
     needs: [resolve-conflicts-handoff, resolve-conflicts-subscription]
     if: ${{ !cancelled() && needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-handoff.outputs.fallback-ready == 'true' }}
     runs-on: ubuntu-24.04
@@ -716,6 +723,7 @@ jobs:
   # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
   # hands off.
   resolve-conflicts-fallback:
+    name: Resolve Conflicts Fallback
     needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-handoff, resolve-conflicts-subscription, resolve-conflicts-subscription-handoff]
     if: ${{ !cancelled() && needs.resolve-conflicts-handoff.outputs.fallback-ready == 'true' && needs.resolve-conflicts-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
@@ -756,6 +764,7 @@ jobs:
   # leg answers a conflicted round: the fallback call when it ran, else the
   # first, and every model-call input below is that leg's scan job's.
   apply-conflict-patch:
+    name: Apply Conflict Patch
     needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-subscription, resolve-conflicts-fallback]
     if: >-
       ${{ !cancelled()
@@ -808,6 +817,7 @@ jobs:
   # unresolved-conflict when one says the scan refused
   # (conflict-scan-refusal.mjs). No marker escalates nothing.
   conflict-scan-refusal:
+    name: Conflict Scan Refusal
     needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-subscription, resolve-conflicts-fallback]
     if: >-
       ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true'
@@ -892,6 +902,7 @@ jobs:
   # edits), it pushes the merge alone, which still moves the head past the
   # refusal.
   sync-shared-copies-select:
+    name: Sync Shared Copies Select
     needs: dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'sync-shared-copies'
@@ -1211,6 +1222,7 @@ jobs:
   # resolve-conflicts's. A kill-switch stop reads no head, and nothing is
   # posted.
   sync-shared-copies-not-run:
+    name: Sync Shared Copies Not Run
     needs: sync-shared-copies-select
     if: >-
       ${{ !cancelled() && inputs.activity == 'sync-shared-copies'
@@ -1289,6 +1301,7 @@ jobs:
   # that moved since the select job read it, and pushes one merge commit with
   # the head and the base as parents, without force.
   apply-shared-copies:
+    name: Apply Shared Copies
     needs: sync-shared-copies-select
     if: ${{ !cancelled() && needs.sync-shared-copies-select.outputs.proceed == 'true' }}
     permissions:
@@ -1334,6 +1347,7 @@ jobs:
   # the jobs after it take comes from here, never from the model job, whose
   # runner head code could forge.
   address-feedback-select:
+    name: Address Feedback Select
     needs: dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'address-feedback'
@@ -1541,6 +1555,7 @@ jobs:
   # neutral on the head the select job read; a kill-switch stop reads none,
   # and nothing is posted.
   address-feedback-not-run:
+    name: Address Feedback Not Run
     needs: address-feedback-select
     if: >-
       ${{ !cancelled() && inputs.activity == 'address-feedback'
@@ -1621,6 +1636,7 @@ jobs:
   # uncommitted edits as a patch and, after its leak scan, its replies. It
   # runs on the pr-unblock role's API key alone, in the per-PR write queue.
   address-feedback:
+    name: Address Feedback
     needs: address-feedback-select
     if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
     permissions:
@@ -1657,6 +1673,7 @@ jobs:
   # output: the run job runs head code and can forge them. A failed read
   # leaves posted empty, which starts the fallback call.
   address-feedback-handoff:
+    name: Address Feedback Handoff
     needs: [address-feedback-select, address-feedback]
     if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
     runs-on: ubuntu-24.04
@@ -1723,6 +1740,7 @@ jobs:
   # only when address-feedback-handoff read no check posted, which a credit
   # stop or an empty key leaves, and holds the OAuth token alone.
   address-feedback-subscription:
+    name: Address Feedback Subscription
     needs: [address-feedback-select, address-feedback, address-feedback-handoff]
     if: >-
       ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
@@ -1762,6 +1780,7 @@ jobs:
   # only when address-feedback-handoff found the fallback token set, so with the token empty
   # nothing starts that did not before. A failed read starts no third call.
   address-feedback-subscription-handoff:
+    name: Address Feedback Subscription Handoff
     needs: [address-feedback-handoff, address-feedback-subscription]
     if: ${{ !cancelled() && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-handoff.outputs.fallback-ready == 'true' }}
     runs-on: ubuntu-24.04
@@ -1819,6 +1838,7 @@ jobs:
   # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
   # hands off.
   address-feedback-fallback:
+    name: Address Feedback Fallback
     needs: [address-feedback-select, address-feedback, address-feedback-handoff, address-feedback-subscription, address-feedback-subscription-handoff]
     if: ${{ !cancelled() && needs.address-feedback-handoff.outputs.fallback-ready == 'true' && needs.address-feedback-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
@@ -1863,6 +1883,7 @@ jobs:
     # After adjudicate-feedback too, so the push lands right before the reply
     # job: a review run on the pushed head that finishes while this run still
     # goes would find it in progress, skip, and start no next round.
+    name: Apply Feedback Patch
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, adjudicate-feedback]
     # One leg answers the round: the fallback call when it ran, else the
     # first, and every model-call input below is that leg's, so one leg's
@@ -1918,6 +1939,7 @@ jobs:
   # first. No secret, no model, no checkout; every failure runs the key
   # (next-leg empty). Probing is off.
   adjudicate-key-credit:
+    name: Adjudicate Key Credit
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback]
     # adjudicate-feedback's own condition: a round with a disputed reply.
     if: >-
@@ -1978,6 +2000,7 @@ jobs:
   # skipped job or no usable credential escalates it as
   # feedback-unadjudicated.
   adjudicate-feedback:
+    name: Adjudicate Feedback
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, adjudicate-key-credit]
     if: >-
       ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
@@ -2985,6 +3008,7 @@ jobs:
   # pass-only round it runs alone and only resolves the stale fail-note
   # threads run.json lists (publish-feedback.mjs).
   publish-feedback:
+    name: Publish Feedback
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, apply-feedback-patch, adjudicate-feedback]
     if: ${{ !cancelled() && (needs.address-feedback-select.outputs.proceed == 'true' || needs.address-feedback-select.outputs.resolve-only == 'true') }}
     permissions:
@@ -3038,6 +3062,7 @@ jobs:
   # whose lane token holds the contents: write that resolving there needs;
   # publish-feedback keeps publish-artifact. It escalates nothing.
   resolve-feedback-threads:
+    name: Resolve Feedback Threads
     needs: [address-feedback-select, apply-feedback-patch, publish-feedback]
     # On an acted round, and on the reply script's own stops, after which
     # other threads may still hold its answers: an escalation (lane-stopped,
@@ -3094,6 +3119,7 @@ jobs:
   # model-call input from a model call's scan job, never from its run job,
   # whose runner head code could forge.
   review-dependency-select:
+    name: Review Dependency Select
     needs: dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'review-dependency'
@@ -3295,6 +3321,7 @@ jobs:
   # posts it neutral on the head the select job read; a kill-switch stop
   # reads none, and nothing is posted.
   review-dependency-not-run:
+    name: Review Dependency Not Run
     needs: review-dependency-select
     if: >-
       ${{ !cancelled() && inputs.activity == 'review-dependency'
@@ -3361,6 +3388,7 @@ jobs:
   # untrusted text. It runs on the pr-unblock role's API key alone, in the
   # per-PR write queue.
   review-dependency:
+    name: Review Dependency
     needs: review-dependency-select
     if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' }}
     permissions:
@@ -3396,6 +3424,7 @@ jobs:
   # output: the run job runs head code and can forge them. A failed read
   # leaves posted empty, which starts the fallback call.
   review-dependency-handoff:
+    name: Review Dependency Handoff
     needs: [review-dependency-select, review-dependency]
     if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' }}
     runs-on: ubuntu-24.04
@@ -3462,6 +3491,7 @@ jobs:
   # only when review-dependency-handoff read no check posted, which a credit
   # stop or an empty key leaves, and holds the OAuth token alone.
   review-dependency-subscription:
+    name: Review Dependency Subscription
     needs: [review-dependency-select, review-dependency, review-dependency-handoff]
     if: >-
       ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true'
@@ -3500,6 +3530,7 @@ jobs:
   # only when review-dependency-handoff found the fallback token set, so with the token empty
   # nothing starts that did not before. A failed read starts no third call.
   review-dependency-subscription-handoff:
+    name: Review Dependency Subscription Handoff
     needs: [review-dependency-handoff, review-dependency-subscription]
     if: ${{ !cancelled() && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-handoff.outputs.fallback-ready == 'true' }}
     runs-on: ubuntu-24.04
@@ -3557,6 +3588,7 @@ jobs:
   # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
   # hands off.
   review-dependency-fallback:
+    name: Review Dependency Fallback
     needs: [review-dependency-select, review-dependency, review-dependency-handoff, review-dependency-subscription, review-dependency-subscription-handoff]
     if: ${{ !cancelled() && needs.review-dependency-handoff.outputs.fallback-ready == 'true' && needs.review-dependency-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
@@ -3596,6 +3628,7 @@ jobs:
   # does not need it: a patch that does not land leaves no fix commit, and
   # the verdict job hands the PR to a person as dependency-fix-not-landed.
   apply-dependency-patch:
+    name: Apply Dependency Patch
     needs: [review-dependency-select, review-dependency, review-dependency-subscription, review-dependency-fallback]
     # One leg answers the round: the fallback call when it ran, else the
     # first, and every model-call input below is that leg's scan job's, so
@@ -3648,6 +3681,7 @@ jobs:
   # stops as dependency-pin-invalid, -not-applied or -protected-path, which
   # report-escalation and report-stop-status hand to the session queue.
   apply-dependency-pin:
+    name: Apply Dependency Pin
     needs: review-dependency-select
     if: ${{ !cancelled() && needs.review-dependency-select.outputs.pin-state == 'written' }}
     permissions:
@@ -3683,6 +3717,7 @@ jobs:
   # so every round is counted; a hostile model job cannot skip it. Neither
   # job merges.
   apply-dependency-verdict:
+    name: Apply Dependency Verdict
     needs: [review-dependency-select, review-dependency, review-dependency-subscription, review-dependency-fallback, apply-dependency-patch]
     if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' }}
     permissions:
@@ -3724,6 +3759,7 @@ jobs:
   # the failing checks' names, workflows, annotations and log ends to the
   # context file the model job reads. Logs and annotations are data.
   fix-ci-context:
+    name: Fix CI Context
     needs: dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-ci'
@@ -3859,6 +3895,7 @@ jobs:
   # dispatch it again on every run. This job posts fix-ci neutral on that head,
   # as publish-feedback-not-run does; a kill-switch stop leaves the head empty.
   fix-ci-not-run:
+    name: Fix CI Not Run
     needs: fix-ci-context
     if: >-
       ${{ !cancelled() && inputs.activity == 'fix-ci'
@@ -3925,6 +3962,7 @@ jobs:
   # holds it, never the run's own group, pr-unblock-fix-ci-<pr>: a job group
   # with that name waits on its own run and never starts.
   fix-ci:
+    name: Fix CI
     needs: fix-ci-context
     if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
     permissions:
@@ -3963,6 +4001,7 @@ jobs:
   # check unless the call handed off. A failed read leaves posted empty,
   # which starts the fallback call: a second leg, never a lost check.
   fix-ci-handoff:
+    name: Fix CI Handoff
     needs: [fix-ci-context, fix-ci]
     if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
     runs-on: ubuntu-24.04
@@ -4032,6 +4071,7 @@ jobs:
   # the one fact that read attests: the lane record says the key posted no
   # check, not why, since only the run job knows.
   fix-ci-subscription:
+    name: Fix CI Subscription
     needs: [fix-ci-context, fix-ci, fix-ci-handoff]
     if: >-
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
@@ -4071,6 +4111,7 @@ jobs:
   # only when fix-ci-handoff found the fallback token set, so with the token empty
   # nothing starts that did not before. A failed read starts no third call.
   fix-ci-subscription-handoff:
+    name: Fix CI Subscription Handoff
     needs: [fix-ci-handoff, fix-ci-subscription]
     if: ${{ !cancelled() && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-handoff.outputs.fallback-ready == 'true' }}
     runs-on: ubuntu-24.04
@@ -4128,6 +4169,7 @@ jobs:
   # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
   # hands off.
   fix-ci-fallback:
+    name: Fix CI Fallback
     needs: [fix-ci-context, fix-ci, fix-ci-handoff, fix-ci-subscription, fix-ci-subscription-handoff]
     if: ${{ !cancelled() && needs.fix-ci-handoff.outputs.fallback-ready == 'true' && needs.fix-ci-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
@@ -4169,6 +4211,7 @@ jobs:
   # else the first, and every input is that leg's scan job's, never a run
   # job's; a call that handed off left none.
   apply-patch:
+    name: Apply Patch
     needs: [fix-ci-context, fix-ci, fix-ci-subscription, fix-ci-fallback]
     if: >-
       ${{ !cancelled()
@@ -4222,6 +4265,7 @@ jobs:
   # to a person unless the retry's patch applied cleanly; nothing here runs
   # at rung 1 twice.
   fix-ci-rung-up:
+    name: Fix CI Rung Up
     needs: [fix-ci-context, apply-patch]
     if: >-
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
@@ -4256,6 +4300,7 @@ jobs:
 
   # As fix-ci-handoff and fix-ci-subscription are for fix-ci.
   fix-ci-rung-up-handoff:
+    name: Fix CI Rung Up Handoff
     needs: [fix-ci-context, fix-ci-rung-up]
     if: >-
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
@@ -4321,6 +4366,7 @@ jobs:
           tokens: github-token
 
   fix-ci-rung-up-subscription:
+    name: Fix CI Rung Up Subscription
     needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-handoff]
     if: >-
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
@@ -4361,6 +4407,7 @@ jobs:
   # only when fix-ci-rung-up-handoff found the fallback token set, so with the token empty
   # nothing starts that did not before. A failed read starts no third call.
   fix-ci-rung-up-subscription-handoff:
+    name: Fix CI Rung Up Subscription Handoff
     needs: [fix-ci-rung-up-handoff, fix-ci-rung-up-subscription]
     if: ${{ !cancelled() && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-handoff.outputs.fallback-ready == 'true' }}
     runs-on: ubuntu-24.04
@@ -4418,6 +4465,7 @@ jobs:
   # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
   # hands off.
   fix-ci-rung-up-fallback:
+    name: Fix CI Rung Up Fallback
     needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-handoff, fix-ci-rung-up-subscription, fix-ci-rung-up-subscription-handoff]
     if: ${{ !cancelled() && needs.fix-ci-rung-up-handoff.outputs.fallback-ready == 'true' && needs.fix-ci-rung-up-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
@@ -4449,6 +4497,7 @@ jobs:
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   apply-patch-rung-up:
+    name: Apply Patch Rung Up
     needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-subscription, fix-ci-rung-up-fallback]
     if: >-
       ${{ !cancelled()
@@ -4495,6 +4544,7 @@ jobs:
   # allowed the lane: a kill switch, read there with its repository shadow,
   # or a broker refusal is no merge blocker and spends no restart.
   fix-ci-unreported:
+    name: Fix CI Unreported
     needs: [fix-ci-context, fix-ci, fix-ci-subscription, fix-ci-fallback, fix-ci-rung-up, fix-ci-rung-up-subscription, fix-ci-rung-up-fallback]
     if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
     runs-on: ubuntu-24.04
@@ -4587,6 +4637,7 @@ jobs:
   # status-withheld output keeps report-escalation from posting the
   # lane-stopped comment for it.
   report-stop-status:
+    name: Report Stop Status
     needs:
       - resolve-conflicts-select
       - apply-conflict-patch
@@ -4723,6 +4774,7 @@ jobs:
           tokens: github-token
 
   report-escalation:
+    name: Report Escalation
     needs:
       - resolve-conflicts-select
       - apply-conflict-patch
@@ -4825,6 +4877,7 @@ jobs:
   # call's output. No job needs this one, so the read, which waits for the
   # jobs listing's steps, delays no handoff.
   key-credit-markers:
+    name: Key Credit Markers
     needs: [resolve-conflicts, address-feedback, review-dependency, fix-ci, fix-ci-rung-up]
     if: ${{ !cancelled() && (needs.resolve-conflicts.result != 'skipped' || needs.address-feedback.result != 'skipped' || needs.review-dependency.result != 'skipped' || needs.fix-ci.result != 'skipped' || needs.fix-ci-rung-up.result != 'skipped') }}
     runs-on: ubuntu-24.04

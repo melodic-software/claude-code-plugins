@@ -23,11 +23,11 @@ pointer to the section that documents the mechanic; read the wording there. The 
 contract lives in `SKILL.md`; the per-check grant vocabulary lives in the sibling
 `audit-permission-grants`. Neither is restated here.
 
-Pointers, both read 2026-08-11:
+Pointers:
 [settings precedence](https://code.claude.com/docs/en/settings#settings-precedence), and
 [Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions) and
 [Settings precedence](https://code.claude.com/docs/en/permissions#settings-precedence) on the
-permissions page. Recheck when either page's precedence list adds, drops or reorders a scope.
+permissions page.
 
 ---
 
@@ -62,9 +62,6 @@ else reports that directory's file.
   fetch the same section and
   [permissions: permission system](https://code.claude.com/docs/en/permissions#permission-system)
   live.
-- **As of**: 2026-11-04
-- **Recheck trigger**: that section moves the shared file away from the primary working directory,
-  or the permissions section changes which file a prompt approval is saved to.
 
 ### The four start-directory conditions, and the one that is not detectable
 
@@ -80,8 +77,6 @@ than guessing at it.
 
 - **Pointer**: [Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
   and [Environment variables](https://code.claude.com/docs/en/env-vars).
-- **As of**: 2026-09-12
-- **Recheck trigger**: either page documents an entrypoint variable or changes the condition list.
 
 ### Cloud sessions read a different scope set
 
@@ -118,9 +113,6 @@ either section as a change the reader's scripts owe.
   and
   [managed settings: compose every managed source](https://code.claude.com/docs/en/managed-settings#compose-every-managed-source)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the drop-in section changes how two drop-in files combine a key, or the
-  compose table gains, drops or reclassifies a key kind.
 
 Two are **declared optional platform integrations**: the Windows policy registry keys and the macOS managed-preferences
 domain. Each is read where it is native and readable; where its tool is missing the surface reports
@@ -212,7 +204,7 @@ run of `inert` records.
   lock only when a managed `conf` record carries
   `allowManagedPermissionRulesOnly true`. Pointer: when deciding what the lock drops, fetch
   [settings reference: allowManagedPermissionRulesOnly](https://code.claude.com/docs/en/settings-reference#allowmanagedpermissionrulesonly)
-  live. As of: 2026-10-11. Recheck trigger: that entry changes what the lock ignores or keeps.
+  live.
 - **Rules are compared by exact text, and the error direction is known.** A deny like
   `Bash(aws *)` wins over each call it covers, a call that a narrower allow like `Bash(aws s3 ls)`
   also covers included (pointer: [Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions)).
@@ -238,8 +230,6 @@ run of `inert` records.
   managed settings, since sign-in state is not read here. Where the guard loads, what its options
   do, and which calls deny rules cover are read live. Pointer:
   [mods admin: know what happens by default](https://code.claude.com/docs/en/plugins/mods/admin#know-what-happens-by-default).
-  As of: 2026-10-17. Recheck trigger: that section changes where the guard loads, what deny rules
-  take precedence over, or which mod calls they cover.
 
 ## The auto-mode entry diff
 
@@ -264,9 +254,6 @@ mode it never enters.
 - **Pointer**: for which mode a session starts in, see
   [Which mode a session starts in](https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in)
   (correlate with [the announcement](https://claude.com/blog/auto-mode-default-in-claude-code), 2026-08-14).
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section changes a starting mode, adds or removes a run shape, or moves
-  a version floor.
 
 Five documented classes, and every dropped rule is reported as exactly one of them: `blanket`,
 `interpreter-wildcard`, `package-manager-run`, `agent`, `monitor`. The shell-shape patterns are not
@@ -292,8 +279,7 @@ to share, so the diff driver tests them on the tool token instead.
   which is why the reader inventories it as a `conf` record. Pointer: when deciding what the key
   does and from which version, fetch
   [auto mode config: route all shell commands through the classifier](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
-  live. As of: 2026-10-11. Recheck trigger: that section changes what the key suspends or its
-  version floor.
+  live.
 - **The key is resolved only from scopes the classifier reads**, and the reader implements that set:
   user settings, managed settings, and inline `--settings`/SDK JSON, never `.claude/settings.json` or
   `.claude/settings.local.json`. A project- or local-scope occurrence is reported as having no
@@ -359,8 +345,8 @@ fixed all three.
 | `C6-contentField` | Fires on a `Tool(param:value)` rule naming the tool's primary content field. The fields the lint checks, by tool: Bash and PowerShell `command`; Read, Edit, Write `file_path`; Grep, Glob `path`; NotebookEdit `notebook_path`; WebFetch `url`. We treat such a rule as ignored with a startup warning. Pointer: [Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter) |
 | `C6-allowParam` | Fires on an **allow** rule in `Tool(param:value)` form, since we treat parameter matching as a deny-and-ask feature only; allow rules keep each tool's own specifier syntax. Pointer: [Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter). An operator writing one believes they narrowed a grant and has not. Fires only on parameters the page names for tools whose own syntax is a path or a command. `WebFetch(domain:host)` is the documented WebFetch form and `Bash(npm:*)` is a command prefix, so neither is distinguishable from a parameter by shape and neither fires |
 | `C6-uncoveredPath` | Fires on a path rule whose tool is `Write`, `NotebookEdit`, `Glob`, or the retired `MultiEdit`, since we treat file access as decided by `Read(path)` and `Edit(path)` rules alone; such a rule is accepted, never consulted, and warned about at startup (v2.1.210+; a `Glob` rule passed in `--allowedTools` is the stated exception). Pointer: [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit). **As of** 2026-10-13. **Recheck when** that section stops naming `MultiEdit` or changes which tools path rules cover |
-| `C6-colonStar` | Fires on a mid-pattern `:*`, as in `Bash(git:* push)`, since we treat `:*` as prefix syntax only at the end of a pattern: mid-pattern, the colon is a literal and the `*` a wildcard, so `Bash(git:* push)` matches `git:<anything> push` and none of the git commands its author meant. We saw no startup warning for such a rule in a `-p` run, so the lint reports it. **Pointer**: when the mid-pattern colon matters, fetch [Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns) live. **As of** 2026-10-10. **Recheck when** that section changes how a mid-pattern `:*` matches, or a release makes it prefix syntax. **Probe**: probed on Claude Code 2.1.296, 2026-10-10; evidence in the pull request that carries this change. The mechanic is about **command-prefix** patterns, so a documented parameter form is exempt: WebFetch's `domain:` prefix takes `*` wildcards ([WebFetch](https://code.claude.com/docs/en/permissions#webfetch)), and firing on `WebFetch(domain:*.example.com)` called a documented, working rule broken. A body that starts with `*` and holds no space, as in `PowerShell(*env:*lefthook*)`, is exempt too: it has no command prefix, so the literal colon is what it means to match. A space restores the prefix-then-words shape, so `Bash(* git:* push)` and `Bash(*foo:* rm)` still fire. **Ambiguous form:** in a deny or ask rule a mid-pattern `:*` with NO space after it, as in `Bash(git:*push)`, does not fire this error; unless its tool and prefix are a known parameter, it is reported as the warning `C6-colonStarAmbiguous`, asking the author to say which they meant. It is structurally identical to the parameter form `Agent(model:*-haiku)`, so once the space is gone nothing in the rule text distinguishes them; the space was the only signal. The documented example is the space form, and the pages show no no-space mid-pattern rule anywhere. The exemption is by **grammar**, where in a deny or ask rule an `identifier:value` body is the parameter form, not by a list of parameter names: we treat parameter matching as working for any scalar parameter on any built-in tool, and an `mcp__` rule with parentheses in a settings file as a separate case this row does not judge ([Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter), as of 2026-11-04; recheck when that section changes which tools it covers or how settings files treat such a rule), so an allowlist could only ever chase it and would flag documented forms such as `Agent(model:*-haiku)` |
-| `C6-malformed` | Fires on text after a specifier's closing parenthesis, as in `Bash(ls) x`, and on an unclosed specifier. A parenthesis inside the specifier does not fire, so `Edit(./Finance (2024)/**)` is one rule. The lint used to keep only the token and treat `Bash(ls) x` as `Bash(ls)`. **Pointer**: when deciding which rule shapes are accepted and how trailing text is treated, fetch [permissions: permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax) live. **As of** 2026-11-03. **Recheck when** that section changes how parentheses in a specifier or text after one are read |
+| `C6-colonStar` | Fires on a mid-pattern `:*`, as in `Bash(git:* push)`, since we treat `:*` as prefix syntax only at the end of a pattern: mid-pattern, the colon is a literal and the `*` a wildcard, so `Bash(git:* push)` matches `git:<anything> push` and none of the git commands its author meant. We saw no startup warning for such a rule in a `-p` run, so the lint reports it. **Pointer**: when the mid-pattern colon matters, fetch [Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns) live. **As of** 2026-10-10. **Recheck when** that section changes how a mid-pattern `:*` matches, or a release makes it prefix syntax. **Probe**: probed on Claude Code 2.1.296, 2026-10-10; evidence in the pull request that carries this change. The mechanic is about **command-prefix** patterns, so a documented parameter form is exempt: WebFetch's `domain:` prefix takes `*` wildcards ([WebFetch](https://code.claude.com/docs/en/permissions#webfetch)), and firing on `WebFetch(domain:*.example.com)` called a documented, working rule broken. A body that starts with `*` and holds no space, as in `PowerShell(*env:*lefthook*)`, is exempt too: it has no command prefix, so the literal colon is what it means to match. A space restores the prefix-then-words shape, so `Bash(* git:* push)` and `Bash(*foo:* rm)` still fire. **Ambiguous form:** in a deny or ask rule a mid-pattern `:*` with NO space after it, as in `Bash(git:*push)`, does not fire this error; unless its tool and prefix are a known parameter, it is reported as the warning `C6-colonStarAmbiguous`, asking the author to say which they meant. It is structurally identical to the parameter form `Agent(model:*-haiku)`, so once the space is gone nothing in the rule text distinguishes them; the space was the only signal. The documented example is the space form, and the pages show no no-space mid-pattern rule anywhere. The exemption is by **grammar**, where in a deny or ask rule an `identifier:value` body is the parameter form, not by a list of parameter names: we treat parameter matching as working for any scalar parameter on any built-in tool, and an `mcp__` rule with parentheses in a settings file as a separate case this row does not judge ([Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter)), so an allowlist could only ever chase it and would flag documented forms such as `Agent(model:*-haiku)` |
+| `C6-malformed` | Fires on text after a specifier's closing parenthesis, as in `Bash(ls) x`, and on an unclosed specifier. A parenthesis inside the specifier does not fire, so `Edit(./Finance (2024)/**)` is one rule. The lint used to keep only the token and treat `Bash(ls) x` as `Bash(ls)`. **Pointer**: when deciding which rule shapes are accepted and how trailing text is treated, fetch [permissions: permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax) live. |
 | `C6-literalPath` | A Read or Edit path that is not a usable gitignore pattern, such as an unclosed `[`. As a deny or ask rule it protects only that literal path; as an allow rule it grants nothing. One such deny used to fail every file edit; that is not the current behavior |
 
 The version boundaries and field lists a row names are the ones its script emits; before acting
@@ -396,7 +382,7 @@ Prose judgment belongs to `claude auto-mode critique`, which is surfaced rather 
 
 | Check | What it means |
 | --- | --- |
-| `C4-defaults` | a customized section omits `"$defaults"`. The finding names how many built-in entries are gone, because "you dropped N soft_deny rules" is actionable where "missing $defaults" is not. **Pointer**: when deciding what omitting `"$defaults"` does, fetch [auto mode config: override the block and allow rules](https://code.claude.com/docs/en/auto-mode-config#override-the-block-and-allow-rules) live. **As of** 2026-11-03. **Recheck when** that section changes what a section without `"$defaults"` keeps |
+| `C4-defaults` | a customized section omits `"$defaults"`. The finding names how many built-in entries are gone, because "you dropped N soft_deny rules" is actionable where "missing $defaults" is not. **Pointer**: when deciding what omitting `"$defaults"` does, fetch [auto mode config: override the block and allow rules](https://code.claude.com/docs/en/auto-mode-config#override-the-block-and-allow-rules) live. |
 | `C2b-contradiction` | the same label subject appears in `allow` and in a deny section |
 | `C3-shadowed` | an entry whose subject is already in `hard_deny`, which cannot be overridden, so the entry can never change an outcome |
 
@@ -456,9 +442,6 @@ surviving auto mode. Treat `ask` as a prompt you *expect*, not a guarantee you *
 
 - **Pointer**: [Add a human checkpoint](https://code.claude.com/docs/en/auto-mode-config#add-a-human-checkpoint)
   and [Compound commands](https://code.claude.com/docs/en/permissions#compound-commands).
-- **As of**: 2026-10-11
-- **Recheck trigger**: #83766 closes, or the auto-mode config page changes whether a content-scoped
-  ask rule always prompts.
 
 ## Managed policy, and what it does not buy
 
@@ -480,7 +463,7 @@ any scope**. So a lower-scope deny changes the outcome of a managed allow withou
 | `enforced deny` | a managed deny, which no other level can allow. The strongest thing an administrator can write |
 | `enforced allow` / `enforced ask` | the managed rule is highest and nothing beneath it outranks its kind |
 | `loosenable rule` | a lower scope carries an earlier-evaluated kind for the same rule text |
-| `loosenable autoMode` | a managed `autoMode` block, which we treat as additive, not a policy boundary: lower scopes can add to it and can outweigh some of its entries, and auto mode has no exclusivity lock of the kind other surfaces have. How the scopes layer is read live (pointer: when grading a managed `autoMode` block, fetch [auto mode config: where the classifier reads configuration](https://code.claude.com/docs/en/auto-mode-config#where-the-classifier-reads-configuration); as of 2026-10-11; recheck when that section changes how scopes combine or adds an exclusivity lock for auto mode) |
+| `loosenable autoMode` | a managed `autoMode` block, which we treat as additive, not a policy boundary: lower scopes can add to it and can outweigh some of its entries, and auto mode has no exclusivity lock of the kind other surfaces have. How the scopes layer is read live (pointer: when grading a managed `autoMode` block, fetch [auto mode config: where the classifier reads configuration](https://code.claude.com/docs/en/auto-mode-config#where-the-classifier-reads-configuration)) |
 | `enforced` / `loosenable lockout` | `disableAutoMode` is a real lock only when it carries the documented string `"disable"` |
 
 The remedy the `autoMode` finding names is `permissions.deny` in managed settings, for an action that

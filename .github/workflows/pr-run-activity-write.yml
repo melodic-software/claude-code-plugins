@@ -543,6 +543,7 @@ defaults:
 jobs:
   run:
     # The lanes App's own pull_request events never start a lane.
+    name: Run
     if: >-
       !(github.event_name == 'pull_request'
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
@@ -1426,7 +1427,7 @@ jobs:
 
       # apply-patch: the head checkout replaces .base, so the script's sibling
       # imports (thread-scope.mjs, dependency-classify.mjs, merge-holds.mjs,
-      # lib/retry-fetch.mjs and escalation-routes.mjs with its table, beside the script's base-script
+      # lib/retry-fetch.mjs, lib/run-main.mjs and escalation-routes.mjs with its table, beside the script's base-script
       # copy), the patch-rules.json it reads, and the dependabot.yml whose pairs
       # the dependency-manifests rule reads are copied out of the base first.
       - name: Copy the apply-patch base files
@@ -1440,6 +1441,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/pr-unblock" "$RUNNER_TEMP/pr-merge" "$RUNNER_TEMP/lib" "$DEST/$(dirname "$RULES")"
           cp .base/.github/scripts/lib/retry-fetch.mjs "$RUNNER_TEMP/lib/"
+          cp .base/.github/scripts/lib/run-main.mjs "$RUNNER_TEMP/lib/"
           cp .base/.github/scripts/pr-unblock/thread-scope.mjs "$RUNNER_TEMP/pr-unblock/"
           cp .base/.github/scripts/pr-unblock/dependency-classify.mjs "$RUNNER_TEMP/pr-unblock/"
           cp .base/.github/scripts/pr-unblock/escalation-routes.mjs "$RUNNER_TEMP/pr-unblock/"
@@ -1985,6 +1987,7 @@ jobs:
           echo "api-failures=${rows:-$none}" >>"$GITHUB_OUTPUT"
 
   report:
+    name: Report
     needs: run
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
     # lanes App's own pull_request events skip the run job. Issue mode has no

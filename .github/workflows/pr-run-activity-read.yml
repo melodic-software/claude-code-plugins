@@ -456,6 +456,7 @@ jobs:
   # job, which skips the run job and fails the check. issues: write is for the issue
   # lease alone, posted before any model turn (CONTRACT.md "Lease protocol").
   broker-check:
+    name: Broker Check
     if: >-
       !(github.event_name == 'pull_request'
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
@@ -709,6 +710,7 @@ jobs:
   # API returns a job's conclusion as it ends, where a step's can stay empty
   # for minutes. It needs broker-check alone, so no run job output reaches it.
   broker-allowed:
+    name: Broker Allowed
     needs: broker-check
     if: needs.broker-check.outputs.allowed == 'true'
     runs-on: ubuntu-24.04
@@ -719,6 +721,7 @@ jobs:
         run: echo "The broker allowed this lane."
 
   run:
+    name: Run
     needs: broker-check
     # The lanes App's own pull_request events never start a lane, and nor does
     # a broker kill-switch refusal.
@@ -2430,6 +2433,7 @@ jobs:
   # which fails the scan job and publishes nothing, and the report job reads
   # no outcome.
   issue-fields:
+    name: Issue Fields
     needs: run
     if: always() && inputs.issue-number != '' && needs.run.result != 'skipped'
     runs-on: ubuntu-24.04
@@ -2645,6 +2649,7 @@ jobs:
   # policy but records no deployment:
   # https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments#using-environments-without-deployments
   scan:
+    name: Scan
     needs: [run, issue-fields]
     if: >-
       !cancelled() && (needs.run.result == 'success' || needs.run.result == 'failure')
@@ -3430,6 +3435,7 @@ jobs:
   # cancelled() is true once the scan was
   # cancelled, and !cancelled() would skip that arm.
   scan-refusal:
+    name: Scan Refusal
     needs: scan
     if: >-
       always() && (needs.scan.result == 'failure' || needs.scan.result == 'cancelled')
@@ -3465,6 +3471,7 @@ jobs:
   # leaves no summary and turns nothing red, and report-outcome keeps the
   # fixed text.
   summary:
+    name: Summary
     needs: [run, issue-fields]
     if: >-
       ${{ !cancelled() && needs.issue-fields.outputs.checked == 'true' && needs.issue-fields.outputs.reuse-branch != ''
@@ -3806,6 +3813,7 @@ jobs:
           tokens: github-token
 
   report:
+    name: Report
     needs: [broker-check, run, issue-fields, scan, summary]
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
     # lanes App's own pull_request events skip the run job. Issue mode has no

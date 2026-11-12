@@ -2787,7 +2787,7 @@ def collect_lane_runs(
     the listing, and that response stands in for its latest attempt, so only
     earlier attempts are read from `attempts/{n}`; each attempt
     carries its jobs, and each lane job its check run's annotations, as does
-    the succeeded `kill-switch` job of an attempt with no lane job. A run read
+    the succeeded `Kill Switch` job of an attempt with no lane job. A run read
     so whose latest attempt completed is saved for the next read. Any read
     failure, a deleted or expired run included, raises `RuntimeError`, which
     the caller turns into unbound evidence; so does a listing that reached
@@ -2881,9 +2881,11 @@ def collect_lane_runs(
                     # With no lane job, the kill-switch notice, or the
                     # upstream-status error that failed the job, shows the
                     # review never started (`babysit_review_evidence.rerun_binds`).
+                    # `kill-switch` is a head tested before the rename, or a
+                    # repository whose job has no display name.
                     if job in lane_jobs or (
                         not lane_jobs
-                        and job.get("name") == "kill-switch"
+                        and job.get("name") in ("Kill Switch", "kill-switch")
                         and job.get("conclusion") in ("success", "failure")
                     ):
                         job["annotations"] = pages(

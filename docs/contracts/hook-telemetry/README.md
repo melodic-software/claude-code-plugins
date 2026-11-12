@@ -67,9 +67,6 @@ single command.
 - **Pointer**: when checking where Claude Code expands `${VAR}` references in configuration, fetch
   [MCP § Environment variable expansion in `.mcp.json`](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: the docs start describing `${VAR}` expansion in `settings.json` `env`
-  values.
 
 ## The envelope (common fields)
 
@@ -103,8 +100,6 @@ They sit between `duration_ms` and `data`. A hierarchy, coarsest first:
 - **Pointer**: when joining `prompt_id` to OTel events, fetch
   [monitoring § Event correlation attributes](https://code.claude.com/docs/en/monitoring-usage#event-correlation-attributes)
   and [hooks § Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: either section renames or drops the prompt id.
 
 The library reads the payload the producer buffered: `HOOK_TELEMETRY_PAYLOAD` when set, else the
 `INPUT` variable every fleet hook assigns from `hook::buffer_stdin`. A producer that buffers under
@@ -125,8 +120,6 @@ Tightening this without paying the cost is [#3784](https://github.com/melodic-so
 
 - **Pointer**: when checking which fields a hook payload carries, fetch
   [hooks § Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section adds, drops or moves a correlation key.
 
 Naming is snake_case throughout and aligns with Claude Code's own field names where the concept matches
 (`hook_event`), and deliberately diverges where it does not (`hook` ≠ `hook_name`, `duration_ms` ≠
