@@ -17,15 +17,17 @@ WORKFLOW="$ROOT/.github/workflows/maintenance-file-dead-links.yml"
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
 
-# The sync-managed link-check caller, whichever stem the sync delivers it
-# under: exactly one must exist.
-callers=("$ROOT"/.github/workflows/maintenance-check-links-online*.yml)
-if ((${#callers[@]} != 1)) || [[ ! -f "${callers[0]}" ]]; then
-  fail "expected one link-check caller, found: ${callers[*]}"
+# The sync-managed link-check caller. The sync adds the stem-matching file and
+# never deletes the earlier one, so both can exist; the stem-matching one wins.
+CALLER="$ROOT/.github/workflows/maintenance-check-links-online.yml"
+if [[ ! -f "$CALLER" ]]; then
+  CALLER="$ROOT/.github/workflows/maintenance-check-links-online-claude-code-plugins.yml"
+fi
+if [[ ! -f "$CALLER" ]]; then
+  fail "no link-check caller under .github/workflows/maintenance-check-links-online*.yml"
   test_harness::report
   exit 1
 fi
-CALLER="${callers[0]}"
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
