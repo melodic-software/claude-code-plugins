@@ -236,8 +236,9 @@ The `defaults` argument changes only how a present file is treated:
 4. **Report exactly what was written** (old bands → new bands, unrecognized keys preserved), and
    remind that consumers re-read the file on their next zone decision. No restart needed.
 
-`apply` never touches `settings.json`, the snapshot directory, or anything in
-`~/.claude/context-usage/` other than `zones.json` and the earlier-name migration above.
+`apply` never touches `settings.json`, the snapshot directory (beyond the earlier-name
+migration's marker move), or anything in `~/.claude/context-usage/` other than `zones.json` and
+the earlier-name migration above.
 
 ## `apply cache-line` (writes only `~/.claude/context-usage/cache-line.mjs`, on explicit request)
 
@@ -288,7 +289,8 @@ or drop the bare segment, first. Readers then read `unknown` and take their cons
   other Claude Code settings file; `apply cache-line` prints the statusLine edit for the operator
   to paste.
 - Install `jq`, `node` or any system package.
-- Write to the snapshot directory `~/.claude/context-usage/context/`; the module owns those files.
+- Write to the snapshot directory `~/.claude/context-usage/context/`, except moving `.compacted`
+  markers there in the earlier-name migration; the module owns those files.
 - Write anywhere outside `~/.claude/context-usage/zones.json` and, on `apply cache-line` or the
   earlier-name migration only, `~/.claude/context-usage/cache-line.mjs`, including the sibling
   `rate-limit-guard` directory. The migration's one removal is the earlier-name directory.
