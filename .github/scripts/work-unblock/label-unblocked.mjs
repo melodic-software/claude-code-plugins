@@ -430,11 +430,10 @@ const STEP_FAILED = stamped(String.raw`##\[error\]Process completed with exit co
 // line: a call that hit a pool's rate limit, left it at or under its
 // stop-floor share, or got a server error with a Retry-After (rate-guard's
 // serverErrorHold, held the same way, its 5xx in `status`), and the `reset` it
-// names. A raw job log shows an annotation as `##[error]<message>`; the
-// workflow command itself (`::error title=...::<message>`) is read too, since
-// no saved log in this repository shows how a titled one is logged.
+// names. A raw job log shows a titled annotation as `##[error]<message>`,
+// the title dropped, as it shows an untitled one.
 const RATE_LIMITED = stamped(
-  String.raw`(?:##\[error\]|::error(?: title=[^:]*)?::).* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+|got a GitHub server error, HTTP (?<status>5\d\d) with a Retry-After)(?: \(status \d+\))?: no call to it before (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
+  String.raw`##\[error\].* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+|got a GitHub server error, HTTP (?<status>5\d\d) with a Retry-After)(?: \(status \d+\))?: no call to it before (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
 );
 // The write runner's step after MINT_STEP that runs exactly when a token was
 // minted; a MINT_STEP success with it skipped is a mint that stopped green.
@@ -1945,7 +1944,7 @@ function refusalIn(lines, mode) {
   }
   if (mode === "limit") {
     // `<reset>` for a rate limit, `<reset> server-<5xx>` for a server error
-    // hold, which verdict-carry keeps no copy of, so it is read again.
+    // hold; verdict-carry's REASON carries both.
     const { reset, status } = RATE_LIMITED.exec(lines[end - 1])?.groups ?? {};
     return reset && Number.isFinite(Date.parse(reset)) ? `${reset}${status ? ` server-${status}` : ""}` : null;
   }

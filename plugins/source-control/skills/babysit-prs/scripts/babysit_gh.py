@@ -532,17 +532,21 @@ def _read_job_causes() -> list[tuple[str, int, str]]:
 
 
 def stop_server_status(pool: str, *, now: float | None = None) -> int | None:
-    """The 5xx when the job's stop holding `pool` is a server error hold: each
-    stop of `pool` or `*` ending then that has a cause is `server-<5xx>`.
-    A rate limit among them, or no cause at all (a stop an older writer left),
-    is None, the safe reading. rate-guard.mjs `serverHeld` is its twin; the
-    shared vectors' `stop_causes` pin both."""
+    """The 5xx when the job's stop holding `pool` is a server error hold: every
+    stop of `pool` or `*` ending then has a cause line of its own, each
+    `server-<5xx>`. A stop with no cause line (one an older writer left), or a
+    rate limit among them, is None, the safe reading. rate-guard.mjs
+    `serverHeld` is its twin; the shared vectors' `stop_causes` pin both."""
     at = stopped_until(pool, now=now)
-    ending = [c for p, r, c in _job_causes if r == at and p in (pool, ALL_POOLS)]
-    server = [c for c in ending if c != "limit"]
-    if not server or len(server) != len(ending):
-        return None
-    return int(server[-1].removeprefix("server-"))
+    status = None
+    for held in dict.fromkeys((pool, ALL_POOLS)):
+        if at is None or (_job_stops or {}).get(held) != at:
+            continue
+        own = [c for p, r, c in _job_causes if p == held and r == at]
+        if not own or "limit" in own:
+            return None
+        status = int(own[-1].removeprefix("server-"))
+    return status
 
 
 def _read_job_stops() -> dict[str, int]:

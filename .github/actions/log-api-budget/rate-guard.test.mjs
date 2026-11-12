@@ -351,6 +351,54 @@ test("a limit signal beside a 5xx's retry-after, or a 403 or 429 with one, stays
   }
 });
 
+// A call in flight beside one whose answer latches reaches the guard's check
+// (the last step before a send) in the microtask after classify's clock read,
+// while the guard may still be reading that answer: the stop must be set by
+// then, so the check refuses it.
+test("a call in flight while a latching answer is still being read is not sent", async () => {
+  const answers = {
+    "a 403 with remaining 0": PRIMARY,
+    "a 503 with Retry-After alone": [503, { "retry-after": "120" }, "<html>unavailable</html>"],
+  };
+  for (const [name, [status, headers, body]] of Object.entries(answers)) {
+    const sent = [];
+    let armed = false;
+    let second;
+    const latch = createRateLimitLatch({
+      now: () => {
+        if (armed) {
+          armed = false;
+          queueMicrotask(() => {
+            try {
+              latch.check(URL_B);
+              second = "passed";
+            } catch (error) {
+              second = error instanceof RateLimitStop ? "refused" : error;
+            }
+          });
+        }
+        return NOW;
+      },
+      log: () => {},
+      fail: () => {},
+      limits: () => apiLimits({ resolvedPath: "" }),
+      stopFile: null,
+    });
+    const guarded = latch.guard(async (url) => {
+      sent.push(url);
+      if (url !== URL_A) {
+        return new Response("{}", { status: 200 });
+      }
+      armed = true;
+      return new Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers });
+    });
+    assert.equal((await guarded(URL_A)).status, status, name);
+    assert.equal(second, "refused", `${name}: the second call's check refused it`);
+    await assert.rejects(guarded(URL_B), RateLimitStop, `${name}: a later call is refused too`);
+    assert.deepEqual(sent, [URL_A], `${name}: only the first call was sent`);
+  }
+});
+
 test("a 5xx without retry-after holds nothing", async () => {
   const gh = fakeGitHub([[503, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4999", "x-ratelimit-reset": "1792751600" }, ""], [200]]);
   const { latch, lines, failed } = latchFor();
@@ -679,6 +727,22 @@ test("each stop's cause goes in the job's cause file, and a later latch words a 
     lines.length = 0;
     await assert.rejects(createRateLimitLatch({ ...options, now: () => NOW + 121_000 }).guard(gh.fetch)(URL_B), RateLimitStop);
     assert.deepEqual(lines, [`::error::GET ${URL_B} was not sent: GitHub's core API rate limit holds until 2026-10-23T10:33:20Z`]);
+  }));
+
+// As in api-budget.bash and babysit_gh.py, a cause goes in only beside a stop
+// the stop file took.
+test("a stop the stop file cannot take leaves the cause file unwritten", { skip: ROOT && "root writes past any file mode" }, async () =>
+  withDir(async (dir) => {
+    const stopFile = join(dir, "api-budget", "stop");
+    mkdirSync(dirname(stopFile));
+    writeFileSync(stopFile, "");
+    chmodSync(stopFile, 0o444);
+    const lines = [];
+    const gh = fakeGitHub([[503, { "retry-after": "120" }, ""]]);
+    await createRateLimitLatch({ now: () => NOW, log: (line) => lines.push(line), fail: () => {}, limits: () => ({}), stopFile }).guard(gh.fetch)(URL_A);
+    assert.match(lines.join("\n"), /the stop could not be recorded in the job's stop file \(EACCES\)/);
+    assert.deepEqual(readdirSync(join(dir, "api-budget")), ["stop"]);
+    chmodSync(stopFile, 0o644);
   }));
 
 // A stop file that exists but cannot be read holds every pool, with an error

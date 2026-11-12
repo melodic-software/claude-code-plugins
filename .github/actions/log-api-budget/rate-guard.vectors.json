@@ -460,6 +460,12 @@
       "server": { "core": null, "graphql": 502 }
     },
     {
+      "name": "a stop ending the same second as a server error hold, with no cause line of its own, reads as a rate limit for the pools it holds",
+      "stop": "core 1792748120\n* 1792748120\n",
+      "cause": "* 1792748120 server-503\n",
+      "server": { "core": null, "graphql": 503 }
+    },
+    {
       "name": "a rate limit and a server error hold ending the same second read as a rate limit",
       "stop": "* 1792748120\n* 1792748120\n",
       "cause": "* 1792748120 server-503\n* 1792748120 limit\n",

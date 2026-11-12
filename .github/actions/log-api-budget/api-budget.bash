@@ -424,11 +424,12 @@ api_budget_server_status() {
   local dir=${RUNNER_TEMP:-/tmp}/api-budget
   [[ ${2:-} =~ ^[0-9]{1,12}$ && -f $dir/cause ]] || return 1
   # The stop file, then a \001 that ends its last line, then the cause file.
-  # For `any`, a cause counts only for a stop the stop file holds.
+  # Every stop of <pool> or `*` (any pool for `any`) ending at <epoch> needs a
+  # cause line of its own, none of them `limit`.
   { cat -- "$dir/stop" 2>/dev/null; printf '\001\n'; cat -- "$dir/cause" 2>/dev/null; printf x; } | awk -v pool="$1" -v t="$2" '
-    !causes { if (index($0, "\001")) causes = 1; else if (/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12) stop[$1 " " ($2 + 0)]; next }
-    /^([a-z_]+|\*) [0-9]+ (limit|server-5[0-9][0-9])$/ && length($2) <= 12 && $2 + 0 == t + 0 && ($1 == pool || $1 == "*" || (pool == "any" && ($1 " " ($2 + 0)) in stop)) { if ($3 == "limit") limit = 1; else s = substr($3, 8) }
-    END { if (s == "" || limit) exit 1; print s }'
+    !causes { if (index($0, "\001")) causes = 1; else if (/^([a-z_]+|\*) [0-9]+$/ && length($2) <= 12 && $2 + 0 == t + 0 && ($1 == pool || $1 == "*" || pool == "any")) stop[$1]; next }
+    /^([a-z_]+|\*) [0-9]+ (limit|server-5[0-9][0-9])$/ && length($2) <= 12 && $2 + 0 == t + 0 { if ($3 == "limit") limit[$1]; else srv[$1] = substr($3, 8) }
+    END { for (p in stop) { if (!(p in srv) || p in limit) exit 1; s = srv[p] } if (s == "") exit 1; print s }'
 }
 
 api_budget_refuse() {

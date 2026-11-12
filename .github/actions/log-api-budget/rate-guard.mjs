@@ -589,13 +589,21 @@ function readCauses(path) {
     .map(([, pool, reset, cause]) => ({ pool, reset: Number(reset), cause }));
 }
 
-// The 5xx of the stops of `pools` that end at `at` when each one with a cause
-// is a server error hold, else null: a rate limit among them, or no cause at
-// all (a stop an older writer left), reads as a rate limit, the safe reading.
-function serverHeld(causes, pools, at) {
-  const ending = at === null ? [] : causes.filter((c) => c.reset === at && pools.includes(c.pool));
-  const server = ending.filter((c) => c.cause !== "limit");
-  return server.length && server.length === ending.length ? Number(server.at(-1).cause.slice("server-".length)) : null;
+// The 5xx when every stop of `pools` that ends at `at` has a cause line of its
+// own and each is a server error hold, else null: a stop with no cause line (a
+// stop an older writer left), or a rate limit among them, reads as a rate
+// limit, the safe reading.
+function serverHeld(causes, stops, pools, at) {
+  const ending = at === null ? [] : [...new Set(pools)].filter((pool) => stops.get(pool) === at);
+  let status = null;
+  for (const pool of ending) {
+    const own = causes.filter((c) => c.pool === pool && c.reset === at);
+    if (!own.length || own.some((c) => c.cause === "limit")) {
+      return null;
+    }
+    status = Number(own.at(-1).cause.slice("server-".length));
+  }
+  return status;
 }
 
 // hold: a refusal logs a notice and leaves the exit to the caller, which must
@@ -642,7 +650,7 @@ export function createRateLimitLatch({
   const heldBy = (url, at) => (stops.get(poolOf(url)) === at ? poolOf(url) : "*");
 
   // The 5xx when url's stop is a server error hold, else null (serverHeld).
-  const serverStatus = (url) => serverHeld(causes, [poolOf(url), "*"], until(url));
+  const serverStatus = (url) => serverHeld(causes, stops, [poolOf(url), "*"], until(url));
 
   const resetMs = (url) => {
     const at = until(url);
@@ -696,17 +704,10 @@ export function createRateLimitLatch({
     const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: margin(pool, "read-floor", token), limitCap, stopFloor });
     low.set(pool, verdict.low);
     if (verdict.latched) {
-      const refused = await refusedForLimit(response);
-      const get = headerReader(response.headers);
-      const [limit, remaining] = ["limit", "remaining"].map((name) => Number(get(`x-ratelimit-${name}`)));
-      const floored = !refused && stopFloor !== null && remaining > 0 && remaining <= stopFloor * limit;
-      const server = !floored && serverErrorHold({ status: response.status, headers: response.headers, body });
-      const cause = server ? `server-${response.status}` : "limit";
+      // Set before any await, so a call in flight beside this one is refused.
       stops.set(verdict.pool, Math.max(stops.get(verdict.pool) ?? 0, verdict.reset));
-      causes.push({ pool: verdict.pool, reset: verdict.reset, cause });
       // The in-process stop holds either way; a later step only sees a
-      // recorded one, so a failed write is named. A cause the cause file
-      // cannot take only words a later step's refusal as a rate limit.
+      // recorded one, so a failed write is named.
       let unrecorded = "";
       if (stopFile) {
         try {
@@ -715,6 +716,16 @@ export function createRateLimitLatch({
         } catch (error) {
           unrecorded = `; the stop could not be recorded in the job's stop file (${error?.code ?? error?.message}), so later steps do not see it`;
         }
+      }
+      const refused = await refusedForLimit(response);
+      const get = headerReader(response.headers);
+      const [limit, remaining] = ["limit", "remaining"].map((name) => Number(get(`x-ratelimit-${name}`)));
+      const floored = !refused && stopFloor !== null && remaining > 0 && remaining <= stopFloor * limit;
+      const server = !floored && serverErrorHold({ status: response.status, headers: response.headers, body });
+      const cause = server ? `server-${response.status}` : "limit";
+      // Until the cause is in, a refusal reads this stop as a rate limit.
+      causes.push({ pool: verdict.pool, reset: verdict.reset, cause });
+      if (stopFile && !unrecorded) {
         try {
           appendFileSync(causeFile, `${verdict.pool} ${verdict.reset} ${cause}\n`);
         } catch {

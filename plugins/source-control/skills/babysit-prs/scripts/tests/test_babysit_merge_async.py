@@ -1232,16 +1232,12 @@ class RateLimitedQueueRemovalsAreNotCounted(unittest.TestCase):
         self.now = merge.parse_github_timestamp("2026-11-12T04:50:00Z")
         self.assert_counted([REMOVED_AT, REMOVED_AT])
 
-    # A server error hold (a 5xx whose only signal was Retry-After) is held
-    # like a rate limit and is infrastructure too: a gate that failed on its
-    # lines alone is not counted once the hold has passed, and is before.
+    # A server error hold (a 5xx whose only signal was Retry-After) in the
+    # guards whose rate-limit wording of it matched before: a gate that failed
+    # on those lines alone is not counted once the hold has passed, and is
+    # before.
     SERVER_ERROR_GATE: ClassVar[list[dict[str, Any]]] = [
         _annotation("failure", "Process completed with exit code 75."),
-        _annotation(
-            "failure",
-            "GitHub answered HTTP 503 with a Retry-After; no GitHub call is sent "
-            "before 2026-11-12T04:53:44Z",
-        ),
         _annotation(
             "failure",
             "GET https://api.github.com/repos/o/r/pulls/5 got a GitHub server "
@@ -1264,7 +1260,20 @@ class RateLimitedQueueRemovalsAreNotCounted(unittest.TestCase):
 
     def test_a_removal_before_a_server_error_hold_passes_is_counted(self) -> None:
         self.annotations[2] = self.SERVER_ERROR_GATE
-        self.now = merge.parse_github_timestamp("2026-11-12T04:53:00Z")
+        self.now = merge.parse_github_timestamp("2026-11-12T04:51:00Z")
+        self.assert_counted([REMOVED_AT, REMOVED_AT])
+
+    def test_a_removal_the_gate_failed_on_babysit_gh_s_server_error_line_is_counted(
+        self,
+    ) -> None:
+        self.annotations[2] = [
+            _annotation("failure", "Process completed with exit code 75."),
+            _annotation(
+                "failure",
+                "GitHub answered HTTP 503 with a Retry-After; no GitHub call is "
+                "sent before 2026-11-12T04:43:44Z",
+            ),
+        ]
         self.assert_counted([REMOVED_AT, REMOVED_AT])
 
     def test_unreadable_evidence_counts_the_removal(self) -> None:
@@ -1299,6 +1308,89 @@ class RateLimitedQueueRemovalsAreNotCounted(unittest.TestCase):
         self.jobs[9] = [*GATE_JOBS, _job(4, "test-node")]
         self.hold([REMOVED_AT] * 3)
         self.assertEqual(sum("/jobs" in p for p in self.paths), 2)
+
+
+# Each guard's line for a server error hold, as it read before it was named a
+# server error (the rate-limit wording) and as it reads now: the gate verdict
+# _gate_rate_limit_reset gives must not change with the wording.
+WORDINGS = {
+    "api-budget.bash, on the answer": (
+        "'gh api repos/o/r/pulls/1' hit GitHub's API rate limit: no call to it "
+        "before 2026-11-12T04:52:00Z (retry-after); the call returns 1",
+        "'gh api repos/o/r/pulls/1' got a GitHub server error, HTTP 503 with a "
+        "Retry-After: no call to it before 2026-11-12T04:52:00Z (retry-after); "
+        "the call returns 1",
+    ),
+    "api-budget.bash, a refusal": (
+        "'gh api repos/o/r/pulls/2' was not sent: GitHub's API rate limit holds "
+        "until 2026-11-12T04:52:00Z",
+        "'gh api repos/o/r/pulls/2' was not sent: GitHub answered HTTP 503 with "
+        "a Retry-After; no call to it before 2026-11-12T04:52:00Z",
+    ),
+    "rate-guard.mjs, on the answer": (
+        "GET https://api.github.com/repos/o/r/pulls/5 hit GitHub's API rate "
+        "limit (status 503): no call to it before 2026-11-12T04:52:00Z "
+        "(retry-after); this step fails",
+        "GET https://api.github.com/repos/o/r/pulls/5 got a GitHub server error, "
+        "HTTP 503 with a Retry-After: no call to it before 2026-11-12T04:52:00Z "
+        "(retry-after); this step fails",
+    ),
+    "rate-guard.mjs, a refusal": (
+        "GET https://api.github.com/repos/o/r/issues/5 was not sent: GitHub's "
+        "API rate limit holds until 2026-11-12T04:52:00Z",
+        "GET https://api.github.com/repos/o/r/issues/5 was not sent: GitHub "
+        "answered HTTP 503 with a Retry-After; no call to it before "
+        "2026-11-12T04:52:00Z",
+    ),
+    "gh_read, past the deadline": (
+        "GitHub's core API rate limit blocks 'gh api repos/o/r/pulls/1' until "
+        "2026-11-12T04:52:00Z, past the 2026-11-12T04:50:00Z ci-status can wait "
+        "to inside its timeout; a re-run after 2026-11-12T04:52:00Z is needed.",
+        "GitHub answered HTTP 503 with a Retry-After, which holds 'gh api "
+        "repos/o/r/pulls/1' until 2026-11-12T04:52:00Z, past the "
+        "2026-11-12T04:50:00Z ci-status can wait to inside its timeout; a "
+        "re-run after 2026-11-12T04:52:00Z is needed.",
+    ),
+    "gh_read, after 3 sends": (
+        "GitHub's core API rate limit blocks 'gh api repos/o/r/pulls/1' until "
+        "2026-11-12T04:52:00Z, and this read has made its 3 sends; a re-run "
+        "after 2026-11-12T04:52:00Z is needed.",
+        "GitHub answered HTTP 503 with a Retry-After, which holds 'gh api "
+        "repos/o/r/pulls/1' until 2026-11-12T04:52:00Z, and this read has made "
+        "its 3 sends; a re-run after 2026-11-12T04:52:00Z is needed.",
+    ),
+    "babysit_gh.py": (
+        "every pool is exhausted (retry-after reset, HTTP 503); no GitHub call "
+        "is sent before 2026-11-12T04:52:00Z",
+        "GitHub answered HTTP 503 with a Retry-After; no GitHub call is sent "
+        "before 2026-11-12T04:52:00Z",
+    ),
+}
+
+
+class AServerErrorHoldsWordingLeavesTheGateVerdictAsItWas(unittest.TestCase):
+    def verdict(self, line: str) -> str | None:
+        return merge._gate_rate_limit_reset(
+            [
+                _annotation("failure", "Process completed with exit code 75."),
+                _annotation("failure", line),
+            ]
+        )
+
+    def test_each_guard_s_old_and_new_wording_give_the_same_verdict(self) -> None:
+        for producer, (old, new) in WORDINGS.items():
+            with self.subTest(producer):
+                self.assertEqual(self.verdict(new), self.verdict(old))
+
+    def test_only_babysit_gh_s_line_was_and_stays_counted(self) -> None:
+        verdicts = {name: self.verdict(new) for name, (_, new) in WORDINGS.items()}
+        self.assertEqual(
+            verdicts,
+            {
+                name: (None if name == "babysit_gh.py" else "2026-11-12T04:52:00Z")
+                for name in WORDINGS
+            },
+        )
 
 
 def _listed(number: int, sha: str, *, merged: bool = False) -> dict[str, Any]:
