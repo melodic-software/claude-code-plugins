@@ -16,9 +16,7 @@ instead of starting, and its stderr names the cause and the one shell line that 
 `/mcp` shows the server's status; to read that stderr, start a session with `claude --debug`
 (or `claude --debug=mcp`) and open the debug log at `~/.claude/debug/<session-id>.txt`. Basis:
 [Troubleshoot plugins, Server is configured but never connects](https://code.claude.com/docs/en/plugins/troubleshooting#server-is-configured-but-never-connects)
-and [Debug your configuration, Check MCP servers](https://code.claude.com/docs/en/debug-your-config#check-mcp-servers),
-verified 2026-10-24; recheck when either section changes where server stderr is shown or the debug
-flag that captures it.
+and [Debug your configuration, Check MCP servers](https://code.claude.com/docs/en/debug-your-config#check-mcp-servers).
 
 ## Install
 
@@ -45,9 +43,7 @@ instruction. Enter it with `/plugin configure miro@melodic-software` (masked inp
 `MIRO_API_TOKEN` environment variable at launch. When Claude Code prompts for options, and where it
 keeps a sensitive value, are its own to define: see
 [Plugins reference: User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
-and [Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
-(as of 2026-10-11; recheck when either section changes when the prompt appears or where
-sensitive values are kept).
+and [Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored).
 
 Run `/miro:setup` to check enablement and MCP availability or, with explicit confirmation,
 perform a minimal read-only API credential check. The setup skill never reads or exposes the
@@ -93,8 +89,7 @@ and launches a different server process instead.
 2. Locate this plugin's cached server entry point, `server/src/launch.ts` inside the installed
    `miro` plugin's cache directory, and locate it again after every `miro` update. For where
    that directory is, see
-   [Plugin loading reference: Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk)
-   (as of 2026-11-03; recheck when that section changes the cache path layout).
+   [Plugin loading reference: Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk).
 3. Add a **user-scope** stdio MCP server whose command wraps that path with `vault-exec`. A
    directly configured server does not receive `CLAUDE_PLUGIN_DATA`, so pass it with `-e`; the
    plugin's data directory is `~/.claude/plugins/data/miro-<marketplace>`:
@@ -113,10 +108,9 @@ and launches a different server process instead.
 4. Because that command differs from the plugin's own `node ${CLAUDE_PLUGIN_ROOT}/...` entry,
    the two servers can both run (whether Claude Code collapses them is read live from the
    pointer below; the `dometrain` plugin's README covers a case where it does, under
-   [Getting the MCP server](../dometrain/README.md#getting-the-mcp-server), as of 2026-10-11;
-   recheck when that heading is renamed or stops covering duplicate servers). Disable the
-   plugin's own `miro` server with `/mcp` so only the wrapped one runs, and repeat that once in
-   every project where you use `miro`.
+   [Getting the MCP server](../dometrain/README.md#getting-the-mcp-server)). Disable the plugin's
+   own `miro` server with `/mcp` so only the wrapped one runs, and repeat that once in every
+   project where you use `miro`.
 
 Tool names move from `mcp__plugin_miro_miro__<tool>` (plugin-provided) to `mcp__miro__<tool>`
 (directly configured) once the override is active. Update any permission rule written against the
@@ -129,9 +123,6 @@ old prefix.
   (when servers are deduplicated) and
   [MCP: Disable a server without removing it](https://code.claude.com/docs/en/mcp#disable-a-server-without-removing-it)
   (where `/mcp` records a disabled server, which is why the step repeats per project) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: any of those sections changes the plugin tool-name prefix, the
-  deduplication rule, or the scope of a disabled-server choice.
 
 `event-storming` 0.6.14 and later detect Miro under either prefix, so its live-board path keeps
 working with this override. Earlier versions probe only `mcp__plugin_miro_miro__*` and fall back
@@ -152,9 +143,8 @@ client; the request/response and error-shaping logic lives in `server/src/`.
 
 The TypeScript in `server/src/` is what runs: there is no build step and no committed build
 output. For how Node runs a `.ts` file, see
-[Node.js: Type stripping](https://nodejs.org/api/typescript.html#type-stripping) (as of
-2026-11-03; recheck when that section changes which TypeScript syntax runs without a flag). The
-repo follows the
+[Node.js: Type stripping](https://nodejs.org/api/typescript.html#type-stripping). The repo
+follows the
 [on-demand dependencies convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/on-demand-dependencies/README.md):
 no third-party code is committed. `server/src/launch.ts` installs the runtime dependencies on
 first launch and then starts `index.ts`:
@@ -181,8 +171,6 @@ pin from the same lockfile.
 - **Pointer**: when deciding where a plugin's Node project may live, fetch
   [Plugin loading: Node.js package dependencies](https://code.claude.com/docs/en/plugins/loading#node-js-package-dependencies)
   live for what triggers that install and whether it can be turned off.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes what triggers the install or adds a way to turn it off.
 
 ## Development
 

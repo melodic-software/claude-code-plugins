@@ -30,7 +30,6 @@ established tools support this directly; [tooling.md](tooling.md) lists which:
   its target and default: [§ since.target](https://stryker-mutator.io/docs/stryker-net/configuration/#sincetarget-committish)).
 - **StrykerJS** uses `--incremental`; what it reuses from the last run:
   [incremental § Incremental mode](https://stryker-mutator.io/docs/stryker-js/incremental/#incremental-mode).
-  Both pointers as of 2026-11-10; recheck under the Sources trigger above.
 - **Infection** uses `--git-diff-lines`.
 - **PIT** uses incremental analysis; its own front page recommends running "frequently against only the
   code that has been changed" as "the most effective way" to use it.

@@ -76,8 +76,6 @@ on every lane; no `Bash(ssh …)` rule is added, and the posture below stands fo
 
 - **Pointer**: for what `fleet-converge` checks and how it reaches each lane, read dotfiles
   [docs/design-decisions.md, "Converging a lane: `fleet-converge`"](https://github.com/melodic-software/dotfiles/blob/main/docs/design-decisions.md#converging-a-lane-fleet-converge).
-  **As of**: 2026-10-23 (dotfiles `1108233`). **Recheck trigger**: that section changes or the
-  command is renamed.
 
 ## Verify the hop before you trust it
 
@@ -89,8 +87,7 @@ expired-OAuth-session authentication error routed correctly and is signed out: s
 travels in a prompt.
 
 - **Pointer**: when matching a lane's answer to a signed-out state, fetch
-  [Login expired](https://code.claude.com/docs/en/errors#login-expired) live. **As of**:
-  2026-10-11. **Recheck trigger**: that entry's message text changes.
+  [Login expired](https://code.claude.com/docs/en/errors#login-expired) live.
 
 ## Verbs
 
@@ -121,8 +118,7 @@ dated measurement and how to re-measure it). When a script can do the job, run t
   - **Pointer**: for how an idle notice is delivered and what a `-p` session can receive, fetch
     [Get a notice when another session goes idle](https://code.claude.com/docs/en/cross-session-messaging#get-a-notice-when-another-session-goes-idle)
     and [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions)
-    live. **As of**: 2026-11-03. **Recheck trigger**: either section says a `-p` sender receives
-    the notice before its turn ends.
+    live.
 - **Multi-turn versus one open pipe.** The pipe keeps context in one process while the connection
   stays open; per-turn `--resume` survives a disconnect. `--resume` ids belong to the lane that
   made them, so resume against the same row. `--session-id` picks the id up front, so nothing
@@ -140,15 +136,13 @@ dated measurement and how to re-measure it). When a script can do the job, run t
   reference. `logs` prints raw TUI output, so read a reply from the transcript (`--resume <id>`).
   - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch
     [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
-    **As of**: 2026-10-10. **Recheck trigger**: the `claude logs` or `claude attach` row changes.
 - A `-p` receiver needs `crossSessionInbound: accept`. For a session that must stay up, use a
   background session, not a `-p` receiver. Give either one standing instructions as its prompt:
   what to do with each message and when to stop. Delivery rules and the pointer are in
   [reference/relay.md](reference/relay.md#a-named-receiver).
   - **Pointer**: for when a `-p` run ends after its turn, fetch
     [Run Claude Code programmatically: Background tasks at exit](https://code.claude.com/docs/en/headless#background-tasks-at-exit)
-    live. **As of**: 2026-11-04. **Recheck trigger**: that section changes what keeps a `-p` run
-    open after its turn.
+    live.
 - Use `--bare` for prompts, never for a receiver: a bare session cannot receive messages or be
   listed.
 - Remote Control is interactive only: `-p --remote-control` does not connect. Keep it out of
@@ -162,10 +156,7 @@ dated measurement and how to re-measure it). When a script can do the job, run t
   [Control inbound messages](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages),
   [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions),
   [Start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode)
-  and [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) live. **As of**:
-  2026-11-10. **Recheck
-  trigger**: a release note names `crossSessionInbound`, `--bare`, `--bg`, `--session-id` or
-  Remote Control, or a route fails its hop check.
+  and [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) live.
 
 ## Accounts are per lane
 
@@ -188,9 +179,6 @@ inside the target lane. Do not propose sharing an account: the split is the deci
   and
   [Message sessions on other machines](https://code.claude.com/docs/en/cross-session-messaging#message-sessions-on-other-machines)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes which sessions a session can see or reach across
-  platforms, machines or accounts.
 
 ## Port 22 is not an agent lane
 
@@ -205,8 +193,7 @@ on-demand tasks FLEET.md lists.
   run, delegate or hand over. A script is judged on its own content.
   When a prompt's cause is in doubt, fetch
   [Eliminate prompts with auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
-  live (as of 2026-10-11; recheck when that section changes what the classifier lets through
-  for remote commands).
+  live.
 - There is no `Bash(ssh ...)` allow rule anywhere in this fleet, and adding one is not the fix for a
   prompt. If asked to stop the prompting, say what the rule would cost and decline.
 - Neither side runs `bypassPermissions`.
@@ -239,8 +226,7 @@ on-demand tasks FLEET.md lists.
   with no prompt argument the piped text is the prompt: see "Pipe data through Claude" and the
   stdin-only example under "Customize the system prompt" in
   [Run Claude Code programmatically](https://code.claude.com/docs/en/headless#pipe-data-through-claude),
-  and the piped-content row of [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands)
-  (as of 2026-11-06; recheck when either changes how `-p` reads stdin).
+  and the piped-content row of [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands).
 - **Escape apostrophes in `<prompt>`.** Every SSH row single-quotes the prompt in
   `printf '%s\n' '<prompt>'`, and R4 single-quotes the whole command, on the LOCAL shell, so a `'`
   in the prompt ("what's") closes that quote early. The rule follows the origin shell, not the
@@ -260,12 +246,10 @@ on-demand tasks FLEET.md lists.
 - **Use `wsl.exe --exec`, not `--`.** The quoting rules above assume `--exec`. For what each option
   does, run `wsl.exe --help` on that machine, as
   [Basic commands: Help command](https://learn.microsoft.com/en-us/windows/wsl/basic-commands#help-command)
-  directs (as of 2026-11-03 the page has no section of its own for `--exec`; recheck when it adds
-  one).
+  directs (the page has no section of its own for `--exec`).
 - **Probe interop by absolute path.** `cmd.exe /c` prints nothing inside an sshd session and reads
   as "interop is broken" when it is not; run the `.exe` by absolute path.
 - **Parse the JSON, not the stream.** Treat stdout as able to carry lines that are not the JSON
   result, and extract the object first, for example `grep '^{' | jq -r .session_id`. What a
-  session-end hook can print is in [Hooks: SessionEnd](https://code.claude.com/docs/en/hooks#sessionend)
-  (as of 2026-11-03; recheck when that section says where a `SessionEnd` hook's output goes).
+  session-end hook can print is in [Hooks: SessionEnd](https://code.claude.com/docs/en/hooks#sessionend).
 - **A session name is not an address.** Hostname and lane, always.

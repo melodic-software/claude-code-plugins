@@ -44,8 +44,6 @@ MEDIUM).
   - **Pointer**: for the heuristics themselves when `/user-interface:design` is not installed, read
     Nielsen's "10 Usability Heuristics for User Interface Design" at
     <https://www.nngroup.com/articles/ten-usability-heuristics/>.
-  - **As of**: 2026-10-04
-  - **Recheck trigger**: NN/g revises the page or its review date moves.
 - Three to five evaluators each work through the interface alone, because any one evaluator
   overlooks problems; then merge and de-duplicate their findings. Basis: judgment over MEDIUM
   evidence ([nng-heuristic-eval]).

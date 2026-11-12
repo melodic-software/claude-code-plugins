@@ -60,9 +60,6 @@ names no parameter beyond the two above and reads the rest from the quickstart r
 - **Pointer**: when the quickstart call is refused or its result reads differently from this step,
   fetch [Artifacts: Start from a Slides, Design, or Docs template](https://code.claude.com/docs/en/artifacts#start-from-a-slides-design-or-docs-template)
   live and follow the tool's own result.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a Claude Code release changes the Artifact tool's `quickstart` action or its
-  `intent` values, or that section changes how a deck starts from the Slides template.
 
 ## 4. Write the deck locally, then gate it
 
@@ -93,8 +90,7 @@ notice. Deliver by the output's `publishes`:
   instructs. Give the user the link, and say sharing is their choice.
   - **Pointer**: when the user asks who can see the deck or how to share it, fetch
     [Artifacts: Share an artifact](https://code.claude.com/docs/en/artifacts#share-an-artifact)
-    live. **As of**: 2026-10-11. **Recheck trigger**: that section changes who can see an
-    unshared artifact.
+    live.
 - `publishes` false: publish nothing. Give the outline and the `reason`, and the `opt_in` when
   there is one (this plugin's `medium` option set to `artifact`).
 - Exit 1 (a deck refused) or 2 with JSON on stdout: publish nothing; fix the named title or rewrite the named slide as

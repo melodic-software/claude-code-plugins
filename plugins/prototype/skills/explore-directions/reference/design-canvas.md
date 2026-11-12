@@ -12,9 +12,8 @@ skill builds the HTML mockup either way:
   one canvas, published as a Claude Design Artifact. Name the lifecycle difference in the offer:
   unlike the throwaway local mockup, the canvas persists, losing variants included, unless the
   user deletes or re-seeds it. How a canvas is shared, edited and exported is
-  [Artifacts § Draft a design canvas](https://code.claude.com/docs/en/artifacts#draft-a-design-canvas)
-  (as of 2026-11-10; recheck when that section changes how a canvas persists, is shared or is
-  edited). These user-run, hand-editable
+  [Artifacts § Draft a design canvas](https://code.claude.com/docs/en/artifacts#draft-a-design-canvas).
+  These user-run, hand-editable
   artboards have no structured decision capture; [review mode](../SKILL.md#review-mode) collects
   per-screen decisions from several reviewers and reads back a compiled report.
 

@@ -46,9 +46,7 @@ A platform event workflow (marked example, GitHub Actions class: `on: issues` ty
 `labeled`/`assigned`, `on: issue_comment` type `created` for @-mention forms,
 `on: pull_request`, with the workflow file on the default branch; for which branch's file an event
 runs, see
-[Events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#issues),
-as of 2026-11-10, rechecked when that section changes which branch's workflow file an issue event
-runs):
+[Events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#issues)):
 
 1. Filter to the signal condition (`<trigger-label>` applied, assignment to
    `<automation-identity>`, @-mention token).
@@ -136,24 +134,18 @@ Vendor facts this shape depends on:
   [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)
   and the "Metadata" section of
   [Permissions required for fine-grained personal access tokens](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens).
-  As of: 2026-10-04. Recheck trigger: the endpoint's role mapping or required permission changes.
 - **Routine triggers.** Pointer:
   [Add an API trigger](https://code.claude.com/docs/en/routines#add-an-api-trigger) and
-  [Supported events](https://code.claude.com/docs/en/routines#supported-events). As of:
-  2026-11-10. Recheck trigger: the supported GitHub events change, or `/fire` leaves its beta
-  header.
+  [Supported events](https://code.claude.com/docs/en/routines#supported-events).
 - **App actions on a user's behalf.** Pointer:
   [Authenticating with a GitHub App on behalf of a user](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-with-a-github-app-on-behalf-of-a-user).
-  As of: 2026-10-04. Recheck trigger: GitHub changes how user access token activity is
-  attributed.
 
 ## temporal: scheduled drain + poll-detector
 
 Two shapes on the same scheduled surface (marked example: `schedule` cron, whose interval floor,
 delays and auto-disable rules are in
 [schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule),
-as of 2026-11-10, rechecked when that section changes them, plus `workflow_dispatch` for manual
-kicks):
+plus `workflow_dispatch` for manual kicks):
 
 - **Drain** (dispatch, not an adapter): invoke the work-item queue capability's autonomous
   drain mode via the invocation-adapter seam, where the seam lease claims race-safely; the drain
@@ -209,9 +201,5 @@ Vendor facts this shape depends on, for Slack, where Claude ships as two separat
 
 - **Claude Tag.** Pointer:
   [Plans that include Claude Tag](https://claude.com/docs/claude-tag/overview#plans-that-include-claude-tag).
-  As of: 2026-11-10. Recheck trigger: Claude Tag leaves public beta, or the plans that include it
-  change.
 - **Claude Code in Slack, the earlier version.** Pointer:
-  [Access and permissions](https://code.claude.com/docs/en/slack#access-and-permissions). As of:
-  2026-11-10. Recheck trigger: the page retires this version, or the plans or workspaces it
-  answers change.
+  [Access and permissions](https://code.claude.com/docs/en/slack#access-and-permissions).

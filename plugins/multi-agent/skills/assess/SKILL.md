@@ -38,17 +38,11 @@ The comparison this rule rests on lives upstream; read it there when a case is
 close rather than recalling it:
 
 - Pointer: <https://code.claude.com/docs/en/workflows#when-to-use-a-workflow>
-- As of: 2026-10-02
-- Recheck: the page changes its comparison of subagents, skills, agent teams
-  and workflows, or adds a scale or interruption row.
 
 For a close call between `subagent` and `single`, read the subagent page's
 comparison live:
 
 - Pointer: <https://code.claude.com/docs/en/sub-agents#choose-between-subagents-and-main-conversation>
-- As of: 2026-10-24
-- Recheck: that section changes its criteria for a subagent or the main
-  conversation.
 
 ## Steps
 
@@ -64,9 +58,8 @@ comparison live:
    of them. A name in a grant or in this text does not count. The tool's
    absence covers every switch the script cannot see. Where the switches are
    documented:
-   <https://code.claude.com/docs/en/workflows#turn-workflows-off> (as of
-   2026-10-02; recheck when a new switch appears there). End this step able to
-   say `available` or name the switch or the missing tool.
+   <https://code.claude.com/docs/en/workflows#turn-workflows-off>. End this step
+   able to say `available` or name the switch or the missing tool.
 2. **Size the task.** Name the item count or the context it needs, and whether
    the steps depend on each other. Read only what you need to count.
 3. **Verdict.** Apply the rule. When workflows are unavailable, `workflow`

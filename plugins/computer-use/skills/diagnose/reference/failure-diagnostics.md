@@ -2,8 +2,7 @@
 
 Our content, measured 2026-08-10 on Windows 11 / Claude Desktop. This file exists because
 upstream's troubleshooting does not cover screenshot failures. Pointer:
-[Troubleshooting](https://code.claude.com/docs/en/computer-use#troubleshooting). As of: 2026-11-10.
-Recheck trigger: that section adds an entry for capture failures.
+[Troubleshooting](https://code.claude.com/docs/en/computer-use#troubleshooting).
 
 The governing rule: **a capture or input failure is almost always environment state, not a tool
 defect.** Retrying an action that failed for an environmental reason will fail identically.
@@ -47,8 +46,7 @@ Walk it in order; stop at the first hit.
    screensaver is *not* a lock and *not* display sleep. They are three separate settings.
 2. **Is the workstation locked?** The secure desktop blocks capture and input wholesale.
 3. **Is the display asleep / powered off?** Upstream is explicit that the machine must be awake
-   ([Cowork computer use](https://support.claude.com/en/articles/14128542-let-claude-use-your-computer-in-cowork),
-   verified 2026-08-10; recheck when that article stops requiring an awake machine).
+   ([Cowork computer use](https://support.claude.com/en/articles/14128542-let-claude-use-your-computer-in-cowork)).
 4. **Are you pinned to a monitor that is off?** An explicit `switch_display` persists until
    reset. Return to `auto` and retry before concluding anything.
 

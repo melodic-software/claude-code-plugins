@@ -95,9 +95,6 @@ judgment.
     <https://www.gov.uk/service-manual/service-standard/point-2-solve-a-whole-problem> and
     <https://www.gov.uk/service-manual/service-standard/point-3-join-up-across-channels>. Written for
     UK government services; other organizations adopt them by analogy.
-  - **As of**: 2026-10-04
-  - **Recheck trigger**: GDS publishes a new version of the Service Standard, or renumbers either
-    point.
 
 For each handoff between channels (web, app, email, text message, phone, letter, in person,
 support), record as judgment:

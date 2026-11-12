@@ -51,15 +51,11 @@ judgment for the stage reading.
   - **Pointer**: for the current wording of point 8, read the GOV.UK Service Standard, "Iterate and
     improve frequently", at
     <https://www.gov.uk/service-manual/service-standard/point-8-iterate-and-improve-frequently>.
-  - **As of**: 2026-10-04
-  - **Recheck trigger**: GDS publishes a new version of the Service Standard, or renumbers point 8.
 - **Pointer**: for the current phase guidance, including typical durations, read the GOV.UK Service
   Manual's discovery phase and alpha pages at
   <https://www.gov.uk/service-manual/agile-delivery/how-the-discovery-phase-works> and
   <https://www.gov.uk/service-manual/agile-delivery/how-the-alpha-phase-works>. Written for UK
   government services; other organizations adopt them by analogy.
-- **As of**: 2026-10-04
-- **Recheck trigger**: GDS revises either page, or restructures the agile delivery section.
 
 ## Assumptions and what to test first
 

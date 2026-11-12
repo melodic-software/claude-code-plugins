@@ -26,7 +26,7 @@ behavior, which the Claude Code page documents rather than mandates:
 - **Description**. States what / when / returns, fits within the skill's length floor for tool descriptions and server instructions alike (the number sits in the checklist's C4 row; its "Description length record" points at where Claude Code states the length), leaks no implementation detail.
 - **Parameters**. Every parameter described, guidance and format examples, documented optional defaults.
 - **Naming**. Valid name charset/length (spec), outcome-driven, service-namespaced.
-- **Annotations**. `readOnlyHint`, `destructiveHint`, `idempotentHint`. A missing annotation is WARN, never FAIL. Pointer: when checking whether the spec requires them, read the [Tool data type](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#tool) live. As of 2026-11-03; recheck trigger: a spec revision changes how the Tool data type lists `annotations`.
+- **Annotations**. `readOnlyHint`, `destructiveHint`, `idempotentHint`. A missing annotation is WARN, never FAIL. Pointer: when checking whether the spec requires them, read the [Tool data type](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#tool) live.
 - **Granularity**. Workflow-shaped consolidation, not one tool per raw API call.
 - **Schema**. Callable from the schema alone, with a valid `inputSchema`.
 - **Claude Code `_meta` annotations**. `anthropic/maxResultSizeChars`, `anthropic/requiresUserInteraction`, `anthropic/alwaysLoad`. Missing is at most an info advisory; a declared value Claude Code ignores or caps is the defect.
@@ -39,8 +39,7 @@ Language-agnostic: it discovers tools in Python (`mcp`), TypeScript (`@modelcont
 
 A bundled script reads the MCP configuration Claude Code resolves (every
 [MCP installation scope](https://code.claude.com/docs/en/mcp#mcp-installation-scopes), managed
-configuration included, plus any file you pass; as of 2026-10-11, recheck when that section adds
-or moves a scope) and emits a dated inventory: scope, whether the entry is effective, transport,
+configuration included, plus any file you pass) and emits a dated inventory: scope, whether the entry is effective, transport,
 launcher, package, pin state, publisher, and whether it runs in the Claude Code sandbox (every
 stdio row reads `no`; the posture checklist's "Sandbox coverage" record holds that decision and its
 pointer). The skill then evaluates five criteria:

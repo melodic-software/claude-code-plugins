@@ -173,9 +173,6 @@ available everywhere the harness runs, a second reason it never substitutes for 
 - **Pointer**: when binding either leg, read the guardrail slice's
   [escalation transports record](../../skills/setup/context/guardrail-slice.md#harness-records-for-the-vendor-neutral-leaves)
   and fetch the sections it names live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that record's recheck trigger fires, or the linked heading is renamed or
-  removed.
 
 ### Contract-default severities
 
@@ -239,9 +236,6 @@ the two are not interchangeable.
 - **Pointer**: when adopting the interrupt shape, read the guardrail slice's
   [pause and resume record](../../skills/setup/context/guardrail-slice.md#harness-records-for-the-vendor-neutral-leaves)
   and fetch the sections it names live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that record's recheck trigger fires, or the linked heading is renamed or
-  removed.
 
 ## Escalation telemetry
 

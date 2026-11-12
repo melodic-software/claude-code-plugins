@@ -53,7 +53,7 @@ firecrawl search "<query>" --limit <N> --json -o <path>
 firecrawl search "<query>" --limit <N> --scrape --scrape-formats markdown --json -o <path>
 ```
 
-`--limit 5` suffices for research (the default and maximum: [Search Options](https://github.com/firecrawl/cli#search-options), as of 2026-11-10; recheck when `/firecrawl:update` reports a CLI release). `--scrape` is a **boolean** enabling result scraping; `--scrape-formats` controls which scrape formats are included (markdown/html/links/etc., comma-separated). No `--format` or `--pretty` flag. Use `--json` for structured output, pipe through `jq` for pretty-printing.
+`--limit 5` suffices for research (the default and maximum: [Search Options](https://github.com/firecrawl/cli#search-options)). `--scrape` is a **boolean** enabling result scraping; `--scrape-formats` controls which scrape formats are included (markdown/html/links/etc., comma-separated). No `--format` or `--pretty` flag. Use `--json` for structured output, pipe through `jq` for pretty-printing.
 
 ## crawl: follow links from a seed URL
 
@@ -118,7 +118,7 @@ Flags: `-p/--prompt` is the long form of the positional prompt; `-c/--code` swit
 firecrawl agent "<prompt>" [--model <model>] -o <path>
 ```
 
-Hosted agent (different from the Anthropic model running this conversation). Use for "find me the latest X and summarize" tasks where Firecrawl plans the browse path. Which models it takes and which is the default: [Agent Options](https://github.com/firecrawl/cli#agent-options) (as of 2026-11-10; recheck when `/firecrawl:update` reports a CLI release).
+Hosted agent (different from the Anthropic model running this conversation). Use for "find me the latest X and summarize" tasks where Firecrawl plans the browse path. Which models it takes and which is the default: [Agent Options](https://github.com/firecrawl/cli#agent-options).
 
 ## monitor: scheduled scrapes + change tracking
 

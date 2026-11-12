@@ -7,8 +7,7 @@
 // through untouched.
 //
 // The hook input carries agent_type when the hook fires inside a subagent:
-// https://code.claude.com/docs/en/hooks#common-input-fields (as of 2026-10-02;
-// recheck when that table changes the agent_type field).
+// https://code.claude.com/docs/en/hooks#common-input-fields.
 //
 // Fail-closed inside drift-checker (a URL it cannot parse is denied);
 // fail-open everywhere else.

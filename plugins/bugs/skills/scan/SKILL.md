@@ -25,9 +25,6 @@ shell invocation"); which commands a worktree-isolated session refuses is read a
 [worktrees: how Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation),
 and how injected commands run at
 [skills: how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-As of: 2026-11-10. Recheck triggers: the gather-block section moves, is renamed, or changes how the
-block is composed; the worktrees section changes which commands it refuses; the skills section
-changes how a block's commands are run.
 
 ## Pre-computed context
 
@@ -70,9 +67,6 @@ the next run has no filed item to read back.
 - **Pointer**: when deciding whether `${CLAUDE_PLUGIN_DATA}` outlives a run, fetch
   [plugins manifest reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes where the plugin data directory lives or when it is
-  deleted.
 
 ## Modes
 
@@ -178,16 +172,12 @@ below). With no role map, each gate passes the session's level. Pointer: for the
 `effort` and its precedence, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>;
 for which model the session's level reaches, see
 <https://code.claude.com/docs/en/model-config#effort-level-of-subagents-and-teammates>.
-As of: 2026-11-04. Recheck trigger: either section changes precedence, which spawns honor `effort`,
-or which model the session's level reaches.
 
 Name the model and effort each stage was dispatched with in the run metadata: the level passed, or
 `unset` when none was. A dispatch the harness rejects means the role map names an alias this
 session cannot use: report it rather than substitute one. The metadata names the model asked for,
 not proof of the model that ran. Pointer: for the model order, how a spawn's `model` alias resolves
 and what happens to a blocked one, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>.
-As of: 2026-11-04. Recheck trigger: that section changes the order, what can replace a passed model,
-how an alias resolves or how a blocked value is handled.
 
 **Breadth by scope.** After Step 1 enumerates the files (test suites excluded), classify the scope:
 
@@ -210,7 +200,6 @@ an effort level, the body was read directly instead of skill-loaded: treat the r
 Pointer: the substitution and the
 values it can take are read at
 [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
-As of: 2026-10-11. Recheck trigger: that section renames the variable or changes its values.
 
 Effort scales the **recall stage only**. The gate never relaxes with effort: every candidate faces a separate
 fresh-context refuting subagent at every effort level, and "if uncertain, it is NOT a finding" binds at

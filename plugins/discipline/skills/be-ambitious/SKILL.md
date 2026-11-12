@@ -147,24 +147,16 @@ when the question is whether finished work is sound.
   <https://arxiv.org/abs/2510.20270> (impossible-task results by prompt
   variant) and
   <https://code.claude.com/docs/en/best-practices#give-claude-a-check-to-run>.
-  As of 2026-10-30. Recheck when that docs section or the paper is revised.
 - **Scope any red team to correctness and the stated requirements.** Topic:
   padded adversarial findings. Pointer:
   <https://code.claude.com/docs/en/best-practices#review-against-your-spec>.
-  As of 2026-10-30. Recheck when that section drops or changes its scoping
-  callout.
 - **Ask for a specialist's work, never a persona.** Topic: expert-persona
   prompting and accuracy. Pointers: <https://arxiv.org/abs/2512.05858> and
-  <https://arxiv.org/abs/2508.19764>. As of 2026-10-16. Recheck when either paper
-  is revised or a study of persona prompts in coding agents appears.
+  <https://arxiv.org/abs/2508.19764>.
 - **Every raised request carries the scope fence.** Topic: vendor guidance
   on overeager scope. Pointer:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#say-who-owns-the-code>.
-  As of 2026-11-10. Recheck when that section changes how a scope-limiting
-  rule interacts with broader instructions, or when the model it is written
-  for is no longer current.
 - **A hard target never outranks the specification.** The abort line always
   travels with it. Topic: impossible tasks and specification-first prompts.
   Pointers:
   <https://arxiv.org/abs/2510.20270> and <https://arxiv.org/abs/2610.04793>.
-  As of 2026-10-16. Recheck when either paper is revised or replicated.

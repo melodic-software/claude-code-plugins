@@ -351,10 +351,8 @@ commentary, and a leaf that contradicts one is non-conforming.
   the app-control, playwright and source-control plugins plus a browser, and the network allowlist
   admits the browser download. *Basis:* the harness documentation page for cloud environments,
   section on what carries over from your setup, whose table states that a cloud session does not
-  install the plugins a repository enables in its settings. *As of:* 2026-10-04. This supersedes
-  the 2026-09-06 transfer-path record below on plugin loading. *Recheck trigger:* that table's
-  repository-settings plugin row changes, or a release note names plugin loading in cloud
-  sessions. The consumer picks the cadence (daily is a reasonable start); a
+  install the plugins a repository enables in its settings. This supersedes the transfer-path
+  record below on plugin loading. The consumer picks the cadence (daily is a reasonable start); a
   pass with no change since the last clean one skips, by the skill's own rule. No leaf under
   `routines/` is written until a consumer records a manual run of the skill.
 

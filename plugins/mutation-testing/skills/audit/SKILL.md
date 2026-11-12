@@ -19,15 +19,13 @@ invocation:
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
 comes too late for whatever the command has already returned inline. What a result returns inline,
-and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
-(as of 2026-10-11; recheck when that section changes what a valid result returns inline).
+and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines, one command per call. The dated record for why is the
-[gather-block convention § The pre-compute block runs as one shell invocation](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation)
-(as of 2026-10-11; recheck when that section's record changes). How injected commands run is
-[Extend Claude with skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
-(as of 2026-10-11; recheck when that section changes the per-command shell, timeout, or output-handling behavior it documents).
+[gather-block convention § The pre-compute block runs as one shell invocation](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation).
+How injected commands run is
+[Extend Claude with skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
 
 ## Variables
 
@@ -67,7 +65,7 @@ The user config layer, rendered from this plugin's `userConfig` (empty or a lite
 
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that still reads as a literal placeholder (a dollar sign and braces around
 the variable name) rather than an effort level, this body was read directly instead of skill-loaded, so the substitution never ran: treat the run as `high` and leave the cap to the config.
-The substitution and the levels it yields are [Extend Claude with skills § Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions) (as of 2026-10-11; recheck when that section renames the effort substitution or changes its levels).
+The substitution and the levels it yields are [Extend Claude with skills § Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
 
 Effort supplies a **default cap only when nothing else sets one**. The precedence is `--max` first,
 then the configured `max-mutants`, then this table; effort never lowers a cap the caller or the
@@ -214,7 +212,7 @@ difference it exists to detect.
 working file whole once, or apply and revert it per mutant? Read the project's config and installed
 tool version against that tool's row in the `principles` skill's [`tooling.md`](../principles/reference/tooling.md)
 table. Pointer: for StrykerJS, fetch [configuration: inPlace](https://stryker-mutator.io/docs/stryker-js/configuration/#inplace-boolean)
-live. As of: 2026-11-03. Recheck trigger: that section changes where mutants are written. Resolve
+live. Resolve
 the regime from what this project configured, never from the tool's reputation. State the resolved regime
 in the scope report. Refuse when the regime is in-tree per mutant and the tool offers neither
 per-mutant observability nor interrupt safety: the gate that regime requires cannot be run, and a
@@ -300,7 +298,7 @@ Every surviving mutant is one of three things, and the difference is a judgment:
 **This judgment is delegated to a fresh-context (non-fork) subagent, mandatorily.** It is the
 `self-grade` bias class: a context that generated the mutants and ran them is the weakest place to
 decide whether its own findings are worth reporting, and a fork inherits that reasoning rather than
-removing it ([what a fork inherits](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents), as of 2026-11-01; recheck when that section changes).
+removing it ([what a fork inherits](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)).
 Hand over the artifact, the mutated line, its surrounding code, and the tests that covered it, never the reasoning
 that produced the mutant. The brief says it is done when every handed-over survivor has one of the three verdicts
 or is marked unclassified, and that it returns early rather than guess when the handed-over code is not enough to decide. Before dispatching it, run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin mutation-testing --skill audit --file docs/conventions/mutation-testing.yaml` and copy its line into the report ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)); `standard` and `strict` are this phase as written. Triage is this audit's product, so `light`, and `off`, which acts as `light` here, keep every survivor but label it: dispatch no triage subagent, never triage in this context instead, and report each survivor *unclassified* with the reason `verification: skipped (<level>)`, which withholds none.
@@ -433,7 +431,7 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
   counterexample as an explicit example so the kill replays whatever the generator draws.
   Pointer: Hypothesis [`settings.derandomize`](https://hypothesis.readthedocs.io/en/latest/reference/api.html#hypothesis.settings.derandomize);
   fast-check `examples` in [Run against custom values](https://fast-check.dev/docs/configuration/user-definable-values/#run-against-custom-values)
-  and its seed in <https://fast-check.dev/docs/configuration/user-definable-values/>. As of 2026-11-10; recheck when either tool's major release redefines those settings.
+  and its seed in <https://fast-check.dev/docs/configuration/user-definable-values/>.
 - **Verify the new test actually kills the mutant**. Re-run this skill scoped to that file. This is
   the property that makes the loop trustworthy: the agent that wrote the test cannot grade itself
   into a pass, because the harness re-runs the mutant. A test that does not turn the mutant red has

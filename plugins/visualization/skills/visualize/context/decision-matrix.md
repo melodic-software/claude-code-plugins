@@ -42,9 +42,6 @@ against those sources before relying on a time-sensitive detail; the platform mo
     on the page-size cap, fetch
     [Artifacts: Page constraints](https://code.claude.com/docs/en/artifacts#page-constraints)
     live.
-  - **As of**: 2026-10-10
-  - **Recheck trigger**: the "Page constraints" section changes its external
-    requests or rendered size row.
 - **Theme-aware** (light/dark), **responsive**, and **favicon required**: this
   plugin builds every published page to these three rules, and follows the Artifact
   tool's own description in the session where it asks for more. An artifact-design
@@ -61,9 +58,6 @@ against those sources before relying on a time-sensitive detail; the platform mo
     (including its "How connector calls work for viewers" subsection) and
     [Control connector calls from artifacts](https://code.claude.com/docs/en/artifacts#control-connector-calls-from-artifacts)
     live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: either section changes its plan, version, approval,
-    sharing or organization-control statements.
 
 ### Availability gating (why the surface is often absent)
 
@@ -74,9 +68,6 @@ local HTML file** instead.
 - **Pointer**: when deciding whether the published-Artifact tier can be offered,
   fetch [Artifacts: Availability](https://code.claude.com/docs/en/artifacts#availability)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the Availability table adds, drops or changes a row, or the
-  section stops naming a local HTML file as the fallback.
 
 **Delivery tiers** are the medium registry's fallback chain (`lib/view-registry.mjs`), richest
 first, each step down more available. The local HTML file is the always-available rich tier and
@@ -101,9 +92,6 @@ and never widens this rule: where it would not draw, the skill falls back to `au
 - **Pointer**: when deciding whether this session's surface renders a canvas, fetch
   [Add an interactive UI to your MCP server: See the UI render in Claude](https://claude.com/docs/connectors/building/mcp-apps/quickstart#see-the-ui-render-in-claude)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section lists Claude Code as a host that renders MCP Apps, or the
-  section is renamed or moves.
 
 This plugin bundles no canvas server. A person who wants one can install an official server at user
 level; each repository's README says how and which variants run locally or remotely:
@@ -200,17 +188,13 @@ person edits and exports it.
   live; for removing a bundled skill by settings, fetch
   [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills)
   and [`skillOverrides`](https://code.claude.com/docs/en/settings-reference#skilloverrides).
-- **As of**: 2026-10-11
-- **Recheck trigger**: either artifacts section changes what `/design` drafts, its
-  gate or its version floor, or either settings entry changes what it removes.
 
 **Reserved for the person to run** (probed behavior): our binary extraction of
 v2.1.285 reads the `design` registration as model-invocation-disabled and
 user-invocable, so the model never lists or invokes it and the person runs
 `/design`. A local skill named `design` can collide with the bundled one; which
 skill wins a shared name is read live from
-[Skills: Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)
-(as of 2026-10-11; recheck when that section changes which skill wins a shared name).
+[Skills: Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name).
 
 - **Pointer**: probe: the `design` records in `docs/native-surfaces/records.json`.
 - **As of**: 2026-09-30
@@ -239,8 +223,8 @@ the identity string).
 
 The design-sync family's registry disposition (defer, observed-only) also lives in
 `docs/native-surfaces/records.json` (its `design-sync` records), which keeps the
-v2.1.263 registration evidence as history (as of 2026-10-11; recheck when a release
-note first names a design-family surface, or those records change disposition).
+v2.1.263 registration evidence as history (as of 2026-10-11; recheck when a release note first names a
+design-family surface, or those records change disposition).
 
 ## Third-party visualization plugins
 
@@ -263,9 +247,8 @@ owned by the plugin README's future-change section.
 
 ## Sources and verification
 
-Verified 2026-07-22 via a research fan-out over official documentation; re-fetch
-before relying on a time-sensitive detail, and recheck when the interactive-mode page changes
-what terminal Markdown rendering covers.
+Gathered by a research fan-out over official documentation; re-fetch before relying on a
+time-sensitive detail.
 
 - Terminal Markdown rendering (code-block syntax highlighting, hyperlinks): the page documents the
   syntax-highlighting toggle and clickable issue references, but no general statement about
@@ -276,9 +259,6 @@ what terminal Markdown rendering covers.
     fetch
     [Issue reference links](https://code.claude.com/docs/en/interactive-mode#issue-reference-links)
     live.
-  - **As of**: 2026-10-18
-  - **Recheck trigger**: the page adds a section that enumerates the Markdown constructs the
-    terminal renders, or changes either section above.
 - Mermaid emitted as source, not terminal-rendered: no official page documents
   terminal mermaid rendering, and the shipped binary showed no terminal-side
   renderer.
@@ -298,24 +278,16 @@ what terminal Markdown rendering covers.
 - Artifact CSP, page size, source file types, availability gating and
   connector-backed live data: each is read live from the pointer in its own entry
   under [Published Artifact](#published-artifact) and
-  [Availability gating](#availability-gating-why-the-surface-is-often-absent)
-  (as of 2026-10-11; recheck when either entry's pointer changes its target
-  section or one of those headings is renamed).
+  [Availability gating](#availability-gating-why-the-surface-is-often-absent).
 - Artifact native mermaid, favicon requirement, theme-awareness
   (`prefers-color-scheme` / `data-theme`), and responsive rules: the Artifact
-  tool's own description in the session (no public docs section covers them as of
-  2026-10-11; recheck when the artifacts page adds a section on mermaid rendering,
-  favicons, theming or responsive layout, or the Artifact tool's description drops
-  one of them).
+  tool's own description in the session (no public docs section covers them).
 - Mermaid diagram families: `https://mermaid.js.org/intro/` and the stable
   sidebar at `https://mermaid.js.org/syntax/flowchart.html`.
 - Plugin manifest `userConfig` fixed-value fields, which this plugin's options use:
   - **Pointer**: when adding or changing a fixed-value option, fetch
     [Plugins reference: Limit a field to fixed options](https://code.claude.com/docs/en/plugins/manifest-reference#limit-a-field-to-fixed-options)
     live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section renames `options`, extends it to other field
-    types, or moves its version floor.
 - Third-party survey: `https://code.claude.com/docs/en/plugins/install`, the
   community catalog at
   `https://raw.githubusercontent.com/anthropics/claude-plugins-community/main/.claude-plugin/marketplace.json`,
@@ -331,9 +303,7 @@ UNVERIFIED / low-confidence (flagged, not asserted):
   (present upstream in the bundled version; see the Published Artifact record): verify
   empirically before use.
 - Public sharing of an artifact is reported to fail for pages containing mermaid
-  blocks, SVG `data:` URIs, or AVIF images (anthropics/claude-code#79824 open,
-  #81410 a sibling, as of 2026-09-04); the mechanism is unconfirmed; private and
-  org sharing are unaffected. Recheck when either issue closes or a changelog
-  entry names artifact public sharing.
+  blocks, SVG `data:` URIs, or AVIF images (anthropics/claude-code#79824, #81410 a
+  sibling); the mechanism is unconfirmed; private and org sharing are unaffected.
 - Third-party repo maintenance signals (last-commit dates, exact star counts) and
   the AntV egress claim (from its README, not empirically exercised).

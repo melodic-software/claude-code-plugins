@@ -42,9 +42,6 @@ with `cmd.exe /c`.
 - **Pointer**: for how a Windows tool started from WSL picks its working directory, fetch
   [Run Windows tools from Linux](https://learn.microsoft.com/en-us/windows/wsl/filesystems#run-windows-tools-from-linux)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes its working-directory exceptions or how a `.exe` is
-  run from WSL.
 
 **Windows to this machine's WSL (R4).** Take the distro name from `wsl.exe -l -q`, and run the
 account's login shell so `claude` is on `PATH`:
@@ -94,9 +91,6 @@ claude -p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing ins
   - **Pointer**: [Control inbound messages](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages)
     and [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions)
     fetched live.
-  - **As of**: 2026-11-10
-  - **Recheck trigger**: either section changes the default for a held message, the `dialogExpiry`
-    default, or what `crossSessionInbound` accepts.
 - Its standing instructions say what to do with each message and when to stop.
 - Inside an outer single-quoted remote command, the JSON's single quotes would close the outer
   quote. Double-quote it with escaped inner quotes instead, and send the instructions on stdin:
@@ -105,14 +99,12 @@ claude -p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing ins
   and ran under `nohup ... &` on the target, with its instructions as an argument. Do not
   background the stdin form that way: a shell without job control gives a backgrounded command
   `/dev/null` as stdin unless it redirects stdin itself
-  ([POSIX Shell Command Language, 2.9.3.1 Asynchronous AND-OR Lists](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html#tag_19_09_03_02),
-  as of 2026-11-06), so the instructions never arrive. For a session that must stay up, use a
+  ([POSIX Shell Command Language, 2.9.3.1 Asynchronous AND-OR Lists](https://pubs.opengroup.org/onlinepubs/9799919799/utilities/V3_chap02.html#tag_19_09_03_02)),
+  so the instructions never arrive. For a session that must stay up, use a
   [background session](#background-sessions) instead.
   - **Pointer**: for when a `-p` run ends after its turn, fetch
     [Run Claude Code programmatically: Background tasks at exit](https://code.claude.com/docs/en/headless#background-tasks-at-exit)
     live.
-  - **As of**: 2026-11-04
-  - **Recheck trigger**: that section changes what keeps a `-p` run open after its turn.
 - Do not start it with `--bare`: a bare session receives nothing (the pointer is in the hub's
   Pointer bullet after its `--bare` bullet).
 
@@ -140,9 +132,6 @@ stdin line in the shape of the Agent SDK's `SDKUserMessage`. Losing the connecti
 so resume by its session id afterwards.
 
 - **Pointer**: [Agent SDK TypeScript reference: `SDKUserMessage`](https://code.claude.com/docs/en/agent-sdk/typescript#sdkusermessage).
-- **As of**: 2026-11-03
-- **Recheck trigger**: that type changes its required fields, or the CLI reference documents a
-  stdin message schema of its own.
 
 ## Background sessions
 
@@ -167,8 +156,6 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
   from the transcript with `--resume <id>` instead.
   - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch
     [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
-  - **As of**: 2026-10-10
-  - **Recheck trigger**: the `claude logs` or `claude attach` row changes.
 - Never combine `--bg` with `-p`. A later relay turn in that lane can list and message a running
   background session. `claude --resume <id> --bg "<prompt>"`
   continues a finished one.
@@ -177,15 +164,11 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
 - Where agent view's background sessions run, and when they stop: its limits section.
   - **Pointer**: [Agent view: Limitations](https://code.claude.com/docs/en/agent-view#limitations),
     fetched live.
-  - **As of**: 2026-11-10
-  - **Recheck trigger**: that section drops the research-preview label or changes its limits, or a
-    release note names `--bg` or `claude agents`.
 
 ## Mechanisms not used here
 
 Each fails the fleet's per-lane account split or needs a human; see the linked page before
-reconsidering one. As of 2026-11-10; recheck when a release note names the mechanism or a linked
-section changes.
+reconsidering one. Recheck when a release note names the mechanism or a linked section changes.
 
 - **Remote Control and cross-machine `SendMessage`**: fails the account split. In our probe
   `claude -p --remote-control` did not connect (the flag took the next word as a session name, and
@@ -226,9 +209,8 @@ printf '%s\n' 'echo ok' | <ssh> <wsl-alias> 'cd /mnt/c/Users/<user>/<scratch> &&
 
 An expired-OAuth-session authentication error means the route worked and the Windows lane on the
 target is signed out (for the message's wording, fetch
-[Login expired](https://code.claude.com/docs/en/errors#login-expired) live; as of 2026-10-11;
-recheck when that entry's message changes). The fix is `/login` at that machine's console
-(or over RDP, which is always the console account). Do not try to fix it remotely, and never move a
+[Login expired](https://code.claude.com/docs/en/errors#login-expired) live). The fix is `/login` at that
+machine's console (or over RDP, which is always the console account). Do not try to fix it remotely, and never move a
 credential through a prompt or a copy.
 
 ## Verified behavior
@@ -248,9 +230,6 @@ also rests on documented flag behavior.
   [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) and
   [Dispatch an agent from your shell](https://code.claude.com/docs/en/agent-view#dispatch-an-agent-from-your-shell)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a release note names any of those flags, or one of those sections changes
-  them.
 
 | Route | Result |
 |---|---|
@@ -264,7 +243,7 @@ also rests on documented flag behavior.
 | Port 22 script hop | Not probed in this pass |
 | `notify_when_idle` from a `-p` sender | Message delivered; the notice never reached the sender, whose turn ended first |
 | `-p --remote-control` | Did not connect; Remote Control is interactive only |
-| Cost | Most of each one-line `-p` turn's cost was SessionStart hooks and context loading; measure a turn per <https://code.claude.com/docs/en/costs#track-your-costs>, as of 2026-10-02; recheck when that section renames or replaces its tracking commands |
+| Cost | Most of each one-line `-p` turn's cost was SessionStart hooks and context loading; measure a turn per <https://code.claude.com/docs/en/costs#track-your-costs> |
 
 ## What the relay does not change
 
