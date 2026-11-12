@@ -1,3 +1,4 @@
+# test-scope: .github/workflows/*.yml
 # test-scope: plugins/source-control/lib/parse-concern-value.sh
 """The post-merge check and its remediation (`babysit_postmerge`).
 
