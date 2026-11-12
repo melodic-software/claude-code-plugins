@@ -1,6 +1,6 @@
 # mask-js.awk: the shared length-preserving JavaScript/TypeScript masker.
-# Function only. No BEGIN block, no main block, no helpers, so it composes with
-# any engine that loads it.
+# Functions only. No BEGIN block and no main block, so it composes with any
+# engine that loads it.
 #
 # Invocation: awk -f mask-js.awk -f <engine>.awk <file>. POSIX awk concatenates
 # repeated -f programs, and this file is listed first so the engine's own
@@ -87,3 +87,5 @@ function mask_js(s,    out, i, c, c2, n, inclass, j, w) {
   S_str = 0  # ' and " never span lines
   return out
 }
+
+function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }

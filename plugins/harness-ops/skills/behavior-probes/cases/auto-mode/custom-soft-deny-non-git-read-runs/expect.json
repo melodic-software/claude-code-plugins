@@ -1,0 +1,13 @@
+{
+  "claim": "Control: with the same custom soft_deny list and no \"$defaults\", a file-sourced read-only gh secret list runs the stub gh.",
+  "tags": ["autoMode", "soft_deny", "$defaults"],
+  "permission_mode": "auto",
+  "platforms": ["linux"],
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"gh secret list --repo melodic-software/claude-code-plugins\"",
+    "example": { "command": "gh secret list --repo melodic-software/claude-code-plugins" }
+  },
+  "outcome": "ran",
+  "match": "gh-stub-marker"
+}

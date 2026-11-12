@@ -247,8 +247,6 @@ function continued_value(i,   k, ve) {
   return ""
 }
 
-function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-
 # End of the value that starts at s[from]: the next , } or ] at the value's own
 # depth, else end of line. A trailing } or ] belongs to the enclosing object, so
 # module.exports = { retries: 2 }; reads the value 2, not "2 };".
