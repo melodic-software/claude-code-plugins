@@ -175,6 +175,18 @@ else
 fi
 rm -f "$f" "$EMPTY_TOKENS"
 
+f="$(tmpfile 'nothing to flag here')"
+scan_tmp="$(mktemp -d)"
+TMPDIR="$scan_tmp" scan_paths "$f" >/dev/null 2>&1
+rc=$?
+left="$(ls -A "$scan_tmp")"
+if [[ "$rc" -eq 0 && -z "$left" ]]; then
+  ok "a clean scan exits 0 and its EXIT trap removes the active-pattern temp file"
+else
+  fail "clean scan should exit 0 (got $rc) and leave TMPDIR empty (left: $left)"
+fi
+rm -rf "$scan_tmp" "$f"
+
 # --- same-line portability-ok annotation passes ----------------------------
 f="$(tmpfile 'reset --hard origin/main <!-- portability-ok: fixture asserts the hardcode on purpose -->')"
 if scan_paths "$f" >/dev/null 2>&1; then
