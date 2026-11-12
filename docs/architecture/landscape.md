@@ -45,7 +45,7 @@ C4Context
   Rel(melodic_software_claude_code_plugins, melodic_software_architecture, "cites (3)")
   Rel(melodic_software_claude_code_plugins, melodic_software_azure_iac, "cites (17)")
   Rel(melodic_software_claude_code_plugins, melodic_software_ci_runner, "cites (2)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "cites (484)")
+  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "cites (483)")
   Rel(melodic_software_claude_code_plugins, melodic_software_claude_code_account_rotation, "cites (14)")
   Rel(melodic_software_claude_code_plugins, melodic_software_claude_code_plugins_ci, "cites (1)")
   Rel(melodic_software_claude_code_plugins, melodic_software_claude_lane_sandbox, "cites (2)")
@@ -58,10 +58,10 @@ C4Context
   Rel(melodic_software_claude_code_plugins, melodic_software_probe_repo, "cites (1)")
   Rel(melodic_software_claude_code_plugins, melodic_software_provisioning, "cites (11)")
   Rel(melodic_software_claude_code_plugins, melodic_software_runner_policy_runtime, "cites (1)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_standards, "cites (134)")
+  Rel(melodic_software_claude_code_plugins, melodic_software_standards, "cites (133)")
   Rel(melodic_software_claude_code_plugins, actions_checkout, "uses-workflow (216)")
-  Rel(melodic_software_claude_code_plugins, actions_upload_artifact, "uses-workflow (151)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "uses-workflow (368)")
+  Rel(melodic_software_claude_code_plugins, actions_upload_artifact, "uses-workflow (152)")
+  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "uses-workflow (367)")
 ```
 
 200 external repositories are referenced but not drawn; the record carries

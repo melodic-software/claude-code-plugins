@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "After installing, run /spelling:setup again."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "After installing, they are done.",
+      "why": "near miss: no rerun"
+    },
+    {
+      "answer": "Reinstall the plugin afterwards.",
+      "why": "wrong step"
+    }
+  ]
+}

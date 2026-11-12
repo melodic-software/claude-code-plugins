@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Do not uninstall and reinstall to reconfigure; change the value through the configure flow instead."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes: `claude plugin uninstall spelling@melodic-software`, then reinstall with the option set.",
+      "why": "advises uninstall"
+    }
+  ]
+}

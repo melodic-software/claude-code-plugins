@@ -103,8 +103,8 @@
       }
     },
     {
-      "name": "typos-format",
-      "source": "./plugins/typos-format",
+      "name": "spelling",
+      "source": "./plugins/spelling",
       "category": "development",
       "tags": [
         "typos",

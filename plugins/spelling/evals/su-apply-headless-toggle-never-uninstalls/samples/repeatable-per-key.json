@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Yes: --config repeats per key, so add --config spelling_end_of_turn=false to the same command."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run a second install command for the other option.",
+      "why": "near miss: not the same command"
+    },
+    {
+      "answer": "--config takes one key only.",
+      "why": "wrong"
+    }
+  ]
+}

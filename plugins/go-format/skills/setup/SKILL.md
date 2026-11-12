@@ -40,7 +40,7 @@ reports, `apply` resolves. The only consumer-project files this plugin owns are 
 entry copies, which `apply install-git-hooks` writes. It has no consumer-config opt-in gate
 (unlike sibling formatter plugins Ruff/typos), so the tunables are the native `userConfig`
 options: `go_format_enabled`, `go_format_lint_gitignored` and `go_format_end_of_turn`. Like
-`typos-format`, `goimports` has no per-repo dependency-manager install path in the way Ruff's
+`spelling`, `goimports` has no per-repo dependency-manager install path in the way Ruff's
 `.venv` does. It is conventionally `go install`ed to the machine-global `$GOPATH/bin`, never as
 a project dependency. `apply` is therefore guidance-only for tools: it never installs anything,
 matching the hook's own PATH-only resolution and the plugin philosophy's never-download-silently
@@ -103,7 +103,7 @@ commit outside Claude Code and reads no toggle.
    `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` (Read that path), so a lane or cloud setup script can provision it before an
    auto-mode session commits. Outside a git repository, report INFO and skip the step.
 
-There is no consumer-config probe (unlike `typos-format`'s config-walk check). This hook has
+There is no consumer-config probe (unlike `spelling`'s config-walk check). This hook has
 no consumer-config gate by design; report that plainly as INFO, not as a gap.
 
 ## `apply install-git-hooks [scope=local|shared]`

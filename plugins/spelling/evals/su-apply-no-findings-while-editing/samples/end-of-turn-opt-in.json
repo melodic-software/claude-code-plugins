@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Turn on spelling_end_of_turn, off by default: it hands findings in the uncommitted changes back before the turn ends."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Set spelling_end_of_turn to true.",
+      "why": "near miss: no default, no effect"
+    },
+    {
+      "answer": "There is no way to see findings before a commit.",
+      "why": "denies the option"
+    }
+  ]
+}

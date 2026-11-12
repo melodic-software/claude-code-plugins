@@ -343,7 +343,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 ### Changed
 
-- **The plugin's prose drops its em dashes.** Ten surfaces were rewritten: this changelog, `reference/resolution-ladder.md`, `skills/setup/SKILL.md`, and the seven `skills/check/context/` ecosystem documents. Wording only, with no change to any command key, resolution order, or ecosystem detection. Em dashes inside fenced shell examples are left alone, because there they are part of a command a reader copies rather than this repository's prose. No heading changed, so no anchor moved. The released sections corrected in place are 0.13.6, 0.13.3, 0.13.1, 0.13.0, 0.12.1, 0.12.0, 0.11.2, 0.11.0, 0.10.2, 0.10.1, 0.10.0, 0.9.0, 0.8.0, 0.7.0, 0.6.0, 0.5.2, 0.5.0, 0.4.3, 0.4.2, 0.4.1, 0.4.0, and 0.1.0: their wording changed, their facts did not.
+- **The plugin's prose drops its em dashes.** Ten files were rewritten: this changelog, `reference/resolution-ladder.md`, `skills/setup/SKILL.md`, and the seven `skills/check/context/` ecosystem documents. Wording only, with no change to any command key, resolution order, or ecosystem detection. Em dashes inside fenced shell examples are left alone, because there they are part of a command a reader copies rather than this repository's prose. No heading changed, so no anchor moved. The released sections corrected in place are 0.13.6, 0.13.3, 0.13.1, 0.13.0, 0.12.1, 0.12.0, 0.11.2, 0.11.0, 0.10.2, 0.10.1, 0.10.0, 0.9.0, 0.8.0, 0.7.0, 0.6.0, 0.5.2, 0.5.0, 0.4.3, 0.4.2, 0.4.1, 0.4.0, and 0.1.0: their wording changed, their facts did not.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends `CHANGELOG.md`, `reference/resolution-ladder.md`, every `skills/*/SKILL.md`, and the `skills/check/context/` tree, so a reintroduced em dash fails a lane rather than waiting for the next audit.
 
 ## [0.13.14]
@@ -724,7 +724,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 - dotnet's lint/format check no longer imposes Roslyn's built-in formatting
   defaults on a repo that never configured `.editorconfig`/analyzer
   preferences, matching the same "never impose an unconfigured opinion"
-  posture already applied at the hook layer by `ruff-format`/`typos-format`.
+  posture already applied at the hook layer by `ruff-format`/`spelling`.
 
 ## [0.5.2]
 

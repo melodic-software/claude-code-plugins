@@ -87,11 +87,11 @@ skill-quality
 songwriting
 source-control
 speech
+spelling
 sql-server
 tdd
 testing
 toolchain
-typos-format
 user-experience
 user-interface
 verification

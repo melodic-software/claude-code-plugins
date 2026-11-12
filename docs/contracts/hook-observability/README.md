@@ -181,8 +181,8 @@ Three cap decisions, each with the section that owns the figure.
    the size. A disclosure the content-mutation rule above requires must reach the reader inline
    and whole, so a hook that must stay inline caps itself under the figure with a truncation that
    keeps its counts and says it truncated, leaving headroom for JSON escaping. The adopting
-   reference was typos-format's per-edit hook (4,000 for `systemMessage`, 8,000 for
-   `additionalContext`); typos-format now reports at commit time through its git pre-commit entry,
+   reference was spelling's per-edit hook (4,000 for `systemMessage`, 8,000 for
+   `additionalContext`); spelling now reports at commit time through its git pre-commit entry,
    with an opt-in end-of-turn check, and sends neither channel per edit.
    - **Pointer**: for the output cap and what happens over it, see
      <https://code.claude.com/docs/en/hooks#json-output>.
@@ -196,7 +196,7 @@ Three cap decisions, each with the section that owns the figure.
    is a `PostToolUse` field addressed to the auto-mode classifier, never the user or the model, so
    it changes nothing about which channel a fleet hook writes a notice to. No fleet hook emits it
    today, and a `PreToolUse` guard cannot. Why this doc records it: a 2026-09-04 peer review read
-   the classifier note's shared cap as the `additionalContext` cap and filed the typos-format
+   the classifier note's shared cap as the `additionalContext` cap and filed the spelling
    8,000-character self-cap as a bug; the report was withdrawn on this reading of the page, and
    this is where the next reader should find the answer.
    - **Pointer**: for the field and its limits, see
@@ -243,7 +243,7 @@ text and for a genuine user message that arrives beside it.
   line, no reminder repeated on every call, and no countdown or budget line after tool results.
 - **Phrasing.** Context channels (`additionalContext`, a mod's context) state facts with their
   source, never orders: name the hook, what it observed, and where
-  (`typos-format: 2 misspellings in docs/a.md:12`), and state a remedy as a fact about the project
+  (`spelling: 2 misspellings in docs/a.md:12`), and state a remedy as a fact about the project
   (`markdownlint: README.md:40 is 131 characters; this repo wraps markdown at 100`). Decision
   channels (a deny, block or Stop reason) may direct the next step. Hook text claims no authority
   it lacks (system, administrator, user) and never presents itself as a message from the user.
@@ -364,8 +364,8 @@ Fleet audits check, per wired producer hook:
   to re-read the three conditions.
 - Every path on which the hook rewrote file content names what it changed on the user channel,
   bounded by a per-run cap with the remainder reported as a count. Not mechanically gated, but
-  reviewed per hook. The adopting reference was typos-format's per-edit write mode, removed when
-  typos-format moved to reporting at commit time (pre-commit entry, opt-in end-of-turn check).
+  reviewed per hook. The adopting reference was spelling's per-edit write mode, removed when
+  spelling moved to reporting at commit time (pre-commit entry, opt-in end-of-turn check).
 - The hook emits the telemetry envelope for every **meaningful outcome**: a check that ran and
   produced a result (ok / blocked / skipped-for-cause). A pure inapplicability short-circuit
   (wrong tool type, excluded path, empty content, outside the project) that fires before any

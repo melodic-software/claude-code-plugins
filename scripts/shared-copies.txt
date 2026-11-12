@@ -184,7 +184,7 @@ lib/exec-bash.mjs plugins/ruff-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/session-flow/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/source-control/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/testing/hooks/exec-bash.mjs
-lib/exec-bash.mjs plugins/typos-format/hooks/exec-bash.mjs
+lib/exec-bash.mjs plugins/spelling/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/speech/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/explainer-video/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/playwright/hooks/exec-bash.mjs
@@ -423,15 +423,15 @@ lib/prerequisites.ps1 plugins/session-flow/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/source-control/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/source-control/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/source-control/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/spelling/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/spelling/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/spelling/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/testing/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/testing/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/testing/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/toolchain/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/toolchain/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/toolchain/lib/prerequisites.ps1
-lib/prerequisites.mjs plugins/typos-format/lib/prerequisites.mjs
-lib/prerequisites.sh plugins/typos-format/lib/prerequisites.sh
-lib/prerequisites.ps1 plugins/typos-format/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/user-interface/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/user-interface/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/user-interface/lib/prerequisites.ps1
@@ -459,8 +459,8 @@ lib/hook-utils.sh plugins/ruff-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/source-control/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/speech/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/playwright/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/spelling/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/testing/hooks/hook-utils.sh
-lib/hook-utils.sh plugins/typos-format/hooks/hook-utils.sh
 lib/html-escape.mjs plugins/work-items/lib/html-escape.mjs
 lib/view-builder.mjs plugins/work-items/lib/view-builder.mjs
 lib/view-runtime.js plugins/work-items/lib/view-runtime.js
@@ -611,7 +611,7 @@ lib/lane-push.sh plugins/source-control/scripts/lane-push.sh
 lib/lane-push.sh plugins/work-items/scripts/lane-push.sh
 lib/confirm-verdict.sh plugins/verification/scripts/confirm-verdict.sh
 lib/confirm-verdict.sh plugins/source-control/skills/pull-request/scripts/confirm-verdict.sh
-lib/git-hooks/install.mjs plugins/typos-format/lib/git-hooks/install.mjs
+lib/git-hooks/install.mjs plugins/spelling/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/ruff-format/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/bash-format/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/biome-format/lib/git-hooks/install.mjs
@@ -621,7 +621,7 @@ lib/git-hooks/install.mjs plugins/powershell-format/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/actionlint/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/guardrails/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/instruction-placement/lib/git-hooks/install.mjs
-lib/git-hooks/check-lib.sh plugins/typos-format/lib/git-hooks/check-lib.sh
+lib/git-hooks/check-lib.sh plugins/spelling/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/ruff-format/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/bash-format/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/biome-format/lib/git-hooks/check-lib.sh
@@ -631,7 +631,7 @@ lib/git-hooks/check-lib.sh plugins/powershell-format/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/actionlint/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/instruction-placement/lib/git-hooks/check-lib.sh
-lib/git-hooks/git-hook-decisions.md plugins/typos-format/skills/setup/reference/git-hook-decisions.md
+lib/git-hooks/git-hook-decisions.md plugins/spelling/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/ruff-format/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/bash-format/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/biome-format/skills/setup/reference/git-hook-decisions.md
@@ -798,7 +798,7 @@ docs/contracts/plugin-reconfiguration/README.md plugins/ruff-format/reference/pl
 docs/contracts/plugin-reconfiguration/README.md plugins/session-flow/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/skill-quality/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/source-control/reference/plugin-reconfiguration.md
-docs/contracts/plugin-reconfiguration/README.md plugins/typos-format/reference/plugin-reconfiguration.md
+docs/contracts/plugin-reconfiguration/README.md plugins/spelling/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/user-interface/reference/plugin-reconfiguration.md
 .github/scripts/lib/lane-binding.mjs plugins/review/lib/lane-binding.mjs
 .github/scripts/lib/lane-binding.mjs plugins/work-items/lib/lane-binding.mjs

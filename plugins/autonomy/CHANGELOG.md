@@ -2357,7 +2357,7 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
-  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  opt out with; the reported case was `spelling` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
   project root is outside it. The exemption is deliberate, and this repository's own hook suites
   depend on it: when the project root itself lives under temp, as it does for the `mktemp -d`

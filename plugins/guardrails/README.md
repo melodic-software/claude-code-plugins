@@ -1160,7 +1160,7 @@ predicate fails before the spawn. The matching row is unchanged by construction.
 | PostToolUse `Write` of an in-repo `.txt` (no verifier scans it) | 86.1 ms (26.9 S) | 0 processes |
 | PostToolUse `Write` of an in-repo `.md` | 95.8 ms (29.9 S) | 95.8 ms (29.9 S) |
 
-The same audit named `typos-format` and `eol-normalizer` as the other two ungated
+The same audit named `spelling` and `eol-normalizer` as the other two ungated
 PostToolUse rows. Neither takes an `if` predicate: `typos` scans every file type
 including extensionless ones, which that plugin's README records as a deliberate
 absence of any extension gate, and `eol-normalizer` resolves every path through the
