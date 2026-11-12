@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.39] - 2026-11-12
+
+### Added
+
+- `behavior-probes`: two auto-mode cases check that a custom `soft_deny` list without `"$defaults"` keeps a non-git default rule (a file-sourced `gh secret set` is denied; `gh secret list` runs). Record 6 now covers them and its rerun on Claude Code 2.1.322, where the denial label reads `[Destructive or Unwanted Actions]`.
+
 ## [8.12.38] - 2026-11-12
 
 ### Changed
