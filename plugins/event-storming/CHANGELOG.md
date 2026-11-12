@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.10] - 2026-11-12
+
+### Fixed
+
+- Corrected stated facts that had gone stale or were wrong, each checked against its current source.
+
 ## [0.7.9] - 2026-11-11
 
 ### Changed
