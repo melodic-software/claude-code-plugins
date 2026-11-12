@@ -65,6 +65,8 @@ source "$SCRIPT_DIR/../../../lib/family-records.sh"
 source "$SCRIPT_DIR/../../../lib/github-remote.sh"
 # shellcheck source=../../../lib/json-escape.sh
 source "$SCRIPT_DIR/../../../lib/json-escape.sh"
+# shellcheck source=../../../lib/record-layout.sh
+source "$SCRIPT_DIR/../../../lib/record-layout.sh"
 JSTR_AWK="$(<"$SCRIPT_DIR/../../../lib/jstr.awk")"$'\n'
 
 usage() {
@@ -344,14 +346,7 @@ if [[ -n "$graph_file" ]]; then
   containment="dependency-graph.json"
   grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$graph_file" ||
     die "graph is not schema_version 1: $graph_file" 1
-  graph_problem="$(awk '
-    function open_array(key,   rest) {
-      if (!match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\\[")) return
-      rest = substr($0, RSTART + RLENGTH)
-      if (rest ~ /^[[:space:]]*\]/) { seen[key] = 1; return }
-      if (substr($0, 1, RSTART - 1) ~ /^[[:space:]]*$/ && rest ~ /^[[:space:]]*$/) { open = key; return }
-      problem = "the " key " array does not start on a line of its own"
-    }
+  graph_problem="$(awk "$RECORD_OPEN_ARRAY_AWK"'
     BEGIN { shape["edges"] = "^[[:space:]]*[{]\"from\":" }
     open != "" {
       if ($0 ~ /^[[:space:]]*\][[:space:]]*,?[[:space:]]*$/) { seen[open] = 1; open = ""; next }
