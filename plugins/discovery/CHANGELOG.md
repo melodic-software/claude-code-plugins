@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [1.7.12] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
 ## [1.7.11] - 2026-11-12
 
 ### Changed
