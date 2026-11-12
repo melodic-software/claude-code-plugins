@@ -8,9 +8,6 @@ built-in `plugin-authoring` skill before writing one. How this repository packag
 `docs/contracts/mod-authoring/README.md` in the marketplace repository.
 
 - **Pointer**: <https://code.claude.com/docs/en/plugins/mods/interface>
-- **As of**: 2026-10-04
-- **Recheck trigger**: the interface page adds, removes or renames a render surface, or changes
-  which surfaces the Desktop app draws.
 
 ## Pick the surface by the kind of message
 

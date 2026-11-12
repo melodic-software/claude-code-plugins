@@ -13,8 +13,6 @@ the operator's behalf.
 - **Pointer**: when deciding whether `/doctor` can run unattended, fetch
   [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section says `/doctor` applies a fix without asking first.
 
 **The handoff is therefore an operator instruction.** The pass finishes its own phases, then tells
 the operator to run `/doctor` themselves. Nothing in this pass invokes it, waits on it, or drives it.
@@ -23,8 +21,6 @@ pass never dispatches.
 
 - **Pointer**: for its scope, write posture and version floor, see
   <https://code.claude.com/docs/en/memory#audit-your-instruction-files>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: that section changes its write posture or version floor, or moves.
 
 **What it does not do is refuse the result the operator brings back.** "Never parses its output as a
 lane result" would make the `delegated` tier unreachable. The lane could never leave `open`, and
@@ -48,8 +44,6 @@ from what it does not.
    - **Pointer**: when checking the floor, fetch
      [memory: my CLAUDE.md is too large](https://code.claude.com/docs/en/memory#my-claude-md-is-too-large)
      live.
-   - **As of**: 2026-11-04
-   - **Recheck trigger**: that section states a floor, or moves.
 2. **`DISABLE_DOCTOR_COMMAND`: documented.** The variable's row is on the environment-variables
    page again, so it is a documented suppression channel, and its scope is the row's: read which
    surface it hides, and which it leaves alone, from the row rather than from here.
@@ -67,8 +61,6 @@ bundled skill.
   [skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) and
   [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings)
   live.
-- **As of**: 2026-11-04
-- **Recheck trigger**: either section stops letting an override hide a bundled skill.
 
 So the pass **detects absence rather than predicting it**: it checks whether `/doctor` actually
 resolves in this environment, and reports the outcome. If it does not resolve, the run says so and
@@ -76,9 +68,8 @@ names these channels as the suspected causes, `DISABLE_DOCTOR_COMMAND` and a `sk
 naming the skill, rather than asserting either as the reason. Detecting beats predicting either way: the variable's presence in the list says an operator
 *could* have set it, never that they did.
 
-**Recheck trigger:** any Claude Code minor release, or any change to how bundled skills are
-suppressed. Re-verify against current official documentation before
-treating a failed prerequisite as authoritative. A stale *absence* claim reads exactly like a fresh
+Re-verify against current official documentation before treating a failed prerequisite as
+authoritative. A stale *absence* claim reads exactly like a fresh
 one.
 
 ## Absence classification: optional capability
@@ -111,11 +102,8 @@ reads.
   and
   [managed settings: keys only a managed source can set](https://code.claude.com/docs/en/managed-settings#keys-only-a-managed-source-can-set)
   live. Those sections cover the policy line only; this file has found no docs section for the
-  helper-failure or credential lines as of 2026-10-11, so hand them to the operator as lines to look
-  for, not as documented output.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the `Organization policy` line moves off `claude doctor` or `/status`, or a
-  docs section starts covering the helper-failure or credential lines.
+  helper-failure or credential lines, so hand them to the operator as lines to look for, not as
+  documented output.
 
 ## Its output is the delegated tier
 
@@ -130,5 +118,3 @@ run does not have.
 - **Pointer**: when deciding whether `/doctor` still runs as a model-driven skill, fetch
   [skills: check your setup with `/doctor`](https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section stops listing `/doctor` among the bundled skills, or moves.

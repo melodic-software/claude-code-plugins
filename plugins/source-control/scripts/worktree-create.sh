@@ -1319,8 +1319,6 @@ fi
 # `**/` patterns inside a wholly ignored directory that this reimplementation
 # does not mirror.
 #   Pointer: <https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees>
-#   As-of: 2026-10-11.
-#   Recheck trigger: that section changes which files the native copy selects.
 include_file="$toplevel/.worktreeinclude"
 copied=0
 copy_failed=0

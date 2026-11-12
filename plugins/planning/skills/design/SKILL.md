@@ -20,8 +20,7 @@ Collect these with **individual** Bash calls, one command per call, never combin
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 body Bash calls, not pre-compute lines. How the harness runs a skill's injected commands:
-[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run), as
-of 2026-11-03; recheck when that section changes how injected commands run.
+[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
 
 ## Variables
 
@@ -351,7 +350,7 @@ file. After the gate passes, the handoff output names those files and signatures
 | `module` | domain-model.md, module-boundary.md, contracts.md, design-threads.md | none | none (no typed artifact, so no scope label) |
 | `data` | entity-relationships.md, schema-decisions.md, design-threads.md | `entity-relationships.md` | mermaid `erDiagram` by default; DBML when `diagram_dialect.data` resolves to `dbml` |
 | `integration` | contract-spec.md, sequence-flows.md, design-threads.md | `sequence-flows.md`, `contract-spec.md` | mermaid `sequenceDiagram` for the flows; an OpenAPI 3.1 sketch for the contract spec |
-| `system` | component-map.md, communication-patterns.md, design-threads.md | `component-map.md`, and only when `diagram_dialect.system` names a dialect | a C4 container view in LikeC4 or C4-PlantUML, never Mermaid's [C4 diagrams](https://mermaid.js.org/syntax/c4.html#c4-diagrams) (as of 2026-11-03; recheck when that page changes which C4 features it supports) |
+| `system` | component-map.md, communication-patterns.md, design-threads.md | `component-map.md`, and only when `diagram_dialect.system` names a dialect | a C4 container view in LikeC4 or C4-PlantUML, never Mermaid's [C4 diagrams](https://mermaid.js.org/syntax/c4.html#c4-diagrams) |
 
 `design-threads.md` is common across all scopes.
 
@@ -403,9 +402,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
   for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's
   `use_ask_user_question` user config (`${user_config.use_ask_user_question}`; unexpanded or empty means off) is on and the round
   is independent questions that fit one `AskUserQuestion` call (the per-call question limit:
-  <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>,
-  as of 2026-10-11; recheck when that section changes the per-call question limit). Inline prose
-  otherwise
+  <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>). Inline prose otherwise
 - **Grounding steps.** Ground a consequential recommendation in the affected code plus its
   consumers and in external research that reads official docs first, routed to
   `/discovery:explore` and `/discovery:research` if enabled. A recommendation that changes is

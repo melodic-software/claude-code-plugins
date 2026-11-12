@@ -14,8 +14,6 @@ at the engines' documentation for the rest:
 - What runs on the compositor beyond transform and opacity: Chrome for Developers, "Hardware
   accelerated animations", <https://developer.chrome.com/blog/hardware-accelerated-animations>,
   and the equivalent notes of each engine the project targets.
-- As of 2026-10-11. Recheck when one of these pages changes its property list, or the project's
-  browser target adds an engine.
 
 A rule that ends in **Audit:** gives the severity `/user-interface:audit` uses for a finding against
 it. A component that re-renders every frame because of a state update in a scroll, drag or frame
@@ -129,8 +127,6 @@ properties? Use the arbitrary-value form, e.g. `transition-[opacity,filter,scale
 - **Pointer**: Tailwind CSS, "transition-property", "Quick reference" (what `transition`,
   `transition-transform` and `transition-all` compile to),
   <https://tailwindcss.com/docs/transition-property#quick-reference>.
-- **As of**: 2026-10-29.
-- **Recheck trigger**: Tailwind changes the property list of `transition` or `transition-transform`.
 
 **Audit: Important.** `transition: all`, `transition-all`, or Tailwind's bare `transition` class.
 
@@ -159,8 +155,6 @@ properties? Use the arbitrary-value form, e.g. `transition-[opacity,filter,scale
 
 - **Pointer**: Motion, "Performance", "Hardware acceleration", "Independent transforms",
   <https://motion.dev/docs/performance#independent-transforms>.
-- **As of**: 2026-11-02.
-- **Recheck trigger**: that section changes which values it says are hardware accelerated.
 
 **Audit: Important.** Motion that plays while the page is busy and is driven frame by frame from
 script: a navigation element (an active tab indicator, a page transition) animated by a library on
@@ -291,8 +285,6 @@ animation capture.
 
 - **Pointer**: Chrome DevTools, "Inspect animations", Overview (which animations the panel lists),
   <https://developer.chrome.com/docs/devtools/css/animations#overview>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the Overview changes which animation kinds the panel supports.
 
 ## Report: `report`
 

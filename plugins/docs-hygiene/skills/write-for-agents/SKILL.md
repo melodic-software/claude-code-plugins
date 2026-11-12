@@ -55,8 +55,6 @@ style, or a launch flag.
   <https://code.claude.com/docs/en/output-styles#how-output-styles-work>; for the flags, see
   <https://code.claude.com/docs/en/cli-reference#system-prompt-flags>; for skill content, see
   <https://code.claude.com/docs/en/skills#skill-content-lifecycle>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: one of those sections changes how its content reaches the model.
 
 ## Write pointers that cover their branches
 
@@ -119,7 +117,7 @@ A task-shaped or long-run instruction also names the whole task's finish line an
   blocked on the human, then what changed and what was found.
   **Pointer**: when judging what a long run loses to compaction, fetch
   [What survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction)
-  live. **As of**: 2026-11-10. **Recheck trigger**: that section changes what compaction keeps.
+  live.
 
 ## Split by sequence; choose invocation by the rubric
 
@@ -168,13 +166,9 @@ or a defined term at its first use, never a whole sentence or a rule
 
 - **Pointer**: skill-creator,
   [How to think about improvements](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#how-to-think-about-improvements).
-- **As of**: 2026-10-29
-- **Recheck trigger**: that section moves or changes its guidance on emphasis.
 
 - **Pointer**: Claude Code best practices,
   [What you can stop doing](https://code.claude.com/docs/en/best-practices#what-you-can-stop-doing).
-- **As of**: 2026-11-11
-- **Recheck trigger**: that section changes its guidance on emphasis or on where a missed rule goes.
 
 ## Leading words
 

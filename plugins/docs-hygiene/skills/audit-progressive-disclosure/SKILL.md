@@ -21,9 +21,7 @@ The pipe is the bound and belongs in the command. A read-time cap ("read only th
 limits only what is read after the command returns, never what it returns.
 
 - **Pointer**: when deciding how much command output reaches context, fetch
-  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live. **As of**:
-  2026-11-10. **Recheck trigger**: that section changes how much output arrives inline or what
-  arrives in place of output past the inline limit.
+  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls, not pre-compute lines.
@@ -31,9 +29,6 @@ separate body Bash calls, not pre-compute lines.
 - **Pointer**: when deciding whether a gather line can move into the pre-compute block, fetch
   [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes how a skill's injected commands are grouped into shell
-  invocations, or a release note names skill injected commands.
 
 ## Purpose
 
@@ -72,9 +67,6 @@ single-file skill is never flagged for lacking spokes.
   and skill-creator's
   [Progressive Disclosure](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#progressive-disclosure)
   disagree on the TOC threshold; fetch both live when placing a file in a band.
-- **As of**: 2026-11-03
-- **Recheck trigger**: either section changes its size or TOC guidance, or the two TOC sources stop
-  disagreeing.
 
 ## Action router
 
@@ -209,7 +201,7 @@ carries its own as-of date and recheck trigger.
 
 - [Claude Code skills docs: Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle) and [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short). Loading levels, listing cap and drop order, compaction budgets
 - [Claude Code memory docs: Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions). CLAUDE.md/rules loading, CLAUDE.md size target, fact-vs-procedure routing
-- [Claude Code large-codebases docs: Layer CLAUDE.md files by directory](https://code.claude.com/docs/en/large-codebases#layer-claude-md-files-by-directory) and [Centralize conventions when layering stops scaling](https://code.claude.com/docs/en/large-codebases#centralize-conventions-when-layering-stops-scaling). Root-orients / per-directory layering, escalation ladder. As of: 2026-10-11. Recheck trigger: either section is removed or renamed, or changes when it moves conventions from per-directory files to a central home
+- [Claude Code large-codebases docs: Layer CLAUDE.md files by directory](https://code.claude.com/docs/en/large-codebases#layer-claude-md-files-by-directory) and [Centralize conventions when layering stops scaling](https://code.claude.com/docs/en/large-codebases#centralize-conventions-when-layering-stops-scaling). Root-orients / per-directory layering, escalation ladder
 - [Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices). Hub-and-spoke patterns, pointer rules, observed-navigation diagnostics, TOC guidance
 - [Agent Skills spec](https://agentskills.io/specification). Frontmatter limits, one-level-deep rule, metadata cost
 - [Progressive disclosure patterns](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns). Mutual-exclusivity split rule (correlate with [Anthropic engineering: Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills))

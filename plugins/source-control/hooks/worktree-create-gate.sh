@@ -63,8 +63,6 @@
 # `worktree.bgIsolation: "none"` is narrower: it stops background sessions
 # isolating at all, and leaves `--worktree` and subagent worktrees on this hook.
 #   Pointer: <https://code.claude.com/docs/en/settings-reference#worktree-bgisolation>
-#   As-of: 2026-10-11.
-#   Recheck trigger: that section stops scoping the key to background sessions.
 #
 # ── Verification stamp (docs/contracts/upstream-drift) ────────────────────────
 # Claim: the four harness behaviors above — last-non-empty-line path read, hook
@@ -184,10 +182,8 @@ repo_dir="${repo_dir:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 # `${user_config.worktree_root}` into a command: a value substituted into a shell
 # field would be executed by the shell, which is why Claude Code rejects that
 # form outright and exports CLAUDE_PLUGIN_OPTION_<KEY> instead
-# (pointer: <https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell>;
-# as-of 2026-10-11; recheck when that section stops rejecting the token in
-# shell-form hook commands). It rides the
-# helper's --fallback-root rung, BELOW the `worktreeroot.path` git config key
+# (pointer: <https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell>).
+# It rides the helper's --fallback-root rung, BELOW the `worktreeroot.path` git config key
 # the helper reads from the target repository (includes on) — most specific
 # first, per reference/worktree-root-convention.md (#2610/#2612).
 root="${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"

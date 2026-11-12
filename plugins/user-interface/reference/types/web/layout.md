@@ -161,9 +161,6 @@ its children contained, `isolation: isolate` beats a z-index.
 
 - **Pointer**: MDN, Stacking context, Features creating stacking contexts,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Positioned_layout/Stacking_context#features_creating_stacking_contexts>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes which `position`, `z-index` or `isolation` values form a
-  stacking context.
 
 If the project has a scale, move the strays onto it. If it doesn't, don't invent one mid-sweep: fix
 the collisions that are provably wrong (toast under modal) and note the rest. That choice belongs

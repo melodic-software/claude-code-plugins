@@ -57,8 +57,7 @@ and note that re-enabling restores the FAIL semantics.
    (default 5), `${user_config.observer_max_seconds}` (default
    86400). Call out two hazards: `observer_analysis_bare` on is a FAIL on an OAuth-login install (what bare
    mode does with OAuth credentials:
-   <https://code.claude.com/docs/en/headless#start-faster-with-bare-mode>; as of 2026-11-10;
-   recheck trigger: that section changes which credentials bare mode reads);
+   <https://code.claude.com/docs/en/headless#start-faster-with-bare-mode>);
    `observer_idle_seconds` below the machine's longest expected
    single turn risks firing analysis on a partial transcript.
 6. **Hook registration**. INFO: confirm the plugin is enabled for this project (`/plugin` → Installed)
@@ -159,9 +158,6 @@ report the observed effective value, never an unobserved change.
   when a saved value applies, fetch
   [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
   live.
-- **As of**: 2026-11-11
-- **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-  refused value, or when a saved value applies.
 
 ## Output
 
