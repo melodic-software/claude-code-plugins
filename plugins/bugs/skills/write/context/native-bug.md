@@ -1,8 +1,8 @@
 # The built-in `/bug` command: verification record
 
 Detail behind the `/bug` Boundary section in [SKILL.md](../SKILL.md). Each row is a four-part
-record: the claim, the basis it rests on, the date it was checked (left empty on pointer rows), and the event that makes it
-worth checking again. "The extraction" below is the `/harness-ops:inventory` extraction of the
+record: the claim, the basis it rests on, the date it was checked, and the event that makes it
+worth checking again; a pointer row leaves both stamp columns empty. "The extraction" below is the `/harness-ops:inventory` extraction of the
 installed 2.1.284 binary, 2026-09-29.
 
 | Claim | Basis | As of | Recheck when |

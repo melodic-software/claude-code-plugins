@@ -165,6 +165,8 @@ flowchart TD
     too far to either extreme will backfire." Basis: [nng-flat-deep], HIGH (single source).
     - **Pointer**: for the current wording of both lines, read "Flat vs. Deep Website
       Hierarchies" at <https://www.nngroup.com/articles/flat-vs-deep-hierarchy/>.
+    - **As of**: 2026-10-29
+    - **Recheck trigger**: NN/g revises the article.
 - **Tabs are for views of the same thing.** "This week / This month / This year" is the
   textbook-correct use. "Account / Billing / Notifications" tabs pass when they are views of one
   account's settings; destinations that are not views of one thing go in the navigation, not in
