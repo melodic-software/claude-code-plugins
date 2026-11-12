@@ -318,8 +318,7 @@ its report line is printed. Procedure:
   node its placement names, and from a Kubernetes Service or Ingress node to a container in the
   record's `relationships`. Pointer: when checking the macros or the include the renderer
   writes, fetch [C4-PlantUML README § Deployment diagram](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#deployment-diagram) and
-  [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library) live. Recheck trigger: that README changes the deployment macros or the
-  include path, or a host with Java can run PlantUML over a rendered block.
+  [§ Including the C4-PlantUML library](https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md#including-the-c4-plantuml-library) live.
 - **LikeC4 deployment syntax: parsed by the CLI.** The record is a probe: `likec4@1.59.4
   validate` exits 0 on the golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
   (`deployment-compose.c4`, `deployment-kubernetes.c4`, `deployment-ecs-shared.c4`), which
@@ -426,7 +425,7 @@ its report line is printed. Procedure:
   [Bicep child resource name and type § Full resource name outside parent](https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type#full-resource-name-outside-parent),
   [ARM child resource name and type § Outside parent resource](https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type#outside-parent-resource) and
   [App Service plans § Considerations for running and scaling an app](https://learn.microsoft.com/azure/app-service/overview-hosting-plans#considerations-for-running-and-scaling-an-app)
-  live. **Recheck trigger**: a read of any of those sections diverges from the placement above.
+  live.
 - **Terraform values are resolved, never evaluated.** `var.X` resolves from a module call argument,
   then the root's tfvars files, then the variable `default`, and `${var.X}` inside a string the
   same way. A variable declared `sensitive = true`, or named for a credential, is redacted wherever
@@ -463,8 +462,7 @@ its report line is printed. Procedure:
   [services](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html),
   [`name`](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_ContainerDefinition.html#ECS-Type-ContainerDefinition-name)
   and [`serviceName`](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_CreateService.html#ECS-CreateService-request-serviceName)
-  live. **Recheck trigger**: a read of any of those sections diverges from
-  the `<container>@<service>` placement above.
+  live.
 - **Helm reached through IaC is still Helm.** Claim: the Terraform Helm provider declares a release
   as `resource "helm_release"`, and the Pulumi Kubernetes provider as the type
   `kubernetes:helm.sh/v3:Release`. Basis:
