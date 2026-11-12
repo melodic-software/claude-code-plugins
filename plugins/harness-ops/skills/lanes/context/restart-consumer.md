@@ -10,8 +10,7 @@ reviewer-facing rationale, not a copy of it.
 ## The gap
 
 A loop lane that hits its per-session cycle budget or the `/loop` expiry
-([scheduled tasks: seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry),
-as of 2026-11-10; recheck when that section changes how a recurring task expires)
+([scheduled tasks: seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry))
 writes a restart ask into the `restart_request` field of its telemetry state block
 and stops cleanly. A running loop cannot relaunch itself, and `SKILL.md` documents
 that a relaunch is the only fresh-context reset a lane gets. Nothing in the harness
@@ -86,10 +85,6 @@ again.
 
 - **Pointer:** how an installation token's writes are attributed,
   [Authenticating as a GitHub App installation, About authentication as a GitHub App installation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation#about-authentication-as-a-github-app-installation).
-- **As of:** 2026-10-11.
-- **Recheck:** that section changes how an installation's requests are
-  attributed, or a consumer run under an App token with `--app-slug` passed
-  reads no lane state.
 
 ## Operator setup: registering the schedule
 

@@ -70,8 +70,6 @@ fallback for the model in use. To recover, we use:
 Pointer: for which models fall back, to what, and the recovery settings, see
 [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback)
 (correlate with the [Opus 5.5 usage guide](https://claude.dev/blog/getting-the-most-out-of-opus-5-5/)).
-As of: 2026-11-09. Recheck trigger: that section changes, or a new model gains or loses a
-fallback.
 
 ## Fragility note
 

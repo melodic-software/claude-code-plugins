@@ -8,9 +8,8 @@ an operator restart?
 ## Empirical answer: no true mid-session hot-reload for a running loop lane
 
 Three independently sufficient facts block it, and any one alone is decisive.
-This section is the dated record for all three; SKILL.md points here rather than
-restating them. Each fact carries its own pointer, as-of date and recheck
-trigger.
+This section is the record for all three; SKILL.md points here rather than
+restating them. Each fact carries its own pointer.
 
 1. **A running session keeps its launch-time plugin versions.** Merging to the
    marketplace source does nothing to a live session until the local install is
@@ -18,25 +17,21 @@ trigger.
    session either.
    - **Pointer**: when stating when auto-update runs or what a running session keeps,
      fetch [plugins loading: when auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs)
-     live. **As of**: 2026-10-11. **Recheck trigger**: that section says a running
-     session picks up an updated plugin.
+     live.
 
 2. **`/loop` is no way to deliver a skill edit.** A repeat invocation can append
    changed skill content, and we do not count a `/loop` fire as one: we treat an
    updated on-disk copy as not reaching the running loop.
    - **Pointer**: when checking how long skill content stays and what a repeat
      invocation gets, fetch [skills: skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)
-     live. **As of**: 2026-11-04. **Recheck trigger**: that section says the skill
-     file is re-read on later turns, or says whether a `/loop` fire is a repeat
-     invocation.
+     live.
 
 3. **A loop can't reload itself.** `/reload-plugins` is a built-in command, and we
    treat a scheduled or loop fire as unable to execute one, so a lane cannot
    self-trigger a reload mid-run.
    - **Pointer**: when checking what a scheduled fire does with a built-in command,
      fetch [scheduled tasks: run a prompt repeatedly with /loop](https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-/loop)
-     live. **As of**: 2026-10-11. **Recheck trigger**: that section stops listing
-     built-in commands among what a fire does not execute.
+     live.
 
 `/reload-plugins` typed directly into a session without an interactive terminal is a
 different fact; `plugins` `context/scope-semantics.md` ("Headless sessions can run it")
@@ -80,9 +75,8 @@ file is read raw rather than rendered as skill content, and the probe runs
 through the Bash tool, so neither an inline placeholder written here nor the
 environment is relied on for the path. Where the variable is substituted and
 where it is exported is read live from
-[plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
-(as of 2026-11-03; recheck when that table changes where `CLAUDE_PLUGIN_DATA`
-resolves). An env-var-with-fallback expression here would have silently
+[plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
+An env-var-with-fallback expression here would have silently
 resolved to the unqualified `~/.claude/plugins/data/harness-ops` guess, missed
 the marketplace-qualified directory Claude Code actually uses, read no marker,
 and skipped the staleness check without saying so. SKILL.md, which *is* skill
