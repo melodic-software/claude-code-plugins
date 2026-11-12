@@ -1,6 +1,6 @@
 ---
 type: regex
-pattern: '^###\s*Phase[\s\S]*?^\s*[-*]\s+[^\n]*(?:\bdigest)'
+pattern: '^###\s*Phase[\s\S]*?^\s*(?:[-*]|\d+[.)])\s+[^\n]*(?:\bdigest)'
 flags: mi
 target:
   source: file

@@ -1,6 +1,6 @@
 ---
 type: regex
-pattern: '^###\s*Phase[\s\S]*?^\s*[-*]\s+(?![^\n]*already sorts)[^\n]*\bsort'
+pattern: '^###\s*Phase[\s\S]*?^\s*(?:[-*]|\d+[.)])\s+(?![^\n]*already sorts)[^\n]*\bsort'
 flags: mi
 target:
   source: file
