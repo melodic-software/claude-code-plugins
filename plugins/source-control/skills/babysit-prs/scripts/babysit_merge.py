@@ -314,17 +314,25 @@ def is_unarmed_status(check: dict[str, Any]) -> bool:
 # name: the security job is named `security-review`, generic enough that
 # another workflow's job could carry it, so it counts only under its own
 # caller prefix, as does pr-review-cli.yml's `review-status`, which both lanes
-# share. `pr-review-security / security-review` is the current caller of
-# pr-review-security.yml, `security-review / security-review` the previous one,
-# and `claude-security-review-status` the job of a pin that predates the fold.
+# share. `PR Review / review-status` and `PR Review Security / review-status`
+# are the callers' display names; the lower-case callers are a head tested
+# before the rename, or a repository whose caller job has no display name.
+# `pr-review-security / security-review` is the caller of pr-review-security.yml,
+# `security-review / security-review` the previous one, and
+# `claude-security-review-status` the job of a pin that predates the fold.
 # Old and new callers run side by side while repos migrate. Every matching
 # check must succeed.
 AI_REVIEW_CHECKS = {
-    "claude-review-status": ("claude-review-status", "pr-review / review-status"),
+    "claude-review-status": (
+        "claude-review-status",
+        "PR Review / review-status",
+        "pr-review / review-status",
+    ),
     "claude-security-review-status": (
         "claude-security-review-status",
         "security-review / security-review",
         "pr-review-security / security-review",
+        "PR Review Security / review-status",
         "pr-review-security / review-status",
     ),
 }

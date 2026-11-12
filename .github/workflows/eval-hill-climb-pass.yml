@@ -100,6 +100,7 @@ jobs:
   # refused key attempt first. No secret, no model, no checkout; every
   # failure runs the key. Probing is off.
   gate:
+    name: Gate
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -140,6 +141,7 @@ jobs:
   # pass-subscription, and this leg uploads nothing. An empty key, or one
   # the gate skipped, runs nothing here.
   pass:
+    name: Pass
     needs: gate
     if: ${{ !cancelled() && needs.gate.result == 'success' }}
     runs-on: ubuntu-24.04
@@ -549,6 +551,7 @@ jobs:
   # equal to the key leg's but for the credential, that stop and the leg
   # record's fallback reason.
   pass-subscription:
+    name: Pass Subscription
     needs: [gate, pass]
     if: >-
       ${{ !cancelled() && needs.gate.result == 'success'
@@ -927,6 +930,7 @@ jobs:
   # the subscription leg handed off or found its token empty, and only when
   # the fallback token is set. It is the last leg and never hands off.
   pass-fallback:
+    name: Pass Fallback
     needs: [gate, pass-subscription]
     if: ${{ !cancelled() && needs.pass-subscription.outputs.next-leg == 'fallback' }}
     runs-on: ubuntu-24.04

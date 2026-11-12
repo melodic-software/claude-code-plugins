@@ -83,11 +83,19 @@ A raw count of `divergences[].length` conflates the two and overstates drift. Al
 
 ## `plugin list` / `plugin details` version output is misleading
 
-**Verified misleading**: `claude plugin list` and `claude plugin details <name>` show the *highest
-installed version across all scopes*, not the version actually loaded for the current working
-directory. Never treat their output as "what's running here." Derive effective-version claims from
+**Neither output says what loads here.** `claude plugin list` prints one row per install record,
+each with its own scope and version, and its text form does not name the project a `project` row
+belongs to or mark the row that applies to the current directory: one plugin showed four rows
+(`project` 8.12.26, `user` 8.12.26, `project` 8.11.0, `project` 8.10.0), three of them project
+records for different checkouts. `claude plugin details <name>` prints a single version with no
+scope. Never treat either output as "what's running here." Derive effective-version claims from
 `fleet-state.sh`'s scope-by-cwd resolution (via `currentProject` + scope precedence) or a functional
 probe, never from `list`/`details` text.
+
+- **Recorded output**: `claude plugin list` and `claude plugin list --help` on Claude Code 2.1.322,
+  read 2026-11-11 (`--help` names no scope or project filter).
+- **Recheck trigger**: a release note that changes `claude plugin list` or `claude plugin details`
+  output, or adds a scope or project column to the text form.
 
 ## `plugin update -s project` does NOT write committed settings
 
@@ -366,11 +374,11 @@ As of: 2026-11-04. Recheck trigger: that section stops saying monitors require a
 
 **An install can now activate itself, but not the installs this skill issues.** An install started
 from the in-session `/plugin` interface reports its activation state, and this skill reads two
-lines of that summary: `Plugin is now active.` means the plugin is live with no reload, and
-`Run /reload-plugins to apply.` means a reload is needed. What the interface does after that line,
-including when it leaves the plugin pending, is read at the pointer below. The release that made
-`/plugin` installs activate when safe is the
-[2.1.221 changelog entry](https://code.claude.com/docs/en/changelog#2-1-221).
+lines of that summary: `Plugin is now active.` and `Run /reload-plugins to apply.`. What the
+interface does after each line, including whether it reloads on its own or leaves the plugin
+pending, is read at the pointer below; the releases that changed it are
+[2.1.221](https://code.claude.com/docs/en/changelog#2-1-221) and
+[2.1.268](https://code.claude.com/docs/en/changelog#2-1-268).
 
 This does **not** relax the reload guidance below, because `sync` installs through the shell
 command, not the interface, and we treat a shell install as loading only at the next start or the
@@ -384,9 +392,6 @@ for below.
   [Install a plugin](https://code.claude.com/docs/en/plugins/install#install-a-plugin); for shell
   installs, see
   [Install from your shell](https://code.claude.com/docs/en/plugins/install#install-from-your-shell).
-- **As of**: 2026-10-11
-- **Recheck trigger**: either summary line changes, a shell install starts activating in an open
-  session, or a later changelog entry changes when a `/plugin` install activates.
 
 `--force` is real (Claude Code ≥ 2.1.163). We treat it as the answer to one warning only: the
 reload declining a change to the session's MCP or LSP tools because of the prompt cache. Which
@@ -394,8 +399,8 @@ changes raise that warning is read at the pointer below, not predicted here.
 
 So follow this two-step rather than predicting the cause:
 
-1. Check the install summary: if it reports `Run /reload-plugins to apply.` and the plugin is
-   still not active, run `/reload-plugins`.
+1. Check the install summary and, at the pointer above, what the panel already did after it; only
+   if the plugin is still not active, run bare `/reload-plugins`.
 2. If that warns that the reload will re-read the conversation, rerun it as
    `/reload-plugins --force`.
 
@@ -540,11 +545,9 @@ state from a healthy one. It reports and never repairs; see
 [stale-records-cache-content.md](stale-records-cache-content.md).
 
 **A marketplace clone has been observed shallow, so most installs are not checked most of the time.** The clone
-under `installLocation` carried a `.git/shallow` file when this was measured, and Claude Code
-re-clones the marketplace on update (see
-[Host and maintain a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace.md); read
-2026-10-25; the page states the re-clone and says nothing about shallowness or clone depth, so the
-shallow shape is our observation, not the page's). An install recorded at an older commit usually
+under `installLocation` carried a `.git/shallow` file when this was measured (our observation; the
+docs say nothing about clone depth), and an update replaces the clone rather than deepening it (see
+[What background auto-update does with credentials](https://code.claude.com/docs/en/plugins/host-marketplace#what-background-auto-update-does-with-credentials)). An install recorded at an older commit usually
 has no object in the clone to compare against, so the check compares only installs recorded at the
 clone's HEAD and reports the rest as `not-at-head`, counted `not checked (recorded at an older
 commit)` rather than unverifiable, on a fleet with nothing wrong with it. Observed 2026-10-04

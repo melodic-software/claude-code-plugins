@@ -67,6 +67,7 @@ jobs:
   # resolver and before the trigger check; then this job rates nothing and
   # does not fail.
   rate-merge-risk:
+    name: Rate Merge Risk
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
@@ -555,6 +556,7 @@ jobs:
   # set, a limit stop, a credit stop, or a 401 or 402 hands off to
   # rate-merge-risk-fallback, and so does an empty token.
   rate-merge-risk-subscription:
+    name: Rate Merge Risk Subscription
     needs: rate-merge-risk
     if: >-
       !cancelled()
@@ -963,6 +965,7 @@ jobs:
   # the same steps, after the subscription leg handed off or found its token
   # empty, and only when the fallback token is set. It never hands off.
   rate-merge-risk-fallback:
+    name: Rate Merge Risk Fallback
     needs: rate-merge-risk-subscription
     if: >-
       !cancelled()

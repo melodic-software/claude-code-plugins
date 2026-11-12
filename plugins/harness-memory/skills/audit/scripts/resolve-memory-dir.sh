@@ -40,34 +40,34 @@ fi
 
 pinned_memory_dir && exit 0
 
-# tr -d '\r' strips Git Bash CRLF from piped git output. cygpath -w then yields the
-# Windows form Claude Code names project dirs with, falling back to the raw path where
-# cygpath does not exist.
+# cygpath -w yields the Windows form Claude Code names project dirs with, falling back
+# to the raw path where cygpath does not exist.
+windows_path() { cygpath -w "$1" 2>/dev/null || printf '%s' "$1"; }
+
+# sed (not tr) for path-char replacement — tr mishandles backslashes on Git Bash.
+slug() { printf '%s' "$1" | sed 's/[:\\/.]/-/g'; }
+
+# tr -d '\r' strips Git Bash CRLF from piped git output.
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
-if [[ -n "$repo_root" ]]; then
-  repo_root=$(cygpath -w "$repo_root" 2>/dev/null || printf '%s' "$repo_root")
-fi
 
 # Outside a git repo the cwd is the project key (memory doc).
 in_repo=1
-if [[ -z "$repo_root" ]]; then
+if [[ -n "$repo_root" ]]; then
+  repo_root=$(windows_path "$repo_root")
+else
   in_repo=0
-  repo_root=$(cygpath -w "$(pwd)" 2>/dev/null || pwd)
+  repo_root=$(windows_path "$(pwd)")
 fi
 
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-
-# sed (not tr) for path-char replacement — tr mishandles backslashes on Git Bash.
-project_slug=$(printf '%s' "$repo_root" | sed 's/[:\\/.]/-/g')
-session_data_dir="$config_root/projects/$project_slug"
+session_data_dir="$config_root/projects/$(slug "$repo_root")"
 
 # A bare-clone-hub worktree shares auto-memory at the hub (git-common-dir): pick the
 # candidate that actually holds MEMORY.md rather than guessing the slug algorithm.
 memory_dir=""
 if [[ "$in_repo" -eq 1 ]]; then
   git_common=$(cd "$(git rev-parse --git-common-dir 2>/dev/null | tr -d '\r')" 2>/dev/null && pwd)
-  hub_raw=$(cygpath -w "$git_common" 2>/dev/null || printf '%s' "$git_common")
-  hub_slug=$(printf '%s' "$hub_raw" | sed 's/[:\\/.]/-/g')
+  hub_slug=$(slug "$(windows_path "$git_common")")
 
   for cand in "$session_data_dir/memory" "$config_root/projects/$hub_slug/memory"; do
     if [[ -f "$cand/MEMORY.md" ]]; then

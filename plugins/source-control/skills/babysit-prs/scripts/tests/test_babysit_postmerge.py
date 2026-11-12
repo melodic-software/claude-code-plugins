@@ -343,7 +343,7 @@ class FakeGh:
             attempt = int(endpoint.split("/attempts/")[1].split("/")[0])
             jobs = self.jobs.get(
                 (run_id, attempt),
-                [failed_job(run_id * 10 + attempt, "test-bash", "Run the bash tests")],
+                [failed_job(run_id * 10 + attempt, "Test Bash", "Run the bash tests")],
             )
             page = {"total_count": len(jobs), "jobs": jobs}
             return completed([page] if "--slurp" in args else page)
@@ -2322,7 +2322,7 @@ class UnlistedRecordRecovery(CheckCase):
             [(f.signal, f.run_url) for f in verdict.failures],
             [("dispatch", f"{RUN_URL}/{self.LATE_RUN}/attempts/2")],
         )
-        self.assertIn("newly failing: test-bash", verdict.failures[0].detail)
+        self.assertIn("newly failing: Test Bash", verdict.failures[0].detail)
         self.assertFalse(verdict.needs_dispatch)
 
     def test_a_later_recorded_red_run_without_regressions_clears_the_hold(
@@ -2342,7 +2342,7 @@ class UnlistedRecordRecovery(CheckCase):
                 triggering_actor=maintainer,
             ),
         )
-        self.gh.jobs[(10, 1)] = [failed_job(101, "test-bash", "Run the bash tests")]
+        self.gh.jobs[(10, 1)] = [failed_job(101, "Test Bash", "Run the bash tests")]
         self.unlisted_hold()
         self.red_late_rerun()
         verdict = self.check(pinned=None, now=self.AFTER)
@@ -2686,43 +2686,60 @@ class Baseline(CheckCase):
             "schedule",
             schedule_run(30, "failure", head_sha=FORK_SHA, created_at=self.BEFORE),
         )
-        self.gh.jobs[(30, 1)] = [failed_job(301, "test-bash", "Run the bash tests")]
-        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        self.gh.jobs[(30, 1)] = [failed_job(301, "Test Bash", "Run the bash tests")]
+        self.red_after_merge(failed_job(312, "Test Bash", "Run the bash tests"))
         verdict = self.check()
         self.assertEqual([f.signal for f in verdict.failures], ["schedule"])
 
     def test_a_check_already_red_before_the_merge_is_not_charged_to_it(self) -> None:
-        self.before_merge("failure", failed_job(301, "test-bash", "Run the bash tests"))
-        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        self.before_merge("failure", failed_job(301, "Test Bash", "Run the bash tests"))
+        self.red_after_merge(failed_job(312, "Test Bash", "Run the bash tests"))
         verdict = self.check()
         self.assertEqual(verdict.failures, ())
         self.assertEqual(verdict.unattributed, (self.SIGHTING,))
         self.assertEqual(verdict.report()["unattributed"], [self.SIGHTING])
 
+    def test_a_check_red_before_the_rename_is_not_charged_to_the_merge(self) -> None:
+        # A baseline run tested before the jobs got display names names the
+        # same leg and gate in lower case.
+        lint = self.gitleaks_red(302, failure_annotation("markdown failed"))[0]
+        self.before_merge(
+            "failure",
+            failed_job(301, "test-bash (0)", "Run the bash tests"),
+            lint | {"name": "lint-repo"},
+        )
+        self.red_after_merge(
+            failed_job(312, "Test Bash (0)", "Run the bash tests"),
+            *self.gitleaks_red(313, failure_annotation("markdown failed"))[:1],
+        )
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.unattributed, (self.SIGHTING,))
+
     def test_a_check_green_before_the_merge_is_charged_to_it(self) -> None:
         self.before_merge("success")
-        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        self.red_after_merge(failed_job(312, "Test Bash", "Run the bash tests"))
         verdict = self.check()
         self.assertEqual(
             [(f.signal, f.merge.number, f.run_url) for f in verdict.failures],
             [("schedule", 7001, self.SIGHTING)],
         )
-        self.assertIn("newly failing: test-bash", verdict.failures[0].detail)
+        self.assertIn("newly failing: Test Bash", verdict.failures[0].detail)
 
     def test_with_no_run_before_the_merge_a_red_check_is_charged(self) -> None:
-        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        self.red_after_merge(failed_job(312, "Test Bash", "Run the bash tests"))
         self.assertEqual(
             [(f.signal, f.merge.number) for f in self.check().failures],
             [("schedule", 7001)],
         )
 
     def test_another_check_red_before_the_merge_does_not_excuse_this_one(self) -> None:
-        self.before_merge("failure", failed_job(301, "lint-shell", "ShellCheck"))
-        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        self.before_merge("failure", failed_job(301, "Lint Shell", "ShellCheck"))
+        self.red_after_merge(failed_job(312, "Test Bash", "Run the bash tests"))
         self.assertEqual([f.signal for f in self.check().failures], ["schedule"])
 
     def test_a_dispatch_run_compares_with_dispatch_runs_not_schedule_runs(self) -> None:
-        self.before_merge("failure", failed_job(301, "test-bash", "Run the bash tests"))
+        self.before_merge("failure", failed_job(301, "Test Bash", "Run the bash tests"))
         self.gh.add_runs(
             "pr-require-checks.yml",
             "workflow_dispatch",
@@ -2732,7 +2749,7 @@ class Baseline(CheckCase):
         self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
 
     def gitleaks_red(self, job_id: int, *more: dict[str, Any]) -> list[dict[str, Any]]:
-        """lint-repo red through its aggregator step, and the ci-status job
+        """Lint Repo red through its aggregator step, and the ci-status job
         it turns red; the aggregator titles each failed gate."""
         self.gh.annotations[job_id] = [
             failure_annotation(),
@@ -2740,7 +2757,7 @@ class Baseline(CheckCase):
             *more,
         ]
         return [
-            failed_job(job_id, "lint-repo", "Aggregate hygiene results"),
+            failed_job(job_id, "Lint Repo", "Aggregate hygiene results"),
             failed_job(job_id + 1, "ci-status", "Aggregate lane results"),
         ]
 
@@ -2767,14 +2784,14 @@ class Baseline(CheckCase):
         verdict = self.check()
         self.assertEqual([f.signal for f in verdict.failures], ["schedule"])
         self.assertIn(
-            "newly failing: lint-repo: markdown failed", verdict.failures[0].detail
+            "newly failing: Lint Repo: markdown failed", verdict.failures[0].detail
         )
 
     def test_a_lint_repo_step_outside_the_aggregator_is_still_charged(self) -> None:
         jobs = self.gitleaks_red(312)
         jobs[0] = failed_job(
             312,
-            "lint-repo",
+            "Lint Repo",
             "Aggregate hygiene results",
             "Test hygiene result aggregation",
         )
@@ -2816,7 +2833,7 @@ class Baseline(CheckCase):
         jobs = self.gitleaks_red(312)
         jobs[0] = failed_job(
             312,
-            "lint-repo",
+            "Lint Repo",
             "Aggregate hygiene results",
             "Test hygiene result aggregation",
         )
@@ -3128,7 +3145,7 @@ class ReplacedRuns(CheckCase):
             ctx._baseline(
                 pm.SIGNAL_DISPATCH, datetime(2026, 10, 12, 10, 0, tzinfo=UTC)
             ),
-            frozenset({"test-bash"}),
+            frozenset({"Test Bash"}),
         )
 
 

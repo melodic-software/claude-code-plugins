@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No. A summarizing fetch returns a small model's answer about the page.",
+      "why": "summary"
+    },
+    {
+      "answer": "WebFetch hands back a paraphrase, not the page.",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No, read the raw markdown first.",
+      "why": "no reason"
+    }
+  ]
+}
