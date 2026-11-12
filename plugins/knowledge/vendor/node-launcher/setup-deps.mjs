@@ -2,8 +2,7 @@
 /**
  * Install an extraction package's node dependencies into
  * `${CLAUDE_PLUGIN_DATA}/node_modules`, the per-plugin directory we keep state in
- * (its lifetime: https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables,
- * as of 2026-10-11; recheck when that section changes when it is kept), and, for a
+ * (its lifetime: https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables), and, for a
  * package that asks for it, provision Playwright's Chromium into
  * `${CLAUDE_PLUGIN_DATA}/ms-playwright`. The plugin ships without a committed
  * `node_modules`; this runs once on first use and again after an update whose

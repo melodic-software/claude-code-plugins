@@ -35,8 +35,6 @@ Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface. In
 This is NOT the bundled Claude Code `/batch` skill, which is codebase-wide parallel change orchestration. This `batch` action is local SSOT-cluster orchestration instead.
 
 - **Pointer**: for what bundled `/batch` does, read its entry at [All commands](https://code.claude.com/docs/en/commands#all-commands) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: the reference drops the `/batch` entry or changes what it does, or a release note names the bundled `/batch` skill.
 
 ## Inputs
 

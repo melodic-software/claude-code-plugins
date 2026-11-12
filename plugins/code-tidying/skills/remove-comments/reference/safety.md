@@ -50,8 +50,7 @@ excluded path, or delete text without a landing place (staging rule below).
 
 `change-shape.py` is at `../../../scripts/change-shape.py` (relative to this file, never through
 the `${CLAUDE_PLUGIN_ROOT}` token; pointer for where that token is substituted:
-[Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions),
-As of: 2026-11-10, Recheck trigger: that section changes where plugin variables are substituted)
+[Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions))
 and carries its verdict in
 the exit code: 0 COMMENT-ONLY, 10 RENAME-ONLY, 20 CODE-CHANGED, 21 UNPROVABLE, 3 tooling
 unavailable, **2 no grammar mapping for the file's extension, or no PowerShell host for a

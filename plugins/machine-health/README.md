@@ -79,8 +79,7 @@ output base (default `Documents\MachineHealth`):
    `<old output base>\state\` → `${CLAUDE_PLUGIN_DATA}\state\` (`history.jsonl`, `latest.json`,
    `approvals.json`). Old logs may stay behind or move to `${CLAUDE_PLUGIN_DATA}\logs\`.
 3. `${CLAUDE_PLUGIN_DATA}` is not named `machine-health`; how Claude Code names it is in
-   [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
-   (as of 2026-10-11; recheck when that section changes how the directory name is derived). A
+   [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables). A
    `--plugin-dir` session was observed to name it `machine-health-inline`, which that section does
    not cover (basis: [CHANGELOG](CHANGELOG.md) `## [0.7.0]`, first `### Fixed` entry; as of
    2026-10-11; recheck when `/machine-health:setup check` in a `--plugin-dir` session prints a path

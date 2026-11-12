@@ -30,8 +30,7 @@ per verification, never both, and an app already running is not launched again.
 ## Presence
 
 Which bundled skills a session has, and the settings that turn them off, are
-[Extend Claude with skills § Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)
-(as of 2026-10-11; recheck when that section changes what makes a bundled skill unavailable).
+[Extend Claude with skills § Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills).
 Nothing here depends on `run` being present: every skip state in the Native step falls back to
 this skill's own launch playbook, which is complete on its own.
 

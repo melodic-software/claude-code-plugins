@@ -124,9 +124,7 @@ engine plan:
      protected-path write, its session-scoped option, or where `${CLAUDE_PLUGIN_DATA}` resolves,
      fetch [Protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths) and
      [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
-     live. **As of**: 2026-11-10. **Recheck trigger**: the protected-paths section changes its
-     directory list, per-mode handling or session-scoped options, the environment-variables section
-     moves the data path, or the run directory moves out of `${CLAUDE_PLUGIN_DATA}`.
+     live.
 
    A standalone Git checkout can reach `clear` only through an additional, explicit evidence file.
    Never use this for a linked worktree, a tracked subdirectory, or non-Git VCS. After the operator
@@ -218,9 +216,6 @@ engine plan:
    - **Pointer**: when checking the shell file-operation limits behind a recycle, fetch
      [SHFILEOPSTRUCTW: Remarks](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-shfileopstructw#remarks)
      live.
-   - **As of**: 2026-11-03.
-   - **Recheck trigger**: that section changes what it says about path length or long-path
-     prefixes.
 
    That fallback is its own irreversible action and does **not** inherit the approval given for a
    reversible removal. Stop, tell the operator this exact path cannot be recycled and why, and
@@ -253,8 +248,7 @@ confirm prompt.
   fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
   [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode) and
   [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
-  live. **As of**: 2026-11-06. **Recheck trigger**: a section changes whether either kind of `ask`
-  prompts in a mode.
+  live.
 
 Engine invocations from PowerShell stay hard-denied.
 
@@ -272,8 +266,7 @@ bodies through `--body-file <path>` or `-F <path>`.
 
 How long this skill's frontmatter hooks stay registered after `/disk-hygiene:clean` is upstream
 behavior
-([Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents),
-as of 2026-11-10; recheck when that section changes how long a skill's hooks stay registered).
+([Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)).
 The belt applies only while a clean run is open, whatever that lifetime. The `manual-handoff-lane` preview ends
 the run. Each `handoff-apply` opens it again until that call writes its report, and each
 manual-lane `handoff-verify` opens it until an hour passes with no engine call. A manual-lane

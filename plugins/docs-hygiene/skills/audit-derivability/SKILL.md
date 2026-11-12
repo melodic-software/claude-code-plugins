@@ -26,7 +26,7 @@ Uncommitted .md files (first 20; empty = none matched or the probe returned noth
 
 Every command in this line matches an `allowed-tools` grant, so a dontAsk lane can run this skill.
 
-- **Pointer**: when changing this line or its grants, fetch <https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands> live; the probe that found a zero-turn run under dontAsk is in <https://github.com/melodic-software/claude-code-plugins/pull/6732>. **As of**: 2026-10-11. **Recheck trigger**: a Claude Code release note that changes how pre-compute commands are permission-checked.
+- **Pointer**: when changing this line or its grants, fetch <https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands> live; the probe that found a zero-turn run under dontAsk is in <https://github.com/melodic-software/claude-code-plugins/pull/6732>.
 
 ## Purpose
 
@@ -175,7 +175,7 @@ After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointe
 ## Sources
 
 - [Diátaxis](https://diataxis.fr), the four documentation modes; the fact-ownership factor leans on its separation of derivable reference material from explanation, which owns the non-derivable *why*.
-- Which subagents skip launch-loaded files. Pointer: [Create custom subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents) and [what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup). As of 2026-11-01. Recheck trigger: the Recheck triggers table below.
+- Which subagents skip launch-loaded files. Pointer: [Create custom subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents) and [what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup). Recheck trigger: the Recheck triggers table below.
 
 ## Recheck triggers
 

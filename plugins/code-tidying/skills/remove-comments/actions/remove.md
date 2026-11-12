@@ -4,7 +4,6 @@ The default action and `report`. Scripts below are in the skill's `scripts/` dir
 as `<skill-dir>/scripts/<name>`, never through a substitution variable. Pointer for where those
 variables resolve:
 [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
-As of: 2026-11-10. Recheck trigger: that section changes where plugin variables are substituted.
 Postures, the floor and the hard rules are in `SKILL.md`.
 
 With a subagent tool available, and unless you are `comment-reviewer` yourself, you run steps 1 and
@@ -200,8 +199,7 @@ start unattended:
   with the Write tool, announced, when absent; never edit the repository's own `.gitignore`, and
   write nothing when the memory root is the repository root. Never overwrite: an existing name takes
   `-2`, then `-3`. The file follows review's findings-file shape
-  (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/reference/findings-file-shape.md>;
-  as of 2026-10-04; recheck when that file's "Findings-file shape" section changes): frontmatter
+  (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/reference/findings-file-shape.md>): frontmatter
   `type: review-findings`, `date:` the write instant, `branch:` the raw branch name, and one
   `## Findings` row per proposal with Tier `SUGGESTION`, Confidence left empty, Location the
   comment's repository-relative `path:line`, Surface(s) `code-tidying:remove-comments`, Finding the

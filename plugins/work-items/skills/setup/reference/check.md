@@ -80,8 +80,7 @@ check.
      `check` never runs it. Pointer: the
      [`gh repo set-default`](https://cli.github.com/manual/gh_repo_set-default) and
      [`gh repo clone`](https://cli.github.com/manual/gh_repo_clone) manuals for how gh picks and
-     records the default and what `--view` prints; as of 2026-11-11 (gh 2.103.3); recheck when a
-     gh release changes how commands pick the base repository or what `--view` prints.
+     records the default and what `--view` prints.
    - No remote, or no remote pointing at a known GitHub host → FAIL: nothing here can derive a repo,
      so every repo-scoped verb that is not handed the CONTRACT's explicit `--repo <owner>/<repo>`
      override fails at call time. Remediation is `/work-items:setup apply` with a user present,

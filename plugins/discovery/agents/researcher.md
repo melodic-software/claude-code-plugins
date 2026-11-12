@@ -60,8 +60,7 @@ load-time machinery, no user turn, no unresolved scope.
   topic that did not arrive in this prompt is a missing topic, not an empty one. What argument
   substitution fills is
   [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)'s
-  to say (as of 2026-11-03; recheck when that section starts describing substitution on the
-  preload path); what we found documented about that path:
+  to say; what we found documented about that path:
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
   "Scope and topic do not arrive by argument substitution".
 - **The memory-slice path** to write into (`<memory_dir>/<topic-slug>/`, resolved by the parent per
@@ -87,7 +86,7 @@ load-time machinery, no user turn, no unresolved scope.
   it from an effort placeholder in the skill body. Your frontmatter pin is `high` so reasoning
   does not degrade. What an effort placeholder expands to is
   [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)'s
-  to say (as of 2026-11-03; recheck when that table changes what the effort placeholder holds).
+  to say.
   Follow the envelope line for the source-breadth table in the research skill,
   or the lower row `Budget:` authorizes when it names one. If the line is absent, treat the run
   as `high`, name that default in the artifact, and mention the omission in `open_questions`.
@@ -143,8 +142,7 @@ Reading the skill file as `fired`.
 **This definition declares no `tools:` allowlist, only the short `disallowedTools:` denylist in
 the frontmatter above, so your pool is not enumerated here.** What a subagent with no allowlist
 holds is
-[subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools)'s to say
-(as of 2026-11-03; recheck when that section changes what a subagent inherits). Say that plainly
+[subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools)'s to say. Say that plainly
 rather than describing a grant this file never made. The harness's own filters on that pool, and
 the background execution mode, carry a dated record at
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
@@ -156,7 +154,7 @@ The allowlist is omitted on purpose, so the doc-MCP servers this skill's third m
 mixes into the tool spread stay available whichever ones a session carries: an allowlist written
 here could not name them. How an allowlist treats MCP tools is
 [subagents: restrict which tools a subagent can use](https://code.claude.com/docs/en/sub-agents#restrict-which-tools-a-subagent-can-use)'s
-to say (as of 2026-11-03; recheck when that section changes how `tools` entries match MCP tools).
+to say.
 The denylist is the narrow instrument instead:
 
 - **`NotebookEdit`**: nothing in this contract writes notebooks.
@@ -217,7 +215,6 @@ answer about depth, so read the error text. The dated record for the depth limit
 permission check is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md#a-spawn-is-permission-checked-before-it-launches-and-the-depth-limit-is-a-different-mechanism),
 "A spawn is permission-checked before it launches, and the depth limit is a different mechanism".
-As of 2026-10-11. Recheck trigger: that record is re-dated, renamed or split.
 
 ## Untrusted-content posture (standing instruction)
 
@@ -289,7 +286,7 @@ when there is no repo root.
 Your limit is `maxTurns: 40`, from this definition's frontmatter. What the harness does at that
 limit is the `maxTurns` row of
 [subagents: frontmatter reference](https://code.claude.com/docs/en/sub-agents#frontmatter-reference)'s
-to say (as of 2026-11-03; recheck when that row changes what happens at the limit). Whatever is not
+to say. Whatever is not
 on disk when the run stops is invisible to the parent's gate. Count your own turns as you go.
 Stop gathering by turn 30, or earlier when your dispatch prompt's `Turn budget:` line names a lower
 turn, and spend the turns after that writing and handing back. The reserve also covers a miscount.
@@ -393,7 +390,7 @@ the parent's gate the run stopped short.
 first, because we do not rely on knowing what a turn-limit stop hands the parent. What it returns,
 and how the parent resumes you, is
 [subagents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents)'s to
-say (as of 2026-11-03; recheck when that section states which text a turn-limit stop returns). The
+say. The
 re-emission is kept because it costs no turn of its own: emit it as text
 on a turn you are already taking for a write, never on a turn by itself.
 As soon as the topic is resolved, write the block with `status: truncated`,
@@ -454,8 +451,7 @@ statement about the corpus ledger only, never about whether anything was written
 listing them in the payload is how they reach a human. The dated
 record for that harness behavior is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md#askuserquestion-is-removed-from-every-non-fork-subagent),
-"`AskUserQuestion` is removed from every non-fork subagent". As of 2026-10-11. Recheck trigger:
-that record is re-dated, renamed or split. The parent re-surfaces them. Never resolve one silently by picking the option that lets the run finish.
+"`AskUserQuestion` is removed from every non-fork subagent". The parent re-surfaces them. Never resolve one silently by picking the option that lets the run finish.
 
 ## You are already the fresh pair of eyes
 

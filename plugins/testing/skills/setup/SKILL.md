@@ -102,9 +102,7 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
 3. **instruction**: the optional line, naming the one file Claude Code loads at the repository
    root: `CLAUDE.md`, else `.claude/CLAUDE.md`, else `CLAUDE.local.md`, else `AGENTS.md`, else `CLAUDE.md` in
    `${CLAUDE_CONFIG_DIR:-~/.claude}` (the script's order). Which files load, and when `AGENTS.md` is
-   read: [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md).
-   As of 2026-11-10; recheck when a Claude Code release note changes the Project instructions
-   default or which files count. Offer it; do not paste it anywhere.
+   read: [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md). Offer it; do not paste it anywhere.
 4. **hook-entry**: a `none:` line saying test-quality findings come from `/testing:audit`, not a
    per-edit hook, then, when a consumer glob matches no shipped `test-weaken` row, a line naming
    those globs: the audit scans them, `test-weaken` skips them. No settings entry is printed.

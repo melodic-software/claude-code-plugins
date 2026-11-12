@@ -22,8 +22,7 @@ Treat a failure (not a repository, git unavailable) as an unknown value and carr
 separate body Bash calls rather than pre-compute lines, one command per call, so each git read
 reaches the shell on its own. How the harness runs a skill's injected commands is
 [skills: inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)'s
-to say (as of 2026-11-03; recheck when that section states how a block's commands are grouped
-into shell invocations).
+to say.
 
 ## Purpose
 
@@ -218,8 +217,7 @@ never rely on a `${…}` token in a file read from disk being expanded later.
 
 - **Pointer**: when deciding whether a `${…}` reference in a supporting file resolves, fetch
   [plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that table adds supporting files or the Bash
-  environment to where a `${…}` reference resolves.
+  live.
 
 ## Next
 

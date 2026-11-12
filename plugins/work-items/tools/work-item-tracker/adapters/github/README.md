@@ -84,8 +84,7 @@ gh issue list \
 
 Forward `--assignee` for the `list --assignee` flag and the audit's assigned-only view (use
 `--assignee "@me"` for the current user). Always pass `--limit` sized to the rows needed; the
-default cap is read at [gh issue list § Options](https://cli.github.com/manual/gh_issue_list#options)
-(as of 2026-11-03; recheck when that section changes the `--limit` default). Past what one
+default cap is read at [gh issue list § Options](https://cli.github.com/manual/gh_issue_list#options). Past what one
 `--limit` returns, page with `--search` date ranges.
 
 **Recurring items with their marker.** The recurring flows match an item to its schedule row by a
@@ -120,8 +119,7 @@ are read live at GitHub's searching issues and pull requests page, one section e
 [§ Search by missing metadata](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests#search-by-missing-metadata),
 [§ Search by the title, body, or comments](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests#search-by-the-title-body-or-comments)
 and
-[§ Search by when an issue or pull request was created or last updated](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests#search-by-when-an-issue-or-pull-request-was-created-or-last-updated)
-(as of 2026-11-03; recheck when one of those sections renames a qualifier). That page leaves
+[§ Search by when an issue or pull request was created or last updated](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests#search-by-when-an-issue-or-pull-request-was-created-or-last-updated). That page leaves
 `sort:` to GitHub's sorting search results page, linked from its "Further reading".
 
 **REST form (cloud sessions).** A cloud session searches with neither `gh issue list --search` nor
@@ -185,8 +183,7 @@ there with an "unavailable in this Claude Code cloud session" message.
 
 - **Pointer**: when a `gh` call returns 403 in a cloud session, fetch the GraphQL restrictions in
   [cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
-  live. **As of**: 2026-11-03. **Recheck trigger**: that section's GraphQL bullet changes, or a
-  release note names the GitHub proxy.
+  live.
 
 The REST recipe below substitutes for the general
 `gh issue view --json number,title,body,labels,assignees,comments` shape (`.labels[].name` /
@@ -209,8 +206,7 @@ gh api "repos/{owner}/{repo}/issues/<N>" \
 
 Run `gh api` from the target clone, or prefix `GH_REPO=<owner>/<repo>`; where its `{owner}` and
 `{repo}` placeholders come from is read in the description at the top of
-[gh api](https://cli.github.com/manual/gh_api) (as of 2026-11-03; recheck when that description
-changes where the placeholders resolve from).
+[gh api](https://cli.github.com/manual/gh_api).
 
 **What this substitute does not cover.** The list, search, and aggregate projections below run on
 `gh issue list --json` and carry no REST form here, so a cloud session does not use them, nor the
@@ -228,9 +224,7 @@ gh api --paginate "repos/{owner}/{repo}/issues/<N>/comments?per_page=100" \
 `--paginate` is required: an unpaginated read stops at the first page, and this repo already has
 long-running telemetry items past one page. Page size and how a response signals further pages
 are read at
-[using pagination in the REST API § About pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api#about-pagination)
-(as of 2026-11-03; recheck when that section changes the default page size or how further pages
-are signaled).
+[using pagination in the REST API § About pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api#about-pagination).
 
 The reduction is slurped rather than passed to `--jq` because `gh` applies `--jq` to each page
 separately: `sort_by` there emits one separately-sorted array per page, never one sorted list.
@@ -246,8 +240,7 @@ gh issue close <N> --repo <owner>/<repo> --comment "<closing note>" --reason com
 
 The `done` action closes with `--reason completed`, and with `--reason "not planned"` for
 `--not-planned`. The accepted reasons are read at
-[gh issue close § Options](https://cli.github.com/manual/gh_issue_close#options)
-(as of 2026-11-03; recheck when that section changes the `--reason` values).
+[gh issue close § Options](https://cli.github.com/manual/gh_issue_close#options).
 
 **Re-point dependents first.** The steps and their order are in
 [`reference/issue-conventions.md`](../../../../reference/issue-conventions.md) "Dependents on
@@ -279,8 +272,6 @@ and goes ahead.
 - **Pointer**: the endpoint at
   [issue dependencies § List dependencies an issue is blocking](https://docs.github.com/en/rest/issues/issue-dependencies#list-dependencies-an-issue-is-blocking);
   the flag at [gh issue edit § Options](https://cli.github.com/manual/gh_issue_edit#options).
-  **As of**: 2026-11-03. **Recheck trigger**: that section changes the path or the response's
-  `state` or `html_url`, or a gh release renames `--remove-blocked-by`.
 
 **Duplicate close with native `--duplicate-of`.** GitHub closes a duplicate natively: this sets close
 reason `duplicate` and a structured, API-queryable `duplicateOf` relationship, strictly better than
@@ -311,8 +302,7 @@ gh issue close <N> --repo <owner>/<repo> --comment "Duplicate of <M>" --reason "
 
 Edit labels / assignees (WRITE, see the identity note above). This adapter edits labels and
 assignees through `gh issue edit`; its flags are read at
-[gh issue edit § Options](https://cli.github.com/manual/gh_issue_edit#options) (as of 2026-11-03;
-recheck when that section renames the label or assignee flags):
+[gh issue edit § Options](https://cli.github.com/manual/gh_issue_edit#options):
 
 ```bash
 gh issue edit <N> --repo <owner>/<repo> --add-label "<name>" --remove-label "<name>"
@@ -335,9 +325,7 @@ helpers in `common.sh`. Those helpers take the same `read`/`write` writer argume
 `claim` then re-reads the assignees and fails `4` (auth) when its own assignment did not land,
 rather than reporting a held lease on an item the frontier still sees as unassigned. What the
 endpoint does with a login it cannot assign is read at
-[assignees § Add assignees to an issue](https://docs.github.com/en/rest/issues/assignees#add-assignees-to-an-issue)
-(as of 2026-11-03; recheck when that section changes its response for a login it does not
-assign).
+[assignees § Add assignees to an issue](https://docs.github.com/en/rest/issues/assignees#add-assignees-to-an-issue).
 
 Of the verbs beyond the lease protocol, `get-item`, `list-items` and `list-frontier` switch to
 REST under that restriction ("View item", "List items"). `list-sub-items`, `add-sub-item` and
@@ -358,8 +346,7 @@ gh issue edit <N> --repo <owner>/<repo> --body-file <path>
 ## List labels
 
 For `/work-items:track labels` and the label checks in `add` (bare read). Always pass `--limit`;
-the default cap is read at [gh label list § Options](https://cli.github.com/manual/gh_label_list#options)
-(as of 2026-11-03; recheck when that section changes the `--limit` default):
+the default cap is read at [gh label list § Options](https://cli.github.com/manual/gh_label_list#options):
 
 ```bash
 gh label list --repo <owner>/<repo> --limit 1000 --json name --jq '.[].name' | tr -d '\r'
@@ -392,8 +379,7 @@ printf '%s\n\n%s\n' "Closes #<N>" "$(cat /tmp/pr-body.md)" \
 The prepended line is `change-link <id> --repo <PR's owner>/<repo>`'s `closes` text (CONTRACT.md "Change links").
 
 Match GitHub's issue-closing keyword set followed by `#<num>`, read live at
-[linking a pull request to an issue § Linking a pull request to an issue using a keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword)
-(as of 2026-11-03; recheck when that section changes the keyword list); the opt-out markers
+[linking a pull request to an issue § Linking a pull request to an issue using a keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword); the opt-out markers
 `Refs #<num>` / `No related issue:` leave the body untouched.
 
 ## Open linked PRs
@@ -404,8 +390,7 @@ than re-picked. With the draft-aware reduction below, the same check serves `/wo
 drain-exit evaluation. The authoritative signal is **GitHub's own computed close-linkage**, not a text
 match over the PR body, read from the GraphQL `Issue.closedByPullRequestsReferences` connection.
 What that linkage covers is read at
-[linking a pull request to an issue § About linked issues and pull requests](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#about-linked-issues-and-pull-requests)
-(as of 2026-11-03; recheck when that section changes which pull requests link to an issue).
+[linking a pull request to an issue § About linked issues and pull requests](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#about-linked-issues-and-pull-requests).
 Keep only the `OPEN`-state nodes whose **head branch lives in the item's own repository**: a
 `MERGED` PR that closed the issue already dropped it from the open frontier, a `CLOSED` (unmerged) PR is not in flight, and a PR from a fork
 (or from another repository whose body says `Closes owner/repo#<N>`) is an outsider's proposal,
@@ -472,8 +457,7 @@ The `select(.state=="OPEN")` filter stays beside `includeClosedPrs:false`: the q
 filtered to `OPEN` here rather than trusting the argument, so an issue whose only closing PR merged
 (or that was reopened after a merge) is never reported in flight. What the argument filters is read
 at the [`Issue` object reference](https://docs.github.com/en/graphql/reference/issues#issue)'s
-`closedByPullRequestsReferences` field (as of 2026-11-03; recheck when that field's arguments
-change).
+`closedByPullRequestsReferences` field.
 `first:100` requests the connection's maximum page (GitHub GraphQL caps `first`/`last` at 100).
 Because the connection retains `MERGED` nodes, this bound counts every PR the issue has *ever*
 linked as closing, not only the open ones, so a long merge/reopen history can push the
@@ -503,8 +487,7 @@ linkage instead of a body regex over `gh pr list --search`:
   an issue whose only closing keyword sits on a PR GitHub does not link now stays pickable,
   matching GitHub's merge-time auto-close. Which base branches link, and which text in a body is
   ignored, are read at
-  [§ Linking a pull request to an issue using a keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword)
-  (as of 2026-11-03; recheck when that section changes which base branch a keyword links on).
+  [§ Linking a pull request to an issue using a keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword).
 - **Opt-out is intrinsic.** An intentional `Refs #<num>` (reference without closing) never enters
   the closing linkage, so it correctly does not exclude its issue. That is the same opt-out the
   `pr-issue-linkage` gate honors, now with no keyword allow/deny list to keep in sync.
@@ -656,8 +639,6 @@ attend-queue lanes) follows this cadence:
 Pointer: [best practices for using the REST API](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api),
 [REST rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
 [GraphQL rate limits](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api).
-As-of: 2026-10-17. Recheck trigger: either rate-limits page changes how limits or resets are
-reported, or a `gh` release changes the `run watch` or `pr checks --watch` interval or adds retries.
 
 ## Work status trust
 
@@ -710,9 +691,7 @@ Cross-cutting:
   `blockedBy` and `blocking` nodes get the same treatment, and `get-item` and `list-items` read
   closed blockers' close reasons with one `gh api graphql` `nodes(ids:)` query. Which fields
   `--json` exports is read at
-  [gh issue view § JSON Fields](https://cli.github.com/manual/gh_issue_view#json-fields)
-  (as of 2026-11-03; recheck when a gh release changes the sub-issue, parent or dependency
-  projection).
+  [gh issue view § JSON Fields](https://cli.github.com/manual/gh_issue_view#json-fields).
   A node the adapter can attribute to neither field is dropped and named on stderr, so
   a further narrowing of the projection surfaces as a message instead of as another silently
   empty list. A node attributed to a *different* repo is dropped silently: that one is the
@@ -741,5 +720,4 @@ Cross-cutting:
 - **Rate limits**: see [API budget](#api-budget).
 - **Apply labels explicitly when creating an item programmatically**, never relying on an issue
   form's `labels` key. Which creation paths apply that key is read at
-  [syntax for issue forms § Top-level syntax](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms#top-level-syntax)
-  (as of 2026-11-03; recheck when that section changes when the `labels` key applies).
+  [syntax for issue forms § Top-level syntax](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms#top-level-syntax).

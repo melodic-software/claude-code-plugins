@@ -30,7 +30,6 @@ Whether the bundled skill resolves depends on settings, the host surface, and th
 Nothing in this lane depends on it: the CI wrapper never invokes it, and a session where it does
 not resolve is an ordinary session. Pointer: the settings that turn a bundled skill off or hide it
 are read at [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings).
-As of: 2026-10-11. Recheck trigger: that section adds or renames a setting.
 
 ## Extraction record
 

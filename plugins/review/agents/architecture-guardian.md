@@ -22,7 +22,6 @@ it resolves to under a given session model is read live from the pointer below.
   [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model);
   the advisor capability rule in
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility).
-- **As of:** 2026-11-09.
 - **Recheck trigger:** next model release, or "Choose a model" changes when a family alias resolves to the
   session's model.
 

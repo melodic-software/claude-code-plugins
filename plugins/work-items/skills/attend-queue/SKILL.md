@@ -165,8 +165,7 @@ worker lane off the flipped item. Once the row's answer is written
 - **When the human blocker is removed:** perform the single-edit role-label flip **while this
   session still holds the claim**, then clear `@me` from assignees via the bound adapter's assignee
   edit (for GitHub, the adapter README "Edit labels / assignees"; the flag is read live at
-  [gh issue edit § Options](https://cli.github.com/manual/gh_issue_edit#options),
-  as of 2026-11-03; recheck when that section renames the assignee flags), then end the lease with
+  [gh issue edit § Options](https://cli.github.com/manual/gh_issue_edit#options)), then end the lease with
   `"$TRACKER" release "<id>" --lease-comment-id <n>`. Never clear the assignee before the flip: a
   released row still reads as `[escalated]` in another attended session's view until the label
   lands. A brief frontier delay after the flip is acceptable.
@@ -381,8 +380,7 @@ placeholder before running a command or writing it into a brief.
 
 - **Pointer**: when deciding whether a `${…}` reference resolves in a file or tool, fetch
   [plugins manifest reference § Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that table adds supporting files or the Bash
-  tool to where a `${…}` reference resolves.
+  live.
 
 ## Next
 

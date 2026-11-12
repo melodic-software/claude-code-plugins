@@ -21,8 +21,7 @@ action.
 ## Configured options
 
 The spokes refer to this table for these values. Where a `${user_config.*}` reference resolves:
-<https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value>, as of
-2026-11-10; recheck when that section changes which plugin content takes a saved value. A cell that reads as a literal `user_config` token
+<https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value>. A cell that reads as a literal `user_config` token
 rather than a value is unset: treat it as the default.
 
 | Option | Value | Default |
@@ -271,8 +270,7 @@ patterns live in the source spokes.
 The skill needs **Git Bash on Windows** (its frontmatter sets `shell: bash`) and **Node 22 or newer** (the runner reads
 `import.meta.dirname`). Pointers:
 [skills, injected commands](https://code.claude.com/docs/en/skills#how-injected-commands-run) and
-[Node `import.meta.dirname`](https://github.com/nodejs/node/blob/main/doc/api/esm.md#importmetadirname),
-as of 2026-10-10; recheck when either section changes.
+[Node `import.meta.dirname`](https://github.com/nodejs/node/blob/main/doc/api/esm.md#importmetadirname).
 
 Verify before starting (stop and route to the fix path on failure). The readiness report is
 `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python "${user_config.asr_python}"`;
@@ -309,8 +307,7 @@ manager, or one of the fallbacks below.
   without them met the bot check where one with them did not. The skill already passes a
   JavaScript runtime (`--js-runtimes node`). What each extra provides and which runtime YouTube
   needs: the yt-dlp README's [Dependencies](https://github.com/yt-dlp/yt-dlp#dependencies)
-  section and the [EJS wiki page](https://github.com/yt-dlp/yt-dlp/wiki/EJS), as of 2026-10-06;
-  recheck when a yt-dlp release renames those extras or changes the JavaScript runtime it needs.
+  section and the [EJS wiki page](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
 - A tool installed outside the system path must be on `PATH` for the shell that runs `run.mjs`.
 
 **Use the newest safe release.** The floors are minimums, not targets. Before a run, compare each

@@ -2,9 +2,8 @@
 
 The four layers this skill falls back to are this plugin's selections from published standards,
 never copies of them and never this plugin's own invention. Each carries a record in the
-links-only shape (our decision, a pointer, an as-of date, a recheck trigger): what we took, where
-to read the standard live, when the selection was last checked, and what event should send
-someone back to check.
+links-only shape (our decision and a pointer): what we took and where
+to read the standard live.
 
 Read this to judge how faithful a layer is, to cite a layer, or to decide whether a standard has
 moved since the selection was made.
@@ -15,9 +14,6 @@ We use the framework's four modes, and the compass that selects between them, as
 defines them; the framework settles any mode question this skill does not cover.
 
 - **Pointer**: for the modes and the compass, see [diataxis.fr](https://diataxis.fr).
-- **As of**: 2026-07-18
-- **Recheck trigger**: the framework publishes a revision that renames a mode or changes either
-  compass axis.
 
 ## Google developer documentation style: the address layer
 
@@ -26,8 +22,6 @@ anything this file does not cover.
 
 - **Pointer**: for the guide and its highlights, see
   [developers.google.com/style](https://developers.google.com/style).
-- **As of**: 2026-07-18
-- **Recheck trigger**: the guide's Highlights page changes a rule stated in `sentence-rules.md`.
 
 ## ASD-STE100 Simplified Technical English: the load layer
 
@@ -41,9 +35,6 @@ document written to this layer is not thereby STE-conformant.
   [white paper](https://www.asd-ste100.org/assets/files/WhitePaper-ASD-STE100_and_AI.pdf) and the
   entry "White Paper: Simplified Technical English and Artificial Intelligence" on the
   [STE downloads page](https://www.asd-ste100.org/STE_downloads.html).
-- **As of**: 2026-10-02
-- **Recheck trigger**: a new Issue of the specification is published, or STEMG revises its paper on
-  AI.
 
 Claiming STE conformance for a document needs the specification; sentences that load one idea at a
 time need only the principles.
@@ -62,7 +53,6 @@ would cut one action or its condition into fragments. For the guidance behind th
 pointer below.
 
 - **Pointer**: [Prompting Claude Fable 5.2: review instructions written for earlier models](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#review-instructions-written-for-earlier-models).
-- **As of**: 2026-11-09
 - **Recheck trigger**: that section changes its advice on hard style limits, or a new model's
   prompting guide addresses sentence-length rules.
 
@@ -72,8 +62,6 @@ The ambiguity rules are our selection from Kohl's guidelines for prose that surv
 readers, translators, and machine parsers.
 
 - **Pointer**: for the guidelines, see Kohl, *The Global English Style Guide* (SAS Press).
-- **As of**: 2026-07-18
-- **Recheck trigger**: a new edition is published.
 
 ## Why these four and not one
 

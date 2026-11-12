@@ -58,9 +58,6 @@ root, and different resources never share one:
    also makes a Windows-reserved base name impossible, so no reserved-name escape is needed.)
 
 - **Pointer**: <https://www.gnu.org/software/coreutils/manual/html_node/sha2-utilities.html#sha2-utilities_003a-Print-or-check-SHA_002d2-digests>
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes which command prints a SHA-256 digest, or its output
-  format.
 
 For a case these steps leave open (host case, `_ . ~ %`, a slash before a query, a port), `slugFor`
 in [`../../workflows/docpage-digest-batch.js`](../../workflows/docpage-digest-batch.js) is the
@@ -177,9 +174,6 @@ subagent-death ladder in [context/pipeline-hardening.md](context/pipeline-harden
 not retried at once and not collapsed into inline writing.
 
 - **Pointer**: <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>
-- **As of**: 2026-11-01
-- **Recheck trigger**: that section changes what the limit counts, which agents share the
-  limit, or what the refusal tells Claude to do.
 
 Each unit writes `<work-root>/digests/NN-slug.md` with this fixed
 structure: Summary / Key claims (verbatim) / Figure claims (verbatim; only when the unit has
@@ -290,7 +284,7 @@ Several pages from one session run through the `knowledge:docpage-digest-batch` 
 the workflow script itself dispatches each Phase 3 digest agent and both Phase 4 arms as separate
 agents, and no stage spawns its own, and every stage is pointed at this file and its `context/`
 spokes. Pointer: [When to use a workflow](https://code.claude.com/docs/en/workflows#when-to-use-a-workflow).
-As-of: 2026-11-04. Recheck trigger: that section changes who holds the plan in a workflow. It runs no correction rounds and no resume: a page whose verifiers fail is
+It runs no correction rounds and no resume: a page whose verifiers fail is
 rerun here, one page at a time. Each page keeps its own slice, checklist and handoff.
 Read [context/batch-path.md](context/batch-path.md) before launching it: it owns the launch steps,
 the `args`, and what to do with each page's returned `verification`.
@@ -345,9 +339,6 @@ and we do not rely on a token being substituted on that route.
 
 - **Pointer**: when deciding whether a `${…}` token in a Read-delivered file is substituted, fetch
   <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that table adds supporting files read through the Read tool to where a
-  `${…}` reference resolves.
 
 ## Next
 
@@ -381,5 +372,4 @@ and we do not rely on a token being substituted on that route.
   `requested <level>, unconfirmed`, never as the requested level; confirmed effort comes only
   from the arm's own report or the harness's record of the spawn.
   The pointer records for both routes live under verifier A in
-  [context/dual-verification.md](context/dual-verification.md#phase-4-dual-verification) (as of
-  2026-10-11; recheck trigger: those records leave verifier A or that heading is renamed).
+  [context/dual-verification.md](context/dual-verification.md#phase-4-dual-verification).

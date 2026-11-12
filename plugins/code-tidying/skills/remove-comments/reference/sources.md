@@ -11,9 +11,8 @@ not a scoped rule.
   jointly-signed floor ("implementation code only needs comments when the code is nonobvious") and
   the class-C boundary. Martin's "comments are always failures" is his alone and is not built on.
 - [Google eng-practices, comments explain *why*, not *what*](https://google.github.io/eng-practices/review/reviewer/looking-for.html).
-- [Anthropic prompting best practices, Overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness)
-  (As of: 2026-11-10; Recheck trigger: that section's sample prompt drops or changes its lines on
-  comments, scope, or one-time abstractions). We read its comment line together with the
+- [Anthropic prompting best practices, Overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness).
+  We read its comment line together with the
   anti-overengineering lines beside it: it authorizes the *removal* half of this skill and
   constrains the *refactoring* half. It is not blanket authority for either.
 - [Ousterhout, A Philosophy of Software Design §12.6](https://web.stanford.edu/~ouster/cgi-bin/aposd2ndEdExtract.pdf),

@@ -78,12 +78,6 @@ Load-semantics facts that change how you write:
   <https://code.claude.com/docs/en/workflows#save-the-workflow-for-reuse>; hook output caps
   <https://code.claude.com/docs/en/hooks#json-output>; system prompt flags
   <https://code.claude.com/docs/en/cli-reference#system-prompt-flags>.
-- **As of**: 2026-10-11
-- **Recheck trigger**: one of those sections changes a surface's load class, adds or removes a
-  surface, or changes how rule scopes rank; the Project instructions setting is removed or its
-  values change; the load section changes which HTML comments are stripped; the CLAUDE.md size
-  target changes; the AGENTS.md unavailability section changes where support is missing; the
-  compaction section changes which surfaces survive `/compact`; or the hooks JSON-output section removes, adds or changes a cap on hook output size.
 
 ### Load triggers
 
@@ -93,8 +87,6 @@ cover, not only when it reads one; the list of tools and commands that count sta
 - **Pointer**: when a placement depends on exactly which tool calls or shell commands trigger the
   load, fetch <https://code.claude.com/docs/en/memory#how-claude-md-files-load> (nested CLAUDE.md)
   and <https://code.claude.com/docs/en/memory#path-specific-rules> (path-scoped rules) live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: the memory page changes the trigger list for either surface.
 
 Source conflict: the changelog for v2.1.290 and the memory page's AGENTS.md section disagree on
 what attaches a subdirectory AGENTS.md.
@@ -102,9 +94,6 @@ what attaches a subdirectory AGENTS.md.
 - **Pointer**: when a placement depends on what attaches a subdirectory AGENTS.md, fetch
   <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and the v2.1.290 entry at
   <https://code.claude.com/docs/en/changelog#2-1-290> live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: the memory page's AGENTS.md section changes what it says attaches a
-  subdirectory AGENTS.md.
 
 ## CLI prompt appends
 
@@ -115,17 +104,12 @@ with its sibling at the pointer.
 
 - **Pointer**: <https://code.claude.com/docs/en/cli-reference#cli-flags> (the three flag rows) and
   <https://code.claude.com/docs/en/cli-reference#system-prompt-flags> (how the flags combine).
-- **As of**: 2026-10-11
-- **Recheck trigger**: one of the three flag rows changes its mode restriction or leaves the table,
-  or the System prompt flags section changes which flags combine.
 
 Source conflict: the subagent file-flag row and the System prompt flags section disagree on whether
 a flag combines with its own file form; read both before relying on either.
 
 - **Pointer**: <https://code.claude.com/docs/en/cli-reference#cli-flags> and
   <https://code.claude.com/docs/en/cli-reference#system-prompt-flags>.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either place changes what it says about combining a flag with its file form.
 
 ## Other-ecosystem analogues
 

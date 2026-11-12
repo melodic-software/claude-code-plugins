@@ -1,13 +1,11 @@
 # The bundled `simplify` skill: pointer records
 
 Detail behind the boundary section in
-[SKILL.md](../SKILL.md#boundary-the-bundled-simplify-skill) (relay as of 2026-10-11; recheck when
-that section is renamed or moved). Each row states the decision this skill takes about the bundled
+[SKILL.md](../SKILL.md#boundary-the-bundled-simplify-skill). Each row states the decision this skill takes about the bundled
 surface, the upstream section to read for the current behavior, the date it was checked, and the
 event that makes it worth checking again. The sibling `tidy` skill keeps its own record against
 the same surface in
-[../../tidy/reference/bundled-simplify.md](../../tidy/reference/bundled-simplify.md#decision-records)
-(relay as of 2026-10-11; recheck when that table is renamed or moved).
+[../../tidy/reference/bundled-simplify.md](../../tidy/reference/bundled-simplify.md#decision-records).
 
 ## Decision records
 

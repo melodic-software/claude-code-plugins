@@ -74,8 +74,7 @@ Feathers, [Characterization Testing](https://michaelfeathers.silvrback.com/chara
 mismatches, the side-effect warning); tool docs for scrubbers and review:
 [Verify scrubbers](https://github.com/VerifyTests/Verify/blob/main/docs/scrubbers.md),
 [Jest snapshot testing](https://jestjs.io/docs/snapshot-testing),
-[ApprovalTests](https://approvaltests.com/). As of 2026-10-06. Recheck trigger: a tool renames
-its scrubber or matcher mechanism, or Scientist drops its side-effect warning.
+[ApprovalTests](https://approvaltests.com/).
 
 Basis: the agent-self-check research slice (2026-10-06), prompted by Addy Osmani's 2026-10-05 post
 (<https://x.com/addyosmani/status/2106995301802541481>). The practices come from human-led

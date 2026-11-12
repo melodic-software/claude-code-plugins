@@ -403,7 +403,7 @@ and any convention that bounds its search, because it arrives without the projec
 a thoroughness level: `quick` for a known name, `medium` by default, `very thorough` when the naming
 convention is unknown. Do not assume a scout runs on this agent's `model`: which model built-in
 `Explore` runs on is [subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents)'s
-to state (as of 2026-11-01; recheck when that section changes Explore's model).
+to state.
 
 What comes back is **locate-tier**: a scout's report does not say how much of a file it read, and a
 built-in agent runs a prompt you cannot inspect, so treat every hit as a pointer rather than as

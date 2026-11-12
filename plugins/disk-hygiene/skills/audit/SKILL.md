@@ -121,8 +121,7 @@ Run when the findings warrant removal and the user wants it; it takes the same t
   **Pointer:** when checking how a mode treats a Bash call no hook adjudicates, fetch
   [Available modes](https://code.claude.com/docs/en/permission-modes#available-modes) and
   [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
-  live. **As of:** 2026-11-10. **Recheck trigger:** a Claude Code release changes how permission
-  modes treat Bash calls no hook adjudicates.
+  live.
 - Under an inline `--plugin-dir` load the probe can report `data_root` as `null` even though the
   plugin data directory exists. Stop as step 1 says; do not substitute a guessed path. **Claim:** the
   guard derives `data_root` only from the `<plugins>/cache/<marketplace>/<name>` install layout or a
@@ -131,7 +130,7 @@ Run when the findings warrant removal and the user wants it; it takes the same t
   checkout with neither, reported `hook_python` resolved and `data_root: null` on Claude Code
   2.1.285 (Linux); the derivation rule is in
   [safety-model.md](../clean/reference/safety-model.md), "Local-directory marketplace installs".
-  **As of:** 2026-09-30. **Recheck:** the guard's data-root derivation changes, or a Claude Code
+  **Recheck:** the guard's data-root derivation changes, or a Claude Code
   release documents a plugin data path for `--plugin-dir` loads.
 - A hint match is discovery evidence only. Reporting "N hinted entries" as "N safe deletions" is the
   failure this skill exists to avoid.

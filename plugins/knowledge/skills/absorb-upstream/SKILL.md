@@ -106,8 +106,6 @@ instruction files in a directory the session reads. A page is fetched into a new
 
 - **Pointer**: why a file below the working tree matters:
   <https://code.claude.com/docs/en/memory#how-claude-md-files-load>.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes which files in subdirectories load, or when.
 
 ## Read the shape first
 
@@ -144,9 +142,6 @@ memory.
      [Get a commit](https://docs.github.com/en/rest/commits/commits#get-a-commit),
      [Get a tree](https://docs.github.com/en/rest/git/trees#get-a-tree),
      [Get repository content](https://docs.github.com/en/rest/repos/contents#get-repository-content).
-   - **As of**: 2026-11-03
-   - **Recheck trigger**: one of those sections changes its path, what its ref or tree parameter
-     accepts, the `truncated` rule, the symbolic-link mode, or the raw media type.
 
    For a local checkout, the pin is `git -C <checkout> rev-parse HEAD` and the repository is the
    `repo` its visibility check printed (none means no row-link form: say so

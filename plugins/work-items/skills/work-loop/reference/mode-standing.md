@@ -9,9 +9,6 @@ an expiry hit is handled exactly like a budget hit (restart-request + clean stop
   [scheduled tasks § Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)
   live; when timing the expiry, fetch
   [§ Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes the longest wakeup delay or the expiry window, or a
-  release note names `/loop` or `ScheduleWakeup`.
 
 ## Exit condition
 

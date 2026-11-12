@@ -9,8 +9,7 @@ The template lets the subagent search with read-only `grep`, `rg` or `find` thro
 session has no Grep or Glob tool.
 
 - **Pointer**: when checking which Claude Code builds lack those tools, fetch
-  <https://code.claude.com/docs/en/tools-reference#glob-tool-behavior> live. **As of**: 2026-11-01.
-  **Recheck trigger**: a release note or that section changes the default tool set, Grep or Glob.
+  <https://code.claude.com/docs/en/tools-reference#glob-tool-behavior> live.
 
 ## Template
 

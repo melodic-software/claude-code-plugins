@@ -18,8 +18,7 @@ Offer it; launch only on the user's yes. The run edits the working tree and comm
 3. **Availability gate.** Check whether the Workflow tool is in this session's toolset (listed or
    loadable). When availability cannot be positively confirmed, take the fallback below. For the
    switches that turn workflows off, see
-   [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off) (as of
-   2026-10-02; recheck when those switches are renamed).
+   [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off).
 4. **Roles.** When `/multi-agent:route` resolves in this session, invoke it as
    `/multi-agent:route all code session=<this session's model alias>` and keep the `roles` object
    of the JSON it prints. When it does not resolve, omit `args.roles` and say once in the report
@@ -41,12 +40,10 @@ Offer it; launch only on the user's yes. The run edits the working tree and comm
 
 For an unattended or lane run, keep `maxRounds` and `maxConcurrent` at their defaults: which runs
 pause at a usage limit is upstream's rule; see
-[When a run hits your usage limit](https://code.claude.com/docs/en/workflows#when-a-run-hits-your-usage-limit)
-(as of 2026-10-02; recheck when that section changes which runs pause).
+[When a run hits your usage limit](https://code.claude.com/docs/en/workflows#when-a-run-hits-your-usage-limit).
 
 If the run is interrupted, relaunch it with the same `args`; which agents return saved results is in
-[Resume after a pause](https://code.claude.com/docs/en/workflows#resume-after-a-pause) (as of
-2026-10-02; recheck when the resume rules change).
+[Resume after a pause](https://code.claude.com/docs/en/workflows#resume-after-a-pause).
 
 ## Read the result
 

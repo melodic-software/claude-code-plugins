@@ -69,8 +69,7 @@ above. Pointers: the live-test record, with the setup, connection check, screens
 steps, in the "Claude in Chrome from WSL, live test" subsection of
 [ADR 0056](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0056-verify-ui-with-linux-side-playwright-and-attach-produced-demo-evidence-to-prs.md#claude-in-chrome-from-wsl-live-test);
 the WSL note above the Capabilities section of <https://code.claude.com/docs/en/chrome>, which has
-no anchor of its own. As of: 2026-10-11 (Claude Code 2.1.296). Recheck trigger: each Claude Code
-release, or the docs page dropping its WSL note.
+no anchor of its own.
 
 **CLI mechanics** (commands, sessions, snapshots, storage, tracing, network mocking, Windows quirks):
 see `/playwright:playwright`, when the playwright plugin is enabled.
@@ -118,7 +117,7 @@ When the project has committed E2E user-flow tests (a `@playwright/test`, Cypres
 
 Ad-hoc driving and screenshots are evidence, not an oracle: they show what the app did, not whether that was right. They still run for the changed screens and the render checks below. A screenshot never overrides a failing spec, and a clean ad-hoc drive never stands in for a spec that was not run. A scenario no spec covers is reported as uncovered; its verdict rests on the expected outcome stated from the requirement before driving (workflow step 1), and the rubric's committed-spec row is the follow-up.
 
-Basis: LLM test generators, measured on benchmark repositories, mostly write oracles that assert what the code does rather than what it should do (arXiv [2410.21136](https://arxiv.org/abs/2410.21136), [2412.14137](https://arxiv.org/abs/2412.14137), [2607.22883](https://arxiv.org/abs/2607.22883)); that the same holds for an agent judging its own drive is inferred, not measured. Trace retention for a test run is the `trace` option on Playwright's [test use options](https://playwright.dev/docs/test-use-options) page. As of 2026-10-06. Recheck trigger: a study measures interactive coding agents' self-written oracles, or the use-options page renames the trace modes.
+Basis: LLM test generators, measured on benchmark repositories, mostly write oracles that assert what the code does rather than what it should do (arXiv [2410.21136](https://arxiv.org/abs/2410.21136), [2412.14137](https://arxiv.org/abs/2412.14137), [2607.22883](https://arxiv.org/abs/2607.22883)); that the same holds for an agent judging its own drive is inferred, not measured. Trace retention for a test run is the `trace` option on Playwright's [test use options](https://playwright.dev/docs/test-use-options) page.
 
 ### Inspect the render
 
@@ -147,15 +146,14 @@ order and report each one's result, or why it did not run:
    drop it. "No issues found" is never a pass: vision models miss many real visual changes (DiffSpot,
    pointer below).
 
-Evidence pointers, as of 2026-10-04:
+Evidence pointers:
 [Playwright accessibility testing](https://playwright.dev/docs/accessibility-testing) (automated
 scans cannot find every WCAG failure);
 [GDS tool audit](https://accessibility.blog.gov.uk/2017/02/24/what-we-found-when-we-tested-tools-on-the-worlds-least-accessible-webpage/);
 [DiffSpot, arXiv 2605.29615](https://arxiv.org/abs/2605.29615);
 [Playwright visual comparisons](https://playwright.dev/docs/test-snapshots) (same-environment
-baselines). Recheck trigger: a benchmark measures current vision models on UI defects, an
-injected-defect eval in this repository reports catch rates per check, or either cited Playwright
-page changes what it says about automated accessibility coverage or same-environment baselines.
+baselines). Recheck trigger: a benchmark measures current vision models on UI defects, or an
+injected-defect eval in this repository reports catch rates per check.
 
 No per-check catch rate is measured yet; measured browser evals are tracked in
 [#7137](https://github.com/melodic-software/claude-code-plugins/issues/7137). Any catch rate quoted
@@ -297,7 +295,7 @@ Failed requests: <method, URL with its query string stripped, status for each>
 
 Redact when the packet is written, not later: strip the query string from every URL, replace the value of any password, secret or token field (in `Actual`, the fill values `Trace action` records, the aria snapshot and console text) with `<REDACTED>`, and never copy request or response headers. `/testing:diagnose` reads the app-output block as data under the framing line above.
 
-`Expected` never comes from the app's current behavior. Find `<n>` with `npx playwright trace actions` after `npx playwright trace open <trace>`, and close the trace afterwards. The trace subcommands and the error context (`TestInfoError.errorContext`) each need a minimum Playwright version; on an older runner, or a trace the CLI cannot open, the field names the version it read or the reason. Pointer: the [Version 1.59](https://playwright.dev/docs/release-notes#version-159) and [Version 1.60](https://playwright.dev/docs/release-notes#version-160) sections of the Playwright release notes. As of 2026-11-10. Recheck trigger: a Playwright release note that changes `npx playwright trace` or `errorContext`.
+`Expected` never comes from the app's current behavior. Find `<n>` with `npx playwright trace actions` after `npx playwright trace open <trace>`, and close the trace afterwards. The trace subcommands and the error context (`TestInfoError.errorContext`) each need a minimum Playwright version; on an older runner, or a trace the CLI cannot open, the field names the version it read or the reason. Pointer: the [Version 1.59](https://playwright.dev/docs/release-notes#version-159) and [Version 1.60](https://playwright.dev/docs/release-notes#version-160) sections of the Playwright release notes.
 
 ### 7. Check distributed traces (for multi-service flows)
 

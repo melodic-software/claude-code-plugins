@@ -155,10 +155,6 @@ against a run that produced none):
      tools reference's
      [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
      live.
-   - **As of**: 2026-10-04
-   - **Recheck trigger**: the tools reference stops marking `Read` as prompting for paths outside
-     the working directories, its WebFetch section stops naming a size limit, or a verifier reports
-     a `Snapshots:` path it could not Read.
 3. **Apply project fit.** The consuming project's conventions and stated direction live with the
    parent; a fresh worker has no access to them.
 4. **Write both results back into the artifact.** This is the obligation easiest to drop, and

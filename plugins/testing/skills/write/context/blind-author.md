@@ -47,8 +47,7 @@ when the `planning` plugin is enabled).
    `.claude/settings.local.json` when it is a subagent of this session (the rule then binds this
    session too, which is fine, since a test change goes through the user). Remove it when the run
    ends. A deny rule does not cover every way a file can change (what it covers:
-   [Basis and limits](#basis-and-limits), as of 2026-10-11; recheck when that section's
-   file-path deny pointer moves or is dropped), so the check above stays the gate.
+   [Basis and limits](#basis-and-limits)), so the check above stays the gate.
 5. **Review for special-casing.** A frozen test stops test edits, not code that recognizes the
    tested inputs and returns their expected values. Read the implementation diff for branches
    keyed to test data before trusting the green run.
@@ -59,16 +58,12 @@ The split between the test author and the implementer, and the review that does 
 implementer's own green run, follow Claude Code's best-practices page:
 [Run sessions in parallel](https://code.claude.com/docs/en/best-practices#run-sessions-in-parallel)
 and [Review against your spec](https://code.claude.com/docs/en/best-practices#review-against-your-spec).
-As of 2026-10-30. Recheck trigger: either section moves or drops the test-writer and code-writer
-split.
 
 The optional lock in step 4 rests on file-path deny rules:
 [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit) for the path syntax and
 what a deny does not cover, and
 [When edits take effect](https://code.claude.com/docs/en/settings#when-edits-take-effect) for a
-local settings change reaching a running session. As of 2026-10-10. Recheck trigger: either section
-changes path anchoring, starts covering files a script writes, or stops reloading settings
-mid-session.
+local settings change reaching a running session.
 
 Research backing is narrower than the first-party advice. AgentCoder
 ([arXiv 2312.13010](https://arxiv.org/abs/2312.13010)) separates a test-designer agent from the

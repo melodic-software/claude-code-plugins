@@ -65,8 +65,7 @@ PATCH that fails leaves the previous pass's body in place, which a read-back run
 would happily accept. The post-write read-back then re-reads what the write stored, the only check
 that sees a write which reported success and stored something else. Create and update pass the
 body file as `-F body=@<file>`, never `-f`; how each flag treats a leading `@` is read live at
-[gh api § Options](https://cli.github.com/manual/gh_api#options) (as of 2026-11-10; recheck when
-that section changes how `-f` or `-F` reads a value).
+[gh api § Options](https://cli.github.com/manual/gh_api#options).
 
 ## Exit codes
 

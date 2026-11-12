@@ -35,8 +35,6 @@ stays fine for finding which page to read.
 
 - **Pointer**: when deciding whether WebFetch output can stand in for the page, fetch
   <https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior> live.
-- **As of**: 2026-10-04
-- **Recheck trigger**: that section changes, or a WebFetch release note mentions its output format.
 
 ## Boundary, the bundled `claude-code-docs` skill
 

@@ -199,8 +199,6 @@ state:
   ID, never by name, and resumes before it re-dispatches.
 - A subagent the user stopped is re-dispatched, not resumed.
 - **Pointer:** [subagents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents).
-  **As of:** 2026-11-10. **Recheck trigger.** The page's "Resume subagents" section changes, or a
-  release note names `SendMessage` resume, stopped-subagent handling, or agent-ID addressing.
 - This ladder covers `discovery:explorer` because it is a **custom** subagent. It does not extend to
   the built-in Explore agent `SKILL.md` names as the fan-out scout, which is one-shot and returns no
   agent ID. Dated record, with the quoted basis:

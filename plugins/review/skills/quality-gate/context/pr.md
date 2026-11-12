@@ -19,7 +19,6 @@ routinely conflated; they are distinct:
     and the command file,
     [`commands/code-review.md`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-review/commands/code-review.md),
     live.
-  - **As of**: 2026-11-10
   - **Recheck trigger**: the command posts without `--comment`, or it stops skipping a PR that
     already carries a Claude comment.
 - **Bundled `/code-review` command**: invoked with no plugin namespace, and never assumed present
@@ -43,10 +42,7 @@ its check-run behavior at
 bundled command's arguments and what each mutates at
 [code-review: review a diff locally](https://code.claude.com/docs/en/code-review-local);
 its status as a bundled skill at
-[skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills). As of: 2026-10-11.
-Recheck trigger: the code-review page changes its availability note, its set-up section, its
-manual-trigger section, the check-run section, or the argument list, or the bundled command leaves
-the bundled-skill list.
+[skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills).
 
 **Mutation gate.** The gate is by effect, not by flag name. It covers the plugin only in its
 `--comment` form, the managed service, and any bundled `/code-review` invocation whose arguments,
@@ -57,8 +53,6 @@ skip in the review report.
 
 - **Pointer**: for what the bundled command's run reads and edits, see
   [code-review: What the review reads and edits](https://code.claude.com/docs/en/code-review-local#what-the-review-reads-and-edits).
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes which arguments edit the working tree or post findings.
 
 Two runs are **not** gated, because neither writes to the PR or the working tree: a bundled
 `/code-review <target>` whose arguments only report into the session, and the plugin's
