@@ -61,8 +61,6 @@ Beyond the terminal, run additional sessions on claude.ai/code:
 > covers a later pick). For which model to run and how thinking works on it now, see
 > [Claude Code model config](https://code.claude.com/docs/en/model-config) and its
 > ["Extended thinking"](https://code.claude.com/docs/en/model-config#extended-thinking) section.
-> **As of:** 2026-11-01. **Recheck trigger:** that section is renamed or removed, or changes which
-> models can turn thinking off.
 
 ### Use Opus 4.5 with Thinking for Everything
 
@@ -180,7 +178,6 @@ Think of subagents as automations for the most common PR workflows:
 > [permission modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)),
 > and the model this tip names is a legacy model. For current models, see
 > [available models](https://code.claude.com/docs/en/model-config#available-models).
-> As of 2026-10-02; recheck when either linked section changes.
 
 ---
 
@@ -212,7 +209,6 @@ Keep it only while it stays fast (this marketplace's line is a 1 s median per fi
 > [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch); for this
 > marketplace's placement rules, see
 > [check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#formatters).
-> As of 2026-10-15; recheck when that hooks section adds a matcher or stops firing once per batch.
 
 ### Stop Hooks for Long-Running Tasks
 

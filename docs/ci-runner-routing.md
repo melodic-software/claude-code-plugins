@@ -74,7 +74,10 @@ inside the same `ci-status` job on the same hosted runner, so they no longer
 carry status contexts of their own. Fork pull requests receive no secrets and
 no automated review, by design.
 
-Jobs are named `<verb>-<domain>` and the job id is the check name: `lint`
+Jobs are named `<verb>-<domain>` and the job id is the check name, except
+the gate: job `ci-status` shows as `CI Status`, and its alias job
+`report-ci-status` reports that conclusion as `ci-status` until the ci-gate
+ruleset requires `CI Status`. `lint`
 runs linters over source, `check` holds a repository contract across files,
 `test` executes code. `lint-repo` lints the repository as a whole (text
 hygiene, the CI configuration, the docs conventions); `lint-shell` runs

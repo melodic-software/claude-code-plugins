@@ -47,9 +47,9 @@ Four beats, in order. The two **mechanical** beats reuse existing machinery verb
    filer records what it observed, not a verified diagnosis.
 
 3. **File with the fixed shape (mechanical).** File through the canonical `track add` path, which
-   owns the body template (Context / Proposed work / Acceptance criteria / References / Metadata) and
-   the argv-safe `create-item` write ([`../skills/track/actions/add.md`](../skills/track/actions/add.md)
-   "Build body", "Create the item"). The shape is not restated here. `track add` is its source of
+   builds the body from the issue-body contract ([`issue-body-contract.json`](issue-body-contract.json))
+   and owns the argv-safe `create-item` write ([`../skills/track/actions/add.md`](../skills/track/actions/add.md)
+   "Build body", "Create the item"). The shape is not restated here: the contract is its source of
    truth, so a change to the template lands in one place. The item **title** follows the convention
    in [`issue-conventions.md`](issue-conventions.md).
 

@@ -1230,6 +1230,14 @@ limits:
   # oldest stranded first, so the lane stays full without a flood (owner
   # decision Q109).
   refire-queue-per-slot: 2
+  # A work-resolve-issue run still `queued` this many minutes after it was
+  # created is not counted toward that room. The admit job runs on a
+  # GitHub-hosted runner and the slot wait comes after it, so a healthy run
+  # leaves `queued` within minutes; one that stays is lost and never starts,
+  # and counting it would hold the room at 0. Nor does a reopened fix issue's
+  # in-flight check count it among runs that name no issue. 60 is judgment:
+  # well past a hosted runner's pickup.
+  stale-queued-minutes: 60
   # Minutes after a full work-unblock sweep finished during which the sweep a
   # finished work-resolve-issue run starts skips its work. Each full sweep
   # spends about 800 lanes App calls, and on 2026-11-10 seven an hour reached
@@ -1825,13 +1833,13 @@ merge:
         class: enforcement
       - glob: ".github/scripts/pr-unblock/thread-scope.mjs"
         class: enforcement
-      - glob: ".github/scripts/pr-unblock/retry-fetch.mjs"
+      - glob: ".github/scripts/lib/retry-fetch.mjs"
         class: enforcement
       - glob: ".github/scripts/work-resolve-issue/report-outcome.mjs"
         class: enforcement
       - glob: ".github/scripts/work-resolve-issue/limits.mjs"
         class: enforcement
-      - glob: ".github/scripts/work-resolve-issue/retry-fetch.mjs"
+      - glob: ".github/scripts/lib/lane-hold-marker.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/report-escalation.sh"
         class: enforcement
@@ -1866,8 +1874,6 @@ merge:
       - glob: ".github/scripts/apply-patch/predicates.mjs"
         class: enforcement
       - glob: ".github/scripts/apply-patch/protected-paths.mjs"
-        class: enforcement
-      - glob: ".github/scripts/apply-patch/retry-fetch.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/fix-ci-context.mjs"
         class: enforcement

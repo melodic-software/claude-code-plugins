@@ -100,10 +100,7 @@ if [[ -n "$CHECK_DOC" ]]; then
     echo "missing: windows-git-bash stamp or unmeasured placeholder" >&2
     missing=1
   fi
-  if [[ "$missing" -eq 0 ]]; then
-    exit 0
-  fi
-  exit 1
+  exit "$missing"
 fi
 
 if [[ ! "$SAMPLES" =~ ^[1-9][0-9]*$ ]]; then
@@ -156,11 +153,10 @@ time_ms() {
 }
 
 median_ms() {
-  local i=0
+  local i
   : >"$samples_file"
-  while [[ "$i" -lt "$SAMPLES" ]]; do
+  for ((i = 0; i < SAMPLES; i++)); do
     time_ms "$@" >>"$samples_file"
-    i=$((i + 1))
   done
   median_of "$samples_file"
 }
@@ -201,12 +197,11 @@ invoking_bash_floor="$(median_ms bash -c :)"
 kill_off="$(median_ms run_row "$PAYLOAD" false)"
 
 wall_ms() {
-  local value="$1" t0 t1 n=0
+  local value="$1" t0 t1 n
   t0=$EPOCHREALTIME
-  while [[ "$n" -lt 15 ]]; do
+  for ((n = 0; n < 15; n++)); do
     run_row "$PAYLOAD" "$value" &
     run_row "$STOP_PAYLOAD" "$value" &
-    n=$((n + 1))
   done
   wait
   t1=$EPOCHREALTIME
@@ -238,13 +233,11 @@ extra_file="$WORK/wide-extra.txt"
 s_file="$WORK/s.txt"
 : >"$extra_file"
 : >"$s_file"
-i=0
-while [[ "$i" -lt "$SAMPLES" ]]; do
+for ((i = 0; i < SAMPLES; i++)); do
   small_us="$(time_us run_row "$SMALL_PAYLOAD" true)"
   wide_us="$(time_us run_row "$WIDE_PAYLOAD" true)"
   printf '%s\n' "$((wide_us - small_us))" >>"$extra_file"
   time_us "${launcher_bash:-bash}" -c : >>"$s_file"
-  i=$((i + 1))
 done
 wide_extra="$(us_to_ms "$(median_of "$extra_file")")"
 s_ms="$(us_to_ms "$(median_of "$s_file")")"
@@ -255,15 +248,13 @@ append_probe() {
   local pad i
   : >"$file"
   pad="$(head -c "$bytes" /dev/zero | tr '\0' 'a')"
-  i=1
   # Each append goes through slog_append, the hook's own write path.
-  while [[ "$i" -le 33 ]]; do
+  for ((i = 1; i <= 33; i++)); do
     (
       # shellcheck source=session-log-lib.sh
       source "$SCRIPT_DIR/session-log-lib.sh"
       slog_append "$file" "{\"i\":$i,\"pad\":\"$pad\"}"
     ) &
-    i=$((i + 1))
   done
   wait
   local lines=0 corrupt=0 line
@@ -355,7 +346,5 @@ EOF
 )"
 
 printf '%s\n' "$capture"
-if [[ -n "$RECORD" ]]; then
-  printf '%s\n' "$capture" >"$RECORD"
-fi
+[[ -z "$RECORD" ]] || printf '%s\n' "$capture" >"$RECORD"
 exit 0
