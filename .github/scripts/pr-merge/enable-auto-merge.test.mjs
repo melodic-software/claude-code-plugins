@@ -4269,18 +4269,19 @@ test("vetoLabelOwned pairs the lanes App's label with its veto comment", () => {
   assert.equal(vetoLabelOwned([...ownedTimeline, { ...restSaid(KYLE, "do not merge", "2026-10-23T09:40:00Z"), author_association: "CONTRIBUTOR" }], login), false);
 });
 
-// #13657 done-when 2: the Merge-Risk line is report-only, so a rating that
-// fails, a read that hangs and a body edit that fails each leave the arm as
-// it was. recordMergeRisk runs on fakes of its own; the world's GitHub sees
-// only the arm.
+// The Merge-Risk record is report-only, so a rating that
+// fails, a read that hangs and a comment write that fails each leave the arm
+// as it was. recordMergeRisk runs on fakes of its own; the world's GitHub
+// sees only the arm. The record never edits the pull request body.
 import { recordMergeRisk, unratedLine } from "./merge-risk-line.mjs";
 
-const riskWriter = ({ failPatch = false } = {}) => {
+const riskWriter = ({ failPost = false } = {}) => {
   const sent = [];
   const github = async (method, path, payload) => {
     sent.push({ method, path, payload });
-    if (method === "PATCH" && failPatch) throw new Error("PATCH /pulls failed with status 502");
-    return method === "GET" ? { body: "" } : {};
+    if (method === "GET" || path.includes("/pulls/")) throw new Error(`not a record write: ${method} ${path}`);
+    if (method === "POST" && failPost) throw new Error("POST /issues/1/comments failed with status 502");
+    return {};
   };
   return { github, sent };
 };
@@ -4288,24 +4289,44 @@ const failingReads = async () => {
   throw new Error("GET /actions failed with status 502");
 };
 
-test("a rating whose reads and body edit both fail still arms, and records unrated", async () => {
-  const writer = riskWriter({ failPatch: true });
-  const mergeRisk = (target) => recordMergeRisk({ bot: LANES.login, pull: { ...target, body: "", userContentEdits: { totalCount: 0, nodes: [] } }, repository: "o/r", actions: failingReads, github: writer.github, download: () => "" });
+test("a rating whose reads and comment write both fail still arms, and records unrated", async () => {
+  const writer = riskWriter({ failPost: true });
+  const mergeRisk = (target, comments) => recordMergeRisk({ bot: LANES.login, pull: target, comments, repository: "o/r", actions: failingReads, github: writer.github, download: () => "" });
   const { code, writes, lines } = await run([pull(1)], {}, { mergeRisk });
   assert.equal(code, 0);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
   assert.ok(lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
   assert.ok(lines.some((line) => line.startsWith(`::notice title=merge-risk::pr=1 head=${HEAD} merge-risk=unrated:unreadable read-ms=`) && line.endsWith(" write=write-failed")), lines.join("\n"));
-  assert.equal(writer.sent.filter((call) => call.method === "PATCH").length, 1);
+  assert.deepEqual(writer.sent.map((call) => `${call.method} ${call.path}`), ["POST /repos/o/r/issues/1/comments"]);
 });
 
 test("a rating read that hangs is cut off at its deadline, recorded over-budget, and the pull request arms", async () => {
   const writer = riskWriter();
-  const mergeRisk = (target) => recordMergeRisk({ bot: LANES.login, pull: { ...target, body: "", userContentEdits: { totalCount: 0, nodes: [] } }, repository: "o/r", actions: () => new Promise(() => {}), github: writer.github, download: () => "", readMs: 20 });
+  const mergeRisk = (target, comments) => recordMergeRisk({ bot: LANES.login, pull: target, comments, repository: "o/r", actions: () => new Promise(() => {}), github: writer.github, download: () => "", readMs: 20 });
   const { code, writes } = await run([pull(1)], {}, { mergeRisk });
   assert.equal(code, 0);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
-  assert.equal(writer.sent.find((call) => call.method === "PATCH").payload.body, unratedLine("over-budget"));
+  assert.deepEqual(writer.sent.map((call) => call.payload.body), [`<!-- merge-risk-line head=${HEAD} -->\n${unratedLine("over-budget")}`]);
+});
+
+test("the Merge-Risk record reads the comments the arm already read, lists none again and writes no body", async () => {
+  const record = { ...lanesSaid(`<!-- merge-risk-line head=${HEAD} -->\n${unratedLine("unreadable")}`), databaseId: 91 };
+  const writer = riskWriter();
+  const handed = [];
+  const mergeRisk = (target, comments) => {
+    handed.push(comments);
+    return recordMergeRisk({ bot: LANES.login, pull: target, comments, repository: "o/r", actions: failingReads, github: writer.github, download: () => "" });
+  };
+  const { code, writes, calls, lines } = await run([pull(1, { discussion: { comments: [record] } })], {}, { mergeRisk });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(handed, [[record]]);
+  // The head's record already holds this line: nothing is written.
+  assert.deepEqual(writer.sent, []);
+  assert.ok(lines.some((line) => line.startsWith(`::notice title=merge-risk::pr=1 head=${HEAD} merge-risk=unrated:unreadable read-ms=`) && !line.includes("write=")), lines.join("\n"));
+  // No comment list was read beyond the one discussion read.
+  assert.equal(calls.filter(({ body }) => body?.query === DETAIL_QUERY).length, 1);
+  assert.equal(calls.filter(({ body }) => body?.query === DISCUSSION_PAGE_QUERIES.comments).length, 0);
 });
 
 test("a merge-risk step that throws outright still arms", async () => {

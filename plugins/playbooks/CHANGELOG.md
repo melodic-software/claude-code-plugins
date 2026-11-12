@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.33.7] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
 ## [0.33.6] - 2026-11-12
 
 ### Changed

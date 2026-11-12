@@ -2530,16 +2530,22 @@ jobs:
           kill-switch-ok: true
           rate-limit-hold-ok: true
 
-      # A PR-scoped run's first read, on every wake and never carried: when
-      # main's newest full dispatch run was created before the newest lane
-      # merge this checkout holds, the fresh check below would stop at that
-      # merge (--stop-uncovered, exit 6) after the reads before it, so the wake
-      # ends here on one read, with the same outcome. A lane merge here is the
-      # newest first-parent commit merge.agent-identity authored, and its time
-      # the committer date the merge queue stamps when it builds the group, at
-      # or before mergedAt, so an early date only reads as covered. A covered,
-      # unreadable or missing answer, or a rate limit, runs the steps below as
-      # before; a wrong uncovered leaves the arming to the next sweep.
+      # A PR-scoped run's first read, on every wake and never carried. A
+      # workflow_dispatch run checks out main's tip when it is created, so a
+      # full run covers a lane merge exactly when its head_sha contains that
+      # commit. When main's newest full dispatch run lacks the newest lane
+      # merge this checkout holds, no dispatch run was created after it, the
+      # fresh check below would stop there (--stop-uncovered, exit 6) after the
+      # reads before it, and the wake ends here on one read with the same
+      # outcome. The ancestry is read locally from the full-history .base
+      # checkout; a head_sha it does not hold, a covered, unreadable or
+      # missing answer, a rate limit or a timeout runs the steps below as
+      # before. "Lane merge" here means a commit merge.agent-identity
+      # authored, while the full check judges the merges it enqueued
+      # (babysit_merge_policy.py lane_merges_only). Where the two differ, a
+      # wrong uncovered answer only delays the arming until a dispatch run
+      # covers the commit or the next sweep, and a wrong covered one runs
+      # today's path.
       - name: Check whether a full run covers the newest lane merge
         id: precheck
         if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
@@ -2548,19 +2554,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
-          API_BUDGET_SCRIPT: uncovered-since
+          API_BUDGET_SCRIPT: uncovered-at
           REPO: ${{ github.repository }}
         run: |
           set -uo pipefail
           identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml) || exit 0
           [ -n "$identity" ] || exit 0
-          at=$(git -C .base log -1 --first-parent --fixed-strings --author="$identity" --format=%cI HEAD) || exit 0
-          [ -n "$at" ] || exit 0
+          lane=$(git -C .base log -1 --first-parent --fixed-strings --author="$identity" --format=%H HEAD) || exit 0
+          [ -n "$lane" ] || exit 0
           code=0
           python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
-            --repo "$REPO" --branch main --uncovered-since "$at" || code=$?
+            --repo "$REPO" --branch main --uncovered-at "$lane" || code=$?
           if [ "$code" = 6 ]; then
-            echo "::notice::the pre-check found a lane merge ($at) no dispatch run covers yet; its report would need a dispatch, so nothing is armed or disarmed, and the next sweep checks again"
+            echo "::notice::the pre-check found a lane merge ($lane) no dispatch run covers yet; its report would need a dispatch, so nothing is armed or disarmed, and the next sweep checks again"
             echo "uncovered=true" >>"$GITHUB_OUTPUT"
           fi
 

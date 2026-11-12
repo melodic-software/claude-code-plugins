@@ -1,14 +1,18 @@
-// The report-only Merge-Risk line (#13657, owner decision Q57): the rating
-// pr-rate-merge-risk.yml uploaded for the head an arm is about to arm, written
-// as the pull request body's last line so the squash commit carries it.
+// The report-only Merge-Risk record: the rating
+// pr-rate-merge-risk.yml uploaded for the head an arm is about to arm,
+// written as a lanes App comment whose first line is the head marker
+// (markerBody), so a revert study joins a squash commit's `(#N)` to it.
 //
+//   <!-- merge-risk-line head=<sha> -->
 //   Merge-Risk: max=<level> demote=<bool> head=<sha> rubric=<version> rater=<model> checker=<model>
 //   Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-budget>
 //
 // No gate, hold or rung reads it. Every field is a closed value, a validated
 // SHA, version or model id, never text the pull request's author wrote, so
-// it can never read as a hold (merge-holds.mjs BODY_HOLD, LANE_HOLD) or wrap
-// into a squash line that starts `committer ` (pr-require-checks.yml).
+// it can never read as a hold (merge-holds.mjs BODY_HOLD, LANE_HOLD).
+// The record is a comment, not the body: a body edit is a
+// `pull_request: edited` event that re-runs ci-status and its downstream
+// lanes before the queue takes the pull request.
 // recordMergeRisk never throws and is bounded in time, so a missing or failed
 // rating never blocks or delays the arm.
 //
@@ -36,7 +40,6 @@ const MODEL = /^(claude-[a-z0-9]+(?:-[a-z0-9]+){0,6}(?:\[1m\])?|unknown|none)$/;
 const MAX_ROWS = 20;
 const AREA_MAX = 200;
 const TEXT_MAX = 4000;
-const LINE = /^Merge-Risk:.*$/;
 
 export class InvalidRating extends Error {}
 
@@ -110,33 +113,31 @@ export function unratedLine(reason) {
 
 const unrated = (reason) => ({ line: unratedLine(reason), token: `unrated:${reason}` });
 
-const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+export const MERGE_RISK_MARKER = "merge-risk-line";
+const MARKER_LINE = new RegExp(`^<!-- ${MERGE_RISK_MARKER} head=([0-9a-f]{40}) -->$`);
 
-// `body` with `line` as its last line. Only what this writes is replaced: the
-// trailing run of Merge-Risk lines at the body's end, outside any fence, with
-// the blank lines before it. A Merge-Risk line anywhere else, a fenced
-// example of the format included, is the author's text and stays as written.
-export function withMergeRiskLine(body, line) {
-  const lines = String(body ?? "")
-    .replace(/\s+$/, "")
-    .split("\n");
-  let end = lines.length;
-  while (end > 0 && LINE.test(lines[end - 1].replace(/\r$/, ""))) end -= 1;
-  // An odd number of fence lines before the run puts it inside an open fence.
-  const fences = lines.slice(0, end).filter((text) => FENCE.test(text)).length;
-  const kept = (fences % 2 === 0 ? lines.slice(0, end) : lines).join("\n").replace(/\s+$/, "");
-  return kept === "" ? line : `${kept}\n\n${line}`;
-}
+// The record's comment body for `head`: the marker line, then `line`.
+export const markerBody = (head, line) => `<!-- ${MERGE_RISK_MARKER} head=${head} -->\n${line}`;
 
-// Whether only the lanes App (`bot`, its login without `[bot]`) wrote the
-// body, read whole: its author and every editor. A body anyone else touched
-// is left alone, so the App's edit never makes an untrusted editor's text
-// read as trusted (select-trusted-text keeps a body by its last editor).
-export function appOnlyBody(pull, bot) {
-  const edits = pull?.userContentEdits;
-  if (typeof bot !== "string" || bot === "" || pull?.author?.__typename !== "Bot" || pull.author.login !== bot) return false;
-  if (!Array.isArray(edits?.nodes) || !(edits.totalCount <= edits.nodes.length)) return false;
-  return edits.nodes.every((edit) => edit?.editor?.__typename === "Bot" && edit.editor.login === bot);
+const isRated = (line) => String(line ?? "").startsWith("Merge-Risk: max=");
+
+// What the arm does with its record, from `comments` it already read
+// (author, editor, body, createdAt, lastEditedAt, databaseId): the lanes
+// App's (`bot`, its login without `[bot]`) newest marker comment for `head`
+// holding `line`, or a rated line when `line` is unrated, needs nothing; one
+// holding another line is patched. A record last edited by anyone but the App,
+// or by an editor that does not read, is no longer the App's text, so it, like
+// no record or one for another head, gets a new comment.
+export function markerAction(comments, { bot, head, line }) {
+  const isApp = (actor) => actor?.__typename === "Bot" && actor.login === bot;
+  const newest = (Array.isArray(comments) ? comments : [])
+    .filter((c) => isApp(c?.author) && MARKER_LINE.test(String(c.body ?? "").split(/\r?\n/)[0]))
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+    .at(-1);
+  if (newest === undefined || (newest.lastEditedAt && !isApp(newest.editor)) || MARKER_LINE.exec(String(newest.body).split(/\r?\n/)[0])[1] !== head) return { action: "post" };
+  const body = String(newest.body).replace(/\r\n/g, "\n");
+  if (body === markerBody(head, line) || (isRated(body.split("\n")[1]) && !isRated(line))) return { action: "none" };
+  return Number.isSafeInteger(newest.databaseId) ? { action: "patch", id: newest.databaseId } : { action: "post" };
 }
 
 // The line for `pr` at `head`, and its outcome token (`rated` or
@@ -182,13 +183,11 @@ const within = (promise, ms, fallback) => {
 };
 
 // The arm-side step: read the rating within `readMs` (a synchronous
-// `download` runs to its own timeout first), then set the line on a
-// fresh read of the body within `writeMs`. `github` is the client that may
-// edit the body. A body anyone but the lanes App (`bot`) wrote or edited
-// (appOnlyBody) is neither read for nor written, and a body that changed
-// since the listing (`pull.body`) is left alone, so a person's edit is never
-// overwritten. Never throws.
-export async function recordMergeRisk({ pull, repository, actions, github, download, bot, readMs = 15_000, writeMs = 5_000, now = Date.now }) {
+// `download` runs to its own timeout first), then write the record within
+// `writeMs` as markerAction says, on `github`, the lanes App client.
+// `comments` are the pull request's comments the arm already read; no list
+// is read again. Never throws.
+export async function recordMergeRisk({ pull, comments, repository, actions, github, download, bot, readMs = 15_000, writeMs = 5_000, now = Date.now }) {
   const started = now();
   const result = { token: "unrated:unreadable", wrote: false, skipped: undefined, readMs: 0 };
   try {
@@ -196,11 +195,6 @@ export async function recordMergeRisk({ pull, repository, actions, github, downl
     const head = pull?.headRefOid;
     if (!Number.isSafeInteger(pr) || pr < 1 || !SHA.test(String(head))) {
       result.skipped = "no-pull";
-      return result;
-    }
-    if (!appOnlyBody(pull, bot)) {
-      result.token = "skipped";
-      result.skipped = "untrusted-body";
       return result;
     }
     const read = await within(
@@ -212,11 +206,11 @@ export async function recordMergeRisk({ pull, repository, actions, github, downl
     result.readMs = now() - started;
     const wrote = await within(
       (async () => {
-        const live = (await github("GET", `/repos/${repository}/pulls/${pr}`))?.body ?? null;
-        if (String(live ?? "") !== String(pull.body ?? "")) return "body-changed";
-        const next = withMergeRiskLine(live, read.line);
-        if (next === String(live ?? "")) return "exact";
-        await github("PATCH", `/repos/${repository}/pulls/${pr}`, { body: next });
+        const next = markerAction(comments, { bot, head, line: read.line });
+        if (next.action === "none") return "exact";
+        const body = markerBody(head, read.line);
+        if (next.action === "patch") await github("PATCH", `/repos/${repository}/issues/comments/${next.id}`, { body });
+        else await github("POST", `/repos/${repository}/issues/${pr}/comments`, { body });
         return "wrote";
       })(),
       writeMs,

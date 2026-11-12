@@ -1,4 +1,4 @@
-name: Maintenance Check Links Online Claude Code Plugins
+name: Maintenance Check Links Online
 
 # SYNC-MANAGED FILE: DO NOT EDIT IN THE CONSUMING REPOSITORY.
 # Source of truth: melodic-software/standards,
@@ -27,12 +27,14 @@ permissions: {}
 
 jobs:
   check-links:
+    name: Check Links
     permissions:
       contents: read
     uses: melodic-software/ci-workflows/.github/workflows/maintenance-check-links-online.yml@main
     with:
       runner: ubuntu-24.04
-      # Test data, not links to check: intentionally broken fixtures.
+      # Test data, not links to check: intentionally broken fixtures, and eval
+      # cases, whose prompts and graders cite made-up URLs by design.
       extra-args: >-
-        --exclude-path '(^|/)plugins/attribution/skills/audit/evals/fixtures/golden/'
+        --exclude-path '(^|/)plugins/[^/]+/(skills/[^/]+/)?evals/'
         --exclude-path '(^|/)scripts/fixtures/hooks-lifecycle-table\.md$'

@@ -463,7 +463,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # the key-credit gate lists this repository's credit-stop markers
+      actions: read # the key-credit gate lists this repository's credit-stop markers; the lease claim reads an earlier lease's run status
       contents: read
       id-token: write
       issues: write
@@ -624,7 +624,10 @@ jobs:
       # the run job's go step stops the model, with a comment on the issue
       # saying so. Any other failure fails the job. The TTL outlives the run
       # job; the report job, or the caller in caller-releases-lease mode, ends
-      # it early.
+      # it early. A lease held by an earlier run that died before its release
+      # (session_id run-<id>) costs the claim one run read under this job's
+      # actions: read; once that run has completed the lease counts as
+      # released, and superseding it costs one comment edit.
       - name: Claim the issue with a lane lease
         id: lease
         if: inputs.issue-number != '' && steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true'

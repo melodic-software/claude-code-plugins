@@ -1,5 +1,24 @@
 # Changelog for the PR pipeline convention
 
+## [9.26.0] - 2026-11-12
+
+### Changed
+
+- Each arm records the report-only `Merge-Risk:` line in a lanes App comment whose first line is
+  `<!-- merge-risk-line head=<sha> -->`, no longer as the pull request body's last line, so an arm
+  starts no `pull_request: edited` pr-require-checks run, no downstream pr-verify,
+  pr-verify-capture, pr-rate-merge-risk or pr-review-main run, and no queue wait for them. The arm
+  posts the comment once per head, edits it when that head's line changes, and writes nothing when
+  it already holds the line, from the comments it already read. The rating values and the
+  `pr-merge-risk` artifact are unchanged; the squash commit no longer carries the line, and a
+  revert study finds the rating through the revert's `(#N)` in that pull request's comment.
+
+## [9.25.4] - 2026-11-12
+
+### Changed
+
+- The pr-merge wake description names its one-read pre-check: the wake ends with nothing armed when main's newest full dispatch run's head commit lacks the newest lanes App commit on main (`babysit_postmerge.py --uncovered-at`), and any other answer runs the usual path.
+
 ## [9.25.3] - 2026-11-12
 
 ### Changed

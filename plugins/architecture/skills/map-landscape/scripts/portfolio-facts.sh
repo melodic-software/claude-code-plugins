@@ -72,30 +72,12 @@ _ARCH_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)"
 source "$_ARCH_LIB/dotnet-references.sh"
 # shellcheck source=../../../lib/github-remote.sh
 source "$_ARCH_LIB/github-remote.sh"
+# shellcheck source=../../../lib/json-escape.sh
+source "$_ARCH_LIB/json-escape.sh"
 
 # ---------------------------------------------------------------------------
 # JSON emission helpers
 # ---------------------------------------------------------------------------
-
-# Escape a scalar for a JSON string body into JSON_ESC. Backslash first, then
-# quote, then the control characters JSON forbids raw: a Windows path is full of
-# backslashes, so getting this order wrong corrupts every `path` field.
-#
-# Pure parameter expansion, and it assigns a global rather than printing,
-# because BOTH an external process and a command substitution cost a fork. This
-# runs once per emitted field, so the obvious `printf | awk` spelling inside
-# `$(...)` measured near a second per field on a Windows checkout and dominated
-# the whole collector.
-JSON_ESC=""
-json_escape() {
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\t'/\\t}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\n'/\\n}"
-  JSON_ESC="$s"
-}
 
 # The non-blank lines of $1, sorted, de-duplicated and capped at DEP_CAP, as the
 # body of a JSON string array, into JSON_ARR.
@@ -586,6 +568,13 @@ for raw_path in "$@"; do
   # requirements file is preferred over a development-scope one: taking the
   # first sorted hit reports the repository as tooling merely because
   # `requirements-dev.txt` sorts ahead of `requirements.txt`.
+  #
+  # Only a ROOT-LEVEL runtime-scope requirements file claims the runtime. A
+  # requirements file declares no package, so a nested one speaks for its own
+  # directory (one plugin's optional extras), not the repository; letting it win
+  # reported a shell repository as python and discarded its CI requirements. A
+  # nested Python package still claims the runtime through pyproject.toml or
+  # setup.py, which `find_first` reads at any depth.
   py_manifest=""
   py_dev_manifest=""
   py_scope="runtime"
@@ -597,7 +586,7 @@ for raw_path in "$@"; do
       [[ -n "$hit" ]] || continue
       if [[ "$(effective_scope "$hit" "$(requirements_scope "$hit")")" == "development" ]]; then
         [[ -n "$py_dev_manifest" ]] || py_dev_manifest="$hit"
-      else
+      elif [[ "$hit" != */* ]]; then
         py_manifest="$hit"
         break
       fi

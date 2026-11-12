@@ -9,6 +9,7 @@ before Phase 1 when the run will end in verdicts a human acts on.
 - [A keyword count is a ceiling, never a frequency](#a-keyword-count-is-a-ceiling-never-a-frequency)
 - [`PostToolUse` cannot block, so no `PostToolUse` candidate is a gate](#posttooluse-cannot-block-so-no-posttooluse-candidate-is-a-gate)
 - [An `exit 2` gate on `PermissionRequest` is silently inert](#an-exit-2-gate-on-permissionrequest-is-silently-inert)
+- [A hook that exits 1 is not a gate until its event's semantics are read](#a-hook-that-exits-1-is-not-a-gate-until-its-events-semantics-are-read)
 - [The candidate generator reaches a handful of the documented events](#the-candidate-generator-reaches-a-handful-of-the-documented-events)
 - [Upstream records](#upstream-records)
 
@@ -64,6 +65,16 @@ hook written as `exit 2` there is no gate at all; it reports nothing,
 and the repository keeps a row in its enforcement inventory for a mechanism that never fires. Any candidate whose mechanism is a per-event exit code gets its event's
 exit-code semantics confirmed against the hooks reference in the Phase 2.2 mandatory batch, before
 the verdict, not after.
+
+## A hook that exits 1 is not a gate until its event's semantics are read
+
+A gate candidate whose script refuses by exiting 1 is not counted as a gate until its event's
+exit-code semantics are read live in the Phase 2.2 mandatory batch:
+[Exit code output](https://code.claude.com/docs/en/hooks#exit-code-output), and
+[Block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails)
+for what a crashed or timed-out hook does. Our rule: a blocking gate refuses through the exit code
+or decision control that page names as blocking for its event, and sets the failure behavior that
+page names when a crash must not let the action through.
 
 ## The candidate generator reaches a handful of the documented events
 

@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [7.9.14] - 2026-11-12
+
+### Changed
+
+- Enforcement ladder copy updated to 2.1.1: policy-class names irreversible, secret-exposing and data-egress actions.
+
+## [7.9.13] - 2026-11-12
+
+### Fixed
+
+- audit-sessions: the merge-conflict command match now runs in linear time on a long run of git global options, so a crafted transcript command can no longer stall the scan.
+
 ## [7.9.12] - 2026-11-12
 
 ### Changed

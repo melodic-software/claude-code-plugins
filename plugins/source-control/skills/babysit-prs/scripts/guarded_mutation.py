@@ -35,8 +35,9 @@ How the caller learns the outcome
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, TypeVar
 
 import babysit_lease as leases
 from babysit_gh import parse_repo_number
@@ -44,8 +45,13 @@ from babysit_state import (
     load_state,
     require_pr_state,
     resolve_expected_head_sha,
+    resolve_state_dir,
     state_lock,
+    state_path_for,
 )
+from babysit_util import MIN_HEAD_SHA_PREFIX_LENGTH
+
+T = TypeVar("T")
 
 
 class GuardedMutation(NamedTuple):
@@ -102,3 +108,41 @@ def begin_guarded_mutation(
         str(pr_state.get("head_sha") or ""), args.expected_head_sha
     )
     return GuardedMutation(repo, number, key, state, pr_state, head_sha)
+
+
+def run_under_state_lock(
+    args: argparse.Namespace,
+    run_locked: Callable[[argparse.Namespace, Path, Path], T],
+) -> T:
+    """Resolve ``--state-dir``, hold the state lock, and call ``run_locked``."""
+    state_dir = resolve_state_dir(args.state_dir)
+    state_path = state_path_for(state_dir)
+    with state_lock(state_path):
+        return run_locked(args, state_dir, state_path)
+
+
+def add_head_pin_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add ``--pr`` and ``--expected-head-sha``."""
+    parser.add_argument("--pr", required=True, help="PR URL or owner/repo#number")
+    parser.add_argument(
+        "--expected-head-sha",
+        required=True,
+        help=(
+            "snapshot head SHA, full or a hex prefix of at least "
+            f"{MIN_HEAD_SHA_PREFIX_LENGTH} characters"
+        ),
+    )
+
+
+def add_worker_arguments(parser: argparse.ArgumentParser, apply_help: str) -> None:
+    """Add ``--state-dir``, ``--lease-token`` and ``--apply``."""
+    parser.add_argument(
+        "--state-dir",
+        required=True,
+        help=(
+            "Durable state directory. Required: state-dir resolution is "
+            "flag-only, with no environment fallback."
+        ),
+    )
+    parser.add_argument("--lease-token", help="opaque token for this PR's worker lease")
+    parser.add_argument("--apply", action="store_true", help=apply_help)

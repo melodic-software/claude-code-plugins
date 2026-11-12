@@ -167,17 +167,12 @@ grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$graph" ||
 grep -q '^[[:space:]]*"result"[[:space:]]*:' "$graph" ||
   die "not a dependency-graph.sh record (no result key); regenerate it with /architecture:map-dependencies: $graph" 1
 
+# shellcheck source=../../../lib/record-layout.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/record-layout.sh"
 read -r -d '' LAYOUT_AWK <<'AWK' || true
 BEGIN {
   shape["nodes"] = "^[[:space:]]*[{]\"id\":"
   shape["edges"] = "^[[:space:]]*[{]\"from\":"
-}
-function open_array(key,   rest) {
-  if (!match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\\[")) return
-  rest = substr($0, RSTART + RLENGTH)
-  if (rest ~ /^[[:space:]]*\]/) { seen[key] = 1; return }
-  if (substr($0, 1, RSTART - 1) ~ /^[[:space:]]*$/ && rest ~ /^[[:space:]]*$/) { open = key; return }
-  problem = "the " key " array does not start on a line of its own"
 }
 open != "" {
   if ($0 ~ /^[[:space:]]*\][[:space:]]*,?[[:space:]]*$/) { seen[open] = 1; open = ""; next }
@@ -196,7 +191,7 @@ END {
   print problem
 }
 AWK
-layout_problem="$(awk "$LAYOUT_AWK" "$graph")"
+layout_problem="$(awk "$RECORD_OPEN_ARRAY_AWK$LAYOUT_AWK" "$graph")"
 [[ -z "$layout_problem" ]] ||
   die "record is not in the one-object-per-line layout ($layout_problem); regenerate it: $graph" 1
 

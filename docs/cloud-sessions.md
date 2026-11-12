@@ -157,6 +157,13 @@ question are separate; the .NET `403` that settled the second as Full is recorde
 
 ## How this repository is set up
 
+The owner keeps cloud sessions off for work and state: accounts rotate, and a cloud environment
+and its sessions belong to one claude.ai account
+([Configure cloud environments](https://code.claude.com/docs/en/cloud-environments)). The setup
+below stays available, and no lane routes to it. Dissent: Lydia Hallie's talk "Rethinking Claude
+Code Best Practices" ([video](https://www.youtube.com/watch?v=vlfCjWuv4es)) recommends starting
+work in a cloud session. Owner decision of 2026-11-12.
+
 The environment side stays generic (Default environment, **Full** network access, no variables,
 and the setup script from [cloud-fleet-setup.md](cloud-fleet-setup.md#step-1-the-shared-environment-claudeai-ui-one-time),
 which carries the guarded pre-launch bootstrap call from above). The repo side:

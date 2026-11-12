@@ -163,13 +163,26 @@ printf 'merge:\n  trust-path-hold-apps:\n    - melodic-agent[bot]\n' >"$TMP_ROOT
 printf 'merge:\n  rung: C2\n' >"$TMP_ROOT/bare-config/docs/conventions/pr-pipeline.yaml"
 
 # The stub logs its arguments. A runs read fails its first STUB_RUNS_FAILS
-# calls, then prints RUNS_CODE or RUNS_SEC by caller file. A jobs read fails
+# calls, then prints RUNS_CODE or RUNS_SEC by caller file. The head's runs of
+# every workflow are both together, with total_count their sum; STUB_HIDE_SEC
+# leaves RUNS_SEC's runs off that page but in its total_count. STUB_HEAD_SHAPE
+# reshapes that page: no-total drops total_count, text-total makes it a
+# string, null-runs answers {"total_count":0,"workflow_runs":null}. A jobs read fails
 # when STUB_JOBS_FAIL is set, else prints the JOBS_<run id> variable.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
 case "$*" in
+*'/actions/runs?head_sha='*)
+  [[ "$(grep -c '/runs?' "$STUB_LOG")" -gt "${STUB_RUNS_FAILS:-0}" ]] || { echo '{"message":"Server Error"}'; exit 1; }
+  code=$RUNS_CODE
+  if [[ -n "${RUNS_CODE_LATER:-}" ]] && grep -qE '/actions/runs/[0-9]+$' "$STUB_LOG"; then code=$RUNS_CODE_LATER; fi
+  jq -cs --arg hide "${STUB_HIDE_SEC:-}" --arg shape "${STUB_HEAD_SHAPE:-}" '{total_count: (map(.workflow_runs | length) | add),
+    workflow_runs: (if $hide == "" then map(.workflow_runs) | add else .[0].workflow_runs end)}
+    | if $shape == "no-total" then del(.total_count) elif $shape == "text-total" then .total_count |= tostring
+      elif $shape == "null-runs" then {total_count: 0, workflow_runs: null} else . end' <<<"$code"$'\n'"$RUNS_SEC"
+  ;;
 */actions/workflows/pr-review-hosted.yml/runs*)
   [[ "$(grep -c '/runs?' "$STUB_LOG")" -gt "${STUB_RUNS_FAILS:-0}" ]] || { echo '{"message":"Server Error"}'; exit 1; }
   # RUNS_CODE_LATER answers once a poll has read a run by id (the wait).
@@ -307,11 +320,25 @@ export RUNS_CODE RUNS_SEC JOBS_10 JOBS_11 JOBS_20 JOBS_21
 RUNS_CODE="$(runs "$(run 10 $CODE)")" RUNS_SEC="$(runs "$(run 20 $SEC)")"
 JOBS_10="$PASS_CODE" JOBS_20="$PASS_SEC"
 expect "both lanes reviewed the head" 0 "'$CODE_CHECK' passed on $HEAD" "::error::"
-if grep -qxF "api repos/o/r/actions/workflows/$CODE/runs?head_sha=$HEAD&event=pull_request&per_page=100" "$TMP_ROOT/log" &&
+if grep -qxF "api repos/o/r/actions/runs?head_sha=$HEAD&event=pull_request&per_page=100" "$TMP_ROOT/log" &&
   grep -qxF "api repos/o/r/actions/runs/10/jobs?filter=latest&per_page=100" "$TMP_ROOT/log"; then
   ok "the head's pull_request runs and the newest run's latest jobs are read"
 else
   fail "unexpected reads: '$(sort -u "$TMP_ROOT/log")'"
+fi
+# listings <kind>: how many run listings the last case read, of the head's
+# runs of every workflow (head) or of one workflow file (file).
+listings() {
+  case $1 in
+  head) grep -c '/actions/runs?head_sha=' "$TMP_ROOT/log" ;;
+  file) grep -c '/actions/workflows/[^/]*/runs?' "$TMP_ROOT/log" ;;
+  *) return 2 ;;
+  esac
+}
+if [[ "$(listings head) $(listings file)" == "1 0" ]]; then
+  ok "with nothing to wait for, both lanes and both passes share one listing of the head's runs"
+else
+  fail "nothing waited, yet the head's runs were listed $(listings head) times and a file's $(listings file) times, want 1 and 0"
 fi
 
 # A head tested before the rename lists the caller job ids.
@@ -354,9 +381,28 @@ fi
 RUN_11="$(run 11 $CODE)" RUNS_CODE_LATER="$(runs "$(run 11 $CODE)" "$(run 10 $CODE)")"
 JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success)")"
 expect "a review that finishes during the wait passes without a re-run" 0 "Waited 60s for the review lanes on $HEAD." "::error::"
+if [[ "$(listings head) $(listings file)" == "2 0" ]]; then
+  ok "after a wait the head's runs are listed again, once for both lanes"
+else
+  fail "a wait listed the head's runs $(listings head) times and a file's $(listings file) times, want 2 and 0"
+fi
+# A run that appears during the wait is judged: the listing from before the
+# wait names only run 11, whose review failed.
+export JOBS_12
+SAVED_RUNS_CODE=$RUNS_CODE
+RUNS_CODE="$(runs "$(run 11 $CODE in_progress)")" RUNS_CODE_LATER="$(runs "$(run 12 $CODE)" "$(run 11 $CODE)")"
+JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed failure)")" JOBS_12="$PASS_CODE"
+expect "after a wait the judgment reads the head's runs fresh, not the listing from before it" 0 \
+  "'$CODE_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/12)." "ended failure"
+RUNS_CODE=$SAVED_RUNS_CODE RUNS_CODE_LATER="$(runs "$(run 11 $CODE)" "$(run 10 $CODE)")"
 JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" in_progress '')")"
 REVIEW_WAIT_SECONDS=0 expect "a contract-only run (no wait) fails a running review at once" 1 "ci-status waited 0s for it" "Waited"
 if grep -qE '/actions/runs/[0-9]+$' "$TMP_ROOT/log"; then fail "a run with no wait polled a run"; else ok "a run with no wait polls nothing"; fi
+if [[ "$(listings head) $(listings file)" == "1 0" ]]; then
+  ok "a contract-only run lists the head's runs once for both lanes"
+else
+  fail "a contract-only run listed the head's runs $(listings head) times and a file's $(listings file) times, want 1 and 0"
+fi
 RUNS_CODE_LATER='' RUN_11=''
 RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 11 $CODE completed "${HEAD//0/f}")" "$(run 12 pr-review-shadow.yml)" "$(run 13 $CODE completed "$HEAD" push)")"
 expect "runs on another head, of another file or event do not count" 0 "passed on $HEAD (https://github.com/o/r/actions/runs/10)" "::error::"
@@ -376,8 +422,26 @@ RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
 RUNS_CODE="$(runs)"
 expect "no review run yet fails" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet. ci-status does not wait for a lane with no run" "Waited"
-if [[ "$(grep -c "/workflows/$CODE/runs?" "$TMP_ROOT/log")" == 2 ]]; then ok "a lane with no run is not waited for"; else fail "a lane with no run was polled: $(grep -c "/workflows/$CODE/runs?" "$TMP_ROOT/log") run-list reads"; fi
+if [[ "$(listings head) $(listings file)" == "1 0" && ! -s "$TMP_ROOT/log.sleeps" ]]; then ok "a lane with no run is not waited for"; else fail "a lane with no run was polled: $(listings head) head and $(listings file) file run-list reads"; fi
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
+# A listing GitHub cut short (total_count above the runs on the page) is not
+# trusted to show a lane missing: each lane's own runs are read and judged.
+STUB_HIDE_SEC=1 expect "a lane left off a cut-short listing is read from its own runs, not called missing" 0 \
+  "'$SEC_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/20)." "is missing"
+if [[ "$(listings head)" == 1 ]] && grep -qxF "api repos/o/r/actions/workflows/$SEC/runs?head_sha=$HEAD&event=pull_request&per_page=100" "$TMP_ROOT/log" &&
+  grep -qxF "api repos/o/r/actions/workflows/$CODE/runs?head_sha=$HEAD&event=pull_request&per_page=100" "$TMP_ROOT/log"; then
+  ok "a cut-short listing falls back to each lane's own runs"
+else
+  fail "a cut-short listing read: '$(sort "$TMP_ROOT/log" | uniq -c)'"
+fi
+# A listing whose total_count is missing or not a number, or whose
+# workflow_runs is not a list, cannot show it is whole: each lane's own runs
+# are read and judged.
+for shape in no-total text-total null-runs; do
+  STUB_HEAD_SHAPE=$shape expect "a $shape listing is read from each lane's own runs" 0 \
+    "'$SEC_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/20)." "is missing"
+  if [[ "$(listings head) $(listings file)" == "1 4" ]]; then ok "a $shape listing falls back to each lane's own runs, for the wait and the judgment"; else fail "a $shape listing read: '$(sort "$TMP_ROOT/log" | uniq -c)'"; fi
+done
 
 for c in failure cancelled timed_out; do
   JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed "$c")")"
@@ -570,6 +634,11 @@ expect "a warning copying the skip notice is no skip" 1 "kill-switch job: succes
 JOBS_10="$PASS_CODE"
 RUNS_SEC="$(runs)"
 expect "the security lane is required too" 1 "::error::'$SEC_CHECK' is missing" "'$CODE_CHECK' is missing"
+if [[ "$(listings head) $(listings file)" == "1 0" ]]; then
+  ok "a whole listing without a lane's run reads that lane missing, with no further read"
+else
+  fail "a whole listing missing a lane read $(listings head) head and $(listings file) file run lists, want 1 and 0"
+fi
 RUNS_CODE="$(runs)"
 expect "both missing lanes are named" 1 "'$CODE_CHECK' is missing"
 RUNS_CODE="$(runs "$(run 10 $CODE)")" RUNS_SEC="$(runs "$(run 20 $SEC)")"
@@ -813,7 +882,7 @@ expect "a person's trust-gate change with no App on it goes to the review lanes"
   "No agent App opened, wrote or pushed to #77; the review lanes decide its trust-gate paths." "::error::"
 if grep -qxF 'api repos/o/r/pulls/77/commits?per_page=100 --paginate' "$TMP_ROOT/log" &&
   grep -qxF 'api repos/o/r/activity?ref=refs%2Fheads%2Ffeature%2Fx&direction=desc&per_page=100 -i' "$TMP_ROOT/log" &&
-  grep -q '/actions/workflows/' "$TMP_ROOT/log"; then
+  grep -q '/actions/runs?head_sha=' "$TMP_ROOT/log"; then
   ok "the commits, the head branch's push history and then the review runs are read"
 else
   fail "unexpected reads: '$(sort -u "$TMP_ROOT/log")'"
@@ -913,8 +982,8 @@ STUB_FILES='[]' STUB_CHANGED=0 STUB_AUTHOR=
 
 # gh_read is the only retry layer: a run-list read is sent 3 times at most,
 # after full-jitter waits of at most 5 and then 10 s, and the step reads it
-# once, in the review wait and again for the judgment.
-runs_reads() { grep -c "/actions/workflows/$CODE/runs?" "$TMP_ROOT/log"; }
+# once for the review wait, and the judgment reuses it when nothing waited.
+runs_reads() { listings head; }
 # waits_within <ceiling>...: one logged sleep per ceiling, each 0 to it.
 waits_within() {
   local -a got want=("$@")
@@ -927,15 +996,15 @@ waits_within() {
 }
 export STUB_RUNS_FAILS=1
 expect "a transient run-list failure is retried" 0 "'$CODE_CHECK' passed"
-if [[ "$(runs_reads)" -eq 3 ]] && waits_within 5; then
+if [[ "$(runs_reads)" -eq 2 ]] && waits_within 5; then
   ok "a run list that fails once is read on gh_read's second send, after one jittered wait"
 else
-  fail "a run list that fails once took $(runs_reads) reads and waits '$(paste -sd' ' "$TMP_ROOT/log.sleeps")', want 3 reads and one wait of 0 to 5 s"
+  fail "a run list that fails once took $(runs_reads) reads and waits '$(paste -sd' ' "$TMP_ROOT/log.sleeps")', want 2 reads and one wait of 0 to 5 s"
 fi
-# Three failed sends end the review wait; three more fail the judgment closed,
-# though a 7th send would read the list.
+# Three failed sends end the review wait and keep nothing; three more fail the
+# judgment closed, though a 7th send would read the list.
 export STUB_RUNS_FAILS=6
-expect "an unreadable run list fails closed" 1 "::error::could not read the $CODE runs on $HEAD; re-run this run."
+expect "an unreadable run list fails closed" 1 "::error::could not read the pull_request runs on $HEAD; re-run this run."
 if [[ "$(runs_reads)" -eq 6 ]] && waits_within 5 10 5 10; then
   ok "each failed run-list read is sent 3 times, after waits of 0 to 5 and 0 to 10 s"
 else

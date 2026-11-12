@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pathlib
 import sys
+import time
 import unittest
 from unittest import mock
 
@@ -1266,6 +1267,38 @@ class LongLineNoHold(unittest.TestCase):
             )
             codes = [r.code for r in score(_input(files=files)).reasons]
             self.assertFalse([c for c in codes if c.startswith("long-line")], codes)
+
+
+class NodePropertyReadingIsLinear(unittest.TestCase):
+    """The raw-text workflow reading strips anchors and tags and finds block
+    scalar openers in one pass, so a long line of them is read in linear time."""
+
+    def test_node_properties_are_stripped_from_the_end_only(self):
+        strip = babysit_risk._strip_node_properties
+        self.assertEqual(strip("key: &a !!str "), "key: ")
+        self.assertEqual(strip("- !t"), "- ")
+        self.assertEqual(strip("key: &a value "), "key: &a value ")
+        self.assertEqual(strip("&a"), "&a")
+        self.assertEqual(strip("key:!t "), "key:!t ")
+
+    def test_block_scalar_openers(self):
+        opens = babysit_risk._opens_block_scalar
+        for line in ("key: |", "- >-", "key: &a |", "  run: !t &a |2+  ", "x !a- |", " |"):
+            self.assertTrue(opens(line), line)
+        for line in ("key: a |", "key:|", "|", "key: &a", "key: | x", "&a |"):
+            self.assertFalse(opens(line), line)
+
+    def test_long_runs_of_properties_read_in_linear_time(self):
+        lines = (" " + "! " * 20000 + "'x", "a" + " !-" * 20000 + " x", "a:" + " &a" * 20000 + " |")
+        start = time.perf_counter()
+        for line in lines:
+            babysit_risk._uncommented(line, "")
+            babysit_risk._opens_block_scalar(line)
+        self.assertLess(time.perf_counter() - start, 1)
+        with mock.patch.object(babysit_risk, "_yaml", return_value=None):
+            start = time.perf_counter()
+            score(_input(files=(_file(WORKFLOW, patch=_patch(*("+" + line for line in lines))),)))
+            self.assertLess(time.perf_counter() - start, 2)
 
 
 if __name__ == "__main__":

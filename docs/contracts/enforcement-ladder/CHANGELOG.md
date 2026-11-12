@@ -4,6 +4,11 @@ Notable changes to the enforcement ladder (SemVer). Renaming, removing or moving
 bump. Adding a rung, a reader's selection rule or a boundary-rule location is a minor bump.
 Wording-only clarification is a patch.
 
+## [2.1.1] - 2026-11-12
+
+- Clarified: the guardrail criterion's policy-class names an action that cannot be undone, exposes
+  a secret, or sends data outside the repository.
+
 ## [2.1.0] - 2026-11-01
 
 - Added: the `/corrections:codify` reader row, the strongest rung that can decide a recurring
