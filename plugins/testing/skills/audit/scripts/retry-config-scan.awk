@@ -84,8 +84,6 @@ function emit(kind, line, detail) {
   printf "%s\tflaky-passes-suite\t%d\t%s\n", kind, line, detail
 }
 
-function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-
 function is_int(v) { return v ~ /^-?[0-9]+$/ }
 
 # ---------------------------------------------------------------------------
