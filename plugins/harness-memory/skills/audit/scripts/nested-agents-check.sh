@@ -91,6 +91,9 @@ nested_agents() {
   ' | LC_ALL=C sort
 }
 
+# 0 when the file is blocked and not wired, one walk up its path deciding both.
+# Blocked = one of the three names sits on the file's own path. A CLAUDE.md
+# above the repository root is invisible here; that case is the operator's to know.
 # Wired = any of the three names in its own or any ancestor directory reaches the
 # file, since each of those loads and carries its imports in.
 #
@@ -99,39 +102,26 @@ nested_agents() {
 #   Pointer: https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
 #   As of: 2026-10-11.
 #   Recheck trigger: that section changes which file names count, or at which levels.
-is_wired() {
-  local agents="$1" dir want entry
+is_unwired() {
+  local agents="$1" dir want entry blocked=1
   dir="$(dirname "$agents")"
   want="$(il_realpath "$agents")"
   while :; do
     for entry in "$dir/CLAUDE.md" "$dir/.claude/CLAUDE.md" "$dir/CLAUDE.local.md"; do
       [[ -f "$entry" ]] || continue
-      il_reaches "$entry" "$want" && return 0
+      blocked=0
+      il_reaches "$entry" "$want" && return 1
     done
     [[ "$dir" == "." ]] && break
     dir="$(dirname "$dir")"
   done
-  return 1
-}
-
-# Blocked = one of the three names sits on the file's own path. A CLAUDE.md
-# above the repository root is invisible here; that case is the operator's to know.
-is_blocked() {
-  local agents="$1" dir
-  dir="$(dirname "$agents")"
-  while :; do
-    [[ -f "$dir/CLAUDE.md" || -f "$dir/.claude/CLAUDE.md" || -f "$dir/CLAUDE.local.md" ]] && return 0
-    [[ "$dir" == "." ]] && break
-    dir="$(dirname "$dir")"
-  done
-  return 1
+  return "$blocked"
 }
 
 findings=()
 while IFS= read -r agents; do
   [[ -n "$agents" ]] || continue
-  is_blocked "$agents" || continue
-  is_wired "$agents" || findings+=("$agents")
+  is_unwired "$agents" && findings+=("$agents")
 done < <(nested_agents)
 
 if [[ "$mode" == "count" ]]; then
