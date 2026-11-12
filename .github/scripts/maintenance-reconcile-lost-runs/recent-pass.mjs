@@ -55,7 +55,6 @@ export async function main(env = process.env, { github, now = () => Date.now() }
       }
     } catch (error) {
       console.log(`::warning::the recent-pass check could not read the last pass (${error.message}); the dispatch runs`);
-      skip = false;
     }
   }
   appendFileSync(env.GITHUB_OUTPUT, `skip=${skip}\n`);

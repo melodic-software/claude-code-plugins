@@ -62,6 +62,7 @@ const WORKFLOW_PATH = ".github/workflows/work-unblock.yml";
 const LANE_WORKFLOW = "work-resolve-issue.yml";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const notice = (text) => console.log(`::notice title=lane-level::${text}`);
+const reason = (error, max = 200) => String(error?.message ?? error).slice(0, max);
 
 // Guards the lane token's Variables write: the level variable, a well-formed
 // value, and nothing else. A refused name or value makes no request.
@@ -134,7 +135,7 @@ export async function demandOf({ actions, repo, applied }) {
     }
     return { running: Math.min(active, applied), waiting: Math.max(0, active - applied) };
   } catch (error) {
-    notice(`the lane's runs were not listed (${String(error?.message ?? error).slice(0, 200)}); demand is unread`);
+    notice(`the lane's runs were not listed (${reason(error)}); demand is unread`);
     return null;
   }
 }
@@ -152,7 +153,7 @@ export async function previousState({ repo, runId, actions, download }) {
     const state = JSON.parse(download(found.artifactId));
     return state !== null && typeof state === "object" ? state : null;
   } catch (error) {
-    notice(`the last decision state was not read (${String(error?.message ?? error).slice(0, 200)})`);
+    notice(`the last decision state was not read (${reason(error)})`);
     return null;
   }
 }
@@ -168,6 +169,8 @@ function resolvedLimits(path) {
     return { "lane-level": {}, api: {} };
   }
 }
+
+const configuredSettings = (env) => levelSettings(resolvedLimits(env.RESOLVED_CONFIG)["lane-level"]);
 
 function parsedReadings(text) {
   try {
@@ -207,7 +210,7 @@ export async function run({ env = process.env, now = Date.now(), actions, github
   try {
     outcome = await publisherFor(settings, { github, repo }).publish(next, settings.variable);
   } catch (error) {
-    outcome = `${settings.variable} was not set: ${String(error?.message ?? error).slice(0, 200)}`;
+    outcome = `${settings.variable} was not set: ${reason(error)}`;
   }
   notice(`level ${decision.level} (${decision.reason}, from ${from}); applied now: ${describeLevel(applied)}; ${outcome}`);
   return decision;
@@ -273,11 +276,9 @@ export function variableChanges(before, after, allowed) {
 // when it is a *_LANE_LEVEL name, so a misconfigured kill switch name never
 // passes.
 const allowedVariable = (env) => {
-  const name = levelSettings(resolvedLimits(env.RESOLVED_CONFIG)["lane-level"]).variable;
+  const name = configuredSettings(env).variable;
   return LEVEL_VARIABLE.test(name ?? "") ? name : null;
 };
-
-const reason = (error) => String(error?.message ?? error).slice(0, 200);
 
 // True once the listing is in VARIABLES_STATE.
 export async function snapshot({ env = process.env, github } = {}) {
@@ -326,13 +327,12 @@ export async function check({ env = process.env, github } = {}) {
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const command = process.argv[2];
   if (command === "mode") {
-    const settings = levelSettings(resolvedLimits(process.env.RESOLVED_CONFIG)["lane-level"]);
-    appendFileSync(process.env.GITHUB_OUTPUT, `shadow=${settings.shadow ? "true" : "false"}\n`);
+    appendFileSync(process.env.GITHUB_OUTPUT, `shadow=${configuredSettings(process.env).shadow ? "true" : "false"}\n`);
   } else if (command === "run") {
     try {
       await run();
     } catch (error) {
-      notice(`no level was decided: ${String(error?.message ?? error).slice(0, 300)}`);
+      notice(`no level was decided: ${reason(error, 300)}`);
     }
   } else if (command === "snapshot" || command === "check") {
     // These two end red, unlike run: a change the token made outside the level
