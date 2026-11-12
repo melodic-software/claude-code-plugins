@@ -192,27 +192,41 @@ lib/check-retirements.sh
 # duplication audit: the root canonical and the copies.
 lib/check-retirements.sh -> plugins/*/lib/check-retirements.sh
 
-# No dedicated check: worktree-root resolver. Canonical copy:
-# plugins/source-control/scripts/worktree-root-resolve.sh; copy it into
-# plugins/repo-fleet-hygiene/scripts/ to fix a drift failure.
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/worktree-root-resolve.sh, the worktree-root resolver.
 scripts/worktree-root-resolve.sh
 
-# No dedicated check: repository discovery walker, used by the fleet audit and
-# the worktree skill's cross-repository mode. Canonical copy:
-# plugins/repo-fleet-hygiene/scripts/fleet-discovery.sh; copy it into
-# plugins/source-control/scripts/ to fix a drift failure.
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/worktree-root-resolve.sh -> plugins/*/scripts/worktree-root-resolve.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/fleet-discovery.sh, the repository discovery walker, used by the fleet
+# audit and the worktree skill's cross-repository mode.
 scripts/fleet-discovery.sh
 
-# No dedicated check: repository discovery no-scope ladder, used by the fleet
-# audit and the worktree skill's cross-repository mode. Canonical copy:
-# plugins/repo-fleet-hygiene/scripts/scope-resolve.sh; copy it into
-# plugins/source-control/scripts/ to fix a drift failure.
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/fleet-discovery.sh -> plugins/*/scripts/fleet-discovery.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/scope-resolve.sh, the repository discovery no-scope ladder, used by the
+# fleet audit and the worktree skill's cross-repository mode.
 scripts/scope-resolve.sh
 
-# No dedicated check: retired worktree-root alias peel, sourced by the
-# resolver. Delete both copies after 2026-12-31. Canonical copy:
-# plugins/source-control/scripts/worktree-root-legacy.sh.
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/scope-resolve.sh -> plugins/*/scripts/scope-resolve.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/worktree-root-legacy.sh, the retired worktree-root alias peel, sourced by
+# the resolver. Delete the canonical, both copies and their shared-copies.txt
+# rows after 2026-12-31.
 scripts/worktree-root-legacy.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/worktree-root-legacy.sh -> plugins/*/scripts/worktree-root-legacy.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check
 lib/resolve-convention-home.sh
