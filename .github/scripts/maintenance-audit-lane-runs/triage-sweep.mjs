@@ -24,7 +24,7 @@
 // dispatched and, once read, how each ended; after 2 that reached intake and left it untriaged (a run the
 // kill switch or a gate skipped before intake does not count, up to 6
 // dispatches, and nor do the first 24 whose verdict stopped on a GitHub 5xx,
-// a network error or a deferred triage) the sweep sets its Work status to
+// a network error, a deferred triage or a kill switch) the sweep sets its Work status to
 // needs-triage (write-status.mjs) and rewrites that comment to hand it to a
 // maintainer, listing the runs. That write first reads the field fresh and
 // leaves any state but unset or needs-triage (or ready, on an issue listed
@@ -37,8 +37,7 @@
 // comments, so hand-offs cannot use up the call budget.
 //
 // A run whose verdict a lanes kill switch voided (apply-verdict's VOIDED_STEP)
-// wrote nothing: it counts as a transient stop, and when it is an issue's
-// latest run the issue is dispatched again rather than handed off.
+// wrote nothing, so it counts as a transient stop, not an attempt.
 //
 // Accepted exposure: intake reads an issue's comments, and anyone can comment
 // in the hour before the sweep dispatches. Intake treats them as untrusted
@@ -443,16 +442,12 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       // At RUN_LIMIT the issue is handed off whatever the reads say, so with the
       // hand slots used up it stops and nothing is read.
       const capped = state.runs.length >= RUN_LIMIT && result.handed.length >= MAX_HANDED;
-      // Whether the latest run, read this pass, was voided: its recorded mark,
-      // `~`, cannot tell a voided run from a transient one on a later pass.
-      let voidedLatest = false;
       if (state.runs.length >= ATTEMPTS && finished?.status === "completed" && !capped) {
         for (const id of state.runs.filter((r) => !known.has(r))) {
           try {
             const answer = await call("GET", `/repos/${repo}/actions/runs/${id}/jobs?per_page=100`);
             known.set(id, answer === null ? "+" : await classifyRun(answer.jobs ?? [], (path) => call("GET", `/repos/${repo}${path}`)));
             reached.set(id, known.get(id));
-            if (id === last && answer !== null) voidedLatest = voidedVerdict(answer.jobs);
           } catch (error) {
             if (outOfBudget(error)) throw error;
             reached.set(id, "+");
@@ -462,16 +457,9 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       // Unread, every run counts.
       const { attempts, dispatches } = tally(state.runs, reached);
       let action = decide({ state, latest: finished, reached: attempts, dispatches });
-      // A voided latest run earns one more dispatch, while TRANSIENT_LIMIT
-      // still forgives it.
-      const forgiven = [...reached.values()].filter((m) => m === "~").length <= TRANSIENT_LIMIT;
-      if (action === "hand" && voidedLatest && forgiven) action = "dispatch";
       if (action === "wait") result.waiting.push(number);
       if (action === "dispatch" && result.dispatched.length >= MAX_DISPATCHES) action = "stop";
       if (action === "hand" && result.handed.length >= MAX_HANDED) action = "stop";
-      // A voided latest run not dispatched this pass stays unrecorded, so a
-      // later pass reads it again and dispatches it.
-      if (action === "stop" && voidedLatest) known.delete(last);
       // A capped issue records what this pass read, so no later pass reads it
       // again. The record is best effort: a failed write costs a re-read.
       if (action === "stop" && known.size > state.reached.size && remaining() > 0) {

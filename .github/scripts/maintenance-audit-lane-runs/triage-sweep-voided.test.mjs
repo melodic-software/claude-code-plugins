@@ -49,8 +49,10 @@ function fakeGitHub({ issues, comments = {}, runs = {}, jobs = {} }) {
       if (!(m[1] in jobs)) throw new Error(`GET ${path}: HTTP 502`);
       return { total_count: jobs[m[1]].length, jobs: jobs[m[1]] };
     }
-    // Only a written verdict's annotations are listed (none); any other read fails.
+    // A written verdict lists no annotations, the unmarked stop its broker
+    // notice; any other annotations read fails.
     if (method === "GET" && path === "/repos/o/r/check-runs/303/annotations?per_page=100") return [];
+    if (method === "GET" && path === "/repos/o/r/check-runs/302/annotations?per_page=100") return [STOPPED_NOTE];
     if (method === "GET") throw new Error(`GET ${path}: HTTP 502`);
     writes.push({ method, path, body });
     if (method === "POST" && path === "/repos/o/r/actions/workflows/intake-triage.yml/dispatches") return { workflow_run_id: (nextRun += 1) };
@@ -86,28 +88,22 @@ test("a voided second dispatch is no attempt: the sweep dispatches again and rec
   assert.deepEqual((await sweep(before)).handed, [1]);
 });
 
-test("a voided latest run is dispatched again after two attempts; a written one hands the issue off", async () => {
-  const comments = { 1: [stateComment([11, 22, 33], [[11, "+"], [22, "+"]])] };
-  const voided = fakeGitHub({ issues: [issue(1)], comments, runs: { 33: done }, jobs: { 33: VOIDED } });
-  const again = await sweep(voided);
-  assert.deepEqual([again.dispatched, again.handed], [[1], []]);
-  assert.equal(stateLine(voided.writes[1]), "<!-- claude-lane triage-sweep runs=11+,22+,33~,901 filed= -->");
-
-  const wrote = fakeGitHub({ issues: [issue(1)], comments, runs: { 33: done }, jobs: { 33: WROTE } });
-  const handedOff = await sweep(wrote);
-  assert.deepEqual([handedOff.dispatched, handedOff.handed], [[], [1]]);
-});
-
-test("a voided latest run with no dispatch left this pass is not recorded, so the next pass dispatches it", async () => {
+test("a voided run with no dispatch slot left is recorded transient, and the next pass dispatches without reading its jobs", async () => {
   const fresh = Array.from({ length: MAX_DISPATCHES }, (_, i) => issue(i + 2, { created_at: "2026-11-01T00:00:00Z" }));
-  const comments = { 1: [stateComment([11, 22, 33], [[11, "+"], [22, "+"]])] };
-  const full = fakeGitHub({ issues: [...fresh, issue(1)], comments, runs: { 33: done }, jobs: { 33: VOIDED } });
+  const full = fakeGitHub({ issues: [...fresh, issue(1)], comments: { 1: [stateComment([11, 22])] }, runs: { 11: done, 22: done }, jobs: { 11: WROTE, 22: VOIDED } });
   const first = await sweep(full);
   assert.deepEqual([first.dispatched, first.handed], [fresh.map((i) => i.number), []]);
-  assert.deepEqual(full.writes.filter((w) => w.path.endsWith("/comments/5")), []);
+  const recorded = full.writes.filter((w) => w.path === "/repos/o/r/issues/comments/5");
+  assert.equal(recorded.length, 1);
+  assert.equal(stateLine(recorded[0]), "<!-- claude-lane triage-sweep runs=11+,22~ filed= -->");
 
-  const next = fakeGitHub({ issues: [issue(1)], comments, runs: { 33: done }, jobs: { 33: VOIDED } });
-  assert.deepEqual((await sweep(next)).dispatched, [1]);
+  // The next pass's jobs read would answer 502 (no jobs listed): the recorded
+  // mark stands, so the run still counts as no attempt.
+  const next = fakeGitHub({ issues: [issue(1)], comments: { 1: [{ ...stateComment([11, 22]), body: recorded[0].body.body }] }, runs: { 22: done } });
+  const second = await sweep(next);
+  assert.deepEqual([second.dispatched, second.handed], [[1], []]);
+  assert.equal(next.reads.filter((p) => p.includes("/jobs")).length, 0);
+  assert.equal(stateLine(next.writes[1]), "<!-- claude-lane triage-sweep runs=11+,22~,901 filed= -->");
 });
 
 // The step's `if:` is reached only through the token step, which runs only
@@ -119,7 +115,7 @@ test("apply-verdict runs the voided step only on the broker's kill-switch refusa
   assert.match(voided.text, new RegExp(`^ {6}- name: ${VOIDED_STEP}$`, "m"));
   assert.equal(voided.if, "steps.lane-token.outputs.skip-reason == 'kill-switch'");
   assert.match(voided.text, /^ {10}ISSUE_NUMBER: \$\{\{ github\.event\.issue\.number \|\| inputs\.issue-number \}\}$/m);
-  assert.match(voided.text, /run: \|\n {10}echo "::notice title=apply-verdict::#\$\{ISSUE_NUMBER\}'s verdict was not written: /);
+  assert.match(voided.text, /run: \|\n {10}echo "::notice title=apply-verdict::#\$\{ISSUE_NUMBER\}'s verdict was not written because a lanes kill switch refused the lane token; the triage sweep retries an issue it has not handed off"$/m);
   assert.doesNotMatch(voided.text, /continue-on-error|exit [1-9]/);
   const token = wf.step("apply-verdict", "lane-token");
   assert.equal(token.if, "steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'");

@@ -607,18 +607,21 @@ jobs:
 
       # A verdict the kill switch voided stays green, as every lane's
       # lane-token-stopped does, but never reads as applied: the triage sweep
-      # reads this step from the job listing, counts the run as no attempt and,
-      # on an issue it has not handed off, dispatches intake again on its next
-      # pass, which runs only with the switch off (triage-sweep.mjs
-      # VOIDED_STEP). It runs only after the who-check passed, which validated
-      # the issue number.
+      # reads this step from the job listing, counts the run as a transient
+      # stop and, on an issue it has not handed off, dispatches intake again on
+      # a later pass (triage-sweep.mjs VOIDED_STEP). The sweep's gate reads the
+      # `vars` switches; the broker also refuses on a repository variable
+      # shadowing CLAUDE_LANES_DISABLED or an org switch it cannot see, so a
+      # pass can run while the broker still refuses: TRANSIENT_LIMIT bounds
+      # those re-dispatches. It runs only after the who-check passed, which
+      # validated the issue number.
       - name: Report the voided verdict
         id: voided
         if: steps.lane-token.outputs.skip-reason == 'kill-switch'
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
         run: |
-          echo "::notice title=apply-verdict::#${ISSUE_NUMBER}'s verdict was not written: a lanes kill switch refused the lane token, so the triage sweep counts this run as no attempt"
+          echo "::notice title=apply-verdict::#${ISSUE_NUMBER}'s verdict was not written because a lanes kill switch refused the lane token; the triage sweep retries an issue it has not handed off"
 
       - name: Write the verdict
         id: verdict
