@@ -72,30 +72,12 @@ _ARCH_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)"
 source "$_ARCH_LIB/dotnet-references.sh"
 # shellcheck source=../../../lib/github-remote.sh
 source "$_ARCH_LIB/github-remote.sh"
+# shellcheck source=../../../lib/json-escape.sh
+source "$_ARCH_LIB/json-escape.sh"
 
 # ---------------------------------------------------------------------------
 # JSON emission helpers
 # ---------------------------------------------------------------------------
-
-# Escape a scalar for a JSON string body into JSON_ESC. Backslash first, then
-# quote, then the control characters JSON forbids raw: a Windows path is full of
-# backslashes, so getting this order wrong corrupts every `path` field.
-#
-# Pure parameter expansion, and it assigns a global rather than printing,
-# because BOTH an external process and a command substitution cost a fork. This
-# runs once per emitted field, so the obvious `printf | awk` spelling inside
-# `$(...)` measured near a second per field on a Windows checkout and dominated
-# the whole collector.
-JSON_ESC=""
-json_escape() {
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\t'/\\t}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\n'/\\n}"
-  JSON_ESC="$s"
-}
 
 # The non-blank lines of $1, sorted, de-duplicated and capped at DEP_CAP, as the
 # body of a JSON string array, into JSON_ARR.

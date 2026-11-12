@@ -3512,55 +3512,66 @@ class StopUncovered(CheckCase):
         self.assertEqual(self.gh.calls, [])
 
 
-class UncoveredSince(CheckCase):
-    """`--uncovered-since`, a pr-merge wake's pre-check: one listing read of
-    the newest full dispatch run, 6 only when it was created before the
-    newest lane merge (`_stop_uncovered` would stop), anything else so the
-    wake runs today's check."""
+class UncoveredAt(CheckCase):
+    """`--uncovered-at`, a pr-merge wake's pre-check: one listing read of the
+    newest full dispatch run, 6 only when its head commit lacks the newest
+    lane merge (git's `merge-base --is-ancestor` exits 1; `_stop_uncovered`
+    would stop), anything else so the wake runs today's check. The ancestry
+    itself is `_Context._local_contains`, checked against real git in
+    test_babysit_postmerge_contains.py; here it is stubbed to each of its
+    three answers."""
 
-    MERGED = "2026-10-12T10:00:00+00:00"
+    LANE = MERGE_SHA
 
-    def cli(self, merged_at: str = MERGED) -> int:
+    def setUp(self) -> None:
+        super().setUp()
+        self.asked: list[tuple[str, str]] = []
+        self.ancestry: bool | None = True
+
+        def contains(_ctx: pm._Context, ancestor: str, sha: str) -> bool | None:
+            self.asked.append((ancestor, sha))
+            return self.ancestry
+
+        patcher = mock.patch.object(pm._Context, "_local_contains", contains)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def cli(self, lane: str = LANE) -> int:
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
             io.StringIO()
         ):
-            return pm.main(
-                ["--repo", REPO, "--branch", "main", "--uncovered-since", merged_at]
-            )
+            return pm.main(["--repo", REPO, "--branch", "main", "--uncovered-at", lane])
 
     def listing_calls(self) -> list[list[str]]:
         return [c for c in self.gh.calls if "/actions/workflows/" in " ".join(c)]
 
-    def test_a_merge_newer_than_the_newest_dispatch_run_exits_6_with_one_read(
-        self,
-    ) -> None:
-        self.gh.add_runs(
-            "pr-require-checks.yml",
-            "workflow_dispatch",
-            dispatch_run(11, created_at="2026-10-12T09:59:59Z"),
-        )
-        # git's %cI for a UTC committer date ends in Z.
-        self.assertEqual(self.cli("2026-10-12T10:00:00Z"), pm.EXIT_UNCOVERED)
+    def test_a_head_lacking_the_lane_merge_exits_6_with_one_read(self) -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.ancestry = False
+        self.assertEqual(self.cli(), pm.EXIT_UNCOVERED)
+        self.assertEqual(self.asked, [(self.LANE, LATER_SHA)])
         self.assertEqual(len(self.gh.calls), 1)
         self.assertEqual(self.listing_calls(), self.gh.calls)
         self.assertIn("per_page=1", " ".join(self.gh.calls[0]))
         self.assertEqual(self.gh.writes(), [])
 
+    def test_a_head_containing_the_lane_merge_falls_through(self) -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.assertEqual(self.cli(), 0)
+        self.assertEqual(self.asked, [(self.LANE, LATER_SHA)])
+        self.assertEqual(len(self.gh.calls), 1)
+
+    def test_a_head_no_clone_can_answer_counts_as_covered(self) -> None:
+        # An unknown head_sha or a git failure is None: the wake runs its check.
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.ancestry = None
+        self.assertEqual(self.cli(), 0)
+        self.assertEqual(len(self.gh.calls), 1)
+
     def test_no_dispatch_run_at_all_exits_6(self) -> None:
         self.assertEqual(self.cli(), pm.EXIT_UNCOVERED)
         self.assertEqual(len(self.gh.calls), 1)
-
-    def test_a_dispatch_run_at_or_after_the_merge_falls_through(self) -> None:
-        for why, created in [("same second", "2026-10-12T10:00:00Z"), ("later", "2026-10-12T10:05:00Z")]:
-            with self.subTest(why):
-                self.setUp()
-                self.gh.add_runs(
-                    "pr-require-checks.yml",
-                    "workflow_dispatch",
-                    dispatch_run(11, created_at=created),
-                )
-                self.assertEqual(self.cli(), 0)
-                self.assertEqual(len(self.gh.calls), 1)
+        self.assertEqual(self.asked, [])
 
     def test_any_dispatch_run_counts_as_the_stop_counts_it(self) -> None:
         # `_stop_uncovered`'s first pass counts every listed dispatch run,
@@ -3575,6 +3586,7 @@ class UncoveredSince(CheckCase):
                 self.setUp()
                 self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", listed)
                 self.assertEqual(self.cli(), 0)
+                self.assertEqual(self.asked, [(self.LANE, LATER_SHA)])
 
     def test_an_unreadable_listing_falls_through(self) -> None:
         self.gh.workflow_status["pr-require-checks.yml"] = 502
@@ -3617,11 +3629,12 @@ class UncoveredSince(CheckCase):
         self.assertEqual(self.cli(), 0)
         self.assertEqual(len(self.gh.calls), 1)
 
-    def test_it_needs_a_branch_and_an_offset_and_no_stop_flag(self) -> None:
+    def test_it_needs_a_branch_and_a_full_sha_and_no_stop_flag(self) -> None:
         for argv in (
-            ["--repo", REPO, "--uncovered-since", self.MERGED],
-            ["--repo", REPO, "--branch", "main", "--uncovered-since", "2026-10-12T10:00:00"],
-            ["--repo", REPO, "--branch", "main", "--uncovered-since", self.MERGED, "--stop-uncovered"],
+            ["--repo", REPO, "--uncovered-at", self.LANE],
+            ["--repo", REPO, "--branch", "main", "--uncovered-at", self.LANE[:12]],
+            ["--repo", REPO, "--branch", "main", "--uncovered-at", "main"],
+            ["--repo", REPO, "--branch", "main", "--uncovered-at", self.LANE, "--stop-uncovered"],
         ):
             with self.subTest(argv), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 pm.main(argv)

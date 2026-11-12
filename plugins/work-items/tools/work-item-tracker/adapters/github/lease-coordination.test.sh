@@ -16,7 +16,10 @@
 #   (5) a lane's lease-only claim and release under a --holder override: a local
 #       claim backs off while the lane lease is live and holds once it is
 #       released, and a lane claim backs off on a live local lease;
-#   (6) claim --phase writes the lease's phase and renew-lease keeps it.
+#   (6) claim --phase writes the lease's phase and renew-lease keeps it;
+#   (7) a lease held by a completed workflow run (session_id run-<id>) is
+#       treated as released, while a live run, a non-run session or an
+#       unreadable run status keeps the lease winning.
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
 # In a CI job the adapter wraps its gh calls and records into the job's
@@ -96,6 +99,12 @@ gh() {
     cat "$d/assignees" 2>/dev/null || printf '[]\n'
     ;;
   *".assignees[].login"*) cat "$d/assignees" ;;
+  # A workflow run's status read; no $d/run-status file is an unreadable status.
+  *"/actions/runs/"*)
+    printf 'RUN_READ %s\n' "${args##*/actions/runs/}" >>"$d/calls.log"
+    [[ -f "$d/run-status" ]] || return 1
+    cat "$d/run-status"
+    ;;
   # The timeline read also carries --paginate, so it must be matched by its path
   # BEFORE the generic --paginate (/comments) branch below — order is load-bearing.
   *"/timeline"*) cat "$d/pr-activity" 2>/dev/null || printf '0\n' ;;
@@ -147,11 +156,12 @@ gh() {
 }
 export -f gh stub_body_arg stub_login_arg
 
-# marker <holder> <renewed_at> <ttl> — echo a lease marker comment body.
+# marker <holder> <renewed_at> <ttl> [session_id] — echo a lease marker comment body.
 marker() {
   local json
-  json="$(jq -cn --arg h "$1" --arg r "$2" --argjson t "$3" \
-    '{schema_version:"1.0", holder:$h, acquired_at:"2020-01-01T00:00:00Z", renewed_at:$r, ttl_hours:$t}')"
+  json="$(jq -cn --arg h "$1" --arg r "$2" --argjson t "$3" --arg s "${4:-}" \
+    '{schema_version:"1.0", holder:$h, acquired_at:"2020-01-01T00:00:00Z", renewed_at:$r, ttl_hours:$t}
+     + (if $s != "" then {session_id:$s} else {} end)')"
   printf '<!-- work-item-lease v1 %s -->' "$json"
 }
 
@@ -564,5 +574,75 @@ bash "$CLAIM" "$ID" --ttl-hours 24 --lease-only --holder "$LANE" --phase review 
 assert_eq "claim refuses an unknown phase (2)" "2" "$rc"
 assert_not_contains "a refused phase posts no lease" "$(calls)" "POST_COMMENT"
 cleanup_scenario
+
+# ===========================================================================
+# Finding 7 — a live lease held by a completed workflow run (session_id run-<id>)
+# is treated as released: one run read, the dead lease superseded in place, and
+# the claim holds. A live run, a non-run session or an unreadable status still wins.
+# ===========================================================================
+# run_lease_case <label> <session_id> <run-status or "-" for unreadable>
+# <expected-rc> <expected run reads>
+run_lease_case() {
+  local label="$1" sid="$2" status="$3" want_rc="$4" want_reads="$5" rc=0
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  [[ "$status" == - ]] || printf '%s\n' "$status" >"$GH_STUB_DIR/run-status"
+  lease_array 1 "$(marker "$LANE" "$FUTURE" 3 "$sid")" >"$GH_STUB_DIR/lease-comments"
+  bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" --session-id run-200 >/dev/null 2>&1 || rc=$?
+  assert_eq "$label: exit" "$want_rc" "$rc"
+  assert_eq "$label: run status reads" "$want_reads" "$(grep -c '^RUN_READ' "$GH_STUB_DIR/calls.log")"
+  assert_eq "$label: the earlier lease is superseded" "$([[ $want_rc == 0 ]] && echo true || echo false)" \
+    "$(stored_lease 1 | jq -r 'has("superseded_at")')"
+  assert_eq "$label: our own lease is superseded" "$([[ $want_rc == 7 ]] && echo true || echo false)" \
+    "$(stored_lease 2 | jq -r 'has("superseded_at")')"
+}
+run_lease_case "a completed run's lease is taken over" run-100 completed 0 1
+assert_contains "the takeover reads that run's status" "$(calls)" "RUN_READ 100"
+assert_eq "the superseded lease keeps its session_id" "run-100" "$(stored_lease 1 | jq -r '.session_id')"
+cleanup_scenario
+run_lease_case "an in-progress run's lease is refused" run-100 in_progress 7 1
+cleanup_scenario
+run_lease_case "a queued run's lease is refused" run-100 queued 7 1
+cleanup_scenario
+run_lease_case "a lane-N session's lease is refused with no run read" lane-3 completed 7 0
+cleanup_scenario
+run_lease_case "a UUID session's lease is refused with no run read" 3f2b8c1e-9a4d-4e7f-8b1a-2c5d6e7f8a9b completed 7 0
+cleanup_scenario
+run_lease_case "an unreadable run status is refused" run-100 - 7 1
+cleanup_scenario
+# [unreadable status message] the back-off names the run whose status it could not read.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+lease_array 1 "$(marker "$LANE" "$FUTURE" 3 run-100)" >"$GH_STUB_DIR/lease-comments"
+rc=0
+err="$(bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" --session-id run-200 2>&1 >/dev/null)" || rc=$?
+assert_eq "an unreadable run status backs off (7)" "7" "$rc"
+assert_contains "an unreadable run status says the lease is kept" "$err" "claim: could not read run 100 status; lease kept"
+cleanup_scenario
+# [shape boundary] only run-<positive integer without a leading zero> is a run lease.
+for sid in run-0 run-0123 xrun-100 run-100x; do
+  run_lease_case "a $sid session's lease is refused with no run read" "$sid" completed 7 0
+  cleanup_scenario
+done
+
+# three_lease_case <label> <first session_id> <second session_id> <expected-rc>
+# <expected run reads>: two earlier live leases, then ours (id 3). Every run read
+# answers completed, so the run-100 lease is a dead run's.
+three_lease_case() {
+  local label="$1" s1="$2" s2="$3" want_rc="$4" want_reads="$5" rc=0
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  printf 'completed\n' >"$GH_STUB_DIR/run-status"
+  jq -cn --arg a "$(marker "$LANE" "$FUTURE" 3 "$s1")" --arg b "$(marker "$LANE" "$FUTURE" 3 "$s2")" \
+    '[{id:1, node_id:"MDEx", body:$a, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"},
+      {id:2, node_id:"MDEx", body:$b, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]' \
+    >"$GH_STUB_DIR/lease-comments"
+  bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" --session-id run-200 >/dev/null 2>&1 || rc=$?
+  assert_eq "$label: exit" "$want_rc" "$rc"
+  assert_eq "$label: run status reads" "$want_reads" "$(grep -c '^RUN_READ' "$GH_STUB_DIR/calls.log")"
+  cleanup_scenario
+}
+three_lease_case "a dead run's lease before a live lane lease: the lane lease wins" run-100 lane-3 7 1
+three_lease_case "a live lane lease before a dead run's lease wins with no run read" lane-3 run-100 7 0
 
 [[ $FAILED -eq 0 ]] || exit 1

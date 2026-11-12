@@ -18,6 +18,7 @@
     "intake": [
       { "name": "label", "status": "in-use" },
       { "name": "label-needs-triage", "status": "in-use" },
+      { "name": "reenter", "status": "in-use" },
       { "name": "triage", "status": "in-use" }
     ],
     "plan": [],
@@ -47,6 +48,7 @@
       },
       { "name": "lint-dockerfile", "status": "in-use" },
       { "name": "merge", "status": "reserved", "purpose": "Merge the pull request." },
+      { "name": "rate-merge-risk", "status": "in-use" },
       {
         "name": "refine",
         "status": "reserved",
@@ -75,11 +77,13 @@
     ],
     "post-merge": [
       { "name": "detect-silent-revert", "status": "in-use" },
+      { "name": "select-mutation-range", "status": "in-use" },
       {
         "name": "sweep-comments",
         "status": "reserved",
         "purpose": "File late review comments as issues."
       },
+      { "name": "test-mutation", "status": "in-use" },
       {
         "name": "verify",
         "status": "reserved",
@@ -99,21 +103,29 @@
     ],
     "maintenance": [
       { "name": "audit-code-review-rules", "status": "in-use" },
+      { "name": "audit-lane-runs", "status": "in-use" },
       { "name": "audit-link-check-excludes", "status": "in-use" },
       { "name": "audit-org-architecture-pointer", "status": "in-use" },
       { "name": "audit-pr-convention-pins", "status": "in-use" },
       { "name": "audit-test-selection", "status": "in-use" },
+      { "name": "bump-pinned-versions", "status": "in-use" },
       {
         "name": "check-links",
         "status": "in-use",
         "purpose": "Check every Markdown link with the network on."
       },
+      { "name": "check-upstream-drift", "status": "in-use" },
+      { "name": "delete-stale-branches", "status": "in-use" },
+      { "name": "file-dead-links", "status": "in-use" },
+      { "name": "file-recurring-issues", "status": "in-use" },
       { "name": "file-upstream-drift-issues", "status": "in-use" },
       {
         "name": "measure-skill-edit",
         "status": "reserved",
         "purpose": "Measure one proposed skill edit against the merged skill on a person's dispatch, and open a draft pull request when it wins."
       },
+      { "name": "monitor-signals", "status": "in-use" },
+      { "name": "reconcile-lost-runs", "status": "in-use" },
       { "name": "reconcile-pr-creation-policy", "status": "in-use" },
       { "name": "repin-account-rotation", "status": "in-use" },
       { "name": "repin-ci-workflows", "status": "in-use" },
@@ -148,6 +160,7 @@
     "clean",
     "collect",
     "compare",
+    "delete",
     "deploy",
     "detect",
     "download",
@@ -161,12 +174,17 @@
     "install",
     "label",
     "lint",
+    "log",
     "measure",
     "merge",
+    "monitor",
     "notify",
+    "open",
     "prune",
     "publish",
+    "rate",
     "reconcile",
+    "reenter",
     "refine",
     "regenerate",
     "repin",
@@ -178,6 +196,7 @@
     "review",
     "run",
     "scan",
+    "seal",
     "select",
     "setup",
     "sign",
@@ -258,7 +277,75 @@
     "wip": "WIP",
     "yq": "yq"
   },
+  "properNouns": [
+    "App",
+    "Bash",
+    "Biome",
+    "Bun",
+    "Buildx",
+    "Chromium",
+    "Claude",
+    "Claude Code",
+    "Dependabot",
+    "Docker",
+    "Gitleaks",
+    "Go",
+    "Lefthook",
+    "Markdown",
+    "Node",
+    "Pester",
+    "Playwright",
+    "Pulumi",
+    "Pulumi Cloud",
+    "Python",
+    "Ruff",
+    "Windows"
+  ],
+  "displayNameLevel": "warning",
+  "jobNameExceptions": [
+    {
+      "jobId": "report-ci-status",
+      "name": "ci-status",
+      "reason": "Keeps the required context `ci-status` reporting, with the `CI Status` job's conclusion, until the github-iac ci-gate ruleset requires `CI Status`; removed once it does."
+    }
+  ],
   "exemptions": [
+    {
+      "path": ".github/workflows/dependabot-fragments.yml",
+      "repository": "melodic-software/claude-code-plugins",
+      "rules": ["workflow-filename"],
+      "reason": "The file name has no stage word; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."
+    },
+    {
+      "path": ".github/workflows/eval-browser-dispatch.yml",
+      "repository": "melodic-software/claude-code-plugins",
+      "rules": ["workflow-filename"],
+      "reason": "The file name has no stage word; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."
+    },
+    {
+      "path": ".github/workflows/eval-hill-climb-pass.yml",
+      "repository": "melodic-software/claude-code-plugins",
+      "rules": ["workflow-filename"],
+      "reason": "The file name has no stage word; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."
+    },
+    {
+      "path": ".github/workflows/security-outside-actor.yml",
+      "repository": "melodic-software/claude-code-plugins",
+      "rules": ["workflow-filename"],
+      "reason": "The file name has no stage word; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."
+    },
+    {
+      "path": ".github/workflows/pr-feedback-dispatch.yml",
+      "repository": "melodic-software/claude-code-plugins",
+      "rules": ["workflow-filename"],
+      "reason": "The file name is not verb-first after its stage; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."
+    },
+    {
+      "path": ".github/workflows/post-merge-demotion-alert.yml",
+      "repository": "melodic-software/claude-code-plugins",
+      "rules": ["workflow-filename"],
+      "reason": "The file name is not verb-first after its stage; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."
+    },
     {
       "path": ".github/workflows/release-deploy.yml",
       "repository": "melodic-software/github-iac",
