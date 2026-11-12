@@ -2486,12 +2486,12 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
   input value for commit message is ignored"
   ([Pull requests, EnablePullRequestAutoMergeInput](https://docs.github.com/en/graphql/reference/pulls),
   read 2026-11-06), so only the pull request body could carry the line into the squash commit
-  (`squash_merge_commit_message=PR_BODY`). A body edit is a `pull_request: edited` event: it
-  started a contract-only pr-require-checks run, whose completion started pr-verify,
-  pr-verify-capture, pr-rate-merge-risk and pr-review-main runs that only confirmed answers
-  already given, about 36 `GITHUB_TOKEN` core calls per arm, and the queue waited about 50
-  seconds for that run's `ci-status`. A comment starts none of these, so the owner moved the
-  record to a comment (2026-11-12) and the squash commit no longer carries it.
+  (`squash_merge_commit_message=PR_BODY`). A body edit would be a `pull_request: edited` event,
+  which starts a contract-only pr-require-checks run whose completion starts pr-verify,
+  pr-verify-capture, pr-rate-merge-risk and pr-review-main runs that only confirm answers already
+  given, about 36 `GITHUB_TOKEN` core calls per arm, and the queue would wait about 50 seconds for
+  that run's `ci-status`. A comment starts none of these, so the record is a comment and the
+  squash commit does not carry it.
 - **What it costs the merge.** The arm itself waits at most about 40 seconds: the reads have 15
   seconds, the comment write 5, and the artifact download runs `gh` and `unzip`, each capped at 8
   seconds, which that timer cannot cut short. Any error or timeout records `unrated` or skips the

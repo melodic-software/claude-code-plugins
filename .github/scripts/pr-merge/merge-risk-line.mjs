@@ -1,4 +1,4 @@
-// The report-only Merge-Risk record (#13657): the rating
+// The report-only Merge-Risk record: the rating
 // pr-rate-merge-risk.yml uploaded for the head an arm is about to arm,
 // written as a lanes App comment whose first line is the head marker
 // (markerBody), so a revert study joins a squash commit's `(#N)` to it.

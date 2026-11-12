@@ -4269,7 +4269,7 @@ test("vetoLabelOwned pairs the lanes App's label with its veto comment", () => {
   assert.equal(vetoLabelOwned([...ownedTimeline, { ...restSaid(KYLE, "do not merge", "2026-10-23T09:40:00Z"), author_association: "CONTRIBUTOR" }], login), false);
 });
 
-// #13657 done-when 2: the Merge-Risk record is report-only, so a rating that
+// The Merge-Risk record is report-only, so a rating that
 // fails, a read that hangs and a comment write that fails each leave the arm
 // as it was. recordMergeRisk runs on fakes of its own; the world's GitHub
 // sees only the arm. The record never edits the pull request body.
