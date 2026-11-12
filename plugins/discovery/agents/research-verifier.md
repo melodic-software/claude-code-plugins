@@ -75,9 +75,6 @@ with `Snapshots:`.
 - **Pointer**: when a fetch result ends before the cited section, fetch the tools reference's
   [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
   live for how WebFetch handles a large page.
-- **As of**: 2026-10-04
-- **Recheck trigger**: that section stops naming a size limit on large pages, or a Claude Code
-  release note changes how WebFetch handles page size.
 
 Rows 4, 7 and 12 hold vacuously when no claim is accepted, so row 14 is what grades that case.
 Count the claims that stand accepted once you have graded them, each one neither listed under Gaps

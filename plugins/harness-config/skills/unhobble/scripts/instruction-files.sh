@@ -138,7 +138,6 @@ occupied() {
 index_flag_hidden() {
   local v
   v="$(git -C "$root" ls-files -v -- "$1" 2>/dev/null | head -n 1)"
-  [[ -n "$v" ]] || return 0
   case "${v:0:1}" in
   [a-z] | S) printf 'index-flag' ;;
   *) ;;

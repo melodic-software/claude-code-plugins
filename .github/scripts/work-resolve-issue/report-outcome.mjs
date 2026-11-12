@@ -193,7 +193,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { LIMIT_DEFAULTS, clampReset, readLimits } from "./limits.mjs";
-import { networkError, retryFetch } from "../lib/retry-fetch.mjs";
+import { networkError, retryApi } from "../lib/retry-fetch.mjs";
 import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
 import { doneEvidence, parentDone, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
@@ -2012,28 +2012,6 @@ const spentOnFaults = (plan, markers, runId, limits) =>
   markers.every((marker) => marker.fault) &&
   (!plan.stopArgs.branch || laneBranch(plan.issueNumber).exec(plan.stopArgs.branch)?.[1] !== runId);
 
-// A read, GraphQL queries included, and a write marked safeToResend, is sent
-// again after a network error or a 5xx (retry-fetch.mjs).
-function api({ fetch: rawFetch, apiUrl, token, sleep }) {
-  const fetch = retryFetch(rawFetch, { sleep });
-  return async (method, path, body, { safeToResend = false } = {}) => {
-    const response = await fetch(`${apiUrl}${path}`, {
-      method,
-      safeToResend,
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    if (!response.ok) {
-      throw Object.assign(new Error(`${method} ${path} answered ${response.status}`), { status: response.status });
-    }
-    return response.status === 204 ? null : response.json();
-  };
-}
-
 // Every page of a list endpoint, 100 per page. A script activity runs from a
 // copy of its own directory (collect-base-activity), so this is not imported.
 async function paginate(github, path, maxPages = 50) {
@@ -2140,7 +2118,7 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
     const bot = botLogin(env);
     const humans = readHumans(env.TRUSTED_ACTORS_PATH ?? "");
-    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
+    const github = retryApi({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
     reading = true;
     const appComments = (await paginate(github, `${repo}/issues/${issueNumber}/comments`)).filter((comment) => comment.user?.login === bot);
     const markers = appComments
@@ -2432,7 +2410,7 @@ export function workStatusField({ github, repository, config, reader, fieldEvent
 // set, read-status.mjs statusReader, workStatusField), loaded from the base
 // checkout: this script runs from a copy of its own directory
 // (collect-base-activity), where they are not beside it, and the field calls
-// need createGitHub's headers, which api() does not send. When they cannot
+// need createGitHub's headers, which retryApi() does not send. When they cannot
 // load, each call throws.
 async function baseStatus(env) {
   try {
@@ -2508,7 +2486,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       throw new Error("REUSE_BRANCH is not this issue's lane branch");
     }
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
-    const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
+    const github = retryApi({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
     const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
     const runUrl = runUrlOf(env.GITHUB_RUN_ID);
     const runId = /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "";

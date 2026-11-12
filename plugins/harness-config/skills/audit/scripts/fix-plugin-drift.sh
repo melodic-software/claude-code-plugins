@@ -201,6 +201,16 @@ settings_file_is_managed() {
   [[ "$base" == "managed-settings.json" || "$base" == "remote-settings.json" || "$parent" == "managed-settings.d" ]]
 }
 
+# print_remediation <unmanaged-text> - the fix line for a catalog row, which
+# managed settings replace with their own.
+print_remediation() {
+  if settings_file_is_managed; then
+    printf '  %s\n' "update managed enabledPlugins"
+  else
+    printf '  %s\n' "$1"
+  fi
+}
+
 # --- Obtain findings ---------------------------------------------------------
 
 TMP_JSON=""
@@ -461,12 +471,11 @@ if [[ "$remove_count" -gt 0 ]]; then
   fi
   # One array of enabledPlugins maps, in the order the files were found. With
   # no file, `-n` without inputs so jq never waits on stdin.
+  lower_ok=1
   if [[ "${#LOWER_FILES[@]}" -gt 0 ]]; then
-    lower_ok=0
-    jq -n '[inputs | .enabledPlugins // {}]' "${LOWER_FILES[@]}" >"$LOWER_JSON" && lower_ok=1
+    jq -n '[inputs | .enabledPlugins // {}]' "${LOWER_FILES[@]}" >"$LOWER_JSON" || lower_ok=0
   else
-    lower_ok=0
-    jq -n '[]' >"$LOWER_JSON" && lower_ok=1
+    jq -n '[]' >"$LOWER_JSON" || lower_ok=0
   fi
   if [[ "$lower_ok" -ne 1 ]]; then
     echo "ERROR: cannot read the lower-precedence scope files, settings unchanged" >&2
@@ -550,11 +559,7 @@ fi
 if [[ "$catalog_rename_count" -gt 0 ]]; then
   printf '%sRENAME%s %d catalog renames (report only, nothing is written):\n' "$YELLOW" "$RESET" "$catalog_rename_count"
   print_list '  ' "$catalog_rename_json" 'san'
-  if settings_file_is_managed; then
-    printf '  %s\n' "update managed enabledPlugins"
-  else
-    printf '  %s\n' "replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
-  fi
+  print_remediation "replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
   echo
 fi
 
@@ -568,11 +573,7 @@ fi
 if [[ "$removed_count" -gt 0 ]]; then
   printf '%sREMOVED (report only)%s %d entries the catalog renames map marks removed:\n' "$YELLOW" "$RESET" "$removed_count"
   print_list '  ' "$removed_json" 'san'
-  if settings_file_is_managed; then
-    printf '  %s\n' "update managed enabledPlugins"
-  else
-    printf '  %s\n' "remove the key from this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
-  fi
+  print_remediation "remove the key from this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
   echo
 fi
 
