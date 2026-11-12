@@ -2,8 +2,9 @@ name: Request Lane Token
 description: >
   Exchange this job's GitHub OIDC token at the lanes token broker. In `token`
   mode, the default, it gets one lane App installation token: it retries only
-  a 503 `github-unavailable`, with backoff, or `github-rate-limited`, after its
-  `Retry-After`, masks the token, and fails red, after
+  a 503 `github-unavailable` or a transient OIDC token request failure, with
+  backoff, or `github-rate-limited`, after its `Retry-After`, masks the token,
+  and fails red, after
   revoking the token, unless the broker's effect, permissions, lane, activity
   and repository equal what this job resolved; with `pr-workflow-change-ok` a
   `workflow-modified` refusal of a workflow file the PR changes skips instead
@@ -219,8 +220,9 @@ runs:
       run: |
         set -euo pipefail
         umask 077
+        # $2, when set, is the annotation's title.
         fail() {
-          echo "::error::$1"
+          echo "::error${2:+ title=$2}::$1"
           printf -- '- %s\n' "$1" >>"$GITHUB_STEP_SUMMARY"
           printf 'failure-reason=%s\n' "$1" >>"$GITHUB_OUTPUT"
           exit 1
@@ -291,6 +293,7 @@ runs:
 
         response="$RUNNER_TEMP/lane-token-response.json"
         headers="$RUNNER_TEMP/lane-token-headers.txt"
+        oidc_headers="$RUNNER_TEMP/lane-token-oidc-headers.txt"
         compare="$RUNNER_TEMP/lane-token-compare.json"
         issued=""
         revoke() {
@@ -303,7 +306,7 @@ runs:
         # prints its status, so only a token that passed every check reaches the job.
         cleanup() {
           local rc=$?
-          rm -f "$response" "$headers" "$compare"
+          rm -f "$response" "$headers" "$oidc_headers" "$compare"
           if [ "$rc" -ne 0 ] && [ -n "$issued" ]; then
             echo "Revoke attempt returned $(revoke "$issued")"
           fi
@@ -336,13 +339,19 @@ runs:
         # Two 503s come before the broker reserves anything, so they are retried,
         # each with a fresh OIDC token, as GitHub's rate-limit guidance asks:
         # https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit
-        # At most 3 requests, and at most 60 s of waiting in all (the outage
-        # posture's element 1 budget, docs/conventions/pr-pipeline/README.md#outage-posture): a wait
-        # past it is not taken, and the step fails as it does on any final
-        # answer. github-rate-limited carries GitHub's wait as Retry-After: the
-        # retry waits exactly that (a minute when absent) plus jitter cut to fit
-        # the budget, never less. github-unavailable backs off with full jitter,
-        # up to 20 s and then 40 s, or waits a longer Retry-After.
+        # So is a transient failure of the OIDC token request itself: HTTP 5xx
+        # or 429, or a curl timeout or connection error. GitHub documents no
+        # error behaviour for that endpoint, so only the status and curl's exit
+        # decide; every other OIDC failure is final. Both kinds of retry share
+        # one budget: at most 3 requests, and at most 60 s of waiting in all
+        # (the outage posture's element 1 budget, docs/conventions/pr-pipeline/README.md#outage-posture):
+        # a wait past it is not taken, and the step fails as it does on any
+        # final answer. github-rate-limited carries GitHub's wait as
+        # Retry-After: the retry waits exactly that (a minute when absent) plus
+        # jitter cut to fit the budget, never less. github-unavailable and an
+        # OIDC failure back off with full jitter, up to 20 s and then 40 s, or
+        # wait a longer Retry-After. An OIDC failure still transient after the
+        # budget is titled "GitHub server error".
         # mint-unavailable is a failed mint after the job's one reservation, so
         # it is final, as is every other answer and no answer: a 200 lost in
         # transit is revoked by nobody. With its 30 s OIDC and 60 s broker
@@ -352,11 +361,45 @@ runs:
         backoff=(20 40)
         budget=60
         attempt=0 waited=0 retried="" rate_limit=""
+        # The whole seconds of header file $1's Retry-After, or "".
+        retry_after() {
+          tr -d '\r' <"$1" 2>/dev/null |
+            awk -F': *' 'tolower($1) == "retry-after" && $2 ~ /^[0-9]+$/ && length($2) <= 6 { v = $2 + 0 } END { print v }'
+        }
+        # Sets delay to full jitter up to this attempt's backoff, or to the
+        # longer Retry-After $1; false when that wait would pass the budget.
+        backoff_delay() {
+          delay=$((RANDOM % (backoff[attempt] + 1)))
+          [[ -z $1 || $1 -le $delay ]] || delay=$1
+          [ $((waited + delay)) -le "$budget" ]
+        }
         while :; do
-          oidc=$(printf 'Authorization: bearer %s\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" |
-            curl -sS --fail --max-time 30 -H @- "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" |
-            jq -r 'if type == "object" and (.value | type) == "string" then .value else "" end') ||
+          rm -f "$oidc_headers"
+          rc=0
+          raw=$(printf 'Authorization: bearer %s\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" |
+            curl -sS --fail --max-time 30 -D "$oidc_headers" -H @- "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE") || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            code=$(tr -d '\r' <"$oidc_headers" 2>/dev/null | awk '$1 ~ /^HTTP\// { c = $2 } END { print c }') || code=""
+            case $rc in
+            22) [[ $code =~ ^(5[0-9][0-9]|429)$ ]] || fail "the OIDC token request failed"
+              why="HTTP $code" ;;
+            6 | 7 | 16 | 18 | 28 | 35 | 52 | 55 | 56) why="curl exit $rc" ;;
+            *) fail "the OIDC token request failed" ;;
+            esac
+            final="the OIDC token request failed: $why on attempt $((attempt + 1)) of $((${#backoff[@]} + 1))"
+            [ "$attempt" -lt ${#backoff[@]} ] || fail "$final" "GitHub server error"
+            after=$(retry_after "$oidc_headers") || after=""
+            backoff_delay "$after" || fail "$final; the next wait would pass the 1-minute retry budget" "GitHub server error"
+            retried="a failed OIDC token request ($why)"
+            attempt=$((attempt + 1))
+            waited=$((waited + delay))
+            echo "::warning::lane-token-retry: the OIDC token request failed: $why; retry $attempt of ${#backoff[@]} in ${delay}s"
+            sleep "$delay"
+            continue
+          fi
+          oidc=$(jq -r 'if type == "object" and (.value | type) == "string" then .value else "" end' <<<"$raw") ||
             fail "the OIDC token request failed"
+          unset raw
           [ -n "$oidc" ] || fail "the OIDC token request returned no token"
           echo "::add-mask::$oidc"
           status=$(printf 'Authorization: Bearer %s\n' "$oidc" |
@@ -365,8 +408,7 @@ runs:
           unset oidc
           reason=$(reason_of)
           [[ $status == 503 && $attempt -lt ${#backoff[@]} && $reason =~ ^github-(unavailable|rate-limited)$ ]] || break
-          after=$(tr -d '\r' <"$headers" 2>/dev/null |
-            awk -F': *' 'tolower($1) == "retry-after" && $2 ~ /^[0-9]+$/ && length($2) <= 6 { v = $2 + 0 } END { print v }') || after=""
+          after=$(retry_after "$headers") || after=""
           if [ "$reason" = github-rate-limited ]; then
             delay=${after:-60}
             if [ $((waited + delay)) -gt "$budget" ]; then
@@ -386,9 +428,7 @@ runs:
             [ "$jitter" -le $((budget - waited - delay)) ] || jitter=$((budget - waited - delay))
             delay=$((delay + jitter))
           else
-            delay=$((RANDOM % (backoff[attempt] + 1)))
-            [[ -z $after || $after -le $delay ]] || delay=$after
-            [ $((waited + delay)) -le "$budget" ] || break
+            backoff_delay "$after" || break
           fi
           detail=$(detail_of)
           retried="503 with reason $reason${detail:+: $detail}"
