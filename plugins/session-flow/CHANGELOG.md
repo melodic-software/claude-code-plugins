@@ -86,7 +86,7 @@
 
 - Internal simplification, no behavior change.
 
-- The workflow router reads context-guard's compaction marker beside the zone instead of as a
+- The workflow router reads context-usage's compaction marker beside the zone instead of as a
   degraded zone: between human stages it suggests a handoff at zone `heavy` or on the marker.
 - The router clears rather than compacts between attended work items whose ticket, spec, plan or
   decomposed item on disk already holds everything the next item needs.
@@ -120,7 +120,7 @@
 
 - The workflow router's continuation rule names the renamed context zones: a handoff between human
   stages is suggested only at zone `heavy` (formerly `dumb`). It reads the old words from an
-  earlier context-guard as the new ones.
+  earlier context-usage as the new ones.
 
 ## [7.6.9] - 2026-11-10
 
@@ -397,7 +397,7 @@
 
 - `workflow`: one stage order with the interview first. Stage 1 is now Interview (the Contract stage's work, renamed); Explore, Research and PRD become stages 2-4, conditional detours the interview calls when a question needs one. Stages 5-12 keep their numbers. The stage list, prose, checklist template, spec-first table and `retro`'s quick table all follow the new order (#12663).
 - `workflow`: the stage definitions name the level each planning stage decides: the interview decides behavior, design decides interfaces and contracts, and plan decides files and symbols (#12663).
-- `workflow`: between human stages (interview, PRD, design, plan) the continuation router suggests a handoff only at context-guard zone `dumb`; at `smart`, `acceptable` or `unknown` it compacts or continues (#12663).
+- `workflow`: between human stages (interview, PRD, design, plan) the continuation router suggests a handoff only at context-usage zone `dumb`; at `smart`, `acceptable` or `unknown` it compacts or continues (#12663).
 - `workflow` tests: `test_workflow_continuation_rule.py` fails when the continuation context loses the `dumb`-zone handoff rule line, and `test_workflow_stage_order.py` fails when the skill's at-a-glance list or stage-detection list drifts from the `steps.md` stage order or names a Contract stage.
 
 - move the handoff skill's WIP-commit mechanics and /export record out of its hub
@@ -1335,7 +1335,7 @@
 
 ### Changed
 
-- **Rate-limit and zone lookups name the guards' pull tools.** `/session-flow:orchestrate` names rate-limit-guard's mod as the snapshot writer and `mcp__rate-limit-guard__status` as a source; headroom counts as unobservable whenever no live reading is obtainable (mods off, the guard not installed, the tool's registration refused by policy, or a tool answer with no windows), no longer in every cloud or headless session. `/session-flow:workflow` and `/session-flow:keep-going` look up the zone word with `mcp__context-guard__status` or the snapshot, and `/session-flow:keep-going` reads live `rate_limits` through `mcp__rate-limit-guard__status`.
+- **Rate-limit and zone lookups name the guards' pull tools.** `/session-flow:orchestrate` names rate-limit-guard's mod as the snapshot writer and `mcp__rate-limit-guard__status` as a source; headroom counts as unobservable whenever no live reading is obtainable (mods off, the guard not installed, the tool's registration refused by policy, or a tool answer with no windows), no longer in every cloud or headless session. `/session-flow:workflow` and `/session-flow:keep-going` look up the zone word with `mcp__context-usage__status` or the snapshot, and `/session-flow:keep-going` reads live `rate_limits` through `mcp__rate-limit-guard__status`.
 
 ## [0.48.6] - 2026-10-04
 
@@ -1501,7 +1501,7 @@
   the move lands before the prompt cache expires, and a same-task boundary list names which stage
   changes stay in one session. Compaction is no longer the last resort, and the workflow's
   spec-first mode row no longer says it clears between stages. New workflow evals cover each route,
-  and the router's zone examples use context-guard's own zone words.
+  and the router's zone examples use context-usage's own zone words.
 - **`handoff`, `keep-going`, spec-first and `retro` point at the continuation router.** The handoff
   skill's window-depth section becomes "Handoff or compaction: route by task", a pointer to the
   router; a handoff the model elects on its own walks the router first and writes nothing when it
@@ -2400,7 +2400,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   The directive had fractured under the same per-plugin de-slop campaign;
   `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
   sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
-  two, `context-guard` and `rate-limit-guard`, state it about their own scripts in their own words
+  two, `context-usage` and `rate-limit-guard`, state it about their own scripts in their own words
   and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
   extract-ssot sweep.
 
@@ -2923,7 +2923,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   router against the `claude-config:audit-instructions` catalog's I23: the mechanism menu lives
   only in this user-invoked skill body (the criterion's exemption names the continuation-router
   case verbatim), nothing model-injected carries a menu, operator-channel pointers stay
-  operator-side per `context-guard`'s 0.5.0 audience split, since this router consumes the zone word
+  operator-side per `context-usage`'s 0.5.0 audience split, since this router consumes the zone word
   and inlines no band values and no remaining-context count reaches the model through it, and
   autonomy initiative comes from the user's opt-in or the orchestrator, never from injected
   context or a self-estimated budget.
@@ -3160,7 +3160,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
 
 ### Added
 
-- **The context-guard zone interface is now consumed plugin-wide (#1602).** The plugin-wide decision the
+- **The context-usage zone interface is now consumed plugin-wide (#1602).** The plugin-wide decision the
   issue tracked is made: every skill whose correctness depends on how degraded the current window is
   reads that interface, presence-gated, instead of estimating. `keep-going` gains a zone-input section
   (a degraded or evidence-degraded window routes the continuation toward `handoff` rather than
@@ -3327,7 +3327,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   catalog's check I23 detects.
 
   Three signals now license the skill, and a self-estimated budget is not among them: **the user's
-  own report**, **an instrument that measures the window** (`context-guard`'s zone report is one),
+  own report**, **an instrument that measures the window** (`context-usage`'s zone report is one),
   and **visible decay in the responses themselves**: drift, repetition, looping. The third is
   explicitly the model's to read, because decay shows up in the output and never in a budget number.
   Nothing about the save-point engine, the arguments, the STOP gate, or the emitted artifacts
@@ -3648,7 +3648,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   otherwise swallow it, because a background continuation always passes the work to another agent),
   and `/compact` is the deliberate last resort with the tradeoff owned
   by handoff's "Fork beats compaction when the window is deep" section (pointer, not copy). Zone
-  input is presence-gated on the `context-guard` reader contract with NO inlined band values.
+  input is presence-gated on the `context-usage` reader contract with NO inlined band values.
   The router consumes only the zone word and degrades to judgment tests when that contract is absent
   or `unknown`, honoring the evidence-degraded marker. Also documents the handoff-relay
   convention for workers: a worker at its zone boundary writes its own handoff and returns the

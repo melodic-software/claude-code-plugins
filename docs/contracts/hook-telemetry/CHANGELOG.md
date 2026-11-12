@@ -25,18 +25,18 @@ Not an envelope field, so no `schema_version` change (README "Versioning"), as w
   launcher harness-ops keeps in its plugin data directory, the most recently refreshed one when
   several installs keep one, and skips the event when none is installed (#14227). Any other value starting with `@` is reserved and skipped, never joined onto
   the repo root as a relative path.
-- Producers: `hook::emit_telemetry` in `lib/hook-utils.sh` and context-guard's mod.
+- Producers: `hook::emit_telemetry` in `lib/hook-utils.sh` and context-usage's mod.
 
 ## Data schemas, envelope unchanged at 1.1 - 2026-10-11
 
-- `zone-gate` is retired: context-guard no longer denies tool calls, so nothing emits it, and
+- `zone-gate` is retired: context-usage no longer denies tool calls, so nothing emits it, and
   `data/zone-gate.schema.json` is removed (#7135). Records already written keep their envelope;
   the 2026-10-03 entry below describes their `data`.
 
 ## Data schemas, envelope unchanged at 1.1 - 2026-10-03
 
 `data` schemas are not version-stamped (README "Versioning"), so this entry carries no
-`schema_version`. context-guard's zone lines and gate moved from settings hooks into its mod, which
+`schema_version`. context-usage's zone lines and gate moved from settings hooks into its mod, which
 now produces `zone-crossing-inject` and `zone-gate`.
 
 - `zone-crossing-inject`: added optional `armed` (the worst zone reached in the current cycle

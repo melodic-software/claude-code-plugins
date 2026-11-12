@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the `context-guard` plugin.
+All notable changes to the `context-usage` plugin.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -76,7 +76,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   unchanged.
 - `zones.json` keys are renamed to `light_max_used_percentage`, `moderate_max_used_percentage`,
   `light_max_tokens` and `moderate_max_tokens`, and `actions` takes `light`, `moderate` and
-  `heavy`. `/context-guard:setup apply` renames the old keys.
+  `heavy`. `/context-usage:setup apply` renames the old keys.
 
 ### Deprecated
 
@@ -133,7 +133,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- `/context-guard:setup check` reads this session's snapshot file with the `Read` tool, opens plugin files only by their `${CLAUDE_PLUGIN_ROOT}` paths without Glob or Grep of the plugin directory, and names the snapshot directory's permissions as the operator's next check instead of write-probing it ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)).
+- `/context-usage:setup check` reads this session's snapshot file with the `Read` tool, opens plugin files only by their `${CLAUDE_PLUGIN_ROOT}` paths without Glob or Grep of the plugin directory, and names the snapshot directory's permissions as the operator's next check instead of write-probing it ([#7296](https://github.com/melodic-software/claude-code-plugins/issues/7296)).
 
 ## [3.0.5] - 2026-11-04
 
@@ -154,7 +154,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `CLAUDE_CODE_AUTO_COMPACT_WINDOW` wins only when Claude Code accepts its value, and the default
   auto-compact thresholds are cited as the section they are.
 
-- The setup skill's `check` now says that `context_guard_hooks_enabled` off also stops the module's toasts and crossing notice, not only its lines, as `plugin.json` already said.
+- The setup skill's `check` now says that `context_usage_hooks_enabled` off also stops the module's toasts and crossing notice, not only its lines, as `plugin.json` already said.
 
 ## [3.0.3] - 2026-11-04
 
@@ -206,7 +206,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
-- `/context-guard:check` is gone, with its probe file. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print. The mods probe moved to `scripts/check-mod-load.sh`, which reports the mods floor and how to read this session's state.
+- `/context-usage:check` is gone, with its probe file. To check this plugin's prerequisites, run `node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"`, the command the hook notices already print. The mods probe moved to `scripts/check-mod-load.sh`, which reports the mods floor and how to read this session's state.
 
 ## [1.2.3] - 2026-11-02
 
@@ -255,7 +255,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- A malformed `zones.json` (a file that does not parse, or a band shape that fails validation) now shows the person one toast naming the file and the malformed shape, once per distinct file content. Claude gets no line about it, the shipped defaults still apply, and `context_guard_toast` turns it off (#6156).
+- A malformed `zones.json` (a file that does not parse, or a band shape that fails validation) now shows the person one toast naming the file and the malformed shape, once per distinct file content. Claude gets no line about it, the shipped defaults still apply, and `context_usage_toast` turns it off (#6156).
 
 ## [1.1.11] - 2026-10-31
 
@@ -343,7 +343,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The band row now starts with the plugin's name and puts the zone before the figure, `context-guard: smart 23%` (`context-guard: -` before the first response), so a row cut short by a narrow terminal still shows whose it is and the zone.
+- The band row now starts with the plugin's name and puts the zone before the figure, `context-usage: smart 23%` (`context-usage: -` before the first response), so a row cut short by a narrow terminal still shows whose it is and the zone.
 
 ## [1.0.8] - 2026-10-25
 
@@ -405,7 +405,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
 
-- Upstream specifics the docs own (the mods version floor, what turns mods off, when status-line fields are null, how Claude Code handles a bad option value, and the `disable-model-invocation` field text) are replaced by anchored pointer records dated 2026-10-11; our band edges, probe verdicts and decisions stay, and the per-length benchmark scores behind the band edges are kept as observations dated 2026-10-09. The capture-channel table's sources gain section anchors, and the table is framed as dated observations. `/context-guard:check` takes the floor from `prerequisites.json`.
+- Upstream specifics the docs own (the mods version floor, what turns mods off, when status-line fields are null, how Claude Code handles a bad option value, and the `disable-model-invocation` field text) are replaced by anchored pointer records dated 2026-10-11; our band edges, probe verdicts and decisions stay, and the per-length benchmark scores behind the band edges are kept as observations dated 2026-10-09. The capture-channel table's sources gain section anchors, and the table is framed as dated observations. `/context-usage:check` takes the floor from `prerequisites.json`.
 
 ### Fixed
 
@@ -447,7 +447,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
-- **Breaking:** the blocking gate is gone. The `zone_hook_mode`, `zone_gate_grace_calls` and `zone_block_unattended` options are removed, a `block` action in `zones.json` reads as `none` (a `block` threshold keeps its boundary lines), and no zone denies a tool call. The status tool drops its `gate` field, `/context-guard` no longer prints a gate mode, and the `zone-gate` telemetry record is retired (#7135).
+- **Breaking:** the blocking gate is gone. The `zone_hook_mode`, `zone_gate_grace_calls` and `zone_block_unattended` options are removed, a `block` action in `zones.json` reads as `none` (a `block` threshold keeps its boundary lines), and no zone denies a tool call. The status tool drops its `gate` field, `/context-usage` no longer prints a gate mode, and the `zone-gate` telemetry record is retired (#7135).
 
 ## [0.18.0] - 2026-10-11
 
@@ -463,7 +463,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **An optional prompt-cache status-line segment.** `scripts/cache-line.mjs` reads the status line's `prompt_cache` object and prints one line: warm with the expiry clock time and lifetime, or cold with the tokens the next message re-caches, plus the hit ratio and, after a miss, its count and cause. It shows a clock time rather than a countdown because Claude Code re-runs the status line when a warm cache expires, so it needs no `refreshInterval`. It prints nothing before the first response or on a malformed object, and strips control characters from payload strings. `--after <cmd>` runs an existing status-line command on the same input first; `--wire` reads a `settings.json` and prints the `statusLine` object that adds the segment, quoting the existing command as one shell word and keeping the other keys. `/context-guard:setup apply cache-line` copies the script to `~/.claude/context-guard/cache-line.mjs`, a path that survives plugin updates, and prints the `--wire` output to paste; `check` reports a stale copy. The module is unchanged: a mod's `$.session.usage()` carries no cache expiry, so the band row would have to guess it.
+- **An optional prompt-cache status-line segment.** `scripts/cache-line.mjs` reads the status line's `prompt_cache` object and prints one line: warm with the expiry clock time and lifetime, or cold with the tokens the next message re-caches, plus the hit ratio and, after a miss, its count and cause. It shows a clock time rather than a countdown because Claude Code re-runs the status line when a warm cache expires, so it needs no `refreshInterval`. It prints nothing before the first response or on a malformed object, and strips control characters from payload strings. `--after <cmd>` runs an existing status-line command on the same input first; `--wire` reads a `settings.json` and prints the `statusLine` object that adds the segment, quoting the existing command as one shell word and keeping the other keys. `/context-usage:setup apply cache-line` copies the script to `~/.claude/context-usage/cache-line.mjs`, a path that survives plugin updates, and prints the `--wire` output to paste; `check` reports a stale copy. The module is unchanged: a mod's `$.session.usage()` carries no cache expiry, so the band row would have to guess it.
 
 ### Changed
 
@@ -499,7 +499,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Every line context-guard sends Claude states facts only.** The dumb zone no longer carries a default save-state note (`zones.json` actions now default to `none` in every zone), a line with figures no longer ends "Continuing is the user's call.", a `save-state` or `handoff` action without `text` names the action instead of advising one, the blocking gate's denial no longer points at `/session-flow:handoff`, and the `status` tool's description no longer says when to call it or not to poll it. Zone computation, bands, the gate's default (advisory) and the post-compaction dumb verdict are unchanged.
+- **Every line context-usage sends Claude states facts only.** The dumb zone no longer carries a default save-state note (`zones.json` actions now default to `none` in every zone), a line with figures no longer ends "Continuing is the user's call.", a `save-state` or `handoff` action without `text` names the action instead of advising one, the blocking gate's denial no longer points at `/session-flow:handoff`, and the `status` tool's description no longer says when to call it or not to poll it. Zone computation, bands, the gate's default (advisory) and the post-compaction dumb verdict are unchanged.
 
 ### Fixed
 
@@ -509,7 +509,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
-- **`/context-guard:setup check` no longer looks for a retired statusline tee or shim.** The detector and unwire references (`skills/setup/reference/legacy-statusline-detect.md` and `unwrap-before-compose.md`), the check step that ran them, the uninstall ordering note and the evals that tested unwiring are gone, as is the README's upgrade section. Installs that still wire a tee from before 0.11.0 are no longer supported: remove the shim from your `statusLine` by hand.
+- **`/context-usage:setup check` no longer looks for a retired statusline tee or shim.** The detector and unwire references (`skills/setup/reference/legacy-statusline-detect.md` and `unwrap-before-compose.md`), the check step that ran them, the uninstall ordering note and the evals that tested unwiring are gone, as is the README's upgrade section. Installs that still wire a tee from before 0.11.0 are no longer supported: remove the shim from your `statusLine` by hand.
 
 ### Changed
 
@@ -525,7 +525,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- **The reader contract no longer routes a session to the user-only setup skill.** When the `status` tool is present but no fresh snapshot follows a tool call, `reference/reader-contract.md` and `reference/cloud-headless-capture.md` now say to run `/context-guard:check` for what the session can check itself and to ask the operator to run `/context-guard:setup check` for the rest, instead of invoking setup through the Skill tool, which refuses it (#5984).
+- **The reader contract no longer routes a session to the user-only setup skill.** When the `status` tool is present but no fresh snapshot follows a tool call, `reference/reader-contract.md` and `reference/cloud-headless-capture.md` now say to run `/context-usage:check` for what the session can check itself and to ask the operator to run `/context-usage:setup check` for the rest, instead of invoking setup through the Skill tool, which refuses it (#5984).
 
 ## [0.13.3] - 2026-10-04
 
@@ -562,7 +562,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Shorter lines to Claude.** Zone lines drop "Continuing is the user's call." unless `zone_line_data` adds a figure, and the gate denial is one short sentence with no off-switch hint: `context-guard: Write denied: dumb zone, grace budget of 20 calls spent. Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff (if installed) writes a save-point.` The README keeps the switches.
+- **Shorter lines to Claude.** Zone lines drop "Continuing is the user's call." unless `zone_line_data` adds a figure, and the gate denial is one short sentence with no off-switch hint: `context-usage: Write denied: dumb zone, grace budget of 20 calls spent. Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff (if installed) writes a save-point.` The README keeps the switches.
 - **No smart verdict after a resume.** A resume or `/branch` restates the verdict only when it is past smart, as a reload already did.
 - **Debug log mirror.** Each line sent to Claude, and each gate denial, is written as sent to the debug log.
 - **Shorter status tool description.**
@@ -575,24 +575,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- **`/context-guard` and the status tool show the token bands that decide the zone.** Both printed only the percent bands, so on a 1M-token window a session could read `acceptable` at 22% beside "smart up to 50%": the token band (200,000 tokens there) had decided it. The reply now reads `Bands (the worse decides): smart up to 50% and 200000 tokens, acceptable up to 75% and 400000 tokens`, and the status tool's `bands` adds `smart_max_tokens` and `acceptable_max_tokens` (`null` when the token shape is not computable).
+- **`/context-usage` and the status tool show the token bands that decide the zone.** Both printed only the percent bands, so on a 1M-token window a session could read `acceptable` at 22% beside "smart up to 50%": the token band (200,000 tokens there) had decided it. The reply now reads `Bands (the worse decides): smart up to 50% and 200000 tokens, acceptable up to 75% and 400000 tokens`, and the status tool's `bands` adds `smart_max_tokens` and `acceptable_max_tokens` (`null` when the token shape is not computable).
 
 ## [0.12.0] - 2026-10-04
 
 ### Added
 
-- **A crossing reaches the person as a toast**: `smart → acceptable · continue, /compact, /clear or handoff`, shown for 4 seconds, beside one transcript line Claude does not read that ends `more: /context-guard`. The new `context_guard_toast` option (on by default) turns the toast off; the transcript line stays. Both come right after the response, tool call, prompt or status read (`/context-guard` or the status tool) that showed the crossing, so a crossing read with a turn's final answer reaches the person before the next prompt rather than after it. A turn operator mode holds gets neither: its line is offered as the prompt suggestion instead, and a crossing already shown in an unattended turn is not offered again in the next typed turn. A session whose first reading is already past smart gets only Claude's line.
+- **A crossing reaches the person as a toast**: `smart → acceptable · continue, /compact, /clear or handoff`, shown for 4 seconds, beside one transcript line Claude does not read that ends `more: /context-usage`. The new `context_usage_toast` option (on by default) turns the toast off; the transcript line stays. Both come right after the response, tool call, prompt or status read (`/context-usage` or the status tool) that showed the crossing, so a crossing read with a turn's final answer reaches the person before the next prompt rather than after it. A turn operator mode holds gets neither: its line is offered as the prompt suggestion instead, and a crossing already shown in an unattended turn is not offered again in the next typed turn. A session whose first reading is already past smart gets only Claude's line.
 
 ### Changed
 
-- **The band row is off by default** (`context_guard_band` now defaults to `false`), and it no longer shows the model id: it reads `ctx <n>% (<zone>)`.
-- **The command is `/context-guard`, with `band on`, `band off`, and a bare `band` to toggle.** It replaces `/context-guard:band show|hide`, which never resolved. With no argument it prints the verdict and its figures, the bands, the gate mode, the band and toast state, and where `zones.json` lives. Claude reads a command's reply, so the continuation route, the docs link and the README link go to a separate transcript line Claude does not read. Its replies carry no `context-guard:` prefix of their own, since Claude Code already names the plugin before a command's reply.
+- **The band row is off by default** (`context_usage_band` now defaults to `false`), and it no longer shows the model id: it reads `ctx <n>% (<zone>)`.
+- **The command is `/context-usage`, with `band on`, `band off`, and a bare `band` to toggle.** It replaces `/context-usage:band show|hide`, which never resolved. With no argument it prints the verdict and its figures, the bands, the gate mode, the band and toast state, and where `zones.json` lives. Claude reads a command's reply, so the continuation route, the docs link and the README link go to a separate transcript line Claude does not read. Its replies carry no `context-usage:` prefix of their own, since Claude Code already names the plugin before a command's reply.
 - **The crossing notice row is drawn only on surfaces other than the terminal** (the Desktop app, VS Code, mobile), where a toast may not show, and it carries the plugin prefix once. Operator mode's held line still shows as one row on every surface, and is never toasted.
-- **The lines Claude reads carry only the verdict**, such as `context-guard: acceptable zone (2 of 3). Continuing is the user's call.`, with `, nearing dumb` inside the approach margin. They drop the source note and the measurement-not-instruction sentence.
+- **The lines Claude reads carry only the verdict**, such as `context-usage: acceptable zone (2 of 3). Continuing is the user's call.`, with `, nearing dumb` inside the approach margin. They drop the source note and the measurement-not-instruction sentence.
 
 ### Fixed
 
-- **`/context-guard` resolves, and no longer collides with another plugin's command.** The module registered the bare name `band`, which rate-limit-guard registers too, so only one of the two owned `/band`, and the `/context-guard:band` the 0.11.0 entry below documents never existed.
+- **`/context-usage` resolves, and no longer collides with another plugin's command.** The module registered the bare name `band`, which rate-limit-guard registers too, so only one of the two owned `/band`, and the `/context-usage:band` the 0.11.0 entry below documents never existed.
 - **A crossing read while a restatement was pending is no longer dropped.** Before, the carrier merged it into the restatement, so Claude got the stale verdict (for example acceptable while the session was dumb, with no save-state note) and the person got no menu. A crossing recorded after the restatement now replaces it; a crossing or restatement recorded before it still merges into it.
 
 ## [0.11.1] - 2026-10-04
@@ -605,15 +605,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Upgrading
 
-- **Run `/context-guard:setup check` after updating, and follow the unwire steps it prints.** The statusline tee is gone, and one left wired is a second writer of the snapshot files. The check finds a tee still writing, cached versions that still carry one, and each route that reaches one (the `statusLine` command, a wrapper script, the installed shim copy). It prints the `statusLine` value with every guard shim removed and your own renderer kept byte for byte, the files to delete and the restart; it edits nothing itself. Restart sessions and lanes started before the update: they keep running what they loaded.
+- **Run `/context-usage:setup check` after updating, and follow the unwire steps it prints.** The statusline tee is gone, and one left wired is a second writer of the snapshot files. The check finds a tee still writing, cached versions that still carry one, and each route that reaches one (the `statusLine` command, a wrapper script, the installed shim copy). It prints the `statusLine` value with every guard shim removed and your own renderer kept byte for byte, the files to delete and the restart; it edits nothing itself. Restart sessions and lanes started before the update: they keep running what they loaded.
 
 ### Added
 
 - **A mod (`hooks/register.tsx`) tells Claude its context zone directly**, in interactive, `-p`, `--bg` and `/loop` sessions alike, from the live session's figures. A line carries the zone word at each crossing into a worse zone, once per cycle; once at each approach margin (5 points before a boundary by default); at each `zones.json` threshold; and again after a compaction, a resume, a `/branch` or a reload. Nothing after `/clear`, and nothing to subagents. The operator gets the continuation menu as a transcript line Claude does not read and a band notice. It needs Claude Code 2.1.287 or later.
 - **Where a token band decides a crossing, an approach line comes before it too**, when used tokens reach the edge minus `approach_margin` points of the window (50,000 tokens on a 1,000,000 window at the default 5). Before, approach lines came only in the percentage shape, so a large window got no warning before either crossing.
-- **Options**: `zone_lines_enabled`, `zone_report_mode` (`operator` offers the line as a prompt suggestion in typed turns), `zone_line_data` (which figures a line carries), `zone_block_unattended` and `context_guard_band`. `zones.json` may set per-zone actions and text, an approach margin and extra thresholds. Control characters, newlines and Unicode line separators in that text collapse to one space, so it stays inside the one line it is carried in.
-- **A band row above the prompt**, `[<model>] ctx <n>% (<zone>)`, with `/context-guard:band` to show or hide it for the session.
-- **An `mcp__context-guard__status` tool** returns the session's figures, zone, compaction state, bands and gate state as JSON. A refused registration is logged once and everything else carries on.
+- **Options**: `zone_lines_enabled`, `zone_report_mode` (`operator` offers the line as a prompt suggestion in typed turns), `zone_line_data` (which figures a line carries), `zone_block_unattended` and `context_usage_band`. `zones.json` may set per-zone actions and text, an approach margin and extra thresholds. Control characters, newlines and Unicode line separators in that text collapse to one space, so it stays inside the one line it is carried in.
+- **A band row above the prompt**, `[<model>] ctx <n>% (<zone>)`, with `/context-usage:band` to show or hide it for the session.
+- **An `mcp__context-usage__status` tool** returns the session's figures, zone, compaction state, bands and gate state as JSON. A refused registration is logged once and everything else carries on.
 - **The module writes the snapshot** through the shared `lib/write-snapshot.mjs`: owner-only file and directory, a lock, retried rename, the hourly 14-day prune. It checks for a write after every tool call, after each response, every 15 seconds during a turn and at session end; a changed reading is written at once, and an unchanged one at most once per 60 seconds. A reading with null figures never replaces a populated file, and the last real reading stays on disk when a session ends.
 - **Hook telemetry from the module**, only on fires that act: `zone-crossing-inject` when lines are sent or a suggestion is shown (data adds `armed` and `suggested`, and has no `path`), `zone-gate` on each denial.
 
@@ -622,7 +622,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The blocking gate moved into the module** as a tool-call deny. A turn a person typed gets the configured block; headless, loop, schedule and notification turns only the post-compaction one unless `zone_block_unattended` is `same-as-typed`. A `block` action in `zones.json` can arm it at any zone or threshold.
 - **An out-of-range option no longer turns the module off.** A grace budget that is not a whole number from 0 to 999999999, or a `zone_line_data` item it does not know, reads as the default with one log line. A value of the wrong type is still refused by Claude Code.
 - **A `zones.json` with only the module's keys and no band edges is no longer called malformed.** Both resolvers read it as the default bands, silently; the shared fixture holds them to the same answer.
-- **`/context-guard:setup check`** reports whether the mod runs in the session, every option's effective value (all eight), the retired-tee detector's findings with the unwire steps, and snapshot freshness against the module as the writer. `apply` now writes only `zones.json`.
+- **`/context-usage:setup check`** reports whether the mod runs in the session, every option's effective value (all eight), the retired-tee detector's findings with the unwire steps, and snapshot freshness against the module as the writer. `apply` now writes only `zones.json`.
 - **`jq` is needed only by the setup skill** (its zone report and `zones.json` merge); `node` by the PostCompact marker and the module's snapshot writes. The check skill and `prerequisites.json` say so.
 - The reader contract and the capture-channel record name the module as the writer, with a structural `unknown` only where it does not run (a Desktop WSL session, mods off, the plugin not enabled), and name the writer's file modes, lock and temp files.
 
@@ -664,7 +664,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/context-guard:check` and is silenced by the plugin's kill switch. The row is shared across plugins, so a session with several of them sees one notice.
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/context-usage:check` and is silenced by the plugin's kill switch. The row is shared across plugins, so a session with several of them sees one notice.
 - `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
 
 ### Changed
@@ -774,13 +774,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/context-guard:check`, which probes it.
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/context-usage:check`, which probes it.
 
 ## [0.8.0] - 2026-10-01
 
 ### Added
 
-- **`/context-guard:check` reads whether `jq` resolves for the context-guard hooks.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+- **`/context-usage:check` reads whether `jq` resolves for the context-usage hooks.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
 
 ## [0.7.96] - 2026-10-01
 
@@ -841,7 +841,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `zone-crossing-inject.sh` names its copies of the shipped band edges and the staleness window, and a test pins them to `context-zone.sh` so the two cannot drift ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)).
 - `reference/reader-contract.md`: the prompt-cache miss cause section sits after the auto-compact caveats instead of splitting them. `CHANGELOG.md` drops the entries 0.7.82 repeated from 0.7.77 and 0.7.79.
-- README Requirements and `/context-guard:setup check` declare Node.js on `PATH`, which every hook row's `node hooks/exec-bash.mjs` launcher needs. `reference/zone-crossing/PLAN.md` states that its wall-time table and realistic band exclude the launcher and records the launcher's measured start-up.
+- README Requirements and `/context-usage:setup check` declare Node.js on `PATH`, which every hook row's `node hooks/exec-bash.mjs` launcher needs. `reference/zone-crossing/PLAN.md` states that its wall-time table and realistic band exclude the launcher and records the launcher's measured start-up.
 
 ## [0.7.87] - 2026-09-28
 
@@ -860,7 +860,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **`zone-crossing-inject` does not source `hook-utils.sh` on the no-crossing path** ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)). The session id and the event name are taken from the leading scalar strings. A backslash, a shape the scan cannot prove, a band crossing, and any emit still load the library. On this host (`spawn_probe` measurable, `bash -c :` p50 0.77 ms, n=22) the same-zone rewrite fell from 10.4 S to 2.88 S, and the script starts no child process. Crossing text is unchanged. The goal is `reference/zone-crossing/PLAN.md`.
-- **A snapshot rewrite that cannot cross reuses the last zone** ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)). When only `captured_at` moved (still fresh), or `used_percentage` moved inside the same shipped band with every other byte unchanged and no `zones.json`, the hook reuses the word recorded in `state/<session>.inputs` and does not start the resolver. The census row `context-guard-posttoolbatch-same-zone-rewrite-spawns` fell from 7 to 3 spawns.
+- **A snapshot rewrite that cannot cross reuses the last zone** ([#4392](https://github.com/melodic-software/claude-code-plugins/issues/4392)). When only `captured_at` moved (still fresh), or `used_percentage` moved inside the same shipped band with every other byte unchanged and no `zones.json`, the hook reuses the word recorded in `state/<session>.inputs` and does not start the resolver. The census row `context-usage-posttoolbatch-same-zone-rewrite-spawns` fell from 7 to 3 spawns.
 
 ## [0.7.84] - 2026-09-28
 
@@ -941,7 +941,7 @@ No plugin change in this release.
   now ranks the version directory `installed_plugins.json` names first, then compares dotted-number
   version names by value, then keeps the mtime order for any other pair. The same rule as the
   rate-limit-guard shim; still builtins only and never writes. Shim revision 4; re-run
-  `/context-guard:setup apply` to refresh the installed copy (#4675).
+  `/context-usage:setup apply` to refresh the installed copy (#4675).
 
 ## [0.7.72] - 2026-09-27
 
@@ -962,7 +962,7 @@ No plugin change in this release.
 - hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
 - zone-crossing-inject.sh: the zone resolver is started only when the session's context snapshot is readable. Without one the resolver answered `unknown` at that same check, so the hook's output is unchanged and a second bash is not started.
 - hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
-- zone-crossing-inject.sh: exits before sourcing its libraries when `~/.claude/context-guard/context` does not exist and jq is on `PATH`. Without that directory there is no snapshot and no compaction marker, so the hook could only reach `unknown`, which is silent and writes nothing; that is every fire on a machine without the context-guard status line.
+- zone-crossing-inject.sh: exits before sourcing its libraries when `~/.claude/context-usage/context` does not exist and jq is on `PATH`. Without that directory there is no snapshot and no compaction marker, so the hook could only reach `unknown`, which is silent and writes nothing; that is every fire on a machine without the context-usage status line.
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
 
@@ -980,7 +980,7 @@ No plugin change in this release.
   `hooks/post-compact-mark.sh` through `bash` with `"shell": "bash"`, the #4421 shape, so each fire
   no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash. Hook behavior is
   unchanged (#4442).
-- `zone-crossing-inject.sh` and `post-compact-mark.sh` read the `context_guard_hooks_enabled` switch
+- `zone-crossing-inject.sh` and `post-compact-mark.sh` read the `context_usage_hooks_enabled` switch
   before they source `hook-utils.sh`, as `zone-gate.sh` already did, so a disabled hook exits
   without parsing the library. Enabled behavior is unchanged.
 
@@ -1031,7 +1031,7 @@ No plugin change in this release.
 
 ### Changed
 
-- The context-guard statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+- The context-usage statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
 
 ## [0.7.61]
 
@@ -1375,7 +1375,7 @@ No plugin change in this release.
 ### Changed
 
 - **`zone-gate.sh` reads its kill switch before sourcing the library.** It read
-  `context_guard_hooks_enabled` through `hook::check_enabled`, a function that
+  `context_usage_hooks_enabled` through `hook::check_enabled`, a function that
   exists only once `hook-utils.sh` is sourced, so a DISABLED gate parsed the
   whole 2,684-line library before finding out it had nothing to do. The gate
   runs as its own process, so the hoist recovers the full ~3.5 ms of a disabled
@@ -1660,7 +1660,7 @@ No plugin change in this release.
 
 ### Changed
 
-- **Instruction-surface de-slop (#2891, context-guard cluster).** Rewrote this plugin's `README.md` and every
+- **Instruction-surface de-slop (#2891, context-usage cluster).** Rewrote this plugin's `README.md` and every
   `SKILL.md` to drop em dashes under the repo's zero-tolerance house policy, using
   `/ai-slop:audit fix` semantics: periods or commas, or a restructured sentence, never
   parentheses, en dashes, or a spaced hyphen as a stand-in. Meaning stays; only the mark
@@ -1713,7 +1713,7 @@ No plugin change in this release.
   cloud session's own user settings, with `refreshInterval: 2` and a probe that logs every
   invocation, was **never invoked once** over ~7 minutes, and the identical wiring under a scratch
   `HOME` exercised with `claude -p` behaved the same. One correction to the reported symptom, and it
-  is the finding the rest rests on: `~/.claude/context-guard/` *does* exist there, created by the
+  is the finding the rest rests on: `~/.claude/context-usage/` *does* exist there, created by the
   `PostCompact` hook. Plugin hooks run fine in cloud, only the statusline writer is silent, which is
   why hook stdin was the first channel checked. New `reference/cloud-headless-capture.md` records
   the writer-side channel inventory: every channel checked with its live URL and the date read (all
@@ -1764,7 +1764,7 @@ No plugin change in this release.
   first, and its remediation is policy or trust, never wiring. A configured, not-disabled
   `statusLine` in a cloud or headless session is the same structural class: the command exists
   and is still never invoked, which is the case this release measured.
-- **`/context-guard:setup` `check` stops prescribing a remediation that cannot work, and stops
+- **`/context-usage:setup` `check` stops prescribing a remediation that cannot work, and stops
   contradicting itself when one would (#2957).** Terminal-less detection is orthogonal to all
   four wiring states, not nested under "no `statusLine` configured": a correctly-wired shim in
   a cloud or headless session is INFO (structural) rather than PASS-then-FAIL, and step 7 does
@@ -1855,7 +1855,7 @@ No plugin change in this release.
   menu-first, one clause per option, keeping the four continuation options, the `zones.json`
   tunability pointer, the `/session-flow:workflow` router, the test-pinned "yours to choose"
   ownership phrase, and the "(if installed)" hedges. Option 3 also keeps a terse manual
-  alternative, "or a hand-written resume note", because context-guard installs standalone: a
+  alternative, "or a hand-written resume note", because context-usage installs standalone: a
   menu whose only durable-state path names an absent plugin leaves such an install with no
   actionable option at exactly the moment state must survive. That clause is now **contract-pinned
   by its own assertion** rather than left to the menu check: naming `/session-flow:handoff` and
@@ -2177,7 +2177,7 @@ write-ordering fix.
   leave the gate open against a marker that already moved.
 
   **Not the recurring 10s-timeout defect, and not a duplicate of it.** That one
-  (`20260730-182801-context-guard-zone-crossing-hook-times-out-100-percent`) was four `hooks.json`
+  (`20260730-182801-context-usage-zone-crossing-hook-times-out-100-percent`) was four `hooks.json`
   registrations declaring `timeout: 10` against measured 10.6–21.4s runtimes, so the hook **died
   rather than ran**; it was fixed in 0.4.8 via PR #2001 by raising all four to 60. This release is
   about how often the hook injects **when it does run**. A triager reaching for that item should
@@ -2332,7 +2332,7 @@ write-ordering fix.
   3` stays INFO, below 3 or unmarked is FAIL.
 
   **Existing installs need one `apply`.** The statusline runs the durable copy at
-  `~/.claude/context-guard/bin/statusline-shim.sh`, which a plugin update never overwrites, so an
+  `~/.claude/context-usage/bin/statusline-shim.sh`, which a plugin update never overwrites, so an
   operator who ran `apply` before revision 3 shipped keeps running the old shim until they re-run
   it. Uninstalling first is the trap worth naming: the setup skill goes with the plugin while the
   stale shim stays behind, leaving no in-product path to the remediation. Kept in step with the
@@ -2434,7 +2434,7 @@ write-ordering fix.
 
   **The counter-steer is stated inline rather than delegated** to the `playbooks:fable-5` doctrine
   that also carries it. The two plugins are independently installable with no dependency wiring, so
-  a `context-guard`-only install previously received the menu with nothing in context to interpret
+  a `context-usage`-only install previously received the menu with nothing in context to interpret
   it against.
 
   **The model channel states ownership, never delivery.** It says continuation is the operator's
@@ -2528,7 +2528,7 @@ write-ordering fix.
   discovers on its own. The second registration was rejected as a duplicate and the whole hook file
   failed to load with it, so zone-crossing injection, the blocking gate, and the PostCompact
   evidence-degraded marker were inert on every machine that installed the plugin, and the
-  `context_guard_hooks_enabled` and `zone_hook_mode` settings had nothing to switch. The manifest
+  `context_usage_hooks_enabled` and `zone_hook_mode` settings had nothing to switch. The manifest
   field exists for hook files at non-default paths; the default one needs no entry. `claude-ops` and
   `guardrails` already ship `hooks/hooks.json` with no manifest key, which is the shape this now
   matches.
@@ -2675,7 +2675,7 @@ write-ordering fix.
     the handoff skill (no deadlock by construction).
   - `post-compact-mark.sh` (`PostCompact`, side-effect-only per the upstream event contract):
     persists the evidence-degraded marker
-    `~/.claude/context-guard/context/<session_id>.compacted` (`compacted_at`, `trigger`
+    `~/.claude/context-usage/context/<session_id>.compacted` (`compacted_at`, `trigger`
     manual|auto|unknown), closing the reader contract's documented "the snapshot cannot tell you
     compaction happened" gap, re-arms the blocking gate's grace budget (a fresh budget, not a
     disarmed gate: both zone consumers treat a marked session's effective zone as dumb
@@ -2691,7 +2691,7 @@ write-ordering fix.
     large-payload regression test that fails against the single-read form.
   - Config per `docs/conventions/hook-config-delivery`: non-safety knobs over channel B
     (`CLAUDE_PLUGIN_OPTION_<KEY>` env mirrors) with in-script defaults (the declared `default`
-    field is not delivered to hook processes). New `userConfig`: `context_guard_hooks_enabled`,
+    field is not delivered to hook processes). New `userConfig`: `context_usage_hooks_enabled`,
     `zone_hook_mode` (`advisory` | `blocking`, matching the repo's shipped gate-posture enum),
     `zone_gate_grace_calls`. Telemetry envelopes registered as `zone-crossing-inject`,
     `zone-gate`, and `post-compact-mark` producers with data schemas under
@@ -2722,7 +2722,7 @@ write-ordering fix.
   shape standing alone.
 - Setup skill seeds/repairs the v2 `zones.json` shape (including adding shipped `token_bands` to
   a v1 file on `apply`), and `check` now reports hook **registration**, hook-set **activation**
-  (the `context_guard_hooks_enabled` kill switch read from its configured value, `UNKNOWN` rather
+  (the `context_usage_hooks_enabled` kill switch read from its configured value, `UNKNOWN` rather
   than "active" when unreadable), and **gate posture** (`zone_hook_mode`) as three separate facts.
   Equating plugin-enablement with active hooks reported the opposite of the runtime state
   exactly when an operator was diagnosing missing injections or gating. Reader contract documents
@@ -2765,7 +2765,7 @@ write-ordering fix.
   also stops a temp file being stranded in that directory on every compaction.
 - **Both stateful hooks fail open instead of writing state into the working directory.**
   `zone-gate.sh` and `zone-crossing-inject.sh` resolved their state root as
-  `${CLAUDE_PLUGIN_DATA:-${HOME:-.}/.claude/context-guard}`, so with neither variable set the
+  `${CLAUDE_PLUGIN_DATA:-${HOME:-.}/.claude/context-usage}`, so with neither variable set the
   blocking gate's grace counter and the injector's last-seen zone landed under `./.claude/`,
   relative to whatever directory the hook process happened to start in. A counter that resets
   with the working directory is not a budget, and a last-seen zone that moves with it cannot
@@ -2795,14 +2795,14 @@ write-ordering fix.
   Pure Bash builtins, with no subprocess on the statusline path. Black-box test harness with 31
   assertions, including the two-shim chaining case and a relocated `CLAUDE_CONFIG_DIR`.
 - `skills/setup` `apply` now installs the shim (byte-identical copy to
-  `~/.claude/context-guard/bin/statusline-shim.sh`, idempotent, inert until the operator wires it)
+  `~/.claude/context-usage/bin/statusline-shim.sh`, idempotent, inert until the operator wires it)
   alongside the existing zones.json seed/repair.
 
 ### Changed
 
 - **Wiring is now the shim, not the tee** (breaking for the printed wiring only; existing wiring
   keeps working until the next update). `setup check` prints
-  `bash ~/.claude/context-guard/bin/statusline-shim.sh …`, gained an installed-shim state check,
+  `bash ~/.claude/context-usage/bin/statusline-shim.sh …`, gained an installed-shim state check,
   and reclassifies a statusline wired to a version-pinned plugin-cache path as LEGACY wiring
   regardless of whether that file currently exists. The old state only flagged a path mismatch.
   Rationale: `${CLAUDE_PLUGIN_ROOT}` is version-pinned and the old version directory is pruned
@@ -2821,7 +2821,7 @@ write-ordering fix.
   change exists to remove. When the shim is absent the single-shim form is printed instead,
   with the sibling's `apply` named as the step that unlocks the combined form.
 - **Uninstall guidance is now ordered**: unwrap `statusLine` FIRST, then remove
-  `~/.claude/context-guard/`. The previous "either order" wording let an operator delete the shim
+  `~/.claude/context-usage/`. The previous "either order" wording let an operator delete the shim
   while the wiring still named it, which is the 127 failure again, and the shim's own fallback
   cannot cover it, because the fallback lives in the deleted file.
 
@@ -2829,7 +2829,7 @@ write-ordering fix.
 
 ### Changed
 
-- **`/context-guard:setup apply reset` is renamed `apply defaults`.** The setup contract reserves
+- **`/context-usage:setup apply reset` is renamed `apply defaults`.** The setup contract reserves
   `reset` for teardown-plus-apply, converging to the *absence* of the plugin's config and then
   reconfiguring. This action does the opposite: it converges forward, setting both recognized band
   keys to the shipped defaults while preserving every unrecognized key and never removing the file.
@@ -2858,10 +2858,10 @@ write-ordering fix.
 
 - `scripts/statusline-tee.sh`: transparent statusline wrapper teeing `captured_at` +
   `session_id` + the verbatim `context_window` object to the per-session snapshot path
-  `~/.claude/context-guard/context/<session_id>.json` (atomic temp+rename, Windows rename retry,
+  `~/.claude/context-usage/context/<session_id>.json` (atomic temp+rename, Windows rename retry,
   jq-missing visible degrade, session-id sanitization, 14-day sibling pruning, standalone mode).
 - `scripts/context-zone.sh`: fail-open zone resolver printing `smart` / `acceptable` / `dumb` /
-  `unknown`; shipped default bands 50/75 with `~/.claude/context-guard/zones.json` as the
+  `unknown`; shipped default bands 50/75 with `~/.claude/context-usage/zones.json` as the
   machine-scope override; malformed zones fall back visibly.
 - `reference/reader-contract.md`: consumer contract covering the snapshot path pattern, file shape,
   10-minute staleness rule, fail-open capability table, zones.json shape, `${CLAUDE_SESSION_ID}`
