@@ -1,5 +1,5 @@
 ---
-description: "Skill and agent bodies point at the live upstream source for any volatile specific instead of restating it, recorded as our decision plus a section-anchored pointer (an as-of date and recheck trigger only on a stored value), and name their successor in a `## Next` section; read before editing any skill body"
+description: "Skill and agent bodies point at the live upstream source for any volatile specific instead of restating it, recorded as our decision plus a section-anchored pointer (an as-of date and recheck trigger only on a copied or measured upstream number or string), and name their successor in a `## Next` section; read before editing any skill body"
 paths:
   - "plugins/*/skills/**"
   - "plugins/*/agents/**"
@@ -20,9 +20,12 @@ fetch it where that helps. A pointer carries no as-of date and no recheck trigge
 catch a dead link or moved anchor, and whoever fetches the link reads its current content. A body
 that needs the specific at run time fetches it from the pointer.
 
-A stored upstream value (a recorded default, limit, version gate, price, error string, or probe
-observation, kept in a code constant, data file, table of measured values or observation record)
-keeps an as-of date and a recheck trigger, because the value itself goes stale.
+A stored value is a number or string copied or measured from upstream: a default, limit, version
+gate, price, error string, measured figure (bytes, milliseconds, a hash, a count, with the version
+it was measured on), or pinned SHA. It keeps an as-of date and a recheck trigger, because the value
+itself goes stale. Described or observed behavior with no recorded number or string, a "no docs
+page covers X" note, a source conflict and a "last researched" date are pointers and carry no
+stamp.
 
 A record never cures a restatement: restated text with an as-of stamp or `Claim/Basis` block
 beside it is still the defect, fixed by deleting the restated value and keeping the pointer. Older

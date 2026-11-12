@@ -56,7 +56,7 @@ Reads the `launcher` and `pin` columns. Mechanical: no judgment beyond this tabl
 - A floating tag on a container launcher is WARN, not FAIL. It is still not pinned: only an
   `@sha256:` digest is.
 - **Pointer**: when checking how a package runner resolves a spec, fetch the
-  [npx Description](https://docs.npmjs.com/cli/commands/npx#description) live; when checking
+  [npx Description](https://docs.npmjs.com/cli/v11/commands/npx#description) live; when checking
   whether the npm registry lets a published version change, fetch the
   [npm unpublish policy, Considerations](https://docs.npmjs.com/policies/unpublish#considerations)
   live.
