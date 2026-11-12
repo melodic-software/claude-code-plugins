@@ -610,5 +610,39 @@ run_lease_case "a UUID session's lease is refused with no run read" 3f2b8c1e-9a4
 cleanup_scenario
 run_lease_case "an unreadable run status is refused" run-100 - 7 1
 cleanup_scenario
+# [unreadable status message] the back-off names the run whose status it could not read.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+lease_array 1 "$(marker "$LANE" "$FUTURE" 3 run-100)" >"$GH_STUB_DIR/lease-comments"
+rc=0
+err="$(bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" --session-id run-200 2>&1 >/dev/null)" || rc=$?
+assert_eq "an unreadable run status backs off (7)" "7" "$rc"
+assert_contains "an unreadable run status says the lease is kept" "$err" "claim: could not read run 100 status; lease kept"
+cleanup_scenario
+# [shape boundary] only run-<positive integer without a leading zero> is a run lease.
+for sid in run-0 run-0123 xrun-100 run-100x; do
+  run_lease_case "a $sid session's lease is refused with no run read" "$sid" completed 7 0
+  cleanup_scenario
+done
+
+# three_lease_case <label> <first session_id> <second session_id> <expected-rc>
+# <expected run reads>: two earlier live leases, then ours (id 3). Every run read
+# answers completed, so the run-100 lease is a dead run's.
+three_lease_case() {
+  local label="$1" s1="$2" s2="$3" want_rc="$4" want_reads="$5" rc=0
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  printf 'completed\n' >"$GH_STUB_DIR/run-status"
+  jq -cn --arg a "$(marker "$LANE" "$FUTURE" 3 "$s1")" --arg b "$(marker "$LANE" "$FUTURE" 3 "$s2")" \
+    '[{id:1, node_id:"MDEx", body:$a, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"},
+      {id:2, node_id:"MDEx", body:$b, created_at:"2020-01-01T00:00:00Z", author_association:"MEMBER"}]' \
+    >"$GH_STUB_DIR/lease-comments"
+  bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" --session-id run-200 >/dev/null 2>&1 || rc=$?
+  assert_eq "$label: exit" "$want_rc" "$rc"
+  assert_eq "$label: run status reads" "$want_reads" "$(grep -c '^RUN_READ' "$GH_STUB_DIR/calls.log")"
+  cleanup_scenario
+}
+three_lease_case "a dead run's lease before a live lane lease: the lane lease wins" run-100 lane-3 7 1
+three_lease_case "a live lane lease before a dead run's lease wins with no run read" lane-3 run-100 7 0
 
 [[ $FAILED -eq 0 ]] || exit 1
