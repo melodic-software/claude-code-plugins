@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 ---
 
-**Arguments.** `<source> [--scope <dir>] [--out <dir>]`. e.g., /knowledge:absorb-upstream https://github.com/acme/skills --scope skills
+**Arguments.** `<source> [--scope <dir>] [--out <dir>]`. e.g., `/knowledge:absorb-upstream https://github.com/acme/skills --scope skills`
 
 # Absorb Upstream
 

@@ -20,7 +20,7 @@ Owner doc for **how this repository records a fact or decision derived from a so
 own**, whether an official doc page, an upstream issue thread, or a probed platform behavior, so the record
 stays honest as the upstream moves. Two shapes. A **pointer record** is our decision in our own
 words plus a **pointer** to the exact upstream section; it stores nothing that can go stale, so it
-carries no date. A **stored value**, an upstream default, limit or observation we keep a copy of,
+carries no date. A **stored value**, a number or string we copied or measured from upstream,
 adds an **as-of date** and a **recheck trigger**, the stated observable event that obliges
 re-deriving the value. The upstream text itself is never stored.
 
@@ -87,10 +87,13 @@ The discipline covers three record kinds:
 - a **recorded decision**: a deferral or rejection derived from upstream facts, whose premises can
   rot the same way the facts can; it carries a pointer for each premise, and a named trigger when
   the decision should be re-derived on an observable event ([When a trigger fires](#when-a-trigger-fires));
-- a **stored value**: a recorded default, limit, version gate, price, error string, or measured
-  probe observation, kept in a code constant, a data file, a table of measured values or an
-  observation record; it carries a pointer (or names its probe), an as-of date and a recheck
-  trigger.
+- a **stored value**: a number or string the text records, copied or measured from upstream: a
+  default, limit, version gate, price, error string, a measured figure (bytes, milliseconds, a
+  hash, a count, and the version it was measured on beside that figure), or a pinned SHA. It
+  carries a pointer (or names its probe), an as-of date and a recheck trigger. Described or
+  observed behavior with no recorded number or string is not a stored value: it is a pointer
+  record, and a restated upstream behavior is the defect the required parts forbid, not a record
+  to stamp.
 
 ## Required parts
 
@@ -120,7 +123,7 @@ content is seen by whoever fetches the link, and git history records when the li
 A **stored value** keeps a copy, so it adds two parts:
 
 ```markdown
-<the value or observation, in our words>
+<the number or string, and what it measures or limits, in our words>
 - **Pointer**: when <situation>, fetch <link to the exact upstream section> live.
 - **As of**: YYYY-MM-DD
 - **Recheck trigger**: <an observable event, never a bare date>
@@ -142,18 +145,23 @@ A stored value's parts may also sit on one line under its prose, and that layout
 - **Pointer**: when <situation>, fetch <link> live. **As of**: YYYY-MM-DD. **Recheck trigger**: <event>.
 ```
 
-Three cases are observations, so they are stored values with their own form:
+Three cases have their own form. Each is a pointer record unless it records a number or string:
 
 - **A probed behavior** has no upstream page. The pointer names the probe (the script, pull request
   or issue holding its evidence), and the decision may state what the probe observed, in our words:
-  the observation is ours, not the upstream's.
-- **A source conflict** is recorded only as "pages X and Y disagree on topic T", with both links,
-  the as-of date and a trigger. Neither page's position is restated.
-- **A topic no docs page covers yet.** The record links the blog post as the correlate note, says
-  no docs page covers the topic as of the date, and its recheck trigger is a docs page starting to
-  cover it, at which point the pointer moves there and the stamp goes. In the one-line layout the
+  the observation is ours, not the upstream's. It is a stored value, with an as-of date and
+  trigger, only when it records a measured figure (bytes, milliseconds, a hash, a count, the
+  version it was measured on beside that figure) or a copied string; a probe record of behavior
+  alone carries no stamp.
+- **A source conflict** is recorded only as "pages X and Y disagree on topic T", with both links.
+  Neither page's position is restated, and it carries no stamp.
+- **A topic no docs page covers yet.** The record links the blog post as the correlate note and
+  says no docs page covers the topic; it carries no date and no trigger. In the one-line layout the
   correlate note may take the Pointer line's place, keeping the **Pointer** label and the
-  when-fetch wording and ending `no docs page covers <topic> as of <date>`.
+  when-fetch wording and ending `no docs page covers <topic>`.
+
+A "last researched" or "verified on" date on a record with no recorded number or string is not a
+stamp this contract asks for; a pointer record drops it.
 
 When a surface needs the specific at run time, it fetches it from the pointer
 ([the fetch route](#reading-the-basis-the-fetch-route)). A catalog row that must fire without a
@@ -439,8 +447,8 @@ that records a docs site keeps its own forms; `docs/upstream/claude-code.md` kee
 
 The [required parts](#required-parts) still bind: a row may name a topic and link to it, and holds
 no upstream text, quoted or paraphrased; [what a row may describe](#what-a-row-may-describe) says
-where our own description of a unit ends and a paraphrase begins. A git-pinned page records what
-we read at a commit, so it is a stored value, and its two stored-value parts take a git-specific
+where our own description of a unit ends and a paraphrase begins. A git-pinned page records the
+SHA of the commit it read, so it is a stored value, and its two stored-value parts take a git-specific
 shape. The 40-hex pin stands in for the as-of date: the commit fixes exactly what was read, and the
 page's git history records when. And git blob SHAs are a content hash the host already serves, so
 the [content-hashing deferral](#drift-signal-content-hashing-deferred) does not apply to git
@@ -544,7 +552,7 @@ Classified per `melodic-software/standards` `standards/engineering/enforceabilit
 | Judgment | Tier |
 |---|---|
 | A pointer's link resolves and its section anchor exists | **Deterministic**, built: the per-PR and weekly link checks named under [required parts](#required-parts). An anchor a page renders by script is rewritten away by `lychee.toml`, so a moved anchor of that kind is caught only when a reader fetches it. |
-| A pointer carries no as-of date or recheck trigger | **Detect-then-judge**, not built: a stamp beside a pointer is greppable, and whether the record keeps a stored value is a judgment. |
+| A pointer carries no as-of date or recheck trigger | **Detect-then-judge**, not built: a stamp beside a pointer is greppable, and whether the record holds a number or string copied or measured from upstream is a judgment. |
 | Every stored-value stamp carries a recheck trigger | **Deterministic** by nature (a presence check) once stamps and triggers use greppable forms. The check, flagging a dated stamp in a file that states no trigger, is **built, off by default, repo override enabled**: `/attribution:audit` runs it when `trigger_less_stamp_check` is true, the shipped default is false, and this repository sets it true in `docs/conventions/attribution.yaml`. It was built after its build trigger, a trigger-less stamp landing on `main` again, fired. |
 | The trigger clears the observability bar | **Reasoning-only**. Whether an event is decidable from evidence is a judgment about meaning. |
 | A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and a person decides whether the change touches the decision, and for the Claude Code changelog record, where [the release intake lane](#claude-code-release-intake) takes in each unread release. **Reasoning-only** for every other stored value today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
@@ -637,8 +645,9 @@ on touch.
 At 5.0.0 a pointer record stopped carrying an as-of date and recheck trigger; only a stored value
 keeps them. A row below that names an as-of date or a divergence trigger on a pointer still
 conforms in its decision and pointer, and its stamps are removed by a later sweep or on touch. A
-row describing measured or probed values (a verified version, a probe) describes stored values and
-keeps its stamps.
+row recording a copied or measured number or string (a verified version, a measured figure)
+describes stored values and keeps its stamps; a probe or "verified on" date with no such value is
+a pointer and loses its stamp the same way.
 
 | Surface | Was | What a reader can rely on |
 |---|---|---|
