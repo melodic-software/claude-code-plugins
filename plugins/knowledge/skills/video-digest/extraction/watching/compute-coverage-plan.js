@@ -15,11 +15,18 @@ export const MEDIUM_DURATION_THRESHOLD_SEC = 300;
 export const SCENE_SPARSE_RATIO = 120;
 /**
  * Longest stretch, in seconds, allowed between two timed frames before a gap-fill
- * frame is extracted. Defaults to the long-video stratified interval. Basis:
- * judgment; each fill frame costs vision tokens. Override per run with
+ * frame is extracted, per duration tier (`maxFrameGapForDuration`). Short and
+ * medium videos get a tight cap because a demo screen shown for 10-30 s between
+ * scene cuts is otherwise never sampled; past the medium tier the cap grows with
+ * length so gap fill stays near `LONG_GAP_FILL_FRAME_BUDGET` frames, between the
+ * medium cap and the long stratified interval. Values and their basis:
+ * `vendor/video-digestion/TUNING.md` "Dynamic coverage". Override per run with
  * `run-watch.js --max-frame-gap-sec <sec>`.
  */
-export const MAX_FRAME_GAP_SEC = LONG_STRATIFIED_INTERVAL_SEC;
+export const SHORT_MAX_FRAME_GAP_SEC = SHORT_STRATIFIED_INTERVAL_SEC;
+export const MEDIUM_MAX_FRAME_GAP_SEC = 6;
+export const LONG_MAX_FRAME_GAP_SEC = LONG_STRATIFIED_INTERVAL_SEC;
+export const LONG_GAP_FILL_FRAME_BUDGET = 80;
 
 const DEFAULT_CUE_ANCHOR_PATTERNS = [
   /\blook at\b/i,
@@ -72,6 +79,19 @@ export function stratifiedIntervalForDuration(durationSec) {
 }
 
 /**
+ * Default maximum gap between timed frames for a video of this length.
+ *
+ * @param {number} durationSec
+ * @returns {number}
+ */
+export function maxFrameGapForDuration(durationSec) {
+  if (durationSec <= SHORT_VIDEO_MAX_SEC) return SHORT_MAX_FRAME_GAP_SEC;
+  if (durationSec <= MEDIUM_DURATION_THRESHOLD_SEC) return MEDIUM_MAX_FRAME_GAP_SEC;
+  const budgetGap = Math.ceil(durationSec / LONG_GAP_FILL_FRAME_BUDGET);
+  return Math.min(LONG_MAX_FRAME_GAP_SEC, Math.max(MEDIUM_MAX_FRAME_GAP_SEC, budgetGap));
+}
+
+/**
  * @param {number} durationSec
  * @param {number} intervalSec
  * @returns {number}
@@ -88,16 +108,17 @@ export function estimateStratifiedFrameCount(durationSec, intervalSec) {
  * @param {number} input.durationSec
  * @param {DensificationWindow[]} input.densificationWindows
  * @param {number} [input.sceneCandidateCount=0]
- * @param {number} [input.maxFrameGapSec=MAX_FRAME_GAP_SEC]
+ * @param {number} [input.maxFrameGapSec] - explicit cap; omitted, `maxFrameGapForDuration` sets it
  * @returns {CoveragePlan}
  */
 export function computeCoveragePlan({
   durationSec,
   densificationWindows,
   sceneCandidateCount = 0,
-  maxFrameGapSec = MAX_FRAME_GAP_SEC,
+  maxFrameGapSec: maxFrameGapOverride,
 }) {
   const safeDuration = Math.max(0, durationSec);
+  const maxFrameGapSec = maxFrameGapOverride ?? maxFrameGapForDuration(safeDuration);
   const stratifiedIntervalSec = stratifiedIntervalForDuration(safeDuration);
   const baselineStratified = estimateStratifiedFrameCount(safeDuration, stratifiedIntervalSec);
   const densificationWindowCount = densificationWindows.length;

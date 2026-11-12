@@ -72,7 +72,3 @@ and the harness command so it can re-run the comparison.
   (property matchers, deterministic tests); [Verify scrubbers](https://github.com/VerifyTests/Verify/blob/main/docs/scrubbers.md);
   [Istio traffic mirroring](https://istio.io/latest/docs/tasks/traffic-management/mirroring/)
   (mirrored responses are discarded, comparison is separate)
-- **As of**: 2026-10-06
-- **Recheck trigger**: a page above changes its comparison, ignore, or scrubbing mechanism, or a
-  study shows agents validating rewrites by differential comparison (then restate the basis
-  paragraph)

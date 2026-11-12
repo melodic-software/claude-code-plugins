@@ -19,7 +19,7 @@ import { resolveSourceAdapter } from "../adapters/registry.js";
 import { selectCaptionFile } from "../acquisition/select-caption.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
-import { MAX_FRAME_GAP_SEC, planFrameCoverage } from "../watching/compute-coverage-plan.js";
+import { planFrameCoverage } from "../watching/compute-coverage-plan.js";
 import { normalizeVttCues } from "../watching/cue-normalize.js";
 import { isHighVolume, selectFramesForCoverage } from "../watching/frame-budget.js";
 import { mergeFrameCandidates } from "../watching/merge-frame-candidates.js";
@@ -53,15 +53,16 @@ export async function resolveRecoverySourceUrl(sliceDir) {
 }
 
 /**
- * The maximum frame gap the original run recorded in `watch.json`, or the
- * default for a slice recorded before the field existed.
+ * The maximum frame gap the original run recorded in `watch.json`, or
+ * `undefined` so the coverage plan derives the duration default, as the
+ * original run did when it was interrupted before recording one.
  *
  * @param {string} sliceDir
- * @returns {Promise<number>}
+ * @returns {Promise<number|undefined>}
  */
 async function resolveRecoveryMaxFrameGapSec(sliceDir) {
   const recorded = (await readWatchState(sliceDir))?.maxFrameGapSec;
-  return typeof recorded === "number" && recorded > 0 ? recorded : MAX_FRAME_GAP_SEC;
+  return typeof recorded === "number" && recorded > 0 ? recorded : undefined;
 }
 
 /**
@@ -279,11 +280,10 @@ export async function recoverWatchBootstrapCli(argv) {
   const rawFrames = loadFramesFromDir(framesDir);
   const merged = mergeFrameCandidates(rawFrames);
 
-  const maxFrameGapSec = await resolveRecoveryMaxFrameGapSec(sliceDir);
   const { windows, coveragePlan } = planFrameCoverage(cues, {
     durationSec,
     sceneCandidateCount: merged.length,
-    maxFrameGapSec,
+    maxFrameGapSec: await resolveRecoveryMaxFrameGapSec(sliceDir),
   });
 
   let selection = selectFramesForCoverage(merged, {
@@ -312,7 +312,7 @@ export async function recoverWatchBootstrapCli(argv) {
   const targetMinFrames = selection.targetMinFrames ?? 0;
 
   const highVolume = isHighVolume({
-    candidateCount: selectedCount,
+    candidateCount: selection.candidateCount,
     targetMinFrames: coveragePlan.targetMinFrames,
     contactSheetCount: contactSheets.length,
     durationSec,
@@ -346,7 +346,7 @@ export async function recoverWatchBootstrapCli(argv) {
     videoSlug: path.basename(sliceDir),
     sourceUrl,
     title: metadata.title,
-    maxFrameGapSec,
+    maxFrameGapSec: coveragePlan.maxFrameGapSec,
   });
   state.tempSession = tempSession;
   state.status = "vision";

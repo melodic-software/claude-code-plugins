@@ -141,8 +141,6 @@ fail_usage() {
 # this plugin (repo-hygiene-<marketplace>); otherwise the plan, and the run.*
 # pruning beside it, would land in another plugin's data dir. Relay: the pointer
 # record for where ${CLAUDE_PLUGIN_DATA} substitutes is in ../SKILL.md#spoke-paths.
-# As of: 2026-10-11. Recheck trigger: that section is renamed or its pointer
-# record moves, or the record's own recheck trigger fires.
 plugin_data_dir() {
   if [[ -n "$DATA_DIR_ARG" ]]; then
     # shellcheck disable=SC2016 # the literal, unexpanded token is what is matched
