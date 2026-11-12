@@ -2370,9 +2370,9 @@ jobs:
       group: pr-merge-enable-auto-merge
       queue: max
     runs-on: ubuntu-24.04
-    # Above the sum of its steps' timeouts (43, workflow.test.mjs checks it),
+    # Above the sum of its steps' timeouts (44, workflow.test.mjs checks it),
     # with a minute left for the steps that name none.
-    timeout-minutes: 44
+    timeout-minutes: 45
     permissions:
       contents: read # check out main
       actions: read # the verifier verdicts, their runs and the head-ref map
@@ -2525,6 +2525,40 @@ jobs:
           kill-switch-ok: true
           rate-limit-hold-ok: true
 
+      # A PR-scoped run's first read, on every wake and never carried: when
+      # main's newest full dispatch run was created before the newest lane
+      # merge this checkout holds, the fresh check below would stop at that
+      # merge (--stop-uncovered, exit 6) after the reads before it, so the wake
+      # ends here on one read, with the same outcome. A lane merge here is the
+      # newest first-parent commit merge.agent-identity authored, and its time
+      # the committer date the merge queue stamps when it builds the group, at
+      # or before mergedAt, so an early date only reads as covered. A covered,
+      # unreadable or missing answer, or a rate limit, runs the steps below as
+      # before; a wrong uncovered leaves the arming to the next sweep.
+      - name: Check whether a full run covers the newest lane merge
+        id: precheck
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: uncovered-since
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml) || exit 0
+          [ -n "$identity" ] || exit 0
+          at=$(git -C .base log -1 --first-parent --fixed-strings --author="$identity" --format=%cI HEAD) || exit 0
+          [ -n "$at" ] || exit 0
+          code=0
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+            --repo "$REPO" --branch main --uncovered-since "$at" || code=$?
+          if [ "$code" = 6 ]; then
+            echo "::notice::no full dispatch run of main was created after the newest lane merge ($at); the fresh post-merge check would stop there, so nothing is armed or disarmed, and the next sweep checks again"
+            echo "uncovered=true" >>"$GITHUB_OUTPUT"
+          fi
+
       # A PR-scoped dispatch has no post-merge-dispatch job, so it reads the
       # report the last sweep kept, from a trusted run on main
       # (last-report.mjs), into the same place. The keep-report step below
@@ -2532,7 +2566,7 @@ jobs:
       # otherwise runs the check fresh in its place. Read first, so a report
       # whose check code changed ends the wake before the reads below.
       - name: Read the post-merge report the last sweep kept
-        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr && steps.precheck.outputs.uncovered != 'true'
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -2551,7 +2585,7 @@ jobs:
       # unset, and keep-report decides as before.
       - name: Check whether the last sweep's report predates a code change
         id: code
-        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr && steps.precheck.outputs.uncovered != 'true'
         continue-on-error: true
         run: |
           last=$RUNNER_TEMP/post-merge
@@ -2571,7 +2605,7 @@ jobs:
       - name: Read the verdict reads the last run kept
         if: >-
           steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-          && steps.code.outputs.changed != 'true'
+          && steps.code.outputs.changed != 'true' && steps.precheck.outputs.uncovered != 'true'
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -2585,7 +2619,7 @@ jobs:
       - name: Start the run cache from them
         if: >-
           steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-          && steps.code.outputs.changed != 'true'
+          && steps.code.outputs.changed != 'true' && steps.precheck.outputs.uncovered != 'true'
         continue-on-error: true
         env:
           CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
@@ -2621,7 +2655,7 @@ jobs:
       - name: Read the lane records the last run kept
         if: >-
           steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-          && steps.code.outputs.changed != 'true'
+          && steps.code.outputs.changed != 'true' && steps.precheck.outputs.uncovered != 'true'
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -2659,7 +2693,7 @@ jobs:
       # under the same bounds, and no others.
       - name: Keep the last sweep's report only while nothing it read has moved
         id: keep-report
-        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr && steps.precheck.outputs.uncovered != 'true'
         timeout-minutes: 5
         env:
           GH_TOKEN: ${{ github.token }}
@@ -2945,6 +2979,7 @@ jobs:
           KILL: ${{ steps.kill.outputs.proceed }}
           WHO: ${{ steps.who.outputs.proceed }}
           SUPERSEDED: ${{ steps.superseded.outputs.superseded }}
+          UNCOVERED: ${{ steps.precheck.outputs.uncovered }}
           STANDS: ${{ steps.keep-report.outputs.stands }}
           FRESH: ${{ steps.keep-report.outputs.fresh }}
           FRESH_REASON: ${{ steps.keep-report.outputs.fresh-reason }}
@@ -2958,6 +2993,8 @@ jobs:
               OUTCOME="skipped: the who step stopped it"
             elif [ "$SUPERSEDED" = true ]; then
               OUTCOME="skipped: a waiting run does this work"
+            elif [ "$UNCOVERED" = true ]; then
+              OUTCOME="skipped: no full dispatch run covers the newest lane merge (needs-dispatch, pre-check)"
             elif [ -z "$FRESH" ] && [ "$FRESH_STARTED" = true ]; then
               OUTCOME="skipped: the fresh post-merge check did not finish (timeout or cancel)"
             elif [ "$STANDS" = false ] && [ "$FRESH" = 6 ]; then

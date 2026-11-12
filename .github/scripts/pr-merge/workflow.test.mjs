@@ -577,7 +577,7 @@ test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run
   // Its room: the last sweep's report, read into the place the arm step reads.
   const last = /- name: Read the post-merge report the last sweep kept\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
   assert.ok(last, "a PR-scoped run reads the last sweep's post-merge report");
-  assert.match(last, /^ {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr\n/);
+  assert.match(last, /^ {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr && steps\.precheck\.outputs\.uncovered != 'true'\n/);
   assert.match(last, /\n {10}LAST_REPORT_DIR: \$\{\{ runner\.temp \}\}\/post-merge\n/);
   assert.match(last, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/last-report\.mjs\n/);
   assert.ok(arm.indexOf("Read the post-merge report the last sweep kept") < arm.indexOf("- name: Arm and disarm auto-merge"));
@@ -690,7 +690,7 @@ test("a PR-scoped run keeps the last sweep's report only when settle --idle-tick
   assert.equal(kept.calls.length, 1);
   assert.match(kept.calls[0], SETTLE("c{40}"));
   assert.equal(kept.json, "{}");
-  assert.match(kept.body, /\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr\n/);
+  assert.match(kept.body, /\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr && steps\.precheck\.outputs\.uncovered != 'true'\n/);
   assert.match(kept.body, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   const arm = job("enable-auto-merge");
   assert.ok(arm.indexOf("- name: Read the post-merge report the last sweep kept") < arm.indexOf(`- name: ${KEEP_STEP}`));
@@ -770,13 +770,13 @@ test("a PR-scoped run whose passing last report ran other code reads neither the
   assert.equal(changed.status, 0);
   assert.equal(changed.output, "changed=true\n");
   assert.deepEqual(changed.calls, [`.base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py check-code --code-sha ${"c".repeat(40)}`]);
-  assert.match(changed.body, /^ {8}id: code\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr\n {8}continue-on-error: true\n/);
+  assert.match(changed.body, /^ {8}id: code\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr && steps\.precheck\.outputs\.uncovered != 'true'\n {8}continue-on-error: true\n/);
   const arm = job("enable-auto-merge");
   const at = (name) => arm.indexOf(`- name: ${name}\n`);
   assert.ok(at("Read the post-merge report the last sweep kept") < at(CODE_STEP));
   for (const name of ["Read the verdict reads the last run kept", "Start the run cache from them", "Read the lane records the last run kept"]) {
     const step = new RegExp(`- name: ${name}\\n([\\s\\S]*?)(?=\\n {6}- name: )`).exec(arm)[1];
-    assert.match(step, /\n {10}&& steps\.code\.outputs\.changed != 'true'\n/, name);
+    assert.match(step, /\n {10}&& steps\.code\.outputs\.changed != 'true' && steps\.precheck\.outputs\.uncovered != 'true'\n/, name);
     assert.ok(at(CODE_STEP) < at(name), `${name} comes after the code check`);
   }
   assert.ok(at(CODE_STEP) < at(KEEP_STEP));
@@ -847,6 +847,91 @@ test("a PR-scoped run whose fresh check stops at an uncovered merge keeps no rep
   assert.doesNotMatch(run.stdout, /check \(exit 6\) does not stand for this run/);
 });
 
+// The pre-check: before the last-report, carry, lane-records and fresh-check
+// reads, one listing read (babysit_postmerge.py --uncovered-since) of main's
+// newest full dispatch run against the newest lane merge on the checkout.
+// Only its exit 6 ends the wake; any other answer runs today's path.
+const PRECHECK_STEP = "Check whether a full run covers the newest lane merge";
+const LANE_AT = "2026-11-12T02:29:19Z";
+const precheck = ({ exit = 0, laneAt = LANE_AT } = {}) => {
+  const arm = job("enable-auto-merge");
+  const body = new RegExp(`- name: ${PRECHECK_STEP}\\n([\\s\\S]*?)(?=\\n {6}- name: )`).exec(arm)?.[1];
+  assert.ok(body, "a PR-scoped run pre-checks the newest lane merge's cover");
+  const script = /\n {8}run: \|\n([\s\S]*)$/.exec(body)[1].replace(/^ {10}/gm, "");
+  const dir = tempDir("pr-merge-precheck-");
+  const bin = join(dir, "bin");
+  mkdirSync(bin);
+  const args = join(dir, "args");
+  writeFileSync(args, "");
+  writeFileSync(join(bin, "python3"), `#!/bin/sh\necho "$@" >>'${args}'\nexit ${exit}\n`, { mode: 0o755 });
+  writeFileSync(join(bin, "yq"), "#!/bin/sh\necho 'lanes-bot[bot]'\n", { mode: 0o755 });
+  writeFileSync(join(bin, "git"), `#!/bin/sh\necho "git $*" >>'${args}'\necho '${laneAt}'\n`, { mode: 0o755 });
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
+    env: { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: "o/r", GITHUB_OUTPUT: output },
+    encoding: "utf8",
+  });
+  return {
+    body,
+    status: run.status,
+    stdout: run.stdout,
+    output: readFileSync(output, "utf8"),
+    calls: readFileSync(args, "utf8").trim().split("\n").filter(Boolean),
+  };
+};
+
+test("a PR-scoped run whose newest lane merge no full run covers ends the wake on the pre-check's one read", () => {
+  const run = precheck({ exit: 6 });
+  assert.equal(run.status, 0);
+  assert.equal(run.output, "uncovered=true\n");
+  assert.deepEqual(run.calls, [
+    "git -C .base log -1 --first-parent --fixed-strings --author=lanes-bot[bot] --format=%cI HEAD",
+    `.base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py --repo o/r --branch main --uncovered-since ${LANE_AT}`,
+  ]);
+  assert.match(run.stdout, /::notice::no full dispatch run of main was created after the newest lane merge/);
+  assert.match(run.body, /^ {8}id: precheck\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr\n {8}continue-on-error: true\n {8}timeout-minutes: 1\n/);
+  assert.match(run.body, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n {10}API_BUDGET_TOKEN: github-token\n {10}API_BUDGET_SCRIPT: uncovered-since\n/);
+});
+
+test("a covered, unreadable or rate-limited pre-check, or no lane merge, runs today's path", () => {
+  for (const [why, options, checked] of [
+    ["covered", { exit: 0 }, true],
+    ["unreadable", { exit: 3 }, true],
+    ["rate limited", { exit: 75 }, true],
+    ["a crash", { exit: 1 }, true],
+    ["no lane merge on the checkout", { laneAt: "" }, false],
+  ]) {
+    const run = precheck(options);
+    assert.equal(run.status, 0, why);
+    assert.equal(run.output, "", why);
+    assert.equal(run.calls.some((c) => c.includes("--uncovered-since")), checked, why);
+  }
+});
+
+test("the pre-check comes first, and its uncovered answer skips every read and the fresh check after it", () => {
+  const arm = job("enable-auto-merge");
+  const at = (name) => arm.indexOf(`- name: ${name}\n`);
+  assert.ok(at("Request the lane token") < at(PRECHECK_STEP));
+  for (const name of [
+    "Read the post-merge report the last sweep kept",
+    CODE_STEP,
+    "Read the verdict reads the last run kept",
+    "Start the run cache from them",
+    "Read the lane records the last run kept",
+    KEEP_STEP,
+  ]) {
+    const step = new RegExp(`- name: ${name.replace(/[.']/g, "\\$&")}\\n {8}(?:id: [a-z-]+\\n {8})?if: ([^\\n]*(?:\\n {10}[^\\n]*)*)`).exec(arm)?.[1];
+    assert.ok(step, name);
+    assert.match(step, /steps\.precheck\.outputs\.uncovered != 'true'/, name);
+    assert.ok(at(PRECHECK_STEP) < at(name), `${name} comes after the pre-check`);
+  }
+  // With no report standing, the arm step and its own reads stay skipped.
+  assert.match(arm, /- name: Arm and disarm auto-merge\n {8}id: arm\n {8}if: [^\n]*steps\.keep-report\.outputs\.stands != 'true'/);
+  const report = /- name: Report the PR-scoped outcome\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
+  assert.match(report, /\n {10}UNCOVERED: \$\{\{ steps\.precheck\.outputs\.uncovered \}\}\n/);
+});
+
 // The countable line's outcome when the arm step wrote none.
 const wakeOutcome = (env) => {
   const arm = job("enable-auto-merge");
@@ -875,6 +960,11 @@ test("a PR-scoped run's outcome names the fresh check's refusal and which report
   assert.match(wakeOutcome({ ...base, FRESH: "1" }), /report=fresh outcome=skipped: the fresh post-merge check exited 1$/);
   assert.match(wakeOutcome({ ...base, FRESH: "75" }), /report=fresh outcome=skipped: the fresh post-merge check stopped on a GitHub rate limit$/);
   assert.match(wakeOutcome({ ...base, FRESH: "6" }), /report=fresh outcome=skipped: the fresh post-merge check stopped at a lane merge no dispatch run covers \(needs-dispatch\)$/);
+  // The pre-check's stop: no report read, no fresh check run.
+  assert.match(
+    wakeOutcome({ KILL: "true", WHO: "true", UNCOVERED: "true" }),
+    /report=none outcome=skipped: no full dispatch run covers the newest lane merge \(needs-dispatch, pre-check\)$/,
+  );
   assert.match(
     wakeOutcome({ ...base, FRESH: "0", FRESH_REASON: "idle tick needs-dispatch" }),
     /report=fresh outcome=skipped: settle --idle-tick refused the fresh post-merge report \(idle tick needs-dispatch\)$/,
@@ -1194,12 +1284,13 @@ test("enable-auto-merge reads the lane's room from this run's post-merge-dispatc
   assert.match(/\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1], /^ {6}!cancelled\(\)\n/);
   // No check of its own on a sweep: the report comes from this run's job
   // alone. Only a PR-scoped run, which has no post-merge-dispatch job, runs
-  // the check, in the keep-report step that runs on such a run alone.
-  const checks = [...arm.matchAll(/python3 [^\n]*babysit_postmerge\.py/g)];
+  // the check, in the keep-report step that runs on such a run alone. The
+  // pre-check's --uncovered-since makes one listing read and no check.
+  const checks = [...arm.matchAll(/python3 [^\n]*babysit_postmerge\.py(?! \\\n\s+--repo "\$REPO" --branch main --uncovered-since)/g)];
   assert.equal(checks.length, 1);
   const keepStep = /- name: Keep the last sweep's report only while nothing it read has moved\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm);
   assert.ok(checks[0].index > keepStep.index && checks[0].index < keepStep.index + keepStep[0].length);
-  assert.match(keepStep[1], /^ {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr\n/m);
+  assert.match(keepStep[1], /^ {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'workflow_dispatch' && inputs\.pr && steps\.precheck\.outputs\.uncovered != 'true'\n/m);
   const read = /- name: Read this run's post-merge report\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
   assert.ok(read, "a download of the report");
   assert.match(read, /uses: actions\/download-artifact@[0-9a-f]{40} /);
