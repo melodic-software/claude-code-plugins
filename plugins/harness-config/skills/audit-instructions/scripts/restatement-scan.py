@@ -121,21 +121,15 @@ def frontmatter_field(fm: list[str], key: str) -> str:
             fold = raw.startswith(">")
             parts: list[str] = []
             i += 1
-            while i < len(fm) and (
-                fm[i].startswith(" ") or fm[i].startswith("\t") or fm[i].strip() == ""
-            ):
-                if fm[i].strip() == "":
-                    if parts:
-                        parts.append("")
-                    i += 1
-                    continue
-                parts.append(fm[i].lstrip())
+            while i < len(fm) and (fm[i].startswith((" ", "\t")) or not fm[i].strip()):
+                if fm[i].strip():
+                    parts.append(fm[i].lstrip())
+                elif parts:
+                    parts.append("")
                 i += 1
             joiner = " " if fold else "\n"
             return joiner.join(parts).strip()
-        if (raw.startswith('"') and raw.endswith('"') and len(raw) >= 2) or (
-            raw.startswith("'") and raw.endswith("'") and len(raw) >= 2
-        ):
+        if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in "\"'":
             return raw[1:-1]
         return raw
     return ""
@@ -150,16 +144,13 @@ def split_units(body_lines: list[tuple[int, str]]) -> list[tuple[int, str]]:
     def flush() -> None:
         if not buf:
             return
-        text = " ".join(t for _, t in buf).strip()
-        if not text:
-            buf.clear()
-            return
         start = buf[0][0]
-        for piece in SENTENCE_RE.split(text):
+        text = " ".join(t for _, t in buf)
+        buf.clear()
+        for piece in SENTENCE_RE.split(text.strip()):
             piece = piece.strip()
             if piece:
                 units.append((start, piece))
-        buf.clear()
 
     for lineno, raw in body_lines:
         if FENCE_RE.match(raw):
@@ -203,15 +194,11 @@ def parse_sections(lines: list[str], body_start: int) -> list[Section]:
         body_acc = []
 
     for idx in range(body_start, len(lines)):
-        raw = lines[idx].rstrip("\n")
+        raw = lines[idx]
         m = HEADING_RE.match(raw)
         if m and len(m.group(1)) == 2:
             close()
-            current = Section(
-                heading_norm=normalize(m.group(2).strip()),
-                line=idx + 1,
-                body="",
-            )
+            current = Section(heading_norm=normalize(m.group(2)), line=idx + 1, body="")
             continue
         if current is not None:
             body_acc.append((idx + 1, raw))
@@ -238,9 +225,7 @@ def recoverable(unit: str, source: str) -> bool:
     # every content token is already in the source (the leftover is usually
     # a synonym or a heading-word like "purpose").
     overlap = utoks & stoks
-    if len(utoks) >= 8 and len(unique) == 1 and len(overlap) / len(utoks) >= 0.85:
-        return True
-    return False
+    return len(utoks) >= 8 and len(unique) == 1 and len(overlap) / len(utoks) >= 0.85
 
 
 def section_wholly_recoverable(section: Section, source: str) -> bool:
@@ -281,14 +266,13 @@ def scan_file(path: Path) -> list[str]:
         if desc_capability and section_wholly_recoverable(section, desc_capability):
             rows.append(f"{path}:{loc}:{CHECK_DESC}")
             continue
-        for other in sections:
-            if other is section:
-                continue
-            if not other.body.strip():
-                continue
-            if section_wholly_recoverable(section, other.body):
-                rows.append(f"{path}:{loc}:{CHECK_SIBLING}")
-                break
+        if any(
+            other is not section
+            and other.body.strip()
+            and section_wholly_recoverable(section, other.body)
+            for other in sections
+        ):
+            rows.append(f"{path}:{loc}:{CHECK_SIBLING}")
     return rows
 
 

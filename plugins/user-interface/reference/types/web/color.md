@@ -117,7 +117,7 @@ chroma behind a `@media (color-gamut: p3)` gate on top of an sRGB base value. Pa
 Chroma beyond the sRGB ceiling with no fallback → clips unpredictably; clamp, then layer P3 via
 media query. The severity is in `color/gamut-and-p3.md`.
 
-**HSL lies about lightness.** Blue at 50% L and yellow at 50% L are nowhere near equal
+**HSL lightness does not match perceived lightness.** Blue at 50% L and yellow at 50% L are nowhere near equal
 perceptually. Use OKLCH when lightness must actually match.
 
 ## 4. Numbers worth memorizing
@@ -158,7 +158,7 @@ passes contrast checks on some backgrounds and fails on others; the token is pre
 
 ## 6. Neutrals and status colors
 
-Neutrals should agree with the brand hue: blue UIs want cool grays. Warm grays fight blue.
+Neutrals should agree with the brand hue: blue UIs want cool grays. Warm grays clash with a blue brand hue.
 
 Never use pure `#808080` gray: it reads as placeholder. Tint neutrals with a slight hue bias and
 they read as designed.
