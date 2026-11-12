@@ -99,9 +99,8 @@ relying on an `unverified` or drifted record "unverified as of <date>" in the pl
 ${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh --root <repo>
 ```
 
-**Always pass `--root`.** The call's working directory may not be the repository root (what carries over between calls: [Tools reference, "What persists between commands"](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands),
-as of 2026-11-10; recheck when that section changes whether `cd` carries over). `--root` may point anywhere inside
-the repository; the script resolves to the toplevel itself.
+**Always pass `--root`.** The call's working directory may not be the repository root (what carries over between calls: [Tools reference, "What persists between commands"](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands)).
+`--root` may point anywhere inside the repository; the script resolves to the toplevel itself.
 
 Read-only: it has no other mode, and `--dry-run` is accepted and ignored so an older caller does
 not break. A kind with nothing to report prints a
@@ -112,8 +111,8 @@ indistinguishable from a run that never happened. Its rows are the facts a migra
 |---|---|
 | `DIR` | `<path> <state> <CLAUDE.md bytes> <AGENTS.md bytes>`. The state names the work; the table below says what Apply does for each |
 | `BUDGET` | `<path> <cumulative AGENTS.md bytes, root to that path> <OK\|OVER>`, against Codex's project-doc budget, which is cumulative across the files it loads rather than per file. The number and its dated record live beside `CODEX_PROJECT_DOC_BUDGET` in `scripts/plan-migration.sh`; read it there rather than restating it. `OVER` means content has to move out before the migration, not after |
-| `CASE` | A filename differing only by case. Rename it: until then the repository behaves differently per developer filesystem. Pointer: [Differences between Windows and Linux case sensitivity](https://learn.microsoft.com/en-us/windows/wsl/case-sensitivity#differences-between-windows-and-linux-case-sensitivity). As of: 2026-11-03. Recheck trigger: that section changes either filesystem's default |
-| `SUPPRESS` | A bare `~/CLAUDE.md` or `~/CLAUDE.local.md`. No repository-side change fixes it. Pointer: [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md). As of: 2026-11-10. Recheck trigger: that section changes which files count |
+| `CASE` | A filename differing only by case. Rename it: until then the repository behaves differently per developer filesystem. Pointer: [Differences between Windows and Linux case sensitivity](https://learn.microsoft.com/en-us/windows/wsl/case-sensitivity#differences-between-windows-and-linux-case-sensitivity). |
+| `SUPPRESS` | A bare `~/CLAUDE.md` or `~/CLAUDE.local.md`. No repository-side change fixes it. Pointer: [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md). |
 | `PATHDET` | Code that finds a path by the existence of `CLAUDE.md`. Each one works while the shim exists and breaks at cutover. Report them; fixing them is not this run's scope unless the operator asks. The match is **not** a list of existence-test spellings: a list misses `-e`, `Test-Path`, `os.stat`, `File.exist?` and whatever nobody thought of, and every miss reports a clean tree. Any existence-ish mention in a code file is a row, so prose in an eval file lands here too; that is the safe direction, and the acknowledgement file answers a false positive once, in writing |
 | `CITE` | A markdown link resolving into `CLAUDE.md`. Each is retargeted in the same PR as the content move, or the link dies |
 | `MENTION` | Every other tracked occurrence of the literal `CLAUDE.md`: a YAML list entry, a comment, a path in a config, including under `.claude/`, which is where a Claude-configured repo most often enumerates its own instruction files. Neither a link nor an existence call, so it is nobody else's row. A content directory holding more than ten is rolled up to `<dir>/ <count> rows`; `.claude/` and `.github/` never are, because a leak lives in configuration. `--expand-mentions` prints them all. **A roll-up is the answer, not a deferral**: a content directory (captured prose, vendored docs) is reported by count and left alone, because every one of its mentions is the same non-finding. Triage the individually-listed rows with the operator |
@@ -267,7 +266,7 @@ a canary that neither loaded nor cleanly refused all the same way.
 
 **Condition 3 is a token canary, not `verify-load.sh`.** That script detects a load through an
 `InstructionsLoaded` hook, which our run in `reference/sources.md` saw miss a directly read `AGENTS.md`.
-Which loads fire the hook: [InstructionsLoaded](https://code.claude.com/docs/en/hooks#instructionsloaded), as of 2026-11-03; recheck when it changes for a direct or an imported load.
+Which loads fire the hook: [InstructionsLoaded](https://code.claude.com/docs/en/hooks#instructionsloaded).
 `verify-load.sh` stays the instrument for every **shimmed** surface, where the load arrives as an import.
 
 **Condition 4 needs a human first.** A grep cannot tell "reads `CLAUDE.md` as an instruction file"
@@ -379,9 +378,6 @@ re-run that canary.
   <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md>,
   <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable> and
   <https://code.claude.com/docs/en/memory#remove-an-earlier-agents-md-workaround>.
-- **As of**: 2026-09-29
-- **Recheck trigger**: those sections change which file names shadow `AGENTS.md` or which sessions
-  lack support, or a release note names `AGENTS.md` or instruction-file loading.
 
 It is priced, not free. A load through a shim keeps the `InstructionsLoaded` hook, which this
 plugin's load verification depends on; a direct read loses it, and only recent versions list a
@@ -407,9 +403,6 @@ so the gates keep the default's answer.
 
 - **Pointer**: for the `instructionFiles` values and where the setting is read, see
   <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: that table changes, the page comes to state when a subdirectory's
-  `AGENTS.md` loads under that value, or a release note names the setting.
 
 ## Boundary, the built-in `cc-plugin-agents-md` plugin
 
@@ -423,9 +416,6 @@ One native Claude Code surface works on the same file, and the two are easy to c
   - **Pointer**: for the plugin's settings IDs and the option's values, fetch
     [memory § Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load)
     live; the IDs are in the paragraphs after its table.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes the plugin's settings IDs, the version note on the
-    earlier ID, or the option's values.
 - **This skill**: moves a repository's instruction content into `AGENTS.md`, keeps the one-line
   `CLAUDE.md` shim, and decides when the shim can go.
 
@@ -466,8 +456,7 @@ The `reference/` files write the plugin's root directory as `<plugin-root>`, whi
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_PLUGIN_ROOT` to expand it from. Pointer: for where each `${…}` variable resolves, see
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>. As of:
-2026-10-07. Recheck trigger: that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## Next
 
@@ -480,12 +469,11 @@ in sync after the move.
   that adds nested `AGENTS.md` files while keeping a content-bearing root `CLAUDE.md` gets files
   that review as correct and load nothing.
 - **Warn about `/init` in the PR body** of a repository whose contributors run it: say what it would
-  do to the moved content ([Set up a project CLAUDE.md](https://code.claude.com/docs/en/memory#set-up-a-project-claude-md), as of 2026-11-03; recheck when it changes what `/init` writes).
+  do to the moved content ([Set up a project CLAUDE.md](https://code.claude.com/docs/en/memory#set-up-a-project-claude-md)).
 - **A prose shim is a finding, not a shim.** The plan converts a `CLAUDE.md` sentence asking for
   `AGENTS.md` into the one-line `@AGENTS.md` import, or drops the file where the session reads
   `AGENTS.md` natively; it never keeps the sentence beside the import. Pointer:
   [Remove an earlier AGENTS.md workaround](https://code.claude.com/docs/en/memory#remove-an-earlier-agents-md-workaround).
-  As of: 2026-10-01. Recheck trigger: that section changes what a prose instruction does.
 - **A committed symlink is not portable.** On a Windows checkout it materializes as a plain text
   file holding the link target, so the import is the form that works everywhere.
 - **A `CLAUDE.local.md` one developer keeps silently turns `AGENTS.md` off for them.** It counts for

@@ -142,9 +142,7 @@ TOOL="${HOOK_JQ_FIELDS[0]}"
 # edit's own footprint rather than an ambiguity. Absent or false on every
 # ordinary Edit. This record also serves stale-path-verify.sh. Pointer: when
 # the uniqueness gate's premise is in doubt, read
-# https://code.claude.com/docs/en/tools-reference#edit-tool-behavior live. As
-# of: 2026-10-11. Recheck trigger: that section changes how often `old_string`
-# may match or what `replace_all` does, or is renamed.
+# https://code.claude.com/docs/en/tools-reference#edit-tool-behavior live.
 #
 # `replace_all` alone cannot say WHICH occurrences this call wrote, and that is
 # the whole of the residual reported in #2129: after `ghost` replaces `setup`
@@ -158,10 +156,7 @@ TOOL="${HOOK_JQ_FIELDS[0]}"
 # Pointers: what a PostToolUse payload carries,
 # https://code.claude.com/docs/en/hooks#posttooluse-input; the Edit tool's
 # structured output and its `structuredPatch` shape, the Edit entry under
-# https://code.claude.com/docs/en/agent-sdk/typescript#tool-output-types. As of:
-# 2026-10-11. Recheck trigger: the hooks section changes what `tool_response`
-# carries for PostToolUse, or the SDK section changes `FileEditOutput`'s
-# `structuredPatch`, or either section is renamed.
+# https://code.claude.com/docs/en/agent-sdk/typescript#tool-output-types.
 #
 # OBSERVED, not merely documented: an independent reviewer captured a live
 # PostToolUse payload (a temp settings.json dumping stdin, driven by a headless
@@ -239,8 +234,6 @@ srv_git_dir_to() {
 # `skills/`, and collect them per plugin so a skill loaded from a declared
 # location resolves like any other. Pointer:
 # https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location.
-# As of: 2026-10-11. Recheck trigger: that section stops saying declared
-# `skills` paths add to the default `skills/` directory, or is renamed.
 #
 # One documented exception is NOT modeled: for a marketplace entry whose `source`
 # resolves to the marketplace root, declared subdirectories REPLACE the default
@@ -383,9 +376,6 @@ skill_frontmatter_name() {
 # https://code.claude.com/docs/en/plugins/manifest-reference#path-rules,
 # https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location,
 # https://code.claude.com/docs/en/plugins/manifest-reference#standard-layout.
-# As of: 2026-10-11. Recheck trigger: any of those sections changes the path
-# forms, how declared paths combine with the default location, or the
-# single-skill auto-load condition, or is renamed.
 #
 # Call as: skill_roots <plugin-dir> <declared-paths> -> $roots
 # shellcheck disable=SC2154  # roots is the caller's frame, per the call contract

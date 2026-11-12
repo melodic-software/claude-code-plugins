@@ -74,27 +74,18 @@ PowerShell tool is unavailable, so one unresolved entry never blocks the launch.
 
 - **Pointer**: for how unresolved `tools` entries are handled, see
   <https://code.claude.com/docs/en/sub-agents#available-tools>.
-- **As of**: 2026-10-02
-- **Recheck trigger**: that section changes how unresolved entries are handled, or a launch with
-  `PowerShell` unresolved fails.
 
 We grant `Monitor` so a wait on CI or a long command never holds a foreground turn. Where it is
 unavailable, run the same wait with Bash `run_in_background`.
 
 - **Pointer**: for what Monitor does and where it is unavailable, see
   <https://code.claude.com/docs/en/tools-reference#monitor-tool>.
-- **As of**: 2026-10-09
-- **Recheck trigger**: that section changes what Monitor runs, how it reports back, or where it is
-  available.
 
 That `run_in_background` wait passes the background maximum as its `timeout`, and when a stop
 notice ends it while the wait still matters, start it again.
 
 - **Pointer**: when a background wait could run long, fetch
   <https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands> live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section changes which sessions it covers, its limits, or its stop
-  notice.
 
 The nested-dispatch grant is conditional: we treat `Agent` as absent at the spawn-depth limit,
 whatever the `tools` list says, so a deeply chained dispatch fans out nothing; plan the brief's
@@ -102,9 +93,6 @@ work as your own.
 
 - **Pointer**: for the depth limit and what a subagent at it can do, see
   <https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents>.
-- **As of**: 2026-10-02
-- **Recheck trigger**: that section moves the depth default, changes what
-  `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` controls, or stops withholding `Agent` at the limit.
 
 ## Commit authority
 
@@ -165,7 +153,3 @@ the phase verifier that checks it runs at `high`.
   [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields),
   and that plus the Agent tool's per-call `effort` and its rank over this pin, in
   [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
-- **As of:** 2026-11-09.
-- **Recheck trigger:** next model release, the aliases section changes how an alias resolves, or
-  the subagents `effort` row or effort section changes what a subagent's effort follows, the
-  precedence, or which spawns honor a per-call `effort`.

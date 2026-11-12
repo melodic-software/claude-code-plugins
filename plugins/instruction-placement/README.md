@@ -132,9 +132,6 @@ version". Canary runs on 2.1.278 observed the shadowing.
 - **Pointer**: for when Claude Code reads `AGENTS.md` and when that support is unavailable, see
   <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
   <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
-- **As of**: 2026-09-29
-- **Recheck trigger**: those sections change which file names shadow `AGENTS.md`, or a release note
-  names `AGENTS.md` or instruction-file loading.
 
 ## What this plugin does NOT buy you
 
@@ -175,8 +172,7 @@ the generated index lives in the root `AGENTS.md` when one exists.
 
 One semantic difference is deliberately not papered over: the plugin assumes other agents resolve
 `AGENTS.md` nearest-wins while Claude loads the whole ancestor chain (for Claude's order, see
-<https://code.claude.com/docs/en/memory#how-claude-md-files-load>, as of 2026-10-01; recheck when
-that section changes how ancestor files combine). Subtree content is therefore written as additive
+<https://code.claude.com/docs/en/memory#how-claude-md-files-load>). Subtree content is therefore written as additive
 and self-contained, and a candidate that only makes sense as an override is reported rather than
 moved.
 

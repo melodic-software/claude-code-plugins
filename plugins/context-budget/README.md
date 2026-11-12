@@ -7,9 +7,8 @@ This plugin attributes the built-in tool pools, `System tools` and `System tools
 tool. Together they are typically the largest single contributor to the fixed payload, which is
 why the plugin targets them. The rest of the breakdown stays with the built-in `/context` command;
 what it itemizes is read at its row in
-[commands § All commands](https://code.claude.com/docs/en/commands#all-commands)
-(as of 2026-11-03; recheck when that row changes what `/context` itemizes). The plugin attributes
-the pools by A/B differencing: a baseline headless session versus one session per candidate
+[commands § All commands](https://code.claude.com/docs/en/commands#all-commands). The plugin
+attributes the pools by A/B differencing: a baseline headless session versus one session per candidate
 tool with that tool denied by bare name. The two attributed buckets compose differently:
 deferred-side deltas add, so a basket's deferred saving is the sum of its members, while
 prefix-side deltas double-count, so their sum is only an upper bound on the basket's prefix
@@ -124,9 +123,6 @@ live:
   (hook evaluation order against the mode check), and
   [headless § Turn off permission prompts in unattended runs](https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs)
   (what a `-p` run does with a call that would prompt).
-- **As of:** 2026-10-11.
-- **Recheck trigger:** any of these sections changes who can answer or skip a hook's `ask`, or a
-  release note names hook evaluation order or `disableAllHooks`.
 
 A mod (this plugin's or any other installed one) can keep `PreToolUse` settings hooks such as this
 plugin's settings-write checkpoint from running: they run after the last
@@ -134,7 +130,6 @@ mod calls `next`, so a mod that answers a `tool.call` without calling it skips t
 ([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
 A mod can also approve a call they blocked, because its `tool.check` hook runs after them
 ([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
-As of 2026-10-11. Recheck when either section moves settings hooks relative to the mod chain.
 
 **What it does not see.** The checkpoint matches tool names and file paths, not the file on
 disk. These routes change a settings file without an ask:
@@ -153,9 +148,6 @@ and this plugin does not register it.
   [§ ConfigChange decision control](https://code.claude.com/docs/en/hooks#configchange-decision-control);
   for what a PreToolUse matcher filters on,
   [hooks § Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns).
-- **As of:** 2026-10-11.
-- **Recheck trigger:** those sections give `ConfigChange` an `ask` outcome or a visible message,
-  or the Matcher patterns section gives PreToolUse a matcher on target path.
 
 **Decision (#3864): the claim is narrowed, and the hook is not widened.** Adding the shell lane
 would put an always-on `Bash|PowerShell` hook under the
@@ -206,9 +198,8 @@ tool needs its own probe, and NotebookEdit was not probed.
 - **Honest degradation.** Exact mode uses the Agent SDK's structured context usage. Without the
   SDK, the engine parses headless `/context` output version-aware (display-rounded, and flagged
   as resting on a surface the docs do not list for `-p`; the record is under "Degradation ladder"
-  in `skills/audit/reference/engine.md`, relayed as of 2026-10-11; recheck this relay when that
-  heading moves or its record's recheck trigger fires). When neither works, it emits a structured error with a remediation, never
-  a wrong number.
+  in `skills/audit/reference/engine.md`). When neither works, it emits a structured error with a
+  remediation, never a wrong number.
 
 ## Prerequisites
 
@@ -226,19 +217,14 @@ the marketplace's shared state-key scheme, with one file per run plus an appende
 An uninstall can delete this directory; the audit tells the operator so near the ledger.
 
 - **Pointer:** [plugins CLI reference § What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-- **As of:** 2026-10-11.
-- **Recheck trigger:** that section changes when a plugin's data directory is deleted or how to
-  keep it.
 
 ## Boundaries
 
 - Usage-based removal ("which plugins do I never use") belongs to the bundled `/doctor`; the
   skill routes there and never reimplements it.
-  Pointer: <https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor>. As of
-  2026-10-11. Recheck when that section drops unused MCP servers or plugins from its coverage.
+  Pointer: <https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor>.
 - Which skills to turn off goes to the built-in `/skill-doctor`, which the person runs; the audit measures what a toggle saved and never picks the skill.
-  Pointer: <https://code.claude.com/docs/en/skills#find-unused-skills>. As of 2026-10-02.
-  Recheck when that section sends the question to another command.
+  Pointer: <https://code.claude.com/docs/en/skills#find-unused-skills>.
 - Per-skill / per-agent / per-MCP-tool attribution belongs to `/context` natively.
 - This plugin answers "what is my context made of": the startup measurement and the live
   breakdown. How full the context is and what happens as it fills (zones, notices to Claude,

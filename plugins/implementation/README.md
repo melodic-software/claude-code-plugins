@@ -131,8 +131,7 @@ Basis: the Claude Code sub-agents page ("Control subagent capabilities": `disall
 specifiers and Bash deny rules; "Choose the subagent scope": fields ignored for plugin
 subagents) and the permissions page ("What a Bash rule doesn't match"), at
 <https://code.claude.com/docs/en/sub-agents> and
-<https://code.claude.com/docs/en/permissions>, verified 2026-09-27. Recheck when a release note
-touches subagent tool restrictions or Bash permission-rule matching.
+<https://code.claude.com/docs/en/permissions>.
 
 ### Option details
 

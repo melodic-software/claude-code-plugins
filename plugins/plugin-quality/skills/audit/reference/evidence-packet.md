@@ -4,14 +4,6 @@ One packet per resolved target, created in step 1 of the workflow in [`../SKILL.
 and read by every later step. It survives compaction, which is the whole reason it exists. Getting
 any of the three specifications below wrong silently corrupts an audit rather than failing it.
 
-**Recheck trigger for every dated stamp in this file:** re-read the cited page and re-date the
-stamp when any of these change. Where the plugins reference says `${CLAUDE_PLUGIN_DATA}` is
-substituted, and the data-directory path it derives. Whether the sub-agents page starts describing
-the report-filename write guardrail. Whether the hooks page still states that `PostToolUse` runs
-after a successful tool call and that its matcher keys on the tool name. The formatter scoping
-carries its own trigger where it is stated. A release note touching plugins, subagents, or hooks is
-the usual way one of these moves. These stamps are page reads with a date, not standing facts.
-
 ## Contents
 
 - [Layout and files](#layout-and-files)
@@ -29,20 +21,14 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   - **Pointer**: when a placeholder arrives unexpanded or a new context needs one, fetch
     [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
     live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section drops skill, command or agent Markdown bodies from where
-    `${...}` resolves, adds supporting files to it, or changes which contexts carry
-    `CLAUDE_PLUGIN_ROOT`.
 
   Should it
   arrive unexpanded, derive the directory deterministically from the `${CLAUDE_PLUGIN_DATA}` row
   of [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables),
   fetched live, which gives the path and how this plugin's install identifier becomes `<plugin-id>`
   (marketplace install → `plugin-quality-<marketplace-name>`; a `--plugin-dir` dev load gets its
-  own id such as `plugin-quality-inline`). As of 2026-10-11. Recheck trigger: that row stops giving
-  the data directory's path or how its id is formed. Before the first write, list the parent
-  directory that row names and use the
-  matching entry; if none exists yet, create the id-form directory for this install.
+  own id such as `plugin-quality-inline`). Before the first write, list the parent directory that
+  row names and use the matching entry; if none exists yet, create the id-form directory for this install.
 - `<target-slug>` = one **resolved** target from the list above. `<plugin>` or
   `<plugin>-<component>`. Sanitized to `[A-Za-z0-9_-]` (every other character → `-`, the same
   character class context-guard's mod accepts in a snapshot's session id; path containment) and truncated to **64
@@ -166,13 +152,9 @@ It may not fire at all in a given context, which is why the naming rule is the p
 the rename fallback is the backstop. This is the record the `auditor` agent cites.
 
 - **Pointer**: when checking whether the report-filename guardrail is now documented, fetch
-  [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools) live. The
-  sub-agents reference was checked 2026-07-26 and that section re-read 2026-10-11: it documents
-  write restriction only at tool-access granularity (`tools` and `disallowedTools`) and names no
-  report-filename guardrail.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section, or any Claude Code page, starts describing a subagent write
-  guardrail on report-like file names, or a release note names one.
+  [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools) live. That section
+  documents write restriction only at tool-access granularity (`tools` and `disallowedTools`) and
+  names no report-filename guardrail.
 
 ## Packet files are write-once evidence (sibling hooks rewrite them in place)
 
@@ -184,9 +166,6 @@ exists to outlive. This is the record the `auditor` agent and `scripts/packet-se
 - **Pointer**: when checking when `PostToolUse` fires, what it may change, and what its matcher
   keys on, fetch [PostToolUse](https://code.claude.com/docs/en/hooks#posttooluse) and
   [Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes when `PostToolUse` runs, whether it may rewrite a
-  tool's result, or what a matcher matches on, or a release note names `PostToolUse`.
 
 **Accurate scope (event and path scoping verified 2026-11-10 against
 `plugins/markdown-format/hooks/hooks.json`, `markdown-format.sh` and `hook::read_file_path_to` in
@@ -240,7 +219,6 @@ evasion.
 - **Basis:** this file's three rules and Resume verify cases; the `scripts/packet-seal.sh` header
   (COVERED / NOT COVERED, ACKNOWLEDGED DIVERGENCE, SEAL MOMENT, exits 0 / 1 / 2 / 3);
   `packet-seal.test.sh` acknowledge cases; the `agents/auditor.md` Write grant.
-- **As of:** 2026-09-29.
 - **Recheck:** a mechanical write-once lock ships, `sealed-at` becomes signed or `verify` starts
   gating on it, `packet-seal.sh` grows a currency or superseded marker, or the Resume rule stops
   grouping packets by run-nonce.

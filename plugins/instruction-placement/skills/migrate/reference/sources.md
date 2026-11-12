@@ -2,9 +2,10 @@
 
 Every upstream fact the AGENTS.md cutover turns on, as a pointer record per the
 [upstream-drift convention](../../../../../docs/contracts/upstream-drift/README.md): our decision
-or our own probe result, a pointer to where the specific lives, an as-of date, and a recheck
-trigger. The records are here so a reader can judge the check's verdict without re-deriving the
-research, and so a firing trigger has one place to land.
+or our own probe result and a pointer to where the specific lives, plus an as-of date and a
+recheck trigger on each probe result or other stored value. The records are here so a reader can
+judge the check's verdict without re-deriving the research, and so a firing trigger has one place
+to land.
 
 Per-run output (per-condition tables, graded commit SHAs) is posted as a comment on the tracker
 issue. This file holds only the current grade of each fact: per the convention's "When a trigger
@@ -280,9 +281,6 @@ pointer, never restated here.
   <https://code.claude.com/docs/en/memory#my-agents-md-isn%E2%80%99t-loading>. Both pages fetched by
   the rung-1 route on 2026-09-29, both slugs present in `llms.txt`. `scripts/remove-shims.sh`
   prints the paragraph above this line and this pointer, and stops where this bullet ends.
-- **As of**: 2026-09-29
-- **Recheck trigger**: either page changes that table, the hook's firing rule for `AGENTS.md`, or
-  the `/memory` listing.
 
 ## What the loss means for measuring the cutover
 
@@ -313,8 +311,6 @@ A re-read of the hooks page found the hook gap unchanged, so this plugin still t
 
 - **Pointer**: the hooks and memory fetches in that cost record. This checkout's
   `claude auth status` reported `loggedIn` false, so no new `claude -p` measurement was possible.
-- **As of**: 2026-09-28
-- **Recheck trigger**: the same as the measurement record above.
 
 ## The built-in agents-md plugin
 
@@ -329,9 +325,8 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   [memory § Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load);
   the scope is in the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
   entry; what `--settings` can set is in
-  [Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session)
-  (as of 2026-10-07; recheck when the settings guide stops letting `--settings` set user-scope keys,
-  or the `pluginConfigs` scope changes). The option's first key, `projectInstructions`, can also
+  [Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session).
+  The option's first key, `projectInstructions`, can also
   supply the mode (the plugin's README, in the Basis below); like `instructionFiles`, it is a user,
   `--settings` or managed value a repository cannot rely on. Condition A walks to the filesystem
   root for the files that count against `AGENTS.md`, with the user `CLAUDE.md` as the walk's one
@@ -358,8 +353,7 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   directory in every session with no flag and no install step. Pointer: when deciding which ways
   a plugin loads for one session or without an install, fetch
   [plugins/create: develop without a marketplace](https://code.claude.com/docs/en/plugins/create#develop-without-a-marketplace)
-  live. As of: 2026-10-18. Recheck trigger: that section changes the ways a plugin loads for one
-  session or without an install, or starts recording such a plugin in settings. The user roots
+  live. The user roots
   are `CLAUDE_CONFIG_DIR` and `CLAUDE_CODE_PLUGIN_CACHE_DIR`, read where they may be set (shell,
   user or managed settings) per
   [env-vars § Variables](https://code.claude.com/docs/en/env-vars#variables) (fetched 2026-10-01,
@@ -444,10 +438,6 @@ decision.
   <https://code.claude.com/docs/en/skills#frontmatter-reference> and
   <https://code.claude.com/docs/en/permissions#additional-directories-grant-file-access-not-configuration>.
   All four pages fetched by the rung-1 route on 2026-10-02, each slug in `llms.txt`.
-- **As of**: 2026-10-02
-- **Recheck trigger**: any of these sections changes which components can declare hooks, which
-  events they accept, when those hooks are active, where skills, command files or subagents load
-  from, or what `--add-dir` loads.
 
 ## Blockers between the root and a nested `AGENTS.md`
 
@@ -460,9 +450,6 @@ between the repository root and a nested `AGENTS.md` (for example `svc/CLAUDE.lo
 
 - **Pointer**: <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md>, fetched by
   the rung-1 route on 2026-10-02, slug in `llms.txt`.
-- **As of**: 2026-10-02
-- **Recheck trigger**: that section states which directories' files stop a subdirectory's
-  `AGENTS.md` from loading.
 
 ## The nested write trigger
 

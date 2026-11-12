@@ -73,9 +73,6 @@ Install nothing, and run no mutating tier.
    elsewhere `PATH`, then `/bin/bash` and `/usr/bin/bash`).
    - **Pointer**: for how an exec-form hook launches its command, fetch
      <https://code.claude.com/docs/en/hooks#exec-form-and-shell-form> live.
-   - **As of**: 2026-11-10
-   - **Recheck trigger**: that section changes whether exec form uses a shell, or how `shell` and
-     `args` interact.
 
    Report the shell as INFO on Unix; FAIL on Windows when no Git Bash resolves, since the
    scripts and the guard alike cannot launch.
@@ -85,8 +82,6 @@ Install nothing, and run no mutating tier.
 
    - **Pointer**: for whether Claude Code's install uses Node at runtime, fetch
      <https://code.claude.com/docs/en/setup#install-with-npm> live.
-   - **As of**: 2026-11-10
-   - **Recheck trigger**: that section says the native binary bundles or uses Node.
 
 5. **Destructive-guard registration and toggle**. INFO, and be precise about *where* the guard
    lives, because the answer is the reason it is session-scoped:
@@ -102,8 +97,6 @@ Install nothing, and run no mutating tier.
      - **Pointer**: for when a saved value reaches skill content, fetch
        [plugins manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
        live.
-     - **As of**: 2026-11-11
-     - **Recheck trigger**: that section changes where or when a saved value is substituted.
    - The option is **user-scoped**: plugin option values are read from user, `--settings`, and
      managed settings only, never from a project's `.claude/settings.json`. So there is no
      per-repository value of this toggle. To vary the behavior for one repository, enable or disable
@@ -141,9 +134,6 @@ after everything passes changes nothing and reports "already configured":
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 
 ## What this skill does NOT do
 

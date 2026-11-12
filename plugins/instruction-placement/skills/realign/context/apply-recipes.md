@@ -55,7 +55,7 @@ The common case: content keyed to a file kind moves to `.claude/rules/<topic>.md
 
    - **Pointer**: when deciding which rule frontmatter fields Claude Code reads, fetch
      [memory § Rules frontmatter reference](https://code.claude.com/docs/en/memory#rules-frontmatter-reference)
-     live. **As of**: 2026-10-11. **Recheck trigger**: that section starts listing `description`.
+     live.
 
 3. **Adjust heading levels only.** If the content was `## X` inside a larger file it becomes `# X`
    here. Relative links must be rewritten to resolve from `.claude/rules/`. Nothing else changes.
@@ -75,7 +75,6 @@ The common case: content keyed to a file kind moves to `.claude/rules/<topic>.md
 **Cite** the shared file from a path-scoped rule by path, never with an `@import`, so the move saves
 what it appears to save. Pointer: for when an imported file loads,
 [Import additional files](https://code.claude.com/docs/en/memory#import-additional-files).
-As of: 2026-11-03. Recheck trigger: that section changes when an imported file loads.
 
 ## Recipe B: nested AGENTS.md plus shim
 
@@ -123,11 +122,8 @@ belong in this destination. Mark the finding `blocked` and say why.
   fetch [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)
   and [§ When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either source stops carrying its section, the memory page changes which
-  file names count for the check or **which sessions lack `AGENTS.md` support** (step 2 relies on
-  that list), a release note names `CLAUDE.md` load order or `AGENTS.md`, or
-  `/instruction-placement:migrate cutover-check` ships (#4281) and reports every condition met.
+- **Recheck trigger**: `/instruction-placement:migrate cutover-check` ships (#4281) and reports
+  every condition met.
 
 ## Recipe C: promote from ordinary documentation
 

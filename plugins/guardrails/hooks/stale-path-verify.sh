@@ -104,9 +104,7 @@ TOOL="${HOOK_JQ_FIELDS[0]}"
 # the same new_string landing in several places is the edit's own footprint
 # rather than an ambiguity. Relay: the pointer record for the Edit tool's
 # uniqueness rule sits beside the `replace_all` field in
-# skill-reference-verify.sh. As of: 2026-10-11. Recheck trigger: that record
-# leaves skill-reference-verify.sh or stops naming this file as one it serves,
-# or its own recheck trigger fires.
+# skill-reference-verify.sh.
 REPLACE_ALL=false
 case "$TOOL" in
 Edit)

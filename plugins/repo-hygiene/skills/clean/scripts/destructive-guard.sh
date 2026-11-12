@@ -52,9 +52,7 @@
 # destructive-guard.test.sh.
 # Upstream hook lifetime and environment for skill-frontmatter hooks: read them
 # live at https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents
-# As of 2026-10-20.
-# Recheck: the hooks page changes how skill hooks end, or the first live run
-# shows the guard armed with no marker.
+# Recheck: the first live run shows the guard armed with no marker.
 #
 # Precision. On the Bash tool is_destructive_bash() runs argv_destructive() over
 # each segment's argv from hook::bash_parse_segments, so destructive text inside

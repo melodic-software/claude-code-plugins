@@ -39,9 +39,6 @@
 #     Claude Code 2.1.278 observed the shadowing.
 #   Pointer: when deciding which files shadow AGENTS.md, fetch
 #     https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md live.
-#   As of: 2026-10-11.
-#   Recheck trigger: that section changes which file names count for the check,
-#     or a release note names AGENTS.md or instruction-file loading.
 #
 # So a target nothing blocks gets the third verdict NATIVE rather than a pass or
 # a failure: availability (version, whether the built-in agents-md plugin is
@@ -243,9 +240,6 @@ render_block() {
     #   (nested CLAUDE.md) and
     #   https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
     #   (AGENTS.md) live (per-surface detail: context/verified-mechanics.md).
-    # - **As of**: 2026-10-10
-    # - **Recheck trigger**: a Claude Code release note changes which tool calls
-    #   load path-scoped rules, nested CLAUDE.md or nested AGENTS.md.
     cat <<'PREAMBLE'
 
 ## Conventions that load on demand

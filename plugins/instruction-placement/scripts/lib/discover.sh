@@ -84,9 +84,6 @@ ip_realpath() {
 # comma-separated string.
 #   Pointer: when deciding which shapes `paths` accepts, fetch
 #     https://code.claude.com/docs/en/memory#rule-frontmatter-reference live.
-#   As of: 2026-11-04.
-#   Recheck trigger: that section changes the accepted shapes of `paths`, or says
-#     how a comma-separated string treats a brace group.
 # ---------------------------------------------------------------------------
 ip_parse_paths() {
   local file="${1:-}"
@@ -386,9 +383,6 @@ ip_discover_nested_instructions() {
 # alike: this walk treats them the same way at each directory.
 #   Pointer: when deciding which file names count and at which levels, fetch
 #     https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md live.
-#   As of: 2026-10-11.
-#   Recheck trigger: that section changes which file names count, or where the
-#     nested attach checks for them.
 #
 # Paths are emitted rooted at <root>, existing files only.
 # ---------------------------------------------------------------------------
@@ -421,8 +415,6 @@ ip_entry_points_on_path() {
 # space ends it, and a path wrapped in quotes is no import.
 #   Pointer: when deciding how an import path is written, fetch
 #     https://code.claude.com/docs/en/memory#import-additional-files live.
-#   As of: 2026-11-04.
-#   Recheck trigger: that section changes how spaces or quotes in a path are read.
 _ip_imports_of() {
   local file="$1" dir
   dir="$(cd "$(dirname "$file")" && pwd)"

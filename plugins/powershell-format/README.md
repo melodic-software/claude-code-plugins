@@ -35,8 +35,7 @@ and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
   [Trust model](#trust-model).
   **Pointer**: when deciding how PSScriptAnalyzer finds settings on its own, fetch
   [Settings Support in ScriptAnalyzer](https://learn.microsoft.com/powershell/utility-modules/psscriptanalyzer/using-scriptanalyzer#settings-support-in-scriptanalyzer)
-  live. **As of**: 2026-11-03. **Recheck trigger**: that section changes how a settings file
-  is found or passed.
+  live.
 - **Installed copies are skipped.** A file under `.githooks/` is never rewritten.
 - **Missing tools.** A missing `pwsh` or PSScriptAnalyzer module fails an agent's commit with
   the install command and a one-line skip key (`git -c checks.skipmissing=pwsh commit ...`,
@@ -74,8 +73,7 @@ run stays skipped. A settings file without
 
 - **Pointer**: when deciding what a declared `CustomRulePath` loads, fetch
   [Using PSScriptAnalyzer: Custom rules](https://learn.microsoft.com/powershell/utility-modules/psscriptanalyzer/using-scriptanalyzer#custom-rules)
-  live. **As of**: 2026-11-03. **Recheck trigger**: that section changes how custom rule
-  modules are loaded.
+  live.
 
 ## Requirements
 
@@ -87,9 +85,8 @@ run stays skipped. A settings file without
   runs the git-hook installer with it. We do not assume a Claude Code
   install brings Node, so without `node` the hooks do not launch and say nothing.
   Pointer: when deciding whether an install brings Node, fetch
-  [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live.
-  As of: 2026-10-11. Recheck trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
-  install needs Node at runtime.
+  [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) and
+  [System requirements](https://code.claude.com/docs/en/setup#system-requirements) live.
   [Install Node.js](https://nodejs.org/en/download).
 - **PowerShell 7+** (`pwsh`) on `PATH`
   ([install](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)). The
