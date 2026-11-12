@@ -63,8 +63,6 @@ So: write the report outside the target root. If a destination inside it is unav
 - **Pointer**: when stating where `${CLAUDE_PLUGIN_DATA}` resolves, fetch
   [plugins manifest reference: environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section moves the data directory out of `~/.claude`.
 
 ## Where each finding goes
 

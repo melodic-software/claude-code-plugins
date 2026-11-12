@@ -25,8 +25,7 @@ never a comparison between teams. It reads history and writes nothing.
 
 - **Pointer**: when a metric's definition is in question, fetch
   <https://dora.dev/guides/dora-metrics/> live and read its "Throughput and instability"
-  section, which defines the five metrics. **As of**: 2026-11-01. **Recheck trigger**: DORA
-  renames, adds or removes a delivery metric.
+  section, which defines the five metrics.
 
 ## Metrics
 

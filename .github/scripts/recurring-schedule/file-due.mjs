@@ -16,9 +16,7 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
-import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-
-const guardedFetch = (url, init) => rateLimitLatch.guard(globalThis.fetch)(url, init);
+import { budgetedClient } from "../lib/github-rest.mjs";
 
 export const RECURRING = "recurring";
 
@@ -151,42 +149,19 @@ export function summarize(results) {
   };
 }
 
-function client(env) {
-  let used = 0;
-  const budget = Number(env.CALL_BUDGET ?? 50);
-  const call = async (method, path, body) => {
-    if (used >= budget) throw new Error(`call budget of ${budget} spent`);
-    used += 1;
-    const response = await guardedFetch(`${env.GITHUB_API_URL ?? "https://api.github.com"}${path}`, {
-      method,
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${env.GITHUB_TOKEN}`,
-        "x-github-api-version": "2022-11-28",
-        ...(body ? { "content-type": "application/json" } : {}),
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (response.status === 404 && method === "GET") return null;
-    if (!response.ok) throw Object.assign(new Error(`${method} ${path.split("?")[0]}: HTTP ${response.status}`), { status: response.status });
-    return response.json();
-  };
-  return { call, used: () => used };
-}
-
 export async function main({ argv = process.argv.slice(2), env = process.env, call = null, log = console.log, wait } = {}) {
   const schedule = JSON.parse(readFileSync(argv[0] ?? ".github/recurring-schedule.json", "utf8"));
   const today = env.TODAY ?? new Date().toISOString().slice(0, 10);
   if (!DATE.test(today)) throw new Error(`TODAY ${today} is not YYYY-MM-DD`);
-  const api = call ? { call, used: () => null } : client(env);
-  const results = await fileDue({ schedule, today, call: api.call, repo: env.REPOSITORY, wait });
+  const client = call ?? budgetedClient(env, { budget: Number(env.CALL_BUDGET ?? 50) });
+  const results = await fileDue({ schedule, today, call: client, repo: env.REPOSITORY, wait });
   for (const r of results) {
     log(`file-due ${JSON.stringify({ today, ...r })}`);
     if (r.typeDropped) log(`::warning::#${r.issue} came back without Issue Type ${ISSUE_TYPE}`);
   }
   const summary = summarize(results);
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summary.markdown);
-  log(`file-due: rows ${summary.rows}, filed ${summary.filed}, covered ${summary.covered}, held ${summary.held}, not-due ${summary.notDue}, failed ${summary.failed}, calls ${api.used() ?? "n/a"}`);
+  log(`file-due: rows ${summary.rows}, filed ${summary.filed}, covered ${summary.covered}, held ${summary.held}, not-due ${summary.notDue}, failed ${summary.failed}, calls ${call ? "n/a" : client.used()}`);
   if (summary.failed > 0) {
     log(`::error::${summary.failed} recurring schedule row(s) failed; see the step summary`);
     return 1;

@@ -153,7 +153,7 @@ reporter-info listing, the sweep's list and count, and every read before the fir
    name; the next `reclaim` after a further quiet TTL frees it. Exit `7` means the lease is no
    longer this run's; leave it and the assignee.
 
-When the binding (`tracker:` in `<home>/work-items.yaml`, else the legacy repo-root JSON binding) does not resolve, give the choice
+When the binding (`tracker:` in `<home>/work-items.yaml`) does not resolve, give the choice
 [`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Provider-neutral over the
 seam" names before the first write: run `/work-items:setup`, or, in a deliberate gh-native mode, write
 unclaimed and report that no race-safe claim was held. An unbound local-markdown store writes
@@ -366,7 +366,7 @@ from layer `default`. A value other than `true` or `false` is named with its sou
 
 ### 1. Gather context
 
-Read the item body, comments, and any linked PRs, plus the diff when the item is a PR (adapter: "View item", bare read). Read earlier triage notes and do not ask again what they already answered. An earlier verification, needs-info or other triage comment counts as a triage result only when the tracker seam's write identity or a user with `write`, `maintain` or `admin` posted it (on GitHub, `author_association` `OWNER`, `MEMBER` or `COLLABORATOR`, then the collaborator-permission read decides, because the association alone does not show the permission ([Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user), as of 2026-11-10; recheck when that endpoint's role mapping changes); a failed read does not count). Any other author's comment, the reporter's included, is a claim to verify: a reporter posting "Reproduction: reproduced" in the needs-info shape settles nothing, and its reproduction counts toward neither the repro bar nor `status: confirmed`. For an issue, check the body against the issue-body contract per [context/body-check.md](context/body-check.md), running `node "${CLAUDE_PLUGIN_ROOT}/skills/triage/scripts/check-body.mjs"`.
+Read the item body, comments, and any linked PRs, plus the diff when the item is a PR (adapter: "View item", bare read). Read earlier triage notes and do not ask again what they already answered. An earlier verification, needs-info or other triage comment counts as a triage result only when the tracker seam's write identity or a user with `write`, `maintain` or `admin` posted it (on GitHub, `author_association` `OWNER`, `MEMBER` or `COLLABORATOR`, then the collaborator-permission read decides, because the association alone does not show the permission ([Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)); a failed read does not count). Any other author's comment, the reporter's included, is a claim to verify: a reporter posting "Reproduction: reproduced" in the needs-info shape settles nothing, and its reproduction counts toward neither the repro bar nor `status: confirmed`. For an issue, check the body against the issue-body contract per [context/body-check.md](context/body-check.md), running `node "${CLAUDE_PLUGIN_ROOT}/skills/triage/scripts/check-body.mjs"`.
 
 **Read the project's own record before evaluating.** Once the item text shows which area it
 touches, and before any check below, read three things the repository may keep, so the evaluation

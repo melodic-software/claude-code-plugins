@@ -75,8 +75,8 @@ step's prose, is what to branch on:
 - **`none`**: install nothing; list the entries under "Action needed" in the report only
 
 **A headless run launched with `--setting-sources` that omits `user` silently reverts this policy to
-`ask`** (the flag: [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags),
-as of 2026-11-10). `pluginConfigs` is read from user settings, `--settings`, and managed settings only (see
+`ask`** (the flag: [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags)).
+`pluginConfigs` is read from user settings, `--settings`, and managed settings only (see
 [scope-semantics.md](scope-semantics.md)), so dropping `user` from the source list drops the
 configured `install_new` with it, and the render falls back to the unset placeholder, which this
 step correctly reads as `ask`. That is the right fallback and the wrong silence: say so in the
@@ -117,10 +117,7 @@ observed the two disagree for one plugin.
 
 - **Pointer**: when the notice's wording or the `enabledPlugins` entry such an install leaves is in
   question, read the probe in [gotchas.md](gotchas.md#a-disabled-by-default-install-writes-false-and-only-an-install-record-can-be-uninstalled)
-  and rerun it; no docs page states that entry as of 2026-10-04.
-- **As of**: 2026-10-04 (Claude Code 2.1.289)
-- **Recheck trigger**: a disabled-by-default install stops printing the notice `sync-run.sh`
-  matches, or a docs page starts to state what such an install writes to `enabledPlugins`.
+  and rerun it; no docs page states that entry.
 
 **An `ask` pick is journaled before it is installed.** `sync-run.sh` appends the id to
 `pending-enable.txt`, one level above the run journals, before `claude plugin install`, and removes
@@ -208,9 +205,7 @@ disagree with that probe: the settings reference says a plugin with no entry at 
 back to its `defaultEnabled` value
 (<https://code.claude.com/docs/en/settings-reference#enabledplugins>), and the manifest reference
 says `defaultEnabled` decides it and defaults to `true`
-(<https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>). As of 2026-10-04. Recheck
-trigger: a Claude Code release that changes `claude plugin list`'s `enabled` answer for an unlisted
-plugin, or either doc section changing. The excluded field is a publisher's deliberate opt-in-required default (the marketplace
+(<https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>). The excluded field is a publisher's deliberate opt-in-required default (the marketplace
 entry's value overrides the plugin's own `plugin.json` field, per
 [metadata precedence](https://code.claude.com/docs/en/plugins/manifest-reference#metadata-precedence)).
 Whatever entry the install leaves for that id, none or an explicit `false` (the probe Step 4's

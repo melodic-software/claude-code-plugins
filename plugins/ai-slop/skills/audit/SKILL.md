@@ -33,8 +33,7 @@ is one command, the detector alone, which an `allowed-tools` grant names.
 - **Pointer**: when changing this line or its grants, fetch
   <https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands> live; the probe that found a
   zero-turn run under dontAsk is in
-  <https://github.com/melodic-software/claude-code-plugins/pull/6732>. **As of**: 2026-10-10. **Recheck trigger**: a Claude
-  Code release note that changes how pre-compute commands are permission-checked.
+  <https://github.com/melodic-software/claude-code-plugins/pull/6732>.
 
 ## Purpose
 
@@ -162,9 +161,6 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
     [Explore the directory](https://code.claude.com/docs/en/claude-directory#explore-the-directory),
     [File reference](https://code.claude.com/docs/en/claude-directory#file-reference) and the
     `CLAUDE_CONFIG_DIR` row of [Variables](https://code.claude.com/docs/en/env-vars#variables) live.
-  - **As of**: 2026-11-10
-  - **Recheck trigger**: those sections add, move, or drop a user-level markdown surface, or change
-    what `CLAUDE_CONFIG_DIR` relocates.
 - `@path` imports are not followed. Pass an imported file as an explicit path target.
 - `memory` lists the default auto memory location only; the script warns when the user
   `settings.json` sets `autoMemoryDirectory`, and a relocated directory is passed as a path
@@ -172,9 +168,6 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
   - **Pointer**: when auto memory may live somewhere else, fetch
     [`autoMemoryDirectory`](https://code.claude.com/docs/en/settings-reference#automemorydirectory)
     and [Storage location](https://code.claude.com/docs/en/memory#storage-location) live.
-  - **As of**: 2026-11-10
-  - **Recheck trigger**: either section changes the default auto memory location or which settings
-    scopes can move it.
 - A symlink is followed only to a readable regular `.md` file inside the config root, and
   that file is listed once. A symlinked directory is not walked, and a link pointing outside
   the root is skipped; the script names each on stderr. Pass a skipped link's target as an

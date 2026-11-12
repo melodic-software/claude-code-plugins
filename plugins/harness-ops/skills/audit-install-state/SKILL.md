@@ -52,9 +52,6 @@ routinely conflated:
     [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) and
     [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-%2Fdoctor)
     live.
-  - **As of**: 2026-11-10
-  - **Recheck trigger**: either section drops `/doctor` or stops describing it as fixing what it
-    finds, or a release note names bundled-skill gating or the `doctor` surface.
 - **This skill (marketplace plugin)**, the deep read-only inventory of the install tree: every
   file classified, product-managed retention separated from genuinely unmanaged state, filename
   schemes resolved before any liveness check, and a deliberate-or-experimental state detected
@@ -76,9 +73,8 @@ its own.
 `.credentials.json`, `daemon/control.key`, `daemon/pipe.key`, `ide/*.lock`, and the values inside
 `~/.claude.json`. These are inventory line-items: name, size, mtime, and nothing more. What the
 product writes to disk unencrypted is read live from
-[claude directory: plaintext storage](https://code.claude.com/docs/en/claude-directory#plaintext-storage)
-(as of 2026-11-03; recheck when that section changes which files hold credentials or tokens). **Every subagent this skill dispatches inherits this rule; say so
-explicitly in any prompt you fan out.** The engine enforces it in its reader, and its whole
+[claude directory: plaintext storage](https://code.claude.com/docs/en/claude-directory#plaintext-storage).
+**Every subagent this skill dispatches inherits this rule; say so explicitly in any prompt you fan out.** The engine enforces it in its reader, and its whole
 content-read allowlist is `settings.json`, `.last-cleanup`, `plugins/.last_inuse_sweep`,
 `plugins/installed_plugins.json` and the `plugins/cache/*/*/*/.orphaned_at` markers; each entry
 it read by content carries `content_read: true` with the paths opened. Everything else is stat-only.
@@ -254,8 +250,7 @@ Consumes a genuinely unmanaged leftover this report surfaced; the audit itself n
 - **A directory the retention sweep owns being absent is not decay.** Never grade its absence as a
   finding. Which directories the sweep removes, and whether it deletes the emptied directory, are
   read live from
-  [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
-  (as of 2026-11-03; recheck when that section changes its path list).
+  [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically).
 - **The "safe, no judgment required" tier most needs an independent check.** A case-insensitive
   comparer collapses deny rules that differ only by case; this skill's deny matching is
   case-sensitive and tested, and it encodes no dedupe or subsumption logic at all.

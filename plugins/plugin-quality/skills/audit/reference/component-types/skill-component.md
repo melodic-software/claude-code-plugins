@@ -35,9 +35,6 @@ contract gate) when installed, and lean on its findings; absent, this file is th
   when grading which skills and plugins a cloud session reads, fetch
   [Skills in Cowork and cloud sessions](https://code.claude.com/docs/en/skills#skills-in-cowork-and-cloud-sessions)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes what it states, or a release note names
-  `context: fork` or skill loading in cloud sessions.
 
 ## Categories
 

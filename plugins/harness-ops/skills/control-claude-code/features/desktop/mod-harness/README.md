@@ -32,5 +32,4 @@ None: the test kit runs no session and keeps no state.
 - A drawing test checks the tree the mod returns for the Desktop app, not how Desktop paints it;
   the evidence is the test output, never a Desktop screenshot.
 - What the test kit runs and what a drawing test covers:
-  <https://code.claude.com/docs/en/plugins/mods/test#test-a-drawing> (as of 2026-10-26; recheck
-  when that section changes what `$.ui.mount` checks or which apps a test can draw for).
+  <https://code.claude.com/docs/en/plugins/mods/test#test-a-drawing>.

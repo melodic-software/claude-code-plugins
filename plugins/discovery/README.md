@@ -39,9 +39,6 @@ here, not in the agent bodies, so neither agent spends a fetch on it.
   [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
   and [sub-agents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: the sub-agents `omitClaudeMd` row or the startup
-  section changes what the field drops or keeps.
 
 The three artifact-persisting skills (`/discovery:explore`, `/discovery:research`,
 `/discovery:trace-intent`) persist handoff artifacts (`EXPLORE.md` / `RESEARCH.md`
@@ -73,8 +70,6 @@ the pull request that carries this change.
 - **Pointer**: when you need what WebFetch documents about pages over its read cap, fetch
   [tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
   live.
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section documents the note text or the `offset` input.
 
 The hook is partial by design. It has no length rule, so a page WebFetch summarized with no marker
 or placeholder gets no note; the captured CHANGELOG fetch is one. The routing rule in the

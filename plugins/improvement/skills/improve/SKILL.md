@@ -12,8 +12,7 @@ metadata:
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single
 invocation, so a worktree-isolated session screens each git command on its own
-([worktrees: how Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation),
-as of 2026-10-11; recheck when that section changes how it screens a command that runs git):
+([worktrees: how Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)):
 
 - Current branch, `git branch --show-current`
 - Working tree status (empty = clean), `git status --porcelain | head -20`

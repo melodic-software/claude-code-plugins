@@ -15,9 +15,6 @@ floor are read live from the pointer, not restated here.
 - **Pointer:** the `/batch` row of
   [commands: all commands](https://code.claude.com/docs/en/commands#all-commands), and
   [skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills).
-- **As of:** 2026-11-09.
-- **Recheck trigger:** a release renames or removes `batch`, changes its invocability, or the
-  `/batch` row changes what it needs to run or how a unit ends.
 
 ## Turning it off
 
@@ -26,9 +23,6 @@ that is read live.
 
 - **Pointer:** [skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) and
   [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings).
-- **As of:** 2026-10-11.
-- **Recheck trigger:** either section changes the setting that turns a bundled skill off or hides
-  one.
 
 ## Why the verdict is complementary
 

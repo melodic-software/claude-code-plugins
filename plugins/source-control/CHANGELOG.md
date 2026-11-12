@@ -3,6 +3,86 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.1.4] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
+## [11.1.3] - 2026-11-12
+
+### Fixed
+
+- `babysit-prs` no longer counts toward `merge.max-queue-ejections` a merge-queue removal caused
+  by the merge group's `CI Status` failing on a GitHub rate limit alone, once that limit has
+  reset, so an exhausted `GITHUB_TOKEN` pool no longer strands a head until a push. Any other
+  failed-check removal, or one whose evidence cannot be read, counts as before.
+
+## [11.1.2] - 2026-11-12
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [11.1.1] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+- Internal simplification, no behavior change.
+
+- Internal restructuring, no behavior change.
+
+## [11.1.0] - 2026-11-12
+
+### Added
+
+- `babysit_postmerge.py --uncovered-since MERGED_AT --branch BRANCH` makes one read of the branch's newest full dispatch run and exits 6 when it was created before MERGED_AT, the point where `--stop-uncovered` would stop. pr-merge's PR-scoped wake runs it first and ends there on 6, before its last-report, carry, lane-records and fresh-check reads.
+
+## [11.0.2] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+- Internal restructuring, no behavior change.
+
+- `babysit-prs` reads the claude-code-plugins jobs by their Title Case check names (`PR Review /
+  review-status`, `Kill Switch`, `Test Bash (3)`), else by the job id on a head tested before the
+  rename or in a repository whose jobs have no display name; post-merge baselines compare a check
+  across both forms. `pull-request` review-venue finds `Test *` lanes too.
+
+- Internal simplification, no behavior change.
+
+## [11.0.1] - 2026-11-12
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [11.0.0] - 2026-11-12
+
+### Changed
+
+- The babysit-loop skill, the babysit safety reference and the pull-request create reference no longer describe a JSON binding.
+
+- Internal simplification, no behavior change.
+
+### Removed
+
+- The babysit scripts no longer read role labels from a repo-root `.work-item-tracker.json`. `babysit_tracker_binding.py` reads only the `tracker` mapping of `docs/conventions/work-items.yaml`; `LEGACY_PATH` is gone and `PATHS` holds only that file, so the merge-skip cache key no longer covers the JSON file. A repository bound only by the JSON file gets the default role labels. Fix: run `/work-items:setup apply`, which copies the binding into `docs/conventions/work-items.yaml`.
+
+## [10.0.8] - 2026-11-12
+
+### Changed
+
+- `babysit-prs` reads the gate as `CI Status`, else `ci-status` on a head tested before the
+  rename: the Dependabot class's gate read, the post-merge check (CI Status and its `ci-status`
+  alias count as one check) and the verifier's draft-run read (CI Status's job, never the alias's).
+
+- Internal restructuring, no behavior change.
+
 ## [10.0.7] - 2026-11-11
 
 ### Fixed
@@ -2727,7 +2807,7 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- `resolve-conflicts ci` runs no command and stages nothing: it reads the merge context the runner writes to `.lane/merge/` (each conflicted path's base, ours and theirs versions and both sides' history) in place of git, resolves each conflicted file in place, edits no other file, and leaves a path it cannot resolve with its conflict markers, which hands the run to a person ([`SKILL.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/resolve-conflicts/SKILL.md#ci-mode)). The CI-mode evals follow: `resolve-conflicts-ci-mode-stages-resolved-paths` becomes `resolve-conflicts-ci-mode-resolves-in-place`.
+- `resolve-conflicts ci` runs no command and stages nothing: it reads the merge context the runner writes to `.lane/merge/` (each conflicted path's base, ours and theirs versions and both sides' history) in place of git, resolves each conflicted file in place, edits no other file, and leaves a path it cannot resolve with its conflict markers, which hands the run to a person ([`SKILL.md`](https://github.com/melodic-software/claude-code-plugins/blob/38eda1ecac7fd1b602ae837e2bd657dc1ea4be61/plugins/source-control/skills/resolve-conflicts/SKILL.md#ci-mode)). The CI-mode evals follow: `resolve-conflicts-ci-mode-stages-resolved-paths` becomes `resolve-conflicts-ci-mode-resolves-in-place`.
 
 ## [2.11.8] - 2026-10-23
 

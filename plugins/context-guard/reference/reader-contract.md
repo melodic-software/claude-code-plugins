@@ -153,8 +153,6 @@ describes; the fields are additive, and a reader ignores keys it does not know.
   state, not a defect; the capability table below says what each one does to the zone. A body
   with null figures never replaces a file that has them. Pointer: for the field meanings and when each field is
   null, see <https://code.claude.com/docs/en/statusline#available-data>.
-  As of: 2026-10-03. Recheck trigger: a release note or that section changes the `context_window`
-  fields or the states in which they are null.
 - **File modes and siblings.** The snapshot file is owner-only (`0600`) and the directory `0700`
   where POSIX modes work. For each write the writer creates a lock file,
   `.<session_id>.json.lock`, and removes it when the write ends; one is left behind only when that
@@ -208,8 +206,7 @@ questions. Never equate them without normalizing:
 - **Percentage shape**: `context_window.used_percentage` against the percentage bands. We rely on
   it counting the input side only, and read it as *distance to compaction*, because compaction
   thresholds key off the same accounting. Pointer: for how the percentage is computed, see
-  <https://code.claude.com/docs/en/statusline#context-window-fields>. As of: 2026-07-26. Recheck
-  trigger: that section changes the `used_percentage` formula.
+  <https://code.claude.com/docs/en/statusline#context-window-fields>.
 - **Token shape**: **occupancy**, defined as `total_input_tokens + total_output_tokens`, against
   the window-class token bands. Occupancy counts both directions because both occupy the window,
   and we treat quality loss as tracking **absolute tokens in context, not window fraction**. It
@@ -217,8 +214,8 @@ questions. Never equate them without normalizing:
   selected by window class rather than percentages: 50% of a 1M window is a materially different
   cognitive state than 50% of a 200k window. This is a declared judgment: no published study
   compares absolute tokens with window fraction, and Anthropic publishes no context-quality
-  threshold. As of: 2026-10-04. Recheck trigger: Anthropic publishes a context-quality threshold,
-  or a study compares the two.
+  threshold. Recheck trigger: Anthropic publishes a context-quality threshold, or a study compares
+  the two.
 
 **Window-class selection:** use the band row whose class key is the **largest one ≤
 `context_window_size`**. A window smaller than every configured class has no row, so the token
@@ -239,7 +236,8 @@ context may be in the light zone. So the token shape requires
 an explicit version signal: the snapshot's `cli_version`, the Claude Code version the session
 reports to the module (Pointer: `$.session.version()` in
 <https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods>. As of: 2026-10-03,
-Claude Code 2.1.288. Recheck trigger: that table renames or drops the method). **The token shape is computable only when
+Claude Code 2.1.288. Recheck trigger: that table renames or drops the method). **The token shape is
+computable only when
 `cli_version` is present, purely numeric dotted, and ≥ 2.1.132**; absent, malformed, or older
 leaves the percentage shape to stand alone.
 
@@ -307,8 +305,7 @@ skill's module check), none of the following runs except the PostCompact marker.
 
 - **Pointer**: when deciding which Claude Code builds can run mods, fetch
   [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
-  live. **As of**: 2026-10-11. **Recheck trigger**: the terminal version that section names for
-  mods changes.
+  live.
 
 - **Zone lines** (on each tool result of the main conversation and each prompt; the model channel
   below only with the `model_notices` option on, which is off by default): on a transition
@@ -344,10 +341,10 @@ skill's module check), none of the following runs except the PostCompact marker.
   the next step with `/session-flow:workflow` (if installed). Without session-flow, we send the
   operator to the docs section on a filling context and restate none of it. Pointer: for the
   command reply reaching the model and `$.ui.log` not, see the `CommandRunResult`, `CommandOutput`
-  and `ui.log` doc comments in the build's `claude-code/index.d.ts` types. As of: 2026-10-04.
-  Recheck trigger: either doc comment changes what the model reads. Pointer: for what to do when the context fills up, see
-  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. As of: 2026-10-04.
-  Recheck trigger: that section is renamed, moved or removed. **Neither the person's menu nor the
+  and `ui.log` doc comments in the build's `claude-code/index.d.ts` types. Pointer: for what to do
+  when the context fills up, see
+  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. **Neither the
+  person's menu nor the
   router pointer ever reaches the model channel.** I23 of `/harness-config:audit-instructions`
   holds that a menu injected into model context manufactures the model's own initiative to stop,
   summarize, or hand off. The options line below is a deliberate, owner-decided exception to that
@@ -395,9 +392,6 @@ semantics.
 - **Pointer**: for how a mod works and the mods API methods the module calls, see
   [mods overview: how a mod works](https://code.claude.com/docs/en/plugins/mods/overview#how-a-mod-works)
   and [mods reference: mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods).
-- **As of**: 2026-10-11.
-- **Recheck trigger**: that table renames or drops a method the module calls, or the events
-  reference changes `tool.call`, `prompt.submit` or `session.compact`.
 
 ## Evidence-degraded marker
 
@@ -440,13 +434,10 @@ compaction happened; `evidence_degraded`, the marker, or the session itself can.
 the window it runs with, and the environment. This is a documentation pointer, not something read
 at run time: the docs' default-thresholds section,
 [Claude Code model config, "Default auto-compact thresholds"](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds).
-**As of:** 2026-11-04. **Recheck trigger:** that section's thresholds change, or it is renamed or
-removed. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
-implies a percentage default that no page publishes as a number. **Pointer:** when deciding what
+`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` implies a percentage default that no page publishes as a number. **Pointer:** when deciding what
 that variable does, fetch
 [Claude Code environment variables: variables](https://code.claude.com/docs/en/env-vars#variables)
-live. **As of:** 2026-10-11. **Recheck trigger:** the `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` row
-changes, or a page starts publishing its default as a number. The empirical
+live. The empirical
 check (2026-07-24, execution session): no auto-compact event exists in the producing machine's
 entire transcript history; the largest session ran to 308k total input tokens uncompacted on a
 1M-class window. So the shipped bands keep the provenance stated under "Band provenance" above,
@@ -461,9 +452,6 @@ next request, so it can trail `/context`. With auto-compact turned off, the heav
 - **Pointer**: for how the statusline percentage relates to `/context`, see
   <https://code.claude.com/docs/en/statusline#troubleshooting>; for turning auto-compact off, see
   <https://code.claude.com/docs/en/settings-reference#autocompactenabled>.
-- **As of**: 2026-09-28
-- **Recheck trigger**: a release note or either section changes when the percentage is computed or
-  what turning auto-compact off does.
 
 ### The trigger is operator-tunable
 
@@ -475,7 +463,7 @@ precedence.
 | Surface | Kind | What this plugin relies on | Pointer |
 |---|---|---|---|
 | `autoCompactWindow` | settings key (top level or per model) | A token count that moves the trigger for the model it applies to. Unset, the default is the docs' default-thresholds section (pointer above). Set, the module reads the window the engine settled on and, when it is smaller than the model's window, publishes it as `bands.auto_compact_window`, which the shell resolver reads too (below). Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [settings-reference: `modelSettings`](https://code.claude.com/docs/en/settings-reference#modelsettings); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
-| `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window. The snapshot cannot see that window, and the surface is not probed, so we never assume a subagent shares the session's trigger. | [sub-agents: Set the auto-compact window for one subagent](https://code.claude.com/docs/en/sub-agents#set-the-auto-compact-window-for-one-subagent) |
+| `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window. The snapshot cannot see that window, and the surface is not probed, so we never assume a subagent shares the session's trigger. | [sub-agents: Subagent auto-compact window](https://code.claude.com/docs/en/sub-agents#subagent-auto-compact-window) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window ahead of the setting, the command, and the flag, unless Claude Code ignores its value. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables); [model-config: values and warnings](https://code.claude.com/docs/en/model-config#claude_code_auto_compact_window-values) |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Read as able only to move the trigger earlier, never later. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key / environment variable | Either one turning auto-compact off leaves the heavy band as the only tripwire. `DISABLE_AUTO_COMPACT` leaves the manual `/compact` command available. | [settings-reference: `autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled); [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
@@ -485,12 +473,11 @@ We read a configured window above the model's context window as the model's wind
 nothing.
 
 - **Pointer**: per row above.
-- **As of**: 2026-10-10 for the settings `autoCompactWindow` row; 2026-10-31 for the subagent
-  frontmatter `autoCompactWindow` row; 2026-10-15 for the
-  `DISABLE_COMPACT` entry and the `DISABLE_AUTO_COMPACT` manual-`/compact` sentence; 2026-08-19
-  for the other rows.
-- **Recheck trigger**: a release note or one of those sections changes a surface's units, range,
-  precedence, or the set of surfaces itself.
+- **As of**: 2026-10-15 for the `DISABLE_COMPACT` row, which quotes the page; none for the
+  other rows, which are pointers.
+- **Recheck trigger**: for the `DISABLE_COMPACT` row, a release note or one of those sections
+  changes a surface's units, range, precedence, or the set of surfaces itself; none for the
+  other rows.
 
 **The module follows the effective window.** It never reads a configured window or resolves
 precedence itself: it reads the window the engine settled on, the `rawMaxTokens` of
@@ -516,9 +503,6 @@ default window.
   <https://code.claude.com/docs/en/settings-reference#modelsettings> and
   <https://code.claude.com/docs/en/model-config#set-the-auto-compact-window> live; for the
   breakdown's fields, the per-build mod types (`SessionContextBreakdown`).
-- **As of**: 2026-11-03
-- **Recheck trigger**: the `modelSettings` section changes its keys or precedence, `/autocompact`
-  changes where it saves, or a build's `SessionContextBreakdown` drops or renames `rawMaxTokens`.
 
 A dated observation, not the order of record (the pointers above hold that, and no decision here
 depends on it): on Claude Code 2.1.296, in a throwaway config directory, `/autocompact` saved the
@@ -549,8 +533,7 @@ We read `used_percentage` as a share of the
 whole window the model offers, so after the auto-compact window is lowered, **we never read the
 percentage as a forecast of when compaction will run**. A consumer reading only the percentage
 will not see the trigger coming. Pointer: for the `CLAUDE_CODE_AUTO_COMPACT_WINDOW` row, see
-<https://code.claude.com/docs/en/env-vars#variables>. As of: 2026-08-19. Recheck trigger: that row
-changes what the percentage is measured against.
+<https://code.claude.com/docs/en/env-vars#variables>.
 
 **Tune bands below the effective trigger, never above it.** Whatever the trigger resolves to on a
 machine, the `heavy` band should be reached first. A zone reading exists so the session arrives at a
@@ -567,16 +550,15 @@ measure a different quantity. The shell resolver scales the same way from the pu
 `bands.auto_compact_window`; pulling `zones.json` under the trigger by hand would now scale twice,
 in the module and in the shell resolver.
 Pointer: for what a hook can do before an automatic compaction, see
-<https://code.claude.com/docs/en/hooks#precompact>. As of: 2026-11-03. Recheck trigger: that section
-changes what a hook on the `auto` trigger can do.
+<https://code.claude.com/docs/en/hooks#precompact>.
 
 That diagnostic reading is adopted; the prescription that usually travels with it is not. **Leave
 auto-compact enabled.** Disabling it is a defensible operator choice on an attended machine, but it
 is not this plugin's guidance: unattended cloud and autonomous sessions have no human at the
 boundary, and for them a degraded continuation beats a hard stall at the window. The shipped ladder
 is instrumentation, not prohibition: observable zones and advisory injection, with auto-compact
-remaining the last-resort safety net beneath both (as-of 2026-08-17; recheck when Claude Code removes the auto-compact setting or changes
-what it does at the window).
+remaining the last-resort safety net beneath both (recheck when Claude Code removes the
+auto-compact setting or changes what it does at the window).
 
 **On folklore numbers.** The auto-compact window figure in the vendored Boris playbook, §64, is a
 widely-cited practitioner anchor. We record it as a **named anchor, never an adopted number**: its
@@ -587,8 +569,6 @@ compaction-timing choice on its own terms.
 - **Pointer**: for the practitioner figure, see `/playbooks:boris` §64 ("Lower Your Auto-Compact
   Threshold"); for the current models' context windows, see
   [Latest models comparison](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
-- **As of**: 2026-10-01
-- **Recheck trigger**: the session models' context window changes, or §64's figure changes.
 
 ## Prompt cache
 
@@ -603,9 +583,9 @@ out subagent and workflow requests, and a status line does not run in cloud or `
 (see `reference/cloud-headless-capture.md`). Pointer: for the object, its fields and the
 `expires_at` re-run, see <https://code.claude.com/docs/en/statusline#prompt-cache-fields> and
 <https://code.claude.com/docs/en/statusline#last-miss-cause>; for what a mod receives, see
-<https://code.claude.com/docs/en/plugins/mods/reference>. As of: 2026-10-10. Recheck trigger: either statusline
-section renames a field the script reads, or the mods reference adds prompt-cache state to
-`$.session.usage()`, at which point the band row can carry this line instead.
+<https://code.claude.com/docs/en/plugins/mods/reference>. Recheck trigger: the mods reference adds
+prompt-cache state to `$.session.usage()`, at which point the band row can carry this line
+instead.
 
 ## Zones (machine-scope tuning, optional)
 
@@ -692,8 +672,7 @@ bash "<plugin-root>/scripts/context-zone.sh" <session_id>   # prints one zone wo
 
 A skill learns its session id via the **`${CLAUDE_SESSION_ID}` substitution** in skill markdown
 content. The skill body interpolates it into the snapshot path directly. Pointer:
-<https://code.claude.com/docs/en/skills#available-string-substitutions>. As of: 2026-08-10.
-Recheck trigger: that table renames or drops `${CLAUDE_SESSION_ID}`.
+<https://code.claude.com/docs/en/skills#available-string-substitutions>.
 
 **Fallback:** when the substitution is unavailable (older Claude Code, non-skill context, or the
 literal string `${CLAUDE_SESSION_ID}` survives unexpanded), the consumer must not guess a session
@@ -731,9 +710,6 @@ not run:
 - **Pointer** (WSL sessions): the first bullet's "plugins are not available" rests on
   [Claude Code Desktop in WSL: What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session),
   which lists connectors and plugins among the features not yet available there.
-- **As of**: 2026-10-18.
-- **Recheck trigger**: that section drops plugins from its unavailable list, or the mods overview's
-  WSL row stops saying plugins are unavailable.
 
 This is not a degraded install and not a missing dependency. Before the module, the only writer
 was a statusline tee, and `reference/cloud-headless-capture.md` records the channel inventory made
@@ -785,8 +761,7 @@ writer side: whether the module runs in the session. A session with the module l
   `~/.claude/context-guard/` is a documented cross-plugin artifact location: sibling-plugin
   sessions read it by the documented path, the same for every consumer whatever plugin it belongs
   to. Pointer: for where `${CLAUDE_PLUGIN_DATA}` resolves, see
-  <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables>. As of:
-  2026-11-03. Recheck trigger: that table changes what `${CLAUDE_PLUGIN_DATA}` resolves to.
+  <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables>.
 - **No shipped Monitor config.** Consumers that want write-triggered re-evaluation arm their own
   session Monitor on their snapshot path. The plugin ships no `experimental.monitors` entry.
   Monitors is an experimental Claude Code component, and this plugin takes no dependency on one

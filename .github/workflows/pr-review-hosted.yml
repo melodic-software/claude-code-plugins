@@ -67,6 +67,7 @@ jobs:
   # pr-pipeline.yaml (an edit to this file still shows in its diff). When
   # this job fails, the review still runs on the reusable's own defaults.
   resolve-model:
+    name: Resolve Model
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -145,6 +146,7 @@ jobs:
   # documents for the review-lane switches. A failed job leaves proceed empty,
   # which also stops the review.
   kill-switch:
+    name: Kill Switch
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -244,6 +246,7 @@ jobs:
   # too (.github/scripts/pr-review/wait-refine.mjs). It waits only when the
   # kill switch lets the review run.
   wait-refine:
+    name: Wait Refine
     needs: [kill-switch]
     if: github.event.pull_request.draft == false && needs.kill-switch.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
@@ -292,7 +295,7 @@ jobs:
           node-version-file: .base/.node-version
 
       # Its 2400 s cap and one confirming poll end it well inside 45 minutes.
-      - name: Wait for this head's Refine
+      - name: Wait for this head's refine run
         id: wait
         continue-on-error: true
         timeout-minutes: 45
@@ -312,6 +315,7 @@ jobs:
           tokens: github-token
 
   pr-review:
+    name: PR Review
     needs: [resolve-model, kill-switch, wait-refine]
     # A draft is work in progress and does not spend a review; the
     # ready_for_review trigger above is what delivers one when it is ready.
@@ -458,11 +462,13 @@ jobs:
         lib/publish-gate.mjs
         .github/recurring-schedule.json
         .github/scripts/recurring-schedule/file-due.mjs
+        .github/scripts/lib/github-rest.mjs
         plugins/work-items/scripts/charge-words.json
         .github/scripts/pr-unblock/dependency-classify.mjs
         .github/scripts/apply-patch/apply-patch.mjs
         .github/scripts/apply-patch/predicates.mjs
         .github/scripts/apply-patch/protected-paths.mjs
+        .github/scripts/lib/run-main.mjs
         .github/scripts/pr-unblock/fix-ci-context.mjs
         .github/scripts/pr-unblock/feedback-dispatch.mjs
         .github/scripts/pr-unblock/verify-notes.mjs

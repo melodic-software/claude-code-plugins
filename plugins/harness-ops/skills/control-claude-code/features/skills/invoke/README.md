@@ -35,7 +35,6 @@ Undo what the skill wrote, the way its own SKILL.md says; a skill that only repo
 
 - A skill step that needs a tool the restricted launch removes stops there. Record the step and its
   entry point; never relaunch without the restriction. Which tools it removes: the `--restricted`
-  row of <https://code.claude.com/docs/en/cli-reference#cli-flags> (as of 2026-10-26; recheck when
-  that row changes which tools it removes).
+  row of <https://code.claude.com/docs/en/cli-reference#cli-flags>.
 - Wait on the skill's output, never on the slash command: the typed prompt shows in the transcript
   first.

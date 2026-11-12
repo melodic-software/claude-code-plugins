@@ -449,37 +449,43 @@ export function laneVariableFindings({ laneVariableRuns = [] }) {
 // element 2), the jobs that print each hold notice, and that notice. A lane
 // that passes the threshold of docs/conventions/pr-pipeline.yaml
 // monitor.lane-holds raises signal 13; the leaf's defaults have this one copy.
+// Each lane's `jobs` are those jobs' ids, and `names` their names in the same
+// order, as a run lists them; a run from before the job rename lists the ids.
 // `holdRuns`, when set, is the lane's own cap on unread green runs per window
 // (collect.mjs LIMITS.holdRuns otherwise).
 export const LANE_HOLDS = { threshold: 4, "window-hours": 24 };
 export const HOLD_LANES = [
-  { lane: "work-resolve-issue", workflow: "work-resolve-issue.yml", jobs: ["report-outcome / run", "pick-slot"], area: "Issue lane (work-resolve-issue)" },
+  { lane: "work-resolve-issue", workflow: "work-resolve-issue.yml", jobs: ["report-outcome / run", "pick-slot"], names: ["Report Outcome / Run", "Pick Slot"], area: "Issue lane (work-resolve-issue)" },
   // The 24 hours to 2026-11-05T22:00Z had 165 green runs, a mean of 6.9 an
   // hour over the default cap of 6, and a peak of 51; 20 covers every hour
   // but that one, whose rest later runs read.
-  { lane: "work-unblock", workflow: "work-unblock.yml", jobs: ["label-unblocked"], area: "Unblock lane (work-unblock)", holdRuns: 20 },
+  { lane: "work-unblock", workflow: "work-unblock.yml", jobs: ["label-unblocked"], names: ["Label Unblocked"], area: "Unblock lane (work-unblock)", holdRuns: 20 },
   // A failed Refine pass reds its run, so this lane's red runs are read too,
   // for record-passes's refine-failed warning.
   {
     lane: "pr-refine",
     workflow: "pr-refine.yml",
     jobs: ["fix-docs-head-held", "fix-docs-handoff", "fix-docs-subscription-handoff", "record-passes"],
+    names: ["Fix Docs Head Held", "Fix Docs Handoff", "Fix Docs Subscription Handoff", "Record Passes"],
     area: "PR refine lane (pr-refine fix-docs)",
     statuses: ["success", "failure"],
   },
   // One run per triaged issue: the 7 days to 2026-11-05 had a mean of 9.9
   // green runs per 65-minute window and a peak of 49; 40 leaves 2 of 168
   // windows over it.
-  { lane: "intake-triage", workflow: "intake-triage.yml", jobs: ["apply-verdict"], area: "Intake lane (intake-triage apply-verdict)", holdRuns: 40 },
+  { lane: "intake-triage", workflow: "intake-triage.yml", jobs: ["apply-verdict"], names: ["Apply Verdict"], area: "Intake lane (intake-triage apply-verdict)", holdRuns: 40 },
   // One run per checks run: the 24 hours to 2026-11-06T12:00Z had 504 green
   // runs, a peak of 58 created in one hour and 267 in one 7-hour created span.
-  // 80 a window and 5 list pages leave headroom over both; only a job whose
-  // `Note the hold` step ran has its annotations read (`holdStep`), so a run
-  // costs one REST jobs read for the steps.
+  // 80 a window and 5 list pages leave headroom over both. Both notices print
+  // only when `Note the hold` runs (its `if:` is the resolver's `held` or the
+  // gate's `read-fault`), so a GraphQL list, which has no steps, has each
+  // green hold job's annotations read, and a REST list only a job whose
+  // `Note the hold` ran (`holdStep`).
   {
     lane: "pr-verify",
     workflow: "pr-verify.yml",
     jobs: ["check-intent", "check-intent-subscription", "check-intent-fallback"],
+    names: ["Check Intent", "Check Intent Subscription", "Check Intent Fallback"],
     area: "Verify lane (pr-verify)",
     holdRuns: 80,
     listPages: 5,
@@ -489,13 +495,15 @@ export const HOLD_LANES = [
   // 2026-11-05. Scaled by pr-verify's measured shape (a peak hour 2.8 times
   // its mean, a peak 7-hour created span 53% of its day), that is about 50
   // an hour and 225 a span, so 70 a window and 4 list pages leave headroom.
-  // The legs are matrix jobs, listed as `review (claude-review, ...)`, so a
-  // job matches by name or as a matrix leg (holdJob); only a job whose
-  // `Note the hold` ran has its annotations read.
+  // The legs are matrix jobs, listed as `Review (claude-review, ...)`, so a
+  // job matches by name or as a matrix leg (holdJob). Each select step that
+  // prints the notice sets `held`, which runs `Note the hold`, so its
+  // annotations are read as pr-verify's are.
   {
     lane: "pr-review-main",
     workflow: "pr-review-main.yml",
     jobs: ["trigger", "review", "review-subscription", "review-fallback"],
+    names: ["Trigger", "Review", "Review Subscription", "Review Fallback"],
     area: "Review lanes (pr-review-main)",
     holdRuns: 70,
     listPages: 4,
@@ -508,7 +516,7 @@ export const HOLD_LANES = [
   // label removal, a count not measured (UNVERIFIED); pr-verify's 80 a window
   // and 5 list pages are taken as the cover. No step runs only on a hold, so
   // each green job's annotations are read.
-  { lane: "pr-merge", workflow: "pr-merge.yml", jobs: ["merge", "enable-auto-merge"], area: "Merge lane (pr-merge lane token)", holdRuns: 80, listPages: 5 },
+  { lane: "pr-merge", workflow: "pr-merge.yml", jobs: ["merge", "enable-auto-merge"], names: ["Merge", "Enable Auto Merge"], area: "Merge lane (pr-merge lane token)", holdRuns: 80, listPages: 5 },
 ];
 
 // Whether a listed job is one of `jobs`: by name, or as a matrix leg of one,

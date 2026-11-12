@@ -321,8 +321,8 @@ class WhatGetsSettled(SettledCase):
             ),
         )
         self.gh.attempts[(31, 1)] = schedule_run(31, created_at="2026-10-12T10:02:00Z")
-        self.gh.jobs[(30, 1)] = [failed_job(301, "test-bash", "Run the bash tests")]
-        self.gh.jobs[(31, 2)] = [failed_job(312, "test-bash", "Run the bash tests")]
+        self.gh.jobs[(30, 1)] = [failed_job(301, "Test Bash", "Run the bash tests")]
+        self.gh.jobs[(31, 2)] = [failed_job(312, "Test Bash", "Run the bash tests")]
         verdict = self.settled_check(now=SOON)
         self.assertEqual(verdict.failures, ())
         self.assertTrue(verdict.unattributed)

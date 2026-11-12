@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GENERATED from lib/scope-resolve.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # Shared no-scope ladder for repo-fleet-hygiene.
 #
 # Rungs, first hit wins, after the caller has already applied explicit
@@ -21,16 +23,14 @@ scope_resolve_fallback() {
   local ghq_bin="${REPO_FLEET_GHQ_BIN:-ghq}"
   local path root found=0 top dir child count
 
-  if [[ "$#" -gt 0 ]]; then
-    for path in "$@"; do
-      [[ -n "$path" && -d "$path" ]] || continue
-      printf 'repo\t%s\n' "$path"
-      found=1
-    done
-    if [[ "$found" -eq 1 ]]; then
-      printf 'provenance\tnamed\n'
-      return 0
-    fi
+  for path in "$@"; do
+    [[ -n "$path" && -d "$path" ]] || continue
+    printf 'repo\t%s\n' "$path"
+    found=1
+  done
+  if [[ "$found" -eq 1 ]]; then
+    printf 'provenance\tnamed\n'
+    return 0
   fi
 
   if command -v "$ghq_bin" >/dev/null 2>&1; then
@@ -64,15 +64,13 @@ scope_resolve_fallback() {
       [[ -e "${child}.git" ]] && count=$((count + 1))
     done
     if [[ "$count" -ge 2 ]]; then
-      printf 'root\t%s\n' "$dir"
-      printf 'provenance\tancestor\n'
+      printf 'root\t%s\nprovenance\tancestor\n' "$dir"
       return 0
     fi
   done
 
   if [[ -n "$top" ]]; then
-    printf 'repo\t%s\n' "$top"
-    printf 'provenance\tcwd\n'
+    printf 'repo\t%s\nprovenance\tcwd\n' "$top"
     return 0
   fi
   return 3

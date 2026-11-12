@@ -82,8 +82,6 @@ The target-number and rewrite rules are this repository's reading of the Achieva
 
 - **Pointer**: for what grounds a target, see
   <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#define-your-success-criteria>.
-- **As of**: 2026-10-02
-- **Recheck trigger**: that section changes what it names as grounds for a target.
 
 ## Agent evals: grader hygiene
 
@@ -100,9 +98,6 @@ When the thing under test is an agent that acts over many turns and changes an e
 - **Pointer**: Anthropic's "Demystifying evals for AI agents" (2026-01-09)
   <https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents>. Read through a fetch
   summary with quoted sentences, not a raw-text check.
-- **As of**: 2026-10-06
-- **Recheck trigger**: the post is revised, or the develop-tests page above starts covering agent
-  evals; then the pointer moves there.
 
 ## Route by repository kind
 

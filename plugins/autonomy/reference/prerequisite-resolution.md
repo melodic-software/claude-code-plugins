@@ -78,8 +78,7 @@ tokens"; they are not reused as probe labels.
    is a host-harness rule this contract does not restate.
    - **Pointer**: when a verdict depends on what enables a declared server, read the
      [project server enablement record](../skills/setup/context/prerequisite-resolution-slice.md#project-server-enablement)
-     and fetch the section it names live. **As of**: 2026-11-03. **Recheck trigger**: that
-     record's recheck trigger fires, or its heading is renamed or removed.
+     and fetch the section it names live.
 3. **machine-context**: CLI availability, local substrates, deterministic and per-surface. A
    result is a claim about the probed surface only, never a repo claim.
 4. **prose-context inference**: host instruction files, agent-instruction files, README are a
@@ -98,8 +97,6 @@ because this tree names no vendor. Last verified 2026-09-19, against harness ver
 - **Pointer**: when a proposal depends on which instruction files a session loads, read the
   [instruction-file loading record](../skills/setup/context/prerequisite-resolution-slice.md#instruction-file-loading)
   and fetch the sections it names live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that record's recheck trigger fires, or its heading is renamed or removed.
 
 Probe evidence is durable per surface under the existing isolation-binding pattern. Only signals
 with no owner (CI-config presence, flag-SDK presence) gain probes owned by this contract;
@@ -158,7 +155,7 @@ presence-gated with a documented fallback per the marketplace's seam-phrasing co
 |---|---|---|
 | Ecosystems | Toolchain seam (when the `toolchain` plugin is installed), reading *resolved* consumer state **with resolution-rung provenance**: consume only consumer-authored or repo-inferred rungs; an ecosystem present but `enabled: false` is not configured; uncommitted user-global and `.local.yaml` layers report unresolvable; **reject the seam's bundled-default rung** as repository evidence | Inference from the repo's own build files; never another plugin's bundled defaults |
 | MCP enablement | Config-audit surface (when the sibling config-audit plugin is installed; marketplace id in README, since this `reference/` surface may not name vendors) | Report `.mcp.json` presence only; name enablement as unprobeable in provenance |
-| Tracker | Work-item tracker seam: the `tracker` mapping of `docs/conventions/work-items.yaml`, else the legacy `.work-item-tracker.json`, plus the bound adapter's `capabilities.json` (when the `work-items` plugin is installed) | Treat tracker-dependent prerequisites as unestablished (`unknown`) |
+| Tracker | Work-item tracker seam: the `tracker` mapping of `docs/conventions/work-items.yaml`, plus the bound adapter's `capabilities.json` (when the `work-items` plugin is installed) | Treat tracker-dependent prerequisites as unestablished (`unknown`) |
 | Substrates, schedulers, observability | Autonomy setup skill's own discovery slices | Same plugin, no gate |
 | Configured-surface enumeration | Each surface's own presence in the repo | Never by reading the config-cascade registry table (a conformance ledger, not a runtime inventory) |
 | Ownerless signals (CI-config presence, flag-SDK presence) | Probes owned by this contract | N/A |

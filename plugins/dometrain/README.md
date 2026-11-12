@@ -7,8 +7,6 @@ etiquette. The skills call a Dometrain MCP server, which this plugin does not sh
 - **Pointer**: for the server's endpoint, who can use it and how to get a key, fetch
   [1. Get an API key](https://github.com/Dometrain/mcp#1-get-an-api-key) in Dometrain's repository
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section moves, or changes the endpoint or who can get a key.
 
 ## Install
 
@@ -38,10 +36,6 @@ give the server a `headersHelper` script that prints the `Authorization` header 
   live; for the `headers` expansion, fetch
   [Environment variable expansion in `.mcp.json`](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: any of those sections moves or is renamed, Dometrain's install section
-  renames its variable, or the MCP page changes how or when `headers` variables expand or how
-  `headersHelper` runs.
 
 A same-named `dometrain` server defined at another scope can win over this user-scope one, so the
 skills may reach a different definition than the one registered above.
@@ -49,9 +43,6 @@ skills may reach a different definition than the one registered above.
 - **Pointer**: for which definition wins when a server is defined in more than one place, fetch
   [Scope hierarchy and precedence](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence)
   live.
-- **As of**: 2026-10-24
-- **Recheck trigger**: that section changes the precedence order of local, project and user scope
-  or how duplicates are matched.
 
 ## Enabling
 
@@ -71,9 +62,6 @@ plugin ships skills only and uses the user-scope server above.
 - **Pointer**: for that plugin's install steps, fetch
   [Claude Code](https://github.com/Dometrain/mcp#claude-code) live; for what it bundles and how it
   authenticates, fetch [2. Install](https://github.com/Dometrain/mcp#2-install) live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: either section moves, or changes how Dometrain's plugin installs or
-  authenticates.
 
 **Do not enable both `dometrain` plugins simultaneously.** Pick one. Whether the two collide turns
 on their manifest names and on how Claude Code namespaces a plugin by name, and neither is this
@@ -82,9 +70,6 @@ plugin's to promise.
 - **Pointer**: for how a plugin's `name` namespaces its components, fetch
   [`name`](https://code.claude.com/docs/en/plugins/manifest-reference#name) live, and compare the
   `name` in each plugin's `.claude-plugin/plugin.json`.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section changes how `name` namespaces components, or either plugin
-  renames itself.
 
 ## Grounding skill
 

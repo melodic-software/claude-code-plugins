@@ -63,6 +63,9 @@ ASSIGN_AWK="$SCRIPT_DIR/../../../lib/config-assignments.awk"
 source "$SCRIPT_DIR/../../../lib/family-records.sh"
 # shellcheck source=../../../lib/github-remote.sh
 source "$SCRIPT_DIR/../../../lib/github-remote.sh"
+# shellcheck source=../../../lib/json-escape.sh
+source "$SCRIPT_DIR/../../../lib/json-escape.sh"
+JSTR_AWK="$(<"$SCRIPT_DIR/../../../lib/jstr.awk")"$'\n'
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -71,17 +74,6 @@ usage() {
 die() {
   printf 'collect-containers.sh: %s\n' "$1" >&2
   exit "$2"
-}
-
-JSON_ESC=""
-json_escape() {
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\t'/\\t}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\n'/\\n}"
-  JSON_ESC="$s"
 }
 
 # json_object key value [key value]...: one JSON object of string fields, in order.
@@ -374,33 +366,7 @@ if [[ -n "$graph_file" ]]; then
     }
   ' "$graph_file")"
   [[ -z "$graph_problem" ]] || die "graph is not one object per line ($graph_problem): $graph_file" 1
-  awk '
-    function jstr(line, key,    pat, i, rest, out, c, n) {
-      pat = "\"" key "\""
-      i = index(line, pat)
-      if (i == 0) return ""
-      rest = substr(line, i + length(pat))
-      if (!sub(/^[[:space:]]*:[[:space:]]*"/, "", rest)) return ""
-      out = ""
-      n = length(rest)
-      i = 1
-      while (i <= n) {
-        c = substr(rest, i, 1)
-        if (c == "\\") {
-          i++
-          c = substr(rest, i, 1)
-          if (c == "n") out = out "\n"
-          else if (c == "t") out = out "\t"
-          else out = out c
-          i++
-          continue
-        }
-        if (c == "\"") return out
-        out = out c
-        i++
-      }
-      return out
-    }
+  awk "$JSTR_AWK"'
     /^[[:space:]]*\{"from":/ {
       kind = jstr($0, "kind")
       if (kind != "project" || jstr($0, "status") == "unresolved") next

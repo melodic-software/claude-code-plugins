@@ -236,8 +236,8 @@ custom config dir); `cached_present: false` means the key is absent and the bina
 `enabledPlugins` entry for the plugin's id, and `enabled_setting` is the winning one (local, then
 project, then user), or null when none names it and `default_enabled` decides. The scope order is
 read live from
-[settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence)
-(as of 2026-11-10; recheck when that section reorders the scopes). A scope listed in
+[settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence).
+A scope listed in
 `enabled_plugins_rejected` holds a non-Boolean value, so the script lets that file's whole map
 contribute no override, per the `audit-skill-visibility` probe record for that rule; name the
 offending keys. `mods_flag` carries
@@ -361,8 +361,7 @@ then search `<dir>/plugins/manifest-reference.md` locally. The fetcher confirms 
 index (`llms.txt`), and `--max-age 0` asks the server every time, so the claim rests on fresh bytes;
 treat a page `<dir>/manifest.json` reports `unread` as no evidence. Never rest an absence claim on
 a summarizing fetch; what one returns is read live from
-[tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
-(as of 2026-11-10; recheck when that section stops describing WebFetch output as an extraction).
+[tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior).
 
 Upstream facts this skill depends on, each with the trigger that obliges re-deriving it:
 

@@ -31,7 +31,7 @@ Three edit. Two do not.
 |---|---|---|
 | `convert-to-pointer` | Replaces the restatement with a link to the source | The reader can follow the link at the moment they need the fact |
 | `trim-to-citation` | Keeps a short quoted excerpt, attributed, and drops the rest | A specific span is worth quoting verbatim and the surrounding restatement is not |
-| `condense-to-stamped-record` | Condenses to a record: the surface's own decision in its own words and a pointer, plus an as-of date and a recheck trigger when the decision stores an upstream value | The surface must act on the fact even when the source is unreachable |
+| `condense-to-stamped-record` | Condenses to a record: the surface's own decision in its own words and a pointer, plus an as-of date and a recheck trigger when the decision stores a number or string copied or measured from upstream | The surface must act on the fact even when the source is unreachable |
 | `leave-with-reason` | Records why the passage stays | A carve-out applies, or a review veto fired, or the human decided |
 | `neutral-not-found` | Records that no source was identified | Budgets were exhausted; every searched surface is named |
 
@@ -72,9 +72,10 @@ not one:
 3. **The as-of date**: when the decision was last derived from the source.
 4. **The recheck trigger**: the observable event that obliges re-deriving it.
 
-Parts 3 and 4 belong to a stored value: a decision that holds an upstream default, limit, version
-gate, price, error string or measured observation, which is what an offline surface acting on the
-fact usually holds. A condensed record whose decision holds no upstream value is a pointer record:
+Parts 3 and 4 belong to a stored value: a decision that holds a number or string copied or measured
+from upstream (a default, limit, version gate, price, error string, measured figure or pinned SHA),
+which is what an offline surface acting on the fact usually holds. A condensed record whose
+decision holds no such number or string, an observed behavior included, is a pointer record:
 the decision and the pointer alone, with no as-of date or trigger, since a link check catches a
 dead pointer and whoever fetches it sees what changed.
 

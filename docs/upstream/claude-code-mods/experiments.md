@@ -536,9 +536,8 @@ Steps and output, `$MOD` being the spike folder's absolute path:
 Not covered: `--bg` sessions; Claude Desktop, which needs a native Windows session and
 `CLAUDE_CODE_PLUGIN_DIRS`, a user-scope change; and `/clear`, after which the state value resets
 and the band stays empty until the next `session.measure`, per
-[troubleshoot: an edit or a value is lost](https://code.claude.com/docs/en/plugins/mods/troubleshoot#an-edit-or-a-value-is-lost)
-(as of 2026-10-02; recheck when the pilot handles `/clear`). The module was not type-checked: no
-`tsc` was on `PATH`.
+[troubleshoot: an edit or a value is lost](https://code.claude.com/docs/en/plugins/mods/troubleshoot#an-edit-or-a-value-is-lost).
+The module was not type-checked: no `tsc` was on `PATH`.
 
 ## E8: #92533 three-arm probe, 2026-10-02
 

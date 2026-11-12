@@ -61,8 +61,7 @@ emit() {
   # A `both` record satisfies every filter: the file really is reachable by each layer,
   # so suppressing it from either view would hide a surface that view is about.
   case "$SCOPE_FILTER" in
-  all) ;;
-  "$scope") ;;
+  all | "$scope") ;;
   *) [[ "$scope" == "both" ]] || return 0 ;;
   esac
   printf '%s\t%s\t%s\n' "$scope" "$kind" "$path"
@@ -83,11 +82,10 @@ canon_dir() {
 # Avoids readlink -f, which is absent on some platforms.
 canon_file() {
   [[ -f "$1" ]] || return 0
-  local d b
+  local d
   d="$(canon_dir "$(dirname "$1")")"
   [[ -n "$d" ]] || return 0
-  b="$(basename "$1")"
-  printf '%s/%s' "$d" "$b"
+  printf '%s/%s' "$d" "$(basename "$1")"
 }
 
 # A file both scopes reach is emitted once as `both`. A `~`-rooted repo collides only the
@@ -95,18 +93,14 @@ canon_file() {
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 proj_rules_canon="$(canon_dir ".claude/rules")"
-user_rules_canon="$(canon_dir "$config_root/rules")"
-
 rules_overlap=0
-if [[ -n "$proj_rules_canon" && "$proj_rules_canon" == "$user_rules_canon" ]]; then
+if [[ -n "$proj_rules_canon" && "$proj_rules_canon" == "$(canon_dir "$config_root/rules")" ]]; then
   rules_overlap=1
 fi
 
 proj_md_canon="$(canon_file "CLAUDE.md")"
-user_md_canon="$(canon_file "$config_root/CLAUDE.md")"
-
 md_overlap=0
-if [[ -n "$proj_md_canon" && "$proj_md_canon" == "$user_md_canon" ]]; then
+if [[ -n "$proj_md_canon" && "$proj_md_canon" == "$(canon_file "$config_root/CLAUDE.md")" ]]; then
   md_overlap=1
 fi
 

@@ -34,8 +34,7 @@ third, the provider **binding**, is discharged differently: a missing binding bl
 routes rather than halting unconditionally.
 
 - **`jq`** (`command -v jq`). The actions' snippets parse with it unconditionally. Missing: stop
-  and surface the install remediation, the per-platform install at <https://jqlang.org/download/>
-  (as of 2026-11-03; recheck when that page moves). Never improvise a parse.
+  and surface the install remediation, the per-platform install at <https://jqlang.org/download/>. Never improvise a parse.
 - **The seam script**, `"$TRACKER"` above. The plugin bundles it, so it resolves at the plugin-dir
   path by default; if it resolves at **neither** the plugin path nor the project-root fallback, the
   plugin install is incomplete: stop and surface that the plugin must be reinstalled or repaired,
@@ -344,5 +343,4 @@ operations reference. For GitHub, that is
   [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
   (universal + repo-specific groups).
 - Bind the provider. The active provider lives under the `tracker` key of `<home>/work-items.yaml`,
-  else in the legacy repo-root JSON binding `/work-items:setup` writes; these skills read the
-  binding but never write it.
+  which `/work-items:setup` writes; these skills read the binding but never write it.

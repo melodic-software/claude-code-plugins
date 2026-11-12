@@ -58,8 +58,8 @@ scope named and is never reported as "nothing observed".
 
 The `SkillUse` record carries **no caller attribution**. We read the PostToolUse payload on the
 Skill tool as naming no skill whose instructions caused the call; its fields are read live from
-[hooks: PostToolUse input](https://code.claude.com/docs/en/hooks#posttooluse-input) (as of
-2026-11-10; recheck when that input gains a caller field). So the script cannot observe "Y was invoked *by* X", only
+[hooks: PostToolUse input](https://code.claude.com/docs/en/hooks#posttooluse-input).
+So the script cannot observe "Y was invoked *by* X", only
 that both fired in the same `(project_id, branch)` group, ordered by timestamp. A Y the user
 typed by hand counts identically to one X produced.
 

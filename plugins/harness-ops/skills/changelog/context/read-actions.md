@@ -81,9 +81,7 @@ as core items.
 - **Pointer**: when the status script reports no release markers parsed, or a sliced release
   looks wrong, read <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md> and
   <https://code.claude.com/docs/en/changelog.md> live and compare their release markup with the
-  parser; the markup spans the whole file, so no section anchor applies. **As of**: 2026-11-06.
-  **Recheck trigger**: `range: not computed (no release markers parsed ...)` from the status
-  script, or a `changelog` line naming the docs page while the repository file is reachable.
+  parser; the markup spans the whole file, so no section anchor applies.
 
 Slice a release or range out of the local copy with the parser:
 

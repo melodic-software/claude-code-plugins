@@ -19,13 +19,8 @@ Two independent verifiers over the full digest set, fresh context, production ra
   - **Pointer**: for the Workflow route only, `docs/plugin-philosophy.md` "Effort tiers", the
     "Where per-task effort is set" record, in the marketplace repository; no docs page covers
     per-call Workflow effort.
-  - **As of**: 2026-10-02
-  - **Recheck trigger**: a docs page starts covering it.
   - **Pointer**: when verifier A goes through the Agent tool, fetch
     <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
-  - **As of**: 2026-10-10
-  - **Recheck trigger**: that section changes what the per-call `effort` overrides, what
-    overrides it, or which spawns honor it.
 - **Verifier B**. Cross-vendor (e.g. Codex via the `codex` plugin, high reasoning effort), same
   three checks. Cross-vendor independence is the point: correlated blind spots differ.
   The verdict header records B's effort as confirmed only when the arm itself reports it or the
@@ -45,9 +40,6 @@ Two independent verifiers over the full digest set, fresh context, production ra
     substitute arm is dispatched for them.
   - **Pointer**: for a Codex sandbox's network default and how to enable it, see
     <https://learn.chatgpt.com/docs/agent-approvals-security#network-access>.
-  - **As of**: 2026-10-01
-  - **Recheck trigger**: that section changes the default network access of a local Codex
-    sandbox mode.
 
 Verdicts land in `<work-root>/verification/` and are **append-only historical records**. A
 wrong verdict gets a dated corrections-applied record beside it, never a rewrite. Corrections

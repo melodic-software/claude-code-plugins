@@ -18,7 +18,7 @@ A skip item leaves no row and no line; only the count in the read summary shows 
 
 - Grep finds the item's feature, field, event or flag in a component, and the item changes what is true about it
 - A bug the component documents as a quirk is fixed upstream, or a deprecation or removal hits something the component uses
-- A recheck trigger on a component's stored value (a recorded default, limit, version gate or measured observation) fires. A pointer carries no trigger; the feature grep above is its signal
+- A recheck trigger on a component's stored value (a copied or measured upstream number or string: a recorded default, limit, version gate or measured figure) fires. A pointer carries no trigger; the feature grep above is its signal
 
 The row names the claim as the component states it (false) and as the item states it (true). A row without both halves is not a correct row.
 

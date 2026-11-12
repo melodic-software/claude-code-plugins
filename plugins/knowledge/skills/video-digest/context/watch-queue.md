@@ -229,4 +229,4 @@ counts) is the `reject` / `unavailable` row. Acquisition also fails such a post 
 probed and may fail as `X acquisition degraded`; stop retrying one id after 3 such degraded failures.
 See `../reference/sources/x.md`.
 
-`displayTitle` / `displayChannel` are already markdown-escaped (`|` → `\|`) and title-capped, so paste them directly. Dedupe by `videoId` against existing rows. CLI exit code is `2` when any URL resolved to `reject`.
+`displayTitle` / `displayChannel` are already markdown-escaped (`\` → `\\`, `|` → `\|`) and title-capped, so paste them directly. Dedupe by `videoId` against existing rows. CLI exit code is `2` when any URL resolved to `reject`.

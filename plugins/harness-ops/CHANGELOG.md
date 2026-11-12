@@ -3,6 +3,56 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.38] - 2026-11-12
+
+### Changed
+
+- `/harness-ops:lanes` states that `consume-restarts run` relaunches a stopped lane whose telemetry
+  carries a `restart_request` once the operator registers its OS schedule, and that a crashed lane
+  writes none, so it stays down until the operator restarts it.
+- `/harness-ops:lanes` states that a lane can read its own context zone from the context-guard
+  snapshot in `-p` and `--bg` sessions, but still cannot reset its own context from inside the loop.
+
+- Pointer records in the harness-ops skills, references and scripts no longer carry an as-of date
+  or recheck trigger; stored values keep theirs.
+
+## [8.12.37] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+## [8.12.36] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
+- `plugins`: the shallow-clone reason for comparing only installs at the clone's HEAD points at the host-marketplace section that describes the re-clone, instead of restating it beside an unanchored link.
+- `lanes`: the cloud-session note points at agent view's "List sessions as JSON" section, and the schtasks payload limit points at the `/tr` row the config already cites.
+- `audit-skill-visibility`: the usage-counters reference names the binary reading the plugin-use definition rests on, and drops an unsourced polling rate and public-report remark.
+- Nine eval cases cover held re-audit rows across `changelog`, `plugins`, `audit-skill-visibility`, `lanes`, `audit-performance`, `observability` and `audit-native-overlap`.
+
+### Fixed
+
+- `observability` no longer describes `cli-flag-verify` as a PostToolUse hook: guardrails runs it at push time in the `reference-verify` git hook, so the report marks hallucination-guard catches as not collected rather than reading an empty count as clean.
+- `plugins` no longer says `claude plugin list` shows the highest version across scopes: on 2.1.322 it prints one row per install record with its own scope and version, and still never says which row loads here.
+- `plugins` no longer tells a user to run `/reload-plugins` after every `Run /reload-plugins to apply.` summary: since 2.1.268 the `/plugin` panel can apply changes itself, so the two-step checks what the panel did (at the install pointer) and asks for a bare reload only when the plugin is still not active.
+
+## [8.12.35] - 2026-11-12
+
+### Changed
+
+- `/harness-ops:changelog`'s classification rubric names a stored value as upstream-drift 6.0.0
+  does: a copied or measured upstream number or string, such as a measured figure. A behavior
+  observation with no recorded value is a pointer, whose signal is the feature grep.
+
+## [8.12.34] - 2026-11-12
+
+### Changed
+
+- Internal simplification, no behavior change.
+
 ## [8.12.33] - 2026-11-11
 
 ### Changed

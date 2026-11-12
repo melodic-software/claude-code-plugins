@@ -53,9 +53,6 @@ mod, one mod per plugin, the 2.1.287 floor, and what is committed.
   [create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build);
   for the `hooks:` and `calls:` lines, see
   [create: check what Claude Code reads from your mod](https://code.claude.com/docs/en/plugins/mods/create#check-what-claude-code-reads-from-your-mod).
-- **As of**: 2026-10-04, Claude Code 2.1.289
-- **Recheck trigger**: a linked create section moves, hot reload changes, or
-  `claude plugin validate` stops listing hooks and calls.
 
 Read Anthropic's maintained mods for working examples before writing your own; licensing and reuse
 terms are recorded in [docs/upstream/claude-code-mods/sources.md](../../upstream/claude-code-mods/sources.md).
@@ -88,9 +85,6 @@ step upstream gives for that case.
   [admin: review what a mod can do](https://code.claude.com/docs/en/plugins/mods/admin#review-what-a-mod-can-do);
   for the reload after a shell-side install or update, see
   [overview: install or update a mod](https://code.claude.com/docs/en/plugins/mods/overview#install-or-update-a-mod).
-- **As of**: 2026-10-25, Claude Code 2.1.310
-- **Recheck trigger**: a linked section moves, or `/harness-ops:audit-mod-posture` stops reading
-  the `hooks:` and `calls:` lines.
 
 ## Mod, settings hook, or skill
 
@@ -98,8 +92,6 @@ Apply ADR 0052's rule for choosing a mod, which starts from upstream's compariso
 
 - **Pointer**: see
   [overview: compare mods, settings hooks, skills, and MCP servers](https://code.claude.com/docs/en/plugins/mods/overview#compare-mods-settings-hooks-skills-and-mcp-servers).
-- **As of**: 2026-10-03, Claude Code 2.1.288
-- **Recheck trigger**: the comparison table changes a "Pick it when" cell.
 
 ## Where a mod runs and how it is switched off
 
@@ -135,9 +127,6 @@ mod.
   [admin: allow only your organization's mods](https://code.claude.com/docs/en/plugins/mods/admin#allow-only-your-organization%E2%80%99s-mods);
   for the guard's messages, see
   [troubleshoot: messages from the built-in guard](https://code.claude.com/docs/en/plugins/mods/troubleshoot#messages-from-the-built-in-guard).
-- **As of**: 2026-10-25, Claude Code 2.1.310
-- **Recheck trigger**: a linked section moves, or `claude plugin test` starts reporting the
-  organization's mod policy.
 
 ## Packaging in this repository
 
@@ -154,9 +143,6 @@ mod.
   [reference: files](https://code.claude.com/docs/en/plugins/mods/reference#files); for names
   `validate` refuses and the tested-version note, see
   [create: share your mod](https://code.claude.com/docs/en/plugins/mods/create#share-your-mod).
-- **As of**: 2026-10-03, Claude Code 2.1.288
-- **Recheck trigger**: the files table changes a row, or `validate` accepts or rejects a different
-  name shape.
 
 ## Before relying on `$.process` or `session.start`
 
@@ -170,9 +156,6 @@ first: `$.process` is declared CLI only, and `session.start` does not fire again
   `session.start`, see
   [reference: session](https://code.claude.com/docs/en/plugins/mods/reference#session) and
   [interface: load a saved value again after `/clear`](https://code.claude.com/docs/en/plugins/mods/interface#load-a-saved-value-again-after-clear).
-- **As of**: 2026-10-03, Claude Code 2.1.288 (the public types file's first line names 2.1.277)
-- **Recheck trigger**: a pin bump whose types change the `process` doc comment, or the Session table
-  changes its `session.start` row.
 
 ## The `tool.call` context rule
 
@@ -212,6 +195,3 @@ plugin troubleshooting page.
   [events: handle a hook that fails](https://code.claude.com/docs/en/plugins/mods/events#handle-a-hook-that-fails);
   for plugin load problems, see
   [troubleshoot plugins](https://code.claude.com/docs/en/plugins/troubleshooting).
-- **As of**: 2026-10-25, Claude Code 2.1.310
-- **Recheck trigger**: a linked section moves, or the troubleshoot page stops titling its sections
-  with the line texts.

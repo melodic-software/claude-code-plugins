@@ -46,17 +46,25 @@ export const LIMITS = {
   // Uncarried green runs per hold lane read in one window, oldest completion
   // first, unless the lane sets its own (signals.mjs HOLD_LANES holdRuns):
   // up to holdListPages run list pages (pr-verify's and pr-merge's own 5,
-  // pr-review-main's 4), then each run's jobs and the annotations of each job
-  // that prints a hold (for pr-verify and pr-review-main, only a job whose
-  // `Note the hold` ran; pr-merge's two jobs both). pr-verify's and
-  // pr-review-main's jobs are read through REST for their steps, the other
-  // lanes' in one GraphQL query per 25 runs, and each lane's annotations in
-  // one per 25 jobs, so at most 4 × 3 + 5 + 4 + 5 list pages, 80 + 70 jobs
-  // reads, 1 + 1 + 1 + 2 + 4 list queries and 1 + 1 + 1 + 2 + 7 + 4 + 3
-  // annotation queries (204 calls) while each other run has one such job,
-  // plus one lane-hold marker list per lane (7). A node GraphQL does not
-  // answer is read through REST, one call a jobs or annotation read. Past
-  // the cap, the span stops at the last run read and the window is a gap.
+  // pr-review-main's 4), then each run's jobs and the annotations of each
+  // green job that prints a hold. Every lane's jobs are read in one GraphQL
+  // query per 25 runs, and its annotations in one per 25 jobs. A run has one
+  // green hold job (pr-verify's one of three), but pr-review-main's about 3
+  // (its trigger and two review legs) and pr-merge's up to 2, so at most
+  // 4 × 3 + 5 + 4 + 5 list pages, 1 + 1 + 1 + 2 + 4 + 3 + 4 list queries and
+  // 1 + 1 + 1 + 2 + 4 + 9 + 7 annotation queries (67 calls, 41 of them
+  // GraphQL), plus one lane-hold marker list per lane (7). A re-run, or a
+  // node GraphQL does not answer, is read through REST, one call a jobs or
+  // annotation read; a REST list has steps, so pr-verify and pr-review-main
+  // (holdStep) read only a job whose `Note the hold` ran, and a run of theirs
+  // whose GraphQL-listed hold job the annotation batch did not answer is
+  // listed again through REST first. With GraphQL refused, or answering the
+  // lists but not the annotations, those two lanes spend at most 7 + 150
+  // list calls and one annotation read per held job, not 290 for every green
+  // hold job; the other lanes'
+  // 152 jobs and about 232 annotation reads put the source past
+  // CALL_BUDGET at the caps either way. Past the cap, the span stops at the
+  // last run read and the window is a gap.
   holdRuns: 6,
   // Run list pages of 100 per hold lane, unless the lane sets its own
   // (HOLD_LANES listPages): intake-triage listed up to 151 green runs over the
@@ -163,11 +171,17 @@ const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
 // work-unblock.yml names them.
 const WORK_UNBLOCK_PATH = ".github/workflows/work-unblock.yml";
 export const PUBLISH_LANE_LEVEL_JOB = "publish-lane-level";
+// That job's name, and its id as a run from before the job rename lists it.
+const PUBLISH_LANE_LEVEL_NAMES = new Set(["Publish Lane Level", PUBLISH_LANE_LEVEL_JOB]);
 export const VARIABLE_STEPS = new Set(["List the repository variables before the publish", "Check no other repository variable changed"]);
 // Only main's own scheduled or dispatched pr-merge runs are trusted: a PR,
 // fork or branch run can upload an artifact or annotation of the same name.
 const TRUSTED_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const PR_MERGE_PATH = ".github/workflows/pr-merge.yml";
+// pr-merge's merge job by name, then by the id a run from before the job rename lists.
+const MERGE_JOB = "Merge";
+const MERGE_JOB_BEFORE_RENAME = "merge";
+const mergeJob = (jobs) => jobs.find((j) => j.name === MERGE_JOB) ?? jobs.find((j) => j.name === MERGE_JOB_BEFORE_RENAME);
 // The step name every lane workflow gives request-lane-token in token mode.
 const MINT_STEP = "Request the lane token";
 // Events whose run takes its workflow code from the default branch; a push
@@ -380,9 +394,9 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     data.budgetReadings = [];
     const read = runs.filter((r) => r.status === "completed" && trustedPrMerge(r) && completedInWindow(r)).slice(0, LIMITS.prMergeRuns);
     await warmLists(read);
-    const jobs = await prefetch(read, jobListOf, (js) => js.filter((j) => j.name === "merge").slice(0, 1));
+    const jobs = await prefetch(read, jobListOf, (js) => [mergeJob(js)].filter(Boolean));
     for (const run of read) {
-      const merge = (await jobs(run)).find((j) => j.name === "merge");
+      const merge = mergeJob(await jobs(run));
       if (!merge) continue;
       for (const a of await annotationsOf(merge.id)) {
         const reading = budgetReading(a);
@@ -405,7 +419,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     const lanes = runs.filter((r) => defaultBranchCode(r) && !SKIP_FAILED_PATHS.has(r.path) && ownHead(r) && completedInWindow(r));
     let read = 0;
     const mintedOf = (jobs, run) => {
-      const alreadyRead = (job) => run.path === PR_MERGE_PATH && trustedPrMerge(run) && job.name === "merge";
+      const alreadyRead = (job) => run.path === PR_MERGE_PATH && trustedPrMerge(run) && job === mergeJob(jobs);
       return jobs.filter((j) => !alreadyRead(j) && (j.steps ?? []).some((s) => s.name === MINT_STEP && s.conclusion === "success"));
     };
     const jobs = await prefetch(lanes.slice(0, LIMITS.laneRuns), jobsOf, mintedOf, LIMITS.laneMintJobs);
@@ -487,7 +501,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       throw new Error(`over ${LIMITS.laneVariableRuns} failed scheduled work-unblock runs; the rest were not read`);
     }
     data.laneVariableRuns = [];
-    const publishJob = (jobs) => failedJobs(jobs).find((j) => j.name === PUBLISH_LANE_LEVEL_JOB);
+    const publishJob = (jobs) => failedJobs(jobs).find((j) => PUBLISH_LANE_LEVEL_NAMES.has(j.name));
     const jobs = await prefetch(runs, jobsOf, (js) => [publishJob(js)].filter(Boolean));
     for (const run of runs) {
       const job = publishJob(await jobs(run));
@@ -722,7 +736,9 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       // of them, so the next run reads the rest and this one reports a gap.
       let readThrough = now.getTime();
       const cut = [];
-      for (const { lane, workflow, jobs, holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
+      for (const { lane, workflow, jobs: ids, names, holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
+        // A job by its name, or by its id on a run from before the job rename.
+        const jobs = [...names, ...ids];
         // By id: a run that starts between two page reads shifts one onto the next page.
         const runs = new Map();
         for (const status of statuses) {
@@ -745,20 +761,26 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
           readThrough = Math.min(readThrough, Date.parse(unread[cap - 1].updated_at));
           cut.push(`${lane} (cap ${cap})`);
         }
-        // With holdStep, only a job whose listing shows that step succeeded
-        // printed a hold, so only its annotations are read; a job listed
-        // with no steps (the jobs API can list them empty) is read too. Its
-        // lane's jobs are read with their steps; another lane's need none.
+        // Each lane's jobs are listed through GraphQL, which carries no steps,
+        // so every green hold job's annotations are read in its batch. A list
+        // read through REST has steps: with holdStep, only a job whose listing
+        // shows that step succeeded printed a hold, so only its annotations
+        // are read one call each; a job listed with no steps is read too.
+        // With holdStep, a run whose GraphQL-listed hold job the annotation
+        // batch did not answer is listed again through REST, one call per run,
+        // so its annotations are read only where that step ran.
         const printed = (j) =>
           holdStep === undefined || !Array.isArray(j.steps) || j.steps.length === 0 || j.steps.some((s) => s?.name === holdStep && s.conclusion === "success");
         const holding = (listed) => listed.filter((j) => j.conclusion === "success" && holdJob(jobs, j.name) && printed(j));
         const toRead = unread.slice(0, cap);
-        if (holdStep === undefined) await warmLists(toRead);
-        const jobsFor = await prefetch(toRead, holdStep === undefined ? jobListOf : jobsOf, holding);
+        await warmLists(toRead);
+        const jobsFor = await prefetch(toRead, jobListOf, holding);
         for (const run of toRead) {
           const key = `${lane}:${run.id}`;
           const found = [];
-          for (const job of holding(await jobsFor(run))) {
+          let listed = await jobsFor(run);
+          if (holdStep !== undefined && holding(listed).some((j) => !Array.isArray(j.steps) && !annotationsMemo.has(j.id))) listed = await jobsOf(run);
+          for (const job of holding(listed)) {
             for (const a of await annotationsOf(job.id)) {
               const hold = parseHold(a.title, a.message, a.annotation_level);
               if (hold) found.push(hold);

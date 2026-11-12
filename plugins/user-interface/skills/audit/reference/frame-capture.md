@@ -175,8 +175,6 @@ Reading rules:
   <https://developer.mozilla.org/en-US/docs/Web/API/Performance_API/Long_animation_frame_timing#observing_long_animation_frames>;
   which animations the document lists, MDN "Document: getAnimations() method",
   <https://developer.mozilla.org/en-US/docs/Web/API/Document/getAnimations#return_value>.
-- **As of**: 2026-10-29.
-- **Recheck trigger**: either page changes which entries or animation types it covers.
 
 ## Capturing it here
 

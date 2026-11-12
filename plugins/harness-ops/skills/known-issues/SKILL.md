@@ -52,8 +52,7 @@ It prints JSON: `layer` (`default`, `userConfig`, `team` or `local`), `path` (th
 - `data_dir` is null → pass `--data-dir "${CLAUDE_PLUGIN_DATA}"`. We never trust an inherited
   `CLAUDE_PLUGIN_DATA` to be this plugin's, so the script uses one only when it names harness-ops.
   Which processes receive the variable is read live from
-  [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
-  (as of 2026-11-10; recheck when that table exports the variable to the Bash tool).
+  [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
 - `errors` is non-empty → each names a layer, file, key and value that was dropped (an uncontained
   path, a character outside that set, or a value that is not a string). Show every one to the user with the layer that won instead,
   and direct `/harness-ops:setup`. A dropped team or option value resolves to the plugin data
@@ -170,9 +169,7 @@ files arrive through the Read tool as plain bytes, so a `${…}` token in them w
 tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
 The same table says the Bash tool's environment does not receive `CLAUDE_PLUGIN_DATA`, which the
 registry-location rule relies on. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves, or
-lists the Bash tool among the processes that receive the variables.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 ## What This Skill Does NOT Do
 

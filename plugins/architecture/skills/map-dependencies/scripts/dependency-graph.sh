@@ -253,6 +253,8 @@ source "$SCRIPT_DIR/../../../lib/python-references.sh"
 source "$SCRIPT_DIR/../../../lib/rust-references.sh"
 # shellcheck source=../../../lib/jvm-references.sh
 source "$SCRIPT_DIR/../../../lib/jvm-references.sh"
+# shellcheck source=../../../lib/json-escape.sh
+source "$SCRIPT_DIR/../../../lib/json-escape.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -308,17 +310,6 @@ if [[ -z "$raw_path" ]]; then
   usage >&2
   exit 2
 fi
-
-JSON_ESC=""
-json_escape() {
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\t'/\\t}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\n'/\\n}"
-  JSON_ESC="$s"
-}
 
 # Print the repo-relative path of base/raw with . and .. resolved, or return 1
 # when the path is absolute or escapes the repository root. The target does

@@ -22,9 +22,7 @@ The pipe is the bound and belongs in the command. A read-time cap ("read only th
 limits only what is read after the command returns, never what it returns.
 
 - **Pointer**: when deciding how much command output reaches context, fetch
-  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live. **As of**:
-  2026-11-10. **Recheck trigger**: that section changes how much output arrives inline or what
-  arrives in place of output past the inline limit.
+  [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits) live.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls, not pre-compute lines ([gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),

@@ -25,8 +25,6 @@ Analyst: <role, never a name>   (optional)
   - **Pointer**: for what the disclosure must cover, read the ICC/ESOMAR International Code
     (2025), Articles 7(e) and 9(b), at
     <https://standards.esomar.org/assets/documents/icc-esomar-code-2025.pdf>.
-  - **As of**: 2026-10-09
-  - **Recheck trigger**: ICC/ESOMAR publish a revised Code, or renumber those articles.
 - **Analyst.** Name the role that reviews or decides (for example "product designer"), never a
   person.
 

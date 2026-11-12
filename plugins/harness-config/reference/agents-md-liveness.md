@@ -30,9 +30,6 @@ For such a session the remedy we recommend is a `CLAUDE.md` that imports the `AG
 - **Pointer**: when deciding whether `AGENTS.md` support is available, fetch
   [memory: when AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a condition is added to or removed from that section's list, or its remedy
-  changes.
 
 **No hooks setting is an availability condition.** The built-in plugin that reads `AGENTS.md` is a
 built-in mod, so our
@@ -47,10 +44,8 @@ it. A session that loads no instruction files at all (`--bare` without `--add-di
   live; for the plugin's own statement, read its
   [README](https://github.com/anthropics/claude-code/blob/main/mods/agents-md/README.md) at commit
   `2282079d6ac8`.
-- **As of**: 2026-10-18 for the two docs sections; 2026-10-01 for the README commit.
-- **Recheck trigger**: the overview's built-in-mods section or the settings reference's
-  `allowManagedHooksOnly` section changes which settings stop built-in mods, or the README's
-  settings paragraph changes.
+- **As of**: 2026-10-01 for the README commit.
+- **Recheck trigger**: the README's settings paragraph changes.
 
 **Two of the three kinds resolve from what this plugin already reads.** A version condition is a
 comparison against the floor the pointer states, plus the provider and telemetry configuration

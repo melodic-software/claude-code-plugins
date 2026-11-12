@@ -766,7 +766,7 @@ def split_child_header(
 def ticked_forms(line: str, task_list: str) -> list[str]:
     """admit.mjs tickedForms: `line`, a task-list line, with its box ticked,
     the one `[ ]` in `task_list` written `[x]` or `[X]`, indent and text
-    unchanged. None when `task_list` does not hold exactly one `[ ]`."""
+    unchanged. Empty when `task_list` does not hold exactly one `[ ]`."""
     if task_list.count("[ ]") != 1:
         return []
     rest = line.lstrip(JS_SPACE)
@@ -1083,9 +1083,10 @@ def listing_cap() -> tuple[float, str]:
     left = limit - _elapsed() - DEADLINE_MARGIN_SECONDS
     if left >= cap[0]:
         return cap
+    left = max(left, 0.0)
     caller = os.environ.get(CALLER_ENV, "").strip()[:80] or "the caller"
-    return max(left, 0.0), (
-        f"the {max(left, 0.0):.0f} s left of {caller}'s {limit:.0f} s limit "
+    return left, (
+        f"the {left:.0f} s left of {caller}'s {limit:.0f} s limit "
         f"(less {DEADLINE_MARGIN_SECONDS:.0f} s for the reads after it)"
     )
 
@@ -1133,12 +1134,16 @@ def _bot_login(identity: str | None) -> str:
     return (identity or "").strip().lower().removesuffix("[bot]")
 
 
+def _first_line(body: Any) -> str:
+    """The first line of a comment body, without a trailing carriage return."""
+    return str(body or "").split("\n", 1)[0].rstrip("\r")
+
+
 def _started_attempt(body: Any) -> int | None:
     """The pull request a capped-close record names when its first line is one
     that started a fresh attempt (`CAPPED_CLOSE_RE` naming an attempt, not
     parked); a parked or attempt-less record, None. `_spent` counts by it."""
-    first = str(body or "").split("\n", 1)[0].rstrip("\r")
-    match = CAPPED_CLOSE_RE.fullmatch(first)
+    match = CAPPED_CLOSE_RE.fullmatch(_first_line(body))
     if match is None or match[3] is None or match[5]:
         return None
     return int(match[1])
@@ -1169,9 +1174,7 @@ def _capped_records(issue: Any, identity: str | None) -> list[Any]:
         )
         if _by_lane(node.get("author"), identity)
         and (not node.get("editor") or _by_lane(node.get("editor"), identity))
-        and CAPPED_CLOSE_RE.fullmatch(
-            str(node.get("body") or "").split("\n", 1)[0].rstrip("\r")
-        )
+        and CAPPED_CLOSE_RE.fullmatch(_first_line(node.get("body")))
     ]
 
 
@@ -1250,9 +1253,7 @@ def change_digest(diff: str) -> str | None:
                 lines.append(line[0] + content)
         elif line.startswith("rename from "):
             lines.append("rename " + line.removeprefix("rename from "))
-        elif line.startswith("rename to "):
-            lines.append("rename to " + line.removeprefix("rename to "))
-        elif line.startswith(MODE_LINES) or (
+        elif line.startswith((*MODE_LINES, "rename to ")) or (
             line.startswith("Binary files ") and line.endswith(" differ")
         ):
             lines.append(line)
@@ -1740,6 +1741,15 @@ class Reader:
             "GitHub's live artifact count"
         )
 
+    @staticmethod
+    def _print_miss(miss: dict[str, Any]) -> None:
+        """One `LISTING_MISS_PREFIX` line on stderr carrying `miss`."""
+        print(
+            f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
+            file=sys.stderr,
+            flush=True,
+        )
+
     def _incremental(
         self,
         base: tuple[datetime, list[dict[str, Any]]] | None = None,
@@ -1876,21 +1886,13 @@ class Reader:
                 NEAR_EXPIRY_DEADLINE_CAUSE,
             )
             miss["cause"] = unsettled
-            print(
-                f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
-                file=sys.stderr,
-                flush=True,
-            )
+            self._print_miss(miss)
             return None
         if len(listing) == total:
             return listing
         # Fewer than the live count: the pages skipped an artifact. More: the
         # base holds one GitHub no longer lists below the pages read.
-        print(
-            f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
-            file=sys.stderr,
-            flush=True,
-        )
+        self._print_miss(miss)
         if len(listing) > total:
             return COUNT_OVER
         # Short once the pages near expiry were read: they dropped only ids
@@ -1972,7 +1974,7 @@ class Reader:
         for first, last in groups:
             top, bottom = listing[first]["id"], listing[last]["id"]
             page = max(0, first - surplus) // size + 1
-            ups = 1 + surplus // size + 1
+            ups = surplus // size + 2
             downs = (last - first) // size + 2 + surplus // size + 1
             seen: dict[int, dict[str, Any]] = {}
             ended = False
@@ -2053,15 +2055,12 @@ class Reader:
             or not (self._near_expiry_reads or self._artifact_reads)
         ):
             return False
-        miss = {
-            "stage": stage,
-            "whole_listings": reads,
-            "cause": NEAR_EXPIRY_DEADLINE_CAUSE,
-        }
-        print(
-            f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
-            file=sys.stderr,
-            flush=True,
+        self._print_miss(
+            {
+                "stage": stage,
+                "whole_listings": reads,
+                "cause": NEAR_EXPIRY_DEADLINE_CAUSE,
+            }
         )
         return True
 
@@ -2110,6 +2109,7 @@ class Reader:
             left = deadline - _listing_clock()
             if left <= 0:
                 return None
+            self._page_transient = False
             try:
                 proc, headers = gh_api_with_headers(
                     ["api", *conditional, path],
@@ -2117,23 +2117,17 @@ class Reader:
                     env_overrides=self._env(),
                 )
             except (RuntimeError, ValueError, OSError):
-                self._page_transient = False
                 return None
             if proc.returncode == 0:
                 try:
-                    body = json_object(json.loads(proc.stdout))
+                    return json_object(json.loads(proc.stdout)), headers
                 except ValueError:
                     pass  # A body cut short: read again.
-                else:
-                    self._page_transient = False
-                    return body, headers
             else:
                 detail = (proc.stderr or "").strip()
                 if conditional and NOT_MODIFIED_RE.search(detail):
-                    self._page_transient = False
                     return dict(EMPTY_NAMED, artifacts=[]), headers
                 if not _transient(detail):
-                    self._page_transient = False
                     return gh_http_status(detail)
             self._page_transient = True
             if wait is None or deadline - _listing_clock() - wait <= 0:
@@ -2141,35 +2135,17 @@ class Reader:
             _listing_sleep(wait)
         return None
 
-    def _failed_path(self) -> Path | None:
-        """Where a failed whole listing is noted beside `listing_path`, for
-        the job's later Readers (`FAILED_LISTING_SUFFIX`)."""
+    def _beside(self, suffix: str) -> Path | None:
+        """The job's note file `suffix` names beside `listing_path`, for the
+        job's later Readers; None with no `listing_path`."""
         if not self.listing_path:
             return None
-        return Path(f"{self.listing_path}{FAILED_LISTING_SUFFIX}")
+        return Path(f"{self.listing_path}{suffix}")
 
-    def _failed_listing(self) -> str | None:
-        """Why an earlier Reader of this job could not list, if one noted it."""
-        path = self._failed_path()
-        if path is None:
-            return None
-        try:
-            text = path.read_text(encoding="utf-8").strip()
-        except OSError:
-            return None
-        return text or "repository artifacts: an earlier listing in this job failed"
-
-    def _overcount_path(self) -> Path | None:
-        """Where the job's over-count whole listing is noted beside
-        `listing_path` (`OVERCOUNT_FALLBACK_SUFFIX`)."""
-        if not self.listing_path:
-            return None
-        return Path(f"{self.listing_path}{OVERCOUNT_FALLBACK_SUFFIX}")
-
-    def _overcount_taken(self) -> str | None:
-        """How the job's over-count whole listing ended ("" while it pages),
-        or None when no Reader of the job has taken it."""
-        path = self._overcount_path()
+    def _read_beside(self, suffix: str) -> str | None:
+        """The stripped text of the note file `suffix` names (`_beside`), or
+        None when there is none to read."""
+        path = self._beside(suffix)
         if path is None:
             return None
         try:
@@ -2177,12 +2153,35 @@ class Reader:
         except OSError:
             return None
 
+    @staticmethod
+    def _replace_text(path: Path, text: str) -> None:
+        """Best effort: `text` written to `path` through a temporary file
+        beside it, so no reader sees it half written."""
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        with contextlib.suppress(OSError):
+            tmp.write_text(text, encoding="utf-8")
+            os.replace(tmp, path)
+
+    def _failed_listing(self) -> str | None:
+        """Why an earlier Reader of this job could not list, if one noted it
+        (`FAILED_LISTING_SUFFIX`)."""
+        text = self._read_beside(FAILED_LISTING_SUFFIX)
+        if text is None:
+            return None
+        return text or "repository artifacts: an earlier listing in this job failed"
+
+    def _overcount_taken(self) -> str | None:
+        """How the job's over-count whole listing ended ("" while it pages),
+        or None when no Reader of the job has taken it
+        (`OVERCOUNT_FALLBACK_SUFFIX`)."""
+        return self._read_beside(OVERCOUNT_FALLBACK_SUFFIX)
+
     def _claim_overcount(self) -> bool:
         """Whether this Reader may take the job's one whole listing for an
         over-count, noting it taken. With no `listing_path` there is no job
         to note it for, so it may; a failed write leaves the next Reader to
         take it too."""
-        path = self._overcount_path()
+        path = self._beside(OVERCOUNT_FALLBACK_SUFFIX)
         if path is None:
             return True
         try:
@@ -2198,7 +2197,7 @@ class Reader:
     def _note_overcount(self, outcome: str) -> None:
         """Best effort: how the job's over-count whole listing ended, so a
         later Reader's refusal carries a caller-limit refusal's prefix."""
-        path = self._overcount_path()
+        path = self._beside(OVERCOUNT_FALLBACK_SUFFIX)
         if path is not None:
             with contextlib.suppress(OSError):
                 path.write_text(outcome, encoding="utf-8")
@@ -2207,7 +2206,7 @@ class Reader:
         """Best effort: a failed write leaves the next Reader to list. A
         refusal for want of one caller's time (`DEADLINE_UNREADABLE`) is not
         noted: a later caller may have the time."""
-        path = self._failed_path()
+        path = self._beside(FAILED_LISTING_SUFFIX)
         if path is not None and not error.startswith(DEADLINE_UNREADABLE):
             with contextlib.suppress(OSError):
                 note = f"{error} (an earlier listing in this job)"
@@ -2215,14 +2214,9 @@ class Reader:
 
     def _save(self, listing: list[dict[str, Any]], fetched_at: datetime) -> None:
         """Best effort: a failed write leaves the next candidate to list."""
-        if not self.listing_path:
-            return
-        path = Path(self.listing_path)
-        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-        payload = {"fetchedAt": fetched_at.isoformat(), "artifacts": listing}
-        with contextlib.suppress(OSError):
-            tmp.write_text(json.dumps(payload), encoding="utf-8")
-            os.replace(tmp, path)
+        if self.listing_path:
+            payload = {"fetchedAt": fetched_at.isoformat(), "artifacts": listing}
+            self._replace_text(Path(self.listing_path), json.dumps(payload))
 
     def _live_count(self, timeout: float | None = None) -> int:
         """GitHub's live `total_count` of the repository's artifacts, from one
@@ -2423,24 +2417,28 @@ class Reader:
         holds is answered from it, tie or not, with no download."""
         shared = _is_artifact_id(artifact_id)
         key = f"{self.repo}|{artifact_id}"
-        dated = run_cache.get_dated(RECORD_SECTION, key, None) if shared else None
-        if dated is not None and is_json_object(dated[0]):
-            return dated[0].get("head_ref")
-        if shared and artifact_id in self._legacy_refs:
-            return self._legacy_refs[artifact_id]
         if shared:
+            dated = run_cache.get_dated(RECORD_SECTION, key, None)
+            if dated is not None and is_json_object(dated[0]):
+                return dated[0].get("head_ref")
+            if artifact_id in self._legacy_refs:
+                return self._legacy_refs[artifact_id]
             if self._mapped is None:
                 self._mapped = load_head_refs(self.head_refs_path, self.repo)
             if artifact_id in self._mapped:
                 return self._mapped[artifact_id]
-        # A carried head ref ties the FAIL to this PR; one naming another
-        # ref could untie it, so the record is read instead.
-        carried = run_cache.get(CARRIED_RECORD_SECTION, key, None) if shared else None
-        if head_ref and is_json_object(carried) and carried.get("head_ref") == head_ref:
-            return head_ref
-        failed = run_cache.get(UNREAD_RECORD_SECTION, key, None) if shared else None
-        if isinstance(failed, str):
-            raise _Unreadable(failed)
+            # A carried head ref ties the FAIL to this PR; one naming another
+            # ref could untie it, so the record is read instead.
+            carried = run_cache.get(CARRIED_RECORD_SECTION, key, None)
+            if (
+                head_ref
+                and is_json_object(carried)
+                and carried.get("head_ref") == head_ref
+            ):
+                return head_ref
+            failed = run_cache.get(UNREAD_RECORD_SECTION, key, None)
+            if isinstance(failed, str):
+                raise _Unreadable(failed)
         try:
             record = self._record(run_id, name, artifact_id)
         except _Unreadable as exc:
@@ -2532,16 +2530,9 @@ class Reader:
         processes."""
         key = f"{self.repo}@{self.branch}"
         at = run_cache.now()
-        tip = self._tip(self.branch)
         listing = json_object(
-            _read(
-                [
-                    "api",
-                    "-H",
-                    "Accept: application/vnd.github.raw",
-                    f"repos/{self.repo}/contents/{TRUSTED_ACTORS_PATH}?ref={tip}",
-                ],
-                "trusted-actor list",
+            self._raw_file(
+                TRUSTED_ACTORS_PATH, self._tip(self.branch), "trusted-actor list"
             )
         )
         actors = listing.get("actors")
@@ -2588,32 +2579,13 @@ class Reader:
         request's base, shared by the run's gate processes; None when the
         rules hold no string there. A failed read raises `_Unreadable`."""
         if not self._task_list_read:
-            try:
-                default = merge_policy._default_branch(self.repo, shared=True)
-            except merge_policy.PolicyReadError as exc:
-                raise _Unreadable(str(exc)) from exc
-            key = f"{self.repo}@{default}"
-            shared = run_cache.get_dated("task-list", key, run_cache.MAX_AGE)
-            if shared is not None:
-                self._task_list_value, at = shared
-            else:
-                at = run_cache.now()
-                tip = self._tip(default)
-                rules = json_object(
-                    _read(
-                        [
-                            "api",
-                            "-H",
-                            "Accept: application/vnd.github.raw",
-                            f"repos/{self.repo}/contents/{ADMISSION_RULES_PATH}?ref={tip}",
-                        ],
-                        "admission rules",
-                    )
-                )
-                self._task_list_value = rules.get("task-list")
-                run_cache.put("task-list", key, self._task_list_value, at)
+            self._task_list_value, self._task_list_at = self._default_branch_file(
+                "task-list",
+                ADMISSION_RULES_PATH,
+                "admission rules",
+                lambda rules: json_object(rules).get("task-list"),
+            )
             self._task_list_read = True
-            self._task_list_at = at
         if self._task_list_at is not None:
             run_cache.note(self._task_list_at)
         value = self._task_list_value
@@ -2672,32 +2644,49 @@ class Reader:
         request's base or head, shared by the run's gate processes. A failed
         read raises `_Unreadable`."""
         if not self._schedule_read:
-            try:
-                default = merge_policy._default_branch(self.repo, shared=True)
-            except merge_policy.PolicyReadError as exc:
-                raise _Unreadable(str(exc)) from exc
-            key = f"{self.repo}@{default}"
-            shared = run_cache.get_dated("recurring-schedule", key, run_cache.MAX_AGE)
-            if shared is not None:
-                self._schedule_value, at = shared
-            else:
-                at = run_cache.now()
-                tip = self._tip(default)
-                self._schedule_value = _read(
-                    [
-                        "api",
-                        "-H",
-                        "Accept: application/vnd.github.raw",
-                        f"repos/{self.repo}/contents/{RECURRING_SCHEDULE_PATH}?ref={tip}",
-                    ],
-                    "recurring schedule",
-                )
-                run_cache.put("recurring-schedule", key, self._schedule_value, at)
+            self._schedule_value, self._schedule_at = self._default_branch_file(
+                "recurring-schedule", RECURRING_SCHEDULE_PATH, "recurring schedule"
+            )
             self._schedule_read = True
-            self._schedule_at = at
         if self._schedule_at is not None:
             run_cache.note(self._schedule_at)
         return self._schedule_value
+
+    def _raw_file(self, path: str, ref: str, label: str) -> Any:
+        """The repository file at `path` on `ref`, read raw (`_read`)."""
+        return _read(
+            [
+                "api",
+                "-H",
+                "Accept: application/vnd.github.raw",
+                f"repos/{self.repo}/contents/{path}?ref={ref}",
+            ],
+            label,
+        )
+
+    def _default_branch_file(
+        self,
+        section: str,
+        path: str,
+        label: str,
+        pick: Callable[[Any], Any] = lambda raw: raw,
+    ) -> tuple[Any, datetime]:
+        """`pick` of the file at `path` on the repository's default branch's
+        tip, and when it was read, shared by the run's gate processes under
+        `section` for `run_cache.MAX_AGE`. A failed read raises
+        `_Unreadable`."""
+        try:
+            default = merge_policy._default_branch(self.repo, shared=True)
+        except merge_policy.PolicyReadError as exc:
+            raise _Unreadable(str(exc)) from exc
+        key = f"{self.repo}@{default}"
+        shared = run_cache.get_dated(section, key, run_cache.MAX_AGE)
+        if shared is not None:
+            return shared
+        at = run_cache.now()
+        value = pick(self._raw_file(path, self._tip(default), label))
+        run_cache.put(section, key, value, at)
+        return value, at
 
     def _recurring(self, issue: dict[str, Any]) -> bool:
         """Whether recorded linked issue `issue`, which github-actions[bot]
@@ -2892,10 +2881,9 @@ class Reader:
                     else []
                 )
         live = {
-            json_object(node).get("number"): json_object(node)
-            for node in nodes
-            if json_object(json_object(node).get("repository")).get("nameWithOwner")
-            == self.repo
+            node.get("number"): node
+            for node in map(json_object, nodes)
+            if json_object(node.get("repository")).get("nameWithOwner") == self.repo
         }
         live = {
             n: issue
@@ -2989,9 +2977,9 @@ class Reader:
         if self._empty_etag_looked:
             return self._empty_etag
         self._empty_etag_looked = True
-        if not self.listing_path:
+        path = self._beside(EMPTY_ETAG_SUFFIX)
+        if path is None:
             return None
-        path = Path(f"{self.listing_path}{EMPTY_ETAG_SUFFIX}")
         try:
             kept = path.read_text(encoding="utf-8").strip()
         except OSError:
@@ -3002,10 +2990,7 @@ class Reader:
             kept = ""
             if isinstance(read, tuple) and read[0] == EMPTY_NAMED:
                 kept = read[1].get("etag", "")
-            tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-            with contextlib.suppress(OSError):
-                tmp.write_text(kept, encoding="utf-8")
-                os.replace(tmp, path)
+            self._replace_text(path, kept)
         self._empty_etag = kept if kept and ETAG_RE.fullmatch(kept) else None
         return self._empty_etag
 
@@ -3152,6 +3137,23 @@ class Reader:
         if len(names) > INDEX_NAMES_CAP:
             # More reads than one whole listing costs: read that instead.
             return self._listing()
+        found = self._indexed(number, head, names, deadline)
+        print(
+            f"{INDEX_READS_PREFIX} "
+            + json.dumps(
+                {"pr": number, "names": len(names), "reads": self.index_reads - reads}
+            ),
+            file=sys.stderr,
+        )
+        return found
+
+    def _indexed(
+        self, number: int, head: str, names: list[str], deadline: float
+    ) -> list[dict[str, Any]]:
+        """The legacy FAILs and the artifacts the FAIL index leads to from
+        `names`, with this pull request's passes at the head and at each
+        FAILed head (`_passes_named`). Any read that fails raises
+        `_Unreadable`."""
         found = {a["id"]: a for a in self._live_legacy()}
         found.update((a["id"], a) for a in self._index_hits(names, deadline))
         failed = {
@@ -3164,13 +3166,6 @@ class Reader:
         found.update(
             (a["id"], a) for a in self._passes_named(number, failed | {head}, deadline)
         )
-        print(
-            f"{INDEX_READS_PREFIX} "
-            + json.dumps(
-                {"pr": number, "names": len(names), "reads": self.index_reads - reads}
-            ),
-            file=sys.stderr,
-        )
         return list(found.values())
 
     def own_verdicts(self, number: int, head: str) -> list[dict[str, Any]]:
@@ -3180,28 +3175,14 @@ class Reader:
         `RuntimeError` when a read fails."""
         deadline = _listing_clock() + listing_cap()[0]
         try:
-            found = {a["id"]: a for a in self._live_legacy()}
-            found.update(
-                (a["id"], a)
-                for a in self._index_hits(
-                    [f"{INDEX_PREFIX}pr-{number}", f"{INDEX_PREFIX}sha-{head}"],
-                    deadline,
-                )
-            )
-            failed = {
-                match[2]
-                for a in found.values()
-                if (match := verdict_name(str(a.get("name") or ""))) is not None
-                and int(match[1]) == number
-                and match[3] == "fail"
-            }
-            found.update(
-                (a["id"], a)
-                for a in self._passes_named(number, failed | {head}, deadline)
+            return self._indexed(
+                number,
+                head,
+                [f"{INDEX_PREFIX}pr-{number}", f"{INDEX_PREFIX}sha-{head}"],
+                deadline,
             )
         except _Unreadable as exc:
             raise RuntimeError(str(exc)) from exc
-        return list(found.values())
 
     def _verdict_artifacts(
         self, number: int, head: str, head_ref: str, commits: set[str]
@@ -3237,11 +3218,8 @@ class Reader:
                 except _Unreadable as exc:
                     entry["unreadable"] = str(exc)
                 else:
-                    notes = record.get("notes")
                     entry["summary"] = str(record.get("summary") or "")
-                    entry["notes"] = (
-                        [str(n) for n in notes] if is_json_array(notes) else []
-                    )
+                    entry["notes"] = [str(n) for n in json_array(record.get("notes"))]
                 found.append(entry)
         return found
 
@@ -3509,11 +3487,12 @@ class Reader:
                 continue
             tied = pr_n == number or sha in commits
             if verdict in PASSES:
-                if pr_n == number and sha != head:
+                if pr_n != number:
+                    continue
+                if sha != head:
                     other_passes.setdefault(sha, []).append(
                         (run_id, name, item.get("id"))
                     )
-                if pr_n != number or sha != head:
                     continue
                 if self._run_state(run_id) == COUNTED:
                     verdicts.append(Verdict(sha, verdict, run_id))
@@ -3575,6 +3554,23 @@ class Reader:
             )
             return self._superseded(number, sha, fail_artifacts, at)
 
+        def elsewhere() -> tuple[dict[Any, Any], set[str]]:
+            return self._elsewhere(
+                number,
+                failed_by_pr,
+                unread_prs,
+                failed_by_issue,
+                unread_issues,
+                fail_times,
+            )
+
+        def capped(heads: set[str]) -> str:
+            return (
+                f"fails at {len(heads)} heads of this and other "
+                f"pull requests for its issues ({_heads(heads)}), "
+                f"the cap is {self.max_fails}"
+            )
+
         refusal: str | None
         detail = unreadable
         head_superseded = False
@@ -3584,22 +3580,10 @@ class Reader:
         elif head in failed and not (head_superseded := superseded(head)):
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
-            _, elsewhere = self._elsewhere(
-                number,
-                failed_by_pr,
-                unread_prs,
-                failed_by_issue,
-                unread_issues,
-                fail_times,
-            )
+            heads = failed | elsewhere()[1]
             refusal = FAIL
-            if len(failed | elsewhere) >= self.max_fails:
-                refusal = REPEATED_FAIL
-                detail = (
-                    f"fails at {len(failed | elsewhere)} heads of this and other "
-                    f"pull requests for its issues ({_heads(failed | elsewhere)}), "
-                    f"the cap is {self.max_fails}"
-                )
+            if len(heads) >= self.max_fails:
+                refusal, detail = REPEATED_FAIL, capped(heads)
         elif fails and (
             not self._passes_follow(fails, passes)
             or not self._change_differs(
@@ -3618,21 +3602,10 @@ class Reader:
             # Every pass of the run that started last must allow
             # (`_newest`), so listing order decides nothing; any unreadable
             # one refuses (`_Unreadable`).
-            live, elsewhere = self._elsewhere(
-                number,
-                failed_by_pr,
-                unread_prs,
-                failed_by_issue,
-                unread_issues,
-                fail_times,
-            )
-            if len(failed | elsewhere) >= self.max_fails:
-                refusal = REPEATED_FAIL
-                detail = (
-                    f"fails at {len(failed | elsewhere)} heads of this and other "
-                    f"pull requests for its issues ({_heads(failed | elsewhere)}), "
-                    f"the cap is {self.max_fails}"
-                )
+            live, others = elsewhere()
+            heads = failed | others
+            if len(heads) >= self.max_fails:
+                refusal, detail = REPEATED_FAIL, capped(heads)
             else:
                 refusals = {
                     self._pass_refusal(run_id, name, number, head, live, pr, artifact)
@@ -4313,7 +4286,8 @@ def lane_risk_refusal(
             config.floor,
         )
         files = merge_policy.with_contents(repo, pr, files)
-        private = json_object(json_object(pr.get("base")).get("repo")).get("private")
+        base = json_object(pr.get("base"))
+        private = json_object(base.get("repo")).get("private")
         risk_input = babysit_risk.RiskInput(
             files=files,
             files_complete=complete,
@@ -4323,7 +4297,7 @@ def lane_risk_refusal(
             lanes=lanes,
             public=True if private is False else None,
             pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
-            base_sha=json_object(pr.get("base")).get("sha"),
+            base_sha=base.get("sha"),
             floor_rows=config.floor_paths,
             high_floor=config.high_path_floor,
             path_holds=config.path_holds,
@@ -4393,12 +4367,20 @@ def lane_queue(
     except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
         queue = {"readError": f"{type(exc).__name__}: {exc}"}
     read_error = queue.get("readError") or None
-    count = None if read_error else queue.get("failedEjections")
-    count = count if isinstance(count, int) else None
+    count = queue.get("failedEjections")
+    if read_error or not isinstance(count, int):
+        count = None
     if count is None and read_error is None:
         read_error = "the merge queue's timeline items could not be counted"
+    removals = None if read_error else queue.get("failedRemovals")
     refusal, comment, comment_error = babysit_merge.queue_ejection_hold(
-        repo, branch, number, head, count, limit
+        repo,
+        branch,
+        number,
+        head,
+        count,
+        limit,
+        removals if isinstance(removals, list) else None,
     )
     return {
         "failedEjections": count,
@@ -4614,14 +4596,14 @@ def capped_close_bodies(
         )
     elif parked:
         next_step = (
-            f"Issue #{issue} has used its {attempt[1] if attempt else 0} fresh attempt(s) "
+            f"Issue #{issue} has used its {attempt[1]} fresh attempt(s) "
             "(`merge.verify-cap-attempts`), so it is parked at "
             f"`{STATUS_CONFIRMED}` and no new attempt starts."
         )
     else:
         next_step = (
             f"Issue #{issue} goes back to `{admission}` for fresh attempt "
-            f"{attempt[0] if attempt else 0} of {attempt[1] if attempt else 0}, "
+            f"{attempt[0]} of {attempt[1]}, "
             + (
                 f"which starts from {stop}."
                 if refusal == NOT_CONVERGING
@@ -4661,6 +4643,11 @@ def _gh_write(args: list[str], what: str, *, missing_ok: bool = False) -> None:
         raise RuntimeError(f"{what}: {proc.stderr.strip()}")
 
 
+def _login_is(user: Any, identity: str) -> bool:
+    """Whether the REST `user`'s login is `identity`, ignoring case."""
+    return str(json_object(user).get("login") or "").lower() == identity.lower()
+
+
 def _marked(
     comments: list[dict[str, Any]], identity: str, number: int
 ) -> re.Match[str] | None:
@@ -4676,11 +4663,9 @@ def _capped_record(
     """`_marked`'s record and when it was posted; a record with no readable
     time raises `PostMergeReadError`."""
     for c in comments:
-        first = str(c.get("body") or "").split("\n", 1)[0].rstrip("\r")
         if (
-            str(json_object(c.get("user")).get("login") or "").lower()
-            == identity.lower()
-            and (match := CAPPED_CLOSE_RE.fullmatch(first))
+            _login_is(c.get("user"), identity)
+            and (match := CAPPED_CLOSE_RE.fullmatch(_first_line(c.get("body"))))
             and int(match[1]) == number
         ):
             return match, postmerge._time(c.get("created_at"))
@@ -4709,7 +4694,7 @@ def _lane_removals(
         key=lambda e: postmerge._time(e.get("created_at")),
     )
     ours = [
-        str(json_object(e.get("actor")).get("login") or "").lower() == identity.lower()
+        _login_is(e.get("actor"), identity)
         and postmerge._time(e.get("created_at")) >= since
         for e in removals
     ]
@@ -4720,14 +4705,12 @@ def _spent(comments: list[dict[str, Any]], identity: str, number: int) -> int:
     """How many other pull requests for the issue the lane has closed at the
     cap for a fresh attempt (`_started_attempt`), so a parked or
     attempt-less record spends nothing."""
-    named = set()
-    for c in comments:
-        if (
-            str(json_object(c.get("user")).get("login") or "").lower()
-            == identity.lower()
-            and (pr := _started_attempt(c.get("body"))) is not None
-        ):
-            named.add(pr)
+    named = {
+        pr
+        for c in comments
+        if _login_is(c.get("user"), identity)
+        and (pr := _started_attempt(c.get("body"))) is not None
+    }
     return len(named - {number})
 
 
@@ -4739,10 +4722,7 @@ def not_converging_stop(
     place) naming `NOT_CONVERGING` and `head`, or None. Only the App writes
     it; a status description, which any workflow can post, decides nothing."""
     for comment in comments:
-        if (
-            str(json_object(comment.get("user")).get("login") or "").lower()
-            != identity.lower()
-        ):
+        if not _login_is(comment.get("user"), identity):
             continue
         lines = [
             line.rstrip("\r") for line in str(comment.get("body") or "").split("\n")
@@ -4836,8 +4816,7 @@ def capped_close(
         pr.get("state") != "open"
         or json_object(pr.get("head")).get("sha") != head
         or not identity
-        or str(json_object(pr.get("user")).get("login") or "").lower()
-        != identity.lower()
+        or not _login_is(pr.get("user"), identity)
     ):
         return {
             "closed": False,
@@ -5002,32 +4981,50 @@ def capped_close(
             if (state := status(issue)) in hold_states:
                 held[issue] = str(state)
                 plan[i] = (issue, comments, None, False, "none")
-    first = plan[0] if plan else None
+    first, _, first_attempt, first_parked, _ = (
+        plan[0] if plan else (None, [], None, False, "none")
+    )
     pr_body, _ = capped_close_bodies(
         number,
         head,
         str(refusal),
         detail,
         findings,
-        first[0] if first else None,
-        first[2] if first else None,
-        first[3] if first else False,
-        held.get(first[0]) if first else None,
+        first,
+        first_attempt,
+        first_parked,
+        None if first is None else held.get(first),
         admission,
     )
-    admission_path = urllib.parse.quote(admission, safe="")
-    if pr_record is None:
+
+    def post_comment(target: int, body: str, what: str) -> None:
         _gh_write(
             [
                 "api",
                 "-X",
                 "POST",
-                f"repos/{repo}/issues/{number}/comments",
+                f"repos/{repo}/issues/{target}/comments",
                 "-f",
-                f"body={pr_body}",
+                f"body={body}",
             ],
-            "pull request record",
+            what,
         )
+
+    def remove_label(issue: int, label: str) -> None:
+        _gh_write(
+            [
+                "api",
+                "-X",
+                "DELETE",
+                f"repos/{repo}/issues/{issue}/labels/"
+                + urllib.parse.quote(label, safe=""),
+            ],
+            f"#{issue} {label}",
+            missing_ok=True,
+        )
+
+    if pr_record is None:
+        post_comment(number, pr_body, "pull request record")
     for issue, comments, attempt, parked, labels in plan:
         _, issue_body = capped_close_bodies(
             number,
@@ -5045,23 +5042,9 @@ def capped_close(
         if issue in held and issue_status is None:
             # At the cap: no attempt restarts when the hold clears. Before the
             # record, since a rerun that finds the record writes no labels.
-            _gh_write(
-                ["api", "-X", "DELETE", f"{base}/{admission_path}"],
-                f"#{issue} {admission}",
-                missing_ok=True,
-            )
+            remove_label(issue, admission)
         if _marked(comments, identity, number) is None:
-            _gh_write(
-                [
-                    "api",
-                    "-X",
-                    "POST",
-                    f"repos/{repo}/issues/{issue}/comments",
-                    "-f",
-                    f"body={issue_body}",
-                ],
-                f"#{issue} record",
-            )
+            post_comment(issue, issue_body, f"#{issue} record")
         if labels == "park" and issue_status is not None:
             # A repository that keeps Work status in the field gets the field
             # alone, before any label comes off (report-outcome.mjs
@@ -5074,16 +5057,7 @@ def capped_close(
                 ["api", "-X", "POST", base, "-f", f"labels[]={STATUS_CONFIRMED}"],
                 f"#{issue} {STATUS_CONFIRMED}",
             )
-            _gh_write(
-                [
-                    "api",
-                    "-X",
-                    "DELETE",
-                    f"{base}/{urllib.parse.quote(STATUS_READY, safe='')}",
-                ],
-                f"#{issue} {STATUS_READY}",
-                missing_ok=True,
-            )
+            remove_label(issue, STATUS_READY)
         if labels == "none":
             continue
         if issue_status is not None:
@@ -5101,11 +5075,7 @@ def capped_close(
             )
             continue
         if labels != "add":
-            _gh_write(
-                ["api", "-X", "DELETE", f"{base}/{admission_path}"],
-                f"#{issue} {admission}",
-                missing_ok=True,
-            )
+            remove_label(issue, admission)
         if parked:
             continue
         args = ["api", "-X", "POST", base, "-f", f"labels[]={admission}"]
@@ -5125,7 +5095,7 @@ def capped_close(
         "refusal": refusal,
         "restarted": [i for i, *_, how in plan if how in ("toggle", "add")],
         "parked": [i for i, _, _, parked, _ in plan if parked],
-        "unrestarted": [i for i, _, _, parked, how in plan if how == "none"],
+        "unrestarted": [i for i, *_, how in plan if how == "none"],
         **({"held": sorted(held)} if held else {}),
     }
 
@@ -5264,6 +5234,12 @@ class _Pacer:
         self.stopped = why
         return _BuildStopped(why)
 
+    def _cap_stop(self, calls: int) -> _BuildStopped:
+        reset = datetime.fromtimestamp(self.window_reset or 0, UTC).isoformat()
+        return self._stop(
+            f"{calls} calls in the window that resets at {reset}, the cap"
+        )
+
     def _pace(self) -> None:
         if self._last is not None and self.per_second > 0:
             wait = self._last + 1.0 / self.per_second - time.monotonic()
@@ -5289,13 +5265,9 @@ class _Pacer:
         if self.limited:
             raise self._stop(f"rate limited: {self.limited}")
         try:
-            core = json_object(
-                json_object(json.loads(proc.stdout)).get("resources")
-            ).get("core")
-            remaining, reset = (
-                json_object(core)["remaining"],
-                json_object(core)["reset"],
-            )
+            body = json_object(json.loads(proc.stdout))
+            core = json_object(json_object(body.get("resources")).get("core"))
+            remaining, reset = core["remaining"], core["reset"]
         except (ValueError, KeyError, TypeError) as exc:
             raise self._stop(f"the rate limit could not be read: {exc}") from exc
         if type(remaining) is not int or type(reset) is not int:
@@ -5317,10 +5289,7 @@ class _Pacer:
         self.window_reset, self.window_calls = reset, kept + 1
         self._keep()
         if self.window_calls > self.window_cap:
-            raise self._stop(
-                f"{self.window_calls - 1} calls in the window that resets at "
-                f"{datetime.fromtimestamp(reset, UTC).isoformat()}, the cap"
-            )
+            raise self._cap_stop(self.window_calls - 1)
 
     def _keep(self) -> None:
         if self.state_file and self.window_reset is not None:
@@ -5345,10 +5314,7 @@ class _Pacer:
         if self.window_reset is None or _wall_clock().timestamp() >= self.window_reset:
             self.open_window()
         if self.window_calls >= self.window_cap:
-            raise self._stop(
-                f"{self.window_calls} calls in the window that resets at "
-                f"{datetime.fromtimestamp(self.window_reset or 0, UTC).isoformat()}, the cap"
-            )
+            raise self._cap_stop(self.window_calls)
         proc = self._raw(args, **kwargs)
         self._keep()
         if self.limited:
@@ -5360,11 +5326,9 @@ def _kept_run(run: dict[str, Any]) -> dict[str, Any]:
     """The fields of a run record the build keeps: its status and origin."""
     return {
         **{k: run.get(k) for k in RUN_FIELDS_KEPT},
-        "repository": {
-            "full_name": json_object(run.get("repository")).get("full_name")
-        },
-        "head_repository": {
-            "full_name": json_object(run.get("head_repository")).get("full_name")
+        **{
+            k: {"full_name": json_object(run.get(k)).get("full_name")}
+            for k in REPOSITORY_FIELDS
         },
     }
 
@@ -5688,6 +5652,13 @@ class _PerRunBuild:
                 f"{_stamp(created)}, remove the checkpoint file and run again"
             )
 
+    def _read_run(self, record: dict[str, Any]) -> None:
+        """Read and keep `record`'s FAILs unless the checkpoint holds them."""
+        runs = self.state["runs"]
+        if str(record["id"]) not in runs:
+            runs[str(record["id"])] = self._run(record)
+            self.save()
+
     def build(self) -> dict[str, Any]:
         self.load()
         windows, runs = self.state["windows"], self.state["runs"]
@@ -5702,11 +5673,8 @@ class _PerRunBuild:
                 self.save()
             for record in early[key]:
                 updated = _when(record.get("updated_at"))
-                if (updated is None or updated >= self.since) and str(
-                    record["id"]
-                ) not in runs:
-                    runs[str(record["id"])] = self._run(record)
-                    self.save()
+                if updated is None or updated >= self.since:
+                    self._read_run(record)
         spans = _windows(self.since, self.cutover)
         for n, (start, end) in enumerate(spans):
             key = _stamp(start)
@@ -5714,9 +5682,7 @@ class _PerRunBuild:
                 windows[key] = self._window(start, end, last=n == len(spans) - 1)
                 self.save()
             for record in windows[key]:
-                if str(record["id"]) not in runs:
-                    runs[str(record["id"])] = self._run(record)
-                    self.save()
+                self._read_run(record)
         # The listing's FAILs: a run created before `since` (a re-run keeps
         # its creation time, and a judgment can upload hours after it) is
         # read here, so the file is the union of the windows and the listing.
@@ -5987,14 +5953,14 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         "--rerun-lookback-days", type=float, default=RERUN_LOOKBACK.days
     )
     args = parser.parse_args(argv)
+    if args.command in ("evidence", "capped-close") and not (
+        merge_policy.SHA_RE.fullmatch(args.head)
+        and merge_policy.SHA_RE.fullmatch(args.base_sha)
+    ):
+        parser.error("head and --base-sha must be full commit SHAs")
     if args.command == "legacy-fails":
         return _legacy_fails_main(args, now)
     if args.command == "capped-close":
-        if not (
-            merge_policy.SHA_RE.fullmatch(args.head)
-            and merge_policy.SHA_RE.fullmatch(args.base_sha)
-        ):
-            parser.error("head and --base-sha must be full commit SHAs")
         return _capped_close_main(args, now)
     if args.command == "check-code":
         return 0 if merge_policy.check_code_unchanged(args.code_sha) else 1
@@ -6024,11 +5990,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         )
         print(json.dumps(answer.report()))
         return 0
-    if not (
-        merge_policy.SHA_RE.fullmatch(args.head)
-        and merge_policy.SHA_RE.fullmatch(args.base_sha)
-    ):
-        parser.error("head and --base-sha must be full commit SHAs")
     if args.lane_queue and not args.lane_reviews:
         # The reviews read checks the head the count is for and reads the limit.
         parser.error("--lane-queue needs --lane-reviews")
@@ -6058,7 +6019,6 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
         return refusal.report() | link
     reader.max_fails = config.max_verify_fails
     reader.agent_identity = config.agent_identity
-    pr = None
     if args.lane_reviews:
         try:
             pr = merge_policy.pull_request(args.repo, args.number)
@@ -6110,7 +6070,7 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
                 link["reviewsPerson"],
                 link["wholeReviewWanted"],
             ) = held or (None, False, False)
-        if args.lane_queue and link["reviews"] is None and config is not None:
+        if args.lane_queue and link["reviews"] is None:
             link["queue"] = lane_queue(
                 args.repo,
                 args.branch,

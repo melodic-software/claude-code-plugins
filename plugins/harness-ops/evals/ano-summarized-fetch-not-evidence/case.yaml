@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: ano-summarized-fetch-not-evidence
+graders:
+  - name: fetch-answer-is-summary
+    type: regex
+    pattern: '\b(?:summary|summaries|summari[sz]\w*)|\bsmall(?:er)? model\b|\bparaphras\w*|\bmodel[’'']?s? (?:answer|reading|summary)\b|\bnot the (?:raw )?page\b'
+    flags: 'i'
+    target: last_message
+  - name: absence-not-evidence
+    type: regex
+    pattern: '\babsence\b[^.\n]{0,80}\bnot\b[^.\n]{0,40}\bevidence|\bnot\b[^.\n]{0,30}\bevidence of absence\b|\b(?:don[’'']?t|do not|cannot|can[’'']?t|shouldn[’'']?t|should not)\b[^.\n]{0,40}\brecord'
+    flags: 'i'
+    target: last_message
+  - name: uses-raw-page
+    type: regex
+    pattern: '\braw\b[^.\n]{0,60}\b(?:markdown|\.md|page|bytes|endpoint)|fetch-docs\.sh|\bskills\.md\b'
+    flags: 'i'
+    target: last_message

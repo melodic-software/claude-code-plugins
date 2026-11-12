@@ -1,5 +1,5 @@
 ---
-description: "Audits local workstation health and emits a findings report: runs OS-specific checks (disk, OS updates, security posture, CISA KEV) from a versioned catalog with trend-aware severity; remediation only when pre-approved. Use when: 'machine health check', 'audit my machine', 'system health', 'workstation status report', or when a scheduled weekly routine fires. Outputs a dated markdown report; updates append-only history state. Windows fully implemented; macOS/Linux scaffolded (reports UNKNOWN and stops)."
+description: "Audits local workstation health and emits a findings report: runs OS-specific checks (disk, OS updates, security posture, CISA KEV) from a versioned catalog with trend-aware severity; remediation only when pre-approved. Use when: 'machine health check', 'audit my machine', 'system health', 'workstation status report', or when the scheduled monthly task fires. Outputs a dated markdown report; updates append-only history state. Windows fully implemented; macOS/Linux scaffolded (reports UNKNOWN and stops)."
 argument-hint: "[weekly|on-demand|first-run] [--dry-run] [--scheduled]"
 user-invocable: true
 disable-model-invocation: false
@@ -48,8 +48,6 @@ $skillRoot, $stateRoot, $reportRoot = @'
 - **Pointer**: skill content substitution of the plugin paths and of `${user_config.KEY}` is in
   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   and [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value).
-  **As of**: 2026-10-22. **Recheck trigger**: either section stops substituting in skill content or
-  starts exporting the variables to the Bash or PowerShell tool.
 
 Other runtime parameters the caller passes (via slash-command arguments, scheduled task arguments, or environment variables; the orchestrator accepts them as parameters):
 
@@ -122,8 +120,6 @@ Routing table:
 
    - **Pointer**: the foreground command time limit is in
      [Tools reference, "Timeout and output limits"](https://code.claude.com/docs/en/tools-reference#timeout-and-output-limits).
-     **As of**: 2026-11-10. **Recheck trigger**: that section raises the foreground limit above the
-     audit's 15-minute runtime cap, or drops it.
 
    The orchestrator dispatches checks under per-check 90s timeouts, collects JSON results, applies the upward-only trend adjustments and the custom-check clamp, and, on non-dry runs, dispatches authorized remediations with before/after logging.
 5. **Receive the structured result.** When the run reports a `run-lock` result, another audit holds the state folder and this run wrote nothing: run no discovery, write nothing, and go straight to step 8's `run-lock` sentence, skipping its report check and decision-page sentence; offer no elevated pass. When the run reports a `state-location` result, its state folder sits under a cloud sync root and nothing was written there: write no `TODO.md` and no custom check, and go to step 6. Otherwise run discovery per `reference/shared/discovery-guide.md`. Propose 1–3 OS-appropriate new checks. Straightforward read-only ones may be implemented as custom checks (script under `<StateBase>/scripts/<os>/checks/`, registered in the catalog overlay), except under `--scheduled`, where every proposal goes to `<StateBase>/TODO.md` and nothing is authored or registered; anything needing new permissions or remediation lands in `<StateBase>/TODO.md` for human approval. Checks broadly useful to every consumer are best contributed to the plugin itself.
@@ -243,15 +239,11 @@ Upstream facts these rules rest on, read live rather than restated here:
   [How User Account Control works, "The consent prompt"](https://learn.microsoft.com/en-us/windows/security/application-security/application-control/user-account-control/how-it-works#the-consent-prompt);
   that page does not say whether the prompt shows the command line, and no elevated run has yet
   been observed here to show it, so these rules do not rely on the owner reading the hash at the
-  prompt. **As of**: 2026-10-22. **Recheck trigger**: the owner's first elevated run records what
-  the prompt showed, or that section starts describing the command line.
+  prompt.
 - **Pointer**: print mode is described in the `--print`, `-p` row of
   [CLI reference, "CLI flags"](https://code.claude.com/docs/en/cli-reference#cli-flags).
-  **As of**: 2026-10-22. **Recheck trigger**: that row changes what a `-p` run can ask its user.
 - **Pointer**: how a background command runs and stops is in
   [Tools reference, "Background commands"](https://code.claude.com/docs/en/tools-reference#background-commands).
-  **As of**: 2026-10-22. **Recheck trigger**: that section changes when a background command is
-  stopped or how its completion reaches the session.
 
 ## Untrusted data
 

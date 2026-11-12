@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Yes. Several 2.1.2xx releases fixed long-session slowdowns and keystroke lag.",
+      "why": "releases fixed"
+    },
+    {
+      "answer": "Fixes for CPU regressions landed in later releases.",
+      "why": "reverse"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The version is unlikely to matter.",
+      "why": "wrong"
+    }
+  ]
+}

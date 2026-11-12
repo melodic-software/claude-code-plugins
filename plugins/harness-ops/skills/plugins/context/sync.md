@@ -247,9 +247,6 @@ only in the script and its probe evidence, never here.
 - **Pointer**: when either classifier misses, compare a fresh `claude plugin install --json`
   result with the probe rows in `scripts/fixtures/cli-json-results.jsonl` and the `cli_json`
   basis comment in `scripts/sync-run.sh`.
-- **As of**: 2026-10-25
-- **Recheck trigger**: a Claude Code release that adds a result field for either fact, or a sync
-  report that misses unset options `/plugin configure` shows.
 
 An up-to-date result is not a source for `<new>`: this run's call
 changed nothing. It is the cross-check the "Concurrency" section's table uses against source 3, so
@@ -464,10 +461,8 @@ refresh against a non-empty marketplace directory succeeds here; route the reche
 or `git` marketplace when `git ls-remote` shows the source's ref already at the clone's HEAD, so a
 sync that moves nothing does not pay for a refresh. What `marketplace update` moves such a source
 to is in the
-[plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-update),
-read 2026-11-02. Recheck when that section changes which commit a `github` or `git` source updates
-to, or when a refresh that lands the same commit is observed to change anything beyond the clone;
-either one makes the skip unsafe or unneeded. So before the call the script runs `git ls-remote
+[plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-update).
+So before the call the script runs `git ls-remote
 origin` in the clone, asking for `refs/heads/<ref>` when the source pins a `ref` and for `HEAD`
 otherwise. It skips the call only
 when the source carries no key beyond `source`, `repo`, `url`, `ref` and `path`, `installLocation`
@@ -671,8 +666,7 @@ this step only; an `--allow-downgrade` project/local rollback is not compared.
 
 Off by default, because it makes one serial CLI call per lagging record, which on a machine with
 many checkouts runs to tens of minutes. The calls stay serial, on the sandbox probe recorded in
-[#12525](https://github.com/melodic-software/claude-code-plugins/issues/12525), as of 2026-11-02 on
-Claude Code 2.1.316. Recheck when a release note names concurrent writes to `installed_plugins.json`.
+[#12525](https://github.com/melodic-software/claude-code-plugins/issues/12525).
 Off, the step makes no call and renders `Behind in other paths:` with the count and the remedy; those
 records are not counted for `converge`, and a user-home one leaves the `User-home project records` row.
 
@@ -735,8 +729,8 @@ an id current, and what each does:
 Update the catalog plugins installed at `user` scope with `claude plugin update <id> -s user`.
 
 One call per plugin: we treat `claude plugin update` as taking a single `<plugin>` argument with no
-bulk flag ([plugins CLI reference: plugin update](https://code.claude.com/docs/en/plugins/cli-reference#plugin-update),
-as of 2026-11-10; recheck when that synopsis takes several plugins or a bulk flag). Loop it; a single plugin's update failure is reported inline (under
+bulk flag ([plugins CLI reference: plugin update](https://code.claude.com/docs/en/plugins/cli-reference#plugin-update)).
+Loop it; a single plugin's update failure is reported inline (under
 "Action needed") and does not abort the sweep for the rest.
 
 Take the ids from `fleet-state.sh --ids`, never from a hand-written `jq` over its JSON, and use the
@@ -1051,9 +1045,6 @@ record of this plugin the run moved, never from whichever moved row comes first.
   [Which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update);
   for how long the previous version's directory is kept, see
   [Cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions).
-- **As of**: 2026-10-04
-- **Recheck trigger**: either section changes which components keep the previous version's path,
-  or drops the delay before the previous version's directory is removed.
 
 **Name the monitors.** The script reads each moved record's own cache directory from the post-sweep
 snapshot (`installPath`) and counts the monitors that build declares; `monitor_count_at` in
@@ -1067,9 +1058,6 @@ updated plugin's monitors.
   and the update paragraph under
   [Which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update)
   live.
-- **As of**: 2026-10-04
-- **Recheck trigger**: one of those sections renames the monitors key, changes how it combines with
-  the default location, or changes what an updated plugin's monitors need to switch.
 
 End with the reload guidance per SKILL.md's Report section: recommend bare `/reload-plugins`, and
 state the recovery step rather than pre-judging which case will trigger it. That line is the

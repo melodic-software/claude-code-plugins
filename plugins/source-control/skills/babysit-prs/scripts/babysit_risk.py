@@ -1726,10 +1726,51 @@ def _on_block_keys(lines: list[str]) -> list[str]:
     return keys
 
 
-# A line whose value opens a block scalar: `key: |`, `- >-`, `key: &a |`.
-_BLOCK_SCALAR_START = re.compile(r"(?:^|[:-])\s+(?:[&!]\S*\s+)*[|>][0-9+-]*\s*$")
-# An anchor or tag a value may carry before its scalar.
-_NODE_PROPERTIES = re.compile(r"(?:(?<=\s)[&!]\S*\s*)+$")
+
+
+def _opens_block_scalar(line: str) -> bool:
+    """Whether `line`'s value opens a block scalar: `key: |`, `- >-`,
+    `key: &a |`. The indicator ends the line, after whitespace, anchors and
+    tags that follow the line's start, a `:` or a `-`. One right-to-left pass,
+    so its time is linear in `line`."""
+    body = line.rstrip()
+    pos = len(body)
+    while pos and body[pos - 1] in "0123456789+-":
+        pos -= 1
+    if not pos or body[pos - 1] not in "|>":
+        return False
+    pos -= 1
+    while True:
+        end = pos
+        while pos and body[pos - 1].isspace():
+            pos -= 1
+        if pos == end:
+            return False
+        if not pos or body[pos - 1] in ":-":
+            return True
+        start = pos
+        while start and not body[start - 1].isspace():
+            start -= 1
+        if not start or body[start] not in "&!":
+            return False
+        pos = start
+
+
+def _strip_node_properties(text: str) -> str:
+    """`text` without the anchors and tags (`&a`, `!t`) a value may carry
+    before its scalar: the whitespace-separated words at its end that start
+    with `&` or `!` after whitespace, with the whitespace after them. One
+    right-to-left pass, so its time is linear in `text`."""
+    cut = pos = len(text)
+    while True:
+        while pos and text[pos - 1].isspace():
+            pos -= 1
+        start = pos
+        while start and not text[start - 1].isspace():
+            start -= 1
+        if not start or text[start] not in "&!":
+            return text[:cut]
+        cut = pos = start
 
 
 def _uncommented(line: str, quote: str) -> tuple[str, str]:
@@ -1758,7 +1799,7 @@ def _uncommented(line: str, quote: str) -> tuple[str, str]:
         elif c == "#" and i and line[i - 1] in " \t":
             return line[: i - 1], ""
         elif c in "'\"":
-            head = _NODE_PROPERTIES.sub("", line[:i])
+            head = _strip_node_properties(line[:i])
             before = head.rstrip()
             carry = (
                 not before
@@ -1804,7 +1845,7 @@ def _code_lines(lines: list[str]) -> list[str]:
             continue
         cut, quote = _uncommented(line, quote)
         code.append(cut)
-        if not quote and _BLOCK_SCALAR_START.search(cut):
+        if not quote and _opens_block_scalar(cut):
             scalar_at = _scalar_parent(cut)
     return code
 

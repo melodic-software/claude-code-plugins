@@ -79,8 +79,9 @@
 //   autonomous merge's merge commit whose name is a --gate-check (required; none named is a
 //   usage error, never an empty gate). In this repository babysit-prs/scripts/babysit_postmerge.py
 //   reads the post-merge gate as the silent-revert canary (post-merge-detect-silent-revert.yml,
-//   check run `Silent-revert canary` on the merge commit) and the full pr-require-checks.yml run
-//   (aggregate job `ci-status`), scheduled or dispatched on a later SHA containing the merge. This
+//   check run `Silent-Revert Canary`, `Silent-revert canary` on a commit tested before the
+//   rename, on the merge commit; pass both as --gate-check) and the full pr-require-checks.yml run
+//   (aggregate job `CI Status`), scheduled or dispatched on a later SHA containing the merge. This
 //   script reads those workflow runs the same way (postMergeRuns) and, on the merge commit itself,
 //   the --gate-check check runs and contexts. Among the latter, every check run (filter=all, so a run later
 //   re-run green still counts) concluding failure, timed_out or startup_failure, and every

@@ -52,7 +52,6 @@
 # Python 3 the page is unread address-unchecked. OWASP's SSRF prevention cheat
 # sheet, case 2, prescribes this check over an allowlist when the destination
 # is open: https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
-# (as of 2026-10-07; recheck when its case 2 guidance changes).
 #
 # The page file is the raw bytes as fetched, or the converter's output. The
 # manifest hash is taken over those bytes, so a caller that strips control

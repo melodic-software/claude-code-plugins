@@ -30,7 +30,7 @@ const HUMANS = new Set([5]);
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
 const BASE = "89abcdef0123456789abcdef0123456789abcdef";
 const OLD = "fedcba9876543210fedcba9876543210fedcba98";
-const CHECKS = { "pr-review-hosted.yml": "pr-review / review-status", "pr-review-security-hosted.yml": "pr-review-security / review-status" };
+const CHECKS = { "pr-review-hosted.yml": "PR Review / review-status", "pr-review-security-hosted.yml": "PR Review Security / review-status" };
 // A review lane's pull_request run on `sha`, started at `created`, whose
 // status job (or `job`) finished at `at` and recorded a hold notice naming
 // `notice`, with its head in `repo`.
@@ -430,6 +430,8 @@ const ENFORCEMENT_FILES = [
   ".github/scripts/apply-patch/apply-patch.mjs",
   ".github/scripts/apply-patch/predicates.mjs",
   ".github/scripts/apply-patch/protected-paths.mjs",
+  ".github/scripts/lib/run-main.mjs",
+  ".github/scripts/lib/github-rest.mjs",
   ".github/scripts/pr-unblock/fix-ci-context.mjs",
   ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs",
   ".github/scripts/work-resolve-issue/stop-routes.json",
@@ -695,10 +697,13 @@ test("the decided head is the newest cost notice a lane's status job recorded be
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z"))).link, LINK);
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { lane: "pr-review-security-hosted.yml" }))).link, LINK);
   assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { criteria: "cost,trust-gate" }))).link, LINK);
+  // A head tested before the caller jobs' rename names the status job by the caller's id.
+  assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "pr-review / review-status" }))).link, LINK);
+  assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { lane: "pr-review-security-hosted.yml", job: "pr-review-security / review-status" }))).link, LINK);
   for (const [name, extra] of Object.entries({
     "a job done after the decision": laneRun(HEAD, "2026-10-22T12:30:00Z"),
     "a run started after the decision": laneRun(HEAD, "2026-10-22T11:30:00Z", { created: "2026-10-22T12:10:00Z" }),
-    "a job other than the status job": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "pr-review / review-key" }),
+    "a job other than the status job": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "PR Review / review-key" }),
     "the other lane's status job name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: CHECKS["pr-review-security-hosted.yml"] }),
     "the status job's retired name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "pr-review / claude-review-status" }),
     "the security status job's retired name": laneRun(HEAD, "2026-10-22T11:30:00Z", { lane: "pr-review-security-hosted.yml", job: "pr-review-security / security-review" }),
@@ -1710,11 +1715,6 @@ test("trackerBindingText: a .yaml file's tracker mapping as JSON, null when it b
   } finally {
     process.env.PATH = path;
   }
-});
-
-test("trackerBindingText: address-feedback.mjs keeps an identical copy, since the write runner loads pr-unblock alone", async () => {
-  const feedback = await import("../pr-unblock/address-feedback.mjs");
-  assert.equal(String(feedback.trackerBindingText), String(holdsModule.trackerBindingText));
 });
 
 test("queueHolds: the kill switch holds only the lanes App's pull request, until both read false", () => {

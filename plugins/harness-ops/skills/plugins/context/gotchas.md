@@ -68,8 +68,7 @@ Their output is not a cwd-effective answer for a plugin installed at several sco
 plugin as "current" from it can be wrong for any project with its own project/local scope pin.
 The command is documented at
 [plugin commands: plugin list](https://code.claude.com/docs/en/plugins/cli-reference#plugin-list),
-which as of 2026-11-03 does not say which scope's version it shows; recheck when that section
-states it. Always derive effective-version claims from `fleet-state.sh`'s `currentProject` flag and
+which does not say which scope's version it shows. Always derive effective-version claims from `fleet-state.sh`'s `currentProject` flag and
 scope precedence, never from `list`/`details` text.
 
 ## Native-Windows `projectPath` vs Git Bash `$PWD`
@@ -112,9 +111,8 @@ and confirm by reading the record's `projectPath` directly.
 `fleet-state.sh`'s output is a snapshot. A background `autoUpdate` sweep or a concurrent Claude
 Code session can mutate installed/enabled state between when you read it and when you act on it.
 For when the sweep fires, see
-[When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs)
-(as of 2026-10-10; ***Recheck trigger:*** a release note changing when, or in which sessions,
-auto-update runs). Re-read state immediately before each mutating
+[When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs).
+Re-read state immediately before each mutating
 step (`sync.md`'s "Concurrency" section, `converge.md` Step 4) rather than driving a whole multi-step
 sync off one snapshot taken at the start. When a mutation's actual result doesn't match what the
 snapshot predicted, that's this race. Note it in the report, don't treat it as a bug to chase. For
@@ -210,21 +208,18 @@ literal token, with **no error and no warning**; the value simply never appears,
 branching on it branches on a placeholder.
 
 This is why `SKILL.md` holds the `install_new` render and `sync-install-enable.md` Step 4 branches
-on *that* line rather than on its own prose. Verified empirically (2026-09-06, Claude Code
-2.1.263): a spoke that carried the placeholder on disk showed it raw in the same session where
+on *that* line rather than on its own prose. Verified empirically on Claude Code 2.1.263: a spoke that carried the placeholder on disk showed it raw in the same session where
 `SKILL.md`'s render showed the configured value. Claude Code enforces nothing here, so the rule is
 kept grep-checkable instead: no `context/*.md` file carries the dollar-brace form of the
 placeholder, and a spoke that inlines one fails silently until that grep catches it at review.
-Recheck when a Claude Code release note changes how spoke files under `context/` are read.
 
-**The skill-body half of the contrast is verified on Claude Code 2.1.263** (2026-09-06, throwaway
-plugin from a local marketplace): a `userConfig` key set in user settings or through `--settings`
+**The skill-body half of the contrast is verified on Claude Code 2.1.263** (throwaway plugin from a
+local marketplace): a `userConfig` key set in user settings or through `--settings`
 `pluginConfigs` substitutes into the rendered `SKILL.md` body alongside `${CLAUDE_PLUGIN_ROOT}`,
 provided the `pluginConfigs` payload nests the key under `options`; the spoke half rests on the
 on-disk observation above. Keep the render in `SKILL.md` and branch on that line.
 [scope-semantics.md](scope-semantics.md) "`userConfig`: an unset key renders the literal
-placeholder" holds the payload shape and the probe recipe. Recheck when a release note changes
-`userConfig` substitution in skill bodies.
+placeholder" holds the payload shape and the probe recipe.
 
 ## `sync` updates the plugin that provides `sync`
 
@@ -233,8 +228,8 @@ mid-run, `${CLAUDE_PLUGIN_ROOT}` keeps resolving to the version loaded at sessio
 remaining step, including every later `fleet-state.sh` call, executes the **pre-update** script
 while the report describes a version the user now has installed but is not running. What a
 running session keeps after a mid-session update is read live from
-[plugins loading: which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update)
-(as of 2026-11-10; recheck when that section says a running session switches paths on update). The behavior is **not re-run on 2.1.261**: observing it requires a live
+[plugins loading: which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update).
+The behavior is **not re-run on 2.1.261**: observing it requires a live
 interactive session in which a plugin updates mid-run, which a non-interactive probe pass cannot
 stage. It was observed on **Claude Code 2.1.240**: a `sync` run's Step 3 moved the `harness-ops`
 install record to 0.35.3, while the session went on rendering the 0.33.2 skill it had loaded at
@@ -242,8 +237,7 @@ session start, and every `fleet-state.sh` call for the rest of that run came fro
 
 Not a crash: we treat the old script as staying readable to the end of the run. Grace period and
 sweep conditions:
-<https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions> (as of 2026-11-10; recheck
-when that section stops saying a session that loaded the old version keeps running). And the
+<https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions>. And the
 *resolution* half is already handled: `fleet-state.sh`'s default-marketplace resolver carries a
 version-agnostic fallback whose comment names this exact scenario, which is why the bare
 (no `--marketplace`) path keeps working after the bump. Keep the two in step: if that fallback is
@@ -438,8 +432,8 @@ it also deletes this skill's run journal, which is the only record of what to re
 revert loop over a large set re-executes the very plugin set it is removing, once per iteration,
 including their MCP servers. Run every uninstall as `claude --bare plugin uninstall <id> -s user -y`
 instead, at roughly 15s per uninstall rather than 6s. What `--bare` skips is read live from
-[headless: start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode)
-(as of 2026-11-10; recheck when that section stops skipping installed plugins); that it also
+[headless: start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode);
+that it also
 skipped LSP and plugin sync is our observation below. Until the revert drains, use `--bare` for unrelated shell work too, and do not run
 `/reload-plugins`.
 

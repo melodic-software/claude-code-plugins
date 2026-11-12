@@ -26,8 +26,8 @@ raw `.claude/settings.json` entry (`projectEnabledEntry`), but not the raw local
 never claim the report surfaces a mismatch, and never hand-parse a settings file to work around the
 gap. `projectEnabledEntry` exists because the CLI's plugin list reports a project-level explicit
 `false` and no entry alike (Basis: the
-[decision record, Q3](https://github.com/melodic-software/claude-code-plugins/issues/7458#issuecomment-6547672521);
-as of 2026-10-31; recheck when `claude plugin list --json` gains a field that tells them apart), and Step 2 needs the difference.
+[decision record, Q3](https://github.com/melodic-software/claude-code-plugins/issues/7458#issuecomment-6547672521)),
+and Step 2 needs the difference.
 
 ## Step 1: Detect
 
@@ -76,8 +76,8 @@ Then decide the consolidation strategy:
 - **`user` scope holds the highest version** → the default strategy is to make the *project/local*
   scope fall through to it: `claude plugin uninstall <id> -s project --keep-data` (or
   `-s local --keep-data`) removes the redundant lower-precedence pin, and scope precedence (read live from
-  [settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence),
-  as of 2026-11-10; recheck when that section reorders the scopes) means the project now loads whatever `user` scope has, always current
+  [settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence))
+  means the project now loads whatever `user` scope has, always current
   from here on without a standing project pin. `--keep-data` is required: this step removes a
   scope pin, never the plugin's `${CLAUDE_PLUGIN_DATA}` directory. This default holds only for a
   pin the tracked settings do not mirror: see the committed-enable check below.
@@ -124,8 +124,8 @@ Every preview row states why its default was chosen, in a `Why:` clause, for exa
 
 **Before proposing the update strategy, check the catalog's direction.** We treat
 `claude plugin update` as installing the CATALOG version, never the sibling scope's (see
-[plugins CLI reference: plugin update](https://code.claude.com/docs/en/plugins/cli-reference#plugin-update),
-as of 2026-11-10; recheck when that section names another version source), so when the catalog reads below the
+[plugins CLI reference: plugin update](https://code.claude.com/docs/en/plugins/cli-reference#plugin-update)),
+so when the catalog reads below the
 highest installed version that strategy rolls the lagging scopes backward instead of forward. Read
 the report's `catalog_versions[<id>]` and compare it to the highest `scopes[].version` with the
 same dotted-numeric compare this step already uses. When the catalog version is readable and lower,
@@ -314,7 +314,7 @@ Never commit either. The user reviews and commits (or discards) through their ow
 ## Non-interactive execution
 
 What `-y` skips on `uninstall` is read live from
-[plugins CLI reference: plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall)
-(as of 2026-11-10; recheck when that section gives `-y` an effect beyond `--prune`), and this
+[plugins CLI reference: plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall),
+and this
 action's `uninstall` calls never pass `--prune`. Do not add `-y` here: Step 3's per-plugin confirm is the
 required gate, and `-y` would only ever bypass a different (unused) prompt, never that one.

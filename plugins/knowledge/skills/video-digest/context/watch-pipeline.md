@@ -51,9 +51,10 @@ It is recorded in `watch.json` (`state.target`) so an interrupted watch's `resum
 instead of re-asking (see [Phase 8](#phase-8-synthesis)).
 
 `--max-frame-gap-sec <sec>` sets the longest stretch between timed frames before a gap-fill frame
-is extracted; without it the run uses `MAX_FRAME_GAP_SEC`. The effective value is recorded in
-`watch.json` (`state.maxFrameGapSec`) and `coverage-plan.json`, and `run-watch.js --recover` plans
-with the recorded value.
+is extracted; without it the run uses the duration-tier default from `maxFrameGapForDuration`
+(`extraction/watching/compute-coverage-plan.js`). The effective value is recorded in
+`coverage-plan.json`, and a passed value also in `watch.json` (`state.maxFrameGapSec`);
+`run-watch.js --recover` plans with the recorded value, or derives the same default without one.
 
 Runs acquire (retry + throttle) → transcript → dynamic coverage watching → metadata link harvest.
 Writes:
@@ -148,8 +149,12 @@ node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/init-watc
 ```
 
 Use `--force` to regenerate the floors and per-sheet rows after `vision-plan.md` lands or
-`contactSheetCount` changes; it keeps every tick (by row id), the indented lines under a ticked row,
-and the Resume notes, and regenerates the row text itself. Tick `[ ]` → `[x]`
+`contactSheetCount` changes; it keeps every agent tick (by row id), the agent-written indented lines
+under a ticked row, and the Resume notes, and regenerates the row text itself. A tick on a row whose
+criteria changed is dropped and named on stderr. Lines starting `- evidence (generated):` are
+rewritten from the current `watch.json` and `selection.json`, and a tick that rested only on one is
+kept only while the generator still proves it. A `run-watch.js` re-run refreshes the checklist the
+same way. Tick `[ ]` → `[x]`
 only with verification evidence (command exit code, artifact path, verify row). **Ordered
 checkboxes:** `templates/watch-checklist.md` → slice `run-state/watch-checklist.md`.
 
@@ -231,8 +236,6 @@ that file's section of the template, and a per-sheet brief also carries the shee
 conversation nor the files already read.
 
 - **Pointer**: <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup>
-- **As of**: 2026-10-10
-- **Recheck trigger**: that section changes what a non-fork subagent inherits from its parent.
 
 - **Pass 1 contact-sheet triage:** One subagent per sheet from `tempSession.contactSheetsDir`
   (or `key-frames/contact-sheets/`). Write `key-frames/triage/batches/sheet_NNN.json` (cells per
@@ -411,9 +414,6 @@ correction. A probe on ffmpeg 8.0.1 found the reported times already relative to
 - **Pointer**: for per-frame timing, see <https://ffmpeg.org/ffmpeg-filters.html#showinfo>; for
   start-offset handling, see the `-copyts` entry at
   <https://ffmpeg.org/ffmpeg.html#Advanced-options>.
-- **As of**: 2026-10-02
-- **Recheck trigger**: the ffmpeg floor under Prerequisites in `SKILL.md` changes, or a release note
-  for either entry mentions timestamps.
 
 Standalone pipeline (when video + VTT already acquired):
 

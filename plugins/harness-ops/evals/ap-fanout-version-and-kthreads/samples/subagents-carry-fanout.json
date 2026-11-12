@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Every subagent carries the same statusline and hook fan-out as its parent.",
+      "why": "direct"
+    },
+    {
+      "answer": "Hooks and the statusline run again for each subagent.",
+      "why": "reverse"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ten subagents three deep is a lot of processes.",
+      "why": "no fan-out"
+    }
+  ]
+}

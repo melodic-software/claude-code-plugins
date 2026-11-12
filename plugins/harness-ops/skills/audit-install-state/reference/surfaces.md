@@ -23,8 +23,7 @@ when the setting is absent, and treats a value the product would reject as a con
 
 - **Pointer**: when reporting the window, its default or its accepted range, fetch
   [settings reference: cleanupPeriodDays](https://code.claude.com/docs/en/settings-reference#cleanupperioddays)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that entry changes its default, minimum, or
-  validation.
+  live.
 
 Four facts about it that change how a finding should be read:
 
@@ -33,26 +32,21 @@ Four facts about it that change how a finding should be read:
   `managed-settings-unparsable-refuses-start`.
   - **Pointer**: when a managed source is present but does not parse, fetch
     [managed settings: find entries Claude Code dropped](https://code.claude.com/docs/en/managed-settings#find-entries-claude-code-dropped)
-    live for which sources count and what the product does. **As of**: 2026-10-11. **Recheck
-    trigger**: that section stops describing a refused start for an unparsable managed source.
+    live for which sources count and what the product does.
 - **A user settings file that cannot be parsed can pause the retention sweep.** We treat a JSON
   syntax error in user settings as a retention outage, not only a config error. The engine reports
   it as `error`. It is not the managed-source refusal above.
   - **Pointer**: when a settings error coincides with old swept files, fetch
     [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
     live and read its paused-sweep bullet for the pause causes and where the warning shows.
-    **As of**: 2026-10-11. **Recheck trigger**: that bullet stops naming an unparsable settings
-    file as a pause cause.
 - **Managed settings can supply the value**, from a machine-scope path that varies by OS.
   - **Pointer**: when locating the managed file on a host, fetch
     [managed settings: where each mechanism stores the policy](https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy)
-    live; that section names each delivery mechanism's location. **As of**: 2026-10-11.
-    **Recheck trigger**: that section moves or renames the managed file locations.
+    live; that section names each delivery mechanism's location.
 - **`.last-cleanup` is an undocumented sentinel the engine reads.** It carries an ISO timestamp
   observed to advance when the sweep runs, and the engine reports its age. No upstream page names
   the file (claude-directory.md, settings-reference.md, monitoring-usage.md, and the CHANGELOG
-  through 2.1.268, checked 2026-09-11), so its role carries `observed-undocumented` and its cadence
-  is unknown; recheck when claude-directory.md gains a row or the CHANGELOG names it. An advance
+  through 2.1.268), so its role carries `observed-undocumented` and its cadence is unknown. An advance
   *during* an audit still tells you the tree is not quiesced. `plugins/.last_inuse_sweep` is the
   same kind of sentinel beside the plugin cache.
 
@@ -70,8 +64,6 @@ One firing rule of ours rides on a row: an old `image-cache/<session>/` disappea
 is expected, never an `age-exceeds-window` signal. Read how the sweep treats other sessions'
 `image-cache/` directories from the `image-cache/<session>/` row of
 [claude-directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically).
-**As of**: 2026-10-11. **Recheck trigger**: that row stops saying the sweep removes other
-sessions' directories whatever their age, or the row is dropped.
 
 ### The unit of retention is not always the file
 
@@ -94,7 +86,7 @@ reads as a deletion authorization.
 
 - **Pointer**: when stating what `file-history/` retains, fetch its row in
   [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
-  live. **As of**: 2026-11-10. **Recheck trigger**: that row changes its retention unit.
+  live.
 
 Absence is evidence only for the legacy directories: `todos/`, `statsig/` and `logs/` missing on an
 install old enough to have written them shows the sweep completed, including its
@@ -104,8 +96,7 @@ read from its row, so absence proves nothing about the sweep.
 
 - **Pointer**: when judging whether a swept path's absence means anything, fetch its row in
   [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
-  live. **As of**: 2026-10-11. **Recheck trigger**: a row there gains or loses a condition on
-  when the path is written, or a path joins or leaves the legacy set.
+  live.
 
 ## Kept until you delete them
 
@@ -116,7 +107,7 @@ that a kept path grows forever; read its row first.
 
 - **Pointer**: when judging whether a kept path is ever trimmed, fetch
   [claude directory: kept until you delete them](https://code.claude.com/docs/en/claude-directory#kept-until-you-delete-them)
-  live. **As of**: 2026-10-11. **Recheck trigger**: a row gains or loses a trimming exception.
+  live.
 
 Upstream also lists state files to keep that no table names, and the engine classifies them:
 `.credentials.json` and `daemon/` as `secret`, `agent-memory/` as `authored`, and `jobs/` as
@@ -125,7 +116,7 @@ delete. See "unclassified" below.
 
 - **Pointer**: when deciding whether an unlisted file is safe to remove, fetch
   [claude directory: state files to keep](https://code.claude.com/docs/en/claude-directory#state-files-to-keep)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that list gains or drops an entry.
+  live.
 
 ## Session-scoped, explicitly not age-swept
 
@@ -138,7 +129,7 @@ margin of error, because a session whose record vanished mid-run is *unknown*, n
 
 - **Pointer**: when explaining `sessions/` lifetime, fetch its bullet under
   [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
-  live. **As of**: 2026-11-10. **Recheck trigger**: `sessions/` joins the age sweep.
+  live.
 
 ## Never delete
 
@@ -146,8 +137,7 @@ We never route `~/.claude.json`, `~/.claude/settings.json`, or `~/.claude/plugin
 
 - **Pointer**: when a user asks whether one of these may go, fetch
   [claude directory: clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data)
-  live; its closing paragraph names the files never to delete. **As of**: 2026-10-11. **Recheck
-  trigger**: that paragraph adds or drops a file.
+  live; its closing paragraph names the files never to delete.
 
 ## Home-root state, outside the swept tree
 
@@ -179,9 +169,6 @@ written here.
 
 - **Pointer**: when relaying what `/doctor` checks for here, fetch
   [changelog 2.1.257](https://code.claude.com/docs/en/changelog#2-1-257) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a doc page names the mask-file directory, or `/doctor` stops warning about
-  them.
 
 ## Unclassified: everything the tables do not name
 

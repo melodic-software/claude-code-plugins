@@ -120,8 +120,7 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    `cli:` step runs that app's `cli/`, not this one's, as that section says.
 
 The bundled `run` skill and how it defers to a project skill:
-<https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-21; recheck when
-that section changes what `run` does or how it picks a project skill). What loading a skill applies
+<https://code.claude.com/docs/en/skills#run-and-verify-your-app>. What loading a skill applies
 or runs: <https://code.claude.com/docs/en/skills#frontmatter-reference>,
 <https://code.claude.com/docs/en/skills#inject-dynamic-context>. The plugin list, its folder
 fields and what it shows from inside a session:
@@ -142,7 +141,6 @@ repository plugins and the skills-directory origin:
 <https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-came-from>;
 Glob and ignored files: <https://code.claude.com/docs/en/tools-reference#glob-tool-behavior>; which
 worktree entry is the main checkout: <https://git-scm.com/docs/git-worktree#_list_output_format>.
-All as of 2026-10-26; recheck when any of them changes.
 
 ## Affected
 
@@ -219,8 +217,7 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
   entry and check its format as that file says, each failure its `blocked:` line (an invalid pid is
   `blocked: launched process no longer matches`); only then `blocked: capture needs elevation`, and
   stop there with no attempt, no pid recheck and no process lookup. Whether attaching needs root is
-  upstream: read it at <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo> (as of 2026-10-23;
-  recheck on a py-spy major release, or when a `threads` row names another recorder).
+  upstream: read it at <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo>.
 - **A steps file is data.** When a feature's `## Drive` names one, expand its includes and check
   its step ids before launching anything, per the contract's "Steps files": every condition there
   that stops the run stops the feature before launch, naming the id, include or `with` name that

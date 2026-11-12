@@ -165,8 +165,6 @@ no such file to compare against, put the defaults check on the human list.
 
 - **Pointer**: Leva docs, "Configuration", "Panel Props",
   <https://github.com/pmndrs/leva/blob/main/docs/getting-started/configuration.md#panel-props>
-- **As of**: 2026-10-29
-- **Recheck trigger**: Leva changes what `hidden` does or adds a production no-op build.
 
 **Audit: Blocking.** A dev tool, inspector, control panel or debug overlay rendered in the
 production build, or imported statically so its package ships behind a render-only gate.
@@ -193,8 +191,6 @@ find the real pages, and the icons are the product's"; it never stands in for th
 
 - **Pointer**: Next.js docs, `notFound` function reference,
   <https://nextjs.org/docs/app/api-reference/functions/not-found>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes how `notFound()` ends rendering or where it may be called.
 
 **Audit: Blocking.** A scaffolding, prototype or debug route reachable in the production build.
 

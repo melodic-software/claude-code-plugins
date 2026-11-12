@@ -11,8 +11,6 @@ never a lower display resolution.
 
 - **Pointer**: for the downscale and the absence of a size setting, see
   [Screenshots are downscaled automatically](https://code.claude.com/docs/en/computer-use#screenshots-are-downscaled-automatically).
-- **As of**: 2026-08-10
-- **Recheck trigger**: that section documents a setting that changes the target size.
 
 ## The target is a pixel budget, not a scale factor
 
@@ -41,8 +39,6 @@ image.
 
 - **Pointer**: for the `zoom` action, see
   [Available actions](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#available-actions).
-- **As of**: 2026-08-10
-- **Recheck trigger**: the `zoom` row in that table stops describing a full-resolution capture.
 
 Local behavior matches: while capture is failing, `zoom` returns
 `Screenshot capture failed after 3 attempts` rather than a blurry crop. A crop of the
@@ -70,8 +66,6 @@ one. Zoom is read-only inspection.
   [Screenshots are downscaled automatically](https://code.claude.com/docs/en/computer-use#screenshots-are-downscaled-automatically);
   for keyboard use on hard targets, see
   [Optimize model performance with prompting](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#optimize-model-performance-with-prompting).
-- **As of**: 2026-08-10
-- **Recheck trigger**: either section drops or reverses its remedy.
 
 ## The API-side resolution guidance, and how it applies here
 
@@ -89,16 +83,11 @@ translate the API advice into a display-settings change on a Claude Code machine
   and
   [Diagnose click issues](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#diagnose-click-issues)
   (correlate with [best practices](https://claude.com/blog/best-practices-for-computer-and-browser-use-with-claude)).
-- **As of**: 2026-08-10
-- **Recheck trigger**: either section changes its recommended resolutions, or the Claude Code
-  computer-use page documents a setting to change the target size.
 
 The wider implementation advice on the same page has its own record:
 
 - **Pointer**: for the wider implementation advice, see
   [Follow implementation best practices](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#follow-implementation-best-practices).
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes its screenshot, resolution or click-accuracy advice.
 
 ## `save_to_disk` is not an escape hatch
 

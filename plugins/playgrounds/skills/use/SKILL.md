@@ -44,16 +44,12 @@ namespaced form.
 - **Pointer**: when a shadow is suspected or the bare name resolves unexpectedly,
   fetch [Skills: Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section's same-name table changes how plugin skills
-  and local skills of one name load.
 
 ## Step 2: Present, so invoke
 
 When the upstream skill is present, invoke it via the Skill tool with the user's
 brief as arguments, using the namespaced form `playground:playground`
-([Step 1](#step-1-presence-check-provenance-not-prose)'s pointer covers why; as of
-2026-10-11, recheck when Step 1's pointer changes its target section). Pass the request
+([Step 1](#step-1-presence-check-provenance-not-prose)'s pointer covers why). Pass the request
 as stated; the upstream skill owns template choice and generation. When the user names
 styles to leave out (italic accent words, pill-shaped buttons), carry that list in the
 brief; when they dislike a choice in the generated page, add it to the list and invoke
@@ -83,9 +79,6 @@ organization policy, say so plainly and stop; there is no workaround to offer.
   could not, fetch [Plugin dependencies: How dependencies behave for your users](https://code.claude.com/docs/en/plugins/dependencies#how-dependencies-behave-for-your-users)
   and [Install plugins: Plugins with dependencies](https://code.claude.com/docs/en/plugins/install#plugins-with-dependencies)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes when dependencies install, what is
-  reported when one cannot, or which marketplaces come preconfigured.
 
 ## Step 4: Delivery, especially off the desktop
 
@@ -106,9 +99,6 @@ Degrade visibly at every tier; never name a delivery surface as guaranteed.
 - **Pointer**: when deciding whether the upstream flow can open the file in this
   session, fetch [the playground skill § How to use this skill](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/playground/skills/playground/SKILL.md#how-to-use-this-skill)
   live.
-- **As of**: 2026-11-03
-- **Recheck trigger**: that section is removed or retitled, or the skill moves out of
-  `plugins/playground/`.
 
 ## Recipes (field-tested)
 

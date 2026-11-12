@@ -55,7 +55,7 @@ none delegable (the gate runs first: every one of them acts on an artifact, so a
 against a run that produced none):
 
 1. **Re-surface `open_questions`.** `AskUserQuestion` is filtered out of every non-fork subagent, so
-   the agent returns questions as text. The dated record for that harness behavior is
+   the agent returns questions as text. The record for that harness behavior is
    [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
    "Harness facts the dispatch design rests on". If the parent does not surface them, the anti-pattern the
    skill guards against, silent downstream resolution, happens anyway, one level up.
@@ -155,10 +155,6 @@ against a run that produced none):
      tools reference's
      [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
      live.
-   - **As of**: 2026-10-04
-   - **Recheck trigger**: the tools reference stops marking `Read` as prompting for paths outside
-     the working directories, its WebFetch section stops naming a size limit, or a verifier reports
-     a `Snapshots:` path it could not Read.
 3. **Apply project fit.** The consuming project's conventions and stated direction live with the
    parent; a fresh worker has no access to them.
 4. **Write both results back into the artifact.** This is the obligation easiest to drop, and
@@ -186,7 +182,7 @@ against a run that produced none):
 
 ## Discipline liveness: why a token at all
 
-We never count on the harness to fail a dispatch, or to tell the agent, when a `skills:` entry does not load. The dated record for that harness behavior is
+We never count on the harness to fail a dispatch, or to tell the agent, when a `skills:` entry does not load. The record for that harness behavior is
 [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "Harness facts the dispatch design rests on". The resulting run has no disciplines, no phase
 structure, and no gate, and it still writes an artifact, still returns a payload, and still reports
@@ -458,7 +454,7 @@ instead, one level up, where gate step 1 has already put the payload in the pare
 ## Truncation
 
 At the turn limit, a subagent that reaches `maxTurns` returns its output marked as partial, and
-the parent can resume it. Dated record:
+the parent can resume it. Record:
 [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "A turn-limit stop returns partial output, and the parent can resume the agent".
 
@@ -498,7 +494,7 @@ in
   lists are on disk. For *process*, only as far as those artifacts capture it, which is why the fetch
   log and the gap lists are written outputs rather than working notes.
 - **Debuggability**: worse, and worth stating plainly. Background is the default execution mode, so
-  a failed run's transcript is not in the conversation at all. The dated record for that harness
+  a failed run's transcript is not in the conversation at all. The record for that harness
   behavior is
   [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
   "Harness facts the dispatch design rests on". The artifact and the payload are the

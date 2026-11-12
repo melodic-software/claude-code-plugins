@@ -522,6 +522,16 @@ def is_gate_suite(suite: str) -> bool:
     return suite.startswith(GATE_SUITE_PREFIXES)
 
 
+def check_key(check: str) -> str:
+    """`check` (`<job>`, `<job> (<leg>)` or `<job>: <gate>`) with its job
+    name lower-cased and its spaces made hyphens, so a baseline run tested
+    before the jobs got display names (`test-bash (0)`) matches the same check
+    after (`Test Bash (0)`)."""
+    job, colon, gate = check.partition(": ")
+    name, paren, leg = job.partition(" (")
+    return f"{name.lower().replace(' ', '-')}{paren}{leg}{colon}{gate}"
+
+
 # --- GitHub access ------------------------------------------------------------------
 
 
@@ -1484,7 +1494,12 @@ class _Context:
         attempt = 2 if run.id in self.red_on_rerun else 1
         failing = self.failing_checks(run.id, attempt)
         baseline = self._baseline(signal, merged_at) if failing else None
-        new = failing if baseline is None else failing - baseline
+        before = {check_key(c) for c in baseline or ()}
+        new = (
+            failing
+            if baseline is None
+            else frozenset(c for c in failing if check_key(c) not in before)
+        )
         demote = self.demoting(run, attempt, new) if new else new
         return demote | self.expired(run, attempt, failing - new)
 
@@ -2972,6 +2987,61 @@ def _stop_uncovered(judged: list[AutoMerge], listed: list[Run]) -> None:
         merged_at = _time(merge.merged_at)
         if not any(at >= merged_at for at in dispatched):
             raise UncoveredMergeStop(merge.number)
+
+
+def newest_dispatch_lacks(repo: str, branch: str, lane_sha: str) -> bool:
+    """Whether the newest dispatch run `_dispatch_runs` would list on `branch`
+    lacks `lane_sha`, read in one call. A dispatch run checks out the branch
+    tip when it is created, so its `head_sha` holds the commit exactly when
+    the run was created after that commit landed; when it does not, no listed
+    run was, and `_stop_uncovered` stops for a judged merge at `lane_sha`. No
+    dispatch run at all is True too. The ancestry is read from a local
+    full-history clone (`_Context._local_contains`); a `head_sha` no clone
+    holds, or any git failure, is False, so the caller runs its check. Raises
+    `PostMergeReadError` when the listing is unreadable or its newest row is
+    not such a run."""
+    owner, name = _split_repo(repo)
+    label = f"newest {FULL_RUN_WORKFLOW} workflow_dispatch run"
+    page = json_object(
+        _read(
+            [
+                "api",
+                f"repos/{owner}/{name}/actions/workflows/{FULL_RUN_WORKFLOW}/runs"
+                f"?event=workflow_dispatch&branch={quote(branch, safe='')}&per_page=1",
+            ],
+            label,
+        )
+    )
+    items, total = page.get("workflow_runs"), page.get("total_count")
+    if not is_json_array(items) or type(total) is not int:
+        raise PostMergeReadError(f"{label}: no page")
+    if not items:
+        if total:
+            raise PostMergeReadError(f"{label}: total_count {total}, but none returned")
+        return True
+    runs = [
+        r
+        for r in _run_rows((json_object(i) for i in items), "workflow_dispatch", owner, name)
+        if r.head_branch == branch
+    ]
+    if not runs:
+        raise PostMergeReadError(f"{label}: the newest row is not a run on {branch}")
+    head = max(runs, key=lambda r: r.created_at).head_sha
+    ctx = _Context(owner, name, "", branch=branch)
+    return ctx._local_contains(lane_sha, head) is False
+
+
+def _uncovered_at(repo: str, branch: str, lane_sha: str) -> int:
+    """`--uncovered-at`: EXIT_UNCOVERED (6) when `newest_dispatch_lacks`, 0
+    when not, 3 when the read failed; a rate limit exits 75 through
+    babysit_gh. Only 6 ends a pr-merge wake; any other code runs its check."""
+    try:
+        uncovered = newest_dispatch_lacks(repo, branch, lane_sha)
+    except PostMergeReadError as exc:
+        print(f"uncovered-at: {exc}", file=sys.stderr)
+        return EXIT_UNREADABLE
+    _print_json({"uncovered": uncovered, "lane": lane_sha}, indent=None)
+    return EXIT_UNCOVERED if uncovered else 0
 
 
 def check(
@@ -5210,6 +5280,12 @@ def _since(value: str) -> datetime:
     return parsed
 
 
+def _full_sha(value: str) -> str:
+    if not _FULL_SHA.fullmatch(value):
+        raise argparse.ArgumentTypeError("needs a full 40-character commit id")
+    return value
+
+
 def _print_json(payload: Any, indent: int | None = 2) -> None:
     json.dump(payload, sys.stdout, indent=indent)
     sys.stdout.write("\n")
@@ -5481,6 +5557,18 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     mode.add_argument(
+        "--uncovered-at",
+        type=_full_sha,
+        metavar="LANE_SHA",
+        help=(
+            "with --branch: exit 6 when the branch's newest full dispatch run's "
+            "head commit does not contain LANE_SHA (a full commit id, ancestry "
+            "read from a local clone), 0 when it does or cannot be told, 3 "
+            "unreadable; one read, before any of the check's (a pr-merge wake's "
+            "pre-check)"
+        ),
+    )
+    mode.add_argument(
         "--settle-from",
         metavar="REPORT",
         help=(
@@ -5505,8 +5593,13 @@ def main(argv: list[str] | None = None) -> int:
         or args.settle_from
         or args.judge_run is not None
         or args.lane_alerted is not None
+        or args.uncovered_at is not None
     ):
         parser.error("--stop-uncovered is for a read-only check alone")
+    if args.uncovered_at is not None:
+        if not args.branch:
+            parser.error("--uncovered-at needs --branch")
+        return _uncovered_at(args.repo, args.branch, args.uncovered_at)
     if args.preflight:
         return _preflight(args.repo, args.agent_identity, args.self_login)
     if args.lane_alerted is not None:

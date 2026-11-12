@@ -50,9 +50,6 @@ call. This paragraph is a boundary, not a routing verdict.
 
 - **Pointer**: when you need what `/hooks` lists, or what it shows for a selected hook, fetch
   [the /hooks menu](https://code.claude.com/docs/en/hooks#the-/hooks-menu) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section stops showing each hook's source, or the menu stops listing
-  the resolved set of configured hooks.
 
 ## Adapting to your environment (graceful degrade)
 
@@ -172,8 +169,6 @@ control upstream says it never fires, which no local reading surfaces.
 - **Pointer**: when a candidate gates on a hook event's exit code, fetch that event's decision
   control live, for example
   [hooks: PermissionRequest decision control](https://code.claude.com/docs/en/hooks#permissionrequest-decision-control).
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section changes which exit codes or decision fields the event honors.
 
 **Conditional: facts the harness does not own.** Third-party tool performance, an ecosystem's
 standard formatter, server stability and auth, known issues in a tool the candidate would run. Fetch
@@ -296,8 +291,6 @@ hook type reaches, **Already enforced** to a deterministic finding already escal
 
 - **Pointer**: before proposing a `prompt` or `agent` hook, fetch its status and fields live at
   [hooks: prompt and agent hook fields](https://code.claude.com/docs/en/hooks#prompt-and-agent-hook-fields).
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section changes either type's status or the fields it accepts.
 
 Produce a verdict per candidate:
 
@@ -384,7 +377,6 @@ script exits 2 rather than guessing when it is missing.
 - **Pointer**: when deciding how a script receives a plugin path variable, fetch
   [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   live.
-- **As of**: 2026-11-10
 - **Recheck trigger**: that section starts exporting the variable to commands run through the Bash
   tool.
 
@@ -403,9 +395,6 @@ only durable copy, and an uninstall can delete it.
 - **Pointer**: when deciding whether the findings survive an uninstall, fetch
   [plugins CLI reference: what an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section changes whether the plugin data directory survives an
-  uninstall.
 
 ## Phase 4: Implement (if `--implement` or user requests)
 

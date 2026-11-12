@@ -120,10 +120,9 @@ does not perform, some hosts refuse a fetch by sha, and it would also silently e
 the verdict exists to report.
 
 **Only an install recorded at the clone's HEAD is compared.** The marketplace clone is observed to
-be shallow, and Claude Code re-clones it on update
-([host-marketplace](https://code.claude.com/docs/en/plugins/host-marketplace.md), as of 2026-10-25;
-the page states the re-clone, not shallowness or a depth; recheck when its update or clone
-description changes). So an install recorded at an older commit usually has no object in the clone
+be shallow, and an update replaces it rather than deepening it
+([What background auto-update does with credentials](https://code.claude.com/docs/en/plugins/host-marketplace#what-background-auto-update-does-with-credentials);
+shallowness is our observation, not the page's). So an install recorded at an older commit usually has no object in the clone
 to compare against. The checker therefore compares only records whose `gitCommitSha` is the
 clone's HEAD and gives every other record the `not-at-head` verdict, counted in `not_checked`. A
 deeper clone that does hold the older commit gets the same answer, so the report does not depend

@@ -7,8 +7,7 @@ examples illustrate the technique.
 The layout rules these recipes implement, with audit severities, are in
 [the web layout spoke](../../../reference/types/web/layout.md).
 
-Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
-2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
+Each `Baseline:` line links the live compat entry; never copy version numbers from it.
 
 Contents: `content-grid-with-breakouts`, `intrinsic-grid`, `subgrid-rows-shared-across-cards`,
 `sidebar-that-wraps-on-its-own`, `container-queries-with-container-units`,
@@ -21,7 +20,6 @@ be content width, wider, or edge to edge.
 
 Baseline: [`grid-template-columns`](https://developer.mozilla.org/en-US/docs/Web/CSS/grid-template-columns#browser_compatibility),
 [`min()`](https://developer.mozilla.org/en-US/docs/Web/CSS/min#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it as the container of every page, whether or not anything on it goes wider than the content.
 A centered `max-width` wrapper is the sign: `.container`, `.wrapper` or Tailwind's `mx-auto max-w-*`.
@@ -72,7 +70,6 @@ Rules:
 Why: the grid fits as many columns as the width allows, replacing a column count per breakpoint.
 
 Baseline: [`repeat()`](https://developer.mozilla.org/en-US/docs/Web/CSS/repeat#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for any set of equal cards or tiles.
 
@@ -94,7 +91,6 @@ Rules:
 Why: card parts (title, body, footer) line up across a row whatever the length of their content.
 
 Baseline: [`subgrid`](https://developer.mozilla.org/en-US/docs/Web/CSS/grid-template-rows#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 ```css
 .cards {
@@ -123,7 +119,6 @@ Why: the pair stacks when the main side would drop below a share of the containe
 query.
 
 Baseline: [`gap` in flex layout](https://developer.mozilla.org/en-US/docs/Web/CSS/gap#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for any pair where one side has an ideal width and the other takes the rest: a media
 object, an input with a button, a page with an aside.
@@ -161,7 +156,6 @@ Rules:
 Why: the component responds to the slot it is given, where a media query only knows the viewport.
 
 Baseline: [`@container`](https://developer.mozilla.org/en-US/docs/Web/CSS/@container#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it for any component that appears in slots of different widths.
 
@@ -199,7 +193,6 @@ with its offsets, sizes and transforms.
 
 Baseline: [`grid-area`](https://developer.mozilla.org/en-US/docs/Web/CSS/grid-area#browser_compatibility),
 [`place-self`](https://developer.mozilla.org/en-US/docs/Web/CSS/place-self#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it whenever things sit on top of each other: text over an image, a badge on a card, two icons
 that swap.
@@ -223,7 +216,6 @@ Why: `safe` falls back to start alignment when content overflows, so nothing is 
 unreachable edge.
 
 Baseline: [`justify-content`](https://developer.mozilla.org/en-US/docs/Web/CSS/justify-content#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it wherever content is centered or end-aligned in a container that can become too small: a
 tab row, a toolbar, a vertically centered modal.
@@ -248,7 +240,6 @@ Why: `clip` cuts overflow without making a scroll container, so `position: stick
 working and nothing can scroll by accident.
 
 Baseline: [`overflow`](https://developer.mozilla.org/en-US/docs/Web/CSS/overflow#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
 
 Use it whenever you want to cut off overflow and do not need scrolling.
 

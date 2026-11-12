@@ -27,8 +27,8 @@ HEAD = "0123456789abcdef0123456789abcdef01234567"
 BASE = "main"
 OLD = "fedcba9876543210fedcba9876543210fedcba98"
 CHECKS = {
-    "pr-review-hosted.yml": "pr-review / review-status",
-    "pr-review-security-hosted.yml": "pr-review-security / review-status",
+    "pr-review-hosted.yml": "PR Review / review-status",
+    "pr-review-security-hosted.yml": "PR Review Security / review-status",
 }
 PULL = {
     "number": 99,
@@ -517,6 +517,9 @@ class CostDecision(unittest.TestCase):
             "with cost among its criteria": _run(
                 HEAD, late, criteria="cost,trust-gate"
             ),
+            "from a status job under its caller before the rename": _run(
+                HEAD, late, job="pr-review / review-status"
+            ),
             "from a status job named as pr-review.yml names it": _run(
                 HEAD, late, job="pr-review / claude-review-status"
             ),
@@ -535,7 +538,7 @@ class CostDecision(unittest.TestCase):
             "a job done after it": _run(HEAD, "2026-10-22T12:30:00Z"),
             "a run started after it": _run(HEAD, late, created="2026-10-22T12:10:00Z"),
             "a job other than the status job": _run(
-                HEAD, late, job="pr-review / review-key"
+                HEAD, late, job="PR Review / review-key"
             ),
             "the other lane's status job name": _run(
                 HEAD, late, job=CHECKS["pr-review-security-hosted.yml"]

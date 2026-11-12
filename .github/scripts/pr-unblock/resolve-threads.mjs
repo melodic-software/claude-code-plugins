@@ -41,8 +41,8 @@
 //   SKIP_REASON_FILE   where the runner reads the skip reason
 
 import { writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 
+import { runAsScript } from "../lib/run-main.mjs";
 import {
   createGitHubApi,
   isLaneComment,
@@ -193,14 +193,4 @@ export async function main(env, { api, actions, log = (line) => console.log(line
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.env).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.log(`::error::resolve-threads failed: ${error.message}`);
-      process.exitCode = 1;
-    },
-  );
-}
+runAsScript(import.meta.url, "resolve-threads", () => main(process.env));

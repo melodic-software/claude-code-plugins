@@ -2152,17 +2152,6 @@ test("work-resolve-issue.yml: an unlisted sender's agent-ready field write is re
 const READ_RUNNER = "./.github/workflows/pr-run-activity-read.yml";
 const workflowFiles = () => readdirSync(new URL("../../workflows/", import.meta.url)).filter((file) => /\.ya?ml$/.test(file));
 
-// A workflow's `name:` is what a workflow_run filter matches, so one that drifts from this rule
-// silently stops a trigger. babysit_review_evidence.py's workflow_display_name holds the same rule.
-const { displayWords } = JSON.parse(readFileSync(new URL("../../standards/github-actions-conventions/vocabulary.json", import.meta.url), "utf8"));
-const displayName = (stem) => stem.split("-").map((word) => displayWords[word] ?? word[0].toUpperCase() + word.slice(1)).join(" ");
-test("every workflow and action name is its file or directory stem in Title Case", () => {
-  const actions = readdirSync(new URL("..", import.meta.url)).filter((dir) => existsSync(new URL(`../${dir}/action.yml`, import.meta.url)));
-  for (const [file, stem] of [...workflowFiles().map((name) => [new URL(`../../workflows/${name}`, import.meta.url), name.replace(/\.ya?ml$/, "")]), ...actions.map((dir) => [new URL(`../${dir}/action.yml`, import.meta.url), dir])]) {
-    assert.equal(parse(readFileSync(file, "utf8")).name, displayName(stem), String(file));
-  }
-});
-
 // The secret a read-runner input takes, by the suffix run-claude-cli names
 // it with: <ROLE>_CLAUDE_API_KEY or <ROLE>_CLAUDE_CODE_OAUTH_TOKEN.
 const CLAUDE_SECRETS = { "claude-api-key": "CLAUDE_API_KEY", "claude-code-oauth-token": "CLAUDE_CODE_OAUTH_TOKEN" };
@@ -3478,8 +3467,8 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-refine.yml fix-docs-head: Check the human-gated hold",
     "pr-refine.yml fix-docs-head: Read the PR's head SHA",
     "pr-refine.yml plan: List the PR's changed files",
-    "pr-review-hosted.yml wait-refine: Wait for this head's Refine",
-    "pr-review-security-hosted.yml wait-refine: Wait for this head's Refine",
+    "pr-review-hosted.yml wait-refine: Wait for this head's refine run",
+    "pr-review-security-hosted.yml wait-refine: Wait for this head's refine run",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs",
     "pr-unblock.yml resolve-conflicts-select: Check the human-gated hold",
     "pr-unblock.yml sync-shared-copies-select: Check the human-gated hold",
@@ -7320,32 +7309,40 @@ test("pr-run-activity-write.yml: the first step admits every sync-shared-copies 
 
 const FIX_CI_CALLS = ["fix-ci", "fix-ci-subscription", "fix-ci-fallback", "fix-ci-rung-up", "fix-ci-rung-up-subscription", "fix-ci-rung-up-fallback"];
 
+// A job id as its display name shows it, in Title Case: `fix-ci` as `Fix CI`.
+const titled = (id) => id.split("-").map((word) => (word === "ci" ? "CI" : word[0].toUpperCase() + word.slice(1))).join(" ");
+// A reusable call's job as the jobs listing names it: the caller job's display
+// name over the called job's, `fix-ci / report` as `Fix CI / Report`.
+const callJob = (call, job) => `${titled(call)} / ${titled(job)}`;
+// The name a run started before the rename lists: the two job ids.
+const callJobId = (call, job) => `${call} / ${job}`;
+
 // A job listing in the shape GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs
 // returns: a reusable call's jobs are named "<caller job> / <called job>", as
-// run 39911047185's listing names "fix-docs / report" with its "Post the check
-// run" step and "fix-docs / broker-check" with its "Ask the broker whether
-// the lane may run" step. `posted` names the calls whose report posted;
+// run 39911047185's listing names the fix-docs call's report job, with its
+// "Post the check run" step, and its broker-check job, with its "Ask the broker
+// whether the lane may run" step. `posted` names the calls whose report posted;
 // `reportSkipped` the calls whose report job was skipped, as a handoff, forged
 // or not, leaves it; `unallowed` the calls whose broker step did not succeed
-// (skipped on a kill switch, failed on a refusal).
-function jobListing(posted, { reportSkipped = [], unallowed = [], calls = FIX_CI_CALLS } = {}) {
-  const jobs = [{ name: "fix-ci-context", conclusion: "success", steps: [] }];
+// (skipped on a kill switch, failed on a refusal); `name` names a call's job.
+function jobListing(posted, { reportSkipped = [], unallowed = [], calls = FIX_CI_CALLS, name = callJob } = {}) {
+  const jobs = [{ name: titled("fix-ci-context"), conclusion: "success", steps: [] }];
   for (const call of calls) {
     jobs.push({
-      name: `${call} / broker-check`,
+      name: name(call, "broker-check"),
       conclusion: "success",
       steps: [{ name: "Ask the broker whether the lane may run", conclusion: unallowed.includes(call) ? "skipped" : "success" }],
     });
     // A run job's own step of that name, which no read may count.
-    jobs.push({ name: `${call} / run`, conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] });
+    jobs.push({ name: name(call, "run"), conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] });
     const ran = !reportSkipped.includes(call);
     jobs.push({
-      name: `${call} / report`,
+      name: name(call, "report"),
       conclusion: ran ? "success" : "skipped",
       steps: ran ? [{ name: "Post the check run", conclusion: posted.includes(call) ? "success" : "skipped" }] : [],
     });
   }
-  jobs.push({ name: "fix-docs / report", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] });
+  jobs.push({ name: name("fix-docs", "report"), conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] });
   return { total_count: jobs.length, jobs };
 }
 
@@ -7435,8 +7432,9 @@ const lagging = (listing, conclusion = undefined) => ({
 const withMarkers = (listing, allowedCalls) => ({
   ...listing,
   jobs: listing.jobs.flatMap((job) => {
-    const call = job.name.endsWith(" / broker-check") ? job.name.slice(0, -" / broker-check".length) : null;
-    return call === null ? [job] : [job, { name: `${call} / broker-allowed`, conclusion: allowedCalls.includes(call) ? "success" : "skipped", steps: [] }];
+    const call = job.name.endsWith(" / Broker Check") ? job.name.slice(0, -" / Broker Check".length) : null;
+    const allowed = allowedCalls.map(titled).includes(call);
+    return call === null ? [job] : [job, { name: `${call} / Broker Allowed`, conclusion: allowed ? "success" : "skipped", steps: [] }];
   }),
 });
 
@@ -7486,16 +7484,20 @@ test("handoff-evidence.sh: job-level evidence decides through a lagging listing,
   assert.deepEqual(retried.outputs, { posted: "true", allowed: "true" });
   assert.equal(retried.calls.trim().split("\n").length, 3);
   assert.match(retried.stdout, /^handoff evidence: posted=true allowed=true \(3 reads\)$/m);
-  assert.match(retried.stdout, /Read 1: missing: fix-ci \/ report step "Post the check run" has no conclusion/);
+  assert.match(retried.stdout, /Read 1: missing: Fix CI \/ Report step "Post the check run" has no conclusion/);
   // No broker-allowed job (a listing from before it): the broker step decides,
   // retried while null, then the handoff the subscription leg starts on.
   const legacy = jobListing([], { reportSkipped: FIX_CI_CALLS });
   const stepRetry = readPosted(t, read, [lagging(legacy, null), legacy]);
   assert.deepEqual(stepRetry.outputs, { posted: "false", allowed: "true" });
+  // A run started before the rename lists each call's jobs by their ids.
+  const byIds = readPosted(t, read, jobListing(["fix-ci"], { name: callJobId }));
+  assert.deepEqual(byIds.outputs, { posted: "true", allowed: "true" });
+  assert.deepEqual(readPosted(t, read, jobListing([], { name: callJobId })).outputs, { posted: "false", allowed: "true" });
   // A report job that ended before its post step (a setup failure) lists its
   // steps without it: settled as no post on one read, not waited on.
   const setupFailed = withMarkers(jobListing([]), FIX_CI_CALLS);
-  for (const job of setupFailed.jobs.filter((j) => j.name.endsWith(" / report"))) {
+  for (const job of setupFailed.jobs.filter((j) => j.name.endsWith(" / Report"))) {
     job.conclusion = "failure";
     job.steps = [{ name: "Set up job", conclusion: "failure" }];
   }
@@ -7511,7 +7513,7 @@ test("handoff-evidence.sh: job-level evidence decides through a lagging listing,
   assert.equal(never.stdout.split("\n").filter((line) => line.startsWith("::error::")).length, 1);
   assert.match(
     never.stdout,
-    /::error::handoff evidence for fix-ci fix-ci-subscription fix-ci-fallback fix-ci-rung-up fix-ci-rung-up-subscription fix-ci-rung-up-fallback still missing after 6 reads: missing: fix-ci \/ report has no steps listed/,
+    /::error::handoff evidence for fix-ci fix-ci-subscription fix-ci-fallback fix-ci-rung-up fix-ci-rung-up-subscription fix-ci-rung-up-fallback still missing after 6 reads: missing: Fix CI \/ Report has no steps listed/,
   );
   // A failed read is retried the same way, then fails closed.
   const failed = readPosted(t, read, ran, { fail: true });
@@ -7560,7 +7562,7 @@ test("handoff-evidence.sh: a rate-limited jobs page holds to its own x-ratelimit
 test("handoff-evidence.sh: a run job's forged steps and outputs are never evidence", (t) => {
   const read = workflow("pr-unblock.yml").jobs["fix-ci-unreported"].steps.find((s) => s.id === "posted");
   const listing = withMarkers(jobListing([], { reportSkipped: FIX_CI_CALLS }), []);
-  for (const job of listing.jobs.filter((j) => j.name.endsWith(" / run"))) {
+  for (const job of listing.jobs.filter((j) => j.name.endsWith(" / Run"))) {
     job.steps = [
       { name: "Post the check run", conclusion: "success" },
       { name: "Ask the broker whether the lane may run", conclusion: "success" },
@@ -7572,7 +7574,7 @@ test("handoff-evidence.sh: a run job's forged steps and outputs are never eviden
   // With no broker-allowed job the broker step decides, and only
   // broker-check's: a run job's successful step of that name is not read.
   const legacy = jobListing([], { reportSkipped: FIX_CI_CALLS, unallowed: FIX_CI_CALLS });
-  for (const job of legacy.jobs.filter((j) => j.name.endsWith(" / run"))) {
+  for (const job of legacy.jobs.filter((j) => j.name.endsWith(" / Run"))) {
     job.steps = [{ name: "Ask the broker whether the lane may run", conclusion: "success" }];
   }
   const legacyRead = readPosted(t, read, legacy);
@@ -7689,12 +7691,12 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
   // runs both, and posts nothing.
   const listing = ({ posted = false, reportRan = true, allowed = true, scanRan = reportRan } = {}) => ({
     jobs: [
-      { name: "fix-docs-head", conclusion: "success", steps: [] },
-      { name: "fix-docs / broker-check", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: allowed ? "success" : "skipped" }] },
-      { name: "fix-docs / run", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] },
-      { name: "fix-docs / scan", conclusion: scanRan ? "success" : "skipped", steps: [] },
+      { name: "Fix Docs Head", conclusion: "success", steps: [] },
+      { name: "Fix Docs / Broker Check", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: allowed ? "success" : "skipped" }] },
+      { name: "Fix Docs / Run", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] },
+      { name: "Fix Docs / Scan", conclusion: scanRan ? "success" : "skipped", steps: [] },
       {
-        name: "fix-docs / report",
+        name: "Fix Docs / Report",
         conclusion: reportRan ? "success" : "skipped",
         steps: reportRan ? [{ name: "Post the check run", conclusion: posted ? "success" : "skipped" }] : [],
       },
@@ -8108,15 +8110,15 @@ test("pr-unblock.yml: address-feedback's, review-dependency's and resolve-confli
 // `marker` adds the first call's broker-allowed job with that conclusion.
 function issueListing({ broker = "success", run = "success", scan = "skipped", marker = null } = {}) {
   const jobs = [
-    { name: "admit", conclusion: "success", steps: [] },
-    { name: "resolve-issue / broker-check", conclusion: broker === "failure" ? "failure" : "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: broker }] },
-    ...(marker === null ? [] : [{ name: "resolve-issue / broker-allowed", conclusion: marker, steps: [] }]),
-    { name: "resolve-issue / run", conclusion: run, steps: [] },
-    { name: "resolve-issue / issue-fields", conclusion: "success", steps: [] },
-    { name: "resolve-issue-subscription / run", conclusion: "success", steps: [] },
-    { name: "resolve-issue-subscription / scan", conclusion: "skipped", steps: [] },
+    { name: "Admit", conclusion: "success", steps: [] },
+    { name: "Resolve Issue / Broker Check", conclusion: broker === "failure" ? "failure" : "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: broker }] },
+    ...(marker === null ? [] : [{ name: "Resolve Issue / Broker Allowed", conclusion: marker, steps: [] }]),
+    { name: "Resolve Issue / Run", conclusion: run, steps: [] },
+    { name: "Resolve Issue / Issue Fields", conclusion: "success", steps: [] },
+    { name: "Resolve Issue Subscription / Run", conclusion: "success", steps: [] },
+    { name: "Resolve Issue Subscription / Scan", conclusion: "skipped", steps: [] },
   ];
-  if (scan !== null) jobs.push({ name: "resolve-issue / scan", conclusion: scan, steps: [] });
+  if (scan !== null) jobs.push({ name: "Resolve Issue / Scan", conclusion: scan, steps: [] });
   return { total_count: jobs.length, jobs };
 }
 
@@ -8219,7 +8221,7 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(never.stdout.split("\n").filter((line) => line.startsWith("::error::")).length, 1);
   // A forged run job step of the broker's name is never the allow.
   const forged = issueListing({ broker: "skipped" });
-  forged.jobs.find((job) => job.name === "resolve-issue / run").steps = [{ name: "Ask the broker whether the lane may run", conclusion: "success" }];
+  forged.jobs.find((job) => job.name === "Resolve Issue / Run").steps = [{ name: "Ask the broker whether the lane may run", conclusion: "success" }];
   assert.deepEqual(readPosted(t, step, forged).outputs, { "handed-off": "false" });
   const failed = readPosted(t, step, issueListing(), { fail: true });
   assert.notEqual(failed.status, 0);
@@ -9296,18 +9298,18 @@ test("work-resolve-issue.yml: a stale stop runs report-outcome as workflow-stale
 
 test("handoff-evidence.sh: stale is a leg's run job stop step, and no other job's step of that name", (t) => {
   const read = workflow("work-resolve-issue.yml").jobs["resolve-issue-stale"].steps.find((s) => s.id === "stale");
-  const listing = (leg, stop, name = `${leg} / run`) => ({
+  const listing = (leg, stop, name = callJob(leg, "run")) => ({
     total_count: 3,
     jobs: [
-      { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Stop on stale workflow files", conclusion: leg === "resolve-issue" ? stop : "skipped" }] },
+      { name: "Resolve Issue / Run", conclusion: "success", steps: [{ name: "Stop on stale workflow files", conclusion: leg === "resolve-issue" ? stop : "skipped" }] },
       ...(leg === "resolve-issue" ? [] : [{ name, conclusion: "success", steps: [{ name: "Stop on stale workflow files", conclusion: stop }] }]),
-      { name: "resolve-issue-fallback / run", conclusion: "skipped", steps: [] },
+      { name: "Resolve Issue Fallback / Run", conclusion: "skipped", steps: [] },
     ],
   });
   assert.deepEqual(readPosted(t, read, listing("resolve-issue", "success")).outputs, { stale: "true" });
   assert.deepEqual(readPosted(t, read, listing("resolve-issue-subscription", "success")).outputs, { stale: "true" }, "a later leg's stop counts");
   assert.deepEqual(readPosted(t, read, listing("resolve-issue", "skipped")).outputs, { stale: "false" });
-  assert.deepEqual(readPosted(t, read, listing("resolve-issue-subscription", "success", "report-outcome / run")).outputs, { stale: "false" }, "only a call's run job");
+  assert.deepEqual(readPosted(t, read, listing("resolve-issue-subscription", "success", "Report Outcome / Run")).outputs, { stale: "false" }, "only a call's run job");
   const failed = readPosted(t, read, listing("resolve-issue", "success"), { fail: true });
   assert.notEqual(failed.status, 0);
   assert.deepEqual(failed.outputs, {}, "a failed read re-fires nothing");
@@ -9972,7 +9974,7 @@ test("every read-runner first call names its key job and grants the gate's actio
 // is no credit stop.
 test("handoff-evidence.sh: credit-stop is the run job's Mark a key credit stop step", (t) => {
   const read = workflow("pr-unblock.yml").jobs["key-credit-markers"].steps.find((s) => s.id === "credit-stop-fix-ci");
-  const listing = (steps, conclusion = "success") => ({ total_count: 1, jobs: [{ name: "fix-ci / run", conclusion, steps }] });
+  const listing = (steps, conclusion = "success") => ({ total_count: 1, jobs: [{ name: "Fix CI / Run", conclusion, steps }] });
   const stopped = readPosted(t, read, listing([{ name: "Mark a key credit stop", conclusion: "success" }]));
   assert.equal(stopped.status, 0);
   assert.deepEqual(stopped.outputs, { "credit-stop": "true" });

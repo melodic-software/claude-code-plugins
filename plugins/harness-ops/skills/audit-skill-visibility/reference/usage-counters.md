@@ -8,15 +8,14 @@ file, a different file from `~/.claude/settings.json`.
 Companion: [listing-scorer.md](listing-scorer.md), which covers how the product
 ranks these counts when it truncates the skill listing.
 
-## Verification stamp
+## Binary reading behind this file
 
-Follows `docs/contracts/upstream-drift`.
+Follows `docs/contracts/upstream-drift`. No docs page defines these counters, so every
+region below, the plugin-use definition included, rests on one binary reading: string
+extraction of `claude.exe` at Claude Code 2.1.251 (the write and read functions named per
+region, confirmed against a live `~/.claude.json`; scorer and truncator unchanged at 2.1.252),
+as of 2026-08-31.
 
-- **Claim:** the write paths, seeding behavior, and per-region semantics below.
-- **Basis:** string extraction of `claude.exe` at Claude Code 2.1.251, the write
-  and read functions named per region, confirmed against a live `~/.claude.json`.
-  Scorer and truncator re-verified unchanged at 2.1.252.
-- **As-of:** 2026-08-31.
 - **Locate by shape, never by name.** Minified identifiers move between builds;
   the listing scorer was `zPe` at 2.1.251 and `WPe` at 2.1.252 with an identical
   body. Grep the arithmetic and the field names, not the function names.
@@ -73,8 +72,8 @@ zero-count plugin's `lastUsedAt` is the seed time and means nothing. Measured on
 one machine: 46 of 65 plugins looked "used today" while none had been used. That
 measurement is what `is_usage_evidence()` in the engine exists to enforce.
 
-**A plugin "use" is broad and not comparable across plugin shapes.** Usage is
-recorded whenever a slash command, skill, agent, MCP tool or resource, or hook is
+**A plugin "use" is broad and not comparable across plugin shapes.** In the
+binary reading above, usage is recorded whenever a slash command, skill, agent, MCP tool or resource, or hook is
 dispatched from that plugin, plus LSP servers delivering diagnostics or code
 navigation. Hook-only plugins therefore dominate any raw ranking: on one machine
 `guardrails` showed 200,804 and `context-guard` 106,752, against low hundreds for
@@ -113,18 +112,13 @@ question needs the plugin's own `skill-usage.jsonl` store, whose rows carry
 
 The file is never swept: `cleanupPeriodDays` does not reach it, because it lives
 in the home directory rather than under `~/.claude`. The supported lever is
-`claude purge <path>`, which removes one project's entry. Every running
-session polls the file at 1 Hz, and the strongest public report of curing input
-lag pruned this file rather than the install tree.
+`claude purge <path>`, which removes one project's entry.
 
 - **Pointer:** [claude-directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
   lists the paths the retention sweep deletes, all under `~/.claude/`, and does not
   list `~/.claude.json`; [claude directory: `claude purge`](https://code.claude.com/docs/en/claude-directory#clear-local-data)
   names "the project's entry in `~/.claude.json`" among what it deletes. That the
   sweep never reaches the file is an inference from the list's silence.
-- **As of:** 2026-10-18 (Claude Code 2.1.300 docs).
-- **Recheck trigger:** the "Cleaned up automatically" table gains a `~/.claude.json`
-  row, or the `claude purge` deletion list changes.
 
 `.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants; the
 leading number only looks like a PID. See

@@ -75,8 +75,6 @@ Code that tool is `AskUserQuestion`. If the tool caps options per question, spli
 questions in matrix order and ask about modes as a second question over the rows they ticked.
 
 Pointer: [AskUserQuestion tool behavior](https://code.claude.com/docs/en/tools-reference#askuserquestion-tool-behavior).
-As of 2026-10-29. Recheck when that section renames the tool or changes how a question takes
-several options.
 
 The floor is a numbered markdown table in chat with a reply grammar under it: `1, 3m, 4`, row
 numbers, `m` for mode. Never go below the floor. Asking "which ones do you want?" in prose puts

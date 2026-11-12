@@ -204,9 +204,6 @@ the previous value by itself, the fix still adds the message.
   React, `useOptimistic`, "How optimistic state works" (a failed Action leaves the real value
   unchanged when it is set only on success, so the screen shows what it showed before),
   <https://react.dev/reference/react/useOptimistic#how-optimistic-state-works>
-- **As of**: 2026-10-29
-- **Recheck trigger**: TanStack Query changes what `onMutate` passes to `onError`, or React changes
-  what `useOptimistic` renders after a failed action.
 
 **Audit: Important.** An optimistic update with no rollback on failure, or a failure that rolls back
 without telling the user.

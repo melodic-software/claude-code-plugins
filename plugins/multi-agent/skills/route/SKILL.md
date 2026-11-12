@@ -76,11 +76,6 @@ passes its effort as `effort`.
   [sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
   and [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level)
   live.
-- **As of**: 2026-10-31
-- **Recheck trigger**: either sub-agents section changes which source wins
-  for a subagent's model or effort or when a family alias resolves to the
-  session's model, or the model-config section states
-  whether an effort cap limits the per-call `effort`.
 
 ## What this skill does NOT do
 
@@ -101,9 +96,7 @@ Rechecks a default that looks wrong for the current models.
 ## Gotchas
 
 - Only aliases are accepted. A full model id in a layer is rejected and the
-  layer below supplies the key. Why aliases: [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases);
-  as of 2026-11-10; recheck when that section changes how an alias resolves per
-  provider.
+  layer below supplies the key. Why aliases: [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases).
 - `fanout` and `single` differ only under a frontier or unknown session. Under
   an Opus session both say `inherit`, and `opus` would name the same model.
 - The map never routes a named agent (`agentType`, or an Agent dispatch by

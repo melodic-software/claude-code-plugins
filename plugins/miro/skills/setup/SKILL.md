@@ -26,9 +26,6 @@ Official contracts:
   [Plugins reference: User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
   and [Default enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes how options are prompted for, stored or delivered, or
-  what `defaultEnabled: false` does at install.
 
 ## Task
 
@@ -50,9 +47,6 @@ Official contracts:
    - **Pointer**: for where a plugin MCP server's startup error is recorded, see
      <https://code.claude.com/docs/en/plugins/troubleshooting#server-is-configured-but-never-connects>
      and <https://code.claude.com/docs/en/debug-your-config#check-mcp-servers>.
-   - **As of**: 2026-10-24
-   - **Recheck trigger**: either section changing where server stderr is shown or the debug flag
-     that captures it.
 
    After configuration, require `/reload-plugins` or a new session before rechecking tool availability.
 4. When the scoped Miro tools are present, report only that the server started. The server starts
@@ -90,8 +84,6 @@ command's default. Each command's scope flag spelling and default are read live:
   [`plugin marketplace add`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-add),
   [`plugin install`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install) and
   [`plugin enable`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-enable) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: any of those sections changes its scope option, short form or default.
 
 Registering at `user` while
 installing at `project` leaves the marketplace declaration out of the project's checked-in
@@ -100,9 +92,7 @@ to resolve it from.
 
 **The enable step is not optional.** This plugin ships `defaultEnabled: false`, so no `miro` tool
 is available until the enable step runs. Pointer: [Default
-enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled). As of:
-2026-11-10. Recheck trigger: that section says an install enables a plugin that ships
-`defaultEnabled: false`.
+enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled).
 Passing the scope to `claude plugin enable` explicitly keeps the sequence deterministic in CI. A
 bootstrap that stops after `install` looks
 successful and delivers no tools.
@@ -132,9 +122,6 @@ tools.
   when a saved value applies, fetch
   [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
   live.
-- **As of**: 2026-11-11
-- **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-  refused value, or when a saved value applies.
 
 **Security note:** passing the token as a CLI argument records it in shell history
 (`.bash_history`, `.zsh_history`) and briefly exposes it in the process table
@@ -154,8 +141,6 @@ reveal the contents of wherever it keeps them.
 - **Pointer**: when a user asks where the token is stored, fetch
   [Plugins reference: Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
   live and give them its answer.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes where sensitive values are kept.
 
 ## Boundaries
 

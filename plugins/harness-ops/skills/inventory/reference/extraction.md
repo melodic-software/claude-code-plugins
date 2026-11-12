@@ -270,7 +270,7 @@ list, so a release that adds a shape this reader cannot follow is filed rather t
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| The bytecode bundle is about two thousand concatenated modules, each opening with a `// @bun` header, and minified names repeat between them | 2,125 `// @bun` headers counted in the bundle `read_bundle` returns for the Claude Code 2.1.285 native build (release: <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md>, 2.1.285 entry; Bun's bytecode output: <https://bun.sh/docs/bundler/bytecode>); `jd` bound to `"Workflow"` in one module and to a `"host_exit"` ternary in another | 2026-09-30, Claude Code 2.1.285 | A release drops the `// @bun` module header or the header count falls to one; `--self-check` reports it as a changed layout |
+| The bytecode bundle is about two thousand concatenated modules, each opening with a `// @bun` header, and minified names repeat between them | 2,125 `// @bun` headers counted in the bundle `read_bundle` returns for the Claude Code 2.1.285 native build (release: <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md>, 2.1.285 entry; Bun's bytecode output: <https://bun.com/docs/bundler#bytecode>); `jd` bound to `"Workflow"` in one module and to a `"host_exit"` ternary in another | 2026-09-30, Claude Code 2.1.285 | A release drops the `// @bun` module header or the header count falls to one; `--self-check` reports it as a changed layout |
 | `design` is the only description the reader leaves unresolved | `inventory.py --binary-only` on the 2.1.285 build of that release: `integrity.undetermined.description_unresolved` lists `design` alone (14 names before this reader). This is derived per run, so no document restates it | 2026-09-30, Claude Code 2.1.285 | That list changes on any run; `/harness-ops:changelog apply` files each new name |
 
 ### 8. Find bundled workflows by what the registrar does
@@ -624,8 +624,7 @@ parameter the rule cannot bound, or a `+` whose sides may start and end `require
 A template `import()` whose specifier starts with a bare package name
 (`` import(`@withfig/autocomplete/build/${e}.js`) ``) counts too: no source read shows that a bare
 specifier cannot reach a file embedded in the executable (pointer: Bun's
-[standalone executables](https://bun.com/docs/compiler/executables#embed-directories) page, as of
-2026-10-29; recheck when it documents how a bare specifier resolves inside a compiled executable).
+[standalone executables](https://bun.com/docs/compiler/executables#embed-directories) page).
 
 A named loader is followed instead: an alias of `import.meta.require` or `require` that a
 module-scope declarator initializes, never written again and exported by name other than
