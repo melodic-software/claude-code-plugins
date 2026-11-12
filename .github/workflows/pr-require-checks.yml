@@ -7367,11 +7367,29 @@ jobs:
           # pull_request run of $file on <sha> from this repository's head,
           # with <pr> only one GitHub lists for that pull request; run is empty
           # when there is none.
-          # lane_run <sha> [pr]: prints that newest run, or nothing.
+          # lane_run <sha> [pr]: prints that newest run, or nothing. It reads
+          # the lanes out of head_runs' listing when that is whole (total_count
+          # no more than the runs listed, the rule reconcile.mjs sharedRuns
+          # keeps), else out of $file's own runs, so a cut-short listing never
+          # reads as no run.
+          # head_runs <sha>: prints <sha>'s pull_request runs of every
+          # workflow, read once for this step; a failed read keeps nothing.
+          head_runs_dir=$(mktemp -d "$RUNNER_TEMP/head-runs.XXXXXX")
+          head_runs() {
+            local out
+            if [ ! -f "$head_runs_dir/$1" ]; then
+              out=$(read_api "the pull_request runs on $1" \
+                "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$1&event=pull_request&per_page=100") || return 1
+              printf '%s\n' "$out" >"$head_runs_dir/$1"
+            fi
+            cat "$head_runs_dir/$1"
+          }
           lane_run() {
             local runs
-            runs=$(read_api "the $file runs on $1" \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$1&event=pull_request&per_page=100") || return 1
+            runs=$(head_runs "$1") || return 1
+            jq -e '(.total_count | numbers) <= (.workflow_runs | length)' <<<"$runs" >/dev/null 2>&1 ||
+              runs=$(read_api "the $file runs on $1" \
+                "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$1&event=pull_request&per_page=100") || return 1
             jq -c --arg path ".github/workflows/$file" --arg sha "$1" --arg repo "$GITHUB_REPOSITORY" --arg pr "${2:-}" \
               '[.workflow_runs[] | select(.path == $path and .head_sha == $sha and .event == "pull_request"
                 and .head_repository.full_name == $repo
@@ -7450,8 +7468,10 @@ jobs:
           # creates its review runs before this job starts, so one missing now
           # rarely comes. The wait decides nothing: the loop after it reads every lane
           # as before, and a read that fails ends the wait for that loop to fail
-          # closed. A review still running at the cap fails as before, and
-          # rerun-ci-status re-runs ci-status when it finishes.
+          # closed. Both reads take the lanes from one listing of the head's
+          # runs: the loop reuses the wait's when nothing waited, and reads it
+          # again after a wait. A review still running at the cap fails as
+          # before, and rerun-ci-status re-runs ci-status when it finishes.
           poll=${REVIEW_POLL_SECONDS:-60} polls=$((${REVIEW_WAIT_SECONDS:-480} / ${REVIEW_POLL_SECONDS:-60}))
           stop_at=$(($(cat "$RUNNER_TEMP/gh-read.deadline" 2>/dev/null || echo 120) - 120))
           declare -A waiting=()
@@ -7470,7 +7490,7 @@ jobs:
               [ "$(jq -r .status <<<"$run")" != completed ] || unset "waiting[$file]"
             done
           done
-          [ "$waited" -eq 0 ] || echo "Waited ${waited}s for the review lanes on $HEAD_SHA."
+          [ "$waited" -eq 0 ] || { echo "Waited ${waited}s for the review lanes on $HEAD_SHA."; rm -f "$head_runs_dir/$HEAD_SHA"; }
           rerun_note="ci-status waited ${waited}s for it; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed."
           missing_note="ci-status does not wait for a lane with no run; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed."
           while read -r file lane checks; do

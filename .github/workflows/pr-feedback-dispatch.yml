@@ -878,7 +878,8 @@ jobs:
           # (UNVERIFIED) rather than start a third attempt. Should both land,
           # the extra attempt has no record of its own, so pr-verify refuses
           # it: the head is stranded for a person, never let through.
-          # Any other failure is read three times, then fails.
+          # Any other failure is read three times, then fails, or with
+          # read_soft set returns 1 for the caller to read another way.
           # A path read again (the poll below) is sent as a conditional GET
           # with the ETag of its last 200; a 304 (gh exits 1 on it) gives that
           # 200's body back, as request-budget.mjs does. Its reading is kept,
@@ -924,7 +925,7 @@ jobs:
                 waited=$((waited + wait))
                 continue
               fi
-              [ "$attempt" -lt 3 ] || { echo "::error::could not read $2; re-run this run." >&2; exit 1; }
+              [ "$attempt" -lt 3 ] || { [ -z "${read_soft:-}" ] || return 1; echo "::error::could not read $2; re-run this run." >&2; exit 1; }
               sleep $((attempt * 5))
             done
             echo "::error::could not read $2 after the rate-limit waits; re-run this run." >&2
@@ -938,10 +939,31 @@ jobs:
                 and .head_repository.full_name == $repo)]
               | max_by(.id) // empty'
           }
+          # One listing of the head's pull_request runs of every workflow answers
+          # each file below when it is whole (total_count no more than the runs
+          # listed, the rule reconcile.mjs sharedRuns keeps). A cut-short or
+          # unread one could hide the run that decides, so then each file's own
+          # runs are read, failing as before.
+          head_runs=''
+          if read_soft=1 read_api listing "the pull_request runs on $HEAD_SHA" \
+            "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100" &&
+            jq -e '(.total_count | numbers) <= (.workflow_runs | length)' <<<"$listing" >/dev/null 2>&1; then
+            head_runs=$listing
+          else
+            echo "The pull_request runs on $HEAD_SHA did not come back whole; each workflow's own runs are read."
+          fi
+          # file_runs <file>: sets runs to the head's runs that hold <file>'s.
+          file_runs() {
+            if [ -n "$head_runs" ]; then
+              runs=$head_runs
+            else
+              read_api runs "the $1 runs on $HEAD_SHA" \
+                "repos/$GITHUB_REPOSITORY/actions/workflows/$1/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100"
+            fi
+          }
           done_at=$LANE_DONE_AT
           for other in $others; do
-            read_api runs "the $other runs on $HEAD_SHA" \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/$other/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100"
+            file_runs "$other"
             lane=$(newest "$other" <<<"$runs")
             if [ -n "$lane" ]; then
               if [ "$(jq -r .status <<<"$lane")" != completed ]; then
@@ -965,8 +987,7 @@ jobs:
               fi
             fi
           done
-          read_api runs "the pr-require-checks runs on $HEAD_SHA" \
-            "repos/$GITHUB_REPOSITORY/actions/workflows/pr-require-checks.yml/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100"
+          file_runs pr-require-checks.yml
           run=$(newest pr-require-checks.yml <<<"$runs")
           if [ -z "$run" ]; then
             echo "No pr-require-checks run on $HEAD_SHA yet; its ci-status reads the reviews when it runs."
