@@ -106,14 +106,13 @@ the repository's ignored entries as live.
   [repository settings under an admin-required sandbox](https://code.claude.com/docs/en/sandboxing#repository-settings-under-an-admin-required-sandbox)
   live.
 
-**Name what the sandbox does not cover.** It wraps Bash commands only: the built-in file and web
-tools, hooks, MCP servers and other processes Claude Code starts stay outside it, so a sandbox
-finding never stands in for the deny rules those tools obey. Network egress to an unlisted host is
-refused in some permission modes and allowed or prompted in others; report it as blocked only when
-the mode refuses it or a setting that refuses it in every mode is in effect from a scope that reads
-it.
+**Name what the sandbox does not cover.** A sandbox finding speaks only for what the sandbox
+wraps: list each surface it leaves out and audit that surface against its own control. Report
+egress to an unlisted host as blocked only when the session's permission mode and effective
+settings refuse it.
 
-- **Pointer**: before stating either, fetch
+- **Pointer**: for which surfaces run outside and how each mode and setting treats an unlisted
+  host, fetch
   [what runs outside the sandbox](https://code.claude.com/docs/en/sandboxing#what-runs-outside-the-sandbox)
   and [hosts outside your allowed domains](https://code.claude.com/docs/en/sandboxing#hosts-outside-your-allowed-domains)
   live.

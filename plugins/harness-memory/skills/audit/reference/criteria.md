@@ -230,8 +230,8 @@ posture in the docs' include list, so the `update` action must not
 overwrite it.
 
 **Why**: Step 1 applies, in our words, the docs' test that CLAUDE.md holds only what Claude cannot
-work out from the code, and the stop-doing row on describing architecture and file layout. Step 4
-follows the `/doctor` trim, which cuts dependency lists; a stack note is our judgment. Steps 2 and 3
+work out from the code, and the stop-doing row on describing architecture and file layout. Step 4 is
+our decision; compare it with what the `/doctor` trim proposes through the pointer below. Steps 2 and 3
 are our judgment: no docs section lists them.
 
 - **Pointer**: for the test and the include list, see
