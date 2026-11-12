@@ -14,6 +14,7 @@ import { isVerdictName } from "../pr-verify/write-verdict.mjs";
 import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
 import { MAX_THREADS } from "./adjudicate-feedback.mjs";
 import { DEFERRED_RECORD } from "./feedback-dispatch.mjs";
+import { REFINE_ACTIVITIES } from "./refine-event-dispatch.mjs";
 
 // A job's folded `if: >-` scalar, joined the way YAML folds it.
 function jobIf(file, job) {
@@ -1506,6 +1507,24 @@ test("refine invariant 1: it checks out only the commit its workflow file ran fr
       '  >"$RUNNER_TEMP/pr-unblock-target-dispatched.json"',
       'echo "name=pr-unblock-target-dispatched-$WORKFLOW_SHA-$RUN_ID" >>"$GITHUB_OUTPUT"',
     ].join("\n"),
+    "Name the second dispatched-run record": [
+      'if [ -n "$(sed -n 3p "$RUN_IDS_FILE" 2>/dev/null)" ]; then',
+      '  echo "::error::more runs were dispatched than the record slots hold"',
+      "  exit 1",
+      "fi",
+      'RUN_ID=$(sed -n 2p "$RUN_IDS_FILE" 2>/dev/null) || RUN_ID=""',
+      'if [ -z "$RUN_ID" ]; then',
+      '  echo "no second run dispatched"',
+      "  exit 0",
+      "fi",
+      'if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]; then',
+      '  echo "::error::the run id or the workflow commit is malformed"',
+      "  exit 1",
+      "fi",
+      `printf '{"dispatcher_run_id":%s,"workflow_sha":"%s","run_id":%s}\\n' "$GITHUB_RUN_ID" "$WORKFLOW_SHA" "$RUN_ID" \\`,
+      '  >"$RUNNER_TEMP/pr-unblock-target-dispatched-2.json"',
+      'echo "name=pr-unblock-target-dispatched-$WORKFLOW_SHA-$RUN_ID" >>"$GITHUB_OUTPUT"',
+    ].join("\n"),
   });
 });
 
@@ -1588,6 +1607,7 @@ test("refine invariant 2: no PR text reaches a step; run: holds no expression an
     "vars.CLAUDE_LANES_DISABLED",
     "vars.CLAUDE_LANES_REPO_DISABLED",
     "steps.record.outputs.name",
+    "steps.record-2.outputs.name",
   ]);
   const used = [...lines.join("\n").matchAll(/\$\{\{([\s\S]*?)\}\}/g)].map((match) => match[1].trim());
   assert.ok(used.includes("github.event.pull_request.number"));
@@ -1646,6 +1666,36 @@ test("refine: the record is named from the workflow commit and the dispatched ru
     assert.deepEqual(record(""), { status: 0, out: "" }, "no dispatch, no record");
     assert.equal(record("9001x\n").status, 1, "a malformed id");
     assert.equal(record("9001\n", "main").status, 1, "a malformed commit");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// fix-docs's dispatch and one per REFINE_ACTIVITIES id each need a record of
+// their own: the gate and the broker read only the record naming their run.
+test("refine: a record slot per possible dispatch, the second reading the second line in the same form", () => {
+  const uploads = jobBlock(DISPATCHER, "refine").filter((line) => /^\s+uses: actions\/upload-artifact@/.test(line));
+  assert.equal(uploads.length, 1 + REFINE_ACTIVITIES.length, "one record upload per dispatch the job can send");
+  const step = stepBlock(DISPATCHER, "refine", "Name the second dispatched-run record");
+  const env = step.slice(step.indexOf("        env:") + 1, step.findIndex((line) => line.startsWith("        run:"))).map((line) => line.trim());
+  assert.deepEqual(env, ["WORKFLOW_SHA: ${{ github.workflow_sha }}", "RUN_IDS_FILE: ${{ runner.temp }}/pr-refine-run-id"]);
+  const dir = mkdtempSync(join(tmpdir(), "refine-record-2-"));
+  try {
+    const record = (ids, sha = "b".repeat(40)) => {
+      writeFileSync(join(dir, "ids"), ids);
+      writeFileSync(join(dir, "out"), "");
+      const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-c", stepScript(step)], {
+        env: { PATH: process.env.PATH, WORKFLOW_SHA: sha, RUN_IDS_FILE: join(dir, "ids"), RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, "out"), GITHUB_RUN_ID: "42" },
+        encoding: "utf8",
+      });
+      return { status: result.status, out: readFileSync(join(dir, "out"), "utf8") };
+    };
+    assert.deepEqual(record("9001\n9002\n"), { status: 0, out: `name=pr-unblock-target-dispatched-${"b".repeat(40)}-9002\n` });
+    assert.deepEqual(JSON.parse(readFileSync(join(dir, "pr-unblock-target-dispatched-2.json"), "utf8")), { dispatcher_run_id: 42, workflow_sha: "b".repeat(40), run_id: 9002 });
+    assert.deepEqual(record("9001\n"), { status: 0, out: "" }, "one dispatch, no second record");
+    assert.deepEqual(record(""), { status: 0, out: "" }, "no dispatch, no record");
+    assert.equal(record("9001\n9002x\n").status, 1, "a malformed id");
+    assert.equal(record("9001\n9002\n9003\n").status, 1, "more dispatches than slots");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -428,6 +428,20 @@
         }
       }
     },
+    "refine-dispatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "pr-refine activities pr-unblock-dispatch.yml's refine job starts on a listed human's pull request event, besides fix-docs. Absent: none. Contract: README.md, Lanes.",
+      "properties": {
+        "activities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/name" },
+          "default": [],
+          "description": "Activity ids, each sent as pr-refine.yml's `activity` input with the pull request number and the dispatcher run id. refine-event-dispatch.mjs accepts only the ids in its REFINE_ACTIVITIES (fix-marker); any other id fails the run and dispatches nothing. The lanes App's own events start none."
+        }
+      }
+    },
     "attended": {
       "type": "object",
       "additionalProperties": false,
