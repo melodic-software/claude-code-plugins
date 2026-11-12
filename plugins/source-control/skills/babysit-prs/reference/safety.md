@@ -100,7 +100,7 @@ value and its unset fallback.
 - Never update the branch of a PR carrying the tracker's standards-sync role label
   (`standards-sync` unless the tracker binding's `config.role_labels` maps it, as
   `scripts/babysit_tracker_binding.py` reads it on the default branch: the `tracker` mapping of
-  `docs/conventions/work-items.yaml`, else the legacy JSON binding at the root): the sync App
+  `docs/conventions/work-items.yaml`): the sync App
   is its only writer, and a merge commit from the base fails its managed-files guard, so the sync
   cannot re-arm. `refresh_pr_branch.py` refuses it, and the unattended enqueue skips its update
   from the base (`checkInputs.updateSkipped`) and enqueues as after a refused update. An

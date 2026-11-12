@@ -28,7 +28,7 @@ These axes work in any repo and don't change per team. Do not snapshot their mem
 
 Four labels are **canonical roles**: skill and action prose speaks the role name, and
 the repo-actual label string resolves from the tracker binding (the `tracker` mapping of
-`<home>/work-items.yaml`, else the legacy repo-root JSON binding), key `config.role_labels`. When the key (or an individual role entry) is absent, the defaults below
+`<home>/work-items.yaml`), key `config.role_labels`. When the key (or an individual role entry) is absent, the defaults below
 apply, so existing repos need zero migration.
 
 | Role | Default label | What it marks |

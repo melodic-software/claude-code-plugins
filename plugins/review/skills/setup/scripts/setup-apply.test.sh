@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/review/.claude-plugin/plugin.json plugins/review/lib/yaml-subset.awk
 # Tests for setup-apply.mjs: the narrow write of docs/conventions/review.yaml.
 # Each case builds its own repository root in a temp directory; expected values
 # come from the schema's allowed values (run, report; lens, model, codex; a whole number of at

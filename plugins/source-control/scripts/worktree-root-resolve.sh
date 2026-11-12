@@ -66,20 +66,17 @@ worktree_root_resolve() {
 
   if raw=$(worktree_root_last_raw "$repo" "$WORKTREE_ROOT_CURRENT_KEY") &&
     [[ -n "$raw" ]]; then
-    WORKTREE_ROOT_VALUE="$raw"
-    WORKTREE_ROOT_KEY_USED="$WORKTREE_ROOT_CURRENT_KEY"
     worktree_root_legacy_retire "$repo"
-    return 0
-  fi
-  if [[ -n "${WORKTREE_ROOT_LEGACY_KEY:-}" ]] &&
+  elif [[ -n "${WORKTREE_ROOT_LEGACY_KEY:-}" ]] &&
     raw=$(worktree_root_last_raw "$repo" "$WORKTREE_ROOT_LEGACY_KEY") &&
     [[ -n "$raw" ]]; then
-    WORKTREE_ROOT_VALUE="$raw"
-    WORKTREE_ROOT_KEY_USED="$WORKTREE_ROOT_CURRENT_KEY"
     worktree_root_legacy_promote "$repo" || true
-    return 0
+  else
+    return 1
   fi
-  return 1
+  WORKTREE_ROOT_VALUE="$raw"
+  WORKTREE_ROOT_KEY_USED="$WORKTREE_ROOT_CURRENT_KEY"
+  return 0
 }
 
 worktree_root_resolve_main() {

@@ -47,7 +47,8 @@
 # Four root files are read by almost every suite through its tools, not its
 # logic: node reads package.json for the module type, the version manager reads
 # .node-version, and git reads .gitignore and .gitattributes. A read of one is no gap; a change to
-# one is the toolchain's to gate, and as a scope it would select every suite.
+# one is the toolchain's to gate, and as a scope it would select every suite. The same holds for a
+# .gitignore or .gitattributes in any directory, which git reads when a suite walks the tree.
 # So is .github/npm-fetch.npmrc: npm reads it at startup in any suite that runs
 # npm or npx, through npm_config_globalconfig, and callers.test.mjs gates it.
 #
@@ -148,7 +149,8 @@ trace_one() {
   # -k: a daemon a suite leaves behind stays traced, and strace outlives a TERM waiting for it.
   timeout -k 10 600 strace -f -y -z -qq --seccomp-bpf -e trace=open,openat -e signal=none \
     -o "$out/strace.$key" "${runner[@]}" >"$out/logs/$key.log" 2>&1 || rc=$?
-  reads "$out/strace.$key" "$ROOT" | grep -vxF -e "$suite" -e package.json -e .node-version -e .gitignore -e .gitattributes -e .github/npm-fetch.npmrc |
+  reads "$out/strace.$key" "$ROOT" | grep -vxF -e "$suite" -e package.json -e .node-version -e .github/npm-fetch.npmrc |
+    grep -vE '(^|/)\.git(ignore|attributes)$' |
     awk 'NR == FNR { t[$0] = 1; next } t[$0]' "$out/tracked" - >"$out/reads/$key"
   rm -f "$out/strace.$key"
   printf '%s\t%s\t%s\t%s\n' "$suite" "$rc" "$(($(date +%s) - start))" "$(wc -l <"$out/reads/$key")" >"$out/suites/$key"

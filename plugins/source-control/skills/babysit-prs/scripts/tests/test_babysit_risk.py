@@ -1301,7 +1301,7 @@ class LanePathFloorTests(unittest.TestCase):
             "scripts/x.sh",
             "lib/x.sh",
             ".gitleaks.toml",
-            babysit_tracker_binding.LEGACY_PATH,
+            babysit_tracker_binding.YAML_PATH,
             ".node-version",
             ".python-version",
             ".gitattributes",

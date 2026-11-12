@@ -37,11 +37,12 @@ const DEFAULT_EMISSION = join(
 const SCHEMA_VERSION = 1;
 
 // The tracker binding: the `tracker` mapping of the default convention home's
-// work-items.yaml, else the legacy repo-root JSON file the work-items seam
-// still reads for a repository not yet migrated (its CONTRACT.md "Setup
-// (binding file)").
+// work-items.yaml (the work-items seam's CONTRACT.md "Setup (binding file)").
+// A repo-root .work-item-tracker.json no longer binds; its presence only names
+// the fix.
 const TRACKER_YAML = "docs/conventions/work-items.yaml";
-const TRACKER_LEGACY = ".work-item-tracker.json";
+const TRACKER_RETIRED = ".work-item-tracker.json";
+const TRACKER_FIX = "run /work-items:setup apply";
 
 const DEPENDENCY_MANIFESTS = [
   "package.json",
@@ -222,9 +223,9 @@ function declarationFor(binding, surface, identity, need) {
   return matches[0] ?? null;
 }
 
-// The binding file that binds the tracker and its read: the YAML file when it
-// sets a `tracker` key (or does not parse, so the error is its own), else the
-// legacy JSON file.
+// The tracker binding's read: the YAML file's `tracker` mapping when it sets
+// one (or the file's own error when it does not parse), else absent with a
+// detail naming the fix.
 function readTrackerBinding(repoRoot) {
   let text = null;
   try {
@@ -245,13 +246,20 @@ function readTrackerBinding(repoRoot) {
       return { path: TRACKER_YAML, read: { ok: true, value: doc.tracker } };
     }
   }
-  return { path: TRACKER_LEGACY, read: readJson(join(repoRoot, TRACKER_LEGACY)) };
+  const detail = pathExists(join(repoRoot, TRACKER_RETIRED))
+    ? `${TRACKER_RETIRED} no longer binds the tracker; ${TRACKER_FIX} to copy it into ${TRACKER_YAML}`
+    : `no tracker mapping in ${TRACKER_YAML}; ${TRACKER_FIX}`;
+  return { path: TRACKER_YAML, read: { ok: false, reason: "absent", detail } };
 }
 
 function probeTracker(repoRoot) {
   const { path: bindingRel, read: bindingRead } = readTrackerBinding(repoRoot);
   if (!bindingRead.ok) {
-    return probeOutcome("absent", { ...TRACKER_PROBE, path: bindingRel, detail: bindingRead.reason });
+    return probeOutcome("absent", {
+      ...TRACKER_PROBE,
+      path: bindingRel,
+      detail: bindingRead.reason === "absent" ? bindingRead.detail : bindingRead.reason,
+    });
   }
   const provider = bindingRead.value?.provider;
   if (typeof provider !== "string" || provider.length === 0) {

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/bash-format/.claude-plugin/plugin.json
 # Contract tests for the bash-format pre-commit entry (git-hooks/shell-check.sh):
 # staged shell scripts that an .editorconfig section governs are formatted and
 # re-staged, a partly staged one is refused untouched, a ShellCheck finding blocks

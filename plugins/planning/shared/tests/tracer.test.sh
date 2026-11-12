@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/planning/surface/schema/questions.schema.json
 # The shared session end to end, CI-safe: the fake cloudflared stands in for the tunnel.
 #   bash tracer.test.sh
 # ensure-running -> two guests join over HTTP -> apply an open-round -> both answer -> the owner
