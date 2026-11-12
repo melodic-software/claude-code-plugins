@@ -214,7 +214,7 @@ STUB_FILTER=log STUB_EVENTS="[$BOT_LIFT]" \
   expect "a logged workflow command does not hide an untrusted lift" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
 STUB_FILTER=silent STUB_EVENTS="[$BOT_LIFT]" \
   expect "a base module that prints no comments fails closed" 1 "::error::could not read the comments of #6419"
-ODD_BODY="$(comment '{"login":"someone","type":"User"}' $'::warning::not a command\n"quoted" \\ back\\slash %25 é \t tab\r\n{"key": [1]}' 2026-10-23T10:30:00Z)"
+ODD_BODY="$(comment '{"login":"someone","type":"User"}' $'::warning::not a command\n"quoted" \\ \\\\ %25 é \t tab\r\n{"key": [1]}' 2026-10-23T10:30:00Z)"
 STUB_COMMENTS="[$OLD_HOLD,$ODD_BODY][$HOLD]" STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z)][$OWNER_LIFT]" \
   expect "two comment pages with any characters in a body read as one list" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
 if grep -qxF 'filter pr=6419 comments=3' "$TMP_ROOT/log"; then
