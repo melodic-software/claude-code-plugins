@@ -82,16 +82,6 @@ GIT_ARG_FLAGS = frozenset({"-C", "-c"})
 SCRUBBED_FIELDS = ("reason", "hook", "shape", "tool", "agent", "source", "reason_type", "next_tool", "tool_use_id")
 
 
-def _epoch(value: object) -> float | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).timestamp()
-
-
 def _errored(record: dict) -> bool:
     message = record.get("message")
     content = message.get("content") if isinstance(message, dict) else None
@@ -230,7 +220,7 @@ class FrictionScan:
             self.cwd = record["cwd"]
         if record.get("entrypoint") in census.AUTOMATED_ENTRYPOINTS:
             self.headless = True
-        ts = _epoch(record.get("timestamp"))
+        ts = census.epoch(record.get("timestamp"))
         kind = record.get("type")
         if kind == "assistant":
             self._assistant(record, ts)

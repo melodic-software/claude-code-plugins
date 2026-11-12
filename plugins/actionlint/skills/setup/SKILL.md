@@ -166,9 +166,6 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
     when a saved value applies, fetch
     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
     live.
-  - **As of**: 2026-11-11
-  - **Recheck trigger**: that section changes the command's flags, how it reports a saved or
-    refused value, or when a saved value applies.
 
 After pointing at a remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
 predates the remediation, so never re-read it) and report its actual result. Never claim resolved on
@@ -181,8 +178,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 - **A userConfig knob is reachable natively only if the manifest declares it.** An undeclared key
   silently cannot be set through native plugin configuration (a raw settings `env` block still
   works). Pointer: the `--config` row in
-  [`plugin install`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install). As of:
-  2026-11-10. Recheck trigger: that row lets `--config` set a key the manifest does not declare.
+  [`plugin install`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
 - **What each headless route does to stored options is the convention's to state.** Read it in
   [§ The routes](../../reference/plugin-reconfiguration.md#the-routes),
   which also holds the verified-version record: which CLI release each behavior was observed on,

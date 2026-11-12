@@ -22,8 +22,7 @@ When it exits 2 with a repair line, or `render.py` names a missing tool, run the
 report, `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py check --data-dir "${CLAUDE_PLUGIN_DATA}"`, and report the rows it prints. When `python3` is not found, run the same line
 with `python`, and on Windows then with a `python.exe` path that `py -0p` lists. Never start it
 through `py`; for why, read what a `py` launch does with no runtime installed in
-[Python on Windows, basic use](https://docs.python.org/3/using/windows.html#basic-use) (as of
-2026-10-04; recheck when the Python install manager changes what a launch command does).
+[Python on Windows, basic use](https://docs.python.org/3/using/windows.html#basic-use).
 
 ## Where the files go
 
@@ -122,9 +121,6 @@ record bundle or beside the markdown record they explain
     (<https://tech.ebu.ch/docs/r/r128.pdf>), EBU R 128 s2 section 3
     (<https://tech.ebu.ch/docs/r/r128s2.pdf>) and
     <https://ffmpeg.org/ffmpeg-filters.html#loudnorm> live.
-  - **As of**: 2026-10-17
-  - **Recheck trigger**: a new revision of R 128 or R 128 s2, or the `loudnorm` section changes its
-    linear-mode conditions.
 - **Captions:** each sentence is split into the fewest balanced cues, so no cue is a one-word tail;
   a cue too short to stand joins its neighbor in the beat, and each cue stays up for the minimum
   and the reading time per word as far as the next cue allows (`captions` in
@@ -134,16 +130,11 @@ record bundle or beside the markdown record they explain
     4.1 (<https://www.bbc.co.uk/accessibility/forproducts/guides/subtitles/#Target-minimum-timing>) and
     <https://partnerhelp.netflixstudios.com/hc/en-us/articles/360051554394-Timed-Text-Style-Guide-Subtitle-Timing-Guidelines>
     live.
-  - **As of**: 2026-10-17
-  - **Recheck trigger**: a new version of either guide changes its minimum duration or reading
-    time.
 - **Stills (silent renders too):** `freezedetect` with the noise and length in `stills` in
   `${CLAUDE_PLUGIN_ROOT}/scripts/defaults.json`, set explicitly. The reporting length is our judgment; no source sets a stillness limit for narrated
   video.
   - **Pointer**: when the filter's options are in question, fetch
     <https://ffmpeg.org/ffmpeg-filters.html#freezedetect> live.
-  - **As of**: 2026-10-17
-  - **Recheck trigger**: that section changes its options or defaults.
 
 ## Next
 

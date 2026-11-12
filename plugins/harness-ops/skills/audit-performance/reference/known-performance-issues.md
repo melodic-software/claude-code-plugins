@@ -47,8 +47,7 @@ before any reinstall. Our reading of why each matters, in our words:
   convicting a layout this engine cannot classify.
   - **Pointer**: when an operator has more than one `claude`, fetch
     [troubleshoot install: check for conflicting installations](https://code.claude.com/docs/en/troubleshoot-install#check-for-conflicting-installations)
-    live for how to list them and which to keep. **As of**: 2026-10-11. **Recheck trigger**: that
-    section publishes a binary path for a second install method, or changes which tool decides.
+    live for how to list them and which to keep.
 
 ## Accumulated-state mechanisms confirmed at source level, v2.1.228 (suspect 1)
 
@@ -78,18 +77,17 @@ claim that rests on one of its timings or counts is re-derived against the runni
   `~/.claude.json` fully cured an input-lag case.
   - **Pointer**: when stating whether `history.jsonl` is ever trimmed, fetch
     [claude directory: kept until you delete them](https://code.claude.com/docs/en/claude-directory#kept-until-you-delete-them)
-    live. **As of**: 2026-10-11. **Recheck trigger**: that row's trimming exception changes.
+    live.
 - **`cleanupPeriodDays` is the wrong lever for preservation.** Raising it far preserves
   transcripts by growing the live tree.
   - **Pointer**: when quoting its default or range, fetch
     [settings reference: cleanupPeriodDays](https://code.claude.com/docs/en/settings-reference#cleanupperioddays)
-    live. **As of**: 2026-10-11. **Recheck trigger**: that entry changes its default or minimum.
+    live.
 - **Resumed mega-sessions:** we read `--continue`/`--resume` as mounting the whole transcript and
   Windows builds as repainting the full viewport, so per-keystroke render cost scales with mounted
   transcript size. Session hygiene (fresh sessions, `/clear`) bounds it.
   - **Basis**: our source-level reading of the v2.1.228 bundle, no probe script; no docs section
-    states it. **As of**: 2026-08-12. **Recheck trigger**: a release note names resume loading or
-    Windows rendering.
+    states it.
 
 ## The "nuke ~/.claude" folk remedy: evidence status
 
@@ -133,8 +131,6 @@ is worse than useless: it fails to match the symptom and discredits the report.
 
 - **Pointer**: when stating how an event's hooks are scheduled, fetch
   [hooks: hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields) live.
-  **As of**: 2026-11-10. **Recheck trigger**: that section changes whether an event's matching
-  hooks run together.
 
 `invocation_shape` detects three shapes. Two cost extra process creations before the hook's own
 work begins:
@@ -155,8 +151,7 @@ shell of its own therefore puts at least two shells in the chain, which is
 - **Pointer**: when naming which shell wraps a command on a given OS, fetch
   [hooks: exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)
   and [statusline: manually configure a status line](https://code.claude.com/docs/en/statusline#manually-configure-a-status-line)
-  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes which shell wraps a
-  command, or `args` gains a no-shell variant for shell form.
+  live.
 
 Two consequences for reading the report: an empty finding list means no row named a
 SECOND shell, never that the rows run unwrapped; and the documented floor is a count of shells in
@@ -182,16 +177,13 @@ configuration rather than a cost. The engine reports those as `if_on_non_tool_ev
 them as never firing; its event list is our copy of the firing rule.
 
 - **Pointer**: when checking which events evaluate `if`, fetch
-  [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) live. **As of**:
-  2026-10-11. **Recheck trigger**: the `if` row adds or drops an event.
+  [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) live.
 
 **Level 2, the group matcher**, whose evaluation rule the engine's `matcher_matches` encodes as
 our decision.
 
 - **Pointer**: when deciding how a matcher string is evaluated, fetch
-  [hooks: matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) live. **As
-  of**: 2026-10-11. **Recheck trigger**: that table changes a character class or the regex
-  dialect.
+  [hooks: matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) live.
 
 Two consequences carry real fan-out weight. An unanchored regex catches more than it looks like it does, so `Edit.*`
 also selects `NotebookEdit`. And an exact string is compared whole, so a bare `mcp__memory`
@@ -210,8 +202,7 @@ than one, and a non-match as spawning nothing.
 - **Pointer**: when checking how many rules an `if` holds or whether a non-match spawns, fetch
   [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) and
   [hooks guide: filter by tool name and arguments with the if field](https://code.claude.com/docs/en/hooks-guide#filter-by-tool-name-and-arguments-with-the-if-field)
-  live. **As of**: 2026-10-11. **Recheck trigger**: `if` gains combining syntax, or a non-match
-  starts spawning.
+  live.
 
 The engine classifies one `if` family: an `Edit(...)` or `Write(...)` rule whose glob is a single
 dotted suffix, `*.<ext>` or a multi-dot `*.Tests.ps1`, optionally under a `**/` or literal
@@ -241,9 +232,6 @@ sections below, and stays unconfirmed upstream until one of them states it.
   section that says which rule names govern the file-writing tools, with
   [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) and
   [changelog 2.1.176](https://code.claude.com/docs/en/changelog#2-1-176), live.
-- **As of**: 2026-10-20
-- **Recheck trigger**: the read-and-edit section changes which rule names govern the file-writing
-  tools, or a hooks-reference revision names the input field or tool set for file-tool `if` rules.
 
 Two things the projection models only as over-counts rather than hidden spawns. An `if` rule
 matches only under its anchor, so an edit to a file outside the project directory never matches
@@ -258,8 +246,6 @@ Plugin and skill copies are never collapsed, and any other duplicate is counted 
 
 - **Pointer**: when judging which duplicate handlers collapse, fetch
   [hooks: hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields) live.
-  **As of**: 2026-10-20. **Recheck trigger**: that section changes its dedup rule or where hooks
-  on one event run in parallel.
 
 ### Configuration on disk is not configuration in force
 
@@ -273,8 +259,7 @@ session process's start time and says plainly when `/reload-plugins` or a restar
 - **Pointer**: when stating which settings edits reach a running session, fetch
   [settings: when edits take effect](https://code.claude.com/docs/en/settings#when-edits-take-effect)
   and [plugin loading: check which stage a plugin reached](https://code.claude.com/docs/en/plugins/loading#check-which-stage-a-plugin-reached)
-  live. **As of**: 2026-11-03. **Recheck trigger**: either section changes when plugin
-  enablement is applied to a running session.
+  live.
 
 ### Concurrency ceilings multiply
 
@@ -285,8 +270,7 @@ session process's start time and says plainly when `/reload-plugins` or a restar
 | `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` | absent from [env-vars.md](https://code.claude.com/docs/en/env-vars) but present in the shipped binary, gating background observer agents and a per-subagent observer fan-out |
 
 - **Pointer**: when stating either documented default, fetch the linked sub-agents section live.
-  **As of**: 2026-10-11. **Recheck trigger**: either default changes (the spawn-depth default has
-  changed before). For `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS`: **As of** 2026-11-01, absent
+  For `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS`: **As of** 2026-11-01, absent
   from a raw fetch of env-vars and present as a string in the Claude Code 2.1.316 binary (a grep of
   the installed binary, not a behavior probe). **Recheck trigger**: env-vars starts listing it, or a
   release drops the string.
@@ -297,8 +281,7 @@ JavaScript the string `"0"` is TRUTHY. Setting it to `0` reads like a disable in
 and is a silent no-op; only removing the variable disables it. Any advisory that says "set it to
 0" is actively wrong. Re-verify the gating shape against the shipped binary before resting a
 conclusion on it. For what each cap accepts, and whether any value disables it, see their rows in
-[env vars: variables](https://code.claude.com/docs/en/env-vars#variables) (as of 2026-11-10;
-recheck when those rows change what they accept).
+[env vars: variables](https://code.claude.com/docs/en/env-vars#variables).
 
 The engine reports these three against their documented defaults and flags one that is set but
 undocumented upstream. It deliberately does NOT cross-check env keys against a strings scan of
@@ -556,8 +539,6 @@ background caller is refused: `before=2147483647 after=2147483647 set=False erro
   [gunrgbcr/windows-token-leak-logon-fix README](https://github.com/gunrgbcr/windows-token-leak-logon-fix#why-setting-it-to-0-doesnt-stick)
   live; correlate with
   [bentoner/windows-token-leak#1](https://github.com/bentoner/windows-token-leak/issues/1).
-  **As of**: 2026-10-26. **Recheck trigger**: either source changes its account of the logon
-  reset, or a Windows update's notes name win32k foreground or token handling.
 
 - **Where it lives:** dotfiles. Host data `windowsPrefs.hosts.<host>.foregroundLockTimeoutAtLogon`
   renders `AppData/Local/PowerShell/foreground-lock.ps1`, which the PowerShell profile's deferred
@@ -725,9 +706,6 @@ coverage is unmeasured until someone takes readings there.
 - **Pointer:** [desktop: shared configuration](https://code.claude.com/docs/en/desktop#shared-configuration)
   is the live source for what Desktop and the CLI share. Read it before applying a finding here
   to desktop.
-- **As of:** 2026-10-18 (Claude Code 2.1.300 docs).
-- **Recheck trigger:** that section changes which files or settings are shared, or the page
-  documents a Desktop-specific hook, statusline or process model.
 
 ## Reference links
 
@@ -738,15 +716,12 @@ coverage is unmeasured until someone takes readings there.
   recheck when either section changes the unit or the render triggers
 - [sub-agents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
   and [spawn depth](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
-  for each cap's default, accepted values, and the sessions it does not apply to. As of
-  2026-10-11; recheck when either section changes a default, its accepted values, or its
-  exemptions
+  for each cap's default, accepted values, and the sessions it does not apply to
 - [agent-teams](https://code.claude.com/docs/en/agent-teams)
 - [env-vars](https://code.claude.com/docs/en/env-vars)
 - [hooks](https://code.claude.com/docs/en/hooks)
 - [debug your config: check common causes](https://code.claude.com/docs/en/debug-your-config#check-common-causes):
-  the cheap first pass worth taking before this engine. As of 2026-10-11; recheck when that
-  section moves or stops listing the checks it runs
+  the cheap first pass worth taking before this engine
 - [desktop](https://code.claude.com/docs/en/desktop)
 - [llms.txt](https://code.claude.com/docs/llms.txt): the index; resolve doc URLs from here rather
   than guessing them
@@ -756,9 +731,8 @@ coverage is unmeasured until someone takes readings there.
 - Defender interacts with the tree's file churn (handle-hold EPERM during plugin install:
   anthropics/claude-code#54053; installer false positive: anthropics/claude-code#36796). Never treat an empty
   `Get-MpPreference` exclusions read from a non-elevated shell as evidence that no exclusion
-  exists; read it from an elevated shell or say it is unverified. No Microsoft Learn page found
-  as of 2026-11-03 states what a non-elevated read shows; recheck when one does, and point at it
-  here.
+  exists; read it from an elevated shell or say it is unverified. No Microsoft Learn page we found
+  states what a non-elevated read shows.
 - Every running session watches `~/.claude.json` and re-parses it when another process writes
   it, so concurrent sessions multiply all watcher and poll load. Our v2.1.228 bundle reading put
   the poll at 1 Hz; see the Probe record under "Accumulated-state mechanisms" above.

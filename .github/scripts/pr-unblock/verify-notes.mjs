@@ -54,8 +54,8 @@
 // earlier run; for a pass, pass-head-sha as above.
 
 import { appendFileSync, readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 
+import { runAsScript } from "../lib/run-main.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { headRefDigest, isVerdictName, NAME } from "../pr-verify/write-verdict.mjs";
@@ -359,14 +359,4 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.env).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error) => {
-      console.log(`::error::verify-notes failed: ${error.message}`);
-      process.exitCode = 1;
-    },
-  );
-}
+runAsScript(import.meta.url, "verify-notes", () => main(process.env));

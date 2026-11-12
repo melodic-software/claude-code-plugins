@@ -3,6 +3,25 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.38] - 2026-11-12
+
+### Changed
+
+- `/harness-ops:lanes` states that `consume-restarts run` relaunches a stopped lane whose telemetry
+  carries a `restart_request` once the operator registers its OS schedule, and that a crashed lane
+  writes none, so it stays down until the operator restarts it.
+- `/harness-ops:lanes` states that a lane can read its own context zone from the context-guard
+  snapshot in `-p` and `--bg` sessions, but still cannot reset its own context from inside the loop.
+
+- Pointer records in the harness-ops skills, references and scripts no longer carry an as-of date
+  or recheck trigger; stored values keep theirs.
+
+## [8.12.37] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
 ## [8.12.36] - 2026-11-12
 
 ### Changed

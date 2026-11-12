@@ -100,7 +100,6 @@ bash "<skill-dir>/scripts/reset-refresh.sh" clean [--journal-root <dir>]
 
 The `--accept-command` behavior `clean` relies on is in the Plugin commands reference,
 [Accept a displayed install command](https://code.claude.com/docs/en/plugins/cli-reference#accept-a-displayed-install-command).
-As of 2026-11-05. Recheck when that section or the `--json` result's `shownCommand` changes.
 
 ## Enable state after a reinstall
 
@@ -145,4 +144,3 @@ already-in-state exits, and which marketplaces an update refreshes) is read live
 [plugin disable](https://code.claude.com/docs/en/plugins/cli-reference#plugin-disable),
 [accept a displayed install command](https://code.claude.com/docs/en/plugins/cli-reference#accept-a-displayed-install-command)
 and [plugin marketplace update](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-update).
-As of 2026-11-10. Recheck when any of those sections changes a flag or an exit the script relies on.

@@ -264,6 +264,14 @@ describe("earlier reviews and blocking only", () => {
     assert.equal(readAfterFirstReview(""), "blocking-only");
     assert.equal(readAfterFirstReview(undefined), "blocking-only");
   });
+
+  test("blank and whitespace-only lines in the loop block are skipped in linear time", () => {
+    assert.equal(readAfterFirstReview("loop:\n\n  \t\n    \n  findings-after-first-review: all\n"), "all");
+    const start = performance.now();
+    assert.equal(readAfterFirstReview(`loop:\n${"  \n".repeat(40)}x`), "blocking-only");
+    assert.equal(readAfterFirstReview(`loop:\n${"  \n".repeat(40)}  findings-after-first-review: all\n`), "all");
+    assert.ok(performance.now() - start < 1000);
+  });
 });
 
 describe("main reads the setting from CAP_CONFIG", () => {

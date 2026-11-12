@@ -42,8 +42,7 @@ whenever a session feels slow:
 
 - **`doctor` (bundled skill)**: an in-session setup checkup that can offer fixes, which this skill
   never does. What it checks, its aliases, and its terminal variant are read live from
-  [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) (as of
-  2026-11-03; recheck when the `/doctor` row changes what it checks or how it is invoked).
+  [commands: all commands](https://code.claude.com/docs/en/commands#all-commands).
 - **This skill (marketplace plugin).** A timed, read-only capture taken while it is slow: engine
   phase timings, spawn baselines, per-hook buckets, and the census, with remediation routed out.
 
@@ -155,9 +154,7 @@ run; it is never silently absent.
 `home_root_state` sizes (outside the sweep). `last-cleanup-stale` is weaker evidence than it
 looks: a stale sentinel can have a benign explanation. Report both readings. How often the sweep
 runs, what pauses it, and when it skips are read live from
-[claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
-(as of 2026-11-03; recheck when that section changes the sweep's schedule or its pause and skip
-cases).
+[claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically).
 
 **Suspect 2. Version regression.** Evidence: `cli.version` against the bundled
 [reference/known-performance-issues.md](reference/known-performance-issues.md). Several 2.1.2xx
@@ -213,16 +210,14 @@ spawns. Read `fan_out` in this order:
    count one edit spawns. The floor counts an edit inside each handler's project anchor; an edit
    outside an anchor can fire fewer, so say which (the `HOOK_ANCHOR_NOTE` in the notes). **Never present hook cost as a sum**. How hooks on one event are
    scheduled is read live from
-   [hooks: hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields)
-   (as of 2026-11-03; recheck when that section changes whether an event's hooks run together). To find which hook is the wall on `Stop`, point the operator at
+   [hooks: hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields). To find which hook is the wall on `Stop`, point the operator at
    the `stop_hook_summary` durations named under "Never time a hook by running it" in Gotchas;
    a per-turn bucket counts the costliest hook as one row among many. We treat shell form as
    always wrapped in a shell and exec form, with `args` present, as spawned with none; which
    shell wraps a row per OS, and the `shell` field's values, are read live.
    - **Pointer**: when naming the wrapping shell, fetch
      [hooks: exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)
-     live. **As of**: 2026-10-11. **Recheck trigger**: that section changes which shell wraps
-     shell form, or `args` gains a no-shell variant for shell form.
+     live.
 3. **`fan_out.shell_resolution`**, which names WHICH bash pays that wrapping spawn on Windows:
    `CLAUDE_CODE_GIT_BASH_PATH`, where the value came from, whether the path exists, whether
    Claude Code accepts the filename, and whether it resolves to Git's `bin` launcher or to
@@ -232,8 +227,7 @@ spawns. Read `fan_out` in this order:
    performs it.
    - **Pointer**: when stating the search order, the accepted filenames, or the fallback, fetch
      [troubleshoot install: Git for Windows or PowerShell](https://code.claude.com/docs/en/troubleshoot-install#claude-code-on-windows-requires-either-git-for-windows-for-bash-or-powershell)
-     live. **As of**: 2026-10-11. **Recheck trigger**: that section's resolution order,
-     accepted-name list, or fallback changes.
+     live.
 
    The
    `bin` launcher's re-exec of `usr/bin/bash.exe` rides in `observation` as a one-host
@@ -247,8 +241,7 @@ spawns. Read `fan_out` in this order:
    `sessions_predating_settings` greater than zero means the file on disk may not describe what
    is running. Which settings edits reach a running session is read live from
    [settings: when edits take effect](https://code.claude.com/docs/en/settings#when-edits-take-effect)
-   and [plugin loading: check which stage a plugin reached](https://code.claude.com/docs/en/plugins/loading#check-which-stage-a-plugin-reached)
-   (as of 2026-11-03; recheck when either section changes when plugin enablement is applied). Reporting the disk state as the running state is how a
+   and [plugin loading: check which stage a plugin reached](https://code.claude.com/docs/en/plugins/loading#check-which-stage-a-plugin-reached). Reporting the disk state as the running state is how a
    confident and wrong diagnosis gets written. The advisory names `/reload-plugins` or a restart;
    either one is the operator's, not this skill's.
 5. **`fan_out.concurrency_ceilings`**. Spawn depth multiplies against the per-session concurrency
@@ -264,9 +257,7 @@ spawns. Read `fan_out` in this order:
      [sub-agents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit),
      [sub-agents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents),
      and the two variables' rows in
-     [env-vars: variables](https://code.claude.com/docs/en/env-vars#variables) live. **As of**:
-     2026-10-11. **Recheck trigger**: any of those changes the values a cap accepts, documents a
-     way to disable a cap, or adds or drops a session kind that is exempt from one.
+     [env-vars: variables](https://code.claude.com/docs/en/env-vars#variables) live.
 6. **`fan_out.statusline`**. Reported, never rendered. The engine reads `refreshInterval` as
    seconds (`refresh_interval_seconds`); reading it as milliseconds inverts the conclusion. Its
    `invocation_shape_findings` reads the same way as item 2: the command runs in a shell, so a
@@ -344,8 +335,7 @@ If /doctor is available in your session (gate basis: **Boundary, the bundled `do
   `stop_hook_summary` record in a session whose Stop hooks ran.
   We time hooks from the transcript because it covers a session that already ran, with nothing
   turned on beforehand. Pointer: for what the debug route records, see
-  [hooks: debug hooks](https://code.claude.com/docs/en/hooks#debug-hooks). As of 2026-11-04.
-  Recheck trigger: that section changes what it records or where.
+  [hooks: debug hooks](https://code.claude.com/docs/en/hooks#debug-hooks).
   For other events' hooks, filter to the timing fields:
   `jq -c 'select(.type == "attachment") | .attachment | select(.type == "hook_success" or .type == "hook_non_blocking_error") | {hookEvent, hookName, command, durationMs}' <session>.jsonl`.
   `/harness-ops:observability hooks <session>.jsonl` reads both shapes and owns the record of

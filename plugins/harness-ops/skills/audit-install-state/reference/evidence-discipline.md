@@ -108,6 +108,3 @@ never rest on a summarized read. The sanctioned channel is `code.claude.com`.
 - **Pointer**: when stating what a web fetch returns, fetch
   [tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
   live.
-- **As of**: 2026-11-10
-- **Recheck trigger**: that section stops describing WebFetch output as a model's extraction
-  rather than the raw page.

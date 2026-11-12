@@ -64,8 +64,7 @@ This store needs `append: true`, and we treat the Collector `fileexporter`'s own
 unavailable with it, so the external prune is the only size and age bound. Pointer: the "File
 Rotation and Append Option" section of
 <https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/fileexporter/README.md>,
-read live. Verified 2026-09-29 against that page as fetched that day; recheck when the exporter
-README drops the restriction.
+read live.
 
 `--dry-run` also prints `hot_max_mb=` and `hot_total_max_mb=`, a `hot_total: size_prune cutoff_epoch_seconds=`
 line when the total cap moves the cutoff past the age cutoff, and, per file that drops lines inside
@@ -131,8 +130,8 @@ plugin (key `harness-ops@<marketplace>`) in `installed_plugins.json` (under `CLA
 else `~/.claude/plugins/`) and runs `skills/observability/otel/prune-otel-store.sh` from that
 `installPath` through Git Bash (a machine or a user-scope Git for Windows install). A plugin
 update therefore needs no re-registration, and the orphan sweep of an old version directory
-([plugins loading: cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions),
-as of 2026-11-10; recheck when that section changes what the sweep removes) cannot strand the task. The log is `%LOCALAPPDATA%\provisioning\logs\ClaudeCodeOtelPrune.log`: one
+([plugins loading: cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions))
+cannot strand the task. The log is `%LOCALAPPDATA%\provisioning\logs\ClaudeCodeOtelPrune.log`: one
 UTC timestamp line per run, the prune's output, then `done: <plugin key> <version>` or
 `failed: <reason>`. A missing plugin, a missing script and a failed prune each exit 1.
 
