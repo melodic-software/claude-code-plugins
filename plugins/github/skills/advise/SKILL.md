@@ -129,6 +129,8 @@ A bare invocation of this skill performs zero mutations, stated in write-capabil
 - No browser automation fires from this skill on a bare invocation.
 
 Which `gh api` flags send a request body or set the method: [`gh api` options](https://cli.github.com/manual/gh_api#options).
+As of 2026-11-10. Recheck when a `gh` release note names a new `gh api` request-body or request-method flag, or when
+a read from this skill returns a non-GET method the list above does not explain.
 
 Requests to "just set it up for me" do not override this: emit the exact proposed change and point
 to `--apply`, which routes through the consumer's declared change routing.

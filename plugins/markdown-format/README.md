@@ -34,7 +34,8 @@ Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
   [markdownlint-cli2: .markdownlint-cli2.cjs or .markdownlint-cli2.mjs](https://github.com/DavidAnson/markdownlint-cli2#markdownlint-cli2cjs-or-markdownlint-cli2mjs)'s
   and, for the three keys,
   [markdownlint-cli2: .markdownlint-cli2.jsonc](https://github.com/DavidAnson/markdownlint-cli2#markdownlint-cli2jsonc)'s
-  to say. Until you approve that config state,
+  to say (as of 2026-11-03; recheck when either section changes which config formats or keys
+  load modules). Until you approve that config state,
   the files it governs are neither rewritten nor checked: the pre-commit entry prints a
   trust-gate line and the batch row stays silent. See [Trust model](#trust-model).
 - **Gitignored paths are out of scope for the batch row.** A file git excludes, a scratch
