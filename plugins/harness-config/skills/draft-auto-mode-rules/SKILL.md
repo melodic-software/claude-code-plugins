@@ -109,8 +109,9 @@ Ask about one entry at a time. For each, you need four things, and the fourth is
    A `hard_deny` entry is a classifier judgment. When the answer is an action that must never
    happen (it cannot be undone, exposes a secret, or sends data outside), say that it belongs in
    `permissions.deny` or a `PreToolUse` hook, which the harness applies every time, and keep the
-   `hard_deny` entry as a second layer. For a Bash action prefer the hook: a Bash deny rule matches
-   command text only ([permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax)).
+   `hard_deny` entry as a second layer. For a Bash action prefer the hook; read what a Bash deny
+   rule matches in [permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax)
+   before recommending one.
 2. **A short label**: the subject, two or three words. It is what a reader scans for.
 3. **What is covered, and what is explicitly not.** Both. An entry with no stated exclusions is one
    the classifier will over-apply.
