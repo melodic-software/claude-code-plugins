@@ -230,80 +230,15 @@ fi
 
 # --- Emit -------------------------------------------------------------------
 
-# One top-level key/value split, shared by emission and comparison. Walks the
-# object rather than matching a pattern, so a value carrying a brace, a comma or
-# an escaped quote does not split the record in the wrong place.
+# The top-level key/value split in lib/split-object.awk, shared by emission and
+# comparison, then this script's own unquote, which keeps escapes as written.
 read -r -d '' SPLIT_AWK <<'AWK' || true
-function split_object(line, keys, vals,   i, n, c, k, v, depth, instr, start) {
-  n = 0
-  i = index(line, "{")
-  if (i == 0) return 0
-  i++
-  while (i <= length(line)) {
-    c = substr(line, i, 1)
-    if (c == " " || c == ",") { i++; continue }
-    if (c == "}") break
-    if (c != "\"") return n
-    i++
-    start = i
-    while (i <= length(line)) {
-      c = substr(line, i, 1)
-      if (c == "\\") { i += 2; continue }
-      if (c == "\"") break
-      i++
-    }
-    k = substr(line, start, i - start)
-    i++
-    while (substr(line, i, 1) == " " || substr(line, i, 1) == ":") i++
-    start = i
-    c = substr(line, i, 1)
-    if (c == "\"") {
-      i++
-      while (i <= length(line)) {
-        c = substr(line, i, 1)
-        if (c == "\\") { i += 2; continue }
-        if (c == "\"") break
-        i++
-      }
-      i++
-    } else if (c == "[" || c == "{") {
-      depth = 0
-      instr = 0
-      while (i <= length(line)) {
-        c = substr(line, i, 1)
-        if (instr) {
-          if (c == "\\") { i += 2; continue }
-          if (c == "\"") instr = 0
-        } else if (c == "\"") {
-          instr = 1
-        } else if (c == "[" || c == "{") {
-          depth++
-        } else if (c == "]" || c == "}") {
-          depth--
-          if (depth == 0) { i++; break }
-        }
-        i++
-      }
-    } else {
-      while (i <= length(line) && substr(line, i, 1) != "," && substr(line, i, 1) != "}") i++
-    }
-    v = substr(line, start, i - start)
-    n++
-    keys[n] = k
-    vals[n] = v
-  }
-  return n
-}
-function field(line, want,   keys, vals, n, i) {
-  n = split_object(line, keys, vals)
-  for (i = 1; i <= n; i++) if (keys[i] == want) return vals[i]
-  return ""
-}
 function unquote(v) {
   if (substr(v, 1, 1) == "\"") return substr(v, 2, length(v) - 2)
   return v
 }
 AWK
+SPLIT_AWK="$(<"$SCRIPT_DIR/../../../lib/split-object.awk")"$'\n'"$SPLIT_AWK"
 
 emit_array() {
   # $1 the JSON key, $2 the newline-separated object lines, $3 the trailing
