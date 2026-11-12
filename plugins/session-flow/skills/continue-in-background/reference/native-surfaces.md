@@ -8,8 +8,8 @@ checking again.
 | Decision | Pointer | As of | Recheck when |
 |---|---|---|---|
 | Treat `subtask`, `fork`, and `background` (alias `bg`) as user-invocable built-ins the model cannot invoke, so this skill names them and never runs them | Probe: the `/harness-ops:inventory` extraction of the installed 2.1.284 binary (`builtin_commands.subtask`, `.fork`, `.background`), observed 2026-09-29 | 2026-10-11 | A release renames or removes one of them or its alias, or changes its invocability or gate |
-| Offer `/subtask`, `/fork`, and `/background` as the native ways to move the live conversation; read what each launches, its version floor, and its agent-view dependency live | The `/subtask`, `/fork`, and `/background` rows of [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands) | — | — |
-| Read the history of what `/fork` launches from the release notes, not from memory | [Changelog § 2.1.212](https://code.claude.com/docs/en/changelog#2-1-212) and [§ 2.1.221](https://code.claude.com/docs/en/changelog#2-1-221) | — | — |
+| Offer `/subtask`, `/fork`, and `/background` as the native ways to move the live conversation; read what each launches, its version floor, and its agent-view dependency live | The `/subtask`, `/fork`, and `/background` rows of [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands) |  |  |
+| Read the history of what `/fork` launches from the release notes, not from memory | [Changelog § 2.1.212](https://code.claude.com/docs/en/changelog#2-1-212) and [§ 2.1.221](https://code.claude.com/docs/en/changelog#2-1-221) |  |  |
 
 ## The `/fork` name discrepancy
 
