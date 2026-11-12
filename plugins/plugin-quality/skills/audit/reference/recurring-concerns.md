@@ -10,8 +10,7 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
 - **Tool-matcher coverage.** Enumerate every tool that can perform the gated action (a PowerShell
   tool on Windows, a different shell tool) and check the matcher covers each; a tool it misses is a
   silent bypass. When reading what a matcher matches, fetch
-  [Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) live. As of
-  2026-11-03. Recheck trigger: that section changes what a matcher filters on or how it is parsed.
+  [Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) live.
 - **Direct-path bypass.** A skill that enforces a convention only at draft time enforces nothing if
   the user runs the underlying command directly. Ask: what happens if I bypass the skill entirely?
 - **Fail-open vs fail-closed.** When a prerequisite is missing (no `jq`, empty stdin, parse error),
@@ -25,9 +24,7 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
   real resolution, not the code's assumption: when tracing which scopes apply, fetch
   [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
   live, and when tracing which scope wins, fetch
-  [Settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) live. As of
-  2026-10-11. Recheck trigger: the first section adds or removes a scope, or the second changes the
-  order in which scopes win.
+  [Settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) live.
 - **User-gated by default.** Guardrails a user adds should default to firing only for that user (and
   their agents), never surprise-blocking teammates who didn't opt in. Prefer mechanisms invisible
   to uninvolved parties (machine-local git hooks, user-scope config) with a clean migration path to
@@ -69,8 +66,7 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
   be configurable. When checking which files Claude Code itself reads from `.claude/`, fetch
   [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
   and the [.claude directory file reference](https://code.claude.com/docs/en/claude-directory#file-reference)
-  live. As of 2026-11-03. Recheck trigger: either section adds, removes or moves a file Claude Code
-  reads from `.claude/`.
+  live.
 - **Single-plugin artifact in a shared repo.** A committed file only one plugin reads is inert (and
   confusing) for everyone else. Make it self-describing, or make its location configurable, or
   derive it from an existing shared source.

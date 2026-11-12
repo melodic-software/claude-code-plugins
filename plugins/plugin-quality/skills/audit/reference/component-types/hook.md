@@ -6,8 +6,7 @@ PreToolUse / PostToolUse / lifecycle hook scripts.
 
 - `hooks/hooks.json`: which events, which `matcher`, which scripts, timeouts. When reading what a
   matcher matches, fetch [Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns)
-  live. As of 2026-11-03. Recheck trigger: that section changes what a matcher filters on or how it
-  is parsed.
+  live.
 - The script itself + any shared utility script it sources.
 - The plugin's `userConfig` for kill switches / allow-lists that gate the hook.
 
@@ -20,9 +19,6 @@ PreToolUse / PostToolUse / lifecycle hook scripts.
   - **Pointer**: when grading a hook's exit codes, fetch
     [Exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event)
     live.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes what an exit code does for any event, or a release
-    note names hook exit codes.
 - **Fail-open vs fail-closed** on missing deps (jq), empty/timed-out stdin, parse errors.
 - **Enablement/scope probe**: if it self-disables based on plugin enablement or settings, does it
   read the *merged effective* scopes (user-global + project + local), not just one?
@@ -68,9 +64,6 @@ throwaway mod with Claude Code 2.1.287 on 2026-10-01.
   [Review what a mod can do](https://code.claude.com/docs/en/plugins/mods/admin#review-what-a-mod-can-do)
   and [Check what Claude Code reads from your mod](https://code.claude.com/docs/en/plugins/mods/create#check-what-claude-code-reads-from-your-mod)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section's call table or sample output changes, or a release note
-  changes `plugin validate` output or mod loading.
 
 **Claim:** loading `plugin-authoring` writes the declarations into that skill's own folder for the
 current process, and a subagent without the Skill tool cannot load it. **Basis:** the skill's

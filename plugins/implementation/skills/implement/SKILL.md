@@ -49,7 +49,7 @@ Track skill Steps 0–5 in-session via the task list. Durable progress lives in 
 
 In fix and config modes, hold to the scope discipline: do the simplest thing that works, edit a file surgically rather than rewriting it when the result is the same, and add no features, abstractions, or cleanup the task does not require. A feature follows `integration_posture` below, and so do fix and config when it resolves `day-one`; a refactor keeps the plan's scope. Proceed without prompting.
 
-**Data boundaries.** Check and narrow values where they enter the system (request bodies, files read, other services' responses) into the types the code works with, and past that point rely on those types instead of checking them again. Pointer: the "Overeagerness" section of Anthropic's prompting best practices ([claude-prompting-best-practices#overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness); as of 2026-10-04; recheck when that section drops or moves its boundary-validation advice).
+**Data boundaries.** Check and narrow values where they enter the system (request bodies, files read, other services' responses) into the types the code works with, and past that point rely on those types instead of checking them again. Pointer: the "Overeagerness" section of Anthropic's prompting best practices ([claude-prompting-best-practices#overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness)).
 
 Parse conversation context to determine execution mode. Mode shapes which context file to consult and how to structure the work.
 
@@ -111,7 +111,7 @@ Core execution loop. Key discipline: **validate after each logical block, not ju
 
 **Per-unit check (`per_unit_check`)**. Once the lever or the hand edit is ready, apply it unit by unit (a unit is one site, or one file when the change touches several sites in it) under this key. Resolve it the first time a multi-site block runs, from three layers, lowest first: the default `pilot`; the user's option, `${user_config.per_unit_check}` (a literal, unexpanded placeholder means unset); and the `per_unit_check` key of the repository's `docs/conventions/implementation.yaml`, which wins when set, read under the root rule in [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md). A value other than `pilot` or `every` is named with its file or option, the key and the value, and that layer is dropped: the repository's valid value still wins over an invalid user value, and an invalid repository value resolves the default `pilot`, never the user's value. Report one line, for example `per_unit_check: every (docs/conventions/implementation.yaml)`.
 
-- `pilot`: apply the change to a small first batch of units, run the build check and the tests covering them, and fix the lever or the edit until that batch is green. Then apply it to every remaining unit and run one check over all of them at the end. Size the batch from the "Run Claude from a script" section of the Claude Code best practices, which says how many files to try before running the rest ([best-practices#run-claude-from-a-script](https://code.claude.com/docs/en/best-practices#run-claude-from-a-script); as of 2026-10-30; recheck when that section changes its try-first advice or moves). A failure in the final check is handled under "When to break the cadence", not by re-running the whole set.
+- `pilot`: apply the change to a small first batch of units, run the build check and the tests covering them, and fix the lever or the edit until that batch is green. Then apply it to every remaining unit and run one check over all of them at the end. Size the batch from the "Run Claude from a script" section of the Claude Code best practices, which says how many files to try before running the rest ([best-practices#run-claude-from-a-script](https://code.claude.com/docs/en/best-practices#run-claude-from-a-script)). A failure in the final check is handled under "When to break the cadence", not by re-running the whole set.
 - `every`: run the build check and the affected tests after each unit, and move on to the next unit only once that check passes.
 
 Either way the commit checkpoint follows the last green check.
@@ -257,8 +257,6 @@ Each call passes `--base <previous phase-boundary commit>` and `--report-only`, 
 We treat the phases of one approved plan as one task and leave the compact, clear or handoff choice to the workflow router. Entering implementation from a finished plan still starts in a fresh session.
 
 - **Pointer**: for what to do when the window fills, see <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>.
-- **As of**: 2026-10-02
-- **Recheck trigger**: that section changes its `/compact` or `/clear` guidance.
 
 In orchestrated runs, the orchestrator may stay resident across phase boundaries instead of clearing. Criteria per `/implementation:implement-dispatch` "Resident-vs-clear at phase boundaries"; a boundary that clears runs the ritual above in full, and a resident one runs the reduced form that skill's "Phase boundaries" section defines.
 
