@@ -65,7 +65,7 @@ CONFLICT_RE = re.compile(r"^CONFLICT \(|Automatic merge failed", re.M)
 # cannot backtrack exponentially.
 CONFLICT_COMMAND_RE = re.compile(
     r"\bgit(?:\.exe)?[\"']?"
-    r"(?:\s+(?:-[Cc]\s+(?:\"[^\"]*\"|'[^']*'|[^\s\"']\S*)|-[pP]|--(?:git-dir|work-tree|namespace|config-env)\s+\S+"
+    r"(?:\s+(?:-[Cc]\s+(?:\"[^\"]*\"|'[^']*'|[^\s\"'])\S*|-[pP]|--(?:git-dir|work-tree|namespace|config-env)\s+\S+"
     r"|--(?!(?:git-dir|work-tree|namespace|config-env)\s)[\w-]+(?:=\S+)?))*\s+"
     r"(?:merge|rebase|pull|cherry-pick|revert|am|stash\s+(?:pop|apply))(?![\w-])"
 )

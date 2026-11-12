@@ -336,6 +336,8 @@ CONFLICT_TEXT = "Auto-merging a.py\nCONFLICT (content): Merge conflict in a.py\n
         ("Bash", {"command": "/usr/bin/git am 0001.patch"}, 1),
         ("Bash", {"command": "git --git-dir=/w/repo/.git --work-tree /w/repo merge main"}, 1),
         ("Bash", {"command": "git -C '/w/my repo' -C /w/repo rebase main"}, 1),
+        ("Bash", {"command": "git -C \"$repo\"/sub merge main"}, 1),
+        ("Bash", {"command": "git -C '/w/my repo'/sub rebase main"}, 1),
         ("Monitor", {"command": "git merge origin/main"}, 0),
         ("Bash", {"command": "git-lfs pull"}, 0),
         ("Bash", {"command": "gh pr merge 7 --squash"}, 0),
