@@ -1,3 +1,5 @@
+# GENERATED from lib/hook-test-sink.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # shellcheck shell=bash
 # Telemetry-sink stub for hook test suites. Sourced, never executed: sourcing
 # defines make_sink, wait_for_sink and check_envelope and runs nothing else.
@@ -10,9 +12,9 @@
 # stub make_sink writes.
 #
 # Canonical copy: lib/hook-test-sink.sh at the marketplace repo root. Plugins
-# carry byte-identical copies at plugins/<plugin>/hooks/hook-test-sink.sh
-# because an installed plugin is cache-isolated; edit the canonical file and
-# copy it over the plugin copies.
+# carry copies at plugins/<plugin>/hooks/hook-test-sink.sh because an installed
+# plugin is cache-isolated; scripts/sync-shared-copies.sh generates them from
+# this file, so edit it here and rerun that script.
 
 # make_sink <body> -> print the path of an executable stub sink: a bash shebang
 # line followed by <body>, which reads the envelope on stdin. Returns 2 with a

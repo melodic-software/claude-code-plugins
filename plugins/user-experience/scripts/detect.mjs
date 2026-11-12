@@ -22,7 +22,7 @@ import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { resolve as resolveConfig } from "./lib/config-cascade.mjs";
 import { installed } from "./lib/installed.mjs";
-import { rejections } from "./lib/team-policy.mjs";
+import { nameOf, rejections } from "./lib/team-policy.mjs";
 import { parse as parseYaml } from "./lib/yaml-subset.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -116,7 +116,6 @@ const quote = (value) => {
   return typeof value === "string" ? JSON.stringify(cut(value)) : cut(String(JSON.stringify(value)));
 };
 const isMapping = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-const nameOf = (detect) => (detect.includes("@") ? detect.slice(0, detect.lastIndexOf("@")) : detect);
 
 /** `p` as a project-relative path when it resolves inside the project, else null. Every existing
  * symlink along the path must resolve inside the project; a dangling one counts as an escape, and

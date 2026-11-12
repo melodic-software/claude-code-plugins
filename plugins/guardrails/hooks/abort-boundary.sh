@@ -100,12 +100,36 @@ guard::say_once() {
   printf '%s\n' "$2" >&2
 }
 
-# Refusals several guards share. The caller exits 2.
+# Refusals several guards share. Each writes its reason and returns; the
+# caller exits 2.
 guard::refuse_nul() {
   guard::say_once nul "BLOCKED: the payload carries a NUL byte. Reissue the call without it."
 }
 guard::refuse_unparsable() {
   guard::say_once unparsable "BLOCKED: the hook payload could not be parsed."
+}
+
+# guard::payload_verdict <hook::jq_fields status>: the verdict on a guard's
+# field read. Returns 0 to read on; 2 after writing the refusal, for a payload
+# jq rejected (status 2) or one carrying a NUL byte in a read field; 3 for any
+# other failed read, which the guard lets through silently. Like the refusals
+# it never exits. The caller exits in exactly this form, which blocks on every
+# status but 0 and 3, so a missing or misbehaving helper denies the call;
+# abort-boundary.test.sh fails on any other form:
+#
+#   guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))
+# shellcheck disable=SC2154  # HOOK_JQ_FIELDS_NUL is hook::jq_fields', loaded by every caller
+guard::payload_verdict() {
+  if (($1 == 2)); then
+    guard::refuse_unparsable
+    return 2
+  fi
+  (($1 == 0)) || return 3
+  if ((HOOK_JQ_FIELDS_NUL)); then
+    guard::refuse_nul
+    return 2
+  fi
+  return 0
 }
 # The git guards that walk alias chains (hook::git_alias_admit).
 # shellcheck disable=SC2154  # HOOK_ALIAS_WORK_MAX is hook-utils.sh's, loaded by every caller
