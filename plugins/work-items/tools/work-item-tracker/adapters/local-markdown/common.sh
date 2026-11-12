@@ -36,6 +36,9 @@ source "$WIT_LOCAL_ADAPTER_DIR/../../lib/id.sh"
 wit_local_require_seam_lib "$WIT_LOCAL_ADAPTER_DIR/../../lib/json.sh"
 # shellcheck source=../../lib/json.sh
 source "$WIT_LOCAL_ADAPTER_DIR/../../lib/json.sh"
+wit_local_require_seam_lib "$WIT_LOCAL_ADAPTER_DIR/../../lib/verb-cli.sh"
+# shellcheck source=../../lib/verb-cli.sh
+source "$WIT_LOCAL_ADAPTER_DIR/../../lib/verb-cli.sh"
 wit_local_require_seam_lib "$WIT_LOCAL_ADAPTER_DIR/../../lib/lease.sh"
 # shellcheck source=../../lib/lease.sh
 source "$WIT_LOCAL_ADAPTER_DIR/../../lib/lease.sh"
@@ -50,21 +53,6 @@ readonly EX_CONFLICT=7
 # sourcing verb scripts; export so a standalone lint of this sourced-only file sees
 # them as intentionally external.
 export WIT_LOCAL_DEFAULT_NS EX_NOT_FOUND EX_CONFLICT
-
-wit_usage_error() {
-  printf '%s: %s\n' "$(basename "${BASH_SOURCE[1]}")" "$1" >&2
-  exit "$EX_USAGE"
-}
-
-# wit_help_if_requested <usage-text> <args…> — print usage + exit 0 on --help.
-wit_help_if_requested() {
-  local usage="$1"
-  shift
-  if [[ "${1:-}" == "--help" ]]; then
-    printf '%s\n' "$usage"
-    exit 0
-  fi
-}
 
 # wit_require_local_id <id> — parse an ID and require its provider be
 # `local-markdown`. The shared grammar accepts any provider; this adapter rejects
