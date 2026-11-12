@@ -194,6 +194,15 @@ describe("preflightVideo", () => {
     expect(result.note).toBe("");
   });
 
+  it("caps a long title before escaping it, so the cap never leaves a dangling backslash", async () => {
+    // 58 characters then a pipe at the cap's last kept position (59 kept + the ellipsis = 60).
+    const title = `${"x".repeat(58)}|tail`;
+    const stdout = ["7zZy1QTvokM", title, "Austin Marchese", "@austin.marchese"].join(PREFLIGHT_FIELD_SEP);
+    const spawn = () => Promise.resolve(spawnResult({ success: true, code: 0, stdout }));
+    const result = await preflightVideo(DRIVER_WATCH_URL, { spawn, env });
+    expect(result.displayTitle).toBe(`${"x".repeat(58)}\\|…`);
+  });
+
   it("enqueues a just-ended live stream as a valid link and records its live_status", async () => {
     const stdout = [
       "7zZy1QTvokM",
