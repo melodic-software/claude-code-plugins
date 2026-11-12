@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.19.3] - 2026-11-12
+
+### Changed
+
+- Pointer records no longer carry an as-of date or recheck trigger; stored values keep theirs.
+
 ## [0.19.2] - 2026-11-12
 
 ### Changed

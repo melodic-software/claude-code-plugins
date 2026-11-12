@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.5.1",
+  "version": "0.5.2",
   "license": "MIT",
   "keywords": ["tdd", "testing", "unit-testing", "test-design", "knowledge", "beck", "khorikov", "best-practices", "skill"],
   "metadata": {
