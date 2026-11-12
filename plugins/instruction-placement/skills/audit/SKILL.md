@@ -36,9 +36,8 @@ is paid for in every session, in every conversation, whether or not any C# is to
 
 **The saving is context, not obedience.** What the official guidance says about file length and
 adherence is in
-[Memory, "Write effective instructions"](https://code.claude.com/docs/en/memory#write-effective-instructions)
-(as of 2026-11-10; recheck when that section changes what it says about length). This plugin's own
-adherence measurement ([`../../evals/adherence-results.md`](../../evals/adherence-results.md))
+[Memory, "Write effective instructions"](https://code.claude.com/docs/en/memory#write-effective-instructions).
+This plugin's own adherence measurement ([`../../evals/adherence-results.md`](../../evals/adherence-results.md))
 does not reproduce a length effect on adherence for a clear, non-conflicting convention; the figures live in that file, and it is re-run
 when the model tier changes. So propose moves on context cost and on reaching content Claude
 never loads, never by promising the operator their instructions will be followed better
@@ -79,8 +78,7 @@ one line per record: `verified <id>`; `drift <id> <url>`, with the stored and fe
 the next two lines; or `unverified <id> as of <date>` when the page could not be read fresh. It
 exits 0 whatever the results, so a run with no network still completes. Its grant names the script
 with no `*` (how such a rule matches:
-<https://code.claude.com/docs/en/permissions#wildcard-patterns>, as of 2026-11-10; recheck when that
-section changes how such a rule matches).
+<https://code.claude.com/docs/en/permissions#wildcard-patterns>).
 
 A finding relies on the records its destination's row of the surface table cites. Carry the
 results into the artifact and the summary:
