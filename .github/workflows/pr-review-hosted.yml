@@ -253,8 +253,8 @@ jobs:
     timeout-minutes: 50
     permissions:
       actions: read # the dispatcher and pr-refine runs and the dispatch record
-      contents: read # check out the default branch for the script
-      pull-requests: read # the pull request's live head
+      contents: read # check out the default branch for the script; each poll's read of refs/pull/<n>/head
+      pull-requests: read # the pull request's state and head at the start, the end, and a poll whose ref read differs or fails
     outputs:
       proceed: ${{ steps.wait.outputs.proceed }}
     env:
@@ -294,7 +294,7 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      # Its 2400 s cap and one confirming poll end it well inside 45 minutes.
+      # Its 2400 s cap plus at most two 60 s confirming sleeps (2520 s) end it inside 45 minutes.
       - name: Wait for this head's refine run
         id: wait
         continue-on-error: true
