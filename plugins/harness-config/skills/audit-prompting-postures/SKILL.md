@@ -33,9 +33,8 @@ Phase D's persist script, and a shell mutates files too. That closes the likelie
 capability, and a skill auditing assurance must not overstate its own. We treat the restriction as
 clearing on the human's next message, so whoever accepts a proposal can apply it (Pointer: when
 deciding how long the restriction lasts, fetch
-[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live.
-As of: 2026-10-11. Recheck trigger: that section or a release note changes how long
-`disallowed-tools` lasts).
+[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)
+live).
 
 ## Scope boundary (route out)
 
@@ -104,7 +103,7 @@ importing record already covers.
 
 - **Pointer**: when deciding which files a mode loads, fetch
   [memory: choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load)
-  live. **As of**: 2026-11-03. **Recheck trigger**: that section adds, removes or changes a mode.
+  live.
 
 **The inventory bounds what may produce a finding, not what counts as evidence.** Phase C's
 mechanical-gate rule reads outside it to establish PRESENCE, which can only turn a MISSING into a
@@ -189,8 +188,7 @@ of your own, against the plugin data directory.** (Pointer: when deciding where 
 resolves, fetch
 [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
 live; for why an inline command against the data directory is avoided, read the eval-trace
-evidence in #12039. As of: 2026-11-01. Recheck trigger: that section changes which environments
-receive `${CLAUDE_PLUGIN_DATA}`, or a later eval trace shows an inline command against the data
+evidence in melodic-software/claude-code-plugins#12039. Recheck trigger: a later eval trace shows an inline command against the data
 directory running undenied.)
 
 We key the report per project because one data directory serves every project on the machine, so
@@ -198,7 +196,7 @@ a fixed `last-audit.md` would be silently overwritten by the next run from any o
 skill's only durable deliverable, destroyed by ordinary use of it (Pointer: when deciding the data
 directory's scope, fetch
 [plugins manifest reference: environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
-live. As of: 2026-11-10. Recheck trigger: that section makes the data directory per project). The scheme is `<repo-identity>/<worktree-discriminator>`, defined by the
+live). The scheme is `<repo-identity>/<worktree-discriminator>`, defined by the
 marketplace's `plugin-data-report-keying` convention and reused rather than reinvented, and it
 lives in one executable rather than being restated per skill,
 [`lib/state-key.sh`](../../lib/state-key.sh), with `lib/state-key.test.sh` beside it, which the
@@ -208,8 +206,7 @@ An uninstall can delete the plugin's data directory, so when a report must outli
 closing line says to copy it out of the data directory (Pointer: when deciding whether a report
 survives an uninstall, fetch
 [plugins CLI reference: what an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
-live. As of: 2026-10-11. Recheck trigger: that section or a release note changes what uninstalling
-does with `${CLAUDE_PLUGIN_DATA}`).
+live).
 
 Let the script derive the key. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
 "when set": where that placeholder is substituted (pointer below) makes the condition not yours
@@ -218,8 +215,6 @@ to evaluate. Derive the key from a command you run.
 - **Pointer**: when deciding where a skill placeholder is substituted, fetch
   [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes where or when `${CLAUDE_PROJECT_DIR}` is substituted.
 
 **Open the report with a three-line header**, so a file that survives is self-describing:
 

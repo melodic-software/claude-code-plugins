@@ -59,7 +59,7 @@ Single-posture identity: `alpha` (bare class token).
 | Connector entitlements | none — `repo` access |
 | Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the Org binding layer |
 | `executor_class` merge cap | cited from security-binding |
-| Repo needs | tracker binding via the work-item tracker seam (`.work-item-tracker.json` + adapter `capabilities.json`); absent is `unsupported` |
+| Repo needs | tracker binding via the work-item tracker seam (the `tracker` mapping of `docs/conventions/work-items.yaml` + adapter `capabilities.json`); absent is `unsupported` |
 EOF
 
 # Seed a correct emission, then hand-edit it.

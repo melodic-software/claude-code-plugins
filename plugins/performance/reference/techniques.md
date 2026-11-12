@@ -28,21 +28,21 @@ time the candidate list is ranked on suspicion. Counter: whichever count the new
 produces. Fails when: the new number does not track what users feel (see
 [D](#d-prove-the-proxy)). Used by: `/performance:target` Evidence tiers ("instrument this first").
 
-- **Pointer**: when explaining why a new measurement outranks a guessed fix, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers measurement-led target selection as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when explaining why a new measurement outranks a guessed fix, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers measurement-led target selection.
 
 **Add an instrument when the list goes flat.** When the current measurements stop producing
 candidates, add a new measurement rather than re-ranking the same list. When: the ranked list has
 gone flat or every candidate is E3 or E4. Counter: the new instrument's. Fails when: instruments
 pile up with no owner and no correlation check. Used by: `/performance:target` Evidence tiers.
 
-- **Pointer**: when you want worked cases of a new instrument surfacing candidates, fetch the post's [Scaling horizontally section][scale] live; no docs page covers instrument-driven candidate discovery as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want worked cases of a new instrument surfacing candidates, fetch the post's [Scaling horizontally section][scale] live; no docs page covers instrument-driven candidate discovery.
 
 **A complaint names a candidate, not a rank.** A report that the product feels slow puts an
 operation on the candidate list; it never decides the order. When: a user or teammate names a slow
 operation. Counter: none until instrumented. Fails when: the anecdote is ranked above a
 measurement. Used by: `/performance:target` Inputs.
 
-- **Pointer**: when you want the case of user reports opening a performance push, fetch the post's [opening section][post] live; no docs page covers complaint-led candidate intake as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want the case of user reports opening a performance push, fetch the post's [opening section][post] live; no docs page covers complaint-led candidate intake.
 
 **Journey-based scoping.** Pick the few user journeys that usage data shows carry most of the use,
 and optimize those. Crossing journeys with platforms and products gives the **measurement matrix**,
@@ -51,14 +51,14 @@ the full list of measurements to baseline. Tie every candidate project to the jo
 Counter: one per matrix cell. Fails when: journeys are chosen by intuition rather than from usage
 data. Used by: `/performance:target` Inputs and Output.
 
-- **Pointer**: when choosing journeys from usage data, fetch the post's [The brief section][brief] live; no docs page covers journey selection for a performance push as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when choosing journeys from usage data, fetch the post's [The brief section][brief] live; no docs page covers journey selection for a performance push.
 
 **Audit telemetry before trusting it.** Before ranking from a telemetry store, check that its
 events fire where expected and that its numbers agree with a direct measurement. When: a telemetry
 store is the input. Counter: none; the output is a list of gaps. Fails when: a missing event reads
 as zero cost. Used by: `/performance:target` Inputs (telemetry row).
 
-- **Pointer**: when setting up a standing telemetry review, fetch the post's [The brief section][brief] live; no docs page covers telemetry audits before ranking as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when setting up a standing telemetry review, fetch the post's [The brief section][brief] live; no docs page covers telemetry audits before ranking.
 
 **Estimates in the target unit.** Estimate each candidate's gain in the metric's own unit
 (milliseconds, spawns). An estimate may set the goal's Realistic target only for a candidate whose
@@ -68,7 +68,7 @@ of candidates, or proposing a Realistic target. Counter: none. Fails when: it se
 measured cost, or the target loses its estimate label. Used by: `/performance:target` Evidence
 tiers (E3); `/performance:goal` §3.
 
-- **Pointer**: when deciding whether a target is specific and measurable enough to set, fetch [Define your success criteria][success] live; correlate with the post's [The brief section][brief]. **As of**: 2026-10-02. **Recheck trigger**: that section moves or changes what it asks of a success criterion.
+- **Pointer**: when deciding whether a target is specific and measurable enough to set, fetch [Define your success criteria][success] live; correlate with the post's [The brief section][brief].
 
 **Subscriber census on a hot interaction.** Count the observers, hooks, and subscriptions that run
 on a per-input path (a keystroke, a tool call). When: an interaction feels slow and does little
@@ -76,14 +76,14 @@ visible work. Counter: subscribers fired per interaction. Fails when: the census
 registrations instead of executions. Used by: `/performance:target` E1; for process spawns,
 [`scripts/spawn-census.sh`](../scripts/spawn-census.sh) already runs it.
 
-- **Pointer**: when you want a worked census on a UI input path, fetch the post's [Scaling horizontally section][scale] live; no docs page covers per-interaction subscriber censuses as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want a worked census on a UI input path, fetch the post's [Scaling horizontally section][scale] live; no docs page covers per-interaction subscriber censuses.
 
 **Raise the bar on hot paths.** A change to code that runs on every instance of a frequent
 operation gets more tests, smaller diffs, and a flag. When: the target is startup, input handling,
 or a per-event path. Counter: none. Fails when: a hot-path change ships with cold-path review. Used
 by: `/performance:target` Output.
 
-- **Pointer**: when deciding how much review a hot-path change needs, fetch the post's [Guardrails section][guard] live; no docs page covers hot-path review policy as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when deciding how much review a hot-path change needs, fetch the post's [Guardrails section][guard] live; no docs page covers hot-path review policy.
 
 **Re-scan for candidates.** When early targets are met or the list has gone stale, re-run
 `/performance:target` over the whole surface, including paths nothing measures yet, and ask for
@@ -91,7 +91,7 @@ candidates outside the current list. When: early targets were hit, or the list h
 Counter: none. Fails when: the re-scan re-ranks the same list without adding a measurement. Used
 by: `/performance:target` (re-scan).
 
-- **Pointer**: when wording a re-scan request, fetch the post's [The brief section][brief] live; no docs page covers candidate re-scans as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when wording a re-scan request, fetch the post's [The brief section][brief] live; no docs page covers candidate re-scans.
 
 ## B. Define the goal and its boundary
 
@@ -103,46 +103,46 @@ boundaries**). When: writing the metric for any user-facing operation. Counter: 
 what the duration means. Fails when: two measurements with different start or end events are
 compared. Used by: `/performance:goal` §1.
 
-- **Pointer**: when choosing the start and end events for a journey, fetch the post's [The brief section][brief] live; no docs page covers journey measurement boundaries as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when choosing the start and end events for a journey, fetch the post's [The brief section][brief] live; no docs page covers journey measurement boundaries.
 
 **Name the start state.** Cold start, fresh load, and warm navigation are different measurements.
 Say which one. When: every goal. Counter: none. Fails when: a warm number is reported against a
 cold baseline. Used by: `/performance:goal` §1.
 
-- **Pointer**: when you want start states reported side by side, fetch the post's [opening section][post] live; no docs page covers start-state labeling for app journeys as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want start states reported side by side, fetch the post's [opening section][post] live; no docs page covers start-state labeling for app journeys.
 
 **Field percentile as the headline.** Report a named real-user percentile per journey. When: field
 data exists. Counter: none. Fails when: a lab mean stands in for a field percentile. Used by:
 `/performance:goal` Percentiles (the plugin keeps p50 and p95 as its house default).
 
-- **Pointer**: when comparing this plugin's percentile default with a field headline, fetch the post's [opening section][post] live; no docs page covers per-journey field percentiles for app performance as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when comparing this plugin's percentile default with a field headline, fetch the post's [opening section][post] live; no docs page covers per-journey field percentiles for app performance.
 
 **Define the defect precisely.** Count only what the definition covers. For layout movement,
 exclude movement the user caused and movement before the page is usable. When: the target is a
 defect rate, not a duration. Counter: occurrences under the definition. Fails when: the definition
 is loose enough to count user-caused movement. Used by: `/performance:goal` §1.
 
-- **Pointer**: when deciding which layout shifts count, fetch web.dev's [Expected versus unexpected layout shifts][cls-expected] live; correlate with the post's [The loop, thread by thread section][loop]. **As of**: 2026-10-02. **Recheck trigger**: that section moves or changes which shifts it excludes.
+- **Pointer**: when deciding which layout shifts count, fetch web.dev's [Expected versus unexpected layout shifts][cls-expected] live; correlate with the post's [The loop, thread by thread section][loop].
 
 **Measure the underlying signal.** Go below a composite score to the raw events it is built from.
 When: a composite score is green while the symptom is visible. Counter: raw event count or
 magnitude. Fails when: the raw events are summed back into the same composite. Used by:
 `/performance:goal` §1 and Gotchas.
 
-- **Pointer**: when a layout score is green but movement is visible, fetch web.dev's [Layout shifts in detail][cls-detail] live; correlate with the post's [The loop, thread by thread section][loop]. **As of**: 2026-10-02. **Recheck trigger**: that section moves or changes how a shift is scored.
+- **Pointer**: when a layout score is green but movement is visible, fetch web.dev's [Layout shifts in detail][cls-detail] live; correlate with the post's [The loop, thread by thread section][loop].
 
 **Instrumentation parity.** Every surface compared in one ranking carries the same start and end
 marks. When: one surface lacks the marks the others have. Counter: none. Fails when: surfaces are
 ranked against each other with different marks. Used by: `/performance:goal` §1.
 
-- **Pointer**: when one surface lacks the marks others have, fetch the post's [Steering section][steer] live; no docs page covers cross-surface timing marks as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when one surface lacks the marks others have, fetch the post's [Steering section][steer] live; no docs page covers cross-surface timing marks.
 
 **Baseline window.** New instrumentation yields a number only after data accumulates. Plan for the
 window, and use a lab measurement meanwhile. When: the metric depends on field data that does not
 exist yet. Counter: none. Fails when: a goal is set before the baseline exists. Used by:
 `/performance:goal` §2.
 
-- **Pointer**: when planning around a new event's first data, fetch the post's [Steering section][steer] live; no docs page covers baseline windows for new instrumentation as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when planning around a new event's first data, fetch the post's [Steering section][steer] live; no docs page covers baseline windows for new instrumentation.
 
 **Price effects in frame budget.** State a visual effect's cost as a share of the frame budget
 (1000 ms divided by the display's refresh rate). When: an animation or effect competes with
@@ -150,7 +150,7 @@ rendering. Counter: milliseconds per frame, or frames over budget. Fails when: t
 on appearance alone. Used by: `/performance:goal` §1; the human rules on the tradeoff (see
 [F](#perceived-performance)).
 
-- **Pointer**: when an effect's frame cost needs a human ruling, fetch the post's [Steering section][steer] live; no docs page covers effect-versus-budget rulings as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when an effect's frame cost needs a human ruling, fetch the post's [Steering section][steer] live; no docs page covers effect-versus-budget rulings.
 
 ### Parallel units on one event
 
@@ -175,7 +175,7 @@ Claude Code hooks are one example of parallel units, not the definition. This pl
 hooks matching one event as parallel units and reads the event's wall time from the event-level
 duration Claude Code reports, never from a sum of per-hook times.
 
-- **Pointer**: when checking whether matching hooks run in parallel, fetch the hooks reference [Hook handler fields][hooks] live; when you need the event-level duration attribute, fetch the monitoring page's [Hook execution complete event][hook-complete] live. **As of**: 2026-10-02. **Recheck trigger**: either section changes how matching hooks run or renames the event-level duration attribute.
+- **Pointer**: when checking whether matching hooks run in parallel, fetch the hooks reference [Hook handler fields][hooks] live; when you need the event-level duration attribute, fetch the monitoring page's [Hook execution complete event][hook-complete] live.
 
 ### Scaling arm when state grows with use
 
@@ -202,13 +202,13 @@ there to read the field for them. When: the field read takes longer than one ite
 the lab benchmark's. Fails when: the lab number is never checked against the field (see
 [H](#h-ship-roll-out-read-the-field)). Used by: `/performance:snapshot`.
 
-- **Pointer**: when planning an unattended run's measurement, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers lab signals for unattended optimization as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when planning an unattended run's measurement, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers lab signals for unattended optimization.
 
 **Reproduce with a benchmark.** Before any fix, have a benchmark that fails, or reads high, on the
 unfixed code. When: always, before a fix. Counter: the benchmark's. Fails when: the benchmark
 passes on the unfixed base. Used by: `/performance:target` and `/performance:snapshot` baseline.
 
-- **Pointer**: when you want the reproduce step in a full optimization loop, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers a per-goal optimization loop as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want the reproduce step in a full optimization loop, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers a per-goal optimization loop.
 
 **Instruction-count recipe.** For a CPU-bound hot path in one process, count instructions executed
 under a CPU simulator and compare with a checked-in baseline. Durations need sample counts and
@@ -219,7 +219,7 @@ instructions executed (`Ir` under Cachegrind). Fails when: the deterministic mod
 than checked. Used by: `/performance:snapshot` step 2. Tool specifics are in the verification
 records below.
 
-- **Pointer**: when choosing Cachegrind's options, fetch the Cachegrind manual's [command-line options][cg-opts] live; correlate with the post's [Anything can be hill climbed section][climb]. **As of**: 2026-10-02. **Recheck trigger**: a Valgrind release changes the Cachegrind options section.
+- **Pointer**: when choosing Cachegrind's options, fetch the Cachegrind manual's [command-line options][cg-opts] live; correlate with the post's [Anything can be hill climbed section][climb].
 
 **Deterministic counters by layer.** When instruction counts are unavailable (a browser, a
 multi-process path), use the counter in this table that matches the subject's layer:
@@ -244,7 +244,7 @@ subject's layer. Used by: `/performance:target` "Name the counter"; `/performanc
 `/performance:protect` §1. Fails when: a counter is climbed before it is shown to track the clock
 ([D](#d-prove-the-proxy)).
 
-- **Pointer**: when choosing a browser counter, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers deterministic browser counters as a set as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when choosing a browser counter, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers deterministic browser counters as a set.
 
 **Attribute by region and phase.** Label each event with the UI area it affected and the load stage
 it occurred in, so one aggregate splits into separate causes. When: one aggregate hides several
@@ -252,7 +252,7 @@ independent causes. Counter: events per region per phase. Fails when: region nam
 UI they label. Used by: `/performance:snapshot` step 2; `/performance:target` for naming the
 symptom.
 
-- **Pointer**: when mapping a layout shift to the elements that moved, fetch MDN's [LayoutShift: sources property][ls-sources] live; correlate with the post's [The loop, thread by thread section][loop]. **As of**: 2026-10-02. **Recheck trigger**: that page changes what the property reports.
+- **Pointer**: when mapping a layout shift to the elements that moved, fetch MDN's [LayoutShift: sources property][ls-sources] live; correlate with the post's [The loop, thread by thread section][loop].
 
 **Force the bad ordering in a test.** For an intermittent race, write a test that delays one
 dependency past the event it races (for example, data arriving after first paint), so the bad
@@ -262,28 +262,28 @@ green N/N on the change, with N chosen per check and recorded ([harness-integrit
 When: the defect is intermittent. Counter: failing runs out of N. Fails when: the forced delay does
 not match the real ordering. Used by: `/performance:snapshot` and `/performance:verify` §4.
 
-- **Pointer**: when you want a worked forced-ordering test, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers forced-ordering performance tests as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want a worked forced-ordering test, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers forced-ordering performance tests.
 
 **Count the defect in the recording.** When a screen recording is the only evidence, count from it:
 elements that move, appear, or disappear between frames. When: the only evidence is a screen
 recording. Counter: moved, appeared, and vanished elements. Fails when: frames are sampled too
 sparsely to see a move. Used by: `/performance:target` Inputs.
 
-- **Pointer**: when counting a defect from a recording, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers counting defects from recordings as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when counting a defect from a recording, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers counting defects from recordings.
 
 **Representative content in the corpus.** Benchmarks and differentials include realistic content:
 non-ASCII punctuation, long inputs, large documents. When: building any benchmark corpus. Counter:
 none. Fails when: an ASCII-only corpus misses a slow path real content triggers (see
 [F](#make-the-hot-path-cheap)). Used by: `/performance:snapshot`; `/performance:verify` §2.
 
-- **Pointer**: when you want a case of content triggering a slow path, fetch the post's [Scaling horizontally section][scale] live; no docs page covers content-dependent benchmark corpora as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want a case of content triggering a slow path, fetch the post's [Scaling horizontally section][scale] live; no docs page covers content-dependent benchmark corpora.
 
 **Report first pass and later passes separately.** Cold first execution and warm repeats are
 separate numbers. When: the path compiles, caches, or allocates on first use. Counter: per-pass
 duration or count. Fails when: an average hides a slow first pass. Used by: `/performance:snapshot`
 Warmup.
 
-- **Pointer**: when you want first and later passes reported apart, fetch the post's [Scaling horizontally section][scale] live; no docs page covers per-pass reporting as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want first and later passes reported apart, fetch the post's [Scaling horizontally section][scale] live; no docs page covers per-pass reporting.
 
 **Name the lab's blind spot.** State what the harness cannot see, for example browser chrome a
 headless run lacks, or hardware a container lacks. **Environment-specific conditions** (managed or
@@ -291,13 +291,13 @@ policy-configured environments) belong on the same list. When: every lab report.
 Fails when: a lab pass is reported as covering the field. Used by: `/performance:verify` §2 (the
 unexercised mode).
 
-- **Pointer**: when you want a defect the lab could not see, fetch the post's [Guardrails section][guard] live; no docs page covers lab blind-spot reporting as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want a defect the lab could not see, fetch the post's [Guardrails section][guard] live; no docs page covers lab blind-spot reporting.
 
 **Put the metric in the demo.** Show a live readout of the metric in the demonstration, such as a
 frame-rate counter drawn in the page. When: showing a perceptual fix. Counter: the readout's. Fails
 when: the readout itself costs frames. Used by: `/performance:snapshot`.
 
-- **Pointer**: when building an in-page readout, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers in-demo metric readouts as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when building an in-page readout, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers in-demo metric readouts.
 
 **Rig checks.** Before trusting a rig against a new target, run these in order:
 
@@ -313,7 +313,7 @@ When: before trusting a rig against a new target. Counter: units the self-check 
 over budget. Fails when: a check is skipped; each row names its own failure. Used by:
 `/performance:snapshot` steps 1-2; `/performance:goal` §2 is the floor-first analog.
 
-- **Pointer**: when building a stepped browser rig, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers rig checks for stepped rendering as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when building a stepped browser rig, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers rig checks for stepped rendering.
 
 ### Verification records
 
@@ -322,7 +322,7 @@ event and leaves cache simulation off. When: the instruction-count recipe runs. 
 when: another event's total is read as the instruction count. Used by: the instruction-count recipe
 above, run by hand.
 
-- **Pointer**: when checking which events Cachegrind collects by default, fetch the Cachegrind manual's [command-line options][cg-opts] live. **As of**: 2026-09-23. **Recheck trigger**: a Valgrind release changes the Cachegrind options section.
+- **Pointer**: when checking which events Cachegrind collects by default, fetch the Cachegrind manual's [command-line options][cg-opts] live.
 
 **`node --predictable` is not relied on.** This plugin does not assume the flag makes counts repeat
 run to run; it runs the count twice (harness-integrity rule 1). When: counting a Node subject.
@@ -336,14 +336,14 @@ the path in a separate run with it off. When: call counts come from precise cove
 function call counts. Fails when: a timing is taken with coverage on. Used by:
 `/performance:snapshot` step 4 (two rigs).
 
-- **Pointer**: when you need what enabling precise coverage changes, fetch `Profiler.startPreciseCoverage` in [`js_protocol.json`][cdp-js] live. **As of**: 2026-09-23. **Recheck trigger**: the protocol file changes the command.
+- **Pointer**: when you need what enabling precise coverage changes, fetch `Profiler.startPreciseCoverage` in [`js_protocol.json`][cdp-js] live.
 
 **Stepped frames through DevTools.** A browser rig that steps frames uses
 `HeadlessExperimental.beginFrame` and records that the domain is experimental. When: a browser rig
 must step frames. Counter: frames over budget. Fails when: the domain changes and the rig is not
 rechecked. Used by: `/performance:snapshot` step 2 (fixed-tick stepping).
 
-- **Pointer**: when building the rig, fetch `HeadlessExperimental.beginFrame` in [`browser_protocol.json`][cdp-browser] live. **As of**: 2026-09-23. **Recheck trigger**: the domain leaves experimental or is removed.
+- **Pointer**: when building the rig, fetch `HeadlessExperimental.beginFrame` in [`browser_protocol.json`][cdp-browser] live.
 
 ## D. Prove the proxy
 
@@ -353,14 +353,14 @@ before a benchmark becomes a target or a gate. Counter: run-to-run spread on an 
 Fails when: a noisy benchmark is kept "for now" and later gates. Used by: `/performance:goal` §1
 `Correlation:`.
 
-- **Pointer**: when deciding whether to keep a benchmark, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers benchmark retirement rules as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when deciding whether to keep a benchmark, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers benchmark retirement rules.
 
 **Require proof before a counter becomes a target.** Before a set of new counters becomes targets,
 ask for evidence that lowering each one lowers wall-clock time, and retire the counters that cannot
 show it. When: a set of new counters is about to become targets. Counter: none. Fails when: proof
 is accepted from a single path. Used by: `/performance:goal` `Correlation:`.
 
-- **Pointer**: when asking for that proof, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers counter-to-clock proof requests as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when asking for that proof, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers counter-to-clock proof requests.
 
 **Proxy validation experiment.** Lower the counter on real hot paths and measure whether
 wall-clock time fell with it. **Validate on more than one path**: at least two independent hot
@@ -368,21 +368,21 @@ paths before generalizing (two is judgment). When: a counter is proposed as a pr
 proxy, plus a duration. Fails when: the paths share a cause, so two paths are one data point. Used
 by: `/performance:goal` `Correlation:` evidence; `/performance:verify` §5 `Correlation:`.
 
-- **Pointer**: when you want a worked proxy validation, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers counter-to-clock validation as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want a worked proxy validation, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers counter-to-clock validation.
 
 **Same benchmark, two rigs.** Take the count on the simulator rig and the duration on the normal
 runtime after warmup, both from one benchmark and its inputs. When: the counting rig distorts timing
 (simulators and coverage modes are slow). Counter: both. Fails when: the two rigs run different
 inputs. Used by: `/performance:snapshot`; the recipe the `Correlation:` evidence cites.
 
-- **Pointer**: when setting up the two rigs, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers paired count and timing rigs as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when setting up the two rigs, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers paired count and timing rigs.
 
 **Counts can understate the clock.** A count cut can give a larger time cut, or a smaller one.
 Report both; never infer one from the other. When: every report that carries a counter. Counter:
 both. Fails when: a count reduction is restated as a time reduction. Used by: `/performance:verify`
 §5.
 
-- **Pointer**: when you want a case where count and time fell by different amounts, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers count-versus-time divergence as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want a case where count and time fell by different amounts, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers count-versus-time divergence.
 
 ## E. Diagnose
 
@@ -393,7 +393,7 @@ When: a counter is high and the cause is unknown. Counter: units per function. F
 profile of the simulated run is read as a time profile. Used by: `/performance:target` "Measure the
 layers".
 
-- **Pointer**: when reading a Cachegrind profile, fetch the Cachegrind manual's [Running cg_annotate][cg-annotate] live; correlate with the post's [Anything can be hill climbed section][climb]. **As of**: 2026-10-02. **Recheck trigger**: a Valgrind release changes that section.
+- **Pointer**: when reading a Cachegrind profile, fetch the Cachegrind manual's [Running cg_annotate][cg-annotate] live; correlate with the post's [Anything can be hill climbed section][climb].
 
 **Work causes by name.** Name each cause concretely (the element and what it does wrong), not by
 category. Then **fix in ranked batches**: fix the largest named causes together, re-measure, and
@@ -401,7 +401,7 @@ rank again. When: a defect has many causes. Counter: occurrences per named cause
 batch is fixed without re-measuring, so the ranking goes stale. Used by: `/performance:target`
 Output.
 
-- **Pointer**: when you want a worked cause list, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers cause-by-name triage as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want a worked cause list, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers cause-by-name triage.
 
 **Hidden work no metric sees.** Follow code paths past the event the headline metric ends on. Work
 outside every metric's window, such as a reload nobody sees, still costs users. When: the headline
@@ -409,25 +409,25 @@ metric is green and cost is still suspected. Counter: occurrences of the hidden 
 when: tracing stops at the event the metric ends on. Used by: `/performance:target` "Measure the
 layers".
 
-- **Pointer**: when you want cases of work outside every metric, fetch the post's [Scaling horizontally section][scale] live; no docs page covers tracing past the headline event as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want cases of work outside every metric, fetch the post's [Scaling horizontally section][scale] live; no docs page covers tracing past the headline event.
 
 **Profile the idle state.** Profile idle sessions for background work. When: the product runs for
 long periods between interactions. Counter: main-thread work per idle minute. Fails when: the
 profile starts with an interaction. Used by: `/performance:target`.
 
-- **Pointer**: when you want an idle-profile case, fetch the post's [Scaling horizontally section][scale] live; no docs page covers idle-session profiling for this purpose as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want an idle-profile case, fetch the post's [Scaling horizontally section][scale] live; no docs page covers idle-session profiling for this purpose.
 
 **Hitch sweep.** Sweep for CPU stalls across the product instead of profiling one path. When: no
 single path is suspected. Counter: stalls over a threshold. Fails when: the threshold is set above
 the stalls users feel. Used by: `/performance:target`.
 
-- **Pointer**: when you want a sweep that found an input-dependent stall, fetch the post's [Scaling horizontally section][scale] live; no docs page covers product-wide stall sweeps as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want a sweep that found an input-dependent stall, fetch the post's [Scaling horizontally section][scale] live; no docs page covers product-wide stall sweeps.
 
 **Step unit by unit.** Time each unit of the workload (frame, chunk, request) on its own to find the
 slow ones. When: a long operation is slow somewhere in the middle. Counter: units over budget.
 Fails when: units are averaged. Used by: `/performance:target`.
 
-- **Pointer**: when you want a per-frame stepping case, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers per-unit stepping as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want a per-frame stepping case, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers per-unit stepping.
 
 **Diagnosis ladder for a field report.** A report with a recording is a first-class input. Work it
 in this order:
@@ -449,7 +449,7 @@ When: a field report arrives, recording or not. Counter: the reporter's own even
 when: a theory is accepted that leaves a qualifier
 unexplained or misses the arithmetic. Used by: `/performance:target` Inputs; `/debugging:debug`.
 
-- **Pointer**: when you want a field report worked through this ladder, fetch the post's [Guardrails section][guard] live; no docs page covers diagnosing a field report from a recording as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want a field report worked through this ladder, fetch the post's [Guardrails section][guard] live; no docs page covers diagnosing a field report from a recording.
 
 **Speculative loading as a cause class.** A page the browser prepares before the user navigates can
 be laid out for a viewport different from the one it is shown in, then resized after first paint.
@@ -457,7 +457,7 @@ When: a layout defect appears only on some navigations. Counter: shifts on prere
 when: the lab never prerenders, so the class is invisible. Used by: `/performance:target` cause
 checklist.
 
-- **Pointer**: when a layout defect appears only on some navigations, fetch MDN's [How is speculative loading achieved?][spec-loading] live; correlate with the post's [Guardrails section][guard]. **As of**: 2026-10-02. **Recheck trigger**: that section moves or changes how browsers start a prerender.
+- **Pointer**: when a layout defect appears only on some navigations, fetch MDN's [How is speculative loading achieved?][spec-loading] live; correlate with the post's [Guardrails section][guard].
 
 ## F. Optimization patterns (latency catalog)
 
@@ -503,7 +503,7 @@ stays flat or rises does not count against the change.
 | **Delay the skeleton** | Show a loading indicator only after a delay, so fast loads never show it | Most loads are fast | Skeleton flashes per load | The delay is longer than users tolerate; the delay is a per-surface human ruling |
 | **Perceived-performance tradeoffs** | Whether to fill a structure in parts or all at once, and whether a visual effect is worth its share of the frame budget, are the human's rulings | A change alters what users see while loading | None; a before/after ruling | The agent decides a taste call alone |
 
-- **Pointer**: when you want the case behind a row, fetch the post's [Guardrails section][guard] (static shell and handoff), [Steering section][steer] (fill, delay, and effect rulings), or [An 8-millisecond budget section][budget] (progressive reveal) live; no docs page covers these cases as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want the case behind a row, fetch the post's [Guardrails section][guard] (static shell and handoff), [Steering section][steer] (fill, delay, and effect rulings), or [An 8-millisecond budget section][budget] (progressive reveal) live; no docs page covers these cases.
 
 ### Avoid repeated work
 
@@ -516,7 +516,7 @@ stays flat or rises does not count against the change.
 | **Duplicate persistence on the main thread** | Skip a write whose content matches the previous one, then move the remaining writes off the main thread | Background persistence runs on the main thread | Writes per minute | Deduplication drops a real change |
 | **Precompiled code cache** | Ship compiled startup code so each launch skips compiling it | Startup parses and compiles the same code every time | Compile time at launch | The cache is stale after an update and silently falls back |
 
-- **Pointer**: when you want the case behind a row, fetch the post's [The brief section][brief] (mounted components, code cache), [Anything can be hill climbed section][climb] (repeated lookups), [Scaling horizontally section][scale] (duplicate persistence), or [An 8-millisecond budget section][budget] (re-renders, finished work) live; no docs page covers these cases as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want the case behind a row, fetch the post's [The brief section][brief] (mounted components, code cache), [Anything can be hill climbed section][climb] (repeated lookups), [Scaling horizontally section][scale] (duplicate persistence), or [An 8-millisecond budget section][budget] (re-renders, finished work) live; no docs page covers these cases.
 
 ### Anticipate
 
@@ -524,7 +524,7 @@ stays flat or rises does not count against the change.
 |---|---|---|---|---|
 | **Intent-driven prefetch** | Prefetch on an intent signal such as hover, before the click | Navigation targets are predictable | Time from click to render | Prefetches waste bandwidth or load on the server |
 
-- **Pointer**: when you want the prefetch case, fetch the post's [The brief section][brief] live; no docs page covers this case as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want the prefetch case, fetch the post's [The brief section][brief] live; no docs page covers this case.
 
 ### Make the hot path cheap
 
@@ -537,7 +537,7 @@ stays flat or rises does not count against the change.
 | **Per-keystroke work is a smell** | Work that re-runs on every input event is a first-class candidate | Typing feels slow | Work per keystroke | Debouncing hides the cost instead of removing it |
 | **Global selector cost** | A costly style rule that matches broadly slows every DOM change; style recalculation counts find it | DOM changes are slow everywhere | Style recalculations and their time | The rule is removed without checking what it styled |
 
-- **Pointer**: when you want the case behind a row, fetch the post's [Anything can be hill climbed section][climb] (prefilter, lookups) or [Scaling horizontally section][scale] (input-dependent slow path, keystroke work, global selector) live; no docs page covers these cases as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want the case behind a row, fetch the post's [Anything can be hill climbed section][climb] (prefilter, lookups) or [Scaling horizontally section][scale] (input-dependent slow path, keystroke work, global selector) live; no docs page covers these cases.
 
 ### Move work
 
@@ -545,7 +545,7 @@ stays flat or rises does not count against the change.
 |---|---|---|---|---|
 | **Move growing work off the main thread** | Put incremental parsing of growing content in a worker | Parsing competes with rendering | Main-thread blocking time | Message passing costs more than the work |
 
-- **Pointer**: when you want the worker case, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers this case as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want the worker case, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers this case.
 
 ## G. Protect the win
 
@@ -555,7 +555,7 @@ Used by: `/performance:protect` and `/performance:verify` Next.
 ceiling CI enforces. When: a benchmark proves correlated. Counter: the benchmark's. Fails when: it
 gates before it is proven ([D](#d-prove-the-proxy)). Used by: `/performance:protect` §1.
 
-- **Pointer**: when deciding whether a benchmark should also gate, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers benchmarks as CI gates for this purpose as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when deciding whether a benchmark should also gate, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers benchmarks as CI gates for this purpose.
 
 **Ratchet mechanics.** CI fails when the count rises above the checked-in ceiling. When the count
 falls, the ceiling is lowered in the same PR that lowered it; a scheduled job that proposes a lower
@@ -566,14 +566,14 @@ them and never gate. When: a counter-backed goal is MET, unless the change shipp
 Fails when: the ceiling is lowered automatically past a noisy dip, or a duration is ratcheted.
 Used by: `/performance:protect` §3 and §4.
 
-- **Pointer**: when you want a ratchet inside a full optimization loop, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers ratchets as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering ratchets.
+- **Pointer**: when you want a ratchet inside a full optimization loop, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers ratchets.
 
 **Protect a proven win.** Other changes erode a win unless a check holds it, so protection is added
 when the win merges. When: the win is merged. Counter: the protected metric over time. Fails when:
 protection is deferred until the win is already gone. Used by: `/performance:verify` Next, which
 sends a counter MET to `/performance:protect`.
 
-- **Pointer**: when deciding when to protect a win, fetch the post's [Guardrails section][guard] live; no docs page covers win protection as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when deciding when to protect a win, fetch the post's [Guardrails section][guard] live; no docs page covers win protection.
 
 **Guardrails scale with brittleness.** The more ways an optimization can break without anyone
 noticing, the more guardrails it gets. For a duplicated render (a static shell):
@@ -589,40 +589,40 @@ When: an optimization keeps a copy or a fast path that can drift from its source
 each guardrail is a test that passes or fails. Fails when: a brittle optimization ships with the
 same checks as a safe one. Used by: `/performance:protect` §5.
 
-- **Pointer**: when choosing guardrails for a duplicated render, fetch the post's [Guardrails section][guard] live; no docs page covers guardrails for a static shell as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when choosing guardrails for a duplicated render, fetch the post's [Guardrails section][guard] live; no docs page covers guardrails for a static shell.
 
 **Ship instruments with fixes.** A fix that introduces a new mechanism lands with the telemetry or
 guardrail that watches it. When: every fix that introduces a new mechanism. Counter: none. Fails
 when: instruments are promised for later. Used by: `/performance:protect` §5, which proposes
 guardrails beside the ratchet; no skill step ships telemetry.
 
-- **Pointer**: when you want instruments shipped beside fixes at scale, fetch the post's [Scaling horizontally section][scale] live; no docs page covers this practice as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want instruments shipped beside fixes at scale, fetch the post's [Scaling horizontally section][scale] live; no docs page covers this practice.
 
 **Scheduled jobs find opportunities.** Run a proven rig on a schedule after its push ends: the
 scheduled run catches regressions and surfaces new candidates. When: a rig proved useful. Counter:
 the rig's. Fails when: nobody reads the job's output. Used by: no skill step; the project schedules
 the rig (`/performance:protect` §4 schedules only ceiling tightening).
 
-- **Pointer**: when turning a rig into a scheduled job, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers scheduled performance rigs as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when turning a rig into a scheduled job, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers scheduled performance rigs.
 
 **Tests before optimizations.** Write the unit test before the optimization. **Fix at your layer,
 test the trigger**: when the cause is outside your code, fix within the layer you control and add a
 test that simulates the external trigger. When: every optimization. Counter: none. Fails when: the
 test is written after the change and passes on both. Used by: `/implementation:implement` (TDD).
 
-- **Pointer**: when you want an external-trigger test case, fetch the post's [Guardrails section][guard] live; no docs page covers this case as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want an external-trigger test case, fetch the post's [Guardrails section][guard] live; no docs page covers this case.
 
 **Codify wins as skills and guardrails.** Turn what was learned into skills and checks so new code
 starts fast by default. When: the same fix recurs. Counter: none. Fails when: the lesson stays in a
 thread. Used by: no skill step; the human steering the push.
 
-- **Pointer**: when you want the effect of codified wins on new code, fetch the post's [Scaling horizontally section][scale] live; no docs page covers this practice as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want the effect of codified wins on new code, fetch the post's [Scaling horizontally section][scale] live; no docs page covers this practice.
 
 **Safety mechanisms before pace.** Have review, tests, and flags in place before the work speeds
 up. When: before a push. Counter: none. Fails when: guardrails are added after the first incident.
 Used by: `/performance:goal` §4 "What counts as done".
 
-- **Pointer**: when deciding which safety mechanisms a push needs first, fetch the post's [Guardrails section][guard] live; no docs page covers pre-push safety mechanisms as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when deciding which safety mechanisms a push needs first, fetch the post's [Guardrails section][guard] live; no docs page covers pre-push safety mechanisms.
 
 ## H. Ship, roll out, read the field
 
@@ -634,7 +634,7 @@ one workstream produces **many small PRs**, not one large one. When: any win lar
 reviewable change. Counter: none. Fails when: a risky piece hides in a large diff. Used by:
 `/implementation:implement`.
 
-- **Pointer**: when you want PR sizing inside the loop, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers PR sizing for performance work as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want PR sizing inside the loop, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers PR sizing for performance work.
 
 **Flags for user-visible changes.** Gate any change a user could see behind a flag. Flags are
 temporary: one place tracks every open flag's rollout and removal (**a thread for flag
@@ -649,7 +649,7 @@ one of two kinds, with its own removal condition:
 When: a change a user could see. Counter: open flags, and flags retired per week. Fails when: flags
 accumulate with no owner. Used by: no skill step; the project's release process.
 
-- **Pointer**: when setting up flag tracking, fetch the post's [Guardrails section][guard] live; no docs page covers flag lifecycle for performance work as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when setting up flag tracking, fetch the post's [Guardrails section][guard] live; no docs page covers flag lifecycle for performance work.
 
 **Staged rollout.** Expose a high-risk change in stages: internal users, then a fraction of users,
 then all. **Dogfooding catches what metrics miss**: internal users report defects no metric sees.
@@ -658,14 +658,14 @@ the change through a version bump when they update, with auto-update off by defa
 high-risk change. Counter: defects reported per stage. Fails when: a stage is skipped under time
 pressure. Used by: no skill step; the project's release process, in this marketplace the operator.
 
-- **Pointer**: when a consumer reports a regression that the operator's hosts would have caught had the release waited, fetch [Run release channels][channels] live; correlate with the post's [Guardrails section][guard]. **As of**: 2026-10-02. **Recheck trigger**: that section moves or Claude Code adds a release-channel setting.
+- **Pointer**: when a consumer reports a regression that the operator's hosts would have caught had the release waited, fetch [Run release channels][channels] live; correlate with the post's [Guardrails section][guard].
 
 **Deploy regression watch as a standing duty.** Check each deploy's headline metrics for
 regressions, whatever the deploy contained, and keep the dashboards that show them current. When:
 continuously. Counter: the headline metrics per deploy. Fails when: only optimization changes are
 watched. Used by: no skill step; the project's release process.
 
-- **Pointer**: when writing a standing deploy-watch duty, fetch the post's [The brief section][brief] live; no docs page covers deploy regression duty for an agent as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when writing a standing deploy-watch duty, fetch the post's [The brief section][brief] live; no docs page covers deploy regression duty for an agent.
 
 **Read the field after shipping.** Confirm the lab result in field data. **Segment field reads**:
 one read per platform, build, and environment, compared across **dated field windows** (two fixed
@@ -673,7 +673,7 @@ date ranges), not one aggregate. When: after every shipped win. Counter: the fie
 when: an aggregate hides a regression on one platform. Used by: no skill step; the project's release
 process.
 
-- **Pointer**: when you want the field read inside the loop, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers a per-goal field read as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want the field read inside the loop, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers a per-goal field read.
 
 **Field read for Claude Code hook behavior.** For Claude Code's own hook latency the field read is
 `/harness-ops:observability latency`, taken before and after the release and compared. Its limits:
@@ -685,28 +685,28 @@ reports per-event p50 and p95 durations before and after. Fails when: the before
 after the release, so both reads cover the change. Used by: no skill step; the operator shipping
 the hook change.
 
-- **Pointer**: when you need the attributes the latency read uses, fetch the monitoring page's [Hook execution complete event][hook-complete] live. **As of**: 2026-10-02. **Recheck trigger**: that section renames the event or its duration attribute.
+- **Pointer**: when you need the attributes the latency read uses, fetch the monitoring page's [Hook execution complete event][hook-complete] live.
 
 **Ship telemetry to size prevalence.** Deploy the new event first, then read how often the defect
 happens in the field. When: a defect's frequency is unknown. Counter: share of sessions affected.
 Fails when: the fix ships in the same change as the event, so there is no baseline. Used by: no
 skill step; the project's release process.
 
-- **Pointer**: when sizing a defect's prevalence, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers prevalence telemetry for this purpose as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when sizing a defect's prevalence, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers prevalence telemetry for this purpose.
 
 **High-precision field reporting.** Report the guarded quantity in the field at full precision
 (below one pixel for movement), and open a workstream on any value above zero. When: a guardrail
 protects a brittle optimization. Counter: the quantity at full precision. Fails when: rounding
 hides the first small regression. Used by: no skill step; the project's release process.
 
-- **Pointer**: when choosing field precision for a guardrail, fetch the post's [Guardrails section][guard] live; no docs page covers this practice as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when choosing field precision for a guardrail, fetch the post's [Guardrails section][guard] live; no docs page covers this practice.
 
 **Ratchet or revert.** If the field read shows the gain, ratchet the benchmark; if it does not, turn
 the flag off and return to the change. When: a change shipped behind a flag, after the field read.
 Counter: the benchmark's. Fails when: a win that did not show in the field is ratcheted anyway.
 Used by: `/performance:verify` Next.
 
-- **Pointer**: when deciding between ratchet and revert, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers ratchets as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering ratchets.
+- **Pointer**: when deciding between ratchet and revert, fetch the post's [The loop, thread by thread section][loop] live; no docs page covers ratchets.
 
 ## I. Steer and orchestrate
 
@@ -729,32 +729,32 @@ the merge lane prompt in
 [`prompts/loops/loop-lane-prompts.md`](../../../prompts/loops/loop-lane-prompts.md), whose limit
 lives in [`plugins/autonomy/reference/guardrails.md`](../../autonomy/reference/guardrails.md).
 
-- **Pointer**: when writing a standing brief, fetch the post's [The brief section][brief] live; no docs page covers standing performance briefs as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when writing a standing brief, fetch the post's [The brief section][brief] live; no docs page covers standing performance briefs.
 
 **Time-boxed push.** Bound the effort in time so ambition and scope are set against a deadline.
 When: a push with many candidates. Counter: none. Fails when: the box is extended instead of the
 scope cut. Used by: no skill step; the human steering the push.
 
-- **Pointer**: when sizing a time-boxed push, fetch the post's [The brief section][brief] live; no docs page covers this practice as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when sizing a time-boxed push, fetch the post's [The brief section][brief] live; no docs page covers this practice.
 
 **Leave unplanned capacity.** Plan a push with capacity left for workstreams the agent proposes
 once measurement starts, with no fixed share. When: planning a push. Counter: none. Fails when: the
 plan is fully allocated before measurement starts. Used by: no skill step; the human steering the
 push.
 
-- **Pointer**: when planning a push's capacity, fetch the post's [The brief section][brief] live; no docs page covers this practice as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when planning a push's capacity, fetch the post's [The brief section][brief] live; no docs page covers this practice.
 
 **Options menu, human picks.** The agent lays out the measurement options and asks which to start
 with. When: several counters are possible. Counter: none. Fails when: the agent starts all of them
 unasked. Used by: no skill step; the human steering the push.
 
-- **Pointer**: when you want an options menu in practice, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers this practice as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want an options menu in practice, fetch the post's [Anything can be hill climbed section][climb] live; no docs page covers this practice.
 
 **One human owner per workstream.** Each workstream has one named person who makes its rulings.
 When: more than one workstream runs. Counter: none. Fails when: rulings stall with no owner. Used
 by: no skill step; the human steering the push.
 
-- **Pointer**: when assigning workstream owners, fetch the post's [Steering section][steer] live; no docs page covers human ownership of performance workstreams as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when assigning workstream owners, fetch the post's [Steering section][steer] live; no docs page covers human ownership of performance workstreams.
 
 **Widen scope only behind guardrails.** Ask the agent for larger changes only when the guardrails
 in [G](#g-protect-the-win) are in place. When the agent holds back a change because merging or
@@ -766,32 +766,32 @@ human's own `/goal` or `/loop` condition.
 When: guardrails from [G](#g-protect-the-win) are in place. Counter: none. Fails when: wider scope
 is pushed without them. Used by: no skill step; the human steering the push.
 
-- **Pointer**: when deciding whether to push for wider changes, fetch the post's [Steering section][steer] live; no docs page covers steering an agent's ambition on performance work as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when deciding whether to push for wider changes, fetch the post's [Steering section][steer] live; no docs page covers steering an agent's ambition on performance work.
 
 **Sidequests can pay off.** Let a side investigation run when it shows signal; it may become a main
 win. When: a side finding has a measurement. Counter: the side finding's own. Fails when: sidequests
 run with no number. Used by: no skill step; the human steering the push.
 
-- **Pointer**: when you want a sidequest that became a main win, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers this practice as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want a sidequest that became a main win, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers this practice.
 
 **Fix upstream.** When the cause is in a dependency, contribute the fix upstream as well as working
 around it locally. When: a profile ends in a dependency. Counter: none. Fails when: the local
 workaround outlives the upstream fix. Used by: no skill step; the human steering the push.
 
-- **Pointer**: when a profile ends in a dependency, fetch the post's [What's next section][next] live; no docs page covers upstream fixes from a performance push as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when a profile ends in a dependency, fetch the post's [What's next section][next] live; no docs page covers upstream fixes from a performance push.
 
 **Performance review for other teams.** Once the practice has a standing owner, review other
 teams' performance-sensitive changes before they merge. When: the practice has a standing owner.
 Counter: none. Fails when: review happens only after regressions. Used by: no skill step; the
 practice's standing owner.
 
-- **Pointer**: when offering performance review to other teams, fetch the post's [Scaling horizontally section][scale] live; no docs page covers this practice as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when offering performance review to other teams, fetch the post's [Scaling horizontally section][scale] live; no docs page covers this practice.
 
 **Standing practice.** Keep reading the rigs and ratchets after a push ends; the practice continues
 without a push. When: after the push ends. Counter: the rigs' and ratchets' own. Fails when: the
 rigs and ratchets stop being read. Used by: no skill step; the practice's standing owner.
 
-- **Pointer**: when deciding what continues after a push, fetch the post's [What's next section][next] live; no docs page covers this practice as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when deciding what continues after a push, fetch the post's [What's next section][next] live; no docs page covers this practice.
 
 ## J. Write the result up
 
@@ -804,21 +804,21 @@ when: a perceptible change is reported only as a number. Used by: the
 `/source-control:pull-request` create step's Verification drafting, which lists before/after
 captures for a change to rendered output for the person to attach.
 
-- **Pointer**: when deciding which changes need a human ruling with media, fetch the post's [Steering section][steer] live; no docs page covers before/after media for performance rulings as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when deciding which changes need a human ruling with media, fetch the post's [Steering section][steer] live; no docs page covers before/after media for performance rulings.
 
 **Blocking, CPU, and smoothness together.** Report total main-thread blocking, CPU share, and
 sustained frame rate together. When: a rendering or streaming change. Counter: frames over budget.
 Fails when: one of the three improves at the others' expense unreported. Used by: no skill step; the
 author of the change's report.
 
-- **Pointer**: when you want the three reported together, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers this reporting set as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want the three reported together, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers this reporting set.
 
 **Report slow hardware and worst case.** Report results on slower hardware and the worst stall next
 to the typical number. When: every rendering or startup result. Counter: none; the worst stall is a
 duration. Fails when: only the fast
 machine's median is reported. Used by: `/performance:verify` `Not covered:`.
 
-- **Pointer**: when you want slow-hardware and worst-case results reported, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers this reporting practice as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want slow-hardware and worst-case results reported, fetch the post's [An 8-millisecond budget section][budget] live; no docs page covers this reporting practice.
 
 **Per-row results, not only the aggregate.** Report each platform and product row alongside the
 aggregate, and combine speedup ratios with a **geometric mean**, not an arithmetic mean (see
@@ -826,19 +826,19 @@ aggregate, and combine speedup ratios with a **geometric mean**, not an arithmet
 one large row dominates an arithmetic mean. Used by: `/performance:verify` §5 (the geometric-mean
 rule).
 
-- **Pointer**: when you want a per-row table with a geometric-mean aggregate, fetch the post's [opening section][post] live; no docs page covers this reporting practice as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want a per-row table with a geometric-mean aggregate, fetch the post's [opening section][post] live; no docs page covers this reporting practice.
 
 **Human-cost framing.** Multiply the per-operation saving by frequency to state aggregate user time
 saved, and label it an estimate. When: communicating impact. Counter: none. Fails when: the
 estimate is presented as a measurement. Used by: no skill step; the author of the impact statement.
 
-- **Pointer**: when you want an aggregate user-time estimate in practice, fetch the post's [opening section][post] live; no docs page covers this framing as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want an aggregate user-time estimate in practice, fetch the post's [opening section][post] live; no docs page covers this framing.
 
 **State remaining gaps.** List what the result does not cover yet: other percentiles, other
 journeys, extreme inputs. When: every report. Counter: none. Fails when: the list is omitted, or
 reads `none` while something went unexercised. Used by: `/performance:verify` §5 `Not covered:`.
 
-- **Pointer**: when you want remaining gaps stated in practice, fetch the post's [What's next section][next] live; no docs page covers this reporting practice as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
+- **Pointer**: when you want remaining gaps stated in practice, fetch the post's [What's next section][next] live; no docs page covers this reporting practice.
 
 [post]: https://claude.dev/blog/how-we-made-claude-ai-faster/
 [brief]: https://claude.dev/blog/how-we-made-claude-ai-faster/#the-brief

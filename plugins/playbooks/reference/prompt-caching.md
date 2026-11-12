@@ -58,7 +58,7 @@ This section covers requests you send through the API; for what an effort change
 session does to the cache, read Claude Code's own page instead of applying this section.
 
 - **Pointer**: for per-message effort and its model list, see
-  [Change effort mid-conversation](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation)
+  [Change effort mid-conversation](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation-beta)
   and its "Per-message effort (beta)" subsection (correlate with Cognition's devin-fusion post,
   2026-06-29, for the compaction-moment practice, which no docs page covers);
   for a Claude Code session, see

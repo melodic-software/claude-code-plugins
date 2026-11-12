@@ -143,11 +143,7 @@ case "${1:-}" in
 *) ;;
 esac
 
-if ! command -v grep >/dev/null 2>&1; then
-  echo "ERROR: grep required" >&2
-  exit 2
-fi
-for tool in tr awk; do
+for tool in grep tr awk; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "ERROR: $tool required" >&2
     exit 2
@@ -347,7 +343,6 @@ END {
     }
   }
   if (mode == "count") print total
-  else if (mode != "merge" && total == 0) print "No instruction candidates found."
 }'
 
 # Existing files in argument order, duplicates kept: each occurrence re-emits
@@ -477,7 +472,6 @@ run_i40() {
     ' "${agents[@]}" 2>/dev/null
   done
 }
-
 
 # I6 sentence scan, one awk per file. A file with no lines still gets a group
 # marker so the merge stays aligned with the batched families.
@@ -695,27 +689,23 @@ else
   inner_mode=merge
 fi
 {
-  if [[ ${#files[@]} -gt 0 ]]; then
-    printf '\002%s\n' "${files[@]}"
-  fi
-  if [[ ${#chunk_start[@]} -gt 0 ]]; then
-    run_family 1 -nHiE "$I10_ERE"
-    run_family 2 -nHiE "$I23_ERE"
-    run_family 3 -nHiE "$I8_A_ERE"
-    run_family 4 -nHiE "$I8_B_ERE"
-    run_family 5 -nHiE "$I8_C_ERE"
-    run_family 6 -nHiE "$I8_F_ERE"
-    run_family 7 -nHiE "$I8_G_ERE"
-    run_family 8 -nHiE "$I27_EFFORT_ERE"
-    run_family 9 -nHE "$I28_A_ERE"
-    run_family 10 -nHiE "$I28_B_ERE"
-    run_family 11 -nHiE "$I25_ERE"
-    run_family 12 -nHiE "$I38_ERE"
-    run_i40 13
-  fi
+  printf '\002%s\n' "${files[@]}"
+  run_family 1 -nHiE "$I10_ERE"
+  run_family 2 -nHiE "$I23_ERE"
+  run_family 3 -nHiE "$I8_A_ERE"
+  run_family 4 -nHiE "$I8_B_ERE"
+  run_family 5 -nHiE "$I8_C_ERE"
+  run_family 6 -nHiE "$I8_F_ERE"
+  run_family 7 -nHiE "$I8_G_ERE"
+  run_family 8 -nHiE "$I27_EFFORT_ERE"
+  run_family 9 -nHE "$I28_A_ERE"
+  run_family 10 -nHiE "$I28_B_ERE"
+  run_family 11 -nHiE "$I25_ERE"
+  run_family 12 -nHiE "$I38_ERE"
+  run_i40 13
 } | tr '\000' '\003' | awk -v mode="$inner_mode" -v body_only="$body_only" \
   -v ids="I10 I23 I8-a I8-b I8-c I8-f I8-g I27 I28-a I28-b I25 I38 I40" \
-  -v rationale="$RATIONALE_ERE" -v brevity="$I27_BREVITY_ERE" "$SCAN_AWK" >"$other_tmp"
+  -v brevity="$I27_BREVITY_ERE" "$SCAN_AWK" >"$other_tmp"
 
 if [[ "$mode" == "count" ]]; then
   other=$(cat "$other_tmp")

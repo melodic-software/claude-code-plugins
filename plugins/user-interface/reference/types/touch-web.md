@@ -86,8 +86,6 @@ drawing stylus reports a fine pointer too: a basic one that cannot hover is rule
 - **Pointer**: Media Queries Level 4, `pointer` and `hover`, the examples for each value,
   <https://www.w3.org/TR/mediaqueries-4/#pointer> and <https://www.w3.org/TR/mediaqueries-4/#hover>;
   MDN, "hover" media feature, <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/hover#syntax>
-- **As of**: 2026-10-29
-- **Recheck trigger**: either page changes which devices match `fine` or `hover`.
 
 Hunt for: `:hover` rules outside `@media (hover: hover)`.
 
@@ -115,8 +113,6 @@ touch feedback at all; that missing state is graded under the `forms` concern.
 
 - **Pointer**: MDN, `-webkit-tap-highlight-color`,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/-webkit-tap-highlight-color#browser_compatibility>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes which browsers paint the highlight.
 
 **Audit: Important.** The browser's tap highlight left on in an app that styles its own press
 states.
@@ -137,8 +133,6 @@ where to read it.
 
 - **Pointer**: MDN, `touch-action`, the `manipulation` value,
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/touch-action#manipulation>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes what `manipulation` turns off.
 
 Hunt for: tappable elements with no `touch-action`; a pressed look set from a `click` listener.
 
@@ -293,8 +287,6 @@ input font size instead, which is what was causing the zoom (section 4).
   <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/meta/name/viewport#user-scalable>;
   WCAG 2.2 Understanding 1.4.4 Resize Text, "Intent",
   <https://www.w3.org/WAI/WCAG22/Understanding/resize-text.html#intent>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the MDN page changes which browsers ignore the zoom keys, or 1.4.4 changes.
 
 Hunt for: `user-scalable`, `maximum-scale`, `maximumScale`, `userScalable` in the viewport meta tag
 or the Next.js `viewport` export.
@@ -312,8 +304,6 @@ and you almost never want it. Desktop-only admin tools can keep `vh`; note it an
 
 - **Pointer**: MDN, `<length>`, "Relative length units based on viewport",
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/length#relative_length_units_based_on_viewport>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes how the small, large or dynamic units are defined.
 
 Hunt for: `100vh`, `h-screen`, `min-h-screen`, `max-h-screen`, `calc(100vh - …)`.
 
@@ -369,8 +359,6 @@ touch scrolling. Which primitive, and where its documentation lives, is
 
 - **Pointer**: MDN, `overscroll-behavior`, "Values",
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/overscroll-behavior#values>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes what `none` or `contain` turns off.
 
 Hunt for: `preventDefault` inside `touchmove`; inner scroll containers (`overflow-y: auto`) without
 `overscroll-behavior`; modals whose background scrolls when the modal content hits its end;
@@ -398,8 +386,6 @@ and spring behavior are the `motion` concern (`../animation/gestures.md`).
 
 - **Pointer**: MDN, `touch-action`, "Values",
   <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/touch-action#values>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes what a pan value leaves to the browser.
 
 Hunt for: carousels, sliders, drag-to-dismiss sheets, sortable lists, and canvases with no
 `touch-action`.
@@ -428,9 +414,6 @@ another standard way out, the user is told how.
 
 - **Pointer**: WCAG 2.2 Understanding 2.1.2 No Keyboard Trap, "Intent",
   <https://www.w3.org/WAI/WCAG22/Understanding/no-keyboard-trap.html#intent>
-- **As of**: 2026-11-09
-- **Recheck trigger**: the Understanding page changes what counts as a standard exit method or when
-  the user must be told how to leave.
 
 Hunt for: maps, canvases, pan-and-zoom viewers and 2D pickers with `touch-action: none` from the
 first render; an activated element with no close control, no outside-tap exit or no Esc handler.
@@ -456,9 +439,7 @@ is a check width above it, not the floor.
 
 - **Pointer**: when judging sideways scroll against the floor, fetch WCAG 2.2 Understanding 1.4.10
   Reflow, "Intent", <https://www.w3.org/WAI/WCAG22/Understanding/reflow.html#intent>
-- **As of**: 2026-11-09
-- **Recheck trigger**: the Understanding page changes the width or its exceptions, or WCAG 2.x is
-  superseded as the referenced standard.
+- **Recheck trigger**: WCAG 2.x is superseded as the referenced standard.
 
 **Audit: Blocking.** Content that scrolls in two dimensions at the width 1.4.10 names, outside its
 exceptions.
@@ -505,5 +486,3 @@ check, never as verified.
   <https://developer.chrome.com/docs/devtools/remote-debugging#debug>; Apple Developer
   Documentation, Safari developer tools, "Inspecting iOS and iPadOS" (a single-topic page with no
   section anchor found), <https://developer.apple.com/documentation/safari-developer-tools/inspecting-ios>
-- **As of**: 2026-10-29
-- **Recheck trigger**: either page moves or changes how a device connects.

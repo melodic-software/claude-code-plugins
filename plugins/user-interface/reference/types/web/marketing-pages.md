@@ -165,8 +165,6 @@ twitter: { card: "summary_large_image" },
 
 - **Pointer**: Meta for Developers, Images in link shares, "Requirements",
   <https://developers.facebook.com/docs/sharing/webmasters/images#requirements>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes its recommended link-share image size.
 
 If no OG image exists in the repo, report it for a person to supply: it can't be invented. Blog
 posts and docs pages get per-page images when the project already has a generator; otherwise the
@@ -248,8 +246,6 @@ The CSS that shows and hides it is `/user-interface:write-css` recipe
 
 - **Pointer**: MDN, HTML `hidden` global attribute, "Description",
   <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/hidden#description>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes how browsers treat an element in the hidden state.
 
 Hunt for: `{isOpen && <Submenu />}` in the marketing header; submenus opened by `onMouseEnter` only,
 with no click or focus path.
@@ -385,9 +381,6 @@ tech instead, and holds no focusable element (`aria-hidden` hides every descenda
 
 - **Pointer**: MDN, `aria-hidden`, "Description",
   <https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-hidden#description>
-- **As of**: 2026-10-29
-- **Recheck trigger**: the page changes its guidance on decorative content or on focusable
-  descendants.
 
 **Audit: Important.** A code-built illustration that carries information with no `role="img"` and
 accessible name, or a decorative one left exposed to assistive tech.

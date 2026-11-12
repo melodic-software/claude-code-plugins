@@ -61,8 +61,8 @@ drift is handled by its sync path, not by this audit.
 
 A passage carrying a whole stamped record, a pointer to the source, an as-of date, and a recheck
 trigger beside the decision it records, is already the sanctioned end state a copy is converted
-into when it stores an upstream value (a default, limit, version gate, price, error string or
-measured observation). It is not a copy to be found. Text inside the record that matches the source
+into when it stores a number or string copied or measured from upstream (a default, limit,
+version gate, price, error string, measured figure or pinned SHA). It is not a copy to be found. Text inside the record that matches the source
 is still judged like any other passage.
 
 A link is never a carve-out. A pointer record (the decision and a pointer, storing no upstream
@@ -407,15 +407,16 @@ content to carry a recheck trigger. *Pointer:* `melodic-software/standards`,
 2026-10-01. *Recheck trigger:* any revision of that org standard, or of the upstream-drift
 convention's Boundary section that cites it.
 
-**A conforming record's parts.** This rubric treats a record that stores an upstream value as
-conforming when it carries a pointer to the source (a specific URL or probe), an as-of date, and a
+**A conforming record's parts.** This rubric treats a record that stores a number or string
+copied or measured from upstream (a default, limit, version gate, price, error string, measured
+figure or pinned SHA) as conforming when it carries a pointer to the source (a specific URL or probe), an as-of date, and a
 recheck trigger, the observable event that obliges re-derivation, beside the decision it records.
-A date alone does not qualify as a trigger. A pointer that stores no value needs no stamp, but
+A date alone does not qualify as a trigger. A pointer that stores no such number or string needs
+no stamp, a probe record of behavior or a "no docs page covers X" note included, but
 it conforms only when the passage restates nothing from the source: text that matches or
-paraphrases the source is judged by the criteria whether or not a link sits beside it. *Pointer:* `docs/contracts/upstream-drift/README.md` "Required parts" and
-"The observability bar" in the marketplace repository. *As of:* 2026-10-01. *Recheck trigger:* any
-change to that convention's required parts, or the org standard broadening the accepted trigger
-forms in a way this repository adopts.
+paraphrases the source is judged by the criteria whether or not a link sits beside it.
+*Pointer:* `docs/contracts/upstream-drift/README.md` "Required parts" and "The observability bar"
+in the marketplace repository.
 
 **A date is never authority.** This rubric reads a dated stamp as the last time the record was
 derived from its source, never as standing authority: what obliges re-derivation is the trigger,

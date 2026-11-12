@@ -291,7 +291,7 @@ App installed on that repository only: a machine user is a `User` and would pass
 
 A lane escalates by creating or labeling a tracker item that carries the **`needs-human` role
 label**, resolved through the consumer's tracker binding (`config.role_labels` of the `tracker`
-mapping in `<home>/work-items.yaml`, else of the legacy `.work-item-tracker.json`) and
+mapping in `<home>/work-items.yaml`) and
 never compared as a string literal
 ([`label-taxonomy.md`](../../../plugins/work-items/reference/label-taxonomy.md#canonical-roles) owns
 the canonical roles and the resolution). A machine-marked bot comment discriminates a
@@ -1147,8 +1147,7 @@ offer to persist the answer; the headless path never waits on one.
 
 **Lane-editable config and the four sandbox conditions.** Every local lane reads some config at run
 time that the lane's own process could edit (audited in #7680). work-loop and attend-queue read
-the tracker binding (`docs/conventions/work-items.yaml`'s `tracker` mapping, else the legacy
-`.work-item-tracker.json`) from the checkout, including the role labels that
+the tracker binding (`docs/conventions/work-items.yaml`'s `tracker` mapping) from the checkout, including the role labels that
 admission matches on. The triage step they run reads `docs/conventions/work-items.yaml` and
 `docs/conventions/pr-pipeline.yaml` from the working tree when no `--config-ref` is given, and
 both lanes read that `work-items.yaml` for `ai_disclaimer` the same way. The
@@ -1498,8 +1497,9 @@ binding resolves from the same root the tracker seam uses.
 
 ```bash
 root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
-L=$({ yq -o=json -e '.tracker' "$root/docs/conventions/work-items.yaml" 2>/dev/null || cat "$root/.work-item-tracker.json"; } |
-  jq -r '.config.role_labels["human-gated"] // "needs-human"' 2>/dev/null || echo needs-human)
+L=$(yq -o=json -e '.tracker' "$root/docs/conventions/work-items.yaml" 2>/dev/null |
+  jq -r '.config.role_labels["human-gated"] // empty' 2>/dev/null)
+L=${L:-needs-human}
 gh issue edit <n> -R "$R" --add-label "$L"
 gh issue comment <n> -R "$R" --body "Parked by operator: <reason>."
 ```
