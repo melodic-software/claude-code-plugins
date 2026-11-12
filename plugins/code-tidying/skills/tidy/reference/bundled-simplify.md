@@ -9,12 +9,12 @@ record against the same surface in
 
 ## Decision records
 
-| Decision | Pointer | Recheck trigger |
-|---|---|---|
-| Treat `simplify` as a bundled skill invoked by its own name, never through an alias | The `/simplify` row in [All commands](https://code.claude.com/docs/en/commands#all-commands) | The row gains an alias or stops being labeled Skill |
-| Treat `simplify` as a mutating surface that tidy never invokes or chains into | The same row | The row documents a report-only mode or a flag that turns applying off |
-| Route by anchor: `simplify` refines a diff that already exists; tidy hunts a lane regardless of recent changes | The same row, for the targets it takes; [Review a diff locally](https://code.claude.com/docs/en/code-review-local), for how it relates to `/code-review` | Either section gives `simplify` a mode that hunts a scope independent of recent changes |
-| Never assume presence; a session where it does not resolve is an ordinary session | [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills), for what turns bundled skills off | That section changes the settings that turn a bundled skill off |
+| Decision | Pointer |
+|---|---|
+| Treat `simplify` as a bundled skill invoked by its own name, never through an alias | The `/simplify` row in [All commands](https://code.claude.com/docs/en/commands#all-commands) |
+| Treat `simplify` as a mutating surface that tidy never invokes or chains into | The same row |
+| Route by anchor: `simplify` refines a diff that already exists; tidy hunts a lane regardless of recent changes | The same row, for the targets it takes; [Review a diff locally](https://code.claude.com/docs/en/code-review-local), for how it relates to `/code-review` |
+| Never assume presence; a session where it does not resolve is an ordinary session | [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills), for what turns bundled skills off |
 
 ## Why the verdict is complementary
 
