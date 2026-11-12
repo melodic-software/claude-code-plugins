@@ -500,6 +500,36 @@ ERR="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$LOOSE" wit_no_bin
 assert_contains "no home → the reason names the retired file" "$ERR" "$LOOSE/.work-item-tracker.json no longer binds the tracker"
 assert_contains "no home → the reason names apply from a git work tree" "$ERR" "run /work-items:setup apply from a git work tree that binds a home"
 
+# --- a declined home: no home applies ---
+
+DREPO="$(yaml_repo declined-repo)"
+write_binding "$DREPO/AGENTS.md" '<!-- BEGIN GENERATED: convention-home -->
+declined
+<!-- END GENERATED: convention-home -->'
+ERR="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$DREPO" wit_no_binding_reason)"
+assert_contains "declined home → the reason says no home applies" "$ERR" "no convention home applies under $DREPO"
+
+# --- a broken pointer: the reason names setup check, not apply ---
+
+PREPO="$(yaml_repo broken-pointer-repo)"
+# shellcheck disable=SC2016 # the backticks are markdown, not an expansion
+write_binding "$PREPO/AGENTS.md" '<!-- BEGIN GENERATED: convention-home -->
+Team conventions live in `docs/missing`.
+<!-- END GENERATED: convention-home -->'
+ERR="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$PREPO" wit_find_binding 2>&1 >/dev/null)"
+assert_eq "broken pointer → discovery fails" "1" "$?"
+assert_contains "broken pointer → discovery passes the resolver's message through" "$ERR" "docs/missing"
+ERR="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$PREPO" wit_no_binding_reason 2>/dev/null)"
+assert_eq "broken pointer → the reason names setup check" \
+  "no binding: the convention-home pointer under $PREPO is broken; run /work-items:setup check to see why" "$ERR"
+
+# --- missing shared copies: the reason names a reinstall ---
+
+ERR="$(unset WORK_ITEM_TRACKER_BINDING && WIT_HOME_RESOLVER="$TEST_TMPDIR/absent.sh" && CLAUDE_PROJECT_DIR="$NREPO" wit_no_binding_reason)"
+assert_contains "missing shared copies → the reason names the missing copy" "$ERR" "$TEST_TMPDIR/absent.sh"
+assert_contains "missing shared copies → the reason names a reinstall" "$ERR" "reinstall the work-items plugin"
+assert_contains "missing shared copies → the parser copy is plugin-relative" "$ERR" " or skills/triage/scripts/yaml-subset.awk;"
+
 # --- invalid YAML: the error names the file, the key and the value ---
 
 IREPO="$(yaml_repo invalid-repo)"

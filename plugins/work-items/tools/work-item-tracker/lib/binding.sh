@@ -34,13 +34,13 @@ wit_project_root() {
 }
 
 # wit_convention_home <root>: the repo-relative convention home the pointer region
-# binds, or the default home when the repository binds none. Fails when it declined
-# a home, when no home applies (exit 5: the root is $HOME, an ancestor of it, or not
-# in a git work tree, so nothing can bind it), or when the pointer is broken (that
-# message passes through to stderr).
+# binds, or the default home when the repository binds none. Fails 1 when it declined
+# a home or no home applies (the root is $HOME, an ancestor of it, or not in a git
+# work tree, so nothing can bind it), 2 when the shared copies are missing, and 3 when
+# the pointer is broken (that message passes through to stderr).
 wit_convention_home() {
   local home rc
-  [[ -f "$WIT_HOME_RESOLVER" && -f "$WIT_YAML_PARSER" ]] || return 1
+  [[ -f "$WIT_HOME_RESOLVER" && -f "$WIT_YAML_PARSER" ]] || return 2
   home="$(bash "$WIT_HOME_RESOLVER" --root "$1" 2>/dev/null)"
   rc=$?
   case "$rc" in
@@ -48,7 +48,7 @@ wit_convention_home() {
   1) printf '%s\n' "$WIT_DEFAULT_CONVENTION_HOME" ;;
   3)
     bash "$WIT_HOME_RESOLVER" --root "$1" >/dev/null
-    return 1
+    return 3
     ;;
   *) return 1 ;;
   esac
@@ -149,8 +149,9 @@ wit_find_binding() {
   return 1
 }
 
-# wit_no_binding_reason: one line saying why wit_find_binding found no binding, naming
-# /work-items:setup apply as the fix. A retired repo-root .work-item-tracker.json gets
+# wit_no_binding_reason: one line saying why wit_find_binding found no binding and the
+# fix: /work-items:setup check for a broken pointer, a reinstall for missing shared
+# copies, else /work-items:setup apply. A retired repo-root .work-item-tracker.json gets
 # its own line: apply copies it under tracker: in <home>/work-items.yaml.
 wit_no_binding_reason() {
   local root home legacy=""
@@ -164,9 +165,24 @@ wit_no_binding_reason() {
     return 0
   fi
   [[ -f "$root/$WIT_LEGACY_BINDING" ]] && legacy="$root/$WIT_LEGACY_BINDING no longer binds the tracker, and "
-  if ! home="$(wit_convention_home "$root" 2>/dev/null)"; then
+  home="$(wit_convention_home "$root" 2>/dev/null)"
+  case $? in
+  0) ;;
+  2)
+    printf 'no binding: %sthe plugin is missing its shared copies %s or %s; reinstall the work-items plugin\n' "$legacy" \
+      "${WIT_HOME_RESOLVER#"$_WIT_BINDING_LIB_DIR/../../../"}" "${WIT_YAML_PARSER#"$_WIT_BINDING_LIB_DIR/../../../"}"
+    return 0
+    ;;
+  3)
+    printf 'no binding: %sthe convention-home pointer under %s is broken; run /work-items:setup check to see why\n' "$legacy" "$root"
+    return 0
+    ;;
+  *)
     printf 'no binding: %sno convention home applies under %s (it declines one, is the home directory or an ancestor of it, or is not a git work tree); run /work-items:setup apply from a git work tree that binds a home\n' "$legacy" "$root"
-  elif [[ -n "$legacy" ]]; then
+    return 0
+    ;;
+  esac
+  if [[ -n "$legacy" ]]; then
     printf 'no binding: %s no longer binds the tracker; run /work-items:setup apply to copy it under tracker: in %s/work-items.yaml\n' "$root/$WIT_LEGACY_BINDING" "$home"
   else
     printf 'no binding: %s/%s/work-items.yaml sets no tracker: mapping; run /work-items:setup apply\n' "$root" "$home"

@@ -148,7 +148,8 @@ value (named by file, key and value; the personal override when it set the value
   A repo-root `.work-item-tracker.json`, the retired binding file, no longer binds; when one
   is present the message names it, and `apply` copies it under `tracker:`. A
   `work-items.yaml` that does not parse is still read as the binding and fails. A broken
-  pointer region is reported on stderr, and the seam then finds no binding.
+  pointer region is reported on stderr, the seam then finds no binding, and the message names
+  `/work-items:setup check` instead; missing shared resolver copies name a plugin reinstall.
 - Discovery: the binding resolves from the **repo root**, meaning `${CLAUDE_PROJECT_DIR}` when
   set, else `git rev-parse --show-toplevel`. Whichever of the two resolves, that one value
   governs ALL of the seam's repo-relative resolution (binding read, consumer-local adapter

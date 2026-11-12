@@ -9,6 +9,6 @@ bump: major
 
 ### Changed
 
-- With no binding, the seam's exit `3` message (`wit_no_binding_reason` in `lib/binding.sh`) says why and names `/work-items:setup apply`: a repo-root `.work-item-tracker.json` that no longer binds, a `work-items.yaml` with no `tracker` mapping, a root where no convention home applies, or a missing `WORK_ITEM_TRACKER_BINDING` file. The jira, gitea and linear seeds and the onboard-adapter template print the same message.
+- With no binding, the seam's exit `3` message (`wit_no_binding_reason` in `lib/binding.sh`) says why and names `/work-items:setup apply`: a repo-root `.work-item-tracker.json` that no longer binds, a `work-items.yaml` with no `tracker` mapping, a root where no convention home applies, or a missing `WORK_ITEM_TRACKER_BINDING` file. A broken convention-home pointer names `/work-items:setup check` instead, and missing shared resolver copies name a plugin reinstall. The jira, gitea and linear seeds and the onboard-adapter template print the same message.
 - `/work-items:setup check` reports a binding that exists only in `.work-item-tracker.json` as FAIL, remediation `/work-items:setup apply`, instead of INFO.
 - The seam contract, setup skill, README, schema and the skill bodies that resolve role labels no longer describe a JSON fallback.
