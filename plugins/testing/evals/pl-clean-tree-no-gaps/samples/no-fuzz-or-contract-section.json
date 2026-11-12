@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "There is nothing to classify: the working tree is clean and `feature/reports` has no commits beyond `main`.",
+      "why": "no plan, no section"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Nothing to classify.\n\n### Fuzz targets\n- none",
+      "why": "prints an empty fuzz-target section"
+    },
+    {
+      "answer": "No changed files.\n\n### Not testing\n- Contract tests: no service client changed",
+      "why": "lists the contract-test row under not testing"
+    },
+    {
+      "answer": "No changes in the range. Consumer-driven checks are not needed.",
+      "why": "names the contract row it should leave out"
+    }
+  ]
+}

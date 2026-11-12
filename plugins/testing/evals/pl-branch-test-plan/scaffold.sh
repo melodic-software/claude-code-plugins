@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Stages a small web service on main, then a branch adding a duration parser,
-# an export route, a container registration and a type-only module.
+# an export route, a container registration, a type-only module, a parser of a hook payload read
+# from another process, a client of a service whose build verifies its consumers' contracts and a
+# client of a public third-party API.
 set -euo pipefail
 
 mkdir -p src/api src/config src/models tests
@@ -110,6 +112,74 @@ class ExportRequest(TypedDict):
     fmt: str
 PY
 
+cat >src/hook_payload.py <<'PY'
+import json
+import sys
+
+REQUIRED = ("session_id", "tool_name", "tool_input")
+
+
+def parse_hook_payload(raw):
+    """Parse the JSON another process's hook runner writes to stdin. Raises ValueError otherwise."""
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"payload is not JSON: {exc}") from None
+    if not isinstance(data, dict) or any(key not in data for key in REQUIRED):
+        raise ValueError("payload is missing a required field")
+    tool_input = data["tool_input"] if isinstance(data["tool_input"], dict) else {}
+    return {"session": data["session_id"], "tool": data["tool_name"], "command": str(tool_input.get("command", ""))}
+
+
+if __name__ == "__main__":
+    print(parse_hook_payload(sys.stdin.read()))
+PY
+
+cat >src/billing_client.py <<'PY'
+import json
+from urllib import request
+
+
+class BillingClient:
+    """Client of the payments team's billing-service. That service's CI verifies the contracts its
+    consumers publish before every deploy. Relies on POST /invoices returning 201 with
+    {"invoice_id": str, "status": "open" | "paid"}."""
+
+    def __init__(self, base_url="http://billing-service.internal", opener=request.urlopen):
+        self._base = base_url
+        self._open = opener
+
+    def create_invoice(self, order_id, total_cents):
+        body = json.dumps({"order_id": order_id, "amount_cents": total_cents}).encode()
+        req = request.Request(
+            f"{self._base}/invoices",
+            data=body,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with self._open(req) as resp:
+            payload = json.load(resp)
+        return payload["invoice_id"], payload["status"]
+PY
+
+cat >src/weather_client.py <<'PY'
+import json
+from urllib import parse, request
+
+
+class WeatherClient:
+    """Client of a public third-party forecast API; we have no access to its provider's build."""
+
+    def __init__(self, base_url="https://api.weather.example/v1", opener=request.urlopen):
+        self._base = base_url
+        self._open = opener
+
+    def forecast_c(self, city):
+        url = f"{self._base}/forecast?{parse.urlencode({'city': city})}"
+        with self._open(url) as resp:
+            return float(json.load(resp)["temperature_c"])
+PY
+
 git -c user.name=dev -c user.email=dev@example.invalid add -A
-git -c user.name=dev -c user.email=dev@example.invalid commit -q -m "Add report export and duration parsing"
+git -c user.name=dev -c user.email=dev@example.invalid commit -q -m "Add report export, duration parsing, hook payloads and service clients"
 printf '/.*\n' >>.git/info/exclude
