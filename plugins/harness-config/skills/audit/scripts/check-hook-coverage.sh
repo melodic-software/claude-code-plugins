@@ -111,14 +111,19 @@ json_nodes() {
     tr -d '\r'
 }
 
-# print_nodes <node>...: the nodes of one --json array, laid out as the
-# emitter always has.
-print_nodes() {
-  local sep="" n
-  for n in "$@"; do
+# print_array <name> <width> <jq-program> <field>...: the --json array <name>,
+# its nodes built by one json_nodes call and laid out as the emitter always
+# has, up to its closing bracket; the caller prints what follows it.
+print_array() {
+  local name="$1" sep="" n nodes=()
+  shift
+  mapfile -t nodes < <(json_nodes "$@")
+  printf '  "%s": [' "$name"
+  for n in ${nodes+"${nodes[@]}"}; do
     printf '%s\n    %s\n' "$sep" "$n"
     sep=","
   done
+  printf '\n  ]'
 }
 
 usage() {
@@ -705,28 +710,22 @@ if [[ $EMIT_JSON -eq 1 ]]; then
       IFS=$'\t' read -r src event matcher cmd extra <<<"$r"
       fields+=("$src" "$event" "$matcher" "$cmd" "${extra:-{\}}")
     done
-    mapfile -t nodes < <(json_nodes 5 '{source: $f[0], event: $f[1], matcher: $f[2], command: $f[3]} + ($f[4] | fromjson)' ${fields+"${fields[@]}"})
-    printf '  "hooks": ['
-    print_nodes ${nodes+"${nodes[@]}"}
-    printf '\n  ],\n'
+    print_array hooks 5 '{source: $f[0], event: $f[1], matcher: $f[2], command: $f[3]} + ($f[4] | fromjson)' ${fields+"${fields[@]}"}
+    printf ',\n'
     fields=()
     for p in ${PLUGIN_STATUS+"${PLUGIN_STATUS[@]}"}; do
       IFS=$'\t' read -r pk st note ppath <<<"$p"
       fields+=("$pk" "$st" "$note" "${ppath:-}")
     done
-    mapfile -t nodes < <(json_nodes 4 '{plugin: $f[0], status: $f[1], note: $f[2], path: $f[3]}' ${fields+"${fields[@]}"})
-    printf '  "plugins": ['
-    print_nodes ${nodes+"${nodes[@]}"}
-    printf '\n  ],\n'
+    print_array plugins 4 '{plugin: $f[0], status: $f[1], note: $f[2], path: $f[3]}' ${fields+"${fields[@]}"}
+    printf ',\n'
     fields=()
     for d in ${DIVERGENCE+"${DIVERGENCE[@]}"}; do
       IFS=$'\t' read -r dk dl dc <<<"$d"
       fields+=("$dk" "$dl" "$dc")
     done
-    mapfile -t nodes < <(json_nodes 3 '{plugin: $f[0], loaded: $f[1], cached: $f[2]}' ${fields+"${fields[@]}"})
-    printf '  "divergence": ['
-    print_nodes ${nodes+"${nodes[@]}"}
-    printf '\n  ],\n'
+    print_array divergence 3 '{plugin: $f[0], loaded: $f[1], cached: $f[2]}' ${fields+"${fields[@]}"}
+    printf ',\n'
     # A lever value that parses as JSON other than false or null is that JSON;
     # anything else is the text as read.
     fields=()
@@ -734,24 +733,18 @@ if [[ $EMIT_JSON -eq 1 ]]; then
       IFS=$'\t' read -r sc lk lv <<<"$l"
       fields+=("$sc" "$lk" "$lv")
     done
-    mapfile -t nodes < <(json_nodes 3 '($f[2] | try fromjson catch null) as $v
-      | {scope: $f[0], key: $f[1], value: (if $v == null or $v == false then $f[2] else $v end)}' ${fields+"${fields[@]}"})
-    printf '  "levers": ['
-    print_nodes ${nodes+"${nodes[@]}"}
-    printf '\n  ],\n'
+    print_array levers 3 '($f[2] | try fromjson catch null) as $v
+      | {scope: $f[0], key: $f[1], value: (if $v == null or $v == false then $f[2] else $v end)}' ${fields+"${fields[@]}"}
+    printf ',\n'
     fields=()
     for l in ${MOD_PLANE+"${MOD_PLANE[@]}"}; do
       IFS=$'\t' read -r sc mk mv <<<"$l"
       fields+=("$sc" "$mk" "$mv")
     done
-    mapfile -t nodes < <(json_nodes 3 '{scope: $f[0], key: $f[1], value: ($f[2] | fromjson)}' ${fields+"${fields[@]}"})
-    printf '  "mod_plane": ['
-    print_nodes ${nodes+"${nodes[@]}"}
-    printf '\n  ],\n'
-    mapfile -t nodes < <(json_nodes 1 '$f[0]' ${UNREADABLE+"${UNREADABLE[@]}"})
-    printf '  "unreadable": ['
-    print_nodes ${nodes+"${nodes[@]}"}
-    printf '\n  ]\n}\n'
+    print_array mod_plane 3 '{scope: $f[0], key: $f[1], value: ($f[2] | fromjson)}' ${fields+"${fields[@]}"}
+    printf ',\n'
+    print_array unreadable 1 '$f[0]' ${UNREADABLE+"${UNREADABLE[@]}"}
+    printf '\n}\n'
   }
 else
   echo "Hook inventory"

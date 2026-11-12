@@ -137,6 +137,8 @@ slug_ok() {
 row=0
 NEED=()
 declare -A NEED_SEEN=()
+# `|| [[ -n "$slug" ]]` keeps a final row that has no trailing newline: read
+# returns nonzero at EOF even when it filled the variables.
 while IFS=$'\t' read -r slug span || [[ -n "$slug" ]]; do
   row=$((row + 1))
   [[ -n "$slug" && "${slug:0:1}" != "#" && -n "$span" ]] || continue
@@ -155,16 +157,12 @@ declare -A PAGE_STATE=()
 MISSING=0
 SKIPPED=0
 CHECKED=0
-# `|| [[ -n "$slug" ]]` keeps a final row that has no trailing newline: read
-# returns nonzero at EOF even when it filled the variables.
 while IFS=$'\t' read -r slug span || [[ -n "$slug" ]]; do
   [[ -n "$slug" && "${slug:0:1}" != "#" && -n "$span" ]] || continue
   span="${span%$'\r'}"
   if [[ -z "${PAGE_STATE[$slug]:-}" ]]; then
-    pf="$(page_file "$slug")"
-    if [[ -n "$pf" ]]; then
-      PAGE_STATE[$slug]="$pf"
-    else
+    PAGE_STATE[$slug]="$(page_file "$slug")"
+    if [[ -z "${PAGE_STATE[$slug]}" ]]; then
       PAGE_STATE[$slug]="SKIP"
       printf 'SKIP  %s: page could not be read this run (%s); no claim about its rows\n' "$slug" "${PAGE_REASON[$slug]:-unread}"
     fi
@@ -184,5 +182,4 @@ while IFS=$'\t' read -r slug span || [[ -n "$slug" ]]; do
 done <"$MANIFEST"
 
 printf '\nChecked %d citation(s), %d missing, %d skipped (page unreadable).\n' "$CHECKED" "$MISSING" "$SKIPPED"
-[[ $MISSING -eq 0 ]] && exit 0
-exit 1
+exit $((MISSING > 0))
