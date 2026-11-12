@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "### Fuzz targets\n- [ ] `parse_hook_payload` — mutated JSON from a seed corpus of valid payloads; only ValueError may escape, no hang",
+      "why": "fuzz heading lists the hook parser"
+    },
+    {
+      "answer": "src/hook_payload.py: unit examples plus a fuzz target, since its input comes from another process.",
+      "why": "fuzz named on the hook parser's line"
+    },
+    {
+      "answer": "Fuzz `parse_hook_payload` with truncated and oversized payloads.",
+      "why": "fuzz before the function name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "### Unit tests\n- [ ] parse_hook_payload rejects non-JSON\n- [ ] parse_hook_payload rejects a missing session_id",
+      "why": "examples only"
+    },
+    {
+      "answer": "Fuzz the export endpoint's report id.",
+      "why": "fuzz not tied to the hook parser"
+    },
+    {
+      "answer": "### Fuzz targets\n- none\n\n### Unit tests\n- [ ] parse_hook_payload rejects non-JSON",
+      "why": "fuzz heading lists nothing for the hook parser"
+    }
+  ]
+}

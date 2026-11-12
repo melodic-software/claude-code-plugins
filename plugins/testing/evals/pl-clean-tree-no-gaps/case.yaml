@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: pl-clean-tree-no-gaps
-description: 'Legacy plan 2. On a clean feature branch that matches the default branch, the plan reads git status and the diff range, reports nothing to classify, and invents no coverage gaps or test list for unmodified code. read-git reads the Bash calls, nothing-to-classify the reply; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
+description: 'Legacy plan 2. On a clean feature branch that matches the default branch, the plan reads git status and the diff range, reports nothing to classify, and invents no coverage gaps or test list for unmodified code. read-git reads the Bash calls, nothing-to-classify the reply, and no-fuzz-or-contract-section that the reply prints no fuzz-target or contract-test section, empty or not, since no changed code matches either row; meets-expectations (llm) quotes the legacy expectations. Needs --scaffold --allow-tools Bash.'
 tags: [testing, plan, clean-tree, scaffold, no-network]
 expected_outcome: 'Runs git status and a diff against the default branch, says there are no changed files to classify, and produces no unit, integration or E2E plan.'
 context:
@@ -19,6 +19,12 @@ graders:
     type: regex
     pattern: '\b(?:nothing|no (?:changed|modified|new) files?|no changes|no files)\b[^.;|,\n]{0,60}\b(?:to (?:classify|test|plan|cover)|changed|in (?:the|this) (?:range|branch|diff))'
     flags: i
+    target: last_message
+  - name: no-fuzz-or-contract-section
+    type: regex
+    pattern: '\bfuzz|\bcontract[- ]tests?\b|\bconsumer[- ]driven\b'
+    flags: i
+    match: not_contains
     target: last_message
   - name: meets-expectations
     type: llm

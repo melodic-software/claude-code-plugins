@@ -13,7 +13,7 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { issueLaneWebHostsFromBase, main, resolveFromBase } from "./resolve-config.mjs";
+import { issueLaneWebHostsFromBase, main, refineDispatchActivitiesFromBase, resolveFromBase } from "./resolve-config.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -1080,4 +1080,16 @@ test("MODEL_RUNG empty, 0 or 1 resolves; any other value is refused as invalid-r
 test("issueLaneWebHostsFromBase: resolve-issue's web-access domains from the base config, none when it reads no web", () => {
   assert.equal(issueLaneWebHostsFromBase({ BASE_PATH: join(HERE, "../../..") }), "any");
   assert.deepEqual(issueLaneWebHostsFromBase(workspace().env), []);
+});
+
+test("refineDispatchActivitiesFromBase: the base's refine-dispatch.activities as set, [] when absent, and a non-name refused by the schema", () => {
+  assert.deepEqual(refineDispatchActivitiesFromBase(workspace().env), []);
+  const listed = workspace().env;
+  const file = join(listed.BASE_PATH, CONFIG_PATH);
+  writeFileSync(file, `${readFileSync(file, "utf8")}\nrefine-dispatch:\n  activities: [fix-marker]\n`);
+  assert.deepEqual(refineDispatchActivitiesFromBase(listed), ["fix-marker"]);
+  const broken = workspace().env;
+  const brokenFile = join(broken.BASE_PATH, CONFIG_PATH);
+  writeFileSync(brokenFile, `${readFileSync(brokenFile, "utf8")}\nrefine-dispatch:\n  activities: [5]\n`);
+  assert.throws(() => refineDispatchActivitiesFromBase(broken));
 });

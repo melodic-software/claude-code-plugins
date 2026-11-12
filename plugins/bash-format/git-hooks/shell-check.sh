@@ -53,13 +53,6 @@ need() {
   return 1
 }
 
-# staged_gone <path>: 0 at pre-commit when <path> is gone from the work tree and
-# the index holds it as a regular file, not a symlink (mode 120000) or a submodule.
-staged_gone() {
-  [[ "$CHECKS_MODE" == pre-commit && ! -e "$1" && ! -L "$1" ]] || return 1
-  [[ "$(git ls-files -s -- ":(literal)$1" 2>/dev/null)" == 100* ]]
-}
-
 files=()
 indexed=()
 while IFS= read -r -d '' f; do
@@ -70,7 +63,7 @@ while IFS= read -r -d '' f; do
   esac
   if [[ -f "$f" && ! -L "$f" ]]; then
     files+=("$f")
-  elif staged_gone "$f"; then
+  elif checks_staged_gone "$f"; then
     indexed+=("$f")
   fi
 done < <(checks_files)

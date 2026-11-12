@@ -24,7 +24,7 @@
 // can release it.
 
 import { DEPENDABOT_ID, DEPENDABOT_LOGIN, RED } from "./dependency-classify.mjs";
-import { emptyRecord, isHandled, markHandled, sendDispatch } from "./dispatch-record.mjs";
+import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { anyHandles, headLagStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { ciStatusOf, classifyPull, commitFilesReader, gateCheckRuns } from "./review-dependency.mjs";
@@ -50,9 +50,6 @@ export const DEFAULTS = Object.freeze({
 // head-lag stop, which did no work, so lagStopsRelease sends it again
 // (limit-stop.mjs) and it is not recorded.
 const TERMINAL_SKIPS = new Set(["Skipped: awaiting-human", "Skipped: not-applicable", "Skipped: superseded-sha"]);
-
-// NaN for a run with no readable start: it compares false either way.
-const startOf = (run) => Date.parse(run.started_at ?? "");
 
 async function listAll(api, base) {
   const nodes = [];

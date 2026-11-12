@@ -44,13 +44,13 @@
 //   LANE_RECORDS_PATH         the file the checks read and rewrite
 //   BABYSIT_VERIFY_LISTING    write: the run's saved artifact listing, if any
 //   LANE_RECORDS_OUT          write: the file to upload
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { onMain } from "./head-ref-map.mjs";
-import { ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
+import { onMain, writeAtomic } from "./head-ref-map.mjs";
+import { escapeCommand, ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const RECORDS_ARTIFACT = "pr-merge-lane-records";
 export const RECORDS_FILE = "lane-records.json";
@@ -60,7 +60,6 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const NAME = /^pr-merge-(?:dispatched-[1-9][0-9]{0,15}|rerun-[1-9][0-9]{0,15}-attempt-2)$/;
 const ZONED = /(Z|[+-]\d\d:\d\d)$/;
 
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const dated = (value) => typeof value === "string" && ZONED.test(value) && !Number.isNaN(Date.parse(value));
 
@@ -90,11 +89,6 @@ export function parseRecords(text, repo) {
 }
 
 const serialize = (repo, records) => JSON.stringify({ version: VERSION, repo, records });
-
-function writeAtomic(path, text) {
-  writeFileSync(`${path}.tmp`, text);
-  renameSync(`${path}.tmp`, path);
-}
 
 // The newest trusted run's records, by name, or undefined when no run has any.
 export async function readRecords({ repo, runId, actions: client, download, shared }) {

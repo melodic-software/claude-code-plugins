@@ -29,13 +29,11 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { onMain } from "./head-ref-map.mjs";
-import { ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
+import { escapeCommand, ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const ANSWERS_ARTIFACT = "pr-merge-verify-answers";
 export const SKIP_FILE = "eam-skip.json";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
 // The newest trusted run holding the artifact, or undefined.
 export async function skipsRun({ repo, runId, actions: client, shared }) {

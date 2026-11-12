@@ -583,12 +583,14 @@ hooks/exec-bash.mjs
 # duplication audit: the root canonical and the copies.
 lib/exec-bash.mjs -> plugins/*/hooks/exec-bash.mjs
 
-# No dedicated check: the unreferenced plugin-cache-version reader carried by the
-# harness-ops audit-install-state and disk-hygiene deep-inventory engines. This
-# script's own --check is the gate. Canonical copy:
-# plugins/harness-ops/lib/plugin_cache_versions.py; copy it into
-# plugins/disk-hygiene/lib/ to fix a drift failure.
+# Dedicated check: scripts/sync-shared-copies.sh --check. The unreferenced
+# plugin-cache-version reader the harness-ops audit-install-state and
+# disk-hygiene deep-inventory engines import.
 lib/plugin_cache_versions.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/plugin_cache_versions.py -> plugins/*/lib/plugin_cache_versions.py
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/view-builder.mjs. The review, planning, debugging, discovery and architecture plugins carry the generated

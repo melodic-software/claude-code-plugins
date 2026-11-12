@@ -1,7 +1,8 @@
 // The hourly triage sweep: finds open issues no intake verdict holds and
 // dispatches intake-triage.yml for them, with the job's own token only. An
 // issue qualifies when it is no pull request, is over an hour old, its author
-// is a listed human or the lanes App (as the intake lane admits on open), and
+// is a listed human or the lanes App (as the intake lane admits on open), it
+// carries no routing label (intake skips one: check-born-triaged.mjs), and
 // either:
 //
 // - its labels, as its Work status field decides them (read-status.mjs
@@ -23,7 +24,7 @@
 // dispatched and, once read, how each ended; after 2 that reached intake and left it untriaged (a run the
 // kill switch or a gate skipped before intake does not count, up to 6
 // dispatches, and nor do the first 24 whose verdict stopped on a GitHub 5xx,
-// a network error or a deferred triage) the sweep sets its Work status to
+// a network error, a deferred triage or a kill switch) the sweep sets its Work status to
 // needs-triage (write-status.mjs) and rewrites that comment to hand it to a
 // maintainer, listing the runs. That write first reads the field fresh and
 // leaves any state but unset or needs-triage (or ready, on an issue listed
@@ -35,14 +36,18 @@
 // without a REST read, found by one GraphQL search that returns the hits'
 // comments, so hand-offs cannot use up the call budget.
 //
+// A run whose verdict a lanes kill switch voided (apply-verdict's VOIDED_STEP)
+// wrote nothing, so it counts as a transient stop, not an attempt.
+//
 // Accepted exposure: intake reads an issue's comments, and anyone can comment
 // in the hour before the sweep dispatches. Intake treats them as untrusted
 // data and applies only allowlisted labels, never agent-ready.
 import { appendFileSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { BORN_TRIAGED_MARKER, humanIds } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { BORN_TRIAGED_MARKER, humanIds, readRouting, ROUTING_DEFAULTS, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { budgetedCall, createBudget } from "./collect.mjs";
 import { UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
@@ -116,9 +121,12 @@ const bornReady = (i, labels) =>
 // its Work status field decides them; an issue it leaves out is judged by its
 // own labels, except one in its `held` set (Work status mid-write), which is
 // not dispatched this pass (conservative: no dispatch on a state not read).
-export function selectCandidates({ issues, now, authorIds, statusLabels = new Map() }) {
+// An issue whose own labels hold a routing label (check-born-triaged.mjs
+// routingLabel) is never one: intake skips it.
+export function selectCandidates({ issues, now, authorIds, statusLabels = new Map(), routing = ROUTING_DEFAULTS }) {
   const untriagedOrReady = (i) => {
     if (statusLabels.held?.has(i.number)) return false;
+    if (routingLabel((i.labels ?? []).map((l) => l.name ?? ""), routing)) return false;
     const labels = names(i, statusLabels.get(i.number));
     return !labels.some((n) => TRIAGED.test(n)) || bornReady(i, labels);
   };
@@ -165,7 +173,7 @@ export const renderState = ({ runs, filed, runUrl, repoUrl, details = [], reache
         "",
         ...details.map(
           (r) =>
-            `- ${repoUrl}/actions/runs/${r.id} (${r.reached === "~" ? "a transient stop: a GitHub 5xx, a network error or a deferred triage" : `${r.conclusion ?? "unknown"}${r.reached === "-" ? ", intake did not run" : ""}`})`,
+            `- ${repoUrl}/actions/runs/${r.id} (${r.reached === "~" ? "a transient stop: a GitHub 5xx, a network error, a deferred triage or a kill switch" : `${r.conclusion ?? "unknown"}${r.reached === "-" ? ", intake did not run" : ""}`})`,
         ),
       ].join("\n")
     : filed === FILING
@@ -201,7 +209,8 @@ const applyJob = (jobs) => {
 //   "GitHub answered 500"); or
 // - apply-verdict was skipped because the reusable's apply job deferred an
 //   otherwise clean triage on a permission denial (run 41807993284), which
-//   writes nothing so that a later run retries it.
+//   writes nothing so that a later run retries it; or
+// - apply-verdict ran VOIDED_STEP (voidedVerdict), read from the jobs alone.
 // No open-incident signal is read: the run's own upstream check skips intake
 // while githubstatus.com lists Actions in an outage, which marks it `-`, and
 // nothing records an API incident at the time a run ran.
@@ -220,12 +229,17 @@ const DEFERRED = "permission denial(s) on an otherwise clean triage";
 // failure annotation is.
 const HELD = /^held: /;
 const EXIT_LINE = /^Process completed with exit code \d+\.$/;
+// The apply-verdict step (intake-triage.yml) that runs only when a lanes kill
+// switch refused its token, so the run wrote no verdict.
+export const VOIDED_STEP = "Report the voided verdict";
+export const voidedVerdict = (jobs) => Boolean(applyJob(jobs ?? [])?.steps?.some((s) => s?.name === VOIDED_STEP && s.conclusion === "success"));
 const checkRunPath = (job) => {
   const id = /\/check-runs\/([0-9]+)$/.exec(String(job?.check_run_url ?? ""))?.[1];
   return id ? `/check-runs/${id}/annotations?per_page=100` : null;
 };
 export async function classifyRun(jobs, annotations) {
   if (!reachedIntake(jobs)) return "-";
+  if (voidedVerdict(jobs)) return "~";
   const apply = applyJob(jobs);
   if (apply?.conclusion === "skipped") {
     const reusable = jobs.find((j) => INTAKE_APPLY_JOB.test(String(j.name ?? "")) && j.conclusion === "success");
@@ -357,8 +371,9 @@ async function handedOff(call, repo, appId) {
 
 // One pass. `call` returns null for a GET that 404s. `setStatus(number,
 // state)` (write-status.mjs statusWriter's set) writes the Work status field.
-// `statusLabels` is statusListing's map, read once before the pass.
-export async function runSweep({ call, remaining = () => Infinity, repo, serverUrl, now, authorIds, appId = null, setStatus = async () => {}, statusLabels = new Map() }) {
+// `statusLabels` is statusListing's map, read once before the pass; `routing`
+// the binding's routing labels (readRouting).
+export async function runSweep({ call, remaining = () => Infinity, repo, serverUrl, now, authorIds, appId = null, setStatus = async () => {}, statusLabels = new Map(), routing = ROUTING_DEFAULTS }) {
   const repoUrl = `${serverUrl}/${repo}`;
   const issues = [];
   for (let page = 1; page <= MAX_ISSUE_PAGES; page += 1) {
@@ -367,7 +382,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     if (batch.length < 100) break;
   }
   const result = { candidates: 0, dispatched: [], handed: [], handedOff: [], held: [], left: [], waiting: [], failed: [], truncated: null };
-  const selected = selectCandidates({ issues, now, authorIds, statusLabels });
+  const selected = selectCandidates({ issues, now, authorIds, statusLabels, routing });
   const atFloor = (i) => names(i, statusLabels.get(i.number)).includes(FLOOR);
   const filed = selected.length > 0 ? await handedOff(call, repo, appId) : new Set();
   const candidates = selected.filter((i) => !(filed.has(i.number) && atFloor(i)));
@@ -555,6 +570,7 @@ async function main() {
     appId,
     setStatus: set,
     statusLabels,
+    routing: readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "triage-sweep" }),
   });
   const numbers = (xs) => xs.map((n) => `#${n}`).join(", ") || "none";
   const lines = [

@@ -185,32 +185,21 @@ slog_anchor_to() {
 slog_root_to() {
   local slog__var="$1" slog__project=""
   slog_anchor_to slog__project "$2"
+  printf -v "$slog__var" '%s' ""
   local slog__rel="${CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR:-$SLOG_DEFAULT_ROOT}"
   slog__rel="${slog__rel%/}"
-  if ! slog_contained "$slog__rel" || [[ -z "$slog__project" ]]; then
-    printf -v "$slog__var" '%s' ""
-    return 0
-  fi
+  slog_contained "$slog__rel" && [[ -n "$slog__project" ]] || return 0
   local slog__abs="${slog__project%/}/$slog__rel"
   local slog__probe="$slog__abs" slog__saved="$PWD" slog__phys_project="" slog__phys_probe=""
   while [[ -n "$slog__probe" && ! -d "$slog__probe" ]]; do
     slog__probe="${slog__probe%/*}"
   done
-  if [[ -z "$slog__probe" ]] || ! cd -P -- "$slog__project" 2>/dev/null; then
-    printf -v "$slog__var" '%s' ""
-    return 0
-  fi
+  [[ -n "$slog__probe" ]] && cd -P -- "$slog__project" 2>/dev/null || return 0
   slog__phys_project="$PWD"
-  if cd -P -- "$slog__probe" 2>/dev/null; then
-    slog__phys_probe="$PWD"
-  fi
+  cd -P -- "$slog__probe" 2>/dev/null && slog__phys_probe="$PWD"
   cd -- "$slog__saved" 2>/dev/null || cd / || true
-  if [[ -z "$slog__phys_probe" ]] ||
-    [[ "$slog__phys_probe" != "$slog__phys_project" && "$slog__phys_probe" != "$slog__phys_project/"* ]] ||
-    [[ "$slog__phys_probe" == "$slog__phys_project" && "$slog__probe" == "$slog__abs" ]]; then
-    printf -v "$slog__var" '%s' ""
-    return 0
-  fi
+  [[ "$slog__phys_probe" == "$slog__phys_project" || "$slog__phys_probe" == "$slog__phys_project/"* ]] || return 0
+  [[ "$slog__phys_probe" == "$slog__phys_project" && "$slog__probe" == "$slog__abs" ]] && return 0
   printf -v "$slog__var" '%s' "$slog__abs"
 }
 
@@ -261,14 +250,9 @@ slog_guard_ok() {
         ;;
       esac
     done <"$slog__root/.gitignore"
-    if ((slog__other)); then
-      return 1
-    fi
-    # Comments and no `*`: an operator's file. A healed guard is a `*` line,
-    # so this refusal does not wait for another pass.
-    if ((slog__comment)); then
-      return 1
-    fi
+    # Another line, or comments and no `*`: an operator's file. A healed guard
+    # is a `*` line, so this refusal does not wait for another pass.
+    ((slog__other || slog__comment)) && return 1
     if [[ -s "$slog__root/.gitignore" ]]; then
       # The read saw no line and the file now has bytes: a sibling finished
       # writing `*` after this read opened it.

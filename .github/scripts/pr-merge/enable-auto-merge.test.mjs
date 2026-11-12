@@ -3304,6 +3304,47 @@ test("a gate reader stopped on a rate limit ends the run: no later pull request 
   assert.match(errors[0], /2100-01-01T00:00:00Z/);
 });
 
+// babysit_gh.py exits 75 on a server error hold too (a 5xx whose only signal
+// was Retry-After), titling its line "GitHub server error": the stop names
+// that line and keeps its cause, as it names a rate limit's.
+test("a reader stopped on a server error hold names its guard's line and cause", () => {
+  const line = "GitHub answered HTTP 503 with a Retry-After; no GitHub call is sent before 2100-01-01T00:00:00Z";
+  const held = new ReaderRateLimited("the lane-room read", `::error title=GitHub server error::${line}\nbabysit-gh-calls {"total": 1}`);
+  assert.equal(held.message, `the lane-room read stopped on a GitHub server error hold: ${line}`);
+  assert.equal(held.serverError, true);
+  const limited = new ReaderRateLimited("the lane-room read", "::error title=GitHub rate limit::every pool is exhausted (x); no GitHub call is sent before 2100-01-01T00:00:00Z");
+  assert.equal(limited.message, "the lane-room read stopped on a GitHub rate limit: every pool is exhausted (x); no GitHub call is sent before 2100-01-01T00:00:00Z");
+  assert.equal(limited.serverError, false);
+});
+
+test("a lane-room reader stopped on a server error hold disarms as on a rate limit, under the server error title", async () => {
+  const dir = tempDir("enable-auto-merge-room-hold-");
+  const stopFile = join(dir, "stop");
+  const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile });
+  const stopped = () => {
+    writeFileSync(stopFile, "* 4102444800\n");
+    return { status: 75, signal: null, stdout: "", stderr: "::error title=GitHub server error::GitHub answered HTTP 503 with a Retry-After; no GitHub call is sent before 2100-01-01T00:00:00Z\n" };
+  };
+  const armed = pull(1, { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } });
+  const { github, writes } = world([armed, pull(2)]);
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(String(line));
+  let code;
+  try {
+    code = await main({ env: ENV, github, verify: world([]).verify, room: pythonRoom({ GITHUB_REPOSITORY: REPO }, stopped), sleep: async () => {}, latch });
+  } finally {
+    console.log = log;
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.equal(code, 1);
+  assert.deepEqual(writes(), [], "every pool is held, GraphQL's disarm included");
+  assert.deepEqual(lines.filter((line) => line.startsWith("::error title=GitHub rate limit::")), []);
+  const errors = lines.filter((line) => line.startsWith("::error title=GitHub server error::enable-auto-merge: "));
+  assert.equal(errors.length, 1, lines.join("\n"));
+  assert.match(errors[0], /stopped on a GitHub server error hold: GitHub answered HTTP 503 with a Retry-After; no GitHub call is sent before 2100-01-01T00:00:00Z/);
+});
+
 // A lane-room reader stopped on a rate limit: its child wrote `pool` to the
 // job's stop file before exiting 75.
 async function roomStoppedOn(pool, pulls) {

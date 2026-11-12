@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.5.21] - 2026-11-12
+
+### Changed
+
+- `draft-auto-mode-rules`: a section missing `"$defaults"` is no longer stated as already discarded. The skill reports the docs' account and the behavior-probes observation that `soft_deny` keeps the defaults, and still adds the token.
+
 ## [3.5.20] - 2026-11-12
 
 ### Changed

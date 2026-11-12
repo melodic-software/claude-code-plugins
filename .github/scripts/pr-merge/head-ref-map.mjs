@@ -48,7 +48,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, readDefaultBranchTip, requireBehindTip } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
+import { escapeCommand, ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const MAP_ARTIFACT = "pr-merge-head-refs";
 export const MAP_FILE = "head-refs.json";
@@ -59,7 +59,6 @@ const SHA = /^[0-9a-f]{40}$/;
 // babysit_verify_evidence.py RECORD_SECTION.
 const RECORD_SECTION = "fail-head-ref";
 
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
 // The map's head refs, by id, or an error for any other shape; the reader
@@ -79,7 +78,7 @@ export function parseMap(text, repo) {
 
 const serialize = (repo, refs) => JSON.stringify({ version: VERSION, repo, head_refs: refs });
 
-function writeAtomic(path, text) {
+export function writeAtomic(path, text) {
   writeFileSync(`${path}.tmp`, text);
   renameSync(`${path}.tmp`, path);
 }

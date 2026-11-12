@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { BORN_TRIAGED_MARKER, checkBornTriaged, humanIds, run } from "./check-born-triaged.mjs";
+import { BORN_TRIAGED_MARKER, checkBornTriaged, humanIds, routingLabels, run } from "./check-born-triaged.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { mirroredStatusOf, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../resolve-config/read-status.mjs";
@@ -218,6 +219,65 @@ test("run triages when the issue cannot be read", async () => {
   assert.deepEqual(result, { skip: "false", reason: "issue-unreadable" });
 });
 
+const once = async (overrides, options = {}) => {
+  let calls = 0;
+  const result = await run({
+    fetchIssue: async () => {
+      calls += 1;
+      return issue(overrides);
+    },
+    list: LIST,
+    lanesAppId: LANES_APP_ID,
+    sleep: noSleep,
+    attempts: 5,
+    ...options,
+  });
+  return { result, calls };
+};
+
+test("run skips a wayfind decision item on its routing label alone, in one read", async () => {
+  const { result, calls } = await once({ body: "Which store?", type: null, labels: ["wayfind: interview", "needs-human"] });
+  assert.deepEqual(result, { skip: "true", reason: "routing-label", label: "wayfind: interview" });
+  assert.equal(calls, 1);
+});
+
+test("run skips a map on the default container label", async () => {
+  const { result } = await once({ body: "## Destination", labels: ["work-map"] });
+  assert.deepEqual(result, { skip: "true", reason: "routing-label", label: "work-map" });
+});
+
+test("run matches the wayfind prefix only at the start of a label", async () => {
+  for (const labels of [["not-wayfind: x"], ["wayfinding"], ["work-map-old"]]) {
+    assert.deepEqual((await once({ body: "x", labels })).result, { skip: "false", reason: "no-marker" }, labels[0]);
+  }
+});
+
+test("run uses the binding's remapped routing labels instead of the defaults", async () => {
+  const routing = { container: "decision-map", prefix: "route: " };
+  assert.deepEqual((await once({ body: "x", labels: ["decision-map"] }, { routing })).result, { skip: "true", reason: "routing-label", label: "decision-map" });
+  assert.deepEqual((await once({ body: "x", labels: ["route: design"] }, { routing })).result, { skip: "true", reason: "routing-label", label: "route: design" });
+  for (const labels of [["work-map"], ["wayfind: task"]]) {
+    assert.deepEqual((await once({ body: "x", labels }, { routing })).result, { skip: "false", reason: "no-marker" }, labels[0]);
+  }
+});
+
+test("run without the born-triaged rule skips only a routing label, in one read", async () => {
+  const bornTriaged = await once({}, { bornTriaged: false });
+  assert.deepEqual(bornTriaged.result, { skip: "false", reason: "born-triaged-off" });
+  assert.equal(bornTriaged.calls, 1);
+  const routed = await once({ labels: ["wayfind: design"] }, { bornTriaged: false });
+  assert.deepEqual(routed.result, { skip: "true", reason: "routing-label", label: "wayfind: design" });
+});
+
+test("routingLabels reads the binding's keys and keeps each default when absent or empty", () => {
+  assert.deepEqual(routingLabels(null), { container: "work-map", prefix: "wayfind:" });
+  assert.deepEqual(routingLabels({ config: { lease_ttl_hours: 24 } }), { container: "work-map", prefix: "wayfind:" });
+  assert.deepEqual(routingLabels({ config: { container_label: "", wayfind_label_prefix: "" } }), { container: "work-map", prefix: "wayfind:" });
+  assert.deepEqual(routingLabels({ config: { container_label: "epic", wayfind_label_prefix: "wf/" } }), { container: "epic", prefix: "wf/" });
+  assert.throws(() => routingLabels({ config: { container_label: ["a"] } }), /container_label is not a string/);
+  assert.throws(() => routingLabels({ config: { wayfind_label_prefix: 3 } }), /wayfind_label_prefix is not a string/);
+});
+
 test("checkBornTriaged does not match an author with no id against a list entry with no id", () => {
   const list = { version: 1, actors: [{ login: "x", kind: "human" }] };
   assert.equal(check({ author: { login: "x" } }, list).reason, "untrusted-author");
@@ -244,7 +304,7 @@ function runCli(env) {
 test("CLI triages a non-numeric issue number and exits 0", () => {
   const { status, outputs } = runCli({ ISSUE_NUMBER: "7; echo", TRUSTED_ACTORS_PATH: "/nonexistent" });
   assert.equal(status, 0);
-  assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", "human-ids": "", "rate-limited": "false" });
+  assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", label: "", "human-ids": "", "rate-limited": "false" });
 });
 
 test("CLI triages an unreadable trusted-actor list and exits 0", () => {
@@ -254,7 +314,7 @@ test("CLI triages an unreadable trusted-actor list and exits 0", () => {
     GITHUB_API_URL: "http://127.0.0.1:9",
   });
   assert.equal(status, 0);
-  assert.deepEqual(outputs, { skip: "false", reason: "list-unreadable", "human-ids": "", "rate-limited": "false" });
+  assert.deepEqual(outputs, { skip: "false", reason: "list-unreadable", label: "", "human-ids": "", "rate-limited": "false" });
 });
 
 test("CLI emits the listed human ids even when the issue is unreadable", () => {
@@ -268,7 +328,7 @@ test("CLI emits the listed human ids even when the issue is unreadable", () => {
       GITHUB_API_URL: "http://127.0.0.1:9",
     });
     assert.equal(status, 0);
-    assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", "human-ids": "153232337", "rate-limited": "false" });
+    assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", label: "", "human-ids": "153232337", "rate-limited": "false" });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -290,10 +350,73 @@ test("CLI reports rate-limited=true and sends nothing while the job's rate guard
       RUNNER_TEMP: dir,
     });
     assert.equal(status, 0);
-    assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", "human-ids": "153232337", "rate-limited": "true" });
+    assert.deepEqual(outputs, { skip: "false", reason: "issue-unreadable", label: "", "human-ids": "153232337", "rate-limited": "true" });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// The CLI against a local API that serves `served` as the issue it reads,
+// with the tracker binding at TRACKER_CONFIG written from `binding`.
+async function runCliServed(served, binding, env = {}) {
+  const dir = tempDir("born-triaged-served-");
+  const server = createServer((request, response) => {
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify(request.url === "/repos/o/r/issues/7" ? served : {}));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const listPath = path.join(dir, "trusted-actors.json");
+    const outputPath = path.join(dir, "output");
+    const bindingPath = path.join(dir, "work-items.yaml");
+    writeFileSync(listPath, JSON.stringify(LIST));
+    writeFileSync(outputPath, "");
+    writeFileSync(bindingPath, binding);
+    const child = spawn(process.execPath, [SCRIPT], {
+      env: {
+        PATH: process.env.PATH,
+        GITHUB_OUTPUT: outputPath,
+        RUNNER_TEMP: dir,
+        GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
+        GITHUB_TOKEN: "t",
+        REPOSITORY: "o/r",
+        ISSUE_NUMBER: "7",
+        TRUSTED_ACTORS_PATH: listPath,
+        LANES_APP_ID: LANES_APP_ID,
+        TRACKER_CONFIG: bindingPath,
+        ...env,
+      },
+    });
+    let stdout = "";
+    child.stdout.on("data", (chunk) => (stdout += chunk));
+    const status = await new Promise((resolve) => child.on("close", resolve));
+    const outputs = Object.fromEntries(
+      [...readFileSync(outputPath, "utf8").matchAll(/^([\w-]+)<<(\S+)\n([^\n]*)\n\2$/gm)].map((m) => [m[1], m[3]]),
+    );
+    return { status, outputs, stdout };
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("CLI skips an issue on the binding's container label and names the label in a notice", async () => {
+  const { status, outputs, stdout } = await runCliServed(issue({ body: "## Destination", labels: ["decision-map"] }), "tracker:\n  config:\n    container_label: decision-map\n");
+  assert.equal(status, 0);
+  assert.deepEqual(outputs, { skip: "true", reason: "routing-label", label: "decision-map", "human-ids": "153232337", "rate-limited": "false" });
+  assert.match(stdout, /^::notice::intake skips #7: it carries 'decision-map'/m);
+});
+
+test("CLI warns and keeps the default labels when the binding's value is malformed", async () => {
+  const { outputs, stdout } = await runCliServed(issue({ body: "x", labels: ["wayfind: task"] }), "tracker:\n  config:\n    container_label: [a, b]\n");
+  assert.equal(outputs.label, "wayfind: task");
+  assert.match(stdout, /^::warning::check-born-triaged: cannot read the routing labels from .*container_label is not a string/m);
+});
+
+test("CLI with BORN_TRIAGED=false triages a born-triaged issue and prints no notice", async () => {
+  const { outputs, stdout } = await runCliServed(issue({}), "tracker:\n  provider: github\n", { BORN_TRIAGED: "false" });
+  assert.deepEqual(outputs, { skip: "false", reason: "born-triaged-off", label: "", "human-ids": "153232337", "rate-limited": "false" });
+  assert.doesNotMatch(stdout, /::notice::/);
 });
 
 test("humanIds lists only the human actors' ids", () => {

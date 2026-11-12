@@ -64,13 +64,13 @@
 //                       (rotation.mjs sharedReads), if set
 //   PR_MERGE_MAIN_TIP   read: main's tip (head-ref-map.mjs onMain), if set
 //   GITHUB_API_URL
-import { appendFileSync, existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { onMain } from "./head-ref-map.mjs";
-import { ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
+import { onMain, writeAtomic } from "./head-ref-map.mjs";
+import { escapeCommand, ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const CARRY_ARTIFACT = "pr-merge-run-cache";
 export const VERIFY_ARTIFACT = "pr-merge-verify-run-cache";
@@ -91,13 +91,7 @@ const SHA = /^[0-9a-f]{40}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const ZONED = /(Z|[+-]\d\d:\d\d)$/;
 
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const warn = (what, error) => console.log(`::warning::${what}: ${escapeCommand(error?.message ?? error)}`);
-
-function writeAtomic(path, text) {
-  writeFileSync(`${path}.tmp`, text);
-  renameSync(`${path}.tmp`, path);
-}
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 

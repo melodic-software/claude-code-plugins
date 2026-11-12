@@ -820,3 +820,5 @@ lib/worktree-root-legacy.sh plugins/source-control/scripts/worktree-root-legacy.
 lib/hook-test-sink.sh plugins/autonomy/hooks/hook-test-sink.sh
 lib/hook-test-sink.sh plugins/context-usage/hooks/hook-test-sink.sh
 lib/hook-test-sink.sh plugins/desktop-notification/hooks/hook-test-sink.sh
+lib/plugin_cache_versions.py plugins/harness-ops/lib/plugin_cache_versions.py
+lib/plugin_cache_versions.py plugins/disk-hygiene/lib/plugin_cache_versions.py

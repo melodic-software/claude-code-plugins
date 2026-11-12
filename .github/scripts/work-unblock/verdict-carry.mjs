@@ -54,7 +54,7 @@ import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
+import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
 
 export const CARRY_ARTIFACT = "work-unblock-verdicts";
 export const CARRY_FILE = "work-unblock-verdicts.json";
@@ -75,14 +75,14 @@ const RUN_KEY = /^[1-9][0-9]{0,14}\|[1-9][0-9]{0,3}$/;
 const REFUSAL_KEY = /^[1-9][0-9]{0,14}\|(?:check|token|stop|limit)$/;
 const ISSUE_KEY = /^[1-9][0-9]{0,9}$/;
 // A refusal reason as label-unblocked.mjs reads it (DENIAL, BREAKER), or the
-// reset a rate-limit stop names (RATE_LIMITED), or null.
-const REASON = /^(?:[a-z]+(?:-[a-z]+)*|\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)$/;
+// reset a rate-limit stop names (RATE_LIMITED), with ` server-<5xx>` after it
+// for a server error hold, or null.
+const REASON = /^(?:[a-z]+(?:-[a-z]+)*|\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ(?: server-5\d\d)?)$/;
 const ZONED = /(Z|[+-]\d\d:\d\d)$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const DAY_MS = 86_400_000;
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const warn = (what, error) => console.log(`::warning title=verdict-carry::${what}: ${escapeCommand(error?.message ?? error)}`);
 
 const fresh = (entry, now) => {
