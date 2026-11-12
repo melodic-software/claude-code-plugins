@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/code-metrics/scripts/yaml_subset.py
 # Regression tests for the audit-duplication entry point
 # (audit-duplication.sh): the sanctioned-replication exclusion, the tunables it
 # exports for the collector adapters, option parsing, and exit codes.

@@ -3,6 +3,16 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.0] - 2026-11-12
+
+### Changed
+
+- The prerequisite-resolution reference and the backlog-readiness, duplicate-detection, issue-triage and pr-queue-tending routines name only the YAML binding.
+
+### Removed
+
+- The prerequisite resolver (`skills/setup/scripts/resolve-prerequisites.mjs`) no longer reads a repo-root `.work-item-tracker.json`. The tracker need is present only when `docs/conventions/work-items.yaml` sets a `tracker` mapping; otherwise it is absent, and routines that need the tracker resolve `unsupported`. The absent detail names `/work-items:setup apply` as the fix, and names the JSON file when one is present.
+
 ## [4.1.24] - 2026-11-11
 
 ### Changed

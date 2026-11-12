@@ -1,3 +1,4 @@
+# test-scope: .github/workflows/*.yml
 # test-scope: plugins/source-control/lib/parse-concern-value.sh
 """The post-merge check and its remediation (`babysit_postmerge`).
 
@@ -5071,8 +5072,8 @@ class RoleLabelRead(unittest.TestCase):
             return pm._role_label("o", "r", **kw)
 
     def test_a_mapped_label(self) -> None:
-        legacy = {"config": {"role_labels": {"human-gated": " human-review "}}}
-        files = {pm.tracker_binding.LEGACY_PATH: json.dumps(legacy)}
+        yaml = "tracker:\n  config:\n    role_labels:\n      human-gated: ' human-review '\n"
+        files = {pm.tracker_binding.YAML_PATH: yaml}
         self.assertEqual(self._read_files(files, strict=True), "human-review")
 
     def test_a_label_the_yaml_binding_maps(self) -> None:

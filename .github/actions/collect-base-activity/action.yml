@@ -636,12 +636,14 @@ runs:
               # finishing and being refused at the push. Wrapper subprocesses
               # are not covered (https://code.claude.com/docs/en/permissions#read-and-edit),
               # so apply-issue-patch still refuses every path itself.
+              # claude-protected adds no rule: Claude Code denies those paths
+              # itself under dontAsk, so the preamble names them instead.
               protected=$(node "$BASE_PATH/.github/scripts/apply-patch/deny-rules.mjs" "$BASE_PATH" issue) ||
                 fail "cannot build the issue row's protected-path rules"
               mapfile -t protected <<<"$protected"
               denied+=("${protected[@]}")
               patterns=$(printf '%s\n' "${protected[@]}" | sed 's/^Edit(\(.*\))$/\1/' | paste -sd ',' - | sed 's/,/, /g')
-              preamble="$preamble The lane cannot push a change to a path these patterns match, from the checkout root, and the file tools are denied them: $patterns. When the issue's change needs such a path, which you may see before your first edit or learn from a denied write, stop at once without working around it: write work-outcome.json with exit stopped and a reason that starts with patch-protected-path: and names the path."
+              preamble="$preamble The lane cannot push a change to a path these patterns match, from the checkout root, and the file tools are denied them: $patterns. Nor can it push a change to a path Claude Code protects in this permission mode (https://code.claude.com/docs/en/permission-modes#protected-paths), such as a file under any .claude/ directory outside its worktrees/. When the issue's change needs such a path, which you may see before your first edit or learn from a denied write, stop at once without working around it: write work-outcome.json with exit stopped and a reason that starts with patch-protected-path: and names the path."
             fi
             # The check and verify-script copies go to .lane/checks and
             # .lane/verify, which the runner makes read-only, and are denied

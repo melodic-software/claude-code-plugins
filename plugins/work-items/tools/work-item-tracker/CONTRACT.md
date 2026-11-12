@@ -119,8 +119,8 @@ copy of `resolve-convention-home.sh`; `docs/conventions` when the repository bin
 and location follow
 [ADR 0075](../../../../docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)
 fix 11, which supersedes ADR 0015: one team layer in the home, one gitignored personal override
-beside it, deliberately no user-global layer. The `tracker` mapping has the same keys as the
-legacy JSON file, so every adapter reads the same effective JSON.
+beside it, deliberately no user-global layer. The seam turns the `tracker` mapping into one
+JSON object, so every adapter reads the same effective JSON.
 
 ```yaml
 tracker:
@@ -134,33 +134,22 @@ tracker:
 The seam reads the file with the plugin's copy of `yaml-subset.awk`, the repository's YAML
 subset parser. Every scalar reads as a string (the parser drops quotes, so a quoted id stays
 the id), and every reader takes a number or boolean as text. An empty flow sequence (`[]`)
-reads as an empty array, as the legacy JSON file writes it, so `done_category_keys: []` is
+reads as an empty array, as JSON writes it, so `done_category_keys: []` is
 present and judged like the JSON value (jira rejects an empty set) instead of taking the
 default, and `wont_do: []` keeps its key. One difference remains: a key with no value reads
 as absent, as though left out, never as a JSON `null`. A key under `tracker` that the
 schema does not declare, a document the parser rejects (named by file and line), or a rejected
 value (named by file, key and value; the personal override when it set the value) is exit `3`.
 
-- **Legacy fallback (migration).** While the migration runs, when `<home>/work-items.yaml` has
-  no `tracker` key (or the repository declined a home), the seam still reads the legacy
-  repo-root JSON binding (`WIT_LEGACY_BINDING` in `lib/binding.sh`) and prints a one-line
-  `notice:` on stderr naming it, which asks for it to move under `tracker:`. A repo
-  root where no home applies (it is `$HOME`, an ancestor of `$HOME`, or not inside a git work
-  tree: ADR 0075 fix 5) reads no `work-items.yaml` at all, not even under
-  `docs/conventions`; only the legacy JSON file binds it. The JSON file has the same keys as
-  the `tracker` mapping:
-
-  ```json
-  {
-    "schema_version": "1.0",
-    "provider": "github",
-    "config": { "lease_ttl_hours": 24 }
-  }
-  ```
-
-  A `work-items.yaml` that does not parse is still read as the binding and fails, never a
-  silent fall back to the JSON file. A broken pointer region is reported on stderr and the
-  seam falls back as if no home applied.
+- **No binding.** When `<home>/work-items.yaml` sets no `tracker` key, the repository
+  declined a home, or no home applies (the root is `$HOME`, an ancestor of `$HOME`, or not
+  inside a git work tree: ADR 0075 fix 5), nothing binds and every verb exits `3`. The message
+  (`wit_no_binding_reason` in `lib/binding.sh`) names `/work-items:setup apply` as the fix.
+  A repo-root `.work-item-tracker.json`, the retired binding file, no longer binds; when one
+  is present the message names it, and `apply` copies it under `tracker:`. A
+  `work-items.yaml` that does not parse is still read as the binding and fails. A broken
+  pointer region is reported on stderr, the seam then finds no binding, and the message names
+  `/work-items:setup check` instead; missing shared resolver copies name a plugin reinstall.
 - Discovery: the binding resolves from the **repo root**, meaning `${CLAUDE_PROJECT_DIR}` when
   set, else `git rev-parse --show-toplevel`. Whichever of the two resolves, that one value
   governs ALL of the seam's repo-relative resolution (binding read, consumer-local adapter
@@ -177,8 +166,9 @@ value (named by file, key and value; the personal override when it set the value
   per-subdirectory bindings are unsupported until requested. Env override
   `WORK_ITEM_TRACKER_BINDING=<path>` (tests, conformance).
 - **Personal override**: an optional gitignored file beside the team binding,
-  `<home>/work-items.local.yaml` (its `tracker` mapping) beside a YAML binding or
-  the legacy JSON override beside the legacy file (`wit_override_path` in `lib/binding.sh`),
+  `<home>/work-items.local.yaml` (its `tracker` mapping) beside a YAML binding, or
+  `.work-item-tracker.local.json` beside a JSON file the env override names
+  (`wit_override_path` in `lib/binding.sh`),
   merges **per-key over an allowlist, deny-by-default**. A personal override with no `tracker` key changes nothing. Overridable keys:
   `config.lease_ttl_hours`, `config.lease_ttl_minutes` (TTL travels inside each lease
   record, so a per-user value is coherent), the auth-identity keys of every credentialed

@@ -107,7 +107,7 @@ Keep plugins horizontally decoupled:
   the fallback runs, the skill says once which plugin it would use and what that plugin would add,
   so the user can install or enable it. The first versioned dependency brings a release-tag step with it.
   - **Pointer**: when a plugin here gains its first versioned dependency, read
-    [release a plugin that others depend on](https://code.claude.com/docs/en/plugins/dependencies#release-a-plugin-that-others-depend-on)
+    [release a plugin that others depend on](https://code.claude.com/docs/en/plugins/dependencies#tag-plugin-releases-for-version-resolution)
     for who tags which repository, and
     [create a release tag](https://code.claude.com/docs/en/plugins/dependencies#create-a-release-tag)
     for the tag name and the command that makes it, live.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: docs/upstream/*.md
 # Contract suite for the scripts/check-*.sh family: the part a CALLER must know
 # is the same for every member, and this is what holds it.
 #

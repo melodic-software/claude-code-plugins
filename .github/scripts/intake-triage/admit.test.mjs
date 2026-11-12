@@ -4099,6 +4099,65 @@ describe("bodyUnpushablePaths", () => {
     });
   });
 
+  // #15440's brief: its lane run stopped with patch-protected-path, since
+  // Claude Code denies every .claude/ write under the lane's dontAsk mode.
+  const BODY_15440 = [
+    "## Agent Brief",
+    "",
+    "**Type:** Task",
+    "**Summary:** Replace the repository's hand-kept copy of the telemetry sink with a shim over the harness-ops sink.",
+    "",
+    "**Desired behavior:**",
+    "`.claude/hooks/hook-telemetry-sink.sh` becomes a short shim that `source`s the plugin sink, so no extra process starts and one copy remains.",
+    "",
+    "**Files:**",
+    "- `.claude/hooks/hook-telemetry-sink.sh`",
+    "- `.claude/hooks/hook-telemetry-sink.test.sh`",
+    "",
+    "**Acceptance criteria:**",
+    "- [ ] The sink's logic exists once, in `plugins/harness-ops/hooks/hook-telemetry-sink.sh`, and the repository hook reaches it by `source`.",
+    "- [ ] The diff edits only the listed files.",
+  ].join("\n");
+
+  test("#15440's shape, naming .claude/ hooks, parks as a workflow path does", () => {
+    assert.ok(names.includes("claude-protected"));
+    assert.deepEqual(paths(BODY_15440), [".claude/hooks/hook-telemetry-sink.sh", ".claude/hooks/hook-telemetry-sink.test.sh"]);
+    assert.deepEqual(decide(facts({ issue: issueOf({ body: BODY_15440 }) })), {
+      verdict: "refuse",
+      reasons: ["its body or a criterion names .claude/hooks/hook-telemetry-sink.sh, .claude/hooks/hook-telemetry-sink.test.sh, which the issue lane cannot push (patch-protected-path); a builder session takes it"],
+      hostRun: true,
+    });
+  });
+
+  test("a bare protected directory counts, with or without its trailing slash; an unrelated directory does not", () => {
+    assert.deepEqual(paths("## Fix\n\nAdd a new configuration file under `.vscode/`."), [".vscode/"]);
+    assert.deepEqual(paths("## Fix\n\nAdd a new config under `.claude/` and an ignore file under .config/git/."), [".claude/", ".config/git/"]);
+    assert.deepEqual(paths("## Fix\n\nAdd a launch profile to `.vscode`."), [".vscode"]);
+    assert.deepEqual(paths("## Fix\n\nAdd a note under `.claude/agent-memory/`, a file under `.config/` and one under docs/vscode/."), []);
+    assert.equal(decide(facts({ issue: issueOf({ body: "## Fix\n\nAdd a new configuration file under `.vscode/`.\n\n## Done when\n\n- [ ] The file exists." }) })).verdict, "refuse");
+  });
+
+  test("a bare dot-led protected name counts only in backticks or with a path, so a home directory file in prose does not", () => {
+    assert.deepEqual(paths("## Fix\n\nTell the user to add the alias to your .bashrc, .zshrc, .profile, .gitconfig, .npmrc or .envrc."), []);
+    assert.deepEqual(paths("## Fix\n\nWrite the token to `.npmrc` and plugins/x/.envrc."), [".npmrc", "plugins/x/.envrc"]);
+    assert.deepEqual(paths("## Fix\n\nSource ~/.bashrc first."), []);
+  });
+
+  test("a home, absolute or URL path never counts, quoted or not, nor a backticked command", () => {
+    assert.deepEqual(paths("## Fix\n\nThe hook reads `~/.claude/settings.json` and ~/.claude/settings.json."), []);
+    assert.deepEqual(paths("## Fix\n\nThe runner writes `/srv/u/.vscode/x` and /srv/u/.vscode/x."), []);
+    assert.deepEqual(paths("## Fix\n\nClone `https://github.com/o/r/.git/config` or https://github.com/o/r.git/.git/HEAD."), []);
+    assert.deepEqual(paths("## Fix\n\nRun `source ~/.bashrc` and read `/etc/x/.gitconfig`."), []);
+    assert.deepEqual(paths("## Fix\n\nRun `cp x .claude/rules/a.md` once."), [".claude/rules/a.md"]);
+    assert.equal(decide(facts({ issue: issueOf({ body: "## Fix\n\nThe hook reads `~/.claude/settings.json`.\n\n## Done when\n\n- [ ] The hook logs its path." }) })).verdict, "admit");
+  });
+
+  test("a bare protected file name that is not dot-led counts, quoted or not; a .claude/worktrees/ path and a .claude-plugin/ path do not", () => {
+    assert.deepEqual(paths("## Fix\n\nAdd a pre-push job to lefthook.yml and register the server in `.mcp.json`."), [".mcp.json", "lefthook.yml"]);
+    assert.deepEqual(paths("## Fix\n\nEdit plugins/x/.claude-plugin/plugin.json and .claude/worktrees/x/README.md."), []);
+    assert.deepEqual(decide(facts({ issue: issueOf({ body: "## Fix\n\nEdit plugins/x/.claude-plugin/plugin.json.\n\n## Done when\n\n- [ ] The version is 1.2.0." }) })), { verdict: "admit", reasons: [] });
+  });
+
   // A section that says what the work changes counts a path cited at a line;
   // one that holds what was observed counts no path at all.
   const SHAPE_13233 = (section) =>
