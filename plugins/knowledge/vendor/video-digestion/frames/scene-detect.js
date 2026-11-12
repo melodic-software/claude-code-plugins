@@ -21,7 +21,9 @@ import { normalizeSpawnPath, resolveSpawnInputPath, spawnAsync } from "../shared
 
 const FFMPEG_ERROR_PATTERN = /error|403|401|invalid|denied/i;
 const REMOTE_VIDEO_INPUT = /^https?:\/\//i;
-const SHOWINFO_FRAME_LINE = /Parsed_showinfo.*\bn:\s*\d+.*\bpts_time:\s*(\S+)/;
+const SHOWINFO_MARK = "Parsed_showinfo";
+const SHOWINFO_FRAME_NUMBER = /\bn:\s*\d+/g;
+const SHOWINFO_PTS_TIME = /\bpts_time:\s*(\S+)/g;
 
 export const DEFAULT_SCENE_THRESHOLD = 0.15;
 export const DEFAULT_INTERVAL_FPS = "1/30";
@@ -61,6 +63,26 @@ export function countFrameFiles(dir, prefix) {
 }
 
 /**
+ * The last `pts_time` value on a `showinfo` frame line, after its first
+ * `Parsed_showinfo` and a frame number `n:`; `undefined` on any other line.
+ * Each search starts where the one before stopped, so a line is scanned in
+ * linear time.
+ *
+ * @param {string} line
+ * @returns {string|undefined}
+ */
+function showinfoPtsTime(line) {
+  const start = line.indexOf(SHOWINFO_MARK);
+  if (start === -1) return undefined;
+  SHOWINFO_FRAME_NUMBER.lastIndex = start + SHOWINFO_MARK.length;
+  if (!SHOWINFO_FRAME_NUMBER.exec(line)) return undefined;
+  SHOWINFO_PTS_TIME.lastIndex = SHOWINFO_FRAME_NUMBER.lastIndex;
+  let last;
+  for (let m; (m = SHOWINFO_PTS_TIME.exec(line)); ) last = m[1];
+  return last;
+}
+
+/**
  * Presentation times from ffmpeg `showinfo` stderr, one entry per output frame
  * in order; `null` where ffmpeg printed no usable time (for example `NOPTS`).
  *
@@ -70,10 +92,10 @@ export function countFrameFiles(dir, prefix) {
 export function parseShowinfoPtsTimes(stderr) {
   /** @type {(number|null)[]} */
   const times = [];
-  for (const line of (stderr || "").split("\n")) {
-    const match = line.match(SHOWINFO_FRAME_LINE);
-    if (!match) continue;
-    const value = Number(match[1]);
+  for (const line of (stderr || "").split(/[\r\n]/)) {
+    const ptsTime = showinfoPtsTime(line);
+    if (ptsTime === undefined) continue;
+    const value = Number(ptsTime);
     times.push(Number.isFinite(value) ? value : null);
   }
   return times;
