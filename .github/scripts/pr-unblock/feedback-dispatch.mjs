@@ -1268,7 +1268,7 @@ const RECOVERABLE = new Set([...LOST, "failure"]);
 // lose it). A POST the API rejects starts no round to hold the PR, and the
 // tick logs it and ends green (sweepPulls), so this age is the only bound.
 export const FAILED_RUN_WINDOW_HOURS = 2;
-const dispatchLost = (job) => DISPATCH_JOB.has(job?.name) &&RECOVERABLE.has(job.conclusion) && jobStarted(job);
+const dispatchLost = (job) => DISPATCH_JOB.has(job?.name) && RECOVERABLE.has(job.conclusion) && jobStarted(job);
 
 // The newest run of DISPATCH_WORKFLOW other than this one, created within
 // LOOKBACK_HOURS (FAILED_RUN_WINDOW_HOURS for a failed one), that ended in

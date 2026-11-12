@@ -101,6 +101,13 @@ test("a pending scheduled run whose merge job waits supersedes a scheduled run, 
   assert.match(run.stdout, /^::notice::.*run 600 \(schedule\)/m);
 });
 
+test("a pending run queued before the rename, its jobs listed by id, still supersedes", async () => {
+  for (const job of ["merge", "enable-auto-merge"]) {
+    const run = await check({ job, runs: [pending(600, "schedule", QUEUE_BOT)], jobs: { 600: [{ name: job, status: "pending" }] } });
+    assert.equal(run.superseded, true, job);
+  }
+});
+
 test("no other pending run: the gate runs", async () => {
   const run = await check({ runs: [] });
   assert.equal(run.superseded, false);
