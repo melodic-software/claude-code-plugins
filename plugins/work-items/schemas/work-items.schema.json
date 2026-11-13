@@ -107,8 +107,8 @@
     },
     "verification": {
       "enum": ["off", "light", "standard", "strict"],
-      "default": "standard",
-      "description": "How much independent checking this plugin's skills run: off, light (skip the verifier dispatch), standard (today's behavior) or strict (run the passes that are optional today). /work-items:work's bug path reads it for the step 2 capture check. Read from the default branch's committed copy only, so a branch cannot lower it. Repository layer only; no userConfig option. Levels: docs/contracts/verification-level/README.md."
+      "default": "light",
+      "description": "How much independent checking this plugin's skills run: off, light (the default: skip the verifier dispatch), standard (run it) or strict (also run the optional passes). /work-items:work's bug path reads it for the step 2 capture check. Read from the default branch's committed copy only, so a branch cannot lower it. Repository layer only; no userConfig option. Levels: docs/contracts/verification-level/README.md."
     },
     "verification_skills": {
       "type": "object",

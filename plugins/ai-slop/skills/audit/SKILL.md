@@ -308,7 +308,7 @@ Per file, worst-first:
    meant, and a collapsed triad must still entail its deleted items. Revert every flagged
    hunk before moving on. The verification level governs this dispatch: resolve it once before
    the first file with `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin ai-slop --skill audit`
-   and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). This skill's `allowed-tools` does not grant the reader, so the call may prompt; a refused or denied call resolves `standard`.
+   and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). This skill's `allowed-tools` does not grant the reader, so the call may prompt; a refused or denied call resolves `light`.
    Under `light`, and `off`, which acts as `light` here, dispatch no semantic-diff subagent and
    never self-check the rewrite in its place: each file's report line carries
    `verification: skipped (<level>)`. The closing detector re-run still runs at every level.

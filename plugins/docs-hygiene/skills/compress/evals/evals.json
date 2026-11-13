@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "default-compress-preserves-content",
-      "prompt": "Compress this doc: read evals/fixtures/verbose-onboarding-snippet.md relative to the skill directory and tighten it. Drop the flavor but keep everything load-bearing.",
+      "prompt": "Compress this doc: read evals/fixtures/verbose-onboarding-snippet.md relative to the skill directory and tighten it. Drop the flavor but keep everything load-bearing. [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "Runs the default action: snapshot, mechanical compression backend (caveman or in-session Edit), a separate semantic-diff pass, revert of any semantic loss, then markdownlint. Filler ('basically', 'really', 'just', 'honestly', 'perhaps') is cut; the zero-warnings directive, the `MAX_UPLOAD_MB=25` value, and the 25 MB rejection threshold are preserved verbatim.",
       "files": [
         "evals/fixtures/verbose-onboarding-snippet.md"
@@ -40,7 +40,7 @@
     {
       "id": 3,
       "name": "semantic-diff-is-separate-not-self-audit-narration",
-      "prompt": "Narration eval: describe how /docs-hygiene:compress verifies a compression of a long wordy markdown file (do not require a real path to exist).",
+      "prompt": "Narration eval: describe how /docs-hygiene:compress verifies a compression of a long wordy markdown file (do not require a real path to exist). [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "After producing the condensed edits, a SEPARATE fresh-context semantic-diff pass compares original vs condensed and reverts every SEMANTIC LOSS and AMBIGUITY finding. The model that produced the edits does not grade its own output, and the verifier does not re-add words to 'preserve clarity'.",
       "files": [],
       "expectations": [
@@ -89,7 +89,7 @@
     {
       "id": 7,
       "name": "repo-wide-interview-fallback",
-      "prompt": "/compress",
+      "prompt": "/compress [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "Invoked with no target on a clean tree in an interactive session, the skill does not dead-end at the no-op: it offers a repo-wide run via AskUserQuestion. Declining the offer or the final confirmation exits with the friendly no-op message ('No uncommitted .md files. Pass file/dir target.'). On accept it runs the free mechanical audit first and presents INLINE only aggregate counts, a dispatch-cost estimate, and the top-20 highest-yield COMPRESS rows (full per-file table written to a file), then takes the prescribed defaults without asking (top-10 COMPRESS-classified highest-yield-first; 2 concurrent subagents; always-loaded files excluded) and reports them in one line with how to override each. No file is compressed before the final confirmation.",
       "files": [],
       "expectations": [
@@ -162,7 +162,7 @@
       "id": 12,
       "name": "articles-userconfig-cut-keeps-caveman",
       "narration": true,
-      "prompt": "/docs-hygiene:compress docs/onboarding.md [The caveman plugin is installed. No docs/conventions/docs-hygiene.yaml. The docs-hygiene userConfig option compress_articles is set to cut, so SKILL.md's userConfig line substitutes to cut.]",
+      "prompt": "/docs-hygiene:compress docs/onboarding.md [The caveman plugin is installed. No docs/conventions/docs-hygiene.yaml. The docs-hygiene userConfig option compress_articles is set to cut, so SKILL.md's userConfig line substitutes to cut.] [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "The per-user level sets cut, so the run keeps the earlier behavior: Step A detects caveman, Step B runs /caveman:caveman-compress on a temp copy, and articles may be removed. The semantic-diff pass, revert pass and markdownlint still run. The summary's last line reads compress_articles: cut (userConfig).",
       "files": [],
       "expectations": [
