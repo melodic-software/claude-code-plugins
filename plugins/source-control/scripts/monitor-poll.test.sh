@@ -27,6 +27,13 @@ export TMPDIR="$TEST_TMPDIR"
 BIN="$TEST_TMPDIR/bin"
 mkdir -p "$BIN"
 
+# <checkout>: a checkout whose one GitHub remote is owner/repo, the only
+# source of the repository the poll reads.
+CHECKOUT="$TEST_TMPDIR/checkout"
+git init -q "$CHECKOUT"
+git -C "$CHECKOUT" remote add origin https://github.com/owner/repo.git
+unset GH_REPO
+
 # The poll script: first fenced bash block after the "Poll checks over REST"
 # heading, with its placeholders filled and the sleep removed.
 POLL="$TEST_TMPDIR/poll.sh"
@@ -37,7 +44,9 @@ awk '
   in_blk { print }
 ' "$DOC" |
   sed -e 's/<N>/7/' -e 's/^INTERVAL=60.*/INTERVAL=0/' \
-    -e "s#<scripts-dir>#$BIN#" >"$POLL"
+    -e "s#<scripts-dir>#$BIN#" \
+    -e "s#<skill-dir>#$SCRIPT_DIR/../skills/pull-request#" \
+    -e "s#<checkout>#$CHECKOUT#" >"$POLL"
 [[ -s "$POLL" ]] || { fail "extracted the poll script" "non-empty" "empty"; exit 1; }
 
 cat >"$BIN/gh" <<'STUB'
@@ -47,8 +56,7 @@ cat >"$BIN/gh" <<'STUB'
 set -u
 args="$*"
 case "$args" in
-  "repo view --json owner"*) echo owner ;;
-  "repo view --json name"*) echo repo ;;
+  "repo set-default --view"*) echo "No default remote repository has been set." >&2 ;;
   *"/pulls/7 "*|*"/pulls/7")
     n=$(($(cat "$FX/poll" 2>/dev/null || echo 0) + 1))
     echo "$n" >"$FX/poll"
@@ -91,7 +99,7 @@ runs_json() {
 POLL_TMP="$TEST_TMPDIR/poll-tmp"
 mkdir -p "$POLL_TMP"
 run_poll() {
-  FX="$1" TMPDIR="$POLL_TMP" PATH="$BIN:$PATH" timeout 60 bash "$POLL" 2>/dev/null
+  (cd "$TEST_TMPDIR" && FX="$1" TMPDIR="$POLL_TMP" PATH="$BIN:$PATH" timeout 60 bash "$POLL" 2>/dev/null)
 }
 
 # --- failed FIRST read: the second poll is the baseline, the third emits once.

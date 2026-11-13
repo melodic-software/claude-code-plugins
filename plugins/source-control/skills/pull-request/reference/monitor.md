@@ -122,7 +122,7 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
 
 **Every monitor invocation ensures a live event watch exists, and every watch is re-armed at its deadline.** Runs right after 3.0.0, before terminal state checks, CI polling, and comment processing.
 
-1. Resolve PR identity into `PR_NUMBER`, `OWNER` and `REPO` ([GitHub](../../../reference/providers/github/pull-request/monitor.md#resolve-pr-identity))
+1. Resolve PR identity into `PR_NUMBER`, `OWNER` and `REPO` from `<checkout>`, the checkout of the PR's repository the session works on ([ready-for-review.md](ready-for-review.md) 2.5.3), never from the shell's directory ([GitHub](../../../reference/providers/github/pull-request/monitor.md#resolve-pr-identity))
 2. Check whether this session already holds a live watch for this PR: a task id from its own step-4 arming call for `PR #$PR_NUMBER CI + comments`, with no exit line, deadline notice, stop, or `--resume` since. Do not look the watch up with `TaskList`: it is not offered in every session (record below), and a watch armed before a `--resume` is gone though the transcript still shows its id.
 3. **If this session holds a live watch for the PR** → skip (watch already active). Proceed to 3.0.5
 4. **Otherwise** → arm the watch:
@@ -162,8 +162,9 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
    The poll script, passed inline in the `command` parameter, is the REST poll in the provider
    reference ([GitHub](../../../reference/providers/github/pull-request/monitor.md#poll-checks-over-rest)).
    Set `PR_NUMBER=<N>` at its top, and `INTERVAL` above its default 60 when other watchers run,
-   per the [API budget](../../../reference/providers/github/README.md#api-budget); it resolves
-   `OWNER` and `REPO` itself. Its contract:
+   per the [API budget](../../../reference/providers/github/README.md#api-budget), and put
+   `<skill-dir>`, `<scripts-dir>` and `<checkout>` in place; it resolves `OWNER` and `REPO` itself
+   from `<checkout>` and exits 1 when that read refuses. Its contract:
 
    - Polls every `INTERVAL` seconds and exits 0 with `PR #<N> <state> — watch complete` once the PR is
      merged or closed.
@@ -315,7 +316,7 @@ per job with its name, status, labels and creation time
 
 A `queued` job has no runner yet, and its `labels` are its `runs-on` set. Report it as queued, with
 its labels and its age since `created_at` (`test: queued on self-hosted,linux for 41m`), never as a
-slow job. When the token can list runners (`GET /repos/{owner}/{repo}/actions/runners`, or
+slow job. When the token can list runners (`GET /repos/<owner>/<repo>/actions/runners`, or
 `GET /orgs/{org}/actions/runners` for an org pool; both need admin access), add the pool's
 occupancy for that label set. Count the runners whose `labels[].name` include every job label: the
 ones with `busy` true over the ones with `status` `online` (`9/9 busy`). A non-admin token gets a

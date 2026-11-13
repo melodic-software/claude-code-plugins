@@ -20,16 +20,27 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
 
+# The watch runs from a directory outside every checkout; <checkout> names a checkout whose one
+# GitHub remote is acme/app, so the repository can come only from <checkout>.
+CHECKOUT="$TEST_TMPDIR/checkout" OUTSIDE="$TEST_TMPDIR/outside"
+git init -q "$CHECKOUT"
+git -C "$CHECKOUT" remote add origin https://github.com/acme/app.git
+mkdir -p "$OUTSIDE"
+export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
+unset GH_REPO
+
 # The first fenced block under the heading, with the placeholders filled in: no sleep between
-# polls, the baseline file taken from the environment, the threads script stubbed.
+# polls, the baseline file and <checkout> taken from the environment, the threads script stubbed.
 POLL="$TEST_TMPDIR/poll.sh"
-# shellcheck disable=SC2016 # the ${TEST_BASELINE:-} and ${TEST_SNAPSHOT:-} expansions is meant for the generated script, not this one
+# shellcheck disable=SC2016 # the ${TEST_BASELINE:-}, ${TEST_SNAPSHOT:-} and ${TEST_CHECKOUT} expansions are meant for the generated script, not this one
 awk '/^## Poll checks over REST/ { on = 1 } on && /^```bash/ { f = 1; next } f && /^```/ { exit } f' "$REF" |
   sed -e 's/^PR_NUMBER=<N>/PR_NUMBER=5/' \
     -e 's/^INTERVAL=60.*/INTERVAL=0/' \
     -e 's/^BASELINE_FILE=  #.*/BASELINE_FILE="${TEST_BASELINE:-}"/' \
     -e 's/^SNAPSHOT_FILE=  #.*/SNAPSHOT_FILE="${TEST_SNAPSHOT:-}"/' \
-    -e "s#<scripts-dir>#$STUB_DIR#" >"$POLL"
+    -e "s#<scripts-dir>#$STUB_DIR#" \
+    -e "s#<skill-dir>#$SCRIPT_DIR/..#" \
+    -e 's#<checkout>#${TEST_CHECKOUT}#' >"$POLL"
 [[ -s "$POLL" ]] || {
   echo "FAIL: no poll script found in $REF" >&2
   exit 1
@@ -39,14 +50,15 @@ printf '#!/usr/bin/env bash\necho "THREADS_OK unresolved=0"\n' >"$STUB_DIR/sourc
 
 # The PR is open for the first read and merged for the second, so the watch runs one poll and
 # exits. The check a is finished, c is still running, and b is finished unless STUB_B names its
-# status. STUB_FAIL_CHECKS makes the check-runs read fail.
+# status. STUB_FAIL_CHECKS makes the check-runs read fail. No gh default repository is recorded,
+# and a REST read of any repository other than acme/app fails.
 cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
-if [[ "$1 $2" == "repo view" ]]; then
-  [[ "$*" == *owner* ]] && echo acme || echo app
+if [[ "$1 $2" == "repo set-default" ]]; then
+  echo "No default remote repository has been set." >&2
   exit 0
 fi
-[[ "$1" == api ]] || exit 1
+[[ "$1" == api && " $* " == *" repos/acme/app/"* ]] || exit 1
 case "$*" in
 */check-runs*)
   [[ -n "${STUB_FAIL_CHECKS:-}" ]] && exit 1
@@ -70,8 +82,14 @@ chmod +x "$STUB_DIR/gh"
 
 run_poll() {
   rm -f "$TEST_TMPDIR/count"
-  PATH="$STUB_DIR:$PATH" GH_STUB_COUNT="$TEST_TMPDIR/count" timeout 30 bash "$POLL" 2>&1
+  (cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" GH_STUB_COUNT="$TEST_TMPDIR/count" TEST_CHECKOUT="${TEST_CHECKOUT:-$CHECKOUT}" \
+    timeout 30 bash "$POLL" 2>&1)
 }
+
+out=$(TEST_CHECKOUT="$OUTSIDE" run_poll)
+assert_exit "<checkout> names no repository: the watch exits 1" 1 "$?"
+[[ -e "$TEST_TMPDIR/count" ]] && read_pr=yes || read_pr=no
+assert_eq "<checkout> names no repository: no PR read is made" "no" "$read_pr"
 
 out=$(TEST_BASELINE="" run_poll)
 assert_exit "no baseline: the watch runs to the merge and exits 0" 0 "$?"

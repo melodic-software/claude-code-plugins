@@ -4,16 +4,22 @@ The GitHub commands behind the pull-request skill's
 [merge phase](../../../../skills/pull-request/reference/merge.md). The phase owns every condition,
 hold and ordering; this file holds the commands and the GitHub and `gh` facts behind them.
 
+`<owner>/<repo>` is the repository
+`bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>"` prints, `<checkout>` being the
+checkout of the PR's repository the session works on, as
+[ready-for-review 2.5.3](../../../../skills/pull-request/reference/ready-for-review.md#253-review-and-verify-the-updated-head)
+defines it. Every command below names it, so none depends on the shell's directory.
+
 ## Re-check checks and comments before merge
 
 ```bash
 # 1. Re-check all check runs for any state changes
-gh pr checks <pr_number> --json name,state,bucket
+gh pr checks <pr_number> -R <owner>/<repo> --json name,state,bucket
 
 # 2. Re-check for new comments since monitoring completed (all 3 sources, paginated)
-gh api --paginate "repos/{owner}/{repo}/pulls/<pr_number>/reviews?per_page=100" | jq -r '.[].user.login'
-gh api --paginate "repos/{owner}/{repo}/pulls/<pr_number>/comments?per_page=100" | jq -r '.[].user.login'
-gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100" | jq -r '.[].user.login'
+gh api --paginate "repos/<owner>/<repo>/pulls/<pr_number>/reviews?per_page=100" | jq -r '.[].user.login'
+gh api --paginate "repos/<owner>/<repo>/pulls/<pr_number>/comments?per_page=100" | jq -r '.[].user.login'
+gh api --paginate "repos/<owner>/<repo>/issues/<pr_number>/comments?per_page=100" | jq -r '.[].user.login'
 ```
 
 ## Stale-base guard
@@ -22,14 +28,14 @@ Read the head once and use that value for both the compare and `HEAD_SHA`, so th
 the one the compare checked:
 
 ```bash
-read -r MSS BASE HEAD_SHA <<<"$(gh pr view <pr_number> --json mergeStateStatus,baseRefName,headRefOid \
+read -r MSS BASE HEAD_SHA <<<"$(gh pr view <pr_number> -R <owner>/<repo> --json mergeStateStatus,baseRefName,headRefOid \
   --jq '"\(.mergeStateStatus) \(.baseRefName) \(.headRefOid)"')"
 echo "mergeStateStatus: $MSS"
-gh api "repos/{owner}/{repo}/compare/$BASE...$HEAD_SHA"
+gh api "repos/<owner>/<repo>/compare/$BASE...$HEAD_SHA"
 ```
 
 When GraphQL is refused, read `.base.ref` and `.head.sha` from one
-`gh api "repos/{owner}/{repo}/pulls/<pr_number>"` call instead.
+`gh api "repos/<owner>/<repo>/pulls/<pr_number>"` call instead.
 
 The forge's merge of the base into a behind branch is the
 [pinned update](ready-for-review.md#refresh-the-base-with-a-merge).
@@ -39,7 +45,7 @@ The forge's merge of the base into a behind branch is the
 A base uses a merge queue when its branch rules carry a `merge_queue` rule; skip the update there:
 
 ```bash
-gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/$BASE" \
+gh api --paginate --slurp "repos/<owner>/<repo>/rules/branches/$BASE" \
   | jq -e 'add | any(.[]; .type == "merge_queue")' >/dev/null && echo 'merge queue: skip the update'
 ```
 
@@ -48,13 +54,13 @@ A dependency manager's PR names its app as the author, spelled by source:
 `dependabot[bot]`. Match either form, as `is_dependency_author` in the babysit-prs engine does:
 
 ```bash
-gh pr view <pr_number> --json author --jq .author.login
+gh pr view <pr_number> -R <owner>/<repo> --json author --jq .author.login
 ```
 
 For Dependabot, request the rebase with a comment, never `gh pr update-branch` or a push:
 
 ```bash
-gh pr comment <pr_number> --body '@dependabot rebase'
+gh pr comment <pr_number> -R <owner>/<repo> --body '@dependabot rebase'
 ```
 
 When the only foreign commits are merges of the base, comment `@dependabot recreate` instead;
@@ -70,7 +76,7 @@ For another manager, use its own documented rebase trigger.
   the comment commands, under
   [managing Dependabot pull requests with comment commands](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#managing-dependabot-pull-requests-with-comment-commands);
   the author spellings, from a probe of Dependabot PR melodic-software/claude-code-plugins#7492
-  with `gh pr view 7492 --json author` and `gh api repos/{owner}/{repo}/pulls/7492 --jq .user.login`.
+  with `gh pr view 7492 --json author` and `gh api repos/<owner>/<repo>/pulls/7492 --jq .user.login`.
 - **As of**: 2026-10-16
 - **Recheck trigger**: the merge-queue section changing what a queue tests, either Dependabot
   section changing how it treats extra commits or renaming the rebase comment command, or a `gh`
@@ -86,7 +92,7 @@ pinned head over REST, at the [API budget](../README.md#api-budget)'s 60 s, whil
 ```bash
 : "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
 for _ in $(seq 5); do
-  S=$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" \
+  S=$(gh api "repos/<owner>/<repo>/pulls/<pr_number>" \
     --jq "if .head.sha == \"$HEAD_SHA\" then .mergeable_state else \"head_moved\" end") || exit 1
   [ "$S" = unknown ] || break
   sleep 60
@@ -159,13 +165,13 @@ for it yet, so call it with `gh api`, pinned to the head verified before merge a
 
 ```bash
 : "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
-gh api -X PUT "repos/{owner}/{repo}/pulls/<pr_number>/merge-async" \
+gh api -X PUT "repos/<owner>/<repo>/pulls/<pr_number>/merge-async" \
   -f sha="$HEAD_SHA" -f merge_action=direct_merge -f merge_method=squash -F bypass_rules=false
 ```
 
 For a merge queue send `-f merge_action=merge_queue` and drop `merge_method`. The response carries a
 request `uuid` (a 409 means one is already pending and returns its `uuid`); poll
-`gh api "repos/{owner}/{repo}/pulls/<pr_number>/merge-async/<uuid>" --jq .status` every 60 s until it reads
+`gh api "repos/<owner>/<repo>/pulls/<pr_number>/merge-async/<uuid>" --jq .status` every 60 s until it reads
 `merged`, `enqueued`, or `failed`. Request fields and statuses:
 [merge a pull request asynchronously](https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request-asynchronously),
 as of 2026-10-02; recheck when a `gh` release adds a command for it or that page changes a field or
@@ -174,15 +180,15 @@ status.
 ## Merge after AI review
 
 ```bash
-REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner) || exit 1
+REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
 [ "${REPO%%/*}" = melodic-software ] \
   || { echo 'not a melodic-software repository: wait for the user' >&2; exit 1; }
 : "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
-RULES=$(gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/<baseRefName>" | jq 'add')
+RULES=$(gh api --paginate --slurp "repos/$REPO/rules/branches/<baseRefName>" | jq 'add')
 jq -e 'any(.[]; .type == "required_status_checks"
   and any(.parameters.required_status_checks[]; .context == "ci-status"))' <<<"$RULES" >/dev/null \
   || { echo 'base ruleset does not require ci-status: wait for the user' >&2; exit 1; }
-RUNS=$(gh api --paginate --slurp "repos/{owner}/{repo}/commits/$HEAD_SHA/check-runs?per_page=100")
+RUNS=$(gh api --paginate --slurp "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100")
 jq -e '[.[].check_runs[]] as $r
   | def lane($names): [$r[] | select(.name | IN($names[]))]
       | length > 0 and all(.status == "completed" and .conclusion == "success");
@@ -194,7 +200,7 @@ jq -e '[.[].check_runs[]] as $r
             "claude-security-review-status"])' <<<"$RUNS" >/dev/null \
   || { echo 'AI review not complete on the pinned head: hold' >&2; exit 1; }
 for _ in $(seq 5); do
-  S=$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" \
+  S=$(gh api "repos/$REPO/pulls/<pr_number>" \
     --jq "if .head.sha == \"$HEAD_SHA\" then .mergeable_state else \"head_moved\" end") || exit 1
   [ "$S" = unknown ] || break
   sleep 60
@@ -223,12 +229,12 @@ The wait reads REST every 60 s: the PR's state, and its latest queue event
 
 ```bash
 while :; do
-  while [ "$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" --jq .state)" = open ] &&
-    [ "$(gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/events?per_page=100" \
+  while [ "$(gh api "repos/<owner>/<repo>/pulls/<pr_number>" --jq .state)" = open ] &&
+    [ "$(gh api --paginate "repos/<owner>/<repo>/issues/<pr_number>/events?per_page=100" \
       --jq '.[] | select(.event | endswith("_merge_queue")) | .event' | tail -n 1)" = added_to_merge_queue ]; do
     sleep 60
   done
-  S=$(gh api graphql -F owner='{owner}' -F name='{repo}' -F number=<pr_number> -f query='
+  S=$(gh api graphql -F owner='<owner>' -F name='<repo>' -F number=<pr_number> -f query='
     query($owner: String!, $name: String!, $number: Int!) {
       repository(owner: $owner, name: $name) { pullRequest(number: $number) { state isInMergeQueue } } }' \
     --jq '.data.repository.pullRequest | "\(.state) \(.isInMergeQueue)"') || exit 1
@@ -262,10 +268,10 @@ with the hold:
 ```bash
 : "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
 for _ in $(seq 5); do
-  [ "$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" --jq .mergeable_state)" = unknown ] || break
+  [ "$(gh api "repos/<owner>/<repo>/pulls/<pr_number>" --jq .mergeable_state)" = unknown ] || break
   sleep 60
 done
-PR=$(gh api graphql -F owner='{owner}' -F name='{repo}' -F number=<pr_number> -f query='
+PR=$(gh api graphql -F owner='<owner>' -F name='<repo>' -F number=<pr_number> -f query='
   query($owner: String!, $name: String!, $number: Int!) {
     repository(owner: $owner, name: $name) { pullRequest(number: $number) {
       id state isInMergeQueue mergeStateStatus headRefOid autoMergeRequest { enabledAt } } } }' \
@@ -275,7 +281,7 @@ AUTO=$(jq -r '.autoMergeRequest != null' <<<"$PR")
 hold() {
   echo "$1" >&2
   [ "$AUTO" = true ] && echo 'auto-merge is still armed: a later push could merge on ci-status alone.
-The user may disarm it with: gh pr merge <pr_number> --disable-auto' >&2
+The user may disarm it with: gh pr merge <pr_number> -R <owner>/<repo> --disable-auto' >&2
   exit 1
 }
 case "$(jq -r '"\(.state) \(.isInMergeQueue) \(.mergeStateStatus)"' <<<"$PR")" in
@@ -315,6 +321,6 @@ the result, and `enqueue` again means the mutation returned but the PR is not in
 ## Latest run on the default branch
 
 ```bash
-gh run list --branch "$DEFAULT_BRANCH" --limit 1 --json conclusion,displayTitle \
+gh run list -R <owner>/<repo> --branch "$DEFAULT_BRANCH" --limit 1 --json conclusion,displayTitle \
   --jq '.[0] | "\(.conclusion): \(.displayTitle)"'
 ```
