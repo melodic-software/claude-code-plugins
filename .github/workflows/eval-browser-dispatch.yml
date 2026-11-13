@@ -526,9 +526,10 @@ jobs:
 
       # Eval cases whose scaffold renders frames (explainer-video, knowledge)
       # name ffmpeg as a host tool, and the hosted image carries none. Same
-      # BtbN static build, tag and SHA-256 as pr-require-checks.yml's demo-video
-      # leg. ffmpeg and ffprobe go into /opt/tools/bin, which every eval run's
-      # sandbox can read, after isolation, so neither runs with sudo.
+      # BtbN static build, tag and SHA-256 as the pin in
+      # .github/scripts/lib/install-pinned-ffmpeg.sh. ffmpeg and ffprobe go into
+      # /opt/tools/bin, which every eval run's sandbox can read, after
+      # isolation, so neither runs with sudo.
       - name: Install ffmpeg for eval scaffolds
         if: >-
           steps.stage.outputs.go == 'true' &&
@@ -676,25 +677,7 @@ jobs:
       # starts.
       - name: Check bwrap starts a sandbox
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
-        run: |
-          fail() {
-            local msg=${2//'%'/'%25'}
-            msg=${msg//$'\r'/'%0D'}
-            echo "::error::$1: ${msg//$'\n'/'%0A'}"
-            exit 1
-          }
-          for tool in bwrap socat; do
-            command -v "$tool" || fail "$tool is not on PATH" "the Bash sandbox needs it"
-          done
-          sysctl kernel.apparmor_restrict_unprivileged_userns || true
-          sandbox=(bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-all --die-with-parent)
-          if ! out=$("${sandbox[@]}" true 2>&1); then
-            fail "bwrap cannot start a sandbox as the runner user" "$out"
-          fi
-          if ! out=$("${sandbox[@]}" playwright-cli --version 2>&1); then
-            fail "playwright-cli does not start inside bwrap" "$out"
-          fi
-          echo "playwright-cli inside bwrap: $out"
+        run: bash .base/.github/scripts/plugin-eval/check-bwrap.sh
 
       - name: Record that env scrub is off
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && !inputs.env-scrub
@@ -1447,25 +1430,7 @@ jobs:
 
       - name: Check bwrap starts a sandbox
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
-        run: |
-          fail() {
-            local msg=${2//'%'/'%25'}
-            msg=${msg//$'\r'/'%0D'}
-            echo "::error::$1: ${msg//$'\n'/'%0A'}"
-            exit 1
-          }
-          for tool in bwrap socat; do
-            command -v "$tool" || fail "$tool is not on PATH" "the Bash sandbox needs it"
-          done
-          sysctl kernel.apparmor_restrict_unprivileged_userns || true
-          sandbox=(bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-all --die-with-parent)
-          if ! out=$("${sandbox[@]}" true 2>&1); then
-            fail "bwrap cannot start a sandbox as the runner user" "$out"
-          fi
-          if ! out=$("${sandbox[@]}" playwright-cli --version 2>&1); then
-            fail "playwright-cli does not start inside bwrap" "$out"
-          fi
-          echo "playwright-cli inside bwrap: $out"
+        run: bash .base/.github/scripts/plugin-eval/check-bwrap.sh
 
       - name: Record that env scrub is off
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && !inputs.env-scrub
@@ -2128,25 +2093,7 @@ jobs:
 
       - name: Check bwrap starts a sandbox
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
-        run: |
-          fail() {
-            local msg=${2//'%'/'%25'}
-            msg=${msg//$'\r'/'%0D'}
-            echo "::error::$1: ${msg//$'\n'/'%0A'}"
-            exit 1
-          }
-          for tool in bwrap socat; do
-            command -v "$tool" || fail "$tool is not on PATH" "the Bash sandbox needs it"
-          done
-          sysctl kernel.apparmor_restrict_unprivileged_userns || true
-          sandbox=(bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-all --die-with-parent)
-          if ! out=$("${sandbox[@]}" true 2>&1); then
-            fail "bwrap cannot start a sandbox as the runner user" "$out"
-          fi
-          if ! out=$("${sandbox[@]}" playwright-cli --version 2>&1); then
-            fail "playwright-cli does not start inside bwrap" "$out"
-          fi
-          echo "playwright-cli inside bwrap: $out"
+        run: bash .base/.github/scripts/plugin-eval/check-bwrap.sh
 
       - name: Record that env scrub is off
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch' && !inputs.env-scrub
