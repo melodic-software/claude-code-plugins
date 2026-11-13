@@ -329,13 +329,36 @@ commit_all "$repo" new
 
 out="$(run check --file "$target" --root "$repo")"
 assert_contains "check detects drift after a rule is added" "$out" "DRIFTED"
+assert_contains "and names the row to add" "$out" "ADD	| \`.claude/rules/new.md\` | \`docs/**/*.md\` | Documentation rules |"
+assert_contains "and the command that fixes it" "$out" "FIX	bash "
 run check --file "$target" --root "$repo" >/dev/null 2>&1
 assert_eq "a drifted check exits 1" "1" "$?"
+# The FIX command run from another directory rewrites the block from --root.
+fix_cmd="$(printf '%s\n' "$out" | sed -n 's/^FIX	//p')"
+(cd "$neutral" && eval "$fix_cmd") >/dev/null 2>&1
+out="$(cd "$neutral" && run check --file "$target" --root "$repo")"
+assert_contains "the FIX command, run from elsewhere, restores sync" "$out" "IN-SYNC"
 
 run write --file "$target" --root "$repo" >/dev/null 2>&1
 out="$(run check --file "$target" --root "$repo")"
 assert_contains "rewriting restores sync" "$out" "IN-SYNC"
 assert_contains "the new rule appears after the rewrite" "$(cat "$target")" "Documentation rules"
+
+# A hand-edited row and a row for a rule that does not exist are named too.
+cp "$target" "$TMP/agents-in-sync.md"
+awk '
+  { sub(/[|] Documentation rules [|]/, "| Docs |"); print }
+  /^[|]---/ { print "| `.claude/rules/gone.md` | `x/**` | Gone |" }
+' "$TMP/agents-in-sync.md" >"$target"
+out="$(run check --file "$target" --root "$repo")"
+assert_contains "check names a changed row with its fresh text" "$out" "CHANGE	| \`.claude/rules/new.md\` | \`docs/**/*.md\` | Documentation rules |"
+assert_contains "and a row to remove" "$out" "REMOVE	| \`.claude/rules/gone.md\` | \`x/**\` | Gone |"
+assert_not_contains "and adds nothing it already lists" "$out" "ADD	"
+# Text outside the rows drifting is named as that, not as a row.
+awk '{ sub(/^Each surface below/, "Every surface below"); print }' "$TMP/agents-in-sync.md" >"$target"
+out="$(run check --file "$target" --root "$repo")"
+assert_contains "a drifted preamble with matching rows says so" "$out" "NOTE	every row matches"
+cat "$TMP/agents-in-sync.md" >"$target"
 
 run write --file "$target" --root "$repo" >/dev/null 2>&1
 run write --file "$target" --root "$repo" >/dev/null 2>&1

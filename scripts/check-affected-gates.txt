@@ -86,6 +86,7 @@ plugin-catalog-enablement ci-only whole-repo scanner, scripts/check-plugin-catal
 plugin-manifest-presence ci-only whole-repo scanner, scripts/check-plugin-manifest-presence.sh
 purged-em-dashes ci-only whole-repo scanner, scripts/check-purged-em-dashes.sh
 read-caller-keys ci-only whole-repo scanner, scripts/check-read-caller-keys.sh --check
+rules-index ci-only whole-repo scanner, bash plugins/instruction-placement/scripts/render-index.sh check --file AGENTS.md
 selector-live ci-only whole-repo scanner, bash scripts/affected-tests-live.sh
 silent-skips ci-only whole-repo scanner, scripts/check-silent-skips.sh
 skill-count-claims ci-only whole-repo scanner, scripts/check-skill-count-claims.sh --check
