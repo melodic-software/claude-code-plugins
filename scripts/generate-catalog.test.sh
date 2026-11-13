@@ -108,4 +108,21 @@ assert_refused "an end marker before its start marker fails" "$tree" "has unbala
 mk_tree tree "no markers here"
 assert_refused "a page with no markers fails" "$tree" "is missing the catalog markers"
 
+mk_tree tree "$GEN_START" "$GEN_END" "$GEN_START" "$GEN_END"
+assert_refused "a repeated marker pair fails" "$tree" "has unbalanced markers"
+
+mk_tree tree '<!-- BEGIN GENERATED: catalog. Run something else -->' "$GEN_END"
+assert_refused "a BEGIN GENERATED line with other instruction text fails naming the expected line" "$tree" \
+  "differs from the expected line $GEN_START"
+
+mk_tree tree "$OLD_START" "$OLD_END" "$GEN_END"
+assert_refused "the more-than-one-form message lists the stray end marker found" "$tree" \
+  "more than one form ($OLD_START, $OLD_END; $GEN_END)"
+
+mk_tree tree "$OLD_START" "$OLD_END"
+printf '%s\n' '{ "description": "Fixture plugin.\n<!-- END GENERATED: catalog -->" }' \
+  >"$tree/plugins/alpha/.claude-plugin/plugin.json"
+assert_refused "generated content holding a marker line fails before writing" "$tree" \
+  "generated content holding the marker line $GEN_END"
+
 test_harness::report

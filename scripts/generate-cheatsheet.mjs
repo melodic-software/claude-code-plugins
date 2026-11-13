@@ -30,7 +30,7 @@ import process from "node:process";
 // scripts/lib/marker-block.mjs: the locate / compare / report-drift-or-write
 // flow shared with scripts/generate-catalog.mjs; exercised through this file's
 // --check path.
-import { findMarkerBlock, markerForms, syncMarkerBlock } from "./lib/marker-block.mjs";
+import { findMarkerBlock, markerForms, syncMarkerBlock, wrapMarkerBlock } from "./lib/marker-block.mjs";
 
 const argv = process.argv.slice(2);
 const check = argv.includes("--check");
@@ -42,7 +42,7 @@ if (rootFlag !== -1 && (!root || root.startsWith("--"))) {
 }
 
 const OUTPUT_PATH = join(root, "docs", "skill-cheat-sheet.md");
-const FORMS = markerForms("cheatsheet", "node scripts/generate-cheatsheet.mjs");
+const FORMS = markerForms("cheatsheet", "Run node scripts/generate-cheatsheet.mjs");
 const FORMS_TEXT = FORMS.map((f) => `${f.start} ... ${f.end}`).join(" or ");
 
 const config = await import(
@@ -288,7 +288,9 @@ if (found.error === "missing") {
 }
 if (found.error) fail([`${OUTPUT_PATH} ${found.error}`]);
 const existing = found.block;
-const block = `${found.form.start}\n\n${body}\n\n${found.form.end}`;
+const wrapped = wrapMarkerBlock(found.form, body, FORMS);
+if (wrapped.error) fail([`${OUTPUT_PATH} ${wrapped.error}`]);
+const block = wrapped.block;
 
 syncMarkerBlock({
   path: OUTPUT_PATH,

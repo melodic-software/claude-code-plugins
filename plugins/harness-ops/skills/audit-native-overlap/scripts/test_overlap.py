@@ -464,6 +464,33 @@ class MarkerFormTests(unittest.TestCase):
         text = self.write_view(*GENERATED_MARKERS, *GENERATED_MARKERS)
         self.assert_refused(text, "has unbalanced markers")
 
+    def test_a_begin_generated_line_with_other_instruction_text_names_the_expected_line(self):
+        text = self.write_view(
+            "<!-- BEGIN GENERATED: native-surfaces. Run overlap.py generate -->",
+            GENERATED_MARKERS[1],
+        )
+        self.assert_refused(text, f"differs from the expected line {GENERATED_MARKERS[0]}")
+
+    def test_the_more_than_one_form_message_lists_the_markers_found(self):
+        text = self.write_view(*OLD_MARKERS, GENERATED_MARKERS[1])
+        self.assert_refused(
+            text,
+            f"more than one form ({OLD_MARKERS[0]}, {OLD_MARKERS[1]}; {GENERATED_MARKERS[1]})",
+        )
+
+    def test_a_generated_body_holding_a_marker_line_fails_before_writing(self):
+        row = deep_copy(BASE_ROW)
+        row["evidence"] = [f"native description: a\n{OLD_MARKERS[1]}"]
+        self.repo.write_store(make_store([row]))
+        text = self.write_view(*OLD_MARKERS)
+        self.assertEqual(self.repo.generate(), 1)
+        self.assertEqual(self.repo.view_path.read_text(encoding="utf-8"), text)
+        _, error = overlap.render_view([row], text)
+        self.assertIn(f"generated content holding the marker line {OLD_MARKERS[1]}", error)
+        self.repo.view_path.unlink()
+        self.assertEqual(self.repo.generate(), 1)
+        self.assertFalse(self.repo.view_path.exists())
+
 
 class SelfCheckTests(unittest.TestCase):
     def setUp(self):

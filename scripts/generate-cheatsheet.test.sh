@@ -97,11 +97,13 @@ run_gen() { # run_gen <tree> [extra args...] — stdout+stderr to $OUT, exit cod
   CODE=$?
 }
 
-# assert_fails <label> <tree> <expected substring>
+# assert_fails <label> <tree> <expected substring>: generate fails naming the
+# defect and leaves the sheet byte-unchanged.
 assert_fails() {
-  local label="$1" tree="$2" expected="$3"
+  local label="$1" tree="$2" expected="$3" before
+  before="$(od -c "$tree/docs/skill-cheat-sheet.md")"
   run_gen "$tree"
-  if [[ "$CODE" -ne 0 && "$OUT" == *"$expected"* ]]; then
+  if [[ "$CODE" -ne 0 && "$OUT" == *"$expected"* && "$(od -c "$tree/docs/skill-cheat-sheet.md")" == "$before" ]]; then
     ok "$label"
   else
     fail "$label (exit=$CODE, output: $OUT)"
@@ -292,7 +294,8 @@ write_sheet() { # write_sheet <tree> <marker line...>
 mk_tree tree
 run_gen "$tree"
 sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
-if [[ "$CODE" -eq 0 && "$sheet" == *"$OLD_START"* && "$sheet" == *"$OLD_END"* && "$sheet" != *"BEGIN GENERATED"* ]]; then
+if [[ "$CODE" -eq 0 && "$sheet" == *"$OLD_START"$'\n'* && "$sheet" == *$'\n'"$OLD_END"* &&
+  "$sheet" == *"/alpha:mapped"* && "$sheet" != *"BEGIN GENERATED"* ]]; then
   ok "regenerating a start/end sheet keeps the start/end markers"
 else
   fail "start/end form not kept (exit=$CODE: $sheet)"
@@ -334,5 +337,20 @@ assert_fails "an end marker before its start marker fails" "$tree" "has unbalanc
 mk_tree tree
 write_sheet "$tree" "$GEN_START" "$GEN_END" "$GEN_START" "$GEN_END"
 assert_fails "a repeated marker pair fails" "$tree" "has unbalanced markers"
+
+mk_tree tree
+write_sheet "$tree" '<!-- BEGIN GENERATED: cheatsheet. Run something else -->' "$GEN_END"
+assert_fails "a BEGIN GENERATED line with other instruction text fails naming the expected line" "$tree" \
+  "differs from the expected line $GEN_START"
+
+mk_tree tree
+write_sheet "$tree" "$OLD_START" "$OLD_END" "$GEN_END"
+run_gen "$tree"
+if [[ "$CODE" -ne 0 && "$OUT" == *"more than one form"* && "$OUT" == *"$GEN_END"* && "$OUT" != *"BEGIN GENERATED"* ]]; then
+  ok "the more-than-one-form message lists the stray end marker found, not an absent start"
+else
+  fail "more-than-one-form message (exit=$CODE: $OUT)"
+fi
+rm -rf "$tree"
 
 test_harness::report

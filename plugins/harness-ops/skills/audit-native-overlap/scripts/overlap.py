@@ -210,12 +210,19 @@ START_MARKER = "<!-- native-surfaces:start -->"
 END_MARKER = "<!-- native-surfaces:end -->"
 # The form the ai-slop audit skips. A view carries exactly one of the two forms, and
 # regenerating keeps the one it carries; a new view gets START_MARKER and END_MARKER.
+# A marker is a standalone line; one opening with GENERATED_START_PREFIX belongs to the
+# generated form even when the rest of the line differs, and is refused naming the
+# expected line. Each form is (prefix of its start line, start line, end line).
+GENERATED_START_PREFIX = "<!-- BEGIN GENERATED: native-surfaces."
 GENERATED_START_MARKER = (
-    "<!-- BEGIN GENERATED: native-surfaces. Edit docs/native-surfaces/records.json, then run "
+    f"{GENERATED_START_PREFIX} Edit docs/native-surfaces/records.json, then run "
     "plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py generate -->"
 )
 GENERATED_END_MARKER = "<!-- END GENERATED: native-surfaces -->"
-MARKER_FORMS = ((START_MARKER, END_MARKER), (GENERATED_START_MARKER, GENERATED_END_MARKER))
+MARKER_FORMS = (
+    (START_MARKER, START_MARKER, END_MARKER),
+    (GENERATED_START_PREFIX, GENERATED_START_MARKER, GENERATED_END_MARKER),
+)
 
 # A `native description:` evidence line quotes the native text verbatim, so one carrying an em dash
 # keeps it and tells the ai-slop audit to skip each physical line that carries one. Authored
@@ -1168,30 +1175,61 @@ def render_view(
 ) -> tuple[str | None, str | None]:
     """Compose the full view text. Returns (text, error)."""
     block = render_block(rows, dismissals or [])
+    stray = [m for starts, ends in _scan_markers(block) for m in (*starts, *ends)]
+    if stray:
+        return None, f"the view would get generated content holding the marker line {stray[0][1]}"
     if existing is None:
         return f"{VIEW_HEADER}\n{START_MARKER}\n\n{block}\n{END_MARKER}\n", None
-    present = [form for form in MARKER_FORMS if form[0] in existing or form[1] in existing]
+    present = [
+        (form, starts, ends)
+        for form, (starts, ends) in zip(MARKER_FORMS, _scan_markers(existing), strict=True)
+        if starts or ends
+    ]
     if not present:
-        pairs = " or ".join(f"{start} … {end}" for start, end in MARKER_FORMS)
+        pairs = " or ".join(f"{start} … {end}" for _, start, end in MARKER_FORMS)
         return None, (
             f"the view is missing the markers ({pairs}); "
             "add one pair once, or delete the file and regenerate it"
         )
     if len(present) > 1:
-        starts = ", ".join(start for start, _ in present)
-        return None, f"the view carries markers of more than one form ({starts}); keep one"
-    start_marker, end_marker = present[0]
-    starts, ends = existing.count(start_marker), existing.count(end_marker)
-    start = existing.find(start_marker)
-    end = existing.find(end_marker)
-    if starts != 1 or ends != 1 or end < start + len(start_marker):
-        return None, (
-            f"the view has unbalanced markers ({starts} of {start_marker}, {ends} of {end_marker}); "
-            "it needs exactly one of each, start first"
+        found = "; ".join(
+            ", ".join(dict.fromkeys(text for _, text in (*starts, *ends)))
+            for _, starts, ends in present
         )
-    head = existing[: start + len(start_marker)]
-    tail = existing[end:]
+        return None, f"the view carries markers of more than one form ({found}); keep one form"
+    (_, start_marker, end_marker), starts, ends = present[0]
+    odd = [text for _, text in starts if text != start_marker]
+    if odd:
+        return None, (
+            f"the view has the start marker line {odd[0]}, "
+            f"which differs from the expected line {start_marker}"
+        )
+    if len(starts) != 1 or len(ends) != 1 or ends[0][0] < starts[0][0]:
+        return None, (
+            f"the view has unbalanced markers ({len(starts)} of {start_marker}, "
+            f"{len(ends)} of {end_marker}); it needs exactly one of each, start first"
+        )
+    head = existing[: starts[0][0] + len(start_marker)]
+    tail = existing[ends[0][0] :]
     return f"{head}\n\n{block}\n{tail}", None
+
+
+def _scan_markers(text: str) -> list[tuple[list[tuple[int, str]], list[tuple[int, str]]]]:
+    """Per marker form, the (offset, line) of each standalone start and end marker line."""
+    found: list[tuple[list[tuple[int, str]], list[tuple[int, str]]]] = [
+        ([], []) for _ in MARKER_FORMS
+    ]
+    at = 0
+    for raw in text.split("\n"):
+        line = raw.strip()
+        offset = at + raw.find(line)
+        for (prefix, _, end_marker), (starts, ends) in zip(MARKER_FORMS, found, strict=True):
+            if line.startswith(prefix):
+                starts.append((offset, line))
+            elif line == end_marker:
+                ends.append((offset, line))
+        at += len(raw) + 1
+    return found
 
 
 # ---------------------------------------------------------------------------
