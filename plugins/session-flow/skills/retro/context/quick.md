@@ -44,7 +44,7 @@ self-corrected. The concrete bar, not a judgment of importance, decides.
 
 ### 4. Recommendations (max 3)
 
-Highest-priority only, same format as session mode Phase 3 but capped.
+Highest-priority only, same format and "Check first" step as session mode Phase 3 but capped.
 
 ### 5. Quick score
 
