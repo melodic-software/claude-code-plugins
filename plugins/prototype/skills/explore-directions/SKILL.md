@@ -350,7 +350,7 @@ layout properties, missing reduced motion).
 
 The handover message has five parts, in this order:
 
-1. **Where to look.** The mockup's `file://` path (one per screen) or the real-stack route URL,
+1. **Where to look.** The mockup's `file://` path (one per screen), plus its notes URL when the person wants to pin notes in the page ([reference/feedback.md](reference/feedback.md), whose `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`), or the real-stack route URL,
    and the keys that flip it, and under each one line per variant: its key, its name, its states
    and, when evidence was captured, its screenshot paths.
 2. **Evidence per variant.** With `/playwright:playwright` among the available skills, load each

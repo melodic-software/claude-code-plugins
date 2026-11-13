@@ -1,7 +1,12 @@
-// Pin helper for an html prototype variant. server.py appends it as an inline script when the prototype page frames
-// /assets/<id>.html?pin=1. It runs inside the variant's sandbox (scripts, no same origin), so it can reach nothing but
-// the variant and its parent window. It answers the prototype page (proto.js) by postMessage only: an element's path
-// and box when the person pins one, never the page's markup. proto.js checks every message it sends back.
+// GENERATED from lib/ui-feedback/proto-pin.js by scripts/sync-shared-copies.sh. Do not edit this copy:
+// edit the canonical source, then rerun the script.
+// Pin helper for a framed non-final page (docs/contracts/ui-feedback). The host appends it as an inline script: the
+// planning shared page's server.py when it frames /assets/<id>.html?pin=1, the notes bridge when it hands host.html the
+// page. It runs inside the page's sandbox (scripts, no same origin), so it can reach nothing but the page and its
+// parent window. It answers the host by postMessage only: when the person pins an element, its path, box and up to 60
+// characters of its label, plus its structural anchor (variant and state keys, content set, nearest test id and its
+// index in that scope, role attribute, tag, and its path from that scope), never the page's markup. The host checks
+// every message it receives and keeps only what its contract admits.
 (() => {
   if (window.parent === window) return;
   const root = document.documentElement;
@@ -14,9 +19,9 @@
   const box = () => ({ w: Math.max(root.scrollWidth, 1), h: Math.max(root.scrollHeight, 1) });
   /** The element's path from the root, one step per level with its place among same-tag siblings. A step whose tag
    *  the server would refuse (an SVG camelCase name, say) ends the path there, so the note pins that ancestor. */
-  function pathOf(el) {
+  function pathOf(el, top = null) {
     const chain = [];
-    for (let e = el; e && e.nodeType === 1; e = e.parentElement) chain.unshift(e);
+    for (let e = el; e && e.nodeType === 1 && e !== top; e = e.parentElement) chain.unshift(e);
     const steps = [];
     for (const e of chain.slice(0, MAX_DEPTH)) {
       const tag = e.localName;
@@ -25,7 +30,28 @@
       for (let s = e.previousElementSibling; s; s = s.previousElementSibling) if (s.localName === tag) n++;
       steps.push(e === root ? tag : `${tag}:nth-of-type(${n})`);
     }
-    return { path: steps.join(" > "), el: chain[steps.length - 1] || root };
+    return { path: steps.join(" > "), el: chain[steps.length - 1] || top || root };
+  }
+  /** Where an element sits by structure: the variant and screen state around it, the content set shown, the nearest
+   *  element at or above it with a test id (and which match it is inside that scope), its role attribute, its tag, and
+   *  its path from the scope (the screen state inside the variant, else the variant, else the page). */
+  function anchorOf(el) {
+    const variant = el.closest("[data-variant]"), state = el.closest("[data-screen-state]");
+    const scope = state && variant && variant.contains(state) ? state : variant || root;
+    const { path, el: at } = pathOf(el, scope); // a step the path cannot name ends it: the anchor is that ancestor
+    el = at;
+    const a = { tag: el.localName, cssPath: path };
+    if (variant) a.variant = variant.dataset.variant;
+    if (state && scope === state) a.state = state.dataset.screenState;
+    if (root.dataset.vsContent) a.content = root.dataset.vsContent;
+    const t = el.closest("[data-testid]");
+    if (t && (t === scope || scope.contains(t))) {
+      a.testid = t.dataset.testid;
+      a.testidIndex = [...scope.querySelectorAll("[data-testid]")].filter(e => e.dataset.testid === a.testid).indexOf(t);
+    }
+    const role = (el.getAttribute("role") || "").trim().split(/\s+/)[0];
+    if (role) a.role = role;
+    return a;
   }
   const r2 = n => Math.round(n * 100) / 100;
   /** An element's box in percent of the reference box, inside 0-100 with w and h above 0. */
@@ -86,7 +112,7 @@
     if (skip(e.target)) return;
     const { path, el } = pathOf(e.target);
     if (!path) return;
-    post({ type: "pinned", selector: path, rect: rectOf(el), label: label(el) });
+    post({ type: "pinned", selector: path, rect: rectOf(el), label: label(el), anchor: anchorOf(el) });
   }
   addEventListener("pointermove", over, true);
   addEventListener("click", pick, true);
