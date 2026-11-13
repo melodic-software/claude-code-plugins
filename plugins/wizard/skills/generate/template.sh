@@ -746,16 +746,6 @@ finish() {
 # first prompt, so editing the script while it runs cannot re-run a step.
 # ──────────────────────────────────────────────────────────────────────────
 
-# Example credential check (delete with the example stage): reads the token on
-# stdin and makes one read-only call, so the token is never a command argument.
-# shellcheck disable=SC2329  # prove_credential calls it by name
-_check_mail_token() {
-  local token=""
-  IFS= read -r token || [[ -n "$token" ]]
-  printf 'Authorization: Bearer %s\n' "$token" |
-    curl -fsS -o /dev/null -H @- https://api.mail.example.com/v1/domains
-}
-
 run_wizard() {
   TOTAL_STAGES=1
 
@@ -777,10 +767,19 @@ run_wizard() {
   write_env MAIL_FROM_DOMAIN "$MAIL_FROM_DOMAIN"
   # shellcheck disable=SC2154  # assigned by ask_secret via printf -v
   write_env MAIL_API_TOKEN "$MAIL_API_TOKEN"
-  prove_credential MAIL_API_TOKEN \
-    "Create a new token with only the Send scope and save it as MAIL_API_TOKEN in $ENV_FILE" \
-    _check_mail_token
   set_secret MAIL_API_TOKEN "$MAIL_API_TOKEN" # the deploy workflow reads secrets.MAIL_API_TOKEN
+  # The check reads the token on stdin and makes one read-only call, so the
+  # token is never a command argument. It runs after the token's last write.
+  # shellcheck disable=SC2329  # prove_credential calls it by name
+  _check_mail_token() {
+    local token=""
+    IFS= read -r token || [[ -n "$token" ]]
+    printf 'Authorization: Bearer %s\n' "$token" |
+      curl -fsS -o /dev/null -H @- https://api.mail.example.com/v1/domains
+  }
+  prove_credential MAIL_API_TOKEN \
+    "Create a new token with only the Send scope and save it as MAIL_API_TOKEN in $ENV_FILE and in the repository's CI secrets" \
+    _check_mail_token
   # ── END EXAMPLE STAGE ───────────────────────────────────────────────────
 
   finish "Mail provider setup complete"

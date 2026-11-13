@@ -159,7 +159,7 @@ table then decides the code, cell by cell:
 | How the person gets it, Kind `agent` | `say` and `note` lines saying the agent does this stage in its own browser window, then a `pause` until it reports done; no `open_url` and no prompt |
 | Saved to `record only` | `ask`, then `record`; never for a secret |
 | Saved to includes `temporary` | `temporary KEY "where to delete it"` after the write |
-| A read-only call that proves a credential | `prove_credential KEY "the one manual step" FUNC` after the write; `FUNC` reads the value on stdin and makes that one call, so the value is never a command argument |
+| A read-only call that proves a credential | `prove_credential KEY "the one manual step" FUNC` after the value's last write, its manual step naming every place the value was saved; `FUNC` reads the value on stdin and makes that one call, so the value is never a command argument |
 | A command the stage runs that changes state | `attempt "the one manual step that finishes it" CMD ...`; a longer block sits in `if dry_run; then say "would ..."; else ...; fi` |
 
 A bare `confirm` as a statement ends the wizard silently on "no", because it returns nonzero under
@@ -210,8 +210,8 @@ MAIL_API_TOKEN`, `write_env`, and `set_secret`, in that order.
    `diff <(sed -n '1,/^# STAGES:/p' "${CLAUDE_SKILL_DIR}/template.sh") <(sed -n '1,/^# STAGES:/p' <script>)`
    must print nothing; any output is a fix, never a finding to approve. Under `light`, and `off`,
    which acts as `light` here, the secrets items still go to the fresh-context subagent: send it
-   only the first two items (each value saved to its named destination, and the `set_secret` /
-   `set_var` names). Skip the structure, count, `confirm` and banner items, never check them
+   only the first two items (each value saved to its named destination with no secret in
+   `record`, and the `set_secret` / `set_var` names). Skip the structure, count, `confirm` and banner items, never check them
    yourself in their place, and tell the user at step 3 `verification: skipped (<level>)` for
    those. Step 1 and the step 3 gate run at every level.
 3. **Stop the line. Human approval gate.** Show the user the whole `STAGES` block, everything below

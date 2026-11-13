@@ -7,6 +7,10 @@
     {
       "answer": "The repository does not say where the key lands. Should the wizard save it to .env, to a CI secret, or both?",
       "why": "should the wizard save it"
+    },
+    {
+      "answer": "Nothing here reads the key yet. Do you want it kept in .env, as a secret in GitHub, or both?",
+      "why": "secret in GitHub"
     }
   ],
   "fail": [

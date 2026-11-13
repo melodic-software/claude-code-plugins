@@ -5,7 +5,7 @@ context:
 graders:
   - name: asks-destination
     type: regex
-    pattern: '^(?=[\s\S]*\.env\b)(?=[\s\S]*\b(?:CI|GitHub(?: Actions)?|Actions|repo(?:sitory)?)\s+secrets?\b)(?=[\s\S]*\b(?:where|which|should|both|or)\b[^\n?]{0,200}\?)'
+    pattern: '^(?=[\s\S]*\.env\b)(?=[\s\S]*(?:\b(?:CI|GitHub(?: Actions)?|Actions|repo(?:sitory)?)\s+secrets?\b|\bsecrets? in (?:CI|GitHub)\b|\bgh secret\b))(?=[\s\S]*\b(?:where|which|should|both|or)\b[^\n?]{0,200}\?)'
     flags: 'im'
     target: last_message
   - name: no-write

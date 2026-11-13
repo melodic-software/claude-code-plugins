@@ -1583,6 +1583,24 @@ BODY
 )"
 assert_contains "dry run: the banner says so before the first stage" "$out" "Dry run: nothing is written"
 
+# The shipped template end to end under --dry-run: the example stage, its
+# credential check included, writes nothing and sends nothing. A fixture file
+# always reads as buffered input, so _drain_tty's loop is switched off as the
+# library cases do by stubbing it.
+WHOLE_DRY="$TEST_TMPDIR/whole-dry.sh"
+sed -e 's|exec 3</dev/tty|exec 3<"$WIZARD_TEST_TTY"|' \
+  -e 's|while read -r -t 0 -u 3; do|while false; do|' "$TEMPLATE" >"$WHOLE_DRY"
+assert_eq "seam: the drain loop the whole-file case switches off is present once" 1 \
+  "$(grep -c 'while false; do' "$WHOLE_DRY")"
+TTY_BLANK_Y="$(tty_fixture blank-y '' y)"
+whole_dir="$(mktemp -d "$TEST_TMPDIR/dir.XXXXXX")"
+out="$(cd "$whole_dir" && PATH="$STUB_BIN:$PATH" GH_CAPTURE="$whole_dir" OPEN_CAPTURE="$whole_dir/opened" \
+  WIZARD_TEST_TTY="$TTY_BLANK_Y" bash "$WHOLE_DRY" --dry-run 2>&1)"
+rc=$?
+assert_exit "the shipped template runs to its end under --dry-run" 0 "$rc"
+assert_contains "... saying nothing was written" "$out" "Dry run of Mail provider setup complete: nothing was written"
+assert_eq "... leaving the directory empty (no .env, no gh call, no page opened)" "" "$(ls -A "$whole_dir")"
+
 # --- 14. Read-back after each write -----------------------------------------
 
 out="$(
