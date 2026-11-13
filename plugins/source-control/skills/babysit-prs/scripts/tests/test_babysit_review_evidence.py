@@ -2506,20 +2506,25 @@ class SupersededRunTests(Base):
                     self.assertEqual(result[lane].open_findings, 0)
 
     def test_an_earlier_run_with_no_lane_job_and_no_skipped_caller_unbinds(self) -> None:
-        for name, conclusion in (
-            ("PR Review", None),
-            ("PR Review", "success"),
-            ("PR Review", "failure"),
-            ("PR Review Security", "skipped"),
-            ("Wait Refine", "skipped"),
-        ):
-            with self.subTest(caller=name, conclusion=conclusion):
-                first = superseded(
-                    "claude-review", S0, caller=name, caller_conclusion=conclusion
-                )
-                stopped = run("claude-review", S0, attempts=[first])
-                result = self.bind([stopped, whole("claude-review", S)])
-                self.assertUnbound(result["claude-review"], "no-lane-job")
+        for lane, other in zip(LANES, reversed(LANES), strict=True):
+            own = JOBS[lane].split(" / ", 1)[0]
+            for name, conclusion, run_conclusion in (
+                (own, None, "success"),
+                (own, "success", "success"),
+                (own, "failure", "success"),
+                # A failed run whose caller was skipped, not upstream-stopped.
+                (own, "skipped", "failure"),
+                (JOBS[other].split(" / ", 1)[0], "skipped", "success"),
+                ("Wait Refine", "skipped", "success"),
+            ):
+                with self.subTest(
+                    lane=lane, caller=name, conclusion=conclusion, run=run_conclusion
+                ):
+                    first = superseded(lane, S0, caller=name, caller_conclusion=conclusion)
+                    first["conclusion"] = run_conclusion
+                    stopped = run(lane, S0, attempts=[first])
+                    result = self.bind([stopped, whole(lane, S)])
+                    self.assertUnbound(result[lane], "no-lane-job")
 
     def test_a_superseded_run_at_the_pinned_head_does_not_bind(self) -> None:
         # The newest run at the head reviewed nothing, so nothing proves a
@@ -4061,6 +4066,32 @@ class CarriedBlockingTests(Base):
                 self.assertFalse(lanes[self.SEC].bound)
                 self.assertEqual(lanes[self.SEC].blocking_findings, 1)
                 self.assertEqual(self.person(lanes), ["security-finding"])
+
+    def test_a_superseded_run_at_the_new_head_still_carries_it(self) -> None:
+        # The run at S2 reviewed nothing; the review at S still leaves the
+        # finding open, so the count is carried, not dropped.
+        runs, threads = self.critical_at_s()
+        stopped = run(
+            self.SEC,
+            self.S2,
+            attempts=[superseded(self.SEC, self.S2)],
+            created="2026-01-02T00:00:00Z",
+        )
+        lanes = by_lane(
+            ev.bind(
+                self.S2,
+                [*runs, stopped],
+                both_markers(),
+                threads,
+                is_human=is_human,
+                head_file=fixed_head,
+                changed_paths=(),
+                floor=risk.floor_for(),
+            )
+        )
+        self.assertUnbound(lanes[self.SEC], "no-lane-job")
+        self.assertEqual(lanes[self.SEC].blocking_findings, 1)
+        self.assertEqual(self.person(lanes), ["security-finding"])
 
     def test_an_older_marker_naming_a_head_is_read_only_off_the_newest(
         self,

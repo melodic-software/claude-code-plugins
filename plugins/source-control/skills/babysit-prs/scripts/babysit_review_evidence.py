@@ -76,12 +76,11 @@ LANES: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 
 
-# Lane id -> the caller job that calls the lane's reusable workflow, the part
-# of each status job name in LANES before ` / `: its display name, and its id
-# for a head tested before the rename.
+# Lane id -> the names of the caller job that calls the lane's reusable
+# workflow: the part of each status job name in LANES before ` / `.
 CALLER_JOBS: dict[str, frozenset[str]] = {
-    "claude-review": frozenset({"PR Review", "pr-review"}),
-    "claude-security-review": frozenset({"PR Review Security", "pr-review-security"}),
+    lane: frozenset(name.split(" / ", 1)[0] for name in jobs)
+    for lane, (_, jobs) in LANES.items()
 }
 
 
@@ -1489,7 +1488,8 @@ def _lost_before_lane_job(lane: str, attempt: Mapping[str, Any]) -> bool:
 
 def _caller_skipped(lane: str, attempt: Mapping[str, Any]) -> bool:
     """Whether this attempt succeeded with the lane's caller job skipped and
-    no lane job, as when Wait Refine saw the head move while it waited."""
+    no lane job: the caller job never ran, so the attempt has no record. Wait
+    Refine skips it, for one, when the head moved while it waited."""
     jobs = attempt.get("jobs")
     return (
         attempt.get("conclusion") == "success"
@@ -1824,9 +1824,10 @@ def _open_findings(
         for attempt in _attempts(item).values():
             # A draft-skipped, kill-switched or upstream-stopped run reviewed
             # nothing, nor did a lost one that never reached its lane job, nor
-            # one whose caller job was skipped because the head moved while
-            # Wait Refine waited. At the pinned head such a run still unbinds
-            # (`_bound_record`).
+            # a successful one whose caller job was skipped: that job never
+            # ran, so the attempt has no record (Wait Refine skips it when the
+            # head moved while it waited). At the pinned head such a run still
+            # unbinds (`_bound_record`).
             if (
                 attempt.get("status") != "completed"
                 or attempt.get("conclusion") == "skipped"
