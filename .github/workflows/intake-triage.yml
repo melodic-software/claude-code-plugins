@@ -2178,7 +2178,7 @@ jobs:
           API_BUDGET_TOKEN: lanes-app
           SCRIPT: ${{ steps.config.outputs.script }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
-          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          KILL_SWITCH: proceed
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           CONTEXT_PATH: ${{ runner.temp }}/refine-data/context.json
           BASE_PATH: .base

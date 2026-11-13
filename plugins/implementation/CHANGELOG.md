@@ -3,6 +3,13 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.38.9] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.21.2] now name the context-usage plugin by its current name.
+- References to the context-window plugin use its new name, context-usage: the `/context-usage` commands, the `mcp__context-usage__status` tool and the `~/.claude/context-usage/` directory.
+
 ## [0.38.8] - 2026-11-12
 
 ### Changed
