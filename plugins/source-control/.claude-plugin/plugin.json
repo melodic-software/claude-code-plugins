@@ -59,7 +59,7 @@
     "pr_body_preview": {
       "type": "string",
       "title": "PR body preview",
-      "description": "What /source-control:pull-request does with a PR body it is about to post, at create or when it edits one. post (default) posts it; preview prints the body text and waits for a yes, in attended sessions only (unattended runs always post). A repository's pr_body_preview in docs/conventions/source-control.yaml wins over this value.",
+      "description": "Whether /source-control:pull-request shows a PR body before posting it. post (default) posts it; preview prints the body and waits for a yes, in attended runs only (unattended runs always post). A repository's pr_body_preview in docs/conventions/source-control.yaml wins over this value.",
       "default": "post",
       "options": ["post", "preview"]
     },
