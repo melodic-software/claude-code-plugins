@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: or-catch-up-over-cap-keeps-every-item
+description: 'A catch-up from stated facts with seven action items, more than fit in the default 250-word cap: /session-flow:orient catch-up keeps the cap on What happened only and lists every action item in full, and with no video skill loaded it says nothing about a video. Rules: skills/orient/SKILL.md, "Catch-up scope".'
+tags: [orient, catch-up, word-cap]
+plugins: ["../.."]
+expected_outcome: 'The reply opens with Needs you stating 7 action items, keeps What happened short, then covers all seven decisions by name, each with a recommendation and what happens if unanswered, even though the reply runs past 250 words. No item is dropped, counted ("and three more"), merged or replaced by a link, and no video is offered.'
+execution:
+  prompt: '/session-flow:orient catch-up. There is no repository here; work from these facts. Since my last message five subagents returned: the API tests pass, the docs build is green, the migration dry run found no conflicts, the load test held 2,000 requests per second, and the changelog draft is ready. Seven decisions wait on me: which billing provider to adopt, whether to approve deleting the staging database, whether to rotate the deploy key, which of two logo variants to ship, whether to grant the bot write access to the docs repository, whether to delay the launch by a week, and whether to approve the force-push to the release branch.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: opens-with-seven-needs-you
+    type: llm
+    criteria: 'PASS only if the reply opens with a Needs you section that states there are 7 action items. FAIL if it opens with anything else or states another number.'
+    focus: last_message
+    arm: both
+  - name: every-action-item-listed
+    type: llm
+    criteria: 'PASS only if the reply covers all seven decisions as separate items, each named: billing provider, deleting the staging database, rotating the deploy key, the logo variant, bot write access to the docs repository, delaying the launch, and the release-branch force-push. FAIL if any is missing, folded into a count (for example "and three more"), merged with another item, or replaced by a link or pointer.'
+    focus: last_message
+    arm: both
+  - name: items-carry-recommendation-and-if-unanswered
+    type: llm
+    criteria: 'PASS only if each of the seven action items gives a recommendation and says what happens if the user does not answer. FAIL if any item lacks either.'
+    focus: last_message
+    arm: both
+  - name: what-happened-stays-short
+    type: llm
+    criteria: 'PASS only if the part reporting what happened (the five subagent results) is shorter than the action-item section. FAIL if the what-happened part is longer than the action-item section, or plainly exceeds 250 words.'
+    focus: last_message
+    arm: both
+  - name: no-video-offer
+    type: llm
+    criteria: 'PASS only if the reply does not mention or offer a video. FAIL if it offers, mentions or describes producing a video of the catch-up.'
+    focus: last_message
+    arm: both

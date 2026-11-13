@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Parse the `ready --skip` override: a person present skips pre-flip steps for
-# this one run, with a reason. The steps are pre_ready's five
+# Parse the `ready --skip` override: a person present skips ready's steps for
+# this one run, with a reason. The steps are pre_ready's six
 # (pre-ready-steps.sh); the hold checks, the push and the flip are not steps and
 # cannot be skipped. A run with no person present passes --unattended and is
 # refused.

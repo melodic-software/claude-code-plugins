@@ -1,5 +1,18 @@
 # Changelog: session-flow plugin
 
+## [7.11.0] - 2026-11-13
+
+### Added
+
+- `/session-flow:orient catch-up` ends with a one-line offer of a video of the catch-up when
+  `/explainer-video:produce` is available, and says nothing about a video when it is not.
+
+### Changed
+
+- The catch-up word cap (`orient_catch_up_word_cap`) now limits only the What happened part.
+  Every action item is listed in full, never dropped, counted, merged or replaced by a link to
+  fit the cap. A new eval case, `or-catch-up-over-cap-keeps-every-item`, covers it.
+
 ## [7.10.0] - 2026-11-13
 
 ### Added

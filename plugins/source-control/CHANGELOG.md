@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.5.1] - 2026-11-13
+
+### Fixed
+
+- The merge gate's force-push read no longer fails on a pull request that
+  changes a lane source and has any timeline item that is not a force push.
+  GitHub's `totalCount` on a `timelineItems` connection counts every item,
+  whatever `itemTypes` names, so the read now treats the listing as whole only
+  when its last page answers `hasNextPage: false`, and raises on a page whose
+  pagination answer is missing or malformed, or whose force-push node is not an
+  object carrying `beforeCommit`.
+
+- `/source-control:pull-request ready` resolves the repository and branch from `<checkout>` (`target-repo.sh --dir`, `git -C`), reads the base's rules, branch protection and reviews from `$REPO` instead of gh's `{owner}/{repo}` placeholders, and passes `--repo "$REPO"` to `review-venue.sh`. The GitHub review-venue reference names `<owner>/<repo>`, the script's `--repo` value.
+- The shared review discipline's D5–D7 commands name `<owner>/<repo>` (`gh api` paths and `gh pr comment -R`), and its fix-commit check passes `--dir "<checkout>"` to `resolve-remote.sh` and runs git with `-C "<checkout>"`, as the monitor reference's copy does.
+
 ## [11.5.0] - 2026-11-13
 
 ### Added

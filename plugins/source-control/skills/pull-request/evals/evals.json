@@ -848,6 +848,20 @@
         "It attaches no file: e2e-summary.json is not an image or video",
         "It creates the comment through `gh pr comment 641 --edit-last --create-if-none`"
       ]
+    },
+    {
+      "id": 64,
+      "name": "ready-posts-evidence-after-flip-for-confirmed-head",
+      "narration": true,
+      "prompt": "/pull-request ready 655 --evidence /tmp/run/e2e-summary.json. I am here to answer. PR 655 is a draft with no hold; its change touched the checkout feature, and earlier in this session /testing:run-e2e --unattended wrote /tmp/run/e2e-summary.json on the PR worktree's HEAD, 7d6c5b4a39281706f5e4d3c2b1a0998877665544, whose `publishable` list holds checkout-cart-01-screenshot.png. The base merge is a no-op, both reviews come back clean, the verify gate records pass for that head, and the flip and the ready-run confirmation succeed. confirm-verdict.sh show prints `confirm: CONFIRMED for head 7d6c5b4a39281706f5e4d3c2b1a0998877665544`, the forge's head for PR 655 is that same commit, the logged-in account has no comment on PR 655, the leak scan of the rendered body finds nothing, and `gh pr comment --help` lists `--attach`.",
+      "expected_output": "After the flip and its ready-run confirmation, ready runs its evidence step: it checks the verdict for the PR worktree's HEAD and that the forge shows that head, then runs the evidence action as `evidence 655 --evidence /tmp/run/e2e-summary.json`, which creates the one evidence comment with the publishable capture attached. The report has an `evidence` line with the comment's URL saying it was created, placed after the ready-run confirmation and before the digest.",
+      "files": [],
+      "expectations": [
+        "It flips PR 655 to ready before running the evidence step",
+        "It checks that confirm-verdict.sh show prints CONFIRMED for 7d6c5b4a39281706f5e4d3c2b1a0998877665544 before posting",
+        "It runs the evidence action on PR 655 with --evidence /tmp/run/e2e-summary.json",
+        "The report has an evidence line with the comment URL, saying the comment was created"
+      ]
     }
   ]
 }

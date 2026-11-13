@@ -8,13 +8,13 @@ The frame is the highest-leverage artifact you produce in a session: every downs
 
 TRIGGER: any request matching the chapter trigger, before any other work.
 
-Produce one sentence of the form "the user needs [outcome] because [what it unblocks or prevents]; done looks like [observable state]." The because-clause is the test: if you cannot fill it from the request plus a quick look at context, you are holding an instruction, not a problem, and an instruction without a problem behind it cannot be sanity-checked, so any error in it passes straight through you.
+Produce one sentence of the form "the user needs [outcome] because [what it unblocks or prevents]; done looks like [observable state]; the smallest change expected to get there is [the fewest files or call sites that reach done]." The because-clause is the test: if you cannot fill it from the request plus a quick look at context, you are holding an instruction, not a problem, and an instruction without a problem behind it cannot be sanity-checked, so any error in it passes straight through you. The smallest-change clause fixes the expected size of the work before any of it exists: when the diff touches a file or behavior the clause did not name, re-derive the restatement before continuing, as the planning chapter, section "Update the plan when reality disagrees", does for a plan.
 
-Apply the paraphrase test to your restatement: if it reuses the request's own verbs and objects, you have restated the solution, not the problem. Push exactly one level up: what fails today, or what becomes possible after?
+Apply the paraphrase test to the outcome and because-clause of your restatement (the smallest-change clause names a solution by design): if they reuse the request's own verbs and objects, you have restated the solution, not the problem. Push exactly one level up: what fails today, or what becomes possible after?
 
 > Weak: "Add a retry wrapper around the export call" → the user wants the export call retried. (paraphrase)
 >
-> Strong: exports fail intermittently and users lose work; done = exports survive transient faults.
+> Strong: exports fail intermittently and users lose work; done = exports survive transient faults; smallest change = retry the one export call on transient errors, if the export is idempotent.
 
 The strong form exposes checks the weak form hides: is the fault actually transient? Is the operation idempotent, so retrying is even safe? You would never run those checks while holding only the instruction.
 
