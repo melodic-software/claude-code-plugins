@@ -1438,7 +1438,7 @@ jobs:
       # ones, where only a GitHub API network error (403, 429, 5xx, no
       # response) becomes a warning instead of a failure.
       #
-      # Every `uses: ./.github/actions/...` in this repository carries
+      # Every call of a local action in this repository carries
       # `# zizmor: ignore[self-repository]`. That audit recommends GitHub's
       # `$/...` form, which the actionlint pinned by SHA in the
       # melodic-software/ci-workflows action this lane also runs rejects as
