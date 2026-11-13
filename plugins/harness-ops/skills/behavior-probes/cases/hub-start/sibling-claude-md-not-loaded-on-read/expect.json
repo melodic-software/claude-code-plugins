@@ -1,0 +1,31 @@
+{
+  "claim": "In a session started in a hub repository, a Read of a file in a sibling repository by absolute path does not load the sibling's CLAUDE.md: only CLAUDE.md files in subdirectories under the working directory load on demand. Read from an InstructionsLoaded hook log, which a checker reports; a PostToolUse hook on Read shows the Read ran.",
+  "tags": [
+    "CLAUDE.md",
+    "InstructionsLoaded",
+    "nested_traversal",
+    "memory",
+    "instructions",
+    "working directory"
+  ],
+  "docs": [
+    "https://code.claude.com/docs/en/memory#how-claude-md-files-load",
+    "https://code.claude.com/docs/en/hooks#instructionsloaded"
+  ],
+  "permission_mode": "auto",
+  "max_turns": 8,
+  "cwd": "repos/github.com/acme/hub",
+  "allowed_tools": [
+    "Bash(python3 ${PROBE_WORKDIR}/instructions-check.py *)"
+  ],
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"python3 [^\"]*/instructions-check\\.py acme/target/README\\.md acme/target/CLAUDE\\.md\"",
+    "example": {
+      "command": "python3 /tmp/probe/instructions-check.py acme/target/README.md acme/target/CLAUDE.md"
+    },
+    "result_match": "instructions-hook=live trigger=read \\S+=(loaded|absent)"
+  },
+  "outcome": "ran",
+  "match": "instructions-hook=live trigger=read acme/target/CLAUDE.md=absent"
+}

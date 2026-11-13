@@ -1,0 +1,1 @@
+First, call the Read tool once on `${PROBE_WORKDIR}/repos/github.com/acme/target/README.md`, as written. Then run this command with Bash, in a single call, character for character: `python3 ${PROBE_WORKDIR}/instructions-check.py acme/target/README.md acme/target/CLAUDE.md`. Quote its output verbatim. Use no other tool.

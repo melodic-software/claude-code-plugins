@@ -1,0 +1,27 @@
+{
+  "claim": "Control: in a session started in a hub repository, a subagent spawned with no isolation runs in the hub's own directory, the main conversation's working directory. Read from the subagent's pwd.",
+  "tags": [
+    "subagent",
+    "Agent tool",
+    "isolation",
+    "worktree",
+    "working directory"
+  ],
+  "docs": [
+    "https://code.claude.com/docs/en/sub-agents#write-subagent-files"
+  ],
+  "permission_mode": "auto",
+  "max_turns": 8,
+  "cwd": "repos/github.com/acme/hub",
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"pwd\"",
+    "in_subagent": true,
+    "example": {
+      "command": "pwd"
+    },
+    "result_match": "/repos/github\\.com/acme/hub\\s*$"
+  },
+  "outcome": "ran",
+  "match": "/repos/github.com/acme/hub"
+}
