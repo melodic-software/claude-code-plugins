@@ -1068,7 +1068,7 @@ Run `/rate-limits:setup` after updating and follow the unwire steps it prints, s
 ### Fixed
 
 - **A native jq's CRLF no longer decides which of the tee's own verdicts is readable.** Every line
-  after the payload in the shared jq pass is now CR-stripped in `_rlg_absorb_jq_lines`. A native jq
+  after the payload in the shared jq pass is now CR-stripped in the tee's jq-line helper. A native jq
   on Windows terminates its output lines with CRLF and `read -r` splits on LF only, so a token line
   arrived as `true\r` and compared equal to nothing; only the LAST line was reliably clean, because
   MSYS command substitution drops the trailing CRLF. Which verdict was correct therefore depended on
@@ -1142,7 +1142,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Changed
 
 - **The statusline tee's five copies of the stamp-read idiom became one
-  `_rlg_read_stamp` helper.** Every one of the five sites is on a render path,
+  stamp-reading helper.** Every one of the five sites is on a render path,
   so the helper is builtins throughout and no call site pays a process. The
   validation is the half that matters and is now spelled once: bash evaluates
   the TEXT of an arithmetic operand, so an unvalidated stamp shaped like
@@ -1164,7 +1164,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 ### Changed
 
-- **`_rlg_spool_dispatch` derives its spool path instead of repeating it.** The
+- **The tee's spool dispatcher derives its spool path instead of repeating it.** The
   two paths were declared in one `local` statement that spelled the parent
   directory out twice; `dir` is now declared first and `spool` derived from it.
   The single-statement form was safe only because it repeated the literal: bash
@@ -1403,8 +1403,8 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ### Changed
 
 - **`statusline-tee.sh` names its bash-version and settings-read logic.** Repeated inline
-  `BASH_VERSINFO` comparisons became a `_rlg_bash_at_least` helper (keeping each call site's own
-  4.1/4.2 floor), the duplicated settings-JSON read became a `_rlg_read_settings_json` helper
+  `BASH_VERSINFO` comparisons became a Bash-version helper (keeping each call site's own
+  4.1/4.2 floor), the duplicated settings-JSON read became a settings-reading helper
   (non-caching, same reads), and an append uses `lines+=()`. Behavior is unchanged. Code-tidying
   sweep, behavior-preserving.
 
@@ -1653,8 +1653,8 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   world-readable via `ps`/`/proc/<pid>/cmdline` for the life of the process while
   `/proc/<pid>/environ` is owner-only. Both readers now bind `$doc` from
   the tee's settings-document environment variable through one shared prelude, so neither can drift back:
-  `_rlg_settings_option`, which the managed scope calls on every refresh wherever a
-  `managed-settings.json` exists, and `_rlg_probe`.
+  the tee's settings-option reader, which the managed scope calls on every refresh wherever a
+  `managed-settings.json` exists, and the tee's probe.
 
   This also restores the fail-OPEN behavior on a malformed settings file. Parsing
   the document jq-side (`--argjson`, `--slurpfile`) aborts the whole invocation
@@ -1684,17 +1684,17 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   the snapshot, `mkdir`/`rmdir` for the concurrent-writer lock, and `mv` for the atomic rename.
   What went:
 
-  - **Three `jq` spawns became one.** A new `_rlg_probe` produces the snapshot body, the
+  - **Three `jq` spawns became one.** A new probe helper produces the snapshot body, the
     window-bearing verdict and the user-scope enablement verdict in a single pass. The settings
     document is read by bash (`$(<file)`, which bash performs without forking) and handed over as
     `--argjson`, never opened by jq, preserving the existing reason the read was a shell
     redirection: a native jq on Windows cannot open an MSYS-style path. The verdict filter is now
-    a single constant shared by the probe and `_rlg_settings_option`, so the two cannot drift.
-  - **`_rlg_tee_enabled` consumes the probed verdict**, with a fallback to its own read when no
+    a single constant shared by the probe and the settings-option reader, so the two cannot drift.
+  - **The tee's enabled check consumes the probed verdict**, with a fallback to its own read when no
     probe has run, so a direct call to it (no `main`) behaves exactly as before. The gate moved
     next to the write it governs, which is the only thing it decides.
   - **`uname` is no longer spawned to discover that no managed-settings file exists.**
-    `_rlg_managed_settings_files` now tests all three candidate locations with builtins first;
+    The managed-settings file lister now tests all three candidate locations with builtins first;
     the platform table still decides whenever one is actually present.
   - **`date -u` became `TZ=UTC printf -v … '%(…)T'`**, a bash builtin, output verified identical.
   - **`mkdir -p` and `chmod 700` on the contract directory run only when it is absent.**
@@ -1816,7 +1816,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   now sound.
 
 - **Nothing tested the gate at all.** `scripts/statusline-tee.test.sh` had no coverage of
-  `_rlg_tee_enabled` under either implementation; the `0.5.5` version passed review only because
+  the tee's enabled check under either implementation; the `0.5.5` version passed review only because
   the tests injected the environment variable by hand, and `0.5.6` carried the same gap forward.
   The suite now drives the gate through real settings files on a scoped `HOME`: unconfigured (no
   file, and a file with no `pluginConfigs`), user `false` and user `true`, a `false` under a
