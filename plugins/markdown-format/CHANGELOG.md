@@ -2250,7 +2250,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 ### Changed
 
 - **Breaking:** renamed the plugin `markdown-formatter` → `markdown-format`, aligning with the
-  hook-plugin `<tool>-format` verb family (`biome-format`, `python-format`, `powershell-format`).
+  hook-plugin `<tool>-format` verb family (`javascript-format`, `python-format`, `powershell-format`).
   This is a hard break with no marketplace `renames` entry: uninstall `markdown-formatter` and
   run `/plugin install markdown-format@<marketplace>`. Skills, hook behavior, telemetry `hook`
   value (`markdown-format`), and the `HOOK_MARKDOWN_FORMAT_ENABLED` kill switch are unchanged.

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Git pre-commit entry: FAIL, verify prints missing. Remediation: `/javascript-format:setup apply install-git-hooks`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Git pre-commit entry: FAIL, verify prints missing.",
+      "why": "near miss: no remediation"
+    },
+    {
+      "answer": "Git pre-commit entry: INFO. You may want to run husky install.",
+      "why": "wrong grade and route"
+    }
+  ]
+}

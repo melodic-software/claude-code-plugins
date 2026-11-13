@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/javascript-format/prerequisites.json"
+          }
+        }
+      ],
+      "why": "the manifest"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "C:\\plugins\\javascript-format\\prerequisites.json"
+          }
+        }
+      ],
+      "why": "Windows path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/javascript-format/lib/prerequisites.mjs"
+          }
+        }
+      ],
+      "why": "the code, not the manifest"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /plugins/javascript-format/prerequisites.json",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "cat, not Read"
+    }
+  ]
+}

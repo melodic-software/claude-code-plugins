@@ -147,7 +147,7 @@ per-batch ceiling.
 |---|---|---|---|
 | `markdown-format` | rewriting (`markdownlint-cli2 --fix`) and reporting | shared, `markdown_format_lint_gitignored` | conforms (#4671); local `file_is_gitignored` removed; reporting moves to pre-commit |
 | `bash-format` | rewriting (shfmt) and reporting (ShellCheck) | shared, `bash_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
-| `biome-format` | rewriting and reporting (Biome) | shared, `biome_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
+| `javascript-format` | rewriting and reporting (Biome) | shared, `javascript_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
 | `eol-normalizer` | rewriting line endings | shared, `eol_normalizer_lint_gitignored`, checked only when a rewrite is planned | conforms (#4671); registers with no `if` filter because its matcher is every write |
 | `go-format` | rewriting (goimports) | shared, `go_format_lint_gitignored` | conforms (#4671) |
 | `powershell-format` | rewriting (Invoke-Formatter) and reporting (PSScriptAnalyzer) | shared, `powershell_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
@@ -155,7 +155,7 @@ per-batch ceiling.
 | `actionlint` (`actionlint-check`) | reporting only | shared, `actionlint_lint_gitignored`; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | conforms (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare; reporting moves to pre-commit |
 
 The helpers live in `lib/hook-utils.sh`. The six hooks that use the snapshot and disclosure guard
-(`bash-format`, `biome-format`, `eol-normalizer`, `go-format`, `powershell-format`, `python-format`) also
+(`bash-format`, `eol-normalizer`, `go-format`, `javascript-format`, `powershell-format`, `python-format`) also
 carry `rewrite-guard.sh`. `actionlint` and `markdown-format` do not, because they never
 call `hook::rewrite_guard_begin`.
 
