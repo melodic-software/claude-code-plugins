@@ -96,7 +96,7 @@ These four are therefore computed by the producer, and each has a failure mode t
    rule's tier. A detector picking a tier per run makes rank order meaningless across runs. Note what
    this does and does not promise: the lookup is fixed, while *which rule a candidate selects* may
    itself be a judgment. See the crosswalk's admission test, which is where that is bounded. The
-   **vocabulary** is not this doc's to define: it is owned by
+   **vocabulary** is not this doc's to define. It is owned by
    [`plugins/review/context/severity.md`](../../../plugins/review/context/severity.md) "Severity
    tiers", whose consumer-precedence rule binds a producer too. When the consuming project defines
    its own severity vocabulary, map to the project's tiers rather than the baseline's. A detector
@@ -130,7 +130,7 @@ the emitted file alone, without re-reading the detector:
 
 - **A rule id is `<plugin>/<skill>/rule-<slug>`**, lowercase `[a-z0-9-]` in each segment. **One form,
   everywhere**: the crosswalk's own column, the emitted `Finding` cell, and any prose. There is no
-  short form: this crosswalk is a cross-producer registry, so an unqualified id in it would be a
+  short form. This crosswalk is a cross-producer registry, so an unqualified id in it would be a
   collision waiting for the second detector, and the gate this enables (Enforceability, below)
   resolves an emitted id against a row by exact match. Qualification makes that resolution correct by
   construction rather than by a uniqueness rule nothing enforces. The `rule-` segment is kept so the
@@ -659,7 +659,7 @@ mode to guard against is a producer restating a mechanic locally, and the confor
 demonstrated: `mutation-testing:audit`'s persist reference fetches this contract at run time and
 refuses to write when it cannot reach it.
 
-**How drift is caught, stated honestly: nothing mechanical, yet.** The conformance gate this contract
+**Nothing mechanical catches this drift yet.** The conformance gate this contract
 defers in Enforceability is what closes it, and a gate reading *emitted files* checks every producer
 at once, a property a byte-identity check over source copies would never have had.
 
