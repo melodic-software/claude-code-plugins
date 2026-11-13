@@ -143,7 +143,7 @@
     {
       "id": 16,
       "name": "pr-scope-finds-reads-and-hands-off-reviews",
-      "prompt": "/session-flow:audit-sessions pr --number 812 --repo 'acme/billing'. The PR is merged, and the corrections and source-control plugins are installed.",
+      "prompt": "/session-flow:audit-sessions pr --number 812 --repo 'acme/billing'. This checkout is acme/billing, the PR is merged, and the corrections and source-control plugins are installed.",
       "expected_output": "The skill takes the head branch from /source-control:pull-request view, collects, runs sweep.py with --pr 812 --repo 'acme/billing' and --branch, measures the matched sessions with --session, and reads their main and subagent transcripts in fresh read-only subagents sized so none gets more than a quarter of its context window, splitting a larger file by line ranges. It invokes /corrections:codify reviews and says whether PR 812 was among the merged PRs that action read. It applies no finding.",
       "files": [],
       "expectations": [
@@ -151,6 +151,17 @@
         "Reads subagent transcripts as well as main ones, in subagents sized to the files rather than one reader for everything",
         "Invokes /corrections:codify reviews and says whether PR 812 was among the PRs it read",
         "Applies no finding and edits no file"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "pr-scope-skips-review-hand-off-for-another-repo",
+      "prompt": "/session-flow:audit-sessions pr --number 812 --repo 'acme/billing'. This checkout is acme/web, the PR is merged, and the corrections and source-control plugins are installed.",
+      "expected_output": "The skill finds, measures and reads the PR's sessions as usual, but does not invoke /corrections:codify reviews, because that action reads the current checkout's repository (acme/web), not acme/billing. Its report says the review-comment hand-off was skipped because the PR is in another repository.",
+      "files": [],
+      "expectations": [
+        "Does not invoke /corrections:codify reviews",
+        "Says the review-comment hand-off was skipped because the PR is in another repository than the checkout"
       ]
     },
     {

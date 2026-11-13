@@ -240,9 +240,10 @@ every key, which is text matched out of a stored title, branch or path.
 
 ## Pull request scope: `pr`
 
-`pr` looks back over one pull request: every session that linked it or ran on its head branch,
-subagents included, measured, read in subagents sized to the transcripts, and its human review
-comments handed to `/corrections:codify reviews`. Read [actions/pr.md](actions/pr.md) and follow
+`pr` looks back over one pull request: every session that linked it or ran on its head branch in
+its repository, subagents included, measured, read in subagents sized to the transcripts, and,
+when the PR is in the current checkout's repository, its human review comments handed to
+`/corrections:codify reviews`. Read [actions/pr.md](actions/pr.md) and follow
 its process.
 
 ## Correction lens

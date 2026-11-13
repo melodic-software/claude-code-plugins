@@ -53,7 +53,8 @@ keeps only the key the pattern matches in NAME. It refuses `--session` and `--wr
 
 `--pr N --repo OWNER/REPO` prints, instead of the report, the sessions in scope and window that
 worked on that pull request (schema `audit-sessions.pr/v1`), for the skill's `pr` action: those
-whose main or subagent transcripts link the PR, or, with `--branch NAME`, ran on that branch.
+whose main or subagent transcripts link the PR, or, with `--branch NAME`, ran on that branch in a
+repository not known to be another one.
 Automated sessions are kept and labeled, because lanes do PR work too. It refuses `--session` and
 `--write-report`.
 """
@@ -681,7 +682,15 @@ def tickets_md(data: dict) -> str:
 
 
 def pr_matches(record: dict, repo: str, number: int, branch: str | None) -> list[str]:
-    """How a session reached the PR: `pr` or `branch`, with `-sub` when only a subagent's transcript shows it."""
+    """How a session reached the PR: `pr` or `branch`, with `-sub` when only a subagent's transcript shows it.
+
+    A branch name is not unique across repositories, so `branch` skips a session whose `repo_identity`
+    names another repository. A null identity (the working directory is gone, as after a worktree is
+    removed) still matches, or a merged PR's reaped worktrees would drop out.
+    """
+    identity = record.get("repo_identity")
+    if isinstance(identity, str) and not identity.casefold().endswith("/" + repo.casefold()):
+        branch = None
     matched = []
     for side, suffix in (("", ""), ("_sub", "-sub")):
         links = record.get("prs" + side) or []

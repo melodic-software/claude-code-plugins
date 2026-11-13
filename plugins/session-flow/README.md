@@ -249,8 +249,9 @@ which stored short turns corrected the agent and reports them in a separate, unr
 section beside the measured findings. The `trends` action reads the health scores `retro` records
 and shows how they move across sessions, with delivery metrics beside them when the work-items
 plugin is installed. The `pr` action looks back over one pull request: it finds the sessions that
-linked it or ran on its head branch, subagents included, reads them in subagents sized to the
-transcripts, and hands review comments to `/corrections:codify reviews` when that plugin is installed.
+linked it or ran on its head branch in its repository, subagents included, reads them in subagents
+sized to the transcripts, and hands review comments to `/corrections:codify reviews` when that
+plugin is installed and the PR is in the current checkout's repository.
 
 ```shell
 /session-flow:audit-sessions                                # collect, then sweep every session

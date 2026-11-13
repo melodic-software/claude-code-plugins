@@ -1013,6 +1013,27 @@ def test_pr_finds_sessions_by_link_or_head_branch_on_either_side(data_dir):
     assert md.returncode == 0 and "| `linked` | interactive |" in md.stdout
 
 
+def test_pr_matches_the_head_branch_only_in_the_requested_repository(data_dir):
+    other = keyed("other-repo", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", branches=["feat/x"])
+    other["repo_identity"] = "github.com/other/unrelated"
+    other_sub = keyed("other-sub", "2026-09-01T12:00:00Z", "2026-09-01T13:00:00Z")
+    other_sub["repo_identity"] = "github.com/other/unrelated"
+    other_sub["branches_sub"] = ["feat/x"]
+    other_linked = keyed("other-linked", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", branches=["feat/x"], prs=[("o/r", 812)])
+    other_linked["repo_identity"] = "github.com/other/unrelated"
+    unknown = keyed("no-identity", "2026-09-03T10:00:00Z", "2026-09-03T11:00:00Z", branches=["feat/x"])
+    unknown["repo_identity"] = None
+    same = keyed("same-repo", "2026-09-04T10:00:00Z", "2026-09-04T11:00:00Z", branches=["feat/x"])
+    write_store(data_dir, other, other_sub, other_linked, unknown, same)
+    env = envelope(sweep(data_dir, "--pr", "812", "--repo", "O/R", "--branch", "feat/x"))
+    rows = [(s["session_id"], s["matched_by"]) for s in env["data"]["sessions"]]
+    assert rows == [
+        ("other-linked", ["pr"]),
+        ("no-identity", ["branch"]),
+        ("same-repo", ["branch"]),
+    ], "a branch name matches no session whose repository is known to be another one"
+
+
 def test_pr_refuses_a_missing_or_malformed_repo_and_the_kept_or_session_modes(data_dir):
     write_store(data_dir, keyed("s1", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", prs=[("o/r", 1)]))
     assert sweep(data_dir, "--pr", "1").returncode == 2
