@@ -141,9 +141,9 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$HOME/.local/bin:$RUNNER_TEMP/duckdb:$PATH"
           shard="${SHARD_INPUT:-$(($(date -u +%s) / 86400 % 7))/7}"
-          read -ra suites <<<"${SUITES_INPUT:-}"
+          read -ra suites <<<"$SUITES_INPUT"
           scripts/selection-audit.sh trace --shard "$shard" --jobs 4 --budget 1500 \
-            --out "$RUNNER_TEMP/selection-audit" ${suites[@]+"${suites[@]}"}
+            --out "$RUNNER_TEMP/selection-audit" "${suites[@]}"
       - name: Upload the trace report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
