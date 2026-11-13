@@ -3,8 +3,8 @@ name: PR Review Hosted
 # Locally owned: the `claude-review-hosted-caller` component of
 # melodic-software/standards (components/claude-lanes-hosted/claude-review.yml)
 # is `locally-owned` for this repository in distribution/sync-manifest.yml, so
-# this copy can add the resolve-model and kill-switch jobs below. It differs
-# from the component in those jobs and these comments.
+# this copy can add the resolve-model, kill-switch and wait-refine jobs
+# below. It differs from the component in those jobs and these comments.
 #
 # Thin caller for the org's pr-review-cli reusable, lane `code`. The reusable
 # owns the launcher, the credential order (the reviews role's API key, then
