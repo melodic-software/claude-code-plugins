@@ -379,9 +379,6 @@ jobs:
           esac
           node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs check-leg
 
-      # A matrix job's outputs are not per unit, so the handoff is a marker
-      # artifact the route job reads: the unit and the launcher's reason,
-      # each checked against a closed set.
       # The leg this unit goes to next, from this job's credential decision
       # and a clean handoff (select-model-credential). No if:, as the record
       # step after it has none: it names a leg only when every step before it
@@ -396,6 +393,9 @@ jobs:
           handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outputs.clean == 'true' }}
           handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
 
+      # A matrix job's outputs are not per unit, so the handoff is a marker
+      # artifact the route job reads: the unit and the launcher's reason,
+      # each checked against a closed set.
       - name: Record the handoff
         id: handoff
         if: steps.next.outputs.next-leg == 'subscription'
@@ -780,9 +780,6 @@ jobs:
           node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs check-leg
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); judge-fallback judges on the fallback token"
 
-      # A matrix job's outputs are not per unit, so the handoff is a marker
-      # artifact the route job reads: the unit and the launcher's reason,
-      # each checked against a closed set.
       # The leg this unit goes to next, from this job's credential decision
       # and a clean handoff (select-model-credential). No if:, as the record
       # step after it has none: it names a leg only when every step before it
@@ -797,6 +794,9 @@ jobs:
           handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outputs.clean == 'true' }}
           handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
 
+      # A matrix job's outputs are not per unit, so the handoff is a marker
+      # artifact the route job reads: the unit and the launcher's reason,
+      # each checked against a closed set.
       - name: Record the handoff
         id: handoff
         if: steps.next.outputs.next-leg == 'fallback'
@@ -1248,7 +1248,7 @@ jobs:
       - name: Install resolve-config's packages
         timeout-minutes: 5
         if: steps.download.outcome == 'success'
-        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       - name: File the findings
         if: steps.download.outcome == 'success'
@@ -1327,7 +1327,7 @@ jobs:
       - name: Install resolve-config's packages
         timeout-minutes: 5
         if: steps.kill.outputs.proceed == 'true'
-        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       - name: Sweep for untriaged issues
         if: steps.kill.outputs.proceed == 'true'
