@@ -450,14 +450,32 @@ view-bridge/session-bridge.conf
 # plugin carries in shared/web/. A path-within-plugin line stays out until a
 # second plugin carries it.
 lib/session-bridge/session_bridge.py -> plugins/*/notes-bridge/session_bridge.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 lib/session-bridge/watch.sh -> plugins/*/notes-bridge/watch.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 lib/session-bridge/wake.sh -> plugins/*/notes-bridge/wake.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 lib/session-bridge/view_bridge.py -> plugins/*/notes-bridge/view_bridge.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 lib/ui-feedback/notes_bridge.py -> plugins/*/notes-bridge/notes_bridge.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 lib/ui-feedback/notes-bridge.sh -> plugins/*/notes-bridge/notes-bridge.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 lib/ui-feedback/host.html -> plugins/*/notes-bridge/host.html
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 lib/ui-feedback/proto-pin.js -> plugins/*/notes-bridge/proto-pin.js plugins/*/shared/web/proto-pin.js
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 lib/ui-feedback/note-model.mjs -> plugins/*/notes-bridge/note-model.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 lib/ui-feedback/note.schema.json -> plugins/*/notes-bridge/note.schema.json
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
