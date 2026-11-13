@@ -3949,15 +3949,15 @@ jobs:
           done <"$RUNNER_TEMP/leg-suites.txt"
           exit "$rc"
 
-  # THE NODE PACKAGES THE CHANGE REACHES: the five sub-projects with their own
-  # install, typecheck, lint and test chains (the miro MCP server, the
-  # ai-briefing build, the video-digest and course-digest extraction pipelines,
-  # the resolve-config action)
-  # and the packages of scripts/outside-node-packages.txt. A package runs when
-  # a file under it, its test facade or a `file:` dependency changed, when a
-  # selected Node suite sits under it, on a Node pin, and on the whole tree
-  # (`PACKAGES`). A step for a package the plan does not name exits 0 on
-  # its first line. One job: the chains measure 31 s together.
+  # THE NODE PACKAGES THE CHANGE REACHES: five sub-projects with their own
+  # install and test steps (the miro MCP server, the ai-briefing build, the
+  # video-digest and course-digest extraction pipelines, the resolve-config
+  # action) and the packages of scripts/outside-node-packages.txt. A package
+  # runs when a file under it, its test facade or a `file:` dependency
+  # changed, when a selected Node suite sits under it, on a Node pin, and on
+  # the whole tree (`PACKAGES`). Each sub-project step exits 0 on its first
+  # line when the plan does not name its package. One job: the chains
+  # measure 31 s together.
   test-node:
     name: Test Node
     needs: [select-tests]
@@ -3973,13 +3973,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # One setup-node for every package, keyed on every lockfile they install
-      # from, so a change to any one of them invalidates the cache the others
-      # share.
       - name: Set up Node
         uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
+      # One npm cache for every package, keyed on the Node pin and the five
+      # sub-projects' lockfiles, so a change to any one of them invalidates the
+      # cache the others share.
       - name: Restore the npm cache
         id: npm_cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -4054,11 +4054,10 @@ jobs:
           [[ " $PACKAGES " == *" plugins/knowledge/skills/video-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh test
 
-      # ai-briefing's build/render pipeline is a Node package (native
-      # `node --test` suite) no other lane installs or runs — including
+      # ai-briefing's build/render pipeline is a Node package (a native
+      # `node --test` suite) no other lane installs or runs, including
       # test/url-policy.test.js, which asserts the SSRF gate (lib/url-policy.js)
-      # that decides which URLs the briefing validator is allowed to
-      # dereference (#1488).
+      # that decides which URLs the briefing validator may dereference.
       - name: Install dependencies
         timeout-minutes: 3
         run: |
@@ -4069,11 +4068,8 @@ jobs:
           [[ " $PACKAGES " == *" plugins/ai-briefing/skills/generate/output/build "* ]] || exit 0
           bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh test
 
-      # The knowledge plugin's course-digest extraction pipeline is a Node
-      # package (typecheck + vitest suite) no other lane installs or runs —
-      # same shape as video-digest, including the shared vendor/ packages
-      # pulled in as file: dependencies via the package's .npmrc
-      # install-links=true (#1507).
+      # The knowledge plugin's course-digest extraction pipeline: the same shape
+      # as video-digest's above, shared vendor/ packages included.
       - name: Install dependencies
         timeout-minutes: 3
         run: |
@@ -4140,10 +4136,9 @@ jobs:
   # trust boundary only while all of this holds: the action pinned by full SHA,
   # called from this code-owned file, exactly the permissions below, full
   # history, and no paths filter. A merge group run checks each queued pull
-  # request's own diff, read from the pulls API, by the same rules; a sync
-  # pull request must be queued alone. The synced
-  # pr-check-managed-files-hosted.yml runs the same guard advisory and
-  # paths-filtered; this job is the gate.
+  # request's own diff, read from the pulls API, by the same rules; a sync pull
+  # request must be queued alone. The synced pr-check-managed-files-hosted.yml
+  # runs the same guard advisory and paths-filtered; this job is the gate.
   check-managed-files:
     name: Check Managed Files
     needs: [select-tests]
@@ -4176,8 +4171,6 @@ jobs:
   # path. Wall about 140 s on the whole tree, so ceil(max(210, 154) / 60) = 4
   # minutes. Sharded over 4 cores the scan took 64 s, for 3 minutes, but needs
   # a second fail-closed denominator: a shard with no test file exits 2.
-  #
-  # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-tests:
     name: Check Tests
     needs: [select-tests]
@@ -4235,27 +4228,32 @@ jobs:
     # `ci-lanes` commit status the last full run recorded on this SHA.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    # 9 s p95 and 42 s max in full mode, about 10 s contract-only, up to 10
-    # minutes more while a contract-only run holds, and up to 8 more while the
-    # review-lane step waits for a review (REVIEW_WAIT_SECONDS, ending 120 s
-    # before gh_read's deadline, so inside its margin). The cap covers that hold
-    # plus the worst case of the pinned composites' waits: two 60 s rate-limit waits
-    # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
-    # of own-gate retries, 7 s of status-write retries and the 90 s
-    # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
-    # 15 s of gh_read retry sleeps for every read, never past gh_read's
-    # deadline: the hold-lift step's two reads, the runner tail, the hold
-    # reason, the lanes pull, the review-lane step's six, the lanes-hold
-    # step's eight (in the merge
-    # queue 50 s more for its pass record's download, a cold read's listing
-    # more, and the verdict reader's reads more, about 73 with pr-merge's carried
-    # reads and about 860 without them, measured 2026-10-25, up to the cold-read
-    # headroom check's cold_cost under the listing's caps; its wall time is
-    # unmeasured, and a cold one can reach the cap, which fails red), about four and a half minutes, plus the cost-hold step's
-    # reads: one for most pull requests, which stop at the label events; for a lane-labeled one whose body cites a
-    # decision, about eight (nine on a Refs issue), and two more per review
-    # run since the window opened, plus the base-config checkout's fetch
-    # (seconds; its retries replace the contents reads' 15 s each).
+    # 9 s p95 and 42 s max in full mode, about 10 s contract-only. The cap
+    # adds to that:
+    # - up to 10 minutes while a contract-only run holds;
+    # - up to 8 more while the review-lane step waits for a review
+    #   (REVIEW_WAIT_SECONDS, ending 120 s before gh_read's deadline, so
+    #   inside its margin);
+    # - the worst case of the pinned composites' waits, about five and a half
+    #   minutes: two 60 s rate-limit waits (`rate-limit-wait-seconds` on
+    #   check-contract and aggregate-results), 120 s of own-gate retries, 7 s
+    #   of status-write retries and the 90 s `rerun-wait-seconds` wait;
+    # - about four and a half minutes of gh_read retry sleeps, up to 15 s for
+    #   every read and never past gh_read's deadline: the hold-lift step's two
+    #   reads, the runner tail, the hold reason, the lanes pull, the review-lane
+    #   step's six and the lanes-hold step's eight. In the merge queue the
+    #   lanes-hold step takes 50 s more for its pass record's download, more
+    #   for a cold read's listing, and more for the verdict reader's reads:
+    #   about 73 with pr-merge's carried reads and about 860 without them
+    #   (measured 2026-10-25), up to the cold-read headroom check's cold_cost
+    #   under the listing's caps. Its wall time is unmeasured, and a cold one
+    #   can reach the cap, which fails red;
+    # - the cost-hold step's reads: one for most pull requests, which stop at
+    #   the label events; for a lane-labeled one whose body cites a decision,
+    #   about eight (nine on a Refs issue), and two more per review run since
+    #   the window opened;
+    # - the base-config checkout's fetch (seconds; its retries replace the
+    #   contents reads' 15 s each).
     # 20: a cold verdict reader in the merge queue takes about 6 to 11
     # minutes (0.4 to 0.7 s a call, as pr-merge's reader logs, for about 860
     # calls), and at most about 15 under the listing's caps (793 per-FAIL
@@ -5415,23 +5413,23 @@ jobs:
         with:
           node-version-file: .base/.node-version
       # THE HOLD STEPS READ THEIR CONFIG ONCE, FROM THE DEFAULT BRANCH'S TIP AT
-      # RUN TIME, OR THE BASE COMMIT FOR ANOTHER BASE. The tracker
-      # config names the human-gated label, the trusted-actor list names who
-      # may lift a hold and, with pr-pipeline.yaml's merge.agent-identity, the
-      # lanes App's id that LANES_APP_ID must equal, and its
-      # merge.trust-path-hold-apps the agent Apps whose trust-gate changes the
-      # review-lanes step holds; all are read there, never at the head,
-      # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
-      # whose refsIssue the cost step runs and whose holds the lanes-hold step
-      # runs, and clear-escalations.mjs with every
-      # module and data file it loads, whose recheckStaleHold the hold-lift
-      # step runs. A re-run replays the event, whose base.sha stays stale, so
-      # a pull request into the default branch, or a layer of a native stack
-      # into it, reads that branch's tip as it stands now: a policy merged
-      # since applies on the next run, and a layer never reads the unmerged
-      # layer below it. A pull request's head cannot change the default
-      # branch, so the tip is no more the pull request's code than the base
-      # commit is. A merge group, and any other pull request into another
+      # RUN TIME, OR THE BASE COMMIT FOR ANOTHER BASE. The tracker config names
+      # the human-gated label; the trusted-actor list names who may lift a hold
+      # and, with pr-pipeline.yaml's merge.agent-identity, the lanes App's id
+      # that LANES_APP_ID must equal; pr-pipeline.yaml's
+      # merge.trust-path-hold-apps names the agent Apps whose trust-gate
+      # changes the review-lanes step holds. The code that judges the holds is
+      # read there too: merge-holds.mjs, whose refsIssue the cost step runs and
+      # whose holds the lanes-hold step runs, and clear-escalations.mjs with
+      # every module and data file it loads, whose recheckStaleHold the
+      # hold-lift step runs. None is read at the head, so the pull request
+      # cannot rewrite its own hold. A re-run replays the event, whose base.sha
+      # stays stale, so a pull request into the default branch, or a layer of a
+      # native stack into it, reads that branch's tip as it stands now: a
+      # policy merged since applies on the next run, and a layer never reads
+      # the unmerged layer below it. A pull request's head cannot change the
+      # default branch, so the tip is no more the pull request's code than the
+      # base commit is. A merge group, and any other pull request into another
       # branch, keep the event's base SHA.
       # hold_ref resolves the commit and outputs it only as 40 hex: it reads
       # the tip with an unauthenticated `git ls-remote` of this public
@@ -5911,13 +5909,15 @@ jobs:
       # lane's `<!-- claude-lane-hold lane=` comment by claude[bot], or by
       # github-actions[bot] when its last non-blank line is the lane's
       # `claude-lane: <lane>` footer and the lane's run recorded it
-      # (lane_holds), or pr-merge's refusal, a
-      # merge.agent-identity comment with `<!-- babysit-merge-risk -->` on its
-      # first or second line, whose fenced reasons it names, so the error
-      # names the hold that set the label. Without one the error names none. An unreadable tracker config or label list fails closed.
-      # It outputs the label's name, and `held=false` once the live labels
-      # read without it, for the hold-lift step below. Pinned
-      # by scripts/ci-hold-human-gated.test.sh, which runs this body.
+      # (lane_holds), or pr-merge's refusal, a merge.agent-identity comment
+      # whose first two lines hold `<!-- babysit-merge-risk -->` and
+      # `<!-- work-items:escalation lane=pr-merge kind=escalated -->`, whose
+      # fenced reasons it names, so the error names the hold that set the
+      # label. Without one the error names none. An unreadable tracker config
+      # or label list fails closed. It outputs the label's name, and
+      # `held=false` once the live labels read without it, for the hold-lift
+      # step below. Pinned by scripts/ci-hold-human-gated.test.sh, which runs
+      # this body.
       - name: Fail a pull request carrying the human-gated label
         id: human_gated
         if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
@@ -6067,8 +6067,6 @@ jobs:
             exit 0
           fi
           trusted_humans || exit 1
-          # A trusted person adding the label back starts a new hold that person's
-          # removal lifts, so a hold an untrusted account lifted can be recovered.
           lifted=$(jq -rs --arg label "$HUMAN_GATED" --arg held_at "$held_at" --arg humans " $humans " '[add[]
             | select(.label.name == $label)] as $events
             | ([$held_at, ($events[] | select(.event == "labeled" and .created_at > $held_at
@@ -6085,9 +6083,9 @@ jobs:
             exit 1
           fi
           # A stale hold the lanes App cleared (clear-escalations.mjs
-          # stale-review-hold): the App removed the label itself, after its own
-          # comment since the hold opening with that clear's marker; the
-          # newest such marker names a head no review-lane hold comment names,
+          # stale-review-hold): the App removed the label itself, and its
+          # newest comment between the hold and that removal opens with the
+          # clear's marker, which names a head no review-lane hold comment names,
           # every hold comment names its head, and none names this head. Hold
           # comments count from the label's last removal before the label the
           # App removed went on, as clear-escalations.mjs holdsSince counts
@@ -6157,23 +6155,25 @@ jobs:
       # event stops pr-verify from judging the next head (pr-verify.yml), so
       # the pass that removes the label would never come. The rule is the base
       # checkout's merge-holds.mjs labelHolds (the human-gated label by its
-      # humanGatedLabel, as the step above resolves it), which select-tests'
-      # queueHolds runs too; a base module that cannot judge fails closed. It reads only that one pull request: under the ruleset's ALLGREEN grouping a
-      # pull request merges only when its own group passes, and a failed group
-      # removes the pull request it was built for, never one ahead of it
-      # (HEADGREEN would need every entry read), so failing on an earlier
-      # entry's label would eject an unlabeled pull request while the labeled
-      # one still merged. A label that lands after this step passed does not stop the merge;
-      # dequeue the pull request as well. An unparsable ref, an unreadable
-      # tracker config or an unreadable or cut label list fails closed. The
-      # labels come live from one GraphQL read, which also answers the link.
-      # For a pull
-      # request an automation opened it then applies the trust hold to its
-      # linked issue (comment in the body). report-outcome's Hold: line covers
-      # the label at PR open and enable-auto-merge at arm time, so this holds a
-      # label added after either: that GraphQL read, a labels read for a Refs
-      # issue, and one timeline read per linked issue; an unreadable one, or
-      # the base's trusted-actor list unreadable, fails closed. Pinned by
+      # humanGatedLabel, as the human-gated step resolves it), which
+      # select-tests' queueHolds runs too; a base module that cannot judge
+      # fails closed. It reads only that one pull request: under the
+      # ruleset's ALLGREEN grouping a pull request merges only when its own
+      # group passes, and a failed group removes the pull request it was
+      # built for, never one ahead of it (HEADGREEN would need every entry
+      # read), so failing on an earlier entry's label would eject an
+      # unlabeled pull request while the labeled one still merged. A label
+      # that lands after this step passed does not stop the merge; dequeue
+      # the pull request as well. An unparsable ref, an unreadable tracker
+      # config or an unreadable or cut label list fails closed. The labels
+      # come live from one GraphQL read, which also answers the link. For a
+      # pull request an automation opened, the step then applies the trust
+      # hold to its linked issue (comment in the body). report-outcome's
+      # Hold: line covers the label at PR open and enable-auto-merge at arm
+      # time, so this holds a label added after either, using that GraphQL
+      # read, a labels read for a Refs issue and one timeline read per linked
+      # issue; an unreadable one, or the base's trusted-actor list
+      # unreadable, fails closed. Pinned by
       # scripts/ci-hold-merge-group.test.sh, which runs this body.
       - name: Fail a queued pull request carrying a hold label
         if: github.event_name == 'merge_group'
@@ -6367,15 +6367,16 @@ jobs:
       # PR-MERGE'S CARRIED READS: the lanes-hold step's verdict reader is their
       # one reader, and it exits at its author check for every other author.
       # This step reads the queued pull request through pr_read with the args
-      # the pr-unblock and lanes-hold steps read it with, so their reads answer
-      # from the cache and the job makes no more REST calls than before.
+      # the lanes-hold step reads it with, so that step's read answers from
+      # the cache.
       # `lanes` is `false` only when the read proves an author that is not the
       # lanes App (the lanes-hold step's own test). `verify_judged` is `false`
       # only when it also proves an author pr-verify does not judge, by the
       # lanes-hold step's predicate over merge.verify-authors in the hold
       # config's pr-pipeline.yaml and its trusted-actor list; the three
-      # verdict-read steps below skip on it. An unread pull, ref, id or config
-      # leaves both unset, and those steps run as before.
+      # verdict-read steps below skip on it. An unread pull, ref or id leaves
+      # both unset, and an unread config leaves `verify_judged` unset; either
+      # way those steps run.
       - name: Read whether the queued pull request is the lanes App's
         id: queued_author
         if: ${{ !cancelled() && github.event_name == 'merge_group' }}
@@ -6427,15 +6428,15 @@ jobs:
             echo "#$pr is not the lanes App's, and pr-verify does not judge its author; the carry steps are skipped."
           fi
       # MAIN'S TIP, LISTED ONCE FOR THE CARRY READERS. carry-run-cache.mjs and
-      # head-ref-map.mjs each run in their own process
-      # and take a run's carried reads only when its head commit is on main
+      # head-ref-map.mjs each run in their own process and take a run's
+      # carried reads only when its head commit is on main
       # (head-ref-map.mjs onMain), which otherwise reads the tag named main (a
       # 404 that no process shares) and main's tip over REST. One
       # unauthenticated `git ls-remote` of this public repository, run outside
       # any checkout, lists both refs; the tip is output only when the listing
       # succeeded, names refs/heads/main once as 40 hex and holds no tag named
-      # main. Anything else outputs nothing, and onMain reads both refs as
-      # before. Each run is still compared with the tip.
+      # main. Anything else outputs nothing, and onMain reads both refs
+      # itself. Each run is still compared with the tip.
       - name: List main's tip for the carry readers
         id: main_tip
         if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.verify_judged != 'false' }}
@@ -6462,17 +6463,17 @@ jobs:
       # 860 (one run read and compare per FAIL and a download per untied
       # FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs, and at
       # most the cold-read headroom check's cold_cost under the listing's
-      # caps (that check states the derivation). They
-      # come from that run's pr-merge-run-cache artifact, found as pr-merge.yml
-      # finds it (carry-run-cache.mjs `read`): only that run's steps could
+      # caps (that check states the derivation). They come from that run's
+      # pr-merge-run-cache artifact, found as pr-merge.yml finds it
+      # (carry-run-cache.mjs `read`): only that run's steps could
       # upload it. This job holds write scopes and is the required check, so it
       # restores no Actions cache, which any job in main's cache scope can
       # write and whose restore extracts its archive anywhere in the workspace
       # (#9455). Every kept read still lands in a carried-* section the reader
       # uses only where it counts a FAIL, never to turn one away or allow a
-      # pass. Any error leaves the cache empty, and the step holds a cold
-      # reader. Both steps skip a queued pull request whose author the step
-      # above proved pr-verify does not judge. Rules:
+      # pass. Any error leaves the cache empty, and the lanes-hold step holds a
+      # cold reader. Both steps skip a queued pull request whose author the
+      # queued_author step proved pr-verify does not judge. Rules:
       # .github/scripts/pr-merge/carry-run-cache.mjs.
       - name: Read the verdict reads pr-merge's last scheduled run kept
         id: verdict_reads_restore
@@ -6519,21 +6520,23 @@ jobs:
       # its own hold: from the hold config checkout (base_config), with
       # pr-pipeline.yaml and the trusted-actor list, in the queue at the
       # group's base commit and on a pull request event at the default
-      # branch's tip at run time, for a pull request into main. A
-      # pull request into any other branch is never armed and is not read, so
-      # it cannot choose a branch whose module runs here with this job's token. On a pull request event and in the merge queue
-      # (the pull request named in the group's ref, as the step above reads
-      # it), the body, comments, reviews and inline comments are read live,
-      # never from the payload a re-run replays, and so are the changed files;
-      # a list shorter than changed_files fails closed. A body hold is not
-      # read here: the lanes App's hold line puts on `do-not-merge`, which the
+      # branch's tip at run time, for a pull request into main. A pull
+      # request into any other branch is never armed and is not read, so it
+      # cannot choose a branch whose module runs here with this job's token.
+      # On a pull request event and in the merge queue (the pull request
+      # named in the group's ref, as the queued hold-label step reads it),
+      # the body, comments, reviews and inline comments are read live, never
+      # from the payload a re-run replays, and so are the changed files; a
+      # list shorter than changed_files fails closed. A body hold is not read
+      # here: the lanes App's hold line puts on `do-not-merge`, which the
       # label steps hold on. A comment re-runs nothing, so a veto posted while
       # armed is enforced when the queue builds the group, and after a veto
-      # is lifted ci-status needs a re-run. Only the lanes App's pull requests are read, by numeric id
-      # (pr-pipeline.yaml merge.agent-identity, as trusted-actors.json lists
-      # it); every other pull request merges through pr-merge's gate or a
-      # person, but for the verifier holds below. An unreadable pull request,
-      # module, config, file list or discussion fails closed.
+      # is lifted ci-status needs a re-run. Only the lanes App's pull requests
+      # are read, by numeric id (pr-pipeline.yaml merge.agent-identity, as
+      # trusted-actors.json lists it); every other pull request merges
+      # through pr-merge's gate or a person, but for the verifier holds
+      # below. An unreadable pull request, module, config, file list or
+      # discussion fails closed.
       # IN THE MERGE QUEUE, ANOTHER AUTHOR PR-VERIFY JUDGES HOLDS ON A FAIL:
       # an owner's credentials can queue a pull request pr-verify failed, so
       # one whose author resolve-pr.mjs resolvePull judges (no dependency
@@ -6560,8 +6563,8 @@ jobs:
       # Once both read `false`, maintenance-reconcile-lost-runs.yml re-runs
       # ci-status on each open lanes App pull request this failed, at most 3
       # per half-hourly run, when ci-status was the run's only failed job on
-      # attempt 1 (its `switch` kind keys on the error's "the lanes kill
-      # switch is on" text, which reconcile.test.mjs pins here).
+      # attempt 1 (its `switch` kind keys on switchHold's "the lanes kill
+      # switch is on" text, which reconcile.test.mjs pins this step to print).
       # IN THE MERGE QUEUE A LANES APP PULL REQUEST ALSO NEEDS A VERIFIER PASS
       # AT ITS HEAD: a PASS or PASS-NOTES artifact of a completed, successful
       # pr-verify.yml run on main (merge-holds.mjs verdictHold), taken by
@@ -6583,13 +6586,15 @@ jobs:
       # index by exact name, or with no legacy FAILs file every page of the
       # listing, saved to BABYSIT_VERIFY_LISTING) with
       # pr-merge's head-ref map and carried run cache, so a FAIL uploaded
-      # after enable-auto-merge's one listing of its run still holds. Its report goes to merge-holds.mjs
+      # after enable-auto-merge's one listing of its run still holds. Its
+      # report goes to merge-holds.mjs
       # evidenceHold, which holds on every refusal but the three a pass decides
       # (those stay with verdictHold and linkHold): every FAIL class,
       # verify:unreadable and verify:too-old. The same approval of the head
       # lifts it. Every verifier hold's error annotation is titled
       # `pr-verify hold` (merge-holds.mjs VERIFIER_TITLE), so a reader of this
-      # step's annotations tells it from a hold path. The reader reads with this job's token, which holds no
+      # step's annotations tells it from a hold path. The reader reads with
+      # this job's token, which holds no
       # issues scope: on this public repository its issue reads answer as
       # public reads, and one that does not read refuses verify:unreadable,
       # which holds. Its gh calls go to the gh binary, outside this step's
@@ -6768,7 +6773,8 @@ jobs:
               exit 0
             fi
             BASE_SHA=$(jq -r '.base.sha' <<<"$pull")
-            # An armed pull request's new head is held by the merge queue's check for a pr-verify pass at the exact head it merges (below).
+            # An armed pull request's new head is held by the merge queue's
+            # check for a pr-verify pass at the exact head it merges (below).
           fi
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
@@ -7094,12 +7100,11 @@ jobs:
           fi
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
       # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
-      # row says the change gives it no work. Its
-      # `skipped` becomes `success` for the aggregate only when `select-tests`
-      # succeeded and that row is exactly 'false'; every other result passes
-      # through as it is, so a skip that hid work stays `skipped` and the
-      # aggregate fails it. Pinned by scripts/ci-ordered-skips.test.sh, which
-      # runs this body.
+      # row says the change gives it no work. Its `skipped` becomes `success`
+      # for the aggregate only when `select-tests` succeeded and that row is
+      # exactly 'false'; every other result passes through as it is, so a
+      # skip that hid work stays `skipped` and the aggregate fails it. Pinned
+      # by scripts/ci-ordered-skips.test.sh, which runs this body.
       - name: Check each skipped lane against scope
         id: lanes
         if: ${{ !cancelled() }}
@@ -7159,9 +7164,10 @@ jobs:
           # how many steps of the job are in progress.
           step-name: Aggregate lane results
           token: ${{ github.token }}
-      # After the aggregate, so a contract-only run that holds for a full run reaches
-      # this check once that run has finished. Before it, a review still running
-      # failed the job in the very window a yield happens, and the hold never ran.
+      # After the aggregate, so a contract-only run that holds for a full run
+      # reaches this check once that run has finished; before it, a review
+      # still running would fail the job in the window a yield happens, and
+      # the hold would never run.
       # BOTH REVIEW LANES REVIEW THE HEAD. Neither review check is required by a
       # ruleset (github-iac ADR 0017); this step makes ci-status need them. For
       # each lane it takes the newest pull_request run of the lane's caller
@@ -7176,7 +7182,8 @@ jobs:
       # It passes only when a counted review of that lane on this pull
       # request covers that head, followed through further no-change skips
       # up to 10 heads back, the rule and cap babysit_review_evidence.py
-      # binds by (`_skip_target`, `SKIP_HOPS`). Any other skip record never counts. A pending, failed or cancelled
+      # binds by (`_skip_target`, `SKIP_HOPS`). Any other skip record never
+      # counts. A pending, failed or cancelled
       # review fails, as does a skipped one (a fork, or a bot outside the
       # caller's allowed-bot-sender-ids), with the cause named. A lane the
       # kill switch stopped (its kill-switch job succeeded and ran its
@@ -7580,12 +7587,12 @@ jobs:
           # 120 s before gh_read's deadline, reading that run once a poll. A
           # lane with no run is not waited for: the push that made the head
           # creates its review runs before this job starts, so one missing now
-          # rarely comes. The wait decides nothing: the loop after it reads every lane
-          # as before, and a read that fails ends the wait for that loop to fail
-          # closed. Both reads take the lanes from one listing of the head's
-          # runs: the loop reuses the wait's when nothing waited, and reads it
-          # again after a wait. A review still running at the cap fails as
-          # before, and rerun-ci-status re-runs ci-status when it finishes.
+          # rarely comes. The wait decides nothing: the loop after it reads
+          # every lane, and a read that fails ends the wait for that loop to
+          # fail closed. Both reads take the lanes from one listing of the
+          # head's runs: the loop reuses the wait's when nothing waited, and
+          # reads it again after a wait. A review still running at the cap
+          # fails, and rerun-ci-status re-runs ci-status when it finishes.
           poll=${REVIEW_POLL_SECONDS:-60} polls=$((${REVIEW_WAIT_SECONDS:-480} / ${REVIEW_POLL_SECONDS:-60}))
           stop_at=$(($(cat "$RUNNER_TEMP/gh-read.deadline" 2>/dev/null || echo 120) - 120))
           declare -A waiting=()
