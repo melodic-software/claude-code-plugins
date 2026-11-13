@@ -1,5 +1,8 @@
 # yaml-language-server: $schema=../../plugins/guardrails/schemas/guardrails.schema.json
 # Team layer for the guardrails plugin's settings.
-# Resolution: plugins/guardrails/hooks/block-fix-request-post.sh (fix_request_post).
+# Resolution: plugins/guardrails/hooks/block-fix-request-post.sh (fix_request_post),
+# plugins/guardrails/hooks/block-dangerous-git.sh (unpinned_lease).
 # allow: the fix-request guard protects only against our own actors, so it is lifted here.
 fix_request_post: allow
+# block: AGENTS.md allows only a lease pinned to the full SHA.
+unpinned_lease: block

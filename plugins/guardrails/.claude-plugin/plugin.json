@@ -70,6 +70,12 @@
       "description": "Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus the PowerShell ps-unparsable-* sink tokens the README's Option details list. Empty, the default, blocks all.",
       "default": ""
     },
+    "block_dangerous_git_unpinned_lease": {
+      "type": "string",
+      "title": "Unpinned force-with-lease push",
+      "description": "allow or block. allow, the default, lets block-dangerous-git pass a lease with no full commit id: --force-with-lease plus --force-if-includes, or an empty expect. block allows only --force-with-lease=<ref>:<full-sha>. Any other value acts as allow. Team-file layer: README Option details.",
+      "default": "allow"
+    },
     "block_credential_read_enabled": {
       "type": "boolean",
       "title": "Block-credential-read guard",
