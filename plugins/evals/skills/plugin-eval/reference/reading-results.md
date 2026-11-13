@@ -311,6 +311,11 @@ control's before and degraded scores beside the compare. For a whole-plugin rewr
 `/playbooks:skill-authoring` reference `rewrite-a-plugin.md` (step 4) adds which part to degrade
 and preregistering the control before the first paid run.
 
+A whole-page deletion is proven with a sensitivity control instead, since the before text with that
+page removed is the after version itself: replace the page with a plausible but wrong version,
+launch it together with a before run, and read it by the same loss test. Every other cut keeps the
+detection control.
+
 When the compare is VALID, shows no loss, and goes to a pull request a repository holds for it, end
 the comment with the repository's release record for the head it ran, if it defines one. In this
 marketplace that is the line `<!-- eval-pair verdict=no-loss validity=VALID head=<sha> -->`:
