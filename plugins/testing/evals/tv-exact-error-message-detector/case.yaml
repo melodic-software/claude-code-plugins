@@ -15,7 +15,7 @@ graders:
     input_match: '"skill"\s*:\s*"(?:testing:)?test-value"'
   - name: type-is-contract
     type: regex
-    pattern: '\b(?:[Ee]rror|[Ee]xception)\s+(?:type|class)\b|\btoThrow(?:Error)?\(\s*[A-Z]\w*\s*\)|\binstanceof\s+[A-Z]\w*|\btoBeInstanceOf\(\s*[A-Z]\w*|\btype\s+of\s+(?:the\s+)?(?:error|exception)\b'
+    pattern: '\b(?:Error|error|Exception|exception)\s+(?:type|class)\b|\btoThrow(?:Error)?\(\s*[A-Z]\w*\s*\)|\binstanceof\s+[A-Z]\w*|\btoBeInstanceOf\(\s*[A-Z]\w*|\btype\s+of\s+(?:the\s+)?(?:error|exception)\b'
     target: last_message
   - name: meets-expectations
     type: llm
