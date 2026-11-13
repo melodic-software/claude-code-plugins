@@ -32,6 +32,8 @@ What the change reaches, judged by what it touches, never by diff size.
   change to ordinary instructions or skill text that grants nothing new is not this case.
 - `HIGH` at least: authentication or authorization logic, billing, personal data, or
   infrastructure as code.
+- `HIGH` at least: a migration whose run can lock, rewrite or backfill a large or busy table. This
+  is the cost of running it; whether it can be undone is Reversibility's call.
 
 ## Verification
 
