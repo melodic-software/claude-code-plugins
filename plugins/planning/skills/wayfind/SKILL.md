@@ -87,7 +87,7 @@ For every uncertainty, ask: **can I phrase it as a sharp question?**
 
 - **Sharp** (you can state the question, even if you can't answer it yet, even if it's blocked) →
   a **decision item** on the map (a typed sub-issue).
-- **Foggy** (you can't yet put words to what's uncertain) → one **labelled bullet** in the map's
+- **Foggy** (you can't yet put words to what's uncertain) → one **labeled bullet** in the map's
   *Not-yet-specified* section, until working the map makes it sharp enough to phrase.
 
 Sharpness, not blockedness, is the line: a blocked-but-phrasable question is a ticket; an

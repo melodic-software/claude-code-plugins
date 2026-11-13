@@ -5,7 +5,7 @@
       "id": 1,
       "name": "chart-triggers-on-too-big-and-foggy-effort",
       "prompt": "/planning:wayfind chart We started interviewing the overhaul of our entire notification system earlier in this session, but every round opened more branches than it closed. It's way too big to hold in my head, and honestly I don't even know all the questions yet, let alone the answers. Turn this into a map.",
-      "expected_output": "Chart was asked for by name, so it proceeds without proposing first. The effort was already interviewed, so chart does not offer the interview again. The skill surveys the effort and runs every uncertainty through the fog test — sharp (phraseable, even if unanswered) becomes a candidate decision item; foggy (can't yet be phrased) becomes a labelled Not-yet-specified bullet — rather than answering everything itself or refusing outright.",
+      "expected_output": "Chart was asked for by name, so it proceeds without proposing first. The effort was already interviewed, so chart does not offer the interview again. The skill surveys the effort and runs every uncertainty through the fog test — sharp (phraseable, even if unanswered) becomes a candidate decision item; foggy (can't yet be phrased) becomes a labeled Not-yet-specified bullet — rather than answering everything itself or refusing outright.",
       "files": [],
       "expectations": [
         "Output recognizes the effort as too-big-and-foggy and enters chart mode rather than work mode",
@@ -29,13 +29,13 @@
       "id": 3,
       "name": "chart-happy-path-proposes-map-with-five-sections-and-typed-items",
       "prompt": "/planning:wayfind chart migrating our monolith to a modular architecture. We interviewed this earlier in the session and it outgrew one sitting. I confirm the destination: a set of build items for the first module extraction. I know some pieces: we've agreed the database can't be split yet (that's out of scope for now), and we need to decide whether to go strangler-fig or big-bang (that's answerable, if painful). But I genuinely don't know yet how we'd handle cross-module transactions — I can't even phrase that as a real question.",
-      "expected_output": "Chart mode surveys the effort and proposes the whole map before creating anything on the tracker: a body with the five sections (Destination, Notes, Decisions-so-far, Not-yet-specified, Out-of-scope) and the items to create. The strangler-fig-vs-big-bang question is a typed decision item (sharp); the cross-module-transactions unknown is a labelled bullet under Not-yet-specified; the database-split exclusion is under Out-of-scope. It waits for the user's yes on that proposal, and says /planning:wayfind work follows once the map exists, rather than resolving decisions itself.",
+      "expected_output": "Chart mode surveys the effort and proposes the whole map before creating anything on the tracker: a body with the five sections (Destination, Notes, Decisions-so-far, Not-yet-specified, Out-of-scope) and the items to create. The strangler-fig-vs-big-bang question is a typed decision item (sharp); the cross-module-transactions unknown is a labeled bullet under Not-yet-specified; the database-split exclusion is under Out-of-scope. It waits for the user's yes on that proposal, and says /planning:wayfind work follows once the map exists, rather than resolving decisions itself.",
       "files": [],
       "expectations": [
         "Output proposes a map with the five body sections: Destination, Notes, Decisions-so-far, Not-yet-specified, Out-of-scope",
         "Output waits for the user's yes on the proposed map before creating the map issue or any decision item",
         "The strangler-fig-vs-big-bang question is a typed decision item (sharp) rather than being answered directly by the skill",
-        "The cross-module-transactions unknown is a labelled bullet under Not-yet-specified, not forced into a premature ticket",
+        "The cross-module-transactions unknown is a labeled bullet under Not-yet-specified, not forced into a premature ticket",
         "The database-split exclusion is recorded under Out-of-scope, distinct from the fog section",
         "Output names /planning:wayfind work as the next step rather than beginning to resolve decisions itself"
       ]
@@ -131,7 +131,7 @@
       "id": 11,
       "name": "chart-seeds-from-interview-ledger",
       "prompt": "/planning:wayfind chart the data-retention program. Our interview ledger is at .work/data-retention/interview-checklist.md: it settled 'retain audit logs 7 years' and 'EU data stays in the EU region', and left open 'Which stores hold personal data?' and 'Do backups count as retained copies?'. We also still can't say what 'deletion' should mean for derived analytics. I confirm the destination: a PRD for the retention program.",
-      "expected_output": "Chart's proposed map seeds from the ledger: the two settled answers go into one seed decision item whose resolution comment lists them, closed at once with one Decisions-so-far pointer; the two open questions become decision items; the derived-analytics deletion worry is a labelled Not-yet-specified bullet. It does not open one closed issue per settled answer and does not cite the .work path in Notes.",
+      "expected_output": "Chart's proposed map seeds from the ledger: the two settled answers go into one seed decision item whose resolution comment lists them, closed at once with one Decisions-so-far pointer; the two open questions become decision items; the derived-analytics deletion worry is a labeled Not-yet-specified bullet. It does not open one closed issue per settled answer and does not cite the .work path in Notes.",
       "files": [],
       "narration": true,
       "expectations": [
