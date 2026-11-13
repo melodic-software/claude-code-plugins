@@ -11,6 +11,7 @@ import { cartTotal } from '../src/cart';
 import { renderReceipt } from '../src/receipt';
 import { createUser, findUser } from '../src/users';
 
+// cant-fail-ok: the message is shown to the user
 test('rejects a config without a name', () => {
   expect(() => parseConfig('{}')).toThrow('name is required');
 });

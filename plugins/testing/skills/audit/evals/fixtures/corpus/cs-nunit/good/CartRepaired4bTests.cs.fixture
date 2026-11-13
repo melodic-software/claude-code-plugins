@@ -19,6 +19,7 @@ public class CartRepaired4bTests
     public void PlaceOrder_RejectsAnEmptyCart()
     {
         var ex = Assert.Throws<InvalidOperationException>(() => new Cart().PlaceOrder());
+        // cant-fail-ok: the message is shown to the shopper
         Assert.That(ex.Message, Is.EqualTo("cart is empty"));
     }
 
