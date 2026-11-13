@@ -20,7 +20,8 @@ Delete `shop/data/cart.db` and restart the app.
 
 ## Drive
 
-- Open `/products/1`, choose `Add to cart`, then open `/cart`.
+- Open `/products/1`, choose `Add to cart`, then open `/cart`. Result: the cart lists one item.
+- **Proof.** Result: `/cart` lists the product at its price. Captures: logs
 
 ## Gotchas
 
