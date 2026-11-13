@@ -515,6 +515,7 @@ plugins/prototype/scripts/allowed-tools-pairing.test.sh 1
 plugins/prototype/scripts/detect-ecosystems.test.sh 1
 plugins/prototype/skills/explore-directions/scripts/detect-ecosystems.test.sh 1
 plugins/prototype/skills/pressure-test/scripts/detect-ecosystems.test.sh 1
+plugins/python-format/hooks/python-format.test.sh 4
 plugins/rate-limits/hooks/record-rate-limit-stop.test.sh 1
 plugins/repo-fleet-hygiene/scripts/allowed-tools-pairing.test.sh 1
 plugins/repo-fleet-hygiene/scripts/scope-resolve.test.sh 1
@@ -547,7 +548,6 @@ plugins/review/tests/explain-change-chrome.test.sh 1
 plugins/review/tests/explain-change.test.sh 23
 plugins/review/tests/fanout-sweep.test.sh 1
 plugins/review/tests/standards-binding.test.sh 1
-plugins/ruff-format/hooks/ruff-format.test.sh 4
 plugins/session-flow/scripts/harness/hop_chain.test.sh 53
 plugins/session-flow/scripts/harness/resume_eval.test.sh 122
 plugins/session-flow/scripts/harness/test_resume_cases.py 71

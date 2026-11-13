@@ -1,9 +1,0 @@
-{
-  "pass": [
-    {"answer": "Node.js stays FAIL even with ruff_format_enabled off: hooks.json spawns node before the script can read the toggle."}
-  ],
-  "fail": [
-    {"answer": "With the toggle off, both jq and node drop to INFO.", "why": "downgrades node"},
-    {"answer": "Node.js stays FAIL.", "why": "near miss: no reason"}
-  ]
-}

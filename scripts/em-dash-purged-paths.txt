@@ -404,6 +404,9 @@ plugins/prototype/README.md
 plugins/prototype/CHANGELOG.md
 plugins/prototype/context/*.md
 plugins/prototype/skills/*/SKILL.md
+plugins/python-format/README.md
+plugins/python-format/CHANGELOG.md
+plugins/python-format/skills/*/SKILL.md
 plugins/rate-limits/README.md
 plugins/rate-limits/CHANGELOG.md
 plugins/rate-limits/reference/*.md
@@ -424,9 +427,6 @@ plugins/review/context/*.md
 plugins/review/reference/*.md
 plugins/review/skills/*/SKILL.md
 plugins/review/skills/*/context/*.md
-plugins/ruff-format/README.md
-plugins/ruff-format/CHANGELOG.md
-plugins/ruff-format/skills/*/SKILL.md
 # The session-flow plugin was purged whole. The globs stop short of
 # plugins/session-flow/scripts/tests/fixtures/**, whose handoff files are parsed
 # test input rather than prose, and of the keep-going vendor tree.

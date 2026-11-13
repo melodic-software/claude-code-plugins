@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.16] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.6.7] now name the context-usage plugin by its current name.
+
 ## [1.2.15] - 2026-11-12
 
 ### Changed

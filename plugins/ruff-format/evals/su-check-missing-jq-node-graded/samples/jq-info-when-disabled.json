@@ -1,9 +1,0 @@
-{
-  "pass": [
-    {"answer": "With ruff_format_enabled off, the missing jq drops to INFO: the hook script exits through its enabled-gate before probing anything, so a disabled plugin is not broken."}
-  ],
-  "fail": [
-    {"answer": "Turning the toggle off changes nothing: jq stays FAIL.", "why": "misses the downgrade"},
-    {"answer": "With the toggle off, jq becomes INFO.", "why": "near miss: no reason"}
-  ]
-}

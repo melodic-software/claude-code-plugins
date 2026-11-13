@@ -80,8 +80,8 @@
       }
     },
     {
-      "name": "ruff-format",
-      "source": "./plugins/ruff-format",
+      "name": "python-format",
+      "source": "./plugins/python-format",
       "category": "development",
       "tags": [
         "ruff",

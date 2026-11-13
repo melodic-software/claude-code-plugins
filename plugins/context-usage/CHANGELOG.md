@@ -5,6 +5,14 @@ All notable changes to the `context-usage` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.0] - 2026-11-13
+
+### Changed
+
+- **Breaking:** the plugin is renamed `context-usage`, after what it reports. Install it as `context-usage@melodic-software`; the slash commands are `/context-usage` and `/context-usage:setup`, and the status tool is `mcp__context-usage__status`. The options `context_usage_hooks_enabled`, `context_usage_band` and `context_usage_toast` (variables `CLAUDE_PLUGIN_OPTION_CONTEXT_USAGE_*`) replace the three options that carried the earlier name; `model_notices`, `zone_report_mode` and `zone_line_data` keep their names. On a machine managed by the operator's dotfiles, saved values move to the new keys on the next converge. On any other machine they do not carry over: set the three `context_usage_*` options again, then run `/context-usage:setup apply` once.
+- **Breaking:** the per-session snapshots, compaction markers, `zones.json` and the `cache-line.mjs` copy now live in `~/.claude/context-usage/`. `/context-usage:setup check` reports a directory left under the earlier name as drift, and `/context-usage:setup apply` moves `zones.json` unchanged, refreshes `cache-line.mjs`, prints any `statusLine` edit, and removes the old directory. It also moves each session's compaction marker, never over one already in the new directory, and leaves the old directory while a session there wrote within the 10-minute staleness window. Run it once on a machine whose dotfiles did not migrate it. Until then the module also reads the operator's `zones.json` and a session's compaction marker from the old directory, so a session compacted before the update and resumed after it still reports `evidence_degraded`. Readers of the snapshot (`lib/context-zone.sh` and its copies) fall back to the old directory while a session that started before the update still writes there, reading `zones.json` from the new directory, else the old one.
+- Corrected in place: the changelog title and the released entries [0.1.0], [0.2.0], [0.3.0], [0.4.0], [0.4.7], [0.5.0], [0.5.3], [0.7.0], [0.7.14], [0.7.17], [0.7.21], [0.7.40], [0.7.62], [0.7.69], [0.7.71], [0.7.73], [0.7.85], [0.7.88], [0.8.0], [0.8.1], [0.10.0], [0.11.0], [0.12.0], [0.12.1], [0.12.2], [0.13.4], [0.14.0], [0.15.0], [0.17.0], [1.0.0], [1.0.2], [1.0.9], [1.2.0], [2.0.0], [3.0.4], [3.0.6], [4.0.0] now use the name context-usage.
+
 ## [5.0.8] - 2026-11-12
 
 ### Changed

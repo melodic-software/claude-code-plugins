@@ -91,12 +91,10 @@ jobs:
           set -uo pipefail
           # shellcheck source=scripts/lib/changed-files.sh
           source scripts/lib/changed-files.sh
-          zero='0000000000000000000000000000000000000000'
           before="${EVENT_BEFORE:-}"
           after="${EVENT_AFTER:-$(git rev-parse HEAD)}"
 
-          if [ -z "$before" ] || [ "$before" = "$zero" ] ||
-            ! changed_files::verify_base "$before"; then
+          if ! changed_files::verify_base "$before"; then
             echo "::warning::No usable push range (before='${before:-<unset>}');" \
               "scanning only the head commit ${after}. Any earlier commit in" \
               "this push was NOT scanned."
@@ -125,13 +123,8 @@ jobs:
 
       # The other half of the proof (#2855). The replay above asserts every
       # recorded incident is still DETECTED; this asserts the content those
-      # incidents deleted is on the tree TODAY. Both are needed, and #2828
-      # is the gap made real: its content sat off main for 31h28m, from
-      # f603880da to the 534eac138 (#2829) restore. This lane covered only
-      # the tail -- it merged at 7b47d2253 (#2808), 6h13m out from the
-      # restore -- and across that tail the replay still printed `ok` and
-      # exited 0 with the content gone: it answered the other question. Two
-      # re-lands each missed it, and a hand audit found it, not this lane.
+      # incidents deleted is on the tree TODAY. Both are needed: while #2828's
+      # content was off main, the replay still printed `ok` and exited 0.
       #
       # ORDER IS LOAD-BEARING, and this step is deliberately the LAST check.
       #

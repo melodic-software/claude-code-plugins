@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.2.5] - 2026-11-13
+
+### Changed
+
+- References to the context-window plugin use its new name, context-usage: the `/context-usage` commands, the `mcp__context-usage__status` tool and the `~/.claude/context-usage/` directory.
+
 ## [11.2.4] - 2026-11-13
 
 ### Changed
@@ -5776,7 +5782,7 @@ Internal simplification, no behavior change.
   disabled, an unrecognized-worktree append dropped, an orphan comparison forced
   false) produce the SAME failing set at both revisions, 3 failures in the first
   round and 8 in the second, spanning both branches of the rename.
-  The whole-file ruff-format reflow that the edit triggered was separated at the
+  The whole-file python-format reflow that the edit triggered was separated at the
   AST level: baseline against formatted-baseline is AST-identical across 37
   changed lines, and replaying the three mechanical edits onto that reproduces
   the committed file exactly. All comments are byte-identical.

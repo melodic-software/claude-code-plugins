@@ -158,8 +158,7 @@ jobs:
   # its start call: check-key-credit's one artifact-list call per chain for the
   # marker its key leg uploads after a credit stop). A credit stop inside the
   # window names the subscription leg, and that chain's key leg runs nothing.
-  # No secret, no model, no checkout; every failure runs the key. Probing is
-  # off.
+  # No secret, no model, no checkout, no probing; every failure runs the key.
   key-credit:
     name: Key Credit
     needs: prep
@@ -214,8 +213,6 @@ jobs:
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped triage key leg
         if: steps.credit-triage.outputs.next-leg == 'subscription'
         continue-on-error: true
@@ -228,10 +225,10 @@ jobs:
           known-failure-class: credit-stop
           handoff: "true"
 
-
   # The generate chain's key leg, on the automations role's API key alone: it
-  # generates the mutants (skill Phases 0 to 2) and runs no test. A credit stop, or a 401 or 402, hands off to
-  # generate-subscription; an empty key, or one the gate skipped, runs nothing here.
+  # generates the mutants (skill Phases 0 to 2) and runs no test. A credit
+  # stop, or a 401 or 402, hands off to generate-subscription; an empty key,
+  # or one the gate skipped, runs nothing here.
   generate:
     name: Generate
     needs: [prep, key-credit]
@@ -365,7 +362,8 @@ jobs:
           install-subprocess-isolation: "true"
 
       # A push to main lands through the merge queue; the run executes main's
-      # own code, and no mutant runs in this job. Bash runs read-only git and the plugin's suppression lint.
+      # own code, and no mutant runs in this job. Bash runs read-only git and
+      # the plugin's suppression lint.
       - name: Run the generate leg
         id: run
         if: steps.prompt.outcome == 'success'
@@ -561,10 +559,10 @@ jobs:
         with:
           tokens: github-token
 
-  # The generate chain's subscription leg: the key leg's steps on a fresh runner,
-  # on the automations subscription token alone. With the fallback token set,
-  # a limit stop, a credit stop, or a 401 or 402 hands off to generate-fallback,
-  # and so does an empty token.
+  # The generate chain's subscription leg: the key leg's steps on a fresh
+  # runner, on the automations subscription token alone. With the fallback
+  # token set, a limit stop, a credit stop, or a 401 or 402 hands off to
+  # generate-fallback, and so does an empty token.
   generate-subscription:
     name: Generate Subscription
     needs: [prep, key-credit, generate]
@@ -594,8 +592,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # The plugin, the prompt and the config reader come from main at the
-      # event's commit.
       - name: Check out main's tools
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -603,10 +599,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      # The head must be on main, and the diff target is the push's previous
-      # head, or the head's first parent when the push had none (a first push
-      # or a rewrite), said in the summary. The personal override is gitignored
-      # (.claude/**/*.local.*), so the audit sees a clean tree.
       - name: Set the diff target
         id: target
         env:
@@ -637,7 +629,6 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      # The verify-pr route's profile: a judgment model with its turn cap.
       - name: Resolve the model
         id: models
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
@@ -646,8 +637,6 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/mutation-models.json
 
-      # Only whether each secret is set leaves this step, never its value.
-      # `present` is whether this leg runs the model.
       - name: Check the credential
         id: credential
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
@@ -666,8 +655,6 @@ jobs:
           echo "::error::AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN and FALLBACK_CLAUDE_CODE_OAUTH_TOKEN are both empty, so nothing is audited"
           exit 1
 
-      # The plugin loads from a read-only copy of main's under the workspace,
-      # the one tree run-claude-cli's file tools reach.
       - name: Stage the plugin and the prompt
         id: prompt
         if: steps.credential.outputs.present == 'true'
@@ -695,8 +682,6 @@ jobs:
             .base/.github/scripts/post-merge-test-mutation/generate.schema.json >"$SCHEMA_FILE"
           echo "lint=$GITHUB_WORKSPACE/.lane/plugins/mutation-testing/scripts/suppression-lint.sh" >>"$GITHUB_OUTPUT"
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -707,8 +692,6 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
-      # A push to main lands through the merge queue; the run executes main's
-      # own code, and no mutant runs in this job. Bash runs read-only git and the plugin's suppression lint.
       - name: Run the generate leg
         id: run
         if: steps.prompt.outcome == 'success'
@@ -773,8 +756,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped' && steps.run.outcome != ''
         continue-on-error: true
@@ -791,10 +772,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      # A usage limit (rate-limit) or an overloaded API (overloaded) on a leg
-      # that hands nothing on is a designed stop, not a defect: the run ends
-      # green with a notice and the report says so. A handoff is no failure;
-      # any other failed leg fails the job.
       - name: Fail the leg unless it handed off or a limit stopped it
         id: stop
         if: always() && steps.run.outcome == 'failure' && steps.run.outputs.handoff != 'true'
@@ -812,8 +789,6 @@ jobs:
               ;;
           esac
 
-      # The leg's structured output, read from the launcher's file only after
-      # its init message reports dontAsk; the next job checks it again.
       - name: Keep the generate result
         id: keep
         if: steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
@@ -846,11 +821,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -870,9 +840,10 @@ jobs:
         with:
           tokens: github-token
 
-  # The generate chain's fallback leg, on the central fallback token, after the
-  # subscription leg handed off or found its token empty, and only when the
-  # fallback token is set. It never hands off.
+  # The generate chain's fallback leg: the key leg's steps on a fresh runner,
+  # on the central fallback token, after the subscription leg handed off or
+  # found its token empty, and only when the fallback token is set. It never
+  # hands off.
   generate-fallback:
     name: Generate Fallback
     needs: [prep, key-credit, generate-subscription]
@@ -900,8 +871,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # The plugin, the prompt and the config reader come from main at the
-      # event's commit.
       - name: Check out main's tools
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -909,10 +878,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      # The head must be on main, and the diff target is the push's previous
-      # head, or the head's first parent when the push had none (a first push
-      # or a rewrite), said in the summary. The personal override is gitignored
-      # (.claude/**/*.local.*), so the audit sees a clean tree.
       - name: Set the diff target
         id: target
         env:
@@ -943,7 +908,6 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      # The verify-pr route's profile: a judgment model with its turn cap.
       - name: Resolve the model
         id: models
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
@@ -952,8 +916,6 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/mutation-models.json
 
-      # Only whether each secret is set leaves this step, never its value.
-      # `present` is whether this leg runs the model.
       - name: Check the credential
         id: credential
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@5b5110ae015183e900dd098c631d4dcc68904067 # 5b5110a 2026-11-06
@@ -971,8 +933,6 @@ jobs:
           echo "::error::FALLBACK_CLAUDE_CODE_OAUTH_TOKEN is empty, so nothing is audited"
           exit 1
 
-      # The plugin loads from a read-only copy of main's under the workspace,
-      # the one tree run-claude-cli's file tools reach.
       - name: Stage the plugin and the prompt
         id: prompt
         if: steps.credential.outputs.present == 'true'
@@ -1000,8 +960,6 @@ jobs:
             .base/.github/scripts/post-merge-test-mutation/generate.schema.json >"$SCHEMA_FILE"
           echo "lint=$GITHUB_WORKSPACE/.lane/plugins/mutation-testing/scripts/suppression-lint.sh" >>"$GITHUB_OUTPUT"
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@b8bdd7fa2319b2457cbbef32c5348c394b9bc3f6 # b8bdd7f 2026-11-04
@@ -1012,8 +970,6 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
-      # A push to main lands through the merge queue; the run executes main's
-      # own code, and no mutant runs in this job. Bash runs read-only git and the plugin's suppression lint.
       - name: Run the generate leg
         id: run
         if: steps.prompt.outcome == 'success'
@@ -1077,8 +1033,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped' && steps.run.outcome != ''
         continue-on-error: true
@@ -1095,10 +1049,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      # A usage limit (rate-limit) or an overloaded API (overloaded) on a leg
-      # that hands nothing on is a designed stop, not a defect: the run ends
-      # green with a notice and the report says so. A handoff is no failure;
-      # any other failed leg fails the job.
       - name: Fail the leg unless it handed off or a limit stopped it
         id: stop
         if: always() && steps.run.outcome == 'failure' && steps.run.outputs.handoff != 'true'
@@ -1116,8 +1066,6 @@ jobs:
               ;;
           esac
 
-      # The leg's structured output, read from the launcher's file only after
-      # its init message reports dontAsk; the next job checks it again.
       - name: Keep the generate result
         id: keep
         if: steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''

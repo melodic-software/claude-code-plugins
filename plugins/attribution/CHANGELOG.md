@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.19.4] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.3.1], [0.3.2] now name the context-usage plugin by its current name.
+
 ## [0.19.3] - 2026-11-12
 
 ### Changed

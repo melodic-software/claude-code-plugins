@@ -1,0 +1,73 @@
+{
+  "no-install": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:(?:(?:\\\\\"|')(?:[^\"\\\\;&|']|\\\\\\\\)*(?:/|\\\\\\\\)|(?:\\\\\"|')?(?:(?:[^\\s\"\\\\;&|=']|\\\\\\\\)*(?:/|\\\\\\\\))?)(?:sudo|doas|gsudo|pkexec|env|nice|ionice|nohup|time|timeout|stdbuf|setsid|flock|chroot|unbuffer|busybox|xargs|exec|arch|wsl|ssh|docker|podman)(?:\\.exe)?(?:\\\\\"|')?(?:(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?!(?:e?grep|fgrep|rg|echo|printf|cat|man|which|type)\\b)(?:(?!\\\\t|\\\\\\\\\\\\n)[^\\s\"&;|])+)*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+)?(?:(?:\\\\\"|')(?:[^\"\\\\;&|']|\\\\\\\\)*(?:/|\\\\\\\\)|(?:\\\\\"|')?(?:(?:[^\\s\"\\\\;&|=']|\\\\\\\\)*(?:/|\\\\\\\\))?)(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|pacman|snap|winget|scoop|choco|nvm|fnm|volta|asdf|mise|rtx|aqua|conda|pip(?:x|3(?:\\.\\d+)*)?|npm|pnpm|yarn|go|cargo|rustup|uv)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:install|reinstall|add|use|upgrade|i|-S)\\b|pacman(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)+-S\\w*|(?:mise|asdf|rtx|aqua)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+up\\b|nix(?:-env)?\\s+(?:-i\\b|profile\\s+install|shell|run)|docker\\s+(?:pull|run)\\b|(?:npx|uvx)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?!-{1,2}(?:version|help|v|h)\\b)|Install-(?:Module|PSResource)\\b|(?:pwsh|powershell)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?:\\s|\\\\t|\\\\\\\\\\\\n)+(?:(?:[^\"\\\\]|\\\\.)*?(?:[{(;|=&]|\\\\n|(?<![\\w-])-[Cc]\\w*(?:\\s|\\\\t|\\\\\\\\\\\\n)))?(?:\\s|(?:\\\\\"|'))*(?:[\\w.]+\\\\\\\\)?Install-(?:Module|PSResource)\\b|curl(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|'[^']*'|\\\\\"(?:[^\"\\\\]|\\\\(?!\")[\\s\\S])*\\\\\"|(?!\\\\n)(?:[^\"\\\\&;|\\']|\\\\(?![\"n])[\\s\\S]))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:-[A-Za-z]*[oO]|--output(?:-dir)?\\b|--remote-name(?:-all)?\\b)(?!=?(?:\\s|\\\\t|\\\\\\\\\\\\n)*(?:/dev/null|NUL)\\b)|(?:curl|wget)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|\\d>&\\d|[02-9]>>?(?:\\s|\\\\t|\\\\\\\\\\\\n)*[^\\s\"\\\\;&|>]+|'[^']*'|\\\\\"(?:[^\"\\\\]|\\\\(?!\")[\\s\\S])*\\\\\"|\\|(?!\\|)|\\\\(?![\"n])[\\s\\S]|[^\"\\\\&;|'>])*?(?<![02-9&])&?>{1,2}(?!>|&[\\d-])(?!&?(?:\\s|\\\\t|\\\\\\\\\\\\n)*(?:/dev/null|NUL)\\b)|(?:curl|wget)(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?:\\\\\\\\\\\\n|\\d>&\\d|'[^']*'|\\\\\"(?:[^\"\\\\]|\\\\(?!\")[\\s\\S])*\\\\\"|(?!\\\\n)(?:[^\"\\\\&;\\']|\\\\(?![\"n])[\\s\\S]))*?(?<!\\|)\\|(?!\\|)(?:\\s|\\\\t|\\\\\\\\\\\\n)*(?!(?:head|tail|e?grep|fgrep|rg|jq|yq|sed|awk|cut|sort|uniq|wc|tr|less|more|cat|column)\\b)[^\\s|]|wget(?:\\.(?:exe|cmd|bat))?(?:\\\\\"|')?(?=(?:\\s|\\\\t|\\\\\\\\\\\\n))(?!(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:--spider\\b|(?:-[A-Za-z]*O|--output-document)(?:=|(?:\\s|\\\\t|\\\\\\\\\\\\n)*)(?:\\\\\"|')?(?:-|/dev/null|NUL)(?=\\\\\"|'|[\\s\"|;&>]|\\\\[nt])))(?:\\\\\\\\\\\\n|(?!\\\\n)(?:[^\"\\\\&;|]|\\\\.))*?(?:\\s|\\\\t|\\\\\\\\\\\\n)(?:\\\\\"|')?https?://|(?:bash|dash|zsh|sh|source|\\.)(?:\\s+-\\S+)*\\s+<\\(\\s*(?:curl|wget)\\b|(?:(?:bash|dash|zsh|sh)(?:\\s+-\\w+)*?\\s+-\\w*c\\w*|eval)\\s+(?:\\\\\"|')?\\$\\(\\s*(?:curl|wget)\\b)"
+  ],
+  "no-env-change": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?(?:(?:poetry|pipenv|pdm|hatch|rye)(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s+-{1,2}[\\w-]+(?:=\\S+)?)*\\s+(?:add|install|sync|lock|update|run|shell|env\\s+use)\\b|uv(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s+-{1,2}[\\w-]+(?:=\\S+)?)*\\s+(?:venv|sync|lock|add|run|tool\\s+run)\\b|pipx(?:\\.exe)?\\s+run\\b|(?:venv|virtualenv)(?=\\s))"
+  ],
+  "verify-ran": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?node(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:-[^\\s\\\"\\\\]+(?:\\s|\\\\\\\\\\\\n)+)*(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\']|\\\\\\\\)*install\\.mjs(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+verify\\b"
+  ],
+  "no-apply-step": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?node(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:-[^\\s\\\"\\\\]+(?:\\s|\\\\\\\\\\\\n)+)*(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\']|\\\\\\\\)*install\\.mjs(?:\\\\\\\"|')?(?:\\s|\\\\\\\\\\\\n)+(?:plan|copy|decline|config-hook)\\b"
+  ],
+  "no-ruff-run": [
+    {
+      "use": "command_position_multishell"
+    },
+    "(?:\\\\\\\"|')?(?:[^\\s\\\"\\\\;&|=']*/)?ruff(?:\\.exe)?(?:\\\\\\\"|')?(?:\\s+-{1,2}[\\w-]+(?:=\\S+)?)*\\s+(?:check|format)\\b"
+  ],
+  "status-table": [
+    {
+      "use": "table_header_rule"
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\bjq\\b"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\b(?:Ruff|ruff)(?![\\w.-])(?![ \\t]+(?:config|Config))"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "\\b(?:Node|node)(?:\\.js)?(?![\\w-])"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "(?:\\b(?:Config|config)\\b|ruff\\.toml|pyproject)"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "(?:python_format_enabled|\\b(?:Toggles?|toggles?)\\b)"
+      }
+    },
+    {
+      "use": "table_verdict_cell",
+      "with": {
+        "row": "(?:\\b(?:Pre-commit|pre-commit|Git hook|git hook)|git-hooks?\\b|install\\.mjs)"
+      }
+    }
+  ]
+}

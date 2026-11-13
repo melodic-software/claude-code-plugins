@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "/plugins/python-format/hooks/python-format.sh"}}], "why": "reads the hook"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "C:\\plugins\\python-format\\hooks\\python-format.sh"}}], "why": "Windows path"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/plugins/python-format/hooks/hooks.json"}}], "why": "another hook file"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat /plugins/python-format/hooks/python-format.sh"}}], "why": "cat, not Read"}
+  ]
+}

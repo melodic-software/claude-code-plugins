@@ -367,7 +367,7 @@ is the fewest such a row can cost, so it has no overage for Rule 2 to hold again
 shapes cover the Stop rows this applies to:
 
 - the default-off end-of-turn checks of actionlint, bash-format, biome-format, go-format,
-  powershell-format, ruff-format and spelling (`--require-true <PLUGIN>_END_OF_TURN`,
+  powershell-format, python-format and spelling (`--require-true <PLUGIN>_END_OF_TURN`,
   manifest default false), and markdown-format's once its option is `false`
   (`--run-if-unset-or-true MARKDOWN_FORMAT_END_OF_TURN`; unset, its default, runs the check);
 - autonomy's lane-stop gate (`--run-if-any-set` or `--run-if-settings-mention`, one any-of gate).

@@ -1,9 +1,0 @@
-{
-  "pass": [
-    {"answer": "Bare apply installs nothing. Installing Ruff takes the explicit argument: `/ruff-format:setup apply install-ruff`."}
-  ],
-  "fail": [
-    {"answer": "Apply will install Ruff for you now.", "why": "claims bare apply installs"},
-    {"answer": "Apply won't install Ruff.", "why": "near miss: does not name install-ruff as the authorizing argument"}
-  ]
-}

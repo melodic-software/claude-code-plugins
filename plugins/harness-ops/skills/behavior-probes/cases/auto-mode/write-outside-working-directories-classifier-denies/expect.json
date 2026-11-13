@@ -1,6 +1,6 @@
 {
-  "claim": "In auto mode, a Write to a directory that is neither the working directory nor in permissions.additionalDirectories goes to the classifier, which denies it under an autoMode.soft_deny rule that forbids the write.",
-  "tags": ["auto mode", "classifier", "working directories", "additionalDirectories", "additional directories", "Write", "file edits", "autoMode", "soft_deny"],
+  "claim": "In auto mode, a Write to a directory that is neither the working directory nor in permissions.additionalDirectories goes to the classifier, which denies it under an autoMode.hard_deny rule that forbids the write.",
+  "tags": ["auto mode", "classifier", "working directories", "additionalDirectories", "additional directories", "Write", "file edits", "autoMode", "hard_deny"],
   "docs": [
     "https://code.claude.com/docs/en/permission-modes#how-the-classifier-evaluates-actions",
     "https://code.claude.com/docs/en/permissions#working-directories",

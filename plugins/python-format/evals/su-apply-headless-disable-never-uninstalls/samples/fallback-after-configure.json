@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Preferred: `claude plugin configure python-format@<marketplace> --values-stdin < values.json`.\n\nBefore 2.1.285: `claude plugin install python-format@<marketplace> -s <scope> --config python_format_enabled=false`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`claude plugin install python-format@<marketplace> -s user --config python_format_enabled=false`, or `claude plugin configure python-format@<marketplace> --values-stdin`.",
+      "why": "fallback named before the preferred route"
+    },
+    {
+      "answer": "`claude plugin configure python-format@<marketplace> --values-stdin`, then `claude plugin install python-format@<marketplace> --config python_format_enabled=true`.",
+      "why": "wrong value"
+    },
+    {
+      "answer": "`claude plugin configure python-format@<marketplace> --values-stdin`",
+      "why": "no fallback"
+    }
+  ]
+}

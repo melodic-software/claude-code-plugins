@@ -3,6 +3,32 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.45] - 2026-11-13
+
+### Fixed
+
+- `behavior-probes`: the outside-working-directory write cases use `hard_deny` (user intent clears `soft_deny`), the Bash deny cases expect reason type `subcommandResults`, and record 23 holds the first live run of the 15 auto-mode and deny-rule cases, all passing on 2.1.323.
+
+## [8.12.44] - 2026-11-13
+
+### Added
+
+- `behavior-probes`: five new auto-mode cases (a Write in the project, in an `additionalDirectories`
+  entry and outside both; a `permissions.deny` rule against an `autoMode.allow` entry) and a new
+  `deny-rules` area (a `Read(./.env)` deny against the Read tool, `cat .env` and `bash -c "cat .env"`;
+  a `git reset --hard` deny against `git -C . reset --hard`; a `!` carve-out listed after and before
+  the rule it carves from). Each case cites the docs section behind its expected outcome in a new
+  optional `docs` field; the cases are listed as pending in `records.md` until their first live run.
+
+- `behavior-probes`: a `hub-start` area of seven auto-mode cases, built by a new `cases/lib/hub-layout.sh` scaffold, checks what a session started in one repository may write in a sibling repository and its worktree under a stand-in `autoMode.environment`. Record 22 holds the live run: every action ran.
+
+### Changed
+
+- Corrected in place: the released entries [3.14.0], [7.0.1], [8.12.38] now name the context-usage plugin by its current name.
+- References to the context-window plugin use its new name, context-usage: the `/context-usage` commands, the `mcp__context-usage__status` tool and the `~/.claude/context-usage/` directory.
+
+- `behavior-probes`: `auto-mode/flag-automode-rule-denies` now takes its command from a file, with a new file-sourced control, because a prompt that names the exact command is the documented user-intent override of a soft block. Records 4 and 5 carry their reruns on Claude Code 2.1.323.
+
 ## [8.12.43] - 2026-11-12
 
 ### Changed

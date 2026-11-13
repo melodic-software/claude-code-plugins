@@ -13,6 +13,6 @@
     "example": {"command": "git reset --hard HEAD"}
   },
   "outcome": "deny",
-  "reason_type": "rule",
+  "reason_type": "subcommandResults",
   "control": "deny-rules/git-reset-hard-runs"
 }

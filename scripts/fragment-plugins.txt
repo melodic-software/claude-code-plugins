@@ -76,12 +76,12 @@ plugin-quality
 powershell-format
 pr-pipeline
 prototype
+python-format
 rate-limits
 repo-fleet-hygiene
 repo-hygiene
 retro-audio
 review
-ruff-format
 session-flow
 skill-quality
 songwriting

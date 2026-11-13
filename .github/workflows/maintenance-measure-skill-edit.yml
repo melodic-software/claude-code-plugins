@@ -687,7 +687,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 1
         run: |
-          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
           mkdir -p "$RUNNER_TEMP/key-credit-stop"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
 
@@ -1162,7 +1161,7 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
-      # A kill switch turned on since the step above is a designed stop.
+      # A kill switch turned on since the kill-switch check is a designed stop.
       - name: Request the lane token
         id: lane-token
         if: steps.verify.outcome == 'success'
