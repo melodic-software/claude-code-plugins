@@ -39,7 +39,7 @@ top-level `bin/`. **Pointer**: when deciding whether this plugin can ship a
 |---|---|---|
 | `validate` | `<probe> validate` | none |
 | `dry-run` (default) | `<probe> run --dry-run` | none: scaffolds run, `claude` is replaced by a fake |
-| `live` | `<probe> run --live [--case <id>]... [--area <area>]... [--retries 1]` | real model runs, capped |
+| `live` | `<probe> run --live [--case <id>]... [--area <area>]... [--retries 1] [--real-setup]` | real model runs, capped |
 | `recheck` | `<probe> recheck --changelog <file> --range <A..B>` | none |
 | `table` | `<probe> table <results.jsonl>` | none |
 | `rejudge` | `<probe> rejudge --out <dir of a live run>` | none: re-reads the saved streams after an `expect.json` fix; a verdict-only case keeps its row |
@@ -49,6 +49,13 @@ selects and the ceilings in force (`--max-runs`, `--max-cost-usd`, each case's `
 case past a ceiling is reported `skipped`, never run, and each case's budget is cut to what the suite
 ceiling leaves. For what a run costs, point at
 [Manage costs](https://code.claude.com/docs/en/costs#track-your-costs).
+
+`live --real-setup` repeats cases against the operator's own settings: the run adds `user` to the
+setting sources and passes, from the case's `settings.json`, only
+`permissions.additionalDirectories`, so the operator's rules, not the case's stand-in `autoMode`,
+judge the call. The fixture is still the case's temp directory, outside the operator's real clone
+and worktree roots, so an entry naming those roots does not apply to it; say so beside the result.
+Run it only when the operator names that repeat.
 
 Each live case runs in its own temp directory with `--setting-sources project,local`, the case's
 `settings.json` as `--settings`, its permission mode, its tool lists as `--allowedTools` and

@@ -774,6 +774,54 @@ class SuiteTests(unittest.TestCase):
         self.assertNotIn("--allowedTools", argv)
         self.assertNotIn("--disallowedTools", argv)
 
+    def test_real_setup_loads_user_settings_and_keeps_only_directory_grants(self):
+        real = probe.build_argv("claude", case(real_setup=True), Path("s"), "m")
+        self.assertIn("user,project,local", real)
+        plain = probe.build_argv("claude", case(), Path("s"), "m")
+        self.assertNotIn("user,project,local", plain)
+        settings = {
+            "permissions": {
+                "additionalDirectories": ["/w/worktrees"],
+                "allow": ["Bash"],
+            },
+            "autoMode": {"soft_deny": ["$defaults", "x"]},
+            "hooks": {"Stop": []},
+        }
+        self.assertEqual(
+            probe.real_setup_settings(settings),
+            {"permissions": {"additionalDirectories": ["/w/worktrees"]}},
+        )
+        self.assertEqual(probe.real_setup_settings({"autoMode": {}}), {})
+
+    def test_real_setup_run_passes_only_directory_grants(self):
+        if not shutil.which("git") or not shutil.which("bash"):
+            self.skipTest("the scaffolds need git and bash")
+        seen = {}
+
+        def capture(case, cwd, settings_file, prompt):
+            seen["settings"] = json.loads(settings_file.read_text())
+            seen["real"] = case.get("real_setup")
+            return probe.fake_runner(case, cwd, settings_file, prompt)
+
+        cases = {c["id"]: c for c in probe.discover(probe.DEFAULT_CASES)}
+        edit = cases["hub-start/worktree-agents-md-edit-skips-classifier"]
+        args = Namespace(
+            live=False,
+            max_runs=1,
+            max_cost_usd=1.0,
+            retries=0,
+            keep=False,
+            case=[],
+            model="sonnet",
+            real_setup=True,
+        )
+        probe.run_suite([edit], capture, args)
+        self.assertTrue(seen["real"])
+        self.assertEqual(
+            seen["settings"],
+            {"permissions": {"additionalDirectories": [mock.ANY]}},
+        )
+
     def test_tool_lists_reach_argv_with_the_workdir_substituted(self):
         if not shutil.which("git") or not shutil.which("bash"):
             self.skipTest("the scaffold needs git and bash")
