@@ -589,6 +589,20 @@
         "Gets the total from salesTotalFor in lib/sales.ts and sends the email through sendMail from lib/mailer.ts",
         "Adds no second way for either concern: no crontab or deploy-config scheduler entry, scheduler package, timer loop, new mail client or new retry helper"
       ]
+    },
+    {
+      "id": 44,
+      "name": "reads-only-the-review-criteria-files-for-edited-paths",
+      "narration": true,
+      "prompt": "/implementation:implement feature add a nightly export job under jobs/. The repository has no docs/standards/ directory. Its docs/review/README.md is a table with two rows: jobs/** points at docs/review/jobs.md (idempotent runs, one retry wrapper) and routes/** points at docs/review/routes.md (input validation at the handler).",
+      "expected_output": "Before the first edit, reads docs/review/README.md and loads docs/review/jobs.md, the one file whose row matches the jobs/ path it will edit. It does not load docs/review/routes.md. It builds the job to the loaded criteria: an idempotent run through one retry wrapper.",
+      "files": [],
+      "expectations": [
+        "Reads docs/review/README.md before the first edit",
+        "Loads docs/review/jobs.md because its row matches the jobs/ path being edited",
+        "Does NOT load docs/review/routes.md, whose row the edited paths do not match",
+        "Builds the job to the loaded criteria: an idempotent run through one retry wrapper"
+      ]
     }
   ]
 }
