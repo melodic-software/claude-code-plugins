@@ -5,6 +5,9 @@ Choose who at the end of `ready` (2.5.6), and again at `monitor` entry when no c
 The facts each route rests on (who can start it, what it needs, what it cannot see) are in
 [native-surfaces.md](native-surfaces.md); this file holds the decision.
 
+A dispatched subagent makes no choice here: it reports the PR number and full head sha and stops,
+and the dispatching session watches ([monitor.md](monitor.md)).
+
 ## Check usage first
 
 Before recommending or starting any route, a cloud one included, read the snapshot file under the
