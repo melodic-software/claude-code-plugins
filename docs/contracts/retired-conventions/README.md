@@ -294,7 +294,7 @@ persists after demotion, is the silent shim the plugin philosophy forbids.
 ## Scope
 
 Repository-scope surfaces only. The schema has no `scope` field. Machine-scope files under
-`~/.claude/` (context-usage, rate-limit-guard, machine-health) are outside this contract and keep
+`~/.claude/` (context-usage, rate-limits, machine-health) are outside this contract and keep
 their own detection (ADR 0018, decision 6). The twin status-line tees whose drift that decision
 named are retired, and installs that still wire one are no longer supported, so neither guard
 detects them.

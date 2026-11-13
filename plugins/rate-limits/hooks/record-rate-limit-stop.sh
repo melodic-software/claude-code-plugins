@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# StopFailure hook (matcher: rate_limit): append a machine-readable detection
+# record when a turn ends on a rate-limit API error.
+#
+# SIDE-EFFECT-ONLY by design: this hook's one job is the record it appends,
+# and it returns no decision. Pointer: when deciding whether StopFailure
+# output can do anything, fetch https://code.claude.com/docs/en/hooks#stopfailure
+# live.
+# The record is the reactive-fallback signal consumers read when the
+# module's snapshot carries no usable window data (see
+# ../reference/reader-contract.md). The payload carries no reset or quota
+# data; resume timing comes from the contract file rate-limits.json or from
+# error text the consuming session itself sees.
+#
+# Record sink: ~/.claude/rate-limits/stop-events.jsonl — the fixed
+# contract path (HOME-anchored, machine-scope, matching rate-limits.json's
+# machine scope). Deliberately OUTSIDE
+# ${CLAUDE_PLUGIN_DATA}: plugin data is cache-isolated per plugin, and this
+# file is a documented cross-plugin artifact seam that sibling-plugin lane
+# sessions must be able to read. One line per detection:
+#   {"detected_at":"<ISO-8601 UTC>","hook_event_name":"StopFailure",
+#    "matcher":"rate_limit","session_id":"<id, when present>"}
+#
+# jq-FREE by design: a rate-limit stop is exactly when the environment is
+# least trustworthy, so the record is hand-built with the lib's JSON escaper
+# and session_id is regex-extracted. Empty or unparsable stdin still records —
+# the event firing is itself the signal. The file is rotated in place (keep
+# the newest 100 once it exceeds 200 lines) so it cannot grow unboundedly.
+#
+# Kill switch: rate_limits_enabled userConfig boolean, read via the
+# CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED hook-process mirror.
+
+set -uo pipefail
+# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
+# subshell for every command substitution even when the body is a builtin
+# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
+# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
+
+# Kill switch FIRST, above every source: a disabled hook must not pay to parse
+# hook-utils.sh before finding out it is off. Inlined rather than read through
+# hook::is_enabled because the library IS the cost the hoist avoids;
+# scripts/check-killswitch-hoist.sh fails a hook whose first early exit sits
+# below a source.
+[[ "${CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED:-true}" == "true" ]] || exit 0
+
+# shellcheck source=hook-utils.sh
+source "$HOOK_DIR/hook-utils.sh"
+
+# Buffer stdin once (Win32-pipe-safe bounded read). A missing or incomplete
+# payload degrades the record, never suppresses it.
+hook::buffer_stdin_to INPUT || INPUT=""
+
+SESSION=""
+if [[ "$INPUT" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then
+  SESSION="${BASH_REMATCH[1]}"
+fi
+
+# silent-skip-ok: no HOME means no resolvable contract path anywhere on this
+# host: nothing this hook could usefully write, and by design this hook
+# reports no failure through any StopFailure output field.
+[[ -n "${HOME:-}" ]] || exit 0
+CONTRACT_DIR="$HOME/.claude/rate-limits"
+EVENTS="$CONTRACT_DIR/stop-events.jsonl"
+# silent-skip-ok: an uncreatable contract dir cannot be surfaced from a
+# StopFailure hook (by design it reports no failure); the setup skill's
+# check probe is the visibility surface for a broken contract path.
+mkdir -p "$CONTRACT_DIR" 2>/dev/null || exit 0
+# Owner-only contract dir + owner-only files from here on (records, lock,
+# rotation temp). Best-effort on filesystems without POSIX modes.
+chmod 700 "$CONTRACT_DIR" 2>/dev/null || true
+umask 077
+
+ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || ts=""
+
+record='{"detected_at":"'"$(hook::json_escape "$ts")"'","hook_event_name":"StopFailure","matcher":"rate_limit"'
+if [[ -n "$SESSION" ]]; then
+  # SESSION is captured between unescaped quotes of a JSON string token, so
+  # it is already JSON-escaped text and re-escaping would double the
+  # backslashes. The record's validity therefore also leans on the emitter
+  # having produced RFC-valid JSON (the harness does): a raw control byte
+  # inside the source value would carry through and break this JSONL line.
+  # Not adversary-reachable via well-formed hook input, but not
+  # unconditionally safe either — consumers parse records with a JSON
+  # parser and skip lines that fail to parse.
+  record+=',"session_id":"'"$SESSION"'"'
+fi
+record+='}'
+
+hook::append_jsonl "$EVENTS" "$record"
+
+# Bound the file at ~200 records, keeping the newest 100.
+rotate_events() {
+  local lines tmp
+  lines=$(wc -l <"$EVENTS" 2>/dev/null) || return 0
+  # The blanks a BSD wc pads its count with, and a CR from a Windows toolchain,
+  # come off with a parameter expansion rather than a second process: this runs
+  # on every fire of the hook.
+  lines="${lines//[ $'\r']/}"
+  [[ "$lines" =~ ^[0-9]+$ ]] || return 0
+  ((lines > 200)) || return 0
+  tmp="$EVENTS.tmp.$$"
+  # One cleanup path for both failures: a tail that fails still leaves the
+  # redirection's empty temp behind, and a rename that fails leaves the
+  # written one. A rename that SUCCEEDS has already consumed the temp.
+  if ! tail -n 100 "$EVENTS" >"$tmp" 2>/dev/null || ! mv -f "$tmp" "$EVENTS" 2>/dev/null; then
+    rm -f "$tmp" 2>/dev/null
+  fi
+  return 0
+}
+
+# Rotation runs under the SAME advisory lock hook::append_jsonl uses (the
+# sibling .lock file), so a record another session appends mid-rotation is
+# never dropped by the tail+rename. Without flock the append itself is
+# already best-effort, and so is this — a lost race there costs at most a
+# few advisory records, never this process's own (already appended above).
+if command -v flock >/dev/null 2>&1; then
+  (
+    flock -w 2 9 || exit 0
+    rotate_events
+  ) 9>"$EVENTS.lock" 2>/dev/null
+else
+  rotate_events
+fi
+
+exit 0

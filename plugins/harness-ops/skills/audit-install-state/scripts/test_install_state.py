@@ -52,8 +52,8 @@ def build_tree(root: Path) -> None:
         '{"pid": 32324, "authToken": "SHOULD-NEVER-BE-READ"}', encoding="utf-8"
     )
 
-    (root / "rate-limit-guard").mkdir()
-    (root / "rate-limit-guard" / "stop-events.jsonl.tmp.2541395").write_text(
+    (root / "rate-limits").mkdir()
+    (root / "rate-limits" / "stop-events.jsonl.tmp.2541395").write_text(
         "x", encoding="utf-8"
     )
 
@@ -92,7 +92,7 @@ class TestNameSchemes(unittest.TestCase):
         cases = {
             "sessions/5052.json": engine.PID,
             "ide/22580.lock": engine.TCP_PORT,
-            "rate-limit-guard/stop-events.jsonl.tmp.2541395": engine.MSYS_SHELL_PID,
+            "rate-limits/stop-events.jsonl.tmp.2541395": engine.MSYS_SHELL_PID,
             "shell-snapshots/snapshot-bash-1786398511670-a1b2c3.sh": engine.EPOCH_MS,
             "backups/.claude.json.backup.1786398511670": engine.EPOCH_MS,
             "paste-cache/deadbeefdeadbeef": engine.CONTENT_HASH,
@@ -131,7 +131,7 @@ class TestLivenessGate(unittest.TestCase):
     def test_probe_is_never_called_for_a_non_pid_name(self) -> None:
         non_pids = [
             "ide/22580.lock",
-            "rate-limit-guard/stop-events.jsonl.tmp.2541395",
+            "rate-limits/stop-events.jsonl.tmp.2541395",
             "shell-snapshots/snapshot-bash-1786398511670-a1b2c3.sh",
             "paste-cache/deadbeefdeadbeef",
             "third-party-plugin/state.99999",

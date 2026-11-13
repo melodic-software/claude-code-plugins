@@ -1,6 +1,6 @@
 # System Landscape
 
-Generated on 2026-11-12 from current repository plus reference graph. Remote facts: not used.
+Generated on 2026-11-13 from current repository plus reference graph. Remote facts: not used.
 
 Every fact traces to the file the probe named. Every edge is typed by the
 syntax that carries it and labeled with how many references support it.

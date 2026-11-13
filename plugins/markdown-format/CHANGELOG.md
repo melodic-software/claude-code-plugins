@@ -2113,7 +2113,7 @@ disclosure from the tool's own report rather than from an exit-code map.
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
   `-s <scope>`, sourced from what `claude plugin list` reports for this plugin, the same fix
-  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  already applied to `session-flow` and `rate-limits` in #1393.
 
 ## [0.6.3]
 

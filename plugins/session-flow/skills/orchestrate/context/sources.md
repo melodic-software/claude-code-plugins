@@ -231,11 +231,11 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   itself the context-protection trigger imperative 1 names). Usage or rate-limit headroom is not a
   sizing input: it never lowers tier, effort, review depth or worker count (maintainer rule,
   2026-10-11, #7118/#7135).
-- **Rate limits → reactive-only.** The rate-limit-guard reader contract classifies a
+- **Rate limits → reactive-only.** The rate-limits reader contract classifies a
   missing, stale, or `rate_limits`-less snapshot as **unknown → reactive-only**. Imperative 7's
   backoff on this session's own rate-limit errors and sibling 429s is the orchestration
   consumption of that classification, not a second contract. Pointer:
-  `plugins/rate-limit-guard/reference/reader-contract.md` ("Capability detection (fail-open)",
+  `plugins/rate-limits/reference/reader-contract.md` ("Capability detection (fail-open)",
   "Cloud / remote sessions").
 - **Per-worker model tier is an explicit spawn decision.** Every spawn names a model tier,
   because a spawn that names none, for an agent whose definition names none, can fall through to

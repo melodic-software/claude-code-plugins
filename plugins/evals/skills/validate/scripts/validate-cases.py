@@ -244,7 +244,7 @@ REMOVED_TOOLS = frozenset(["TaskOutput"])
 # or a tag, and lacks Bash fails to load it and ends at 0 turns.
 # - Pointer: when what loads a pre-computed line may have changed, fetch
 #   https://code.claude.com/docs/en/skills#inject-dynamic-context live; the
-#   observed basis is the #8635 rate-limit-guard run, INVALID at 0 turns.
+#   observed basis is run #8635, INVALID at 0 turns.
 # - As of: 2026-11-01
 # - Recheck trigger: that section names a tool other than Bash for the line.
 PRECOMPUTED = re.compile(r"!`[^`\n]+`")

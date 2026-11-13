@@ -509,8 +509,8 @@ them
 "Telemetry and durable loop state").
 
 **Both lanes share one subscription's rate-limit windows.** Each lane reads the
-same rate-limit guard floor
-([`/work-items:work-loop`](../../plugins/work-items/skills/work-loop/SKILL.md#rate-limit-guard-floor-inlined)).
+same rate-limits floor
+([`/work-items:work-loop`](../../plugins/work-items/skills/work-loop/SKILL.md#rate-limits-floor-inlined)).
 A pause recorded there applies to every lane that is running.
 
 Each lane is its own session, so the per-session subagent cap applies inside
@@ -1238,9 +1238,9 @@ with the operator's signature on them.
 > matter how doc-shaped it looks.
 >
 > **Rate-limit floor** (inlined verbatim per the loop-lane convention;
-> provenance: the `rate-limit-guard` reader contract):
+> provenance: the `rate-limits` reader contract):
 >
-> - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+> - **Snapshot file (fixed path):** `~/.claude/rate-limits/rate-limits.json`
 > - **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose
 >   session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read
 >   it at lane start with `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it
@@ -1311,7 +1311,7 @@ with the operator's signature on them.
 >   fabricate a pause. Reactive-only means no proactive pause at all: react
 >   instead to
 >   the detection records in
->   `~/.claude/rate-limit-guard/stop-events.jsonl` and to the rate-limit
+>   `~/.claude/rate-limits/stop-events.jsonl` and to the rate-limit
 >   error text this session sees, taking resume timing from that error
 >   text where available and otherwise backing off and retrying. Read the
 >   detection records on entering reactive-only and again before each new

@@ -104,8 +104,10 @@ class-B moves, and reports.
 3. **On a rejection**, revert that report's edits and dispatch once more, naming the failure. A
    second rejection is reverted, reported as open, and the run fails.
 4. **Apply the class-B moves** the agent proposed, each behind its tier's gate, hand each ADR
-   candidate it listed to `/architecture:record-decision` per [ADR candidates](#postures), then
-   report.
+   candidate it listed to `/architecture:record-decision` per [ADR candidates](#postures), write
+   the findings file ([actions/remove.md](actions/remove.md#findings-file)) from the rows it
+   listed, less the reshape flags whose move you applied and plus one for each move whose gate
+   failed, then report.
 
 With no subagent tool, or when this skill is itself running inside `comment-reviewer`, run the
 workflow in [actions/remove.md](actions/remove.md) inline.
@@ -220,10 +222,10 @@ an UNPROVABLE file yields proposals only.
 
 - `/source-control:commit`, which takes the staged commit-message block and lands the removed
   narrative with the diff that removed it.
-- Reshape flags that need a design decision: `/architecture:improve` on the flagged symbols.
+- The findings file's rows (reshape flags, open root-cause work, lint-rule proposals):
+  `/review:fanout fix`, then `/implementation:implement` or `/debugging:debug` for a root cause and
+  `/architecture:improve` for a reshape that needs a design decision.
 - ADR candidates listed but not recorded: `/architecture:record-decision` with each one.
-- Open root-cause work (a workaround, a correctness suppression): `/debugging:debug` or
-  `/implementation:implement`.
 
 ## Gotchas
 

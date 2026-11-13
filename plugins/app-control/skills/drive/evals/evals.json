@@ -32,12 +32,15 @@
     {
       "id": 3,
       "name": "report-states-observations-without-a-verdict",
-      "prompt": "/app-control:drive cart. The control-shop skill's cart feature has Drive steps: open /cart, add the first item, open the basket. Run them and give me the report. I will decide whether the change is good.",
-      "expected_output": "Reports each step with its action, entry point, what was observed and the artifact path, and states no verdict on whether the change works.",
+      "prompt": "/app-control:drive cart. The control-shop skill's cart feature has Drive steps: 1. Open the cart: `goto /cart`. Result: the cart page shows `Cart (0 items)`. 2. Add the first item: `click [data-test=add-0]`. Result: the header reads `Cart (1 item)`. 3. **Proof.** Result: the cart page lists the added item at its price. Captures: screenshot. Run them and give me the report. I will decide whether the change is good.",
+      "expected_output": "Reports each action step with its action, entry point, its stated result copied as written beside what was observed, and the artifact path, records the proof step's stated result beside what its screenshot shows, and states no verdict on whether the change works or whether any observation matches its stated result.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Lists each step with its action, what was observed and an artifact path",
+        "Lists each action step with its action, what was observed and an artifact path",
+        "Lists each step's stated result, copied from its Result: text, beside what was observed",
+        "Records the proof step with its stated result and the screenshot it names",
+        "Does NOT say an observation matches, meets, differs from or fails its stated result",
         "States only what was observed",
         "Does NOT say the change works, is correct, or is broken",
         "Does NOT include a field or line that rates the outcome"
