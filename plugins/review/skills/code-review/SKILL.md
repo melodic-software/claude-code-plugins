@@ -212,7 +212,9 @@ is the line in that file at the PR head, never a position in the diff file.
 Read it from the file at head, or count it from the hunk header
 `@@ -a,b +c,d @@`: the line after the header is line `c`, and only context and
 `+` lines advance the count. A finding on a removed line cites the base file's
-line, counted from `a` over context and `-` lines. Exclude:
+line, counted from `a` over context and `-` lines. When a finding is one of several of the same
+class in the diff, name the class and each place it occurs, so the fix covers every instance.
+Exclude:
 
 - Anything a linter, formatter, typechecker, or trivial static check catches
 - Pre-existing issues on unchanged lines that no changed line calls

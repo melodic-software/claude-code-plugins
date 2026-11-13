@@ -58,6 +58,12 @@
       "default": 2,
       "min": 1
     },
+    "smell_baseline": {
+      "type": "string",
+      "title": "Design-smell baseline",
+      "description": "default (default): the code-reviewer agent checks the shipped design-smell baseline. off: no smell check. A repository-relative .md path: that list, or the shipped one when the file is missing or the change edits it. A repository's docs/conventions/review.yaml smell_baseline wins over this option.",
+      "default": "default"
+    },
     "council_max_rounds": {
       "type": "number",
       "title": "Council max rounds",

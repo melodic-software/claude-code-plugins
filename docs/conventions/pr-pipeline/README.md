@@ -365,7 +365,11 @@ subscription fallback) answers them and hands on a patch and its replies,
 `publish-feedback` (a script job with no model, `publish-artifact`) posts the replies, naming the
 pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). It re-reads each
 thread against the reviewed heads the select job recorded in `run.json`, since a review lane edits
-its one marker in place when it reviews the pushed fix.
+its one marker in place when it reviews the pushed fix. No job in these rounds or in `fix-ci`
+rewrites the body sections a pushed fix makes stale: the model jobs run on the read runner and
+write nothing, and `publish-feedback` writes only its `## Follow-ups` entries to the body. An attended session does
+([`monitor.md`](../../../plugins/source-control/skills/pull-request/reference/monitor.md) §3.3.2
+step 5).
 
 ### Outage posture
 

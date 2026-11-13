@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.2] - 2026-11-13
+
+### Changed
+
+- The prototype page's pin helper, `shared/web/proto-pin.js`, is now a generated copy of the
+  shared `lib/ui-feedback/proto-pin.js`. Its `pinned` message also carries a structural anchor
+  that the prototype page ignores; the page behaves as before.
+
 ## [5.0.1] - 2026-11-13
 
 ### Changed

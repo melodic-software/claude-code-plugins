@@ -28,8 +28,9 @@ D/audit-sessions/
   - excerpts of your own short typed turns, cut to `audit_sessions_excerpt_chars` characters, and
     the session's custom title, generated title (`link_keys.ai_title`) and agent name; 0 stores
     none of them;
-  - the working directory, edited file paths (relative to it when inside it), branch names, PR
-    repositories, and the names of slash commands, model-invoked skills and assistant errors;
+  - the working directory, edited file paths (relative to it when inside it), branch names and PR
+    repositories (the main session's in `branches` and `prs`, its subagents' in `branches_sub` and
+    `prs_sub`), and the names of slash commands, model-invoked skills and assistant errors;
   - in the `friction` block, per event: the command shape, the call's `tool_use_id` for a denial
     or an approved prompt, and, for a denial, the classifier's category or the first line of the
     hook's message; with `audit_sessions_excerpt_chars` above 0,
@@ -123,6 +124,12 @@ D/audit-sessions/
   `branch_key` with `--branch`, and `tickets`, one row per key with `sessions` (ids in start order),
   `output_tokens`, `span_s`, `prs` (distinct linked PRs) and `gaps_s`. A gap runs from the latest
   end so far to the next start and is 0 for overlapping sessions. It writes nothing.
+- `--pr <n> --repo <owner/repo>` prints a separate envelope, schema `audit-sessions.pr/v1`: `data`
+  holds `repo`, `number`, `branch` (the `--branch` value or null), `scope`, `window` (`sessions` is
+  every session in scope and window, automated ones included), and `sessions` in start order, each
+  with `session_id`, `class`, `start`, `end`, `matched_by` (`pr` or `branch`, suffixed `-sub` when
+  only a subagent's transcript shows it; the repository compares case-insensitively), `subagents`
+  and `output_tokens`. It writes nothing.
 - New fields are added within v1, and a consumer treats a missing field as null and ignores one it
   does not know. Removing or renaming a field, or changing what one means, moves the schema to
   `audit-sessions.sweep/v2`.

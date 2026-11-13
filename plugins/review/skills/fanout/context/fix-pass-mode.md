@@ -136,7 +136,9 @@ Order: correctness first (highest value, scope-fenced), then producer-owned (eac
 
 Apply one finding at a time. Concurrent fixes risk silent overwrite (last write wins).
 
-- Each fix is scope-fenced to its finding's `Location`: touch only that file for that finding.
+- Each fix is scope-fenced to its finding's `Location`: touch only that file for that finding. A
+  finding that names a class and lists each place it occurs in the diff has each listed place as a
+  `Location`, so the fix covers every instance, each fenced to its own file.
 - **Fix correctness findings here, in this sequential scope-fenced pass. `/simplify` is quality-only and does not hunt bugs.**
 - **Surface instead of auto-applying** when a fix is low-confidence, needs architectural judgment, has high blast radius, or **its remediation lies outside the finding's `Location`** (Step 2). Auto-apply only clear, contained, high-confidence fixes. The fourth trigger is not a special case of the first three: an off-site row can be high-confidence, mechanically contained, and low blast radius, and without the trigger a fixer meeting one has no disposition at all. The fence forbids the edit the `Action` names, and nothing else authorizes surfacing.
 - **Red test before the fix.** For a finding verified at its cited site, add a test that fails

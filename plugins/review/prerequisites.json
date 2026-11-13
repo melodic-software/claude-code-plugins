@@ -86,7 +86,7 @@
           "node"
         ]
       },
-      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported, and /review:setup cannot check or write docs/conventions/review.yaml, and /review:fanout skips that file's layer for fanout_diversity and fanout_act_on_cap and says so; the reviews themselves are unaffected. After node resolves, run `bash scripts/check-hook-registration.sh` from the plugin root, the directory passed to `prerequisites.mjs check`. It reports whether the connected-page guard is registered and denies a sample page.",
+      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported, and /review:setup cannot check or write docs/conventions/review.yaml, and /review:fanout skips that file's layer for fanout_diversity and fanout_act_on_cap and the code-reviewer agent for smell_baseline, each saying so; the reviews themselves are unaffected. After node resolves, run `bash scripts/check-hook-registration.sh` from the plugin root, the directory passed to `prerequisites.mjs check`. It reports whether the connected-page guard is registered and denies a sample page.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",
