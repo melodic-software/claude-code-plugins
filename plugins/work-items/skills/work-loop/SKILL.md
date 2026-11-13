@@ -466,8 +466,11 @@ Stop-mode semantics are **not** inlined here. Load exactly one mode reference pe
 Lane-infrastructure items never gate any exit shape: the per-lane telemetry tracking issues, this
 lane's and any sibling lane's, identified as `/work-items:triage` ("Scope: raw intake only")
 defines them, by pinned config identity or sentinel comment and never by title alone, **and open
-`work-map` container items** (the tracker seam's `WIT_CONTAINER_LABEL`, default `work-map`: never
-claimable, never closed by this lane, openness means the map exists), are excluded from the
+container and map items** (the tracker seam's `WIT_CONTAINER_LABEL`, default `spec-container`, or
+any label starting with `WIT_WAYFIND_PREFIX`, default `wayfind:`, a map's decision items included:
+never claimable, never closed by this lane, openness means the container or map exists;
+[`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
+"Maps and containers"), are excluded from the
 cycle-start snapshot, the intake sweep, the exit evaluation, and the post-snapshot intake report.
 The loop never works, closes, or waits on them; an open telemetry issue is the lane operating, not
 backlog, and an open container is lane infrastructure for the same reason, not unresolved backlog

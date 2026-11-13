@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Claiming 'Measure current invoice volume' (#43): /work-items:track start #43.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Nothing to claim; stopping.",
+      "why": "breaks the rule"
+    }
+  ]
+}

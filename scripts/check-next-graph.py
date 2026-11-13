@@ -163,11 +163,11 @@ def read_roster(root: Path) -> dict[str, dict[str, str]]:
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        name, _, declaration = (part.strip() for part in line.partition("|"))
+        name, *declarations = (part.strip() for part in line.split("|"))
         if not SKILL_NAME.fullmatch(name):
             raise SetupError(f"{ROSTER}:{number}: '{name}' is not a plugin:skill name")
         flags: dict[str, str] = {}
-        if declaration:
+        for declaration in declarations:
             kind, _, reason = (part.strip() for part in declaration.partition(":"))
             if kind not in ("entry", "terminal", "skip-to"):
                 reason = ""

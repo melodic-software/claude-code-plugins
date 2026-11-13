@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Picking 'Choose the billing aggregate' (#42): /work-items:track start #42, then route it to /planning:interview.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolving all three now: aggregate per tenant, Stripe adapter, per-tenant numbering.",
+      "why": "breaks the rule"
+    }
+  ]
+}

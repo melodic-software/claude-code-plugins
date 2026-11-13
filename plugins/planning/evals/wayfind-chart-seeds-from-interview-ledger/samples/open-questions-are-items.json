@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Items: 'Map the personal-data stores' (research), 'Decide whether backups count as retained copies' (interview).",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Items: 'Map the personal-data stores'. Backups: left for later.",
+      "why": "breaks the rule"
+    }
+  ]
+}

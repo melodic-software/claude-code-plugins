@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Closed 'Choose the billing aggregate' (#42). New line: '- [Choose the billing aggregate](URL): one Invoice aggregate per tenant'.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done.",
+      "why": "breaks the rule"
+    }
+  ]
+}

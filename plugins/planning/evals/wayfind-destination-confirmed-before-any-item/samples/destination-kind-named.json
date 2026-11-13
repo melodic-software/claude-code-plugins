@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Destination: a PRD for partner-API v2.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "What should we aim for?",
+      "why": "breaks the rule"
+    }
+  ]
+}

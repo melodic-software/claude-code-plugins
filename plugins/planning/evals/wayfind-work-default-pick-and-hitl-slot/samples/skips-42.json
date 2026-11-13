@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#42 is skipped: your one needs-human slot is held by 'Decide invoice numbering' (#41).",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Claiming #42 'Choose the billing aggregate'.",
+      "why": "breaks the rule"
+    }
+  ]
+}

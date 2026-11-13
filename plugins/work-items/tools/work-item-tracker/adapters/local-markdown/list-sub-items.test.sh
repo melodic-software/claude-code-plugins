@@ -31,12 +31,12 @@ assert_eq "binding sits in a private dir, not the shared TMPDIR" \
 
 new() { bash "$TRACKER" create-item "$@" | jq -r '.id'; }
 
-# A container (work-map) with two direct children, an unrelated leaf, and a
+# A container (spec-container) with two direct children, an unrelated leaf, and a
 # grandchild (proves enumeration is DIRECT children only). Capture C2's full
 # record to recover the store's on-disk path from its own reported url — the
 # tracker resolves the storage dir itself (and MSYS may translate it), so never
 # assume the outer $STORAGE is where files land.
-MAP="$(new --title map --labels work-map)"
+MAP="$(new --title map --labels spec-container)"
 C1="$(new --title c1 --parent "$MAP")"
 C2_JSON="$(bash "$TRACKER" create-item --title c2 --parent "$MAP")"
 C2="$(jq -r '.id' <<<"$C2_JSON")"

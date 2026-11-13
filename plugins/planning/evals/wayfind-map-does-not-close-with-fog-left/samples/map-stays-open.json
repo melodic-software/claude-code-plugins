@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The map can't close while Not-yet-specified holds 'Tax display'.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Posting the closing comment and closing the map.",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Frontier: 'Choose the billing aggregate' (#42), 'Pick the payment-provider adapter' (#43), 'Decide invoice numbering' (#44).",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Frontier: #42, #43, #44. Picking #42.",
+      "why": "breaks the rule"
+    }
+  ]
+}

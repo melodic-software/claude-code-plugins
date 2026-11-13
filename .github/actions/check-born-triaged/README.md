@@ -6,13 +6,13 @@ untrusted, so the marker alone never skips intake.
 
 ## Routing labels
 
-`skip=true` with reason `routing-label` when the issue carries the container label (a
-`/planning:wayfind` map or a decompose container) or a label starting with the wayfind prefix (a
-map's decision item). Those labels are the work-items seam's own routing state
+`skip=true` with reason `routing-label` when the issue carries the container label (a decompose
+spec container) or a label starting with the wayfind prefix (a `/planning:wayfind` map or one of
+its decision items). Those labels are the work-items seam's own routing state
 ([label taxonomy](../../../plugins/work-items/reference/label-taxonomy.md), "Container label" and
 "Hold lists and the wayfind prefix"), so intake's priority, verdict and floor label would only
 compete with it. Both come from the binding at `tracker-config` (`tracker.config.container_label`,
-default `work-map`; `tracker.config.wayfind_label_prefix`, default `wayfind:`), read the way the
+default `spec-container`; `tracker.config.wayfind_label_prefix`, default `wayfind:`), read the way the
 merge lanes read it (`trackerBindingText` in `.github/scripts/pr-merge/merge-holds.mjs`). A missing
 file keeps both defaults; a value that is not a string keeps them with a warning. The step prints a
 notice naming the label. Only an account with triage access can label an issue as it is opened, so

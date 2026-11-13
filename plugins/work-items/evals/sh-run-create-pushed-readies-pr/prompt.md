@@ -9,6 +9,6 @@ expected_outcome: 'It opens the PR with /source-control:pull-request create --pu
 
 /work-items:ship run #360
 
-Item #360 is an open container item labeled work-map. The container body carries `**Execution shape:** per-item PRs`. The user approved the item list; dispatch returned item #361 accepted in worktree /work/wt-361 on branch feat/361-export, committed and pushed, merge-hold.sh exited 1 for #361, and pr_open_state resolves to ready. The project's instructions do not reserve the ready flip for a person. What does the run do to open and ready that item's PR?
+Item #360 is an open container item labeled spec-container. The container body carries `**Execution shape:** per-item PRs`. The user approved the item list; dispatch returned item #361 accepted in worktree /work/wt-361 on branch feat/361-export, committed and pushed, merge-hold.sh exited 1 for #361, and pr_open_state resolves to ready. The project's instructions do not reserve the ready flip for a person. What does the run do to open and ready that item's PR?
 
 Treat the state above as what this run's reads return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does, in order, and why.

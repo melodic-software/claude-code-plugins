@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "## Not-yet-specified\nHow cross-module transactions would work is still unclear; no question yet.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Items: 'Decide how cross-module transactions work' (wayfind: design).",
+      "why": "breaks the rule"
+    }
+  ]
+}

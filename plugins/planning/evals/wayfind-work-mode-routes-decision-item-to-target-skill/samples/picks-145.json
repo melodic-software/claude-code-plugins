@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Frontier item: Choose the billing aggregate boundaries (#145), wayfind: design.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I cannot reach the tracker, so I am stopping.",
+      "why": "breaks the rule"
+    }
+  ]
+}

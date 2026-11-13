@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Copy the files to 504-prove-knock-sends-email-and-in-app/ on the map's dossier branch.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Create branch prototype/504 and push the files there.",
+      "why": "breaks the rule"
+    }
+  ]
+}

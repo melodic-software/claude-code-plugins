@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Create 'Choose per-tenant invoice storage' (wayfind: design), then delete the tenant-sharing bullet from Not-yet-specified.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Create 'Choose per-tenant invoice storage'. Not-yet-specified keeps its tenant-sharing note.",
+      "why": "breaks the rule"
+    }
+  ]
+}

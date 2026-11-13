@@ -1,0 +1,30 @@
+# Interview checklist: invoice export
+
+## Starting point
+
+Customers ask for their invoices as files; today support exports them by hand.
+
+## Settled
+
+- When do exports run? Nightly at 02:00 UTC.
+
+## Constraints
+
+- Export files are CSV with a header row: the downstream ERP requires it.
+
+## Self-answered facts
+
+- The largest customer has about 4 million invoice lines a month.
+
+## Glossary
+
+- statement: one monthly export for one customer.
+
+## Open
+
+- Which delivery channel: SFTP, S3 or email? No recommendation yet.
+- How long are generated files kept? No recommendation yet.
+
+## Not yet phrasable
+
+- Something about very large customers' exports feels unsettled.
