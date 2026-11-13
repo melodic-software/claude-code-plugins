@@ -13,8 +13,13 @@
 #     `&`, `|`, `(`, `)`, `{`, `}`, `!`, a newline, or the word `do`, `then`,
 #     `else`, `elif`, `if`, `while` or `time`, outside quotes, comments and
 #     heredoc bodies;
-#   - an unquoted `--watch` argument before any `--`, in a segment whose
-#     command word (after any NAME=value prefixes) is not echo or printf.
+#   - an unquoted `--watch` argument in a segment whose command word (after
+#     any NAME=value prefixes) is not echo or printf, before any `--` unless
+#     the command word is a script runner, which passes the words after `--`
+#     to the script it runs (`npm test -- --watch`). The runners are the
+#     block_foreground_wait_script_runners userConfig option, a comma list
+#     matched against the command word's basename; default
+#     npm,pnpm,yarn,bun,npx; empty stops every scan at `--`.
 #
 # NOT MATCHED: the same text in quotes, a comment or a heredoc body; `until` as
 # an argument (`git log --grep until`); `--watch=<value>`, `--watch-path` and
@@ -74,22 +79,27 @@ hook::jq_fields "$INPUT" '.tool_input.run_in_background' || exit 0
 [[ "${HOOK_JQ_FIELDS[0]-}" == true ]] && exit 0
 
 FWG_HIT=""
+IFS=',' read -ra FWG_RUNNERS <<<"${CLAUDE_PLUGIN_OPTION_BLOCK_FOREGROUND_WAIT_SCRIPT_RUNNERS-npm,pnpm,yarn,bun,npx}"
 # The parse callback: a `--watch` argument in a segment that runs a program.
 # shellcheck disable=SC2329  # invoked by hook::bash_parse_segments
 fwg::segment() {
   ((FWG_WATCH)) && [[ -z "$FWG_HIT" ]] || return 0
   local -a words=("$@")
-  local i=0 n=$#
+  local i=0 n=$# cmd r forwards=0
   while ((i < n)) && [[ "${words[i]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do ((i++)); done
   ((i < n)) || return 0
-  case "${words[i]##*/}" in
+  cmd="${words[i]##*/}"
+  case "$cmd" in
   echo | printf) return 0 ;;
   *) ;;
   esac
+  for r in ${FWG_RUNNERS[@]+"${FWG_RUNNERS[@]}"}; do
+    [[ "${r// /}" == "$cmd" ]] && forwards=1
+  done
   for ((i++; i < n; i++)); do
     [[ "${HOOK_SEG_WORD_QUOTED[i]-0}" == 0 ]] || continue
     case "${words[i]}" in
-    --) return 0 ;;
+    --) ((forwards)) || return 0 ;;
     --watch)
       FWG_HIT=watch
       return 0

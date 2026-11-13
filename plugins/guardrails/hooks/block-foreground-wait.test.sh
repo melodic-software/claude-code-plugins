@@ -63,6 +63,11 @@ deny_watch "gh run watch flag after options" 'gh run view 99 --exit-status --wat
 deny_watch "--watch with an env prefix" 'NODE_ENV=test npx jest --watch'
 deny_watch "--watch after a pipe" 'cat list | xargs kubectl get pods --watch'
 deny_watch "--watch in a later segment" 'git push && gh pr checks --watch'
+deny_watch "npm forwards --watch after --" 'npm test -- --watch'
+deny_watch "npm run forwards --watch after --" 'npm run test -- --watch'
+deny_watch "pnpm forwards --watch after --" 'pnpm vitest -- --watch'
+deny_watch "a configured runner forwards --watch after --" 'make test -- --watch' \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_FOREGROUND_WAIT_SCRIPT_RUNNERS=make
 
 # --- allowed ------------------------------------------------------------------
 BG_UNTIL=$(payload 'until test -f x; do sleep 1; done' true)
@@ -78,6 +83,8 @@ allow "until in a heredoc body" "cat > notes.md <<'EOF'${NL}until the fix lands$
 allow "a word that starts with until is not until" 'until_ready x; do y; done'
 allow "--watch in quotes" 'gh issue create --title "add --watch support"'
 allow "--watch after --" 'grep -- --watch README.md'
+allow "an empty runner list stops at --" 'npm test -- --watch' \
+  -- CLAUDE_PLUGIN_OPTION_BLOCK_FOREGROUND_WAIT_SCRIPT_RUNNERS=
 allow "--watch printed by echo" 'echo --watch'
 allow "--watch-path is another flag" 'deno run --watch-path=src main.ts'
 allow "--watch=false" 'jest --watch=false'

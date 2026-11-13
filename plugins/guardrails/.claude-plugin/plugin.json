@@ -136,6 +136,12 @@
       "description": "Denies a foreground Bash command that waits with an until loop or a --watch flag, with the reason to set run_in_background or use the Monitor tool. A call with run_in_background set to true passes. On by default.",
       "default": true
     },
+    "block_foreground_wait_script_runners": {
+      "type": "string",
+      "title": "Block-foreground-wait script runners",
+      "description": "Comma-separated command words that pass the arguments after -- to the script they run, so block-foreground-wait still finds a --watch there (npm test -- --watch). Any other command stops the scan at --. Empty stops every scan at --.",
+      "default": "npm,pnpm,yarn,bun,npx"
+    },
     "block_root_delete_target_enabled": {
       "type": "boolean",
       "title": "Block-root-delete-target guard",
