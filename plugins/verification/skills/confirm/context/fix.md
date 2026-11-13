@@ -94,6 +94,7 @@ Pay special attention to tests in same module or feature area as the fix. These 
 | All existing tests pass | PASS/FAIL | <from Stage 1 results> |
 | Fix is minimal (no unrelated changes) | PASS/FAIL | <assessment> |
 | Sibling code paths checked | PASS/SKIP | <findings> |
+| Observation check | RULED OUT/RULED IN/NOT VERIFIED/N/A | <per failed check: the observation suspected first, the second route observed, and whether that ruled the observation in or out; N/A when no check failed> |
 | Verifier model | <model> / NOT MATCHED | <model passed to the fresh-context verifier, or: producing model unknown> |
 | Verifier verdicts | <each, in order> / none | <each verdict returned on this head, as returned; the last is the verdict; or why no verifier ran> |
 
