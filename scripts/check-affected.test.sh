@@ -27,7 +27,7 @@ mkdir -p "$repo/${patterns_lib%/*}"
 cp "$SELF_DIR/../$patterns_lib" "$repo/$patterns_lib"
 # Each stub exits with STUB_<NAME> (default 0), so a case picks which check fails.
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
-  check-spoke-plugin-root check-as-of-recheck check-cross-plugin-source-drift check-changelog-parity check-changed-skills \
+  check-spoke-plugin-root check-as-of-recheck check-cost-figures check-cross-plugin-source-drift check-changelog-parity check-changed-skills \
   check-comment-hygiene setup-env; do
   var="STUB_$(printf '%s' "$s" | tr 'a-z-' 'A-Z_')"
   printf '#!/usr/bin/env bash\necho "%s ran: $*" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
@@ -571,7 +571,7 @@ mkdir -p "$tools/scripts/lib"
 cp "$SELF_DIR/check-affected.sh" "$tools/scripts/"
 cp "$SELF_DIR/lib/markdownlint-config-data.mjs" "$tools/scripts/lib/"
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
-  check-spoke-plugin-root check-as-of-recheck check-cross-plugin-source-drift check-changelog-parity check-changed-skills \
+  check-spoke-plugin-root check-as-of-recheck check-cost-figures check-cross-plugin-source-drift check-changelog-parity check-changed-skills \
   check-comment-hygiene; do
   printf '#!/usr/bin/env bash\necho "copy of %s read $CHECK_DATA_ROOT" >&2\nexit "${COPY_STUB_RC:-1}"\n' "$s" >"$tools/scripts/$s.sh"
 done

@@ -62,6 +62,7 @@
 #                          machine-path-patterns.sh, on the changed files
 #   - spoke-plugin-root:   scripts/check-spoke-plugin-root.sh --check
 #   - as-of-recheck:       scripts/check-as-of-recheck.sh --check
+#   - cost-figures:        scripts/check-cost-figures.sh --check
 #   - cross-plugin-source-drift: scripts/check-cross-plugin-source-drift.sh
 #                          --check, when a plugins/ file, that script or its
 #                          registry scripts/cross-plugin-source-registry.txt
@@ -685,6 +686,9 @@ run_check spoke-plugin-root "scripts/check-spoke-plugin-root.sh --check" \
 
 run_check as-of-recheck "scripts/check-as-of-recheck.sh --check" \
   "$tools/scripts/check-as-of-recheck.sh" --check
+
+run_check cost-figures "scripts/check-cost-figures.sh --check" \
+  "$tools/scripts/check-cost-figures.sh" --check
 
 # A file added to, changed in or removed from a plugin can make a cluster of
 # byte-identical copies across plugins that the registry does not list, or

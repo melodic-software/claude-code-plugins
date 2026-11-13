@@ -1507,6 +1507,16 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh as-of-recheck {0}
         run: scripts/check-as-of-recheck.sh --check
 
+      # No price, rate, per-task cost or percentage saving in a skill, agent,
+      # reference, doc or prompt (.claude/rules/cost-claims.md). Ungated: the
+      # edit that adds one is docs-only. Existing debt sits in
+      # scripts/cost-figures-baseline.txt, which fails when it could shrink.
+      - name: Check no skill, doc or prompt states a cost figure
+        id: cost_figures
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh cost-figures {0}
+        run: scripts/check-cost-figures.sh --check
+
       # Each tracked docs/conventions/<concern>.yaml against its JSON Schema
       # (ADR 0064 Decisions 6 and 7). Ungated: a change that edits only a
       # convention YAML is docs-only, and that is the edit this gate reads.
@@ -2097,6 +2107,7 @@ jobs:
             adr-numbers=${{ steps.adr_numbers.outcome }}
             rules-index=${{ steps.rules_index.outcome }}
             as-of-recheck=${{ steps.as_of_recheck.outcome }}
+            cost-figures=${{ steps.cost_figures.outcome }}
             convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
