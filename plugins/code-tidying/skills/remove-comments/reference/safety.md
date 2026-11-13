@@ -13,7 +13,7 @@ behavior, while a token comparison is exhaustive over the file.
 - [The gates, by what each can prove](#the-gates-by-what-each-can-prove)
 - [The test net (tiers 2 and 3)](#the-test-net-tiers-2-and-3)
 - [Exempt surfaces](#exempt-surfaces)
-- [Outside-constraint keeps (`necessary` only)](#outside-constraint-keeps-necessary-only)
+- [Outside-constraint keeps (`necessary`, shipped keep list)](#outside-constraint-keeps-necessary-shipped-keep-list)
 - [Not exempt, but the highest-cost misclassification: route to class C](#not-exempt-but-the-highest-cost-misclassification-route-to-class-c)
 - [Path exclusions](#path-exclusions)
 - [Narrative staging: text is never silently destroyed](#narrative-staging-text-is-never-silently-destroyed)
@@ -128,9 +128,11 @@ open the apply path, because they cannot attest behavior preservation.
 ## Exempt surfaces
 
 The floor in `SKILL.md` is untouched under every posture. Public-API doc comments stay under every
-posture too, except that `none` proposes deleting one that only restates its signature. Unit,
-sentinel and ordering annotations are exempt under `explanatory` only: `necessary` and `none`
-delete them with a reshape flag to a type. The list:
+posture too, except that `none` proposes deleting one that only restates its signature, and under
+`necessary` they stay because the shipped keep list keeps them: a `comment_keep_list` path that
+leaves them out replaces that. Unit,
+sentinel and ordering annotations are exempt under `explanatory` only: `none` deletes them with a
+reshape flag to a type, and so does `necessary` unless the resolved keep list keeps them. The list:
 
 - Public-API doc comments, in the language's structured doc-comment form: docstrings, C# XML docs,
   JSDoc/TSDoc, GoDoc sentences, on exported/public surfaces. PowerShell comment-based help (a
@@ -165,11 +167,12 @@ delete them with a reshape flag to a type. The list:
 - Lines carrying `remove-comments-ignore`, or the older `dissolve-comments-ignore`, on the line or
   the line immediately before
 
-## Outside-constraint keeps (`necessary` only)
+## Outside-constraint keeps (`necessary`, shipped keep list)
 
-Two kinds of class-C comment stay under `necessary`. They are not exempt surfaces: `explanatory`
-triages them like any class-C comment, `none` deletes them, and they are held to
-`class_c_max_lines`. Each stays only when verified: the adjacent code depends on the named party
+Under the shipped keep list ([keep-list.md](keep-list.md)), two kinds of class-C comment stay
+under `necessary`; a `comment_keep_list` path replaces that list, and its criteria decide instead.
+They are not exempt surfaces: `explanatory` triages them like any class-C comment, `none` deletes
+them, and they are held to `class_c_max_lines`. Each stays only when verified: the adjacent code depends on the named party
 and nothing in this repository could remove the reason. The outside fact itself need not be provable
 from here; a comment the code contradicts is class A.
 
