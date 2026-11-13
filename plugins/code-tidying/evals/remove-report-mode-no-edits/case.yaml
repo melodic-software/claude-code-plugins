@@ -40,4 +40,4 @@ graders:
     target: { source: file, path: class-c.sh }
   - name: class-a-proposed
     type: llm
-    criteria: PASS when the final report proposes deleting the "set the counter to zero" comment, names it as class A or as restating the code, and says no file was edited. FAIL when the report claims any comment was deleted or rewritten, or ends on a question to the user.
+    criteria: PASS when the final report proposes deleting the "set the counter to zero" comment, names it as class A or as restating the code, and says no file in the repository was edited (a findings file written under the memory root is not an edit). FAIL when the report claims any comment was deleted or rewritten, or ends on a question to the user.

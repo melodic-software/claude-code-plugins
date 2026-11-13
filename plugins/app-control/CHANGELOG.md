@@ -3,6 +3,12 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-11-13
+
+### Added
+
+- `/app-control:drive` records each step's stated result beside what it observed, in `report.md` and as `stated_result` in `report.json`, and never compares the two. The proof step gets an entry of its own, with its stated result and the capture kinds it names.
+
 ## [0.23.0] - 2026-11-13
 
 ### Changed

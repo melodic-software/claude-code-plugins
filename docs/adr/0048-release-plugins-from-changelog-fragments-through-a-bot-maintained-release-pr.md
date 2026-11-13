@@ -282,7 +282,7 @@ proven.
    the list; Dependabot and the per-PR gates fall back to the bump for listed-out plugins. On
    2026-10-09 the remaining 68 plugins joined, so the list names all 87. In the 7 days to
    2026-10-09 their `plugin.json` changed 845 times on main, led by `review` (34), `work-items`
-   (33), `rate-limit-guard` (27) and `animation` (22). The carrier fragments
+   (33), `rate-limits` (27) and `animation` (22). The carrier fragments
    (`new-changelog-fragment.sh --carriers-of`), the ADR 0019 amendment, `docs/migration-playbook.md`
    and `AGENTS.md` already key on the list, so they needed no change; phase 5 rewords them for
    "all plugins". On 2026-10-18 `developer-experience`, `display-redaction` and `user-experience`

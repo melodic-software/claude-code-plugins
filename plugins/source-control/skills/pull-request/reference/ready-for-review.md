@@ -94,7 +94,9 @@ script renders it so it cannot link or close an issue, mention anyone, hide text
 ## 2.5.2 Update the branch from the base
 
 Step `base-merge`. Disabled by `pre_ready` or skipped by `--skip`: skip the update, but still push
-any local commits first, with `bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER"`, so the
+any local commits first, with
+`bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" --dir "<branch-checkout>"`
+(`<branch-checkout>` as [the update sequence](#decide-and-carry-out-the-update) defines it), so the
 reviews (which read the PR's diff on the remote) and the verify gate (which runs on the PR
 worktree's HEAD) in 2.5.3 cover the same commit.
 
@@ -105,7 +107,7 @@ for the wait in 2.5.4.
 Then run [Decide and carry out the update](#decide-and-carry-out-the-update). On `hold` the rest of
 `ready` still runs.
 
-Completion criterion: `git rev-parse HEAD` equals the PR's head commit
+Completion criterion: `git -C "<branch-checkout>" rev-parse HEAD` equals the PR's head commit
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#refresh-the-base-with-a-merge)).
 After the forge's update the merge commit exists only on the remote, so its fetch makes the two agree.
 
@@ -116,18 +118,24 @@ it: this step, [create.md](create.md) §2.2, §2.4.1 and §2.7, [merge.md](merge
 [monitor.md](monitor.md) §3.2. A decision holds only for its `head_sha`, so the order is fixed. A
 stale decision starts the sequence over once; a second stale decision is a `hold`.
 
+`<branch-checkout>` is the path of the checkout that has the branch checked out, so no command
+depends on the shell's directory. For a pull request, that is the worktree
+`bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<checkout>"` prints
+([2.5.3](#253-review-and-verify-the-updated-head) defines both), read before an update moves the
+head it matches.
+
 1. **Push local commits**, so the head the signals read is the head the update pins:
-   `bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" --no-sync-stale-base`. The flag
+   `bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" --dir "<branch-checkout>" --no-sync-stale-base`. The flag
    keeps this push from merging the base before there is a decision. A step with no pull request
    yet pushes nothing here, and the `merge` action skips this step ([merge.md](merge.md) §4.1).
-2. **Read the base and the signals, and decide**, from the PR's checkout. Read the PR's base branch
-   into `BASE`
+2. **Read the base and the signals, and decide**, in `<branch-checkout>`. Read the PR's base
+   branch into `BASE`
    ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-base-branch))
-   and resolve `REMOTE` with `resolve-remote.sh`; a step with no pull request says what it uses for
-   `BASE`.
+   and resolve `REMOTE` with `resolve-remote.sh --dir "<branch-checkout>"`; a step with no pull
+   request says what it uses for `BASE`.
 
    ```bash
-   DECISION=$(bash "<plugin-root>/scripts/branch-update-signals.sh" --pr "$PR_NUMBER" |
+   DECISION=$(bash "<plugin-root>/scripts/branch-update-signals.sh" --pr "$PR_NUMBER" --dir "<branch-checkout>" |
      bash "<plugin-root>/scripts/branch-update-method.sh")
    ```
 
@@ -168,15 +176,15 @@ decision stale: start over at step 1. Otherwise (a fork head, a session that can
 endpoint) merge locally and push:
 
 ```bash
-git fetch "$REMOTE" "$BASE" && git merge --no-stat "$REMOTE/$BASE" &&
-  bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER"
+git -C "<branch-checkout>" fetch "$REMOTE" "$BASE" && git -C "<branch-checkout>" merge --no-stat "$REMOTE/$BASE" &&
+  bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" --dir "<branch-checkout>"
 ```
 
 A conflicted merge is resolved here, under [Resolve a conflicted merge](#resolve-a-conflicted-merge).
 
 #### Carry out a rebase
 
-Run it in the checkout that holds the branch. Use no forge rebase update, so the permission system
+Run it in `<branch-checkout>`. Use no forge rebase update, so the permission system
 sees the force push. The branch moves only after that push succeeds.
 
 1. Run the push checks: `bash "<skill-dir>/scripts/push-branch.sh" --preflight --pr "$PR_NUMBER"`

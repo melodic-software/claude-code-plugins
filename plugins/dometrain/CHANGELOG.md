@@ -502,7 +502,7 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
   rationale attached to it. `-y` skips only `uninstall`'s `--prune` confirmation; the recipe never
   passes `--prune`, so the flag changed nothing and the claimed CI hang could not occur. Completes
   the same correction 0.21.2/0.17.2/0.3.1 landed for `claude-ops`, `session-flow`, and
-  `rate-limit-guard`, and 0.2.3 landed for `miro`.
+  `rate-limits`, and 0.2.3 landed for `miro`.
 
 ## [0.1.2]
 

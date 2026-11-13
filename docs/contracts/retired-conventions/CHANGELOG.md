@@ -38,7 +38,7 @@ on an id neither source names. No field, kind, exit code or severity changed.
 
 ## Scope wording, contract unchanged at 1.1 - 2026-10-03
 
-The Scope section no longer names the twin drift between context-usage's and rate-limit-guard's
+The Scope section no longer names the twin drift between context-usage's and rate-limits's
 status-line tees: both tees retired when the guards became mods. It names the shared references
 the guards use to detect and unwire a tee still running. Machine-scope surfaces stay outside the
 schema; no field, kind, exit code or severity changed.

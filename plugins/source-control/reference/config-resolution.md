@@ -412,7 +412,7 @@ whose value is empty, non-scalar or unknown.
 | `babysit_loop_escalation` | tier name for dimension 7 (escalation posture); the escalation *surface* is fixed by the loop-lane convention, never by config | preset value |
 | `babysit_loop_grace_window_minutes` | positive integer, the concurrency-safety activity grace window | `30` |
 | `babysit_loop_cycle_budget` | positive integer, cycles per session before the budget-hit stop | none, meaning no per-session budget |
-| `babysit_loop_no_progress_threshold` | positive integer, consecutive no-progress cycles (open PRs in view, none merged, materially changed, or escalated; cycles held by the rate-limit guard are not counted) before the lane raises its stall escalation; it escalates and keeps looping, never stops | `3` |
+| `babysit_loop_no_progress_threshold` | positive integer, consecutive no-progress cycles (open PRs in view, none merged, materially changed, or escalated; cycles held by the rate-limits floor are not counted) before the lane raises its stall escalation; it escalates and keeps looping, never stops | `3` |
 | `babysit_loop_trusted_internal_bot_logins` | a YAML sequence (in an H2, a flat bullet list, `- <login>` per line) of exact GitHub App bot logins the repository attests as its own internal automation, the C5 trust test's reviewed internal-bot trust signal; **honored in the team-tracked layer only** ("the C5 trust test's one reviewed widening" below) | none, the empty set: the trust test accepts `OWNER`/`MEMBER` only |
 
 No key, `babysit_loop_merge` included, sets an approval count: how many approving reviews a merge needs comes from the repository

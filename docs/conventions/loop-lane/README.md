@@ -63,9 +63,9 @@ Moved to [this section](../../contracts/loop-lane/README.md#4-loop-layer-invaria
 
 Moved to [this section](../../contracts/loop-lane/README.md#5-consumers-and-launch-surfaces).
 
-## 6. Rate-limit guard binding
+## 6. Rate-limits binding
 
-Moved to [this section](../../contracts/loop-lane/README.md#6-rate-limit-guard-binding).
+Moved to [this section](../../contracts/loop-lane/README.md#6-rate-limits-binding).
 
 ## 7. Operator steering through GitHub state
 

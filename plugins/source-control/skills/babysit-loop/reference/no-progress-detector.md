@@ -25,8 +25,8 @@ The cycle-start snapshot holds at least one open PR; otherwise the cycle is idle
 holds. A failed snapshot is not an idle cycle: the queue is unknown, so it counts as work in view
 with no progress ([cycle-shape.md](cycle-shape.md) step 1).
 
-**This lane's held-cycle bar is `rate_limit_latch`, not the pause window.** The inlined rate-limit
-guard floor starts no new mutating work while the latch is set, and the latch outlives the pause
+**This lane's held-cycle bar is `rate_limit_latch`, not the pause window.** The inlined rate-limits
+floor starts no new mutating work while the latch is set, and the latch outlives the pause
 until a fresh healthy snapshot clears it, so a latched cycle is **held** however many PRs the
 snapshot carries, and stays held after the pause has lifted. A lane obeying the guard is never
 escalated for obeying it, and a latch no healthy snapshot ever clears cannot trip the threshold by

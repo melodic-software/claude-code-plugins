@@ -865,7 +865,7 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
   The directive had fractured under the same per-plugin de-slop campaign;
   `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
   sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
-  two, `context-usage` and `rate-limit-guard`, state it about their own scripts in their own words
+  two, `context-usage` and `rate-limits`, state it about their own scripts in their own words
   and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
   extract-ssot sweep.
 

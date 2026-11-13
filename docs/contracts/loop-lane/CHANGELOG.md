@@ -392,7 +392,7 @@ Patch. Wording only; no value, topology or invariant changed.
 
 ## [11.0.0] - 2026-10-11
 
-Major. The rate-limit guard binding (§6) changes what every lane does at the pause threshold.
+Major. The rate-limits binding (§6) changes what every lane does at the pause threshold.
 
 - **Pausing is opt-in (§6).** The inlined floor's **Pause threshold** and **Drain-then-pause**
   bullets now pause only a lane whose session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1`.
@@ -429,14 +429,14 @@ Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 i
 Patch. Wording only; no value, topology or invariant changed.
 
 - **The rate-limit contract file is the snapshot file (§6).** The README, the lane prompts and every
-  inlined operable floor call `~/.claude/rate-limit-guard/rate-limits.json` the snapshot file
+  inlined operable floor call `~/.claude/rate-limits/rate-limits.json` the snapshot file
   instead of the tee file, and the floor's first bullet is `Snapshot file (fixed path)`.
 
 ## [10.1.0] - 2026-10-03
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
 
-- **Rate-limit snapshot writer (§4, §6).** rate-limit-guard's mod writes the snapshot file in
+- **Rate-limit snapshot writer (§4, §6).** rate-limits's mod writes the snapshot file in
   interactive and headless sessions, so an unattended lane samples it; the status-line tee that
   wrote it only where a status line rendered is gone. A paused lane wakes on the mod's writes under
   its machine-wide write floor. Setting the guard's report mode with `--settings` is optional.
@@ -477,7 +477,7 @@ changed.
 
 Additive, minor. Section 6 records that the account-identity resolution is built on all three
 sides. No topology, escalation-contract, or tier-vocabulary change, and no §4 loop-layer invariant
-changed: the account-switch rule lives in the §6 rate-limit guard floor.
+changed: the account-switch rule lives in the §6 rate-limits floor.
 
 - **Reader-side invalidation is built (§6).** Lanes read `.oauthAccount.emailAddress` directly from
   `.claude.json` while paused and drop a latched pause on an account change when the new account is
@@ -533,7 +533,7 @@ rule itself is unchanged: what changes is that the rule is now enforced.
   basename, and it clusters copies by identical path-within-plugin, while the six surfaces inlining
   the floor sit at six unrelated paths.
 - **§6 names `scripts/check-loop-lane-floor-drift.sh`.** It extracts the floor block from
-  `plugins/rate-limit-guard/reference/reader-contract.md` and compares it against an explicit
+  `plugins/rate-limits/reference/reader-contract.md` and compares it against an explicit
   registry: the three lane bodies, the `docs-hygiene` `extract-ssot` orchestrated mode, and the two
   launch-prompt templates under `prompts/loops/`. Prose copies match byte for byte; the blockquoted
   prompt templates are re-wrapped to a narrower column, so their registration compares the block
@@ -791,7 +791,7 @@ no lane's behavior, and a purely additive telemetry key reads as additive guidan
 no durable-state block.
 
 - **Per-cycle usage sample (§4).** No lane's spend was measured: the cycle budget counts cycles,
-  the rate-limit guard's pause is a ceiling, and nothing recorded how much of the shared
+  the rate-limits floor's pause is a ceiling, and nothing recorded how much of the shared
   subscription windows a cycle consumed. Each loop lane now records a `usage_sample` in its #502
   durable state every cycle, holding the two window percentages the guard step (§6) **already read**
   that cycle plus the rise since the previous sample. The reading is in hand, so the invariant costs
@@ -836,7 +836,7 @@ no durable-state block.
   than this one: `cost.total_cost_usd` is documented as the estimated session cost accumulated
   client-side, resetting on `/clear`, machine-readable and session-scoped, and therefore the
   deferred candidate for per-lane attribution once a guard-side change forwards it. No drift found.
-  `rate-limit-guard`'s reader contract carries its own 2026-07-23 stamp on the same page; it is
+  `rate-limits`'s reader contract carries its own 2026-07-23 stamp on the same page; it is
   unchanged by this entry and its refresh belongs to that plugin's own bump.
 
 ## [5.0.0] - 2026-07-29
@@ -853,7 +853,7 @@ taken.
   so a lane cycling with zero aggregate progress was invisible to itself. Each unattended lane now
   persists a `no_progress_streak` counter in its #502 durable state (absent = 0): a cycle with
   actionable work in the cycle-start snapshot and no lane-defined qualifying progress increments
-  it, while an idle cycle, or one held, meaning the rate-limit guard (§6) barred the lane from
+  it, while an idle cycle, or one held, meaning the rate-limits floor (§6) barred the lane from
   claiming new work, which each lane's floor defines and which can outlive the pause window, leaves
   it unchanged, and any qualifying progress resets it. Reaching the stall
   threshold (default 3; lane-configurable) **escalates through §2's existing contract and keeps
@@ -1023,10 +1023,10 @@ considered and not taken. Each entry below records both cases.
   is real operating practice, so the section now names the gap instead of asserting an assumption,
   and defers the account-identity design that resolves it to `TODO(#1218)`, which owns all three
   sides (writer-side identity field, reader-side invalidation of latched state, and the lane-floor
-  re-audit a floor change obliges). `rate-limit-guard` 0.2.0 drops its own duplicate copy and cites
+  re-audit a floor change obliges). `rate-limits` 0.2.0 drops its own duplicate copy and cites
   this section. **No lane obligation changes:** naming a gap removes false assurance without adding
   a requirement any lane body would have to inline, which is why the lane-floor fan-out belongs to
-  the design issue and not here. **Bump ambiguity:** §6 is the rate-limit guard binding rather than
+  the design issue and not here. **Bump ambiguity:** §6 is the rate-limits binding rather than
   a §4 loop-layer invariant, and this revision is now framing-only, which reads as additive guidance
   and a **minor**; but it still revises a stated operating premise every consuming lane inlines,
   which reads as a change to a shared invariant and a **major**.
@@ -1063,7 +1063,7 @@ these concerns across two plugins.
   preamble.
 - **Launch surfaces.** `/loop` primary and dependency-free; `claude-ops` `lanes` a one-directional
   supporting launcher (#480), presence-gated with a `/loop` fallback.
-- **Rate-limit guard binding.** Each lane inlines the operable pause floor and cites the guard
+- **Rate-limits binding.** Each lane inlines the operable pause floor and cites the guard
   reader contract for provenance; single-account-per-machine invariant; per-cycle guard-mode
   telemetry.
 

@@ -4,6 +4,20 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.9.0] - 2026-11-13
+
+**Minor, additive.** Three crosswalk rows and one Adopters row admit `code-tidying:remove-comments`,
+which writes its report's closing lists to the findings directory in every remove mode:
+`code-tidying/remove-comments/rule-open-root-cause` (a workaround comment, removed or kept, or a
+correctness suppression kept, IMPORTANT through the degradation limb),
+`code-tidying/remove-comments/rule-reshape-flag` and
+`code-tidying/remove-comments/rule-lint-proposal` (both SUGGESTION). `Confidence` is omitted on
+all three, none is auto-applicable, and each declares its remediation can lie outside `Location`'s
+file. Their remedies are pinned 3 of 3 positive, each in one scope, with no negative assertion.
+The counts that cite the Adopters table now count seven rows, two of them meeting the remedy bar
+in full; the old count of one was already wrong before this release. No producer-owned field's
+rule, coexistence obligation, or enforceability verdict moves.
+
 ## [3.8.1] - 2026-10-11
 
 **Patch, docs-only.** The `testing:audit` adopter row, and the two counts that cite it, count
