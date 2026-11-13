@@ -1489,7 +1489,7 @@ def _lost_before_lane_job(lane: str, attempt: Mapping[str, Any]) -> bool:
 
 def _caller_skipped(lane: str, attempt: Mapping[str, Any]) -> bool:
     """Whether this attempt succeeded with the lane's caller job skipped and
-    no lane job: Wait Refine saw the head move while it waited."""
+    no lane job, as when Wait Refine saw the head move while it waited."""
     jobs = attempt.get("jobs")
     return (
         attempt.get("conclusion") == "success"
