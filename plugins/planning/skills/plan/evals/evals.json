@@ -19,7 +19,7 @@
     {
       "id": 2,
       "name": "mandatory-fresh-context-stress-test",
-      "prompt": "/planning:plan exploration and research are done, and I explicitly accept planning without a separate /design pass (no new types or modules). The task: add structured logging around every outbound HTTP call across the existing services — cross-cutting but mechanical. Formulate the plan and get it ready to present. [The verification reader prints `verification: standard (the plugin team file's verification key at origin/main)`.]",
+      "prompt": "/planning:plan exploration and research are done, and I explicitly accept planning without a separate /design pass (no new types or modules). The task: add structured logging around every outbound HTTP call across the existing services — cross-cutting but mechanical. Formulate the plan and get it ready to present. [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "The design gate is satisfied by the explicit override, so planning proceeds. Cross-cutting logging matches a stress-test trigger, so before presenting the plan the skill dispatches a fresh-context plan-reviewer sub-agent (Step 3) rather than self-critiquing the plan inline, and verifies the reviewer's findings against the actual code before applying fixes.",
       "files": [],
       "expectations": [
@@ -427,7 +427,7 @@
       "id": 33,
       "name": "proactive-one-sentence-change-skips-plan",
       "narration": true,
-      "prompt": "Rename the local variable `cnt` to `count` inside `tally()` in utils/stats.py; nothing outside that function uses it. Get it ready. [The verification reader prints `verification: standard (the plugin team file's verification key at origin/main)`.]",
+      "prompt": "Rename the local variable `cnt` to `count` inside `tally()` in utils/stats.py; nothing outside that function uses it. Get it ready. [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "The skill was reached proactively (no one asked for a plan) and the change fits one sentence, so it says so, states that sentence, and skips the plan: no plan body, no checklist, no plan-reviewer dispatch, no PLAN.md draft.",
       "files": [],
       "expectations": [
@@ -440,7 +440,7 @@
       "id": 34,
       "name": "explicit-request-one-sentence-change-asks",
       "narration": true,
-      "prompt": "/planning:plan rename the local variable `cnt` to `count` inside `tally()` in utils/stats.py [The verification reader prints `verification: standard (the plugin team file's verification key at origin/main)`.]",
+      "prompt": "/planning:plan rename the local variable `cnt` to `count` inside `tally()` in utils/stats.py [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "The user asked for a plan explicitly, and the change fits one sentence. The skill says the change fits one sentence, states it, and asks whether to plan it anyway, writing no plan before the user answers.",
       "files": [],
       "expectations": [

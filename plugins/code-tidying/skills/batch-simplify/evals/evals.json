@@ -102,7 +102,7 @@
     {
       "id": 8,
       "name": "repo-mode-verifies-and-delivers-per-its-own-doctrine",
-      "prompt": "I reviewed the inventory summary you just presented for the repo-mode run. It looks right — go ahead and run it. [The verification reader prints `verification: standard (the plugin team file's verification key at origin/main)`.]",
+      "prompt": "I reviewed the inventory summary you just presented for the repo-mode run. It looks right — go ahead and run it. [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "Treats the reply as the confirmation the gate was waiting on and proceeds with the planned run: each group through a simplifier and then a fresh-context refutation verifier, everything committed to one feature branch delivered as one pull request for the whole run, deferrals resolved fix-first in the same run with nothing auto-filed, and every deferral persisted to the run-state inventory.",
       "files": [],
       "expectations": [
