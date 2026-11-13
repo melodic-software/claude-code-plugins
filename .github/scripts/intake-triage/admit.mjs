@@ -12,12 +12,9 @@
 // words (chargePattern) in what the issue will do
 // (workCharges), and on an edit that moved one into code (revisionWraps),
 // whatever the verdict flagged.
-// Criterion 4 (no protected path named) applies only to the paths the issue
-// lane cannot push, named in a criterion (unpushablePaths) or anywhere in the
-// body outside a code fence (bodyUnpushablePaths), outside a clause that
-// leaves them unchanged ("no file under X is edited"). Such an issue parks at
-// status: confirmed and, when nothing else refuses, waits or holds, gets
-// `host-run` for a host or builder session. This checks the rest:
+// Criterion 4 (no protected path named) is not read here: a run whose change
+// needs a path the issue lane cannot push stops with patch-protected-path,
+// which stop-routes.json routes to `host-run`. This checks the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
@@ -124,13 +121,12 @@
 // `host-run` are the only labels it adds. The claim is a fresh change of the
 // field to deferred.
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { carried, DECISION_LABELS, isStatusLabel, readyWhileDeferred } from "../../actions/resolve-config/read-status.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { CLAUDE_PROTECTED_FILES, PATH_RULES, PROTECTED_REFUSALS, segments } from "../apply-patch/protected-paths.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
 import { writeAdmissionRecord } from "../lib/admission-record.mjs";
@@ -733,29 +729,6 @@ export function unrunnableCriteria(body, taskList, webHosts, rules = issueUnrunn
   return { items: items.length, found };
 }
 
-// The patch-rules.json row apply-patch.mjs reads for an issue lane push
-// (TARGETS.issue).
-export const PATCH_ROW = "issue";
-// The protected-path refusals of that row in the patch-rules.json at `path`.
-// A row that names none throws, so admission fails closed rather than let a
-// criterion name any path.
-export function pushRefusalsOf(path) {
-  const refuse = JSON.parse(readFileSync(path, "utf8"))[PATCH_ROW]?.refuse;
-  const names = Array.isArray(refuse) ? refuse.filter((name) => PROTECTED_REFUSALS[name]?.kind === "protected-path") : [];
-  if (names.length === 0) {
-    throw new Error(`${path}: the \`${PATCH_ROW}\` row refuses no protected path`);
-  }
-  return names;
-}
-
-let pushRefusalNames;
-// pushRefusalsOf the default branch's patch-rules.json beside this script,
-// read once.
-export function issuePushRefusals() {
-  pushRefusalNames ??= pushRefusalsOf(new URL("../../actions/resolve-config/patch-rules.json", import.meta.url));
-  return pushRefusalNames;
-}
-
 // [kind, {test}] for each `rules` row of the unrunnable-rules.json at `path`:
 // `match` finds the item and `unless`, when not null, does not. An empty
 // `rules`, a row without a kind or `match`, or a pattern that does not compile
@@ -1005,213 +978,6 @@ const chargeEditReason = ({ where, word, at, unreadable, failed }) => {
   return `a charge word in code could not be compared with its edit history (${failed ?? unreadable}), ${after}`;
 };
 
-let workflowNames;
-// The file names in the default branch's .github/workflows beside this
-// script, read once.
-export function workflowFiles() {
-  workflowNames ??= new Set(
-    readdirSync(new URL("../../workflows/", import.meta.url), { withFileTypes: true })
-      .filter((entry) => entry.isFile())
-      .map((entry) => entry.name),
-  );
-  return workflowNames;
-}
-
-// A repository path a criterion names: a backticked span or a word, less a
-// trailing `:12` or `:3-9` and punctuation. A relative path with a `/`, a
-// root CODEOWNERS or .gitmodules (the latter with or without its dot), or the
-// bare name of a file in `workflows` (as that workflow's path), each in any
-// case, counts: any other bare file name or an absolute runner path names no
-// file of this repository. Outside a backticked span a root name counts only
-// as `CODEOWNERS` or a dot-led `.gitmodules`, so prose such as "the
-// codeowners check" names no file. A bare name Claude Code protects
-// (claude-protected), such as `lefthook.yml`, `.mcp.json` or `.vscode`, counts
-// in a backticked span; outside one only a name that is not dot-led, such as
-// lefthook.yml, counts, so "your .bashrc" or "your .gitconfig", a home
-// directory file, names no file of this repository. A home, absolute or URL
-// token never counts, quoted or not, nor a backticked span holding whitespace
-// such as a command (`source ~/.bashrc`), whose words count on their own (repoToken).
-const ROOT_NAMES = new Set(["codeowners", ".gitmodules", "gitmodules"]);
-const repoToken = (token) => !/^[/~]/.test(token) && !token.includes("://") && !/\s/.test(token);
-const claudeName = (token) => PATH_RULES["claude-protected"](segments(token));
-const isRootName = (token, quoted) =>
-  quoted
-    ? ROOT_NAMES.has(token.toLowerCase()) || claudeName(token)
-    : token === "CODEOWNERS" || token.toLowerCase() === ".gitmodules" || (!token.startsWith(".") && CLAUDE_PROTECTED_FILES.has(token.toLowerCase()));
-const pathTokens = (text, workflows) => {
-  const lowerWorkflows = new Set([...workflows].map((name) => name.toLowerCase()));
-  return [
-    ...[...text.matchAll(/`([^`]+)`/g)].map((m) => ({ token: m[1], quoted: true })),
-    ...text
-      .replaceAll("`", " ")
-      .split(/\s+/)
-      .map((token) => ({ token, quoted: false })),
-  ]
-    .map(({ token, quoted }) => {
-      const bare = token
-        .replace(/^["'(\[]+/, "")
-        .replace(/[.,;:!?"')\]]+$/, "")
-        .replace(/:\d+(-\d+)?$/, "");
-      return { token: lowerWorkflows.has(bare.toLowerCase()) ? `.github/workflows/${bare}` : bare, quoted };
-    })
-    .filter(({ token, quoted }) => repoToken(token) && (isRootName(token, quoted) || token.includes("/")))
-    .map(({ token }) => token);
-};
-
-// The dot-led names the path rules read, matched without their dot too: to a
-// lane reading it, `github/workflows/a.yml` names `.github/workflows/a.yml`.
-const DOTLESS = new Map([
-  ["github", ".github"],
-  ["gitmodules", ".gitmodules"],
-]);
-const dotted = (path) =>
-  path
-    .split("/")
-    .map((part) => DOTLESS.get(part.toLowerCase()) ?? part)
-    .join("/");
-
-// A line that opens its own list item, such as a nested evidence bullet.
-const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
-
-// The bounded shapes that say a path is left unmodified; a path is dropped
-// only inside one, and any other wording keeps it:
-// 1. `no`/`none of` + a short phrase holding the path + `is`/`are`/`was`/
-//    `were`/`gets`/`will be`/`should be`/`must be` + a participle ("No file
-//    under X is edited", "No file under X should be edited");
-// 2. a modification verb + `no` + the path phrase, or a comma-separated list
-//    of paths ("the diff touches no X, Y or Z file");
-// 3. `does not`/`do not`/`don't`/`never`/`won't`, or a modal negation
-//    (`must not`, `should not`, `mustn't`, `can't`, `cannot`, ...), + a
-//    modification verb + the path phrase ("does not edit X", "MUST NOT
-//    modify X");
-// 4. `leaves` + the path phrase + `unchanged`/`untouched`/`as is`;
-// 5. `no change(s)`/`edit(s)`/`modification(s)` + `to`/`in` + the path phrase
-//    ("No changes to X");
-// 6. at the start of the item or a sentence, the path phrase + a negated
-//    passive (`is not`, `isn't`, `must not be`, ...) + a participle that ends
-//    the sentence ("X is not edited.", "X must not be modified.").
-// A path phrase is up to six words, with no comma, sentence end, or word that
-// turns it toward a change or a condition (but, other, after, ...); in shape
-// 6 it also holds no modification verb.
-const STOP = String.raw`(?!(?:but|except|other|outside|beyond|besides|apart|aside|and|or|nor|while|so|then|unless|yet|whereas|instead|after|before|when|once|until|if|to|for|that|which|who|where)(?=[\s,;:!?.]|$))`;
-const WORD = String.raw`${STOP}(?:[^\s,;:!?.]|\.(?=\S))+`;
-const PHRASE = String.raw`${WORD}(?:\s+${WORD}){0,5}`;
-const LIST = String.raw`${WORD}(?:(?:,\s*(?:(?:or|nor)\s+)?|\s+(?:or|nor)\s+)${WORD})+(?:\s+(?:files?|director(?:y|ies)|folders?|paths?|lines?))?`;
-const DONE = String.raw`edited|changed|touched|modified|altered|rewritten`;
-const VERB = String.raw`touch(?:es|ing)?|chang(?:e|es|ing)|edit(?:s|ing)?|modif(?:y|ies|ying)|alter(?:s|ing)?|(?:re)?writ(?:e|es|ing)\s+to`;
-const MODAL = String.raw`must|should|shall|will|can`;
-const NOT = String.raw`(?:${MODAL})\s+not|cannot|(?:mustn|shouldn|shan|can)['’]t`;
-const ACT = String.raw`(?!(?:${VERB}|update|updating|add|remov|delete|deleting|creat|replac|renam|mov|fix)\w*(?=[\s,;:!?.]|$))`;
-const SUBJECT = String.raw`${ACT}${WORD}(?:\s+${ACT}${WORD}){0,5}`;
-// The idioms where `no` opens an affirmation, not a negation: "No doubt X
-// must be edited" asks for the edit, so shape 1 never starts at one.
-const IDIOM = String.raw`(?:doubt|question|wonder|way|matter|one)(?=[\s,;:!?.]|$)`;
-const NEGATED = new RegExp(
-  [
-    String.raw`\b(?:no(?!\s+${IDIOM})|none\s+of)\s+${PHRASE}\s+(?:is|are|was|were|gets?|(?:${MODAL})\s+be)\s+(?:${DONE})\b`,
-    String.raw`\b(?:${VERB})\s+no\s+(?:${LIST}|${PHRASE})`,
-    String.raw`\b(?:(?:does|do|did)\s+not|never|(?:won|doesn|don|didn)['’]t|${NOT})\s+(?:${VERB})\s+${PHRASE}`,
-    String.raw`\bleav(?:e|es|ing)\s+${PHRASE}\s+(?:unchanged|untouched|as\s+is)\b`,
-    String.raw`\bno\s+(?:changes?|edits?|modifications?|alterations?)\s+(?:to|in)\s+${PHRASE}`,
-    String.raw`(?:^|(?<=[.;:!?]\s))\s*${SUBJECT}\s+(?:(?:is|are|was|were|gets?)\s+(?:not|never)|(?:is|are|was|were)n['’]t|(?:${NOT}|won['’]t)\s+be)\s+(?:${DONE})(?=\s*(?:[.;!?](?:\s|$)|$))`,
-  ].join("|"),
-  "gi",
-);
-const withoutNegated = (text) => text.replace(NEGATED, " ");
-
-// The paths `texts` name (pathTokens), outside a shape that leaves them
-// unmodified (NEGATED), that apply-patch refuses under `names`, read with a
-// dot-led name's dot left off (DOTLESS), in order, each once. Pure.
-const refusedPaths = (texts, names, workflows) => [
-  ...new Set(texts.flatMap((text) => pathTokens(withoutNegated(text), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))))),
-];
-
-// The paths the task-list items in `body`, with the wrapped text below each up
-// to its first nested bullet outside a code fence, read as plainText, name
-// that apply-patch refuses under `names` (issuePushRefusals) in any case or
-// with a dot-led name's dot left off (DOTLESS), in order, each once, a bare
-// name in `workflows` (workflowFiles) read as that workflow's path. A path
-// named only in a shape that leaves it unmodified (NEGATED) is left out.
-// Pure.
-export function unpushablePaths(body, taskList, names, workflows) {
-  const lines = String(body ?? "").split("\n");
-  const blocks = fenceBlocks(lines);
-  const wrapped = (more) => {
-    const end = more.findIndex((index) => blocks[index] === 0 && BULLET.test(lines[index]));
-    return (end === -1 ? more : more.slice(0, end)).map((index) => lines[index]);
-  };
-  return refusedPaths(
-    taskItems(body, taskList).map(({ text, more }) => plainText([text, ...wrapped(more)].join("\n"))),
-    names,
-    workflows,
-  );
-}
-
-// A body line that cites evidence ("Basis: ...", "See ..."), and a path cited
-// at a line (`a.yml:3`): what the body points at, not what the work changes.
-const EVIDENCE_LINE = /^\s*(?:[-*+]\s+|\d+[.)]\s+)?(?:\*\*|_)?(?:basis|evidence|source|sources|see|seen in|refs?|cited?)\b/i;
-const CITED_AT = /`[^`\n]*:\d+(?:-\d+)?`|\S+:\d+(?:-\d+)?(?=[\s.,;)\]]|$)/g;
-// The section headings, at any level, that say what the work changes, and
-// those that hold what was observed: decompose's item body (Outcome, Done
-// when), the agent brief's Desired behavior and Acceptance criteria, the bug
-// templates' Expected behavior against their Steps to reproduce, Actual
-// behavior and Environment, and the brief's Current behavior. A line opening
-// with /bugs:write's `Suggested fix location` says it too.
-const HEADING = /^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/;
-const CHANGE_SECTION = /^(?:(?:proposed |suggested )?fix|outcome|done when|desired behavior|expected behavior|acceptance criteria)$/;
-const EVIDENCE_SECTION = /^(?:evidence|steps to reproduce|actual behavior|current behavior|environment)$/;
-const CHANGE_LINE = /^\s*(?:[-*+]\s+)?(?:\*\*|_)?suggested fix location\b/i;
-const sectionOf = (title) => {
-  const name = plainText(title).replace(/[*_:]/g, "").trim().toLowerCase();
-  return CHANGE_SECTION.test(name) ? "change" : EVIDENCE_SECTION.test(name) ? "evidence" : null;
-};
-
-// The paths the prose of `body` names that apply-patch refuses under `names`:
-// each line outside a code fence, an evidence section (EVIDENCE_SECTION) and
-// every task-list item (which unpushablePaths reads), a CHANGE_LINE kept even
-// there, read as plainText, less
-// an evidence line, a path cited at a line outside a change section
-// (CHANGE_SECTION) or CHANGE_LINE, and a path named only in a shape that
-// leaves it unmodified (NEGATED), each once. Consecutive prose lines are read
-// as one paragraph, so a negation soft-wrapped across lines still holds; a
-// blank line, a bullet, a heading or a line left out ends one. Pure.
-export function bodyUnpushablePaths(body, taskList, names, workflows) {
-  const lines = String(body ?? "").split("\n");
-  const blocks = fenceBlocks(lines);
-  const items = new Set(taskItems(body, taskList).flatMap(({ line, more }) => [line, ...more]));
-  const paragraphs = [];
-  let open = false;
-  let section = null;
-  let depth = 0;
-  lines.forEach((raw, index) => {
-    const line = plainText(raw);
-    const heading = blocks[index] === 0 ? HEADING.exec(raw) : null;
-    if (heading) {
-      // A deeper heading with no section of its own stays inside the one
-      // that opened (`### Option A` under `## Proposed fix`).
-      const level = raw.trim().match(/^#+/)[0].length;
-      const own = sectionOf(heading[1]);
-      if (own || level <= depth) [section, depth] = own ? [own, level] : [null, 0];
-    }
-    if (blocks[index] !== 0 || items.has(index) || EVIDENCE_LINE.test(line) || line.trim() === "" || (section === "evidence" && !heading && !CHANGE_LINE.test(line))) {
-      open = false;
-      return;
-    }
-    const hash = /^\s*#/.test(raw);
-    if (open && !BULLET.test(raw) && !hash && !CHANGE_LINE.test(line)) {
-      paragraphs[paragraphs.length - 1].text += ` ${line.trim()}`;
-    } else {
-      paragraphs.push({ text: line, cites: section === "change" || CHANGE_LINE.test(line) });
-    }
-    open = !hash;
-  });
-  return refusedPaths(
-    paragraphs.map(({ text, cites }) => (cites ? text : text.replace(CITED_AT, " "))),
-    names,
-    workflows,
-  );
-}
-
 // The refusal reason for unrunnableCriteria's result, with the split it
 // recommends, or null when every item is runnable. Host work, a model eval
 // run included, goes to the host queue (`host-run`); a paid eval, which names
@@ -1421,7 +1187,7 @@ export function admissionSettled(labels, events, isMark, state) {
 // run cannot perform beside items it can, which refine
 // splits only from needs-decision (refine.mjs splitOf). `hostRun: true` asks
 // admit() to add `host-run` on a refusal whose every reason is host work (no
-// item left for the lane, a protected path, a capped split child), with no
+// item left for the lane, a capped split child), with no
 // hold, wait or pending split.
 // `verdict.writtenAt` is when the lane comment the verdict came from was last
 // written; a body edited after it refuses, since the verdict judged an older
@@ -1429,12 +1195,10 @@ export function admissionSettled(labels, events, isMark, state) {
 // admissionFacts) skips the cost_private charge words; `chargeEdits`
 // (admissionFacts, chargeEditsOf) each refuse, and hold for a person unless
 // the read failed. Pure but for
-// `pushRefusals` and `charges`, read from patch-rules.json and
-// charge-words.json when not given, and unrunnable-rules.json
-// (unrunnableCriteria); a file that does not read, a malformed
-// unrunnable-rules.json (unrunnableRulesOf), or a
-// patch-rules.json row that refuses no protected path (pushRefusalsOf),
-// throws out of decide, so no issue is admitted on a guess.
+// `charges`, read from charge-words.json when not given, and
+// unrunnable-rules.json (unrunnableCriteria); a file that does not read, or a
+// malformed unrunnable-rules.json (unrunnableRulesOf), throws out of decide,
+// so no issue is admitted on a guess.
 // `reported` (admissionFacts) maps a blocker the lanes App closed
 // report-delivered to {at, url, reason}: that close is no completed work
 // (owner Q9), so the blocker still waits, but its report may answer what the
@@ -1446,7 +1210,7 @@ export function admissionSettled(labels, events, isMark, state) {
 // the Work status field decides them (read-status.mjs statusLabels), read in
 // place of the issue's own labels; `fieldState` (admissionFacts) is the
 // trusted Work status admissionSettled reads.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], finished = false, doneBy = [], events, comments = [], spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern(), chargeEdits = [], holdLabels, fieldState }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], finished = false, doneBy = [], events, comments = [], spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, charges = chargePattern(), chargeEdits = [], holdLabels, fieldState }) {
   const labels = names(holdLabels ?? issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -1572,27 +1336,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     refuse.push(unrunnable);
     if (paid) holdFor("cost");
     if (hostRun) hostWork.add(unrunnable);
-  }
-  // apply-patch refuses the issue lane's push of these paths
-  // (patch-protected-path), so a run for such a criterion is spent for
-  // nothing; this refusal parks at status: confirmed, never with a person, and
-  // adds host-run when nothing else refuses, waits or holds.
-  // The title is not read: it names the subject, often a workflow whose
-  // script alone changes. Each text is read alone, so a fence one leaves open
-  // does not run on into the next.
-  // The body's own prose counts too, whoever wrote it, less the checks a
-  // person runs (personChecks).
-  const body = String(spec?.body ?? issue.body ?? "");
-  const unpushable = [
-    ...new Set([
-      ...texts.flatMap((text) => unpushablePaths(text, taskList, pushRefusals, workflows)),
-      ...bodyUnpushablePaths(moved.length > 0 ? withoutItems(body, taskList, moved) : body, taskList, pushRefusals, workflows),
-    ]),
-  ];
-  if (unpushable.length > 0) {
-    const reason = `its body or a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`;
-    refuse.push(reason);
-    hostWork.add(reason);
   }
   // A metered or renewing charge needs the owner's decision, whatever the
   // verdict flagged. A word an edit moved into code leaves this read, so that

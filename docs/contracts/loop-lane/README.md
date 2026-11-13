@@ -451,10 +451,10 @@ goes to an agent session, which removes the label once it has made the change; p
 Intake admission refuses `attended` and `host-run` alike, parked at Work status confirmed, and adds
 `host-run` itself when every done-when item is one an unattended lane run cannot perform, none is a
 paid eval, and nothing else refuses, waits or holds the issue. It adds `host-run` the same way to a
-refusal that says a builder session takes it: a protected path the issue lane cannot push, or a
-size-split sub-issue whose patch is over the scan job's cap. That is the label a resolve-issue
-run's own `patch-protected-path` stop adds (`stop-routes.json`); `needs-session` stays the queue
-for pull requests pr-unblock stops on. It maps a
+size-split sub-issue whose patch is over the scan job's cap, which a builder session takes.
+Admission does not read the paths an issue names: a resolve-issue run whose change needs a path
+the issue lane cannot push stops with `patch-protected-path`, which adds `host-run`
+(`stop-routes.json`); `needs-session` stays the queue for pull requests pr-unblock stops on. It maps a
 refinement's `External state: manual (...)` line to `attended`; a resolve-issue run that reaches
 such a step stops with the `manual-external` code, which routes to `attended`
 ([Attended work](../../conventions/pr-pipeline/README.md#attended-work)). An issue that mixes

@@ -1046,11 +1046,10 @@ so fix-ci and address-feedback cannot change them. No other row names these thre
 The `issue` row alone also refuses (`claude-protected`), at any depth, every path Claude Code
 denies writes to under the lanes' `dontAsk` permission mode
 ([protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths)) except
-`.gitmodules`, which has its own refusal (`gitmodules`): its run can never write one, so
-intake admission refuses an issue whose work names one before a run is spent on it. The other
-lanes also run under `dontAsk` but have no admission step to feed, and the `merge-base` and
-`shared-copies` patches carry the base's own changes, which may touch such a path, so no other row
-names it, and a rename into such a path is not `rename-into-refused`.
+`.gitmodules`, which has its own refusal (`gitmodules`): its run can never write one, so a run
+whose change needs one stops with `patch-protected-path`. The `merge-base` and `shared-copies`
+patches carry the base's own changes, which may touch such a path, so no other row names it, and a
+rename into such a path is not `rename-into-refused`.
 The `ci-context`, `docs`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
