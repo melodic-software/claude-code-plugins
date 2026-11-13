@@ -83,8 +83,10 @@ The preamble names the tool's path. It is the only shell command this mode runs,
    body, as an entry starting `Pre-existing (advisory):`, posts the reply with a fixed line
    saying so, and resolves the thread. An advisory the issue's
    scope allows is classified as any other finding.
-3. VALID: run `check-paths` on every file the fix changes before you edit it, and edit only when
-   it prints `allowed`. Leave the fix uncommitted in the working tree before you record it: there
+3. VALID: fix every instance of the finding's class in the pull request's diff, not only the
+   flagged line. Run `check-paths` on every file the fix changes before you edit it, and edit only
+   when it prints `allowed`; when an instance sits in a file it refuses, record `UNCERTAIN` and
+   name that instance. Leave the fix uncommitted in the working tree before you record it: there
    is no commit tool, and the one commit the push job makes may fix several threads.
 4. Write the disposition file in the scratch directory, then run `record`:
 
@@ -134,7 +136,9 @@ addressed gets no record: the round then stops for a session.
 ## Not in this mode
 
 No reactions (D4.5): the reply is the record. No tracker items (D4.6): a deferral goes to a
-person. No other thread, no human comment, no conversation comment, no ready flip, no merge.
+person. No other thread, no human comment, no conversation comment, no ready flip, no merge. No
+pull request body edit: no job in this lane rewrites the sections a fix makes stale, which an
+attended run does ([monitor.md](monitor.md) §3.3.2 step 5).
 
 ## Report
 

@@ -372,11 +372,12 @@
       "id": 29,
       "name": "pr-body-briefing-optional-sections-only-with-content",
       "prompt": "/pull-request create from branch fix/481-clock-skew. No source-control config layer sets pr_body_required_sections. The change swaps a hand-rolled time parser for the standard library's; no other approach was considered. It changes how three scheduled jobs read timestamps from the jobs table. Assemble and create the PR.",
-      "expected_output": "The briefing default applies. The body carries `## Why`, `## What changed`, `## Scope`, `## Risk` and `## Verification`, in that order. `## Risk` is present because the change reaches the three scheduled jobs and the timestamps they read, and says whether that reach is safe. `## Tradeoffs` is left out entirely, not filled with N/A or None, because no alternative was weighed. The §2.4.2.2 gate requires Why, What changed, Scope and Verification and passes; it neither requires nor blocks on Tradeoffs or Risk.",
+      "expected_output": "The briefing default applies. The body carries `## Why`, `## What changed`, `## Scope`, `## Risk` and `## Verification`, in that order. `## Risk` is present because the change reaches the three scheduled jobs and the timestamps they read, and says how the change is undone, with no door or risk tier. `## Tradeoffs` is left out entirely, not filled with N/A or None, because no alternative was weighed. The §2.4.2.2 gate requires Why, What changed, Scope and Verification and passes; it neither requires nor blocks on Tradeoffs or Risk.",
       "files": [],
       "expectations": [
         "The body has no `## Tradeoffs` heading, and no section reads N/A or None in its place",
         "The body has a `## Risk` section naming the scheduled jobs or the timestamps they read",
+        "The `## Risk` section says how the change is undone and states no door or risk tier",
         "The headings appear in the order Why, What changed, Scope, Risk, Verification",
         "Each Verification bullet names a command or check that was actually run and its outcome",
         "The §2.4.2.2 gate requires only Why, What changed, Scope and Verification"
@@ -861,6 +862,30 @@
         "It checks that confirm-verdict.sh show prints CONFIRMED for 7d6c5b4a39281706f5e4d3c2b1a0998877665544 before posting",
         "It runs the evidence action on PR 655 with --evidence /tmp/run/e2e-summary.json",
         "The report has an evidence line with the comment URL, saying the comment was created"
+      ]
+    },
+    {
+      "id": 65,
+      "name": "create-previews-body-when-set-attended",
+      "prompt": "/pull-request create from branch fix/512-retry-backoff. I am here to answer. The pr_body_preview userConfig value is preview and docs/conventions/source-control.yaml does not set pr_body_preview. The branch is committed and the gates pass on the assembled body. Assemble the body and open the PR.",
+      "expected_output": "After the §2.4.2 gates pass and the attribution line is appended, create prints the body file's full text as it will post and waits for a yes before opening the PR. It opens nothing until the person answers.",
+      "files": [],
+      "expectations": [
+        "It prints the full body text, attribution line included, before any PR create command",
+        "It asks for a yes and runs no PR create command before the answer"
+      ]
+    },
+    {
+      "id": 66,
+      "name": "monitor-refreshes-stale-body-sections-in-place",
+      "narration": true,
+      "prompt": "/pull-request comments 701. No source-control layer sets pr_body_refresh. A reviewer bot found that parse_date() in src/dates.py swallows a ValueError; research confirms it, and the same bare except appears in parse_time() in the same diff. You fix both and the test suite passes. PR 701's body has `## What changed`, `## Verification` ending `Left out: nothing`, a `Hold: waiting on vendor` line and a `## Follow-ups` section.",
+      "expected_output": "The fix covers both parse_date() and parse_time(), since both are instances of the finding's class in the diff. Before the single push, the run rewrites the body's What changed and Verification sections to describe the new head and posts it with `gh pr edit 701 --body-file <file>`, keeping the Hold line and the Follow-ups section unchanged. It posts no comment describing the body change.",
+      "files": [],
+      "expectations": [
+        "It fixes the bare except in both parse_date() and parse_time()",
+        "It updates the PR body with gh pr edit 701 --body-file, not with a comment",
+        "The edited body still holds the `Hold: waiting on vendor` line and the `## Follow-ups` section"
       ]
     }
   ]

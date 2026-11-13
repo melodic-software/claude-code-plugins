@@ -56,6 +56,19 @@
       "default": "auto",
       "options": ["auto", "local", "ci", "both"]
     },
+    "pr_body_preview": {
+      "type": "string",
+      "title": "PR body preview",
+      "description": "What /source-control:pull-request does with a PR body it is about to post, at create or when it edits one. post (default) posts it; preview prints the body text and waits for a yes, in attended sessions only (unattended runs always post). A repository's pr_body_preview in docs/conventions/source-control.yaml wins over this value.",
+      "default": "post",
+      "options": ["post", "preview"]
+    },
+    "pr_body_refresh": {
+      "type": "boolean",
+      "title": "PR body refresh",
+      "description": "After a push that makes an open PR's body stale (what changed, verification, Left out:), /source-control:pull-request rewrites those sections in place so the body describes the current head. On by default. A repository's pr_body_refresh in docs/conventions/source-control.yaml wins over this value.",
+      "default": true
+    },
     "fetch_logs_max_bytes": {
       "type": "number",
       "title": "CI log fetch size cap (bytes)",
