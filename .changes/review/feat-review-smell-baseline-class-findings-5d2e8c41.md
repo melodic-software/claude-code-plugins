@@ -7,7 +7,8 @@ bump: minor
 - `smell_baseline` setting (user option and `docs/conventions/review.yaml`): `default` keeps the
   `code-reviewer` agent's twelve-smell baseline, `off` turns the smell check off, and a
   repository-relative `.md` path points it at the repository's own list. A missing file falls back
-  to the shipped baseline, and a change that edits `review.yaml` cannot choose its own list. The
+  to the shipped baseline, and a change that edits `review.yaml` or the list file cannot choose
+  its own list. The
   report names the list it used, and says so when it used the shipped baseline because the
   repository documents no standards.
 - The baseline moves out of the agent into `reference/design-smells.md`, beside a catalog of the
