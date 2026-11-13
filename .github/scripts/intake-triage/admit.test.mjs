@@ -14,6 +14,8 @@ import { STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../ac
 import { statusEvents, statusReader, syntheticFrom } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, confirmedOnly, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionSettled, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
+import { readRouting } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { TRACKER_BINDING_PATH } from "../pr-merge/merge-holds.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -581,6 +583,66 @@ describe("decide", () => {
       }),
     );
     assert.equal(result.verdict, "admit");
+  });
+
+  // /work-items:decompose puts the human-gated label on every spec container,
+  // so on a container parent it marks the container, not a pending decision.
+  describe("a Feature under a spec container parent", () => {
+    const feature = issueOf({ type: { name: "Feature" } });
+    const parent = (labels, state = "open") => ({ state, user: { id: HUMAN }, labels: labels.map((name) => ({ name })) });
+    const PARENT_HELD = /a Feature needs an open parent issue a listed human filed that awaits no decision/;
+
+    test("is admitted when the container carries needs-human", () => {
+      assert.deepEqual(decide(facts({ issue: feature, parent: parent(["spec-container", "needs-human"]) })), { verdict: "admit", reasons: [] });
+    });
+
+    test("is refused when a parent that is no container carries needs-human", () => {
+      const result = decide(facts({ issue: feature, parent: parent(["needs-human"]) }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join(), PARENT_HELD);
+    });
+
+    test("is refused when the container awaits a decision", () => {
+      const result = decide(facts({ issue: feature, parent: parent(["spec-container", "needs-human", NEEDS_DECISION]) }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join(), PARENT_HELD);
+    });
+
+    test("is refused when the container is closed or no listed human filed it", () => {
+      for (const container of [parent(["spec-container", "needs-human"], "closed"), { ...parent(["spec-container"]), user: { id: OUTSIDER } }]) {
+        const result = decide(facts({ issue: feature, parent: container }));
+        assert.equal(result.verdict, "refuse");
+        assert.match(result.reasons.join(), PARENT_HELD);
+      }
+    });
+
+    test("knows the container by the rules' parent-container-labels", () => {
+      const remapped = parent(["epic", "needs-human"]);
+      const rules = { ...RULES, "parent-container-labels": ["epic"] };
+      assert.equal(decide(facts({ issue: feature, parent: remapped, rules })).verdict, "admit");
+      assert.equal(decide(facts({ issue: feature, parent: remapped })).verdict, "refuse");
+      assert.equal(decide(facts({ issue: feature, parent: parent(["spec-container", "needs-human"]), rules })).verdict, "refuse");
+    });
+
+    test("rules with no parent-container-labels hold every parent on needs-human", () => {
+      const { "parent-container-labels": _, ...rest } = RULES;
+      const path = join(tempDir("admit-rules-"), "rules.json");
+      writeFileSync(path, JSON.stringify(rest));
+      const loaded = loadRules(path);
+      assert.deepEqual(loaded["parent-container-labels"], []);
+      for (const rules of [loaded, rest]) {
+        assert.equal(decide(facts({ issue: feature, parent: parent(["spec-container", "needs-human"]), rules })).verdict, "refuse");
+      }
+      writeFileSync(path, JSON.stringify({ ...rest, "parent-container-labels": "spec-container" }));
+      assert.throws(() => loadRules(path), /`parent-container-labels` must be a list of strings/);
+    });
+
+    // The rules list and the tracker binding name the container label apart;
+    // this keeps them in step.
+    test("the rules' parent-container-labels hold the tracker binding's container label", () => {
+      const binding = fileURLToPath(new URL(`../../../${TRACKER_BINDING_PATH}`, import.meta.url));
+      assert.ok(RULES["parent-container-labels"].includes(readRouting(binding).container), `${readRouting(binding).container} is not in ${RULES["parent-container-labels"]}`);
+    });
   });
 
   test("waits, with no hold, on criterion 8: an open blocker", () => {
@@ -2202,6 +2264,8 @@ describe("admit", () => {
     ["awaits a decision", { state: "open", user: { id: HUMAN }, labels: [{ name: NEEDS_DECISION }] }],
     ["awaits a decision under the renamed hold", { state: "open", user: { id: HUMAN }, labels: [{ name: "needs-owner-decision" }] }],
     ["is closed", { state: "closed", user: { id: HUMAN }, labels: [] }],
+    ["is a closed spec container", { state: "closed", user: { id: HUMAN }, labels: [{ name: "spec-container" }, { name: "needs-human" }] }],
+    ["carries needs-human and is no spec container", { state: "open", user: { id: HUMAN }, labels: [{ name: "needs-human" }] }],
   ]) {
     test(`a Feature whose parent ${name} is refused through the real fetch path`, async () => {
       const fake = fakeGitHub({ issue: feature, parent });
@@ -2571,6 +2635,16 @@ describe("admit() with the Work status field", () => {
       assert.deepEqual(after, before);
       assert.deepEqual(writes(read.calls), writes(plain.calls));
     }
+  });
+
+  // The container label is no Work status label, so the field read keeps it.
+  test("a spec container parent whose field reads needs-human admits a Feature, and a container awaiting a decision refuses it", async () => {
+    const container = parentOf([{ name: "spec-container" }, { name: "needs-human" }]);
+    const admitted = await admit(withStatus(fakeGitHub({ issue: feature, parent: container }), { 7: { state: "ready" }, 3: { state: "needs-human" } }));
+    assert.equal(admitted.outcome, "admitted", String(admitted.reasons));
+    const held = await admit(withStatus(fakeGitHub({ issue: feature, parent: parentOf([{ name: "spec-container" }]) }), { 7: { state: "ready" }, 3: { state: "needs-owner-decision" } }));
+    assert.equal(held.outcome, "refused");
+    assert.ok(held.reasons.includes(PARENT_HELD), String(held.reasons));
   });
 
   test("a parent's field hold with no hold label refuses a Feature", async () => {
