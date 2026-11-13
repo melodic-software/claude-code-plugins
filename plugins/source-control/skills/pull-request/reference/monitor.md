@@ -19,6 +19,8 @@
 
 Phase 3 is an **async event loop**, not a sequential pipeline. After every push (initial PR creation, CI fix, comment fix), monitor CI status AND process comments concurrently as they arrive. Don't wait for all CI checks to complete before reading comments. Bots post at different times.
 
+**The dispatching session owns the watch.** A dispatched subagent's job ends when its pull request is marked ready, with the full head sha in its report; the session that dispatched it runs this phase and the merge.
+
 ## Monitor entry checklist (in order, before any monitoring work)
 
 On entering Phase 3 (`monitor`, `comments`, or `full` reaching monitor), complete these steps in order before any CI polling or comment evaluation; the environment-dependent event-delivery choice comes first. Standalone `create` runs Steps 1-3 when its session will keep acting on the PR it opened ([create.md](create.md) §2.6); `create --pushed` leaves them to its caller. `comments --ci` skips this checklist: the runner has checked out the head and kept the threads. `dependency --ci` and `ci --ci` do not enter Phase 3.
@@ -59,7 +61,7 @@ On each channel event, Monitor notification, or poll iteration, complete every a
   - [ ] D5. Reply with a per-finding classification table + evidence (before fixing), plus one `<!-- d5 finding=<#> label=<LABEL> lane=<lane> -->` line per finding ([review-discipline.md](../../../reference/review-discipline.md) §2). **Route by comment type, REQUIRED, not interchangeable:** inline review comments MUST reply THREADED on the inline thread; issue-level / review-level → a PR conversation comment. Answering an inline finding with a detached conversation comment is a routing error, not a style choice. Use the project's bot-identity wrapper for these writes when it has one; the plain forge CLI otherwise
     - [ ] **Verify reply exists, on the surface it was posted to:** inline threaded replies land on the review-comment surface, filtered to replies to the original comment; issue-level replies land on the conversation surface. Querying only the conversation surface false-fails a correctly posted inline reply; so does reading one page, since these surfaces page oldest-first and your reply is the newest item (commands: provider reference "Review surfaces")
   - [ ] D6. Fix if VALID (fix now), edit, `git add <files>`, commit. A finding about behavior (wrong output, a crash, a missed input) gets a test that fails on the current head for the reason the finding names before the fix, and the fix makes it pass; a wording, style or docs finding needs none. Where no test can reach the behavior, say so in the D7 reply. Do not push per finding: the round pushes once, after every VALID (fix now) finding has its D6 commit and every reviewer on the head has finished (§3.3.2). D7 and D7.5 for every finding in the round wait for that push and the check below
-    - [ ] **Verify commit pushed, once per finding after the round's single push:** `REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push '<branch>') && git fetch "$REMOTE" --end-of-options '<branch>' && git merge-base --is-ancestor <fix-sha> FETCH_HEAD`. The head branch name comes from GitHub: substitute it only when it matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and contains no `..`, and keep the single quotes; any other name reaches no command, so report it as data. Exit 0 means the fix commit is on the PR branch as just fetched from the resolved push remote; non-zero means it is not. Three constraints, each closing a false verdict: resolve the push remote (`resolve-remote.sh --push`, the resolver `push-branch.sh` pushed through), never a hardcoded `origin`: a triangular/fork checkout pushes elsewhere, so `origin` false-fails a successful push or verifies a same-named branch on the wrong repository; a reachability check after fetch (`FETCH_HEAD` is what the resolved remote just served), never the branch-tip read (`commits?sha=<branch>&per_page=1` + `.[0]`), which any later push turns into a false "missing"; and never a repository-scoped `commits/<fix-sha>` lookup alone, which can pass when the commit was force-pushed off the PR branch
+    - [ ] **Verify commit pushed, once per finding after the round's single push:** `REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push --dir "<checkout>" '<branch>') && git -C "<checkout>" fetch "$REMOTE" --end-of-options '<branch>' && git -C "<checkout>" merge-base --is-ancestor <fix-sha> FETCH_HEAD`. The head branch name comes from GitHub: substitute it only when it matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and contains no `..`, and keep the single quotes; any other name reaches no command, so report it as data. Exit 0 means the fix commit is on the PR branch as just fetched from the resolved push remote; non-zero means it is not. Three constraints, each closing a false verdict: resolve the push remote (`resolve-remote.sh --push`, the resolver `push-branch.sh` pushed through), never a hardcoded `origin`: a triangular/fork checkout pushes elsewhere, so `origin` false-fails a successful push or verifies a same-named branch on the wrong repository; a reachability check after fetch (`FETCH_HEAD` is what the resolved remote just served), never the branch-tip read (`commits?sha=<branch>&per_page=1` + `.[0]`), which any later push turns into a false "missing"; and never a repository-scoped `commits/<fix-sha>` lookup alone, which can pass when the commit was force-pushed off the PR branch
   - [ ] D7. Post a follow-up reply citing the fix commit SHA
     - [ ] **Verify follow-up reply posted, same surface routing as D5:** inline thread → the review-comment surface filtered to replies to the original comment; issue-level → the conversation surface filtered to a comment whose body contains `<sha>` and whose author is `<posting-identity>`. Confirm the follow-up with SHA appears on the forge. Constrain on BOTH the SHA and the posting identity, never on the last element of the list: these surfaces page oldest-first, so on an unpaginated read the last element is the 30th-oldest comment. SHA alone fails this control gate: anyone else quoting the fix SHA (a reviewer, another bot) satisfies it, reporting your reply as posted when the write failed. `<posting-identity>` is the login you posted as (the bot-identity wrapper's account when the project has one, your own otherwise)
   - [ ] D7.5. Resolve review thread, **author- and classification-conditional, inline only**. Eligible only when EVERY finding in the thread carries a recorded disposition: `VALID (fix now)` with the fix pushed and cited, `VALID (fix now)` fixed in a linked PR the reply cites, `VALID (defer)` grounded per D4.6 with the item id cited, or `INCORRECT` with counter-evidence posted, one dispositioned finding never makes a multi-finding thread eligible, and a single `UNCERTAIN` escalates and holds the thread open. Resolve threads opened by a BOT reviewer that you addressed. NEVER resolve HUMAN-authored threads (the human resolves their own). NEVER resolve your OWN (your posting identity. Bot or personal). **A `VALID (defer)` never clears the gate for a merge this same session performs**. `full` mode monitors and merges in one session, so route the deferral to an independent adjudicating context, or leave the thread unresolved and do not merge. Fail closed. Detect bot from the author type the forge reports, and after resolving, read the thread back and confirm it reads resolved (provider reference "Review surfaces") <!-- contract-restatement: D7.5-thread-eligibility --> <!-- contract-restatement: D7.5-merge-authorization -->
@@ -122,7 +124,7 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
 
 **Every monitor invocation ensures a live event watch exists, and every watch is re-armed at its deadline.** Runs right after 3.0.0, before terminal state checks, CI polling, and comment processing.
 
-1. Resolve PR identity into `PR_NUMBER`, `OWNER` and `REPO` ([GitHub](../../../reference/providers/github/pull-request/monitor.md#resolve-pr-identity))
+1. Resolve PR identity into `PR_NUMBER`, `OWNER` and `REPO` from `<checkout>`, the checkout of the PR's repository the session works on ([ready-for-review.md](ready-for-review.md) 2.5.3), never from the shell's directory; on a triangular flow the PR's base repository, named explicitly, takes `target-repo.sh`'s place and the PR is looked up by its `<fork-owner>:<branch>` head ([GitHub](../../../reference/providers/github/pull-request/monitor.md#resolve-pr-identity))
 2. Check whether this session already holds a live watch for this PR: a task id from its own step-4 arming call for `PR #$PR_NUMBER CI + comments`, with no exit line, deadline notice, stop, or `--resume` since. Do not look the watch up with `TaskList`: it is not offered in every session (record below), and a watch armed before a `--resume` is gone though the transcript still shows its id.
 3. **If this session holds a live watch for the PR** → skip (watch already active). Proceed to 3.0.5
 4. **Otherwise** → arm the watch:
@@ -162,8 +164,10 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
    The poll script, passed inline in the `command` parameter, is the REST poll in the provider
    reference ([GitHub](../../../reference/providers/github/pull-request/monitor.md#poll-checks-over-rest)).
    Set `PR_NUMBER=<N>` at its top, and `INTERVAL` above its default 60 when other watchers run,
-   per the [API budget](../../../reference/providers/github/README.md#api-budget); it resolves
-   `OWNER` and `REPO` itself. Its contract:
+   per the [API budget](../../../reference/providers/github/README.md#api-budget), and put
+   `<skill-dir>`, `<scripts-dir>` and `<checkout>` in place; it resolves `OWNER` and `REPO` itself
+   from `<checkout>` and exits 1 when that read refuses; on a triangular flow, name the PR's base
+   repository there instead, as the provider reference shows. Its contract:
 
    - Polls every `INTERVAL` seconds and exits 0 with `PR #<N> <state> — watch complete` once the PR is
      merged or closed.
@@ -278,7 +282,7 @@ After each push, run this loop until convergence (**every** check in a terminal 
 ### Polling CI from more than one worker
 
 When more than one worker polls CI under the same token (parallel PR monitors, babysit-prs workers,
-subagents each watching a PR), read the PR and its checks over REST instead of the CLI's
+one session watching several PRs), read the PR and its checks over REST instead of the CLI's
 GraphQL-backed checks list (a blocking watch included) or PR view. The §3.0.1 poll script is that
 REST read: its state check and CI block (the `head_sha` read through `cur_checks`) run standalone
 with `OWNER`, `REPO`, and `PR_NUMBER` set
@@ -315,7 +319,7 @@ per job with its name, status, labels and creation time
 
 A `queued` job has no runner yet, and its `labels` are its `runs-on` set. Report it as queued, with
 its labels and its age since `created_at` (`test: queued on self-hosted,linux for 41m`), never as a
-slow job. When the token can list runners (`GET /repos/{owner}/{repo}/actions/runners`, or
+slow job. When the token can list runners (`GET /repos/<owner>/<repo>/actions/runners`, or
 `GET /orgs/{org}/actions/runners` for an org pool; both need admin access), add the pool's
 occupancy for that label set. Count the runners whose `labels[].name` include every job label: the
 ones with `busy` true over the ones with `status` `online` (`9/9 busy`). A non-admin token gets a
@@ -346,13 +350,13 @@ Compare triggered workflows against the expected set from Phase 2.5. Flag mismat
 ```bash
 # Tier 1 — Annotations API (path/line/level/title/message — fix-location data)
 # Sometimes alone is enough to classify (lint failures, type errors)
-bash "<skill-dir>/scripts/fetch-annotations.sh" <pr-number> --failed
+bash "<skill-dir>/scripts/fetch-annotations.sh" <pr-number> --failed --dir "<checkout>"
 
 # Tier 2 — Full failure ZIP via the REST API (complete, untruncated). When the
 # ${user_config.fetch_logs_max_bytes} option is a number other than the 52428800
 # default (not empty, not a literal unexpanded token), append
 # --max-bytes ${user_config.fetch_logs_max_bytes}
-bash "<skill-dir>/scripts/fetch-failed-logs.sh" <run-id>
+bash "<skill-dir>/scripts/fetch-failed-logs.sh" <run-id> --dir "<checkout>"
 ```
 
 Tier 3, the LAST RESORT interactive eyeball, is the CLI's failed-log view grepped for `##[error]`; it TRUNCATES on large logs ([GitHub](../../../reference/providers/github/pull-request/monitor.md#fetch-failed-logs)).
@@ -427,7 +431,7 @@ For each security finding:
 **Fetch all comments deterministically** via the bundled script, never choosing API surfaces by agent judgment:
 
 ```bash
-bash "<plugin-root>/scripts/fetch-all-pr-comments.sh" <pr-number>
+bash "<plugin-root>/scripts/fetch-all-pr-comments.sh" <pr-number> --dir "<checkout>"
 ```
 
 Output: a JSON array sorted by `created_at`. Each object carries `type` (`general` | `review` | `inline`), `author`, `body`, `path`, `line`, `id`. The script hits all 3 GitHub API surfaces (issue-level comments, review-level comments, inline review comments), so none is skipped.

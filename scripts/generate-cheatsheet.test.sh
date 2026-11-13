@@ -353,4 +353,9 @@ else
 fi
 rm -rf "$tree"
 
+mk_tree tree
+write_sheet "$tree" "no markers here"
+assert_fails "a sheet with no markers fails, naming the BEGIN GENERATED pair first" "$tree" \
+  "is missing the cheatsheet markers ($GEN_START ... $GEN_END or $OLD_START ... $OLD_END)"
+
 test_harness::report

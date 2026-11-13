@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: confirm-failed-check-observation-first
+graders:
+  - name: 'names-observation-check'
+    type: 'regex'
+    pattern: 'observation check\W{0,4}:?\W{0,4}[^\n]*(?:stale|outdated|predates|before (?:the )?rebuild|old (?:screenshot|capture))'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'observation-suspected-first'
+    type: 'llm'
+    criteria: 'The reply handles a capture check that failed on a screenshot taken before the rebuild that includes the diff. It passes when the report names the observation (the stale screenshot or capture) as the first suspect, says what rules it in (the 14:02 file time against the 14:09 rebuild) and what the run does to settle it (a fresh capture after the rebuild, or reading the page by a second route), and renders no NEEDS WORK against the change on that capture alone. It fails if it calls the Export button missing, or renders NEEDS WORK for it, without first naming the stale capture as the suspect.'
+    focus: 'last_message'

@@ -3,6 +3,22 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-11-13
+
+### Added
+
+- Eval case `confirm-failed-check-observation-first`: a capture check fails on a screenshot taken before the rebuild, and the report must name the stale capture as the first suspect before any verdict against the change.
+
+### Changed
+
+- `/verification:confirm` states the observation rule in Stage 2, where it reads a failed check, instead of in its Gotchas. When a check fails, it suspects how it observed the result first (the probe, the driver, the capture or the environment), observes again by another route, and counts the failure against the change only if it survives. When no second route can run, the verdict is `NOT VERIFIED`, not `NEEDS WORK`. The outcome, fix and refactor reports gain an `Observation check:` line naming the first suspect and what ruled it in or out.
+
+## [0.23.0] - 2026-11-13
+
+### Added
+
+- `confirm-verdict.sh` takes an optional `--dir <checkout>` naming the checkout whose common git directory holds the verdict record (`CONFIRM_VERDICT_DIR` still wins). Without `--dir`, it uses the current directory as before.
+
 ## [0.22.7] - 2026-11-13
 
 ### Changed

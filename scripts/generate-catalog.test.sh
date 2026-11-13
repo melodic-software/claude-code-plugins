@@ -106,7 +106,8 @@ mk_tree tree "$OLD_END" "$OLD_START"
 assert_refused "an end marker before its start marker fails" "$tree" "has unbalanced markers"
 
 mk_tree tree "no markers here"
-assert_refused "a page with no markers fails" "$tree" "is missing the catalog markers"
+assert_refused "a page with no markers fails, naming the BEGIN GENERATED pair first" "$tree" \
+  "is missing the catalog markers ($GEN_START … $GEN_END or $OLD_START … $OLD_END)"
 
 mk_tree tree "$GEN_START" "$GEN_END" "$GEN_START" "$GEN_END"
 assert_refused "a repeated marker pair fails" "$tree" "has unbalanced markers"
@@ -117,7 +118,7 @@ assert_refused "a BEGIN GENERATED line with other instruction text fails naming 
 
 mk_tree tree "$OLD_START" "$OLD_END" "$GEN_END"
 assert_refused "the more-than-one-form message lists the stray end marker found" "$tree" \
-  "more than one form ($OLD_START, $OLD_END; $GEN_END)"
+  "more than one form ($GEN_END; $OLD_START, $OLD_END)"
 
 mk_tree tree "$OLD_START" "$OLD_END"
 printf '%s\n' '{ "description": "Fixture plugin.\n<!-- END GENERATED: catalog -->" }' \

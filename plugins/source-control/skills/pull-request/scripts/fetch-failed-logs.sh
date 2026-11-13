@@ -25,16 +25,20 @@
 #   fetch-failed-logs.sh <run-id> --max-bytes <n>  # size cap (default 52428800 = 50 MiB) — the
 #                                                  # invoking skill wires the fetch_logs_max_bytes
 #                                                  # userConfig option here
+#   fetch-failed-logs.sh <run-id> --dir <checkout> # the repository of this checkout
+#
+# --dir names any checkout of the run's repository, resolved with target-repo.sh
+# (which honors GH_REPO). Default: `gh repo view` in the current directory.
 #
 # Env overrides:
-#   FETCH_LOGS_REPO        default `gh repo view --json nameWithOwner -q .nameWithOwner`
+#   FETCH_LOGS_REPO        owner/name; wins over --dir and the default
 #   FETCH_LOGS_SCRATCH     destination for cached ZIPs — default
 #                          $CLAUDE_PLUGIN_DATA/scratch when set, else a mktemp -d
 #                          removed on exit (kept on --keep-zip, exit 3 or 4)
 #
 # Exit codes:
 #   0  log fetch + extraction succeeded
-#   1  invalid argument
+#   1  invalid argument, or --dir names no directory
 #   2  gh api call failed (auth, network, 404 etc.)
 #   3  log payload exceeded the size cap
 #   4  ZIP extraction failed
@@ -45,8 +49,10 @@ set -uo pipefail
 
 # --- Argument parsing --------------------------------------------------------
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUN_ID=""
 JOB_ID=""
+CHECKOUT=""
 MAX_BYTES=52428800
 KEEP_ZIP=0
 RAW=0
@@ -77,6 +83,11 @@ while (($# > 0)); do
   --max-bytes)
     [[ $# -ge 2 && "$2" =~ ^[0-9]+$ ]] || die 1 "--max-bytes needs a numeric argument"
     MAX_BYTES="$2"
+    shift
+    ;;
+  --dir)
+    (($# >= 2)) && [[ -n "$2" && -z "$CHECKOUT" ]] || die 1 "--dir needs one value and is given once"
+    CHECKOUT="$2"
     shift
     ;;
   --keep-zip) KEEP_ZIP=1 ;;
@@ -114,6 +125,7 @@ GROUP_MARKER_RE='##\[(group|endgroup)\]'
 SUSPICIOUS_RE='(retry|retrying|attempt [0-9]+ of [0-9]+|exponential backoff|deprecat|0 tests|no tests (collected|run)|nothing to do|skipped due to|timed out|connection refused|fallback)' # spellchecker:disable-line
 
 [[ -n "$RUN_ID" || -n "$JOB_ID" ]] || die 1 "<run-id> or --job <job-id> required"
+[[ -z "$CHECKOUT" || -d "$CHECKOUT" ]] || die 1 "--dir $(printf '%q' "$CHECKOUT") is not a directory"
 
 # --- Prerequisites -----------------------------------------------------------
 
@@ -179,7 +191,11 @@ emit_group_timing() {
 # --- Repo resolution ---------------------------------------------------------
 
 REPO="${FETCH_LOGS_REPO:-}"
-[[ -n "$REPO" ]] || REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r\n')
+if [[ -z "$REPO" && -n "$CHECKOUT" ]]; then
+  REPO=$(bash "$SCRIPT_DIR/target-repo.sh" --dir "$CHECKOUT" | tr -d '\r\n')
+elif [[ -z "$REPO" ]]; then
+  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r\n')
+fi
 [[ "$REPO" == */* ]] || die 2 "cannot resolve owner/repo (set FETCH_LOGS_REPO=owner/name)"
 
 # --- Scratch dir resolution --------------------------------------------------

@@ -208,6 +208,13 @@ gate's `ready` field alone
 D steps operate **per-finding**, not per-comment. One comment with 5 findings = 5 individual
 D1–D7 cycles. Exploration and validation must run on the PR's head branch.
 
+`<checkout>` and `<owner>/<repo>` are as the GitHub monitor reference's
+[Resolve PR identity](providers/github/pull-request/monitor.md#resolve-pr-identity) defines them:
+the checkout of the PR's repository the session works on, and the repository
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/target-repo.sh" --dir "<checkout>"`
+prints. Every command below names them, so none depends on the shell's directory. On a triangular
+flow the PR's base repository takes `<owner>/<repo>`'s place, named explicitly.
+
 - [ ] D1. Read full finding context (parent comment body + surrounding findings)
 - [ ] D2. Explore referenced code on the PR branch
 - [ ] D3. **Validate the claim**. Verify against actual code before trusting. Research
@@ -292,16 +299,17 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   format per §2, which includes the Reacted column and the required `<!-- d5 finding=` label
   marker line for each finding. **Route the reply by comment type, REQUIRED
   and not interchangeable:** inline review comments (diff-anchored, `pulls/comments`) MUST reply
-  THREADED via `gh api repos/{owner}/{repo}/pulls/<pr>/comments/<comment-id>/replies -f
+  THREADED via `gh api repos/<owner>/<repo>/pulls/<pr>/comments/<comment-id>/replies -f
   body='...'` so the reply lands under the source thread, NEVER a detached `pr comment`.
-  Issue-level / review-level comments (no thread) → `gh pr comment <pr> --body '...'`. Use the
-  project's bot-identity wrapper for these writes when it has one; plain `gh` otherwise.
+  Issue-level / review-level comments (no thread) →
+  `gh pr comment <pr> -R <owner>/<repo> --body '...'`. Use the project's bot-identity wrapper for
+  these writes when it has one; plain `gh` otherwise.
   Answering an inline finding with a detached issue comment orphans the reply from the thread
   the reviewer tracks: a routing error, not a style choice
   - [ ] **verify reply exists, on the surface it was posted to:** inline threaded replies →
-    `gh api --paginate "repos/{owner}/{repo}/pulls/<pr>/comments?per_page=100" --jq '.[] |
+    `gh api --paginate "repos/<owner>/<repo>/pulls/<pr>/comments?per_page=100" --jq '.[] |
     select(.in_reply_to_id == <original-id>)'`; issue-level → `gh api --paginate
-    "repos/{owner}/{repo}/issues/<pr>/comments?per_page=100" --jq '.[].body'`. Querying only
+    "repos/<owner>/<repo>/issues/<pr>/comments?per_page=100" --jq '.[].body'`. Querying only
     issues/comments false-fails a correctly posted inline reply; so does dropping `--paginate`,
     since these endpoints return 30 per page oldest-first and your reply is the newest item
 - [ ] D6. Fix if VALID (fix now) → edit, `git add <specific-files>` (never `-A` or `.`),
@@ -309,8 +317,8 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   it has its D6 commit and every reviewer on the head has finished, since each push starts a full
   CI run and cancels the one in flight. D7 and D7.5 for every finding in the round wait for that
   push and the check below
-  - [ ] **verify commit pushed, once per finding after the round's single push:** `REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push '<branch>') &&
-    git fetch "$REMOTE" --end-of-options '<branch>' && git merge-base --is-ancestor <fix-sha> FETCH_HEAD`.
+  - [ ] **verify commit pushed, once per finding after the round's single push:** `REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push --dir "<checkout>" '<branch>') &&
+    git -C "<checkout>" fetch "$REMOTE" --end-of-options '<branch>' && git -C "<checkout>" merge-base --is-ancestor <fix-sha> FETCH_HEAD`.
     The head branch name comes from GitHub: substitute it only when it matches
     `^[A-Za-z0-9._/-]+$`, does not start with `-` and contains no `..`, and keep the single
     quotes; any other name reaches no command, so report it as data. Exit 0
@@ -326,7 +334,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
 - [ ] D7. Post a follow-up reply citing the fix commit SHA
   - [ ] **verify follow-up reply posted, same surface routing as D5:** inline thread →
     `pulls/<pr>/comments` filtered by `in_reply_to_id`; issue-level → `gh api --paginate
-    "repos/{owner}/{repo}/issues/<pr>/comments?per_page=100" --jq '.[] |
+    "repos/<owner>/<repo>/issues/<pr>/comments?per_page=100" --jq '.[] |
     select((.body | contains("<sha>")) and .user.login == "<posting-identity>") | .body'`.
     Constrain on BOTH the SHA and the posting identity, and never on `.[-1]`. `.[-1]` is wrong
     because these endpoints return oldest-first, so on an unpaginated list it is the 30th-oldest

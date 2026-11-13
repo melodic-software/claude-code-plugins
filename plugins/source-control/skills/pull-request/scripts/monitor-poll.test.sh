@@ -20,16 +20,27 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
 
+# The watch runs from a directory outside every checkout; <checkout> names a checkout whose one
+# GitHub remote is acme/app, so the repository can come only from <checkout>.
+CHECKOUT="$TEST_TMPDIR/checkout" OUTSIDE="$TEST_TMPDIR/outside"
+git init -q "$CHECKOUT"
+git -C "$CHECKOUT" remote add origin https://github.com/acme/app.git
+mkdir -p "$OUTSIDE"
+export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
+unset GH_REPO
+
 # The first fenced block under the heading, with the placeholders filled in: no sleep between
-# polls, the baseline file taken from the environment, the threads script stubbed.
+# polls, the baseline file and <checkout> taken from the environment, the threads script stubbed.
 POLL="$TEST_TMPDIR/poll.sh"
-# shellcheck disable=SC2016 # the ${TEST_BASELINE:-} and ${TEST_SNAPSHOT:-} expansions is meant for the generated script, not this one
+# shellcheck disable=SC2016 # the ${TEST_BASELINE:-}, ${TEST_SNAPSHOT:-} and ${TEST_CHECKOUT} expansions are meant for the generated script, not this one
 awk '/^## Poll checks over REST/ { on = 1 } on && /^```bash/ { f = 1; next } f && /^```/ { exit } f' "$REF" |
   sed -e 's/^PR_NUMBER=<N>/PR_NUMBER=5/' \
     -e 's/^INTERVAL=60.*/INTERVAL=0/' \
     -e 's/^BASELINE_FILE=  #.*/BASELINE_FILE="${TEST_BASELINE:-}"/' \
     -e 's/^SNAPSHOT_FILE=  #.*/SNAPSHOT_FILE="${TEST_SNAPSHOT:-}"/' \
-    -e "s#<scripts-dir>#$STUB_DIR#" >"$POLL"
+    -e "s#<scripts-dir>#$STUB_DIR#" \
+    -e "s#<skill-dir>#$SCRIPT_DIR/..#" \
+    -e 's#<checkout>#${TEST_CHECKOUT}#' >"$POLL"
 [[ -s "$POLL" ]] || {
   echo "FAIL: no poll script found in $REF" >&2
   exit 1
@@ -39,14 +50,26 @@ printf '#!/usr/bin/env bash\necho "THREADS_OK unresolved=0"\n' >"$STUB_DIR/sourc
 
 # The PR is open for the first read and merged for the second, so the watch runs one poll and
 # exits. The check a is finished, c is still running, and b is finished unless STUB_B names its
-# status. STUB_FAIL_CHECKS makes the check-runs read fail.
+# status. STUB_FAIL_CHECKS makes the check-runs read fail. No gh default repository is recorded,
+# and a REST read of any repository other than acme/app fails, except that me/app reads as a fork
+# of acme/app the caller can push to.
 cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
-if [[ "$1 $2" == "repo view" ]]; then
-  [[ "$*" == *owner* ]] && echo acme || echo app
+if [[ "$1 $2" == "repo set-default" ]]; then
+  echo "No default remote repository has been set." >&2
   exit 0
 fi
-[[ "$1" == api ]] || exit 1
+if [[ "$1 $2" == "api repos/me/app" ]]; then
+  echo acme/app
+  exit 0
+fi
+# The PR on acme/app has the cross-repository head me:feature; a bare branch finds nothing.
+if [[ "$1 $2" == "pr view" ]]; then
+  [[ "$3" == me:feature && " $* " == *" -R acme/app "* ]] && { echo 17; exit 0; }
+  echo "no pull requests found for branch \"$3\"" >&2
+  exit 1
+fi
+[[ "$1" == api && " $* " == *" repos/acme/app/"* ]] || exit 1
 case "$*" in
 */check-runs*)
   [[ -n "${STUB_FAIL_CHECKS:-}" ]] && exit 1
@@ -70,8 +93,14 @@ chmod +x "$STUB_DIR/gh"
 
 run_poll() {
   rm -f "$TEST_TMPDIR/count"
-  PATH="$STUB_DIR:$PATH" GH_STUB_COUNT="$TEST_TMPDIR/count" timeout 30 bash "$POLL" 2>&1
+  (cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" GH_STUB_COUNT="$TEST_TMPDIR/count" TEST_CHECKOUT="${TEST_CHECKOUT:-$CHECKOUT}" \
+    timeout 30 bash "$POLL" 2>&1)
 }
+
+out=$(TEST_CHECKOUT="$OUTSIDE" run_poll)
+assert_exit "<checkout> names no repository: the watch exits 1" 1 "$?"
+[[ -e "$TEST_TMPDIR/count" ]] && read_pr=yes || read_pr=no
+assert_eq "<checkout> names no repository: no PR read is made" "no" "$read_pr"
 
 out=$(TEST_BASELINE="" run_poll)
 assert_exit "no baseline: the watch runs to the merge and exits 0" 0 "$?"
@@ -122,6 +151,47 @@ assert_exit "snapshot run with a failed checks read exits non-zero" 1 "$?"
 assert_contains "snapshot run with a failed checks read says so" "$out" "SNAPSHOT-FAILED"
 [[ -e "$TEST_TMPDIR/failed-snap" ]] && snap_written=yes || snap_written=no
 assert_eq "snapshot run with a failed checks read writes no file" "no" "$snap_written"
+
+# A triangular flow: the checkout pushes to the fork me/app and its upstream is acme/app, where
+# the PR is open. target-repo.sh resolves the checkout to the fork, so the reference names the base
+# repository in its place and looks the PR up by its me:feature head; the watch built with that
+# line reads acme/app only.
+TRI="$TEST_TMPDIR/triangular"
+git init -q -b feature "$TRI"
+git -C "$TRI" remote add origin https://github.com/me/app.git
+git -C "$TRI" remote add upstream https://github.com/acme/app.git
+fork=$(PATH="$STUB_DIR:$PATH" bash "$SCRIPT_DIR/target-repo.sh" --dir "$TRI" 2>/dev/null)
+assert_eq "triangular flow: target-repo.sh resolves the checkout to the fork" "me/app" "$fork"
+
+# identity_block <n>: the nth fenced block under "Resolve PR identity", placeholders filled, that
+# prints the resolved identity.
+identity_block() {
+  awk -v n="$1" '/^## Resolve PR identity/ { on = 1; next } on && /^## / { exit }
+    on && /^```bash/ { if (++i == n) f = 1; next } f && /^```/ { exit } f' "$REF" |
+    sed -e "s#<skill-dir>#$SCRIPT_DIR/..#" -e "s#<checkout>#$TRI#" -e 's#<base-owner>/<repo>#acme/app#'
+  # shellcheck disable=SC2016 # expands in the generated script
+  echo 'echo "PR_NUMBER=$PR_NUMBER OWNER=$OWNER REPO=$REPO"'
+}
+identity_block 2 >"$TEST_TMPDIR/identity-triangular.sh"
+out=$(cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" bash "$TEST_TMPDIR/identity-triangular.sh" 2>&1)
+assert_exit "triangular identity block: exits 0" 0 "$?"
+assert_contains "triangular identity block: finds the PR by its fork-namespaced head on the base" "$out" \
+  "PR_NUMBER=17 OWNER=acme REPO=app"
+identity_block 1 >"$TEST_TMPDIR/identity-plain.sh"
+out=$(cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" bash "$TEST_TMPDIR/identity-plain.sh" 2>&1)
+assert_exit "plain identity block on a triangular checkout: an empty PR_NUMBER stops it" 1 "$?"
+assert_not_contains "plain identity block on a triangular checkout: no identity is printed" "$out" "PR_NUMBER="
+
+BASE_LINE=$(identity_block 2 | grep '^OWNER_REPO=')
+assert_eq "triangular flow: the reference names the base repository explicitly" \
+  'OWNER_REPO="acme/app"   # the PR'"'"'s target, not the push destination' "$BASE_LINE"
+TRI_POLL="$TEST_TMPDIR/poll-triangular.sh"
+awk -v line="$BASE_LINE" '/^OWNER_REPO=\$\(/ { print line; next } { print }' "$POLL" >"$TRI_POLL"
+rm -f "$TEST_TMPDIR/count"
+out=$(cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" GH_STUB_COUNT="$TEST_TMPDIR/count" TEST_CHECKOUT="$TRI" \
+  timeout 30 bash "$TRI_POLL" 2>&1)
+assert_exit "triangular flow with the base named: the watch runs to the merge and exits 0" 0 "$?"
+assert_contains "triangular flow with the base named: the watch completes" "$out" "PR #5 MERGED — watch complete"
 
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0

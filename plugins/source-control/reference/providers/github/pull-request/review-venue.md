@@ -4,6 +4,11 @@ The GitHub facts behind the pull-request skill's
 [review venue](../../../../skills/pull-request/reference/review-venue.md). That file owns the rule
 and what each line means; this one says how `scripts/review-venue.sh` reads GitHub.
 
+`<owner>/<repo>` is the script's `--repo` value. The ready phase passes the repository it
+resolved ([Find the PR for the branch](ready-for-review.md#find-the-pr-for-the-branch)). Without
+`--repo` the script leaves gh's `{owner}/{repo}` placeholders, which expand from `GH_REPO`, else
+from the shell's directory.
+
 ## Read the setting at the base
 
 `scripts/read-review-venue.sh` takes the base's copy of `docs/conventions/source-control.yaml`
@@ -37,7 +42,7 @@ repository, `pr-review.yml` on a private one). The script reads the `referenced_
 repository's newest pull request runs, up to three pages of 100:
 
 ```bash
-gh api "repos/{owner}/{repo}/actions/runs?event=pull_request&per_page=100&page=1"
+gh api "repos/<owner>/<repo>/actions/runs?event=pull_request&per_page=100&page=1"
 ```
 
 The caller job skips a draft, and a skipped run still lists the reusable workflow, so a repository
@@ -61,8 +66,8 @@ failed `gh` call or unparsable JSON still exits 2. Pointer: both fields are read
 ## The lane's newest verdict
 
 ```bash
-gh api "repos/{owner}/{repo}/actions/workflows/<workflow_id>"
-gh api "repos/{owner}/{repo}/actions/workflows/<workflow_id>/runs?event=pull_request&per_page=100"
+gh api "repos/<owner>/<repo>/actions/workflows/<workflow_id>"
+gh api "repos/<owner>/<repo>/actions/workflows/<workflow_id>/runs?event=pull_request&per_page=100"
 ```
 
 The first read gives the workflow's `state`. Any value but `active` reads `local absent`: a
@@ -81,8 +86,8 @@ job non-zero, so its run concludes `failure`.
 A run that did not succeed gets two more reads before it counts:
 
 ```bash
-gh api "repos/{owner}/{repo}/actions/runs/<run_id>/jobs?per_page=100"
-gh api "repos/{owner}/{repo}/check-runs/<job_id>/annotations?per_page=100"
+gh api "repos/<owner>/<repo>/actions/runs/<run_id>/jobs?per_page=100"
+gh api "repos/<owner>/<repo>/check-runs/<job_id>/annotations?per_page=100"
 ```
 
 A job's `id` is its check run's id. When every failed or timed-out job carries a `failure`
@@ -105,7 +110,7 @@ With `--head <sha>` the script reads every check run on that commit, up to five 
 fifth full page means the listing may be cut short, and the line reads `local absent`:
 
 ```bash
-gh api "repos/{owner}/{repo}/commits/<sha>/check-runs?filter=all&per_page=100&page=1"
+gh api "repos/<owner>/<repo>/commits/<sha>/check-runs?filter=all&per_page=100&page=1"
 ```
 
 It keeps the runs whose `app.slug` is `github-actions` and whose `name` is `test` or starts with

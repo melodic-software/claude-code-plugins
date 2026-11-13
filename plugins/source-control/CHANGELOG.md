@@ -3,6 +3,55 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.6.0] - 2026-11-13
+
+### Added
+
+- `/source-control:pull-request ready` posts the PR's evidence comment after the flip (new step 2.5.5, `evidence`). It runs when the PR is out of draft, the verify record for the PR worktree's HEAD lets the flip through, an evidence file exists for that head (`ready --evidence <file>`, or this session's `/testing:run-e2e --unattended` or `/app-control:drive` run on that head), the verdict for that head is `CONFIRMED`, and the forge shows the same head. It then calls the `evidence` action, which keeps its own gates. With no evidence file, another verdict, or a refusal by the `evidence` action, nothing is posted, the PR stays ready, and the report says why. Unattended runs skip the step, because the pr-merge lane posts the comment in CI. The digest and the report move to 2.5.6 and 2.5.7.
+- `evidence` joins the steps `ready --skip` and the `pre_ready` list accept (`pre-ready-steps.sh`, `schemas/source-control.schema.json`).
+
+## [11.5.1] - 2026-11-13
+
+### Fixed
+
+- The merge gate's force-push read no longer fails on a pull request that
+  changes a lane source and has any timeline item that is not a force push.
+  GitHub's `totalCount` on a `timelineItems` connection counts every item,
+  whatever `itemTypes` names, so the read now treats the listing as whole only
+  when its last page answers `hasNextPage: false`, and raises on a page whose
+  pagination answer is missing or malformed, or whose force-push node is not an
+  object carrying `beforeCommit`.
+
+- `/source-control:pull-request ready` resolves the repository and branch from `<checkout>` (`target-repo.sh --dir`, `git -C`), reads the base's rules, branch protection and reviews from `$REPO` instead of gh's `{owner}/{repo}` placeholders, and passes `--repo "$REPO"` to `review-venue.sh`. The GitHub review-venue reference names `<owner>/<repo>`, the script's `--repo` value.
+- The shared review discipline's D5–D7 commands name `<owner>/<repo>` (`gh api` paths and `gh pr comment -R`), and its fix-commit check passes `--dir "<checkout>"` to `resolve-remote.sh` and runs git with `-C "<checkout>"`, as the monitor reference's copy does.
+
+## [11.5.0] - 2026-11-13
+
+### Added
+
+- `fetch-annotations.sh`, `fetch-failed-logs.sh` and `fetch-all-pr-comments.sh` take `--dir <checkout>`, as `pr-worktree.sh`, `verify-gate.sh` and `confirm-verdict.sh` do, and resolve the repository there with `target-repo.sh` (which honors `GH_REPO`); `FETCH_ANNOT_REPO`, `FETCH_LOGS_REPO`, `FETCH_COMMENTS_OWNER` and `FETCH_COMMENTS_REPO` still win. `resolve-remote.sh` takes `--dir <checkout>` and reads that checkout's branch and remote config. Without `--dir`, each script uses the current directory as before.
+
+### Fixed
+
+- `fetch-annotations.sh` reads the PR head with `-R` naming the repository it resolved, so with `FETCH_ANNOT_REPO` set the head comes from that repository, not the shell's, as every other read in the script already did.
+- `/source-control:pull-request monitor` and `merge`: the log, annotation and comment fetches, the fix-commit check and the linked-worktree branch delete pass `--dir "<checkout>"` and run git with `-C "<checkout>"`, so a session whose shell is outside the target checkout reads and pushes to the right repository. The GitHub readiness reference names `<owner>/<repo>` on every `gh pr checks`, `gh run view` and `gh api` call instead of relying on the shell's directory or gh's `{owner}/{repo}` placeholders, and reads the head from `<checkout>`.
+
+## [11.4.1] - 2026-11-13
+
+### Changed
+
+- `/source-control:pull-request`: the dispatching session owns a PR watch. A dispatched subagent stops once its PR is marked ready and reports the full head sha; the dispatching session watches and merges. The monitor reference, the monitor cadence default and the watch handoff state the rule, and the REST-polling note names one session watching several PRs instead of subagents each watching one ([#15792](https://github.com/melodic-software/claude-code-plugins/issues/15792)).
+
+## [11.4.0] - 2026-11-13
+
+### Added
+
+- `confirm-verdict.sh` takes `--dir <checkout>`, as `pr-worktree.sh` and `verify-gate.sh` do, and finds the common git directory there (`CONFIRM_VERDICT_DIR` still wins). The `ready` report (2.5.6) passes `--dir "$PR_TREE"` and the `evidence` action passes `--dir "<checkout>"`. Without `--dir`, the script uses the current directory as before.
+
+### Fixed
+
+- `/source-control:pull-request monitor` and `merge`: the PR identity block and the Monitor poll script take the repository from `target-repo.sh --dir "<checkout>"` instead of `gh repo view`, and read the PR number with `-R`, so a watch armed from a shell outside the target checkout polls the right repository. Every other `gh` command in the GitHub monitor and merge references names `<owner>/<repo>` instead of relying on the shell's directory or gh's `{owner}/{repo}` placeholders, and the merge-after-AI-review script resolves its repository the same way.
+
 ## [11.3.0] - 2026-11-13
 
 ### Added

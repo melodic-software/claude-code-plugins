@@ -26,7 +26,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | Pick up after an interruption | [`/session-flow:keep-going`](../plugins/session-flow/skills/keep-going/SKILL.md) |
 | See which skills fit right now | [`/session-flow:recommend-skills`](../plugins/session-flow/skills/recommend-skills/SKILL.md) |
 
-<!-- cheatsheet:start -->
+<!-- BEGIN GENERATED: cheatsheet. Run node scripts/generate-cheatsheet.mjs -->
 
 - [1. Interview](#1-interview)
 - [2. Explore](#2-explore)
@@ -377,4 +377,4 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/work-items:morning-brief`](../plugins/work-items/skills/morning-brief/SKILL.md) | `work-items` | daily | Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions |
 | [`/work-items:work-loop`](../plugins/work-items/skills/work-loop/SKILL.md) | `work-items` | continuous | Drain the backlog as a self-paced autonomous loop |
 
-<!-- cheatsheet:end -->
+<!-- END GENERATED: cheatsheet -->

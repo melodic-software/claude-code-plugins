@@ -2,7 +2,7 @@
 
 When the intent selector lands on the HTML mockup substrate, tell the user before building that
 the design canvas is an alternative they can run themselves, using the suggest sentence in the
-[SKILL.md](../SKILL.md) section "Boundary, the bundled `design` skill". The bundled `design` skill
+[SKILL.md](../SKILL.md) section "Boundary" (`design` row). The bundled `design` skill
 is reserved for the person to run; this skill never invokes it and never switches silently. This
 skill builds the HTML mockup either way:
 

@@ -1216,7 +1216,7 @@ action_of() {
     printf 'Review the snapshot as code, and beside it assert the one value the test exists for with a literal, so an approved wrong snapshot still fails.'
     ;;
   weak-oracle:*)
-    printf 'Assert the value the code should produce (an exact value, or the exact exception type and message) instead of only that a value exists or that something threw.'
+    printf 'Assert the value the code should produce (an exact value, or the exception type callers branch on) instead of only that a value exists or that something threw.'
     ;;
   # pytest-rerunfailures added --fail-on-flaky in 15.0 and made it fire only
   # when a rerun happened in 15.1 (CHANGES.rst, read 2026-10-06; recheck on a
