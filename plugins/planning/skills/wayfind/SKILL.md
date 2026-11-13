@@ -13,10 +13,8 @@ metadata:
 
 ## Pre-computed context
 
-Container label (an ERROR line, or no value, means it did not resolve; stop and fix the cause before continuing): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/wayfind/scripts/container-label.sh" 2>/dev/null || true`
-
 Open maps: list them at the start of every action with
-`/work-items:track list --label '<container label>' --state open`, invoked via the Skill tool
+`/work-items:track list --label 'wayfind: map' --state open`, invoked via the Skill tool
 ([`context/tracker-mechanics.md`](context/tracker-mechanics.md)). Without the `work-items` plugin,
 wayfind cannot reach the tracker: say so and stop.
 
@@ -142,7 +140,7 @@ Parse the first token of `$ARGUMENTS`.
 | *(empty)* | **auto** | Open map exists → list its frontier by title, recommend one item and wait for the user's pick (several open maps: name them and ask which); an unattended session goes straight to `work`. No open map → propose `chart` and wait for the user's yes |
 | `chart [topic]` | **Chart** | Build or extend a map, without asking first. **Interactive only**. Refuses non-interactive sessions (charting burns assumptions that need a human) |
 | `work [map] [item]` | **Work** | Work one frontier item: the named one, else the first in creation order |
-| An item reference (URL, `#<n>` or tracker key) | **Work** | Work that item on its map. A reference to a map itself (it carries the container label) is handled as *(empty)* for that map |
+| An item reference (URL, `#<n>` or tracker key) | **Work** | Work that item on its map. A reference to a map itself (it carries `wayfind: map`) is handled as *(empty)* for that map |
 | Any other text | **auto** | The text is the topic: an open map for it → as *(empty)*. Else propose `chart` with the topic and wait for the user's yes |
 
 ## Chart mode
@@ -200,14 +198,13 @@ that charting needs an interactive session. Do not fabricate a map.
      Destination; each item to create with its title, type, mode and what it waits on; the
      Not-yet-specified bullets; the Out-of-scope list. Apply the changes the user asks for and
      show it again. Extending an existing map, show only what would be added.
-3. **Create or extend the map issue.** On first use in a repo, resolve the container label (the
-   seam's `config.container_label` key, default `work-map`; snippet in
-   `context/tracker-mechanics.md`), then **verify** the wayfind label taxonomy (the container
-   label, `wayfind: *`, `needs-human`) is present: an unknown `--label` fails the create. Honor
+3. **Create or extend the map issue.** On first use in a repo, **verify** the wayfind label
+   taxonomy (`wayfind: *`, `needs-human`; snippet in `context/tracker-mechanics.md`) is present:
+   an unknown `--label` fails the create. Honor
    the consuming repository's declared label ownership: if it names a label-as-code source of
    truth, STOP and report the exact missing set to that owner; otherwise report the set and ask
    the user how labels are provisioned. Never create labels ad hoc from this skill. Then create
-   one issue labeled with the bare container label (+ any repo program labels). Its body carries
+   one issue labeled `wayfind: map` (+ any repo program labels). Its body carries
    five sections:
    - **Destination**: the confirmed destination from step 2.
    - **Notes**: only what every session on this map must obey or consult: standing
