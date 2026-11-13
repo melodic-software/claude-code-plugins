@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "CRITICAL | src/upload/validate.js:2 | hardcodes 25, a copy of MAX_UPLOAD_MB | Confidence: high\nIMPORTANT | src/payments/labels.js:4 | Shotgun Surgery: adding paypal needed edits in options.js:1, labels.js:4 and icons.js:4 | Confidence: medium",
+      "why": "Shotgun Surgery at IMPORTANT beside a CRITICAL copy"
+    },
+    {
+      "answer": "IMPORTANT | src/payments/options.js:1 | Shotgun Surgery: PayPal touches three files; not CRITICAL because nothing is wrong today | Confidence: medium",
+      "why": "negated mention of CRITICAL"
+    },
+    {
+      "answer": "### CRITICAL\n\n- src/upload/validate.js:2: 25 copies MAX_UPLOAD_MB.\n\n### Important\n\n- src/payments/icons.js:4: Shotgun Surgery, paypal added in three places; follow up with /coupling:reduce.",
+      "why": "Shotgun Surgery under an IMPORTANT section after a CRITICAL one"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No issues found.",
+      "why": "Shotgun Surgery change not reported"
+    },
+    {
+      "answer": "SUGGESTION | src/payments/labels.js:4 | Shotgun Surgery: paypal added in options.js, labels.js and icons.js | Confidence: medium",
+      "why": "rated SUGGESTION"
+    },
+    {
+      "answer": "CRITICAL | src/payments/labels.js:4 | Duplicated Code: paypal repeated in options.js, labels.js and icons.js | Confidence: high",
+      "why": "rated CRITICAL"
+    },
+    {
+      "answer": "CRITICAL | src/payments/icons.js:4 | Shotgun Surgery: paypal added in three files | Confidence: medium\nIMPORTANT | src/payments/options.js:1 | consider one table per method | Confidence: low",
+      "why": "rated CRITICAL, an IMPORTANT mention alongside does not save it"
+    },
+    {
+      "answer": "### CRITICAL\n\n- src/payments/options.js:1: Shotgun Surgery, paypal spread across three files.\n\n### IMPORTANT\n\n- src/payments/labels.js:4: label wording.",
+      "why": "Shotgun Surgery under a CRITICAL section heading"
+    }
+  ]
+}
