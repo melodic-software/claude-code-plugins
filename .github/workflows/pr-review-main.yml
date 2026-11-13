@@ -2597,7 +2597,8 @@ jobs:
   # The fallback leg, on the central fallback token, one per lane the
   # subscription leg handed on. Its steps repeat the review job's but for the
   # credential and the fallback reason, and it hands nothing on: it is the
-  # last leg, so a stop here leaves the lane unbound and fails the job.
+  # last leg, so a launcher stop here (credit, limit, auth) leaves the lane
+  # unbound and fails the job.
   review-fallback:
     name: Review Fallback
     needs: [trusted-text, subscription-handoffs]
@@ -2639,7 +2640,7 @@ jobs:
           persist-credentials: false
 
       # The main commit this leg checked out, under the lane's own output
-      # name: a later leg for the lane checks out the same commit.
+      # name, as the earlier legs record it; no later leg reads it here.
       - name: Record the main commit
         id: base
         env:
@@ -3432,7 +3433,8 @@ jobs:
         with:
           tokens: github-token
 
-      # A reviewed pull request that left no verdict fails here, so the run shows it; the lane stays unbound either way.
+      # A reviewed pull request that left no verdict fails here, so the run
+      # shows it; the lane stays unbound either way.
       - name: Fail without a verdict
         if: always() && steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success'
         run: |
@@ -3444,8 +3446,8 @@ jobs:
   # cannot hide an earlier CRITICAL finding once its artifact is gone: the
   # merge gate takes the most CRITICAL findings any of this PR's commits
   # carries (babysit_review_evidence `_main_lane`). A forged one can only add
-  # a hold. No model runs in this job; it reads only the counts that
-  # write-verdict.mjs checked, from this run's own artifacts.
+  # a hold. No model runs in this job; it reads only the legs' stop outputs
+  # and the counts write-verdict.mjs checked, from this run's own artifacts.
   record:
     name: Record
     needs: [review, review-subscription, review-fallback]
@@ -3507,21 +3509,20 @@ jobs:
             critical=$(jq -r '.critical' "$file"); findings=$(jq -r '.findings' "$file")
             [[ $lane =~ ^claude(-security)?-review$ && $head =~ ^[0-9a-f]{40}$ && $critical =~ ^[0-9]{1,6}$ && $findings =~ ^[0-9]{1,6}$ ]] || {
               echo "::error::a verdict file is malformed: $file"; exit 1; }
-            # Neutral either way: the gate reads the title, and a red check would
-            # send the fix-ci lane after a review finding.
-            conclusion=neutral
+            # Neutral: the gate reads the title, and a red check would send the
+            # fix-ci lane after a review finding.
             calls=$((calls + 1))
             gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
               -f name="pr-review-main: $lane" -f head_sha="$head" -f status=completed \
-              -f conclusion="$conclusion" \
+              -f conclusion=neutral \
               -f "output[title]=findings=$findings critical=$critical" \
               -f "output[summary]=pr-review-main reviewed $head from main: $findings finding(s), $critical CRITICAL. The run's summary lists them." >/dev/null
             echo "recorded $lane $head findings=$findings critical=$critical"
           done
 
       # The hub's api-calls notice, in log-api-budget's api_budget_emit_calls
-      # shape: this job has no checkout of that action, and its only calls
-      # are the check-run POSTs of the two record steps, counted as they are sent.
+      # shape: this job has no checkout of that action, and its only calls are
+      # the check-run POSTs of the two record steps, counted as they are sent.
       - name: Log the API calls at the end
         if: always()
         run: |
