@@ -37,6 +37,7 @@ the agent could carry out itself.
   | Entered at a wizard prompt (secrets unechoed), then written to `.env` or `gh` | Never: the running script has no model attached |
   | In a live `.env` the skill scans while planning | Key **names** only |
   | Pasted by the user into the chat | Yes |
+  | On a page the agent drives for an `agent` stage (opt-in, non-secret configuration only) | Yes |
 
 - **Hardened template.** Every wizard carries the same library ahead of its `STAGES` marker, and
   nobody edits that part by hand. It enforces:
@@ -49,7 +50,11 @@ the agent could carry out itself.
   - GitHub writes that resolve and echo the target repo once, require explicit confirmation before
     the first write, pass `--repo` on every call, pipe values over stdin rather than argv, refuse
     empty values, and surface `gh` errors into the closing summary.
-  - A names-only closing summary.
+  - A names-only closing summary; only values given to `record`, which are public, print in full.
+  - `--dry-run`, which prints what each stage would write and writes nothing.
+  - A read-back after each `.env` and CI write, and a credential check through one read-only call
+    that receives the value on stdin; neither prints a secret.
+  - The one manual step that finishes a failed stage, offered instead of only stopping.
 
 ## Prerequisites
 

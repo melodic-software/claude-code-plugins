@@ -45,6 +45,23 @@ fi
 # The stages section overrides this with its stage count.
 TOTAL_STAGES=0
 
+# --dry-run: walk every stage and print what it would write, writing nothing.
+# Any other argument stops the wizard, so a mistyped flag never starts a real run.
+_WIZARD_DRY_RUN=0
+for __wiz_arg in "$@"; do
+  case "$__wiz_arg" in
+  --dry-run) _WIZARD_DRY_RUN=1 ;;
+  *) fatal "unknown option: $__wiz_arg (the only option is --dry-run)" ;;
+  esac
+done
+unset __wiz_arg
+
+# dry_run: true during a --dry-run. A stage that changes state itself (a cli
+# command, a file edit) does it inside `if dry_run; then say "would ..."; else
+# ...; fi`, or through attempt, which already skips its command in a dry run.
+# shellcheck disable=SC2329  # library API; the example stage does not call it
+dry_run() { ((_WIZARD_DRY_RUN)); }
+
 _STAGE_INDEX=0
 ENV_FILE="${ENV_FILE:-.env}"
 # Where ENV_FILE may resolve to without asking (_check_env_target).
@@ -53,6 +70,10 @@ WRITTEN_ENV=()    # keys saved in ENV_FILE during this run
 WRITTEN_SECRET=() # CI secret names stored during this run
 WRITTEN_VAR=()    # CI variable names stored during this run
 SKIPPED=()        # manual follow-ups: no gh, a gh failure, a declined repo
+_WIZARD_RECORDED=()    # KEY=VALUE pairs kept for the record only (record)
+_WIZARD_TEMPORARY=()   # "KEY: where to delete it" for temporary credentials
+_WIZARD_FIXED=()       # manual steps the person finished by hand (_offer_fix)
+_WIZARD_SECRET_KEYS=() # keys captured with ask_secret, which record refuses
 
 # Temp-file hygiene: write_env stages its rewrite in a mktemp file alongside
 # ENV_FILE (same filesystem, so the final mv of a regular file is an atomic
@@ -122,6 +143,10 @@ banner() {
     printf '%s  This wizard walks you through %s %s and asks before each change. Ctrl-C stops it.%s\n' \
       "$DIM" "$TOTAL_STAGES" "$noun" "$RESET"
   fi
+  if ((_WIZARD_DRY_RUN)); then
+    printf '\n'
+    warn "Dry run: nothing is written, saved or sent, and value prompts are skipped."
+  fi
   pause "Ready to start?"
 }
 
@@ -150,6 +175,10 @@ open_url() {
   local url="$1"
   if [[ "$url" != https://* ]]; then
     warn "refusing to open non-https URL: $url"
+    return 0
+  fi
+  if ((_WIZARD_DRY_RUN)); then
+    printf '  would open %s\n' "$url"
     return 0
   fi
   printf '  %s↗ opening%s %s\n' "$GREEN" "$RESET" "$url"
@@ -206,6 +235,37 @@ confirm() {
 # shellcheck disable=SC2310  # confirm's no-branch is the handled stop; fatal exits directly
 gate() {
   confirm "$1" || fatal "stopped: $2"
+}
+
+# _offer_fix "what failed" "the one manual step": when a stage fails, show the
+# single step that finishes it by hand instead of only stopping. A yes goes on
+# with the wizard and the closing summary lists the step as finished by hand;
+# anything else ends the wizard with what failed.
+# shellcheck disable=SC2310  # confirm's no-branch is the handled stop; fatal exits directly
+_offer_fix() {
+  warn "$1"
+  say "To finish this stage by hand:"
+  step "$2"
+  if confirm "Done it by hand? (no stops the wizard)"; then
+    _WIZARD_FIXED+=("$2")
+  else
+    fatal "stopped: $1"
+  fi
+}
+
+# attempt "the one manual step" CMD [ARG...]: run CMD, and when it fails offer
+# the manual step that finishes the stage (_offer_fix). In a dry run CMD is not
+# run, and only its name is printed, never its arguments.
+# shellcheck disable=SC2329  # library API; the example stage does not call it
+attempt() {
+  local fix="$1" rc=0
+  shift
+  if ((_WIZARD_DRY_RUN)); then
+    printf '  would run: %s\n' "$1"
+    return 0
+  fi
+  "$@" || rc=$?
+  ((rc == 0)) || _offer_fix "$1 failed (exit $rc)" "$fix"
 }
 
 # _existing KEY: the value ENV_FILE already holds for KEY (none: status 1), one matched
@@ -354,6 +414,11 @@ ask() {
   _valid_key "$__wiz_key"
   _assignable_key "$__wiz_key"
   _check_env_target
+  if ((_WIZARD_DRY_RUN)); then
+    note "$__wiz_prompt (dry run: not asked)"
+    printf -v "$__wiz_key" '%s' ""
+    return 0
+  fi
   __wiz_current=$(_existing "$__wiz_key" || true)
   _ask_prompt "$__wiz_prompt" "$__wiz_current"
   read -r -e -u 3 __wiz_input || fatal "terminal closed while reading $__wiz_key, aborting"
@@ -381,7 +446,13 @@ ask_secret() {
   local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input __wiz_path __wiz_bytes
   _valid_key "$__wiz_key"
   _assignable_key "$__wiz_key"
+  _WIZARD_SECRET_KEYS+=("$__wiz_key")
   _check_env_target
+  if ((_WIZARD_DRY_RUN)); then
+    note "$__wiz_prompt (dry run: not asked)"
+    printf -v "$__wiz_key" '%s' ""
+    return 0
+  fi
   __wiz_current=$(_existing "$__wiz_key" || true)
   _ask_prompt "$__wiz_prompt" "$__wiz_current"
   read -rs -u 3 __wiz_input || fatal "terminal closed while reading secret $__wiz_key, aborting"
@@ -426,13 +497,22 @@ _check_env_ignored() {
 # shared secret store) is written through instead, so the link survives, its
 # target gets the key and keeps its own mode; that write is not atomic. A link
 # pointing outside the project is written through only after _check_env_target's
-# confirmation.
+# confirmation. After the write the key is read back from ENV_FILE and
+# compared, printing only its name and length; a mismatch offers the manual
+# step (_offer_fix). In a dry run nothing is written or read back.
+# shellcheck disable=SC2310  # a failed _existing is the handled read-back mismatch
 write_env() {
-  local __wiz_key="$1" __wiz_value="$2" __wiz_escaped __wiz_tmp
+  local __wiz_key="$1" __wiz_value="$2" __wiz_escaped __wiz_tmp __wiz_back
   _valid_key "$__wiz_key"
   _assignable_key "$__wiz_key"
   _check_env_target
   _check_env_ignored # pre-flight: warn BEFORE the first value lands on disk
+  if ((_WIZARD_DRY_RUN)); then
+    printf -v "$__wiz_key" '%s' "$__wiz_value"
+    WRITTEN_ENV+=("$__wiz_key")
+    printf '  would write %s → %s\n' "$__wiz_key" "$ENV_FILE"
+    return 0
+  fi
   __wiz_tmp=$(mktemp "${ENV_FILE}.XXXXXX") || fatal "mktemp failed next to $ENV_FILE"
   _WIZARD_TMP="$__wiz_tmp"
   chmod 600 "$__wiz_tmp"
@@ -450,6 +530,13 @@ write_env() {
   printf -v "$__wiz_key" '%s' "$__wiz_value"
   WRITTEN_ENV+=("$__wiz_key")
   printf '  %s✓ wrote%s %s → %s\n' "$GREEN" "$RESET" "$__wiz_key" "$ENV_FILE"
+  if __wiz_back=$(_existing "$__wiz_key") && [[ "$__wiz_back" == "$__wiz_value" ]]; then
+    printf '  %s✓ read back%s %s from %s: present, %s characters\n' \
+      "$GREEN" "$RESET" "$__wiz_key" "$ENV_FILE" "${#__wiz_value}"
+  else
+    _offer_fix "$__wiz_key did not read back from $ENV_FILE as written" \
+      "Open $ENV_FILE in an editor and make its $__wiz_key= line hold the value, in single quotes"
+  fi
 }
 
 # ── GitHub Actions helpers ────────────────────────────────────────────────
@@ -489,6 +576,20 @@ _resolve_repo() {
   GH_REPO="$repo"
 }
 
+# _gh_read_back KIND NAME VALUE: true when the repository holds what was just
+# set. A secret cannot be read, so its name must be listed; a variable's value
+# must match. Nothing read is printed.
+_gh_read_back() {
+  local kind="$1" name="$2" value="$3" got nl=$'\n'
+  if [[ "$kind" == secret ]]; then
+    got=$(gh secret list --repo "$GH_REPO" --json name -q '.[].name' 2>/dev/null) || return 1
+    [[ "$nl$got$nl" == *"$nl$name$nl"* ]]
+  else
+    got=$(gh variable get "$name" --repo "$GH_REPO" 2>/dev/null) || return 1
+    [[ "$got" == "$value" ]]
+  fi
+}
+
 # _gh_set KIND NAME VALUE: the shared body of set_secret/set_var. KIND is both
 # the gh subcommand and the noun every message uses, so the two helpers cannot
 # drift in their refusals or their remediation lines.
@@ -496,6 +597,11 @@ _resolve_repo() {
 _gh_set() {
   local kind="$1" name="$2" value="$3" err
   _valid_key "$name"
+  if ((_WIZARD_DRY_RUN)); then
+    if [[ "$kind" == secret ]]; then WRITTEN_SECRET+=("$name"); else WRITTEN_VAR+=("$name"); fi
+    printf '  would set GitHub %s %s\n' "$kind" "$name"
+    return 0
+  fi
   if [[ -z "$value" ]]; then
     warn "refusing to set GitHub $kind $name: empty value"
     SKIPPED+=("GitHub $kind $name (empty value; nothing was sent to gh)")
@@ -513,6 +619,12 @@ _gh_set() {
   if err=$(printf '%s' "$value" | gh "$kind" set "$name" --repo "$GH_REPO" 2>&1 >/dev/null); then
     if [[ "$kind" == secret ]]; then WRITTEN_SECRET+=("$name"); else WRITTEN_VAR+=("$name"); fi
     printf '  %s✓ set%s GitHub %s %s in %s\n' "$GREEN" "$RESET" "$kind" "$name" "$GH_REPO"
+    if _gh_read_back "$kind" "$name" "$value"; then
+      printf '  %s✓ read back%s GitHub %s %s: present\n' "$GREEN" "$RESET" "$kind" "$name"
+    else
+      warn "GitHub $kind $name did not read back from $GH_REPO"
+      SKIPPED+=("GitHub $kind $name (read-back failed: gh $kind set $name --repo $GH_REPO)")
+    fi
   else
     warn "couldn't set GitHub $kind $name; see the closing summary"
     SKIPPED+=("GitHub $kind $name (gh error: ${err})")
@@ -530,12 +642,59 @@ set_secret() { _gh_set secret "$1" "$2"; }
 # shellcheck disable=SC2329  # library API; the example stage does not call it
 set_var() { _gh_set variable "$1" "$2"; }
 
+# record KEY VALUE: keep a value for the record only, such as an account name
+# or a region. It goes to no file and no secret store; the closing summary
+# prints it, value included, so it is for public values only. A key captured
+# with ask_secret is refused.
+# shellcheck disable=SC2329  # library API; the example stage does not call it
+record() {
+  local k
+  _valid_key "$1"
+  for k in ${_WIZARD_SECRET_KEYS[@]+"${_WIZARD_SECRET_KEYS[@]}"}; do
+    [[ "$k" != "$1" ]] || fatal "record: $1 was captured with ask_secret, and the summary never prints a secret"
+  done
+  _WIZARD_RECORDED+=("$1=$2")
+  printf '  %s✓ recorded%s %s (shown in the closing summary)\n' "$GREEN" "$RESET" "$1"
+}
+
+# temporary KEY "where to delete it": flag a credential as temporary. The
+# closing summary lists it for deletion, by name, with that place.
+# shellcheck disable=SC2329  # library API; the example stage does not call it
+temporary() {
+  _valid_key "$1"
+  _WIZARD_TEMPORARY+=("$1: $2")
+}
+
+# prove_credential KEY "the one manual step" CMD [ARG...]: prove the credential
+# in $KEY works with one harmless read-only call. CMD gets the value on stdin,
+# never as an argument, and all of its output is discarded, so a response that
+# echoes the secret never reaches the screen or a log; only pass or fail shows.
+# A failure offers the manual step (_offer_fix). In a dry run nothing is called.
+prove_credential() {
+  local __wiz_key="$1" __wiz_fix="$2" __wiz_rc=0
+  shift 2
+  _valid_key "$__wiz_key"
+  if ((_WIZARD_DRY_RUN)); then
+    printf '  would check %s with %s\n' "$__wiz_key" "$1"
+    return 0
+  fi
+  printf '%s' "${!__wiz_key-}" | "$@" >/dev/null 2>&1 || __wiz_rc=${PIPESTATUS[1]}
+  if ((__wiz_rc == 0)); then
+    printf '  %s✓ checked%s %s: %s accepted it\n' "$GREEN" "$RESET" "$__wiz_key" "$1"
+  else
+    _offer_fix "$__wiz_key was refused by $1 (exit $__wiz_rc)" "$__wiz_fix"
+  fi
+}
+
 # finish ["Title"]: last screen. The title defaults to "Done" and gains ", with
 # items left to do by hand" when SKIPPED is not empty. Lists what was saved and
-# what is left to the person, by name; no value is ever printed. Warns when the
-# stage count the author set does not match the stages that ran.
+# what is left to the person, by name; no captured value is ever printed, only
+# the values given to record. Lists the steps finished by hand and the
+# temporary credentials to delete. Warns when the stage count the author set
+# does not match the stages that ran. A dry run says it wrote nothing.
 finish() {
-  local title="${1:-Done}" mark="✓" color="$GREEN"
+  local title="${1:-Done}" mark="✓" color="$GREEN" s
+  if ((_WIZARD_DRY_RUN)); then title="Dry run of $title: nothing was written"; fi
   if ((${#SKIPPED[@]})); then
     title="$title, with items left to do by hand"
     mark="⚠"
@@ -546,13 +705,32 @@ finish() {
   if ((_STAGE_INDEX != TOTAL_STAGES)); then
     warn "stage count mismatch: TOTAL_STAGES is $TOTAL_STAGES but $_STAGE_INDEX stage() calls ran; fix TOTAL_STAGES"
   fi
-  ((${#WRITTEN_ENV[@]})) && note "$ENV_FILE keys saved (${#WRITTEN_ENV[@]}): ${WRITTEN_ENV[*]}"
-  ((${#WRITTEN_SECRET[@]})) && note "${GH_REPO} CI secrets stored (${#WRITTEN_SECRET[@]}): ${WRITTEN_SECRET[*]}"
-  ((${#WRITTEN_VAR[@]})) && note "${GH_REPO} CI variables stored (${#WRITTEN_VAR[@]}): ${WRITTEN_VAR[*]}"
+  if ((_WIZARD_DRY_RUN)); then
+    ((${#WRITTEN_ENV[@]})) && note "$ENV_FILE keys that would be saved (${#WRITTEN_ENV[@]}): ${WRITTEN_ENV[*]}"
+    ((${#WRITTEN_SECRET[@]})) && note "CI secrets that would be stored (${#WRITTEN_SECRET[@]}): ${WRITTEN_SECRET[*]}"
+    ((${#WRITTEN_VAR[@]})) && note "CI variables that would be stored (${#WRITTEN_VAR[@]}): ${WRITTEN_VAR[*]}"
+  else
+    ((${#WRITTEN_ENV[@]})) && note "$ENV_FILE keys saved (${#WRITTEN_ENV[@]}): ${WRITTEN_ENV[*]}"
+    ((${#WRITTEN_SECRET[@]})) && note "${GH_REPO} CI secrets stored (${#WRITTEN_SECRET[@]}): ${WRITTEN_SECRET[*]}"
+    ((${#WRITTEN_VAR[@]})) && note "${GH_REPO} CI variables stored (${#WRITTEN_VAR[@]}): ${WRITTEN_VAR[*]}"
+  fi
+  if ((${#_WIZARD_RECORDED[@]})); then
+    note "Recorded (${#_WIZARD_RECORDED[@]}):"
+    for s in "${_WIZARD_RECORDED[@]}"; do note "  $s"; done
+  fi
+  if ((${#_WIZARD_FIXED[@]})); then
+    note "Finished by hand (${#_WIZARD_FIXED[@]}):"
+    for s in "${_WIZARD_FIXED[@]}"; do note "  - $s"; done
+  fi
   if ((${#SKIPPED[@]})); then
     printf '\n'
     warn "still to do by hand:"
     for s in "${SKIPPED[@]}"; do note "  - $s"; done
+  fi
+  if ((${#_WIZARD_TEMPORARY[@]})); then
+    printf '\n'
+    warn "temporary credentials to delete when done:"
+    for s in "${_WIZARD_TEMPORARY[@]}"; do note "  - $s"; done
   fi
   printf '\n'
 }
@@ -567,6 +745,16 @@ finish() {
 # and keep the last line as is: bash then parses the whole file before the
 # first prompt, so editing the script while it runs cannot re-run a step.
 # ──────────────────────────────────────────────────────────────────────────
+
+# Example credential check (delete with the example stage): reads the token on
+# stdin and makes one read-only call, so the token is never a command argument.
+# shellcheck disable=SC2329  # prove_credential calls it by name
+_check_mail_token() {
+  local token=""
+  IFS= read -r token || [[ -n "$token" ]]
+  printf 'Authorization: Bearer %s\n' "$token" |
+    curl -fsS -o /dev/null -H @- https://api.mail.example.com/v1/domains
+}
 
 run_wizard() {
   TOTAL_STAGES=1
@@ -589,6 +777,9 @@ run_wizard() {
   write_env MAIL_FROM_DOMAIN "$MAIL_FROM_DOMAIN"
   # shellcheck disable=SC2154  # assigned by ask_secret via printf -v
   write_env MAIL_API_TOKEN "$MAIL_API_TOKEN"
+  prove_credential MAIL_API_TOKEN \
+    "Create a new token with only the Send scope and save it as MAIL_API_TOKEN in $ENV_FILE" \
+    _check_mail_token
   set_secret MAIL_API_TOKEN "$MAIL_API_TOKEN" # the deploy workflow reads secrets.MAIL_API_TOKEN
   # ── END EXAMPLE STAGE ───────────────────────────────────────────────────
 

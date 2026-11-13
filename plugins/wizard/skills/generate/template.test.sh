@@ -102,11 +102,24 @@ repo)
   printf '%s\n' "${GH_STUB_REPO:-acme/widgets}"
   ;;
 secret | variable)
-  cat >>"$GH_CAPTURE/stdin"
+  # Read-backs: `secret list` prints the names set so far, `variable get NAME`
+  # the stored value; GH_STUB_READBACK=lost makes both forget every write.
+  if [[ "${2:-}" == list ]]; then
+    [[ "${GH_STUB_READBACK:-}" == lost ]] || cat "$GH_CAPTURE/names-$1" 2>/dev/null
+    exit 0
+  fi
+  if [[ "${2:-}" == get ]]; then
+    [[ "${GH_STUB_READBACK:-}" == lost ]] || cat "$GH_CAPTURE/value-$1-$3" 2>/dev/null
+    exit 0
+  fi
+  value=$(cat)
+  printf '%s' "$value" >>"$GH_CAPTURE/stdin"
   if [[ "${GH_STUB_SET_RC:-0}" -ne 0 ]]; then
     printf 'stub: gh %s set refused\n' "$1" >&2
     exit "${GH_STUB_SET_RC}"
   fi
+  printf '%s\n' "$3" >>"$GH_CAPTURE/names-$1"
+  printf '%s' "$value" >"$GH_CAPTURE/value-$1-$3"
   ;;
 *)
   exit 127
@@ -124,14 +137,18 @@ printf '%s\n' "$1" >>"$OPEN_CAPTURE"
 STUB
 chmod +x "$STUB_BIN/wslview"
 
-# case_build [strict]. Read a case body from stdin, prepend the library, and
-# print the path of the runnable case script. `strict` keeps the library's
+# case_build [strict|relaxed [ARG...]]. Read a case body from stdin, prepend the
+# library (sourced with each ARG as a wizard argument), and print the path of
+# the runnable case script. `strict` keeps the library's
 # `set -e` in force; the default relaxes it so a case can inspect a return code.
 case_build() {
-  local mode="${1:-relaxed}" script
+  local mode="${1:-relaxed}" script arg
+  shift || true
   script="$(mktemp "$TEST_TMPDIR/case.XXXXXX")"
   {
-    printf 'source %q\n' "$LIB"
+    printf 'source %q' "$LIB"
+    for arg in "$@"; do printf ' %q' "$arg"; done
+    printf '\n'
     if [[ "$mode" != strict ]]; then printf 'set +e\n'; fi
     cat
   } >"$script"
@@ -147,10 +164,13 @@ case_exec() {
   (cd "$dir" && CASE_DIR="$dir" WIZARD_TEST_TTY="$tty" bash "$script" 2>&1)
 }
 
-# case_run <tty-fixture> [strict]. Build and run a one-off case from stdin.
+# case_run <tty-fixture> [strict|relaxed [ARG...]]. Build and run a one-off
+# case from stdin; each ARG reaches the library as a wizard argument.
 case_run() {
   local tty="$1" mode="${2:-relaxed}" script
-  script="$(case_build "$mode")"
+  shift
+  if (($#)); then shift; fi
+  script="$(case_build "$mode" "$@")"
   case_exec "$script" "$tty"
 }
 
@@ -194,7 +214,8 @@ assert_not_contains "extracted library stops above the example stage" \
 
 missing_fns=""
 for fn in fatal banner stage say step note warn open_url pause confirm gate on_exit ask \
-  ask_secret write_env set_secret set_var finish; do
+  ask_secret write_env set_secret set_var finish record temporary attempt prove_credential \
+  dry_run; do
   grep -qE "^${fn}\(\)" "$LIB" || missing_fns="$missing_fns $fn"
 done
 assert_eq "library defines the full helper API a generated wizard calls" "" "$missing_fns"
@@ -284,7 +305,7 @@ assert_contains "... before the env file is created" "$out" "env:ABSENT"
 lib_globals="$(
   env -i PATH="$PATH" WIZARD_TEST_TTY=/dev/null bash -c '
     compgen -v | sort >"$1"
-    source "$2"
+    source "$2" --dry-run # an argument of its own, so it does not read $1 and $2 as wizard options
     compgen -v | sort | comm -13 "$1" -
   ' _ "$TEST_TMPDIR/vars.before" "$LIB"
 )"
@@ -975,7 +996,7 @@ TTY_LONG_CRLF="$(tty_fixture long-crlf "$LONG_SECRET" "$CRLF_SECRET_FILE")"
 
 for platform in darwin23:1023 linux-gnu:4095 msys:4095; do
   got="$(env WIZARD_TEST_TTY=/dev/null OSTYPE="${platform%%:*}" bash -c \
-    'source "$1"; printf %s "$_WIZARD_LINE_MAX"' _ "$LIB")"
+    'source "$1" --dry-run; printf %s "$_WIZARD_LINE_MAX"' _ "$LIB")"
   assert_contains "the line limit on ${platform%%:*} is ${platform#*:} bytes" "$got" "${platform#*:}"
 done
 
@@ -1490,6 +1511,268 @@ assert_exit "... exiting 0, reading nothing past the run_wizard call" 0 "$rc"
 out="$(edit_case unwrapped)"
 assert_eq "control: the same edit re-runs step-1 when the stages are not wrapped" 2 \
   "$(grep -c '^ran:step-1$' <<<"$out")"
+
+# --- 13. --dry-run: every stage shown, nothing written ----------------------
+
+out="$(
+  case_run "$TTY_EOF" relaxed --dry-run <<'BODY'
+if dry_run; then echo "dry=yes"; else echo "dry=no"; fi
+BODY
+)"
+assert_contains "--dry-run turns dry_run on" "$out" "dry=yes"
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+if dry_run; then echo "dry=yes"; else echo "dry=no"; fi
+BODY
+)"
+assert_contains "control: without --dry-run, dry_run is off" "$out" "dry=no"
+
+out="$(
+  case_run "$TTY_EOF" relaxed --dryrun <<'BODY'
+echo "reached-body"
+BODY
+)"
+rc=$?
+assert_exit "an unknown argument stops the wizard (a mistyped flag never runs for real)" 1 "$rc"
+assert_contains "... naming the argument" "$out" "unknown option: --dryrun"
+assert_not_contains "... before any stage" "$out" "reached-body"
+
+out="$(
+  case_run "$TTY_EOF" relaxed --dry-run <<BODY
+$GH_PRELUDE
+export OPEN_CAPTURE="\$CASE_DIR/opened"
+: >"\$OPEN_CAPTURE"
+ask_secret TOKEN "Token:"
+printf 'ask_rc=%s\n' "\$?"
+write_env TOKEN "dry-value"
+printf 'env=%s\n' "\$(if [[ -e .env ]]; then echo present; else echo absent; fi)"
+set_secret TOKEN "dry-value"
+set_var REGION "eu-west-1"
+printf 'ghcalls=%s\n' "\$(wc -l <"\$GH_CAPTURE/argv" | tr -d ' ')"
+open_url "https://example.com/console"
+printf 'opened=[%s]\n' "\$(cat "\$OPEN_CAPTURE")"
+attempt "fix it by hand" touch "\$CASE_DIR/attempted" 'arg-sekrit'
+prove_credential TOKEN "fix it by hand" touch "\$CASE_DIR/proved"
+printf 'ran=%s\n' "\$(ls "\$CASE_DIR" | grep -cE '^(attempted|proved)\$')"
+finish "Mail setup"
+BODY
+)"
+assert_contains "dry run: ask_secret reads nothing (EOF would abort)" "$out" "ask_rc=0"
+assert_contains "... and says the prompt was not asked" "$out" "Token: (dry run: not asked)"
+assert_contains "dry run: write_env says what it would write" "$out" "would write TOKEN"
+assert_contains "... and writes no file" "$out" "env=absent"
+assert_contains "dry run: CI writes say what they would set" "$out" "would set GitHub secret TOKEN"
+assert_contains "... for variables too" "$out" "would set GitHub variable REGION"
+assert_contains "... calling gh not even once" "$out" "ghcalls=0"
+assert_contains "dry run: open_url prints the page" "$out" "would open https://example.com/console"
+assert_contains "... and opens nothing" "$out" "opened=[]"
+assert_contains "dry run: attempt names the command" "$out" "would run: touch"
+assert_not_contains "... never its arguments" "$out" "arg-sekrit"
+assert_contains "dry run: prove_credential names the check" "$out" "would check TOKEN with touch"
+assert_contains "... and neither command ran" "$out" "ran=0"
+assert_contains "dry run: finish says nothing was written" "$out" "Dry run of Mail setup: nothing was written"
+assert_contains "... and lists what would be saved" "$out" ".env keys that would be saved (1): TOKEN"
+assert_contains "... and the CI names that would be set" "$out" "CI secrets that would be stored (1): TOKEN"
+assert_not_contains "... never a value" "$out" "dry-value"
+
+out="$(
+  case_run "$TTY_BLANK" relaxed --dry-run <<'BODY'
+_drain_tty() { :; }
+banner "Mail setup"
+BODY
+)"
+assert_contains "dry run: the banner says so before the first stage" "$out" "Dry run: nothing is written"
+
+# --- 14. Read-back after each write -----------------------------------------
+
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+write_env API_KEY 's3cr3t-value'
+printf 'rc=%s\n' "$?"
+BODY
+)"
+assert_contains "write_env reads the key back after writing" "$out" "read back API_KEY from .env: present, 12 characters"
+assert_not_contains "... never printing the value" "$out" "s3cr3t-value"
+assert_contains "... and succeeds" "$out" "rc=0"
+
+# A .env symlinked to /dev/null accepts the write and keeps nothing, so only the
+# read-back can notice. The first `y` answers the outside-the-project gate.
+TTY_YY="$(tty_fixture yy y y)"
+TTY_YN="$(tty_fixture yn y n)"
+out="$(
+  case_run "$TTY_YY" <<'BODY'
+_drain_tty() { :; }
+ln -s /dev/null .env
+write_env API_KEY 's3cr3t-value'
+printf 'rc=%s\n' "$?"
+finish
+BODY
+)"
+assert_contains "a write that does not read back is caught" "$out" "API_KEY did not read back from .env as written"
+assert_contains "... offering the one manual step" "$out" "To finish this stage by hand:"
+assert_contains "... done by hand on a yes, and the wizard goes on" "$out" "rc=0"
+assert_contains "... listed in the summary as finished by hand" "$out" "Finished by hand (1)"
+assert_not_contains "... never printing the value" "$out" "s3cr3t-value"
+out="$(
+  case_run "$TTY_YN" strict <<'BODY'
+_drain_tty() { :; }
+ln -s /dev/null .env
+write_env API_KEY 's3cr3t-value'
+echo "after-write"
+BODY
+)"
+rc=$?
+assert_exit "declining the manual step stops the wizard" 1 "$rc"
+assert_contains "... saying what failed" "$out" "stopped: API_KEY did not read back"
+assert_not_contains "... before the next step" "$out" "after-write"
+
+out="$(
+  case_run "$TTY_Y" <<BODY
+$GH_PRELUDE
+_drain_tty() { :; }
+set_secret DEPLOY_TOKEN 'top-secret-value'
+set_var REGION 'us-east-1'
+printf 'argv=[%s]\n' "\$(tr '\\n' ' ' <"\$GH_CAPTURE/argv")"
+printf 'skipped=[%s]\n' "\${SKIPPED[*]-}"
+BODY
+)"
+assert_contains "set_secret reads the secret's name back from the repo" "$out" "secret list --repo acme/widgets"
+assert_contains "... and reports it present" "$out" "read back GitHub secret DEPLOY_TOKEN: present"
+assert_contains "set_var reads the variable back from the repo" "$out" "variable get REGION --repo acme/widgets"
+assert_contains "... and reports it present" "$out" "read back GitHub variable REGION: present"
+assert_contains "... with nothing left to do by hand" "$out" "skipped=[]"
+assert_not_contains "... never printing the secret" "$out" "top-secret-value"
+
+out="$(
+  case_run "$TTY_Y" <<BODY
+$GH_PRELUDE
+_drain_tty() { :; }
+export GH_STUB_READBACK=lost
+set_secret DEPLOY_TOKEN 'top-secret-value'
+set_var REGION 'us-east-1'
+printf 'rc=%s\n' "\$?"
+printf 'skipped=[%s]\n' "\${SKIPPED[*]-}"
+BODY
+)"
+assert_contains "a CI secret that does not read back is reported" "$out" "GitHub secret DEPLOY_TOKEN did not read back from acme/widgets"
+assert_contains "... and listed with the command that finishes it" "$out" "GitHub secret DEPLOY_TOKEN (read-back failed: gh secret set DEPLOY_TOKEN --repo acme/widgets)"
+assert_contains "... for a variable too" "$out" "GitHub variable REGION (read-back failed: gh variable set REGION --repo acme/widgets)"
+assert_contains "... without failing the wizard" "$out" "rc=0"
+
+# --- 15. Credential proof and the one-step manual fix -----------------------
+
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+_probe() { cat >"$CASE_DIR/probe-stdin"; printf 'response echoes %s\n' "$(cat "$CASE_DIR/probe-stdin")"; printf '%s\n' "$*" >"$CASE_DIR/probe-argv"; }
+TOKEN='sekrit-123'
+prove_credential TOKEN "Create a new token" _probe
+printf 'rc=%s\n' "$?"
+printf 'stdin=[%s]\n' "$(cat "$CASE_DIR/probe-stdin")"
+printf 'argv=[%s]\n' "$(cat "$CASE_DIR/probe-argv")"
+BODY
+)"
+assert_contains "prove_credential reports a passing check" "$out" "checked TOKEN: _probe accepted it"
+assert_contains "... handing the value over stdin" "$out" "stdin=[sekrit-123]"
+assert_contains "... never as an argument" "$out" "argv=[]"
+assert_not_contains "... and discarding output that echoes it" \
+  "$(printf '%s\n' "$out" | grep -v '^stdin=')" "sekrit-123"
+assert_contains "... succeeding" "$out" "rc=0"
+
+out="$(
+  case_run "$TTY_Y" <<'BODY'
+_drain_tty() { :; }
+_refuse() { cat >/dev/null; echo "401 for sekrit-123" >&2; return 4; }
+TOKEN='sekrit-123'
+prove_credential TOKEN "Create a new token with read scope and save it as TOKEN in .env" _refuse
+printf 'rc=%s\n' "$?"
+BODY
+)"
+assert_contains "a refused credential is reported with the exit status" "$out" "TOKEN was refused by _refuse (exit 4)"
+assert_contains "... offering the one manual step" "$out" "Create a new token with read scope and save it as TOKEN in .env"
+assert_contains "... and the wizard goes on after a yes" "$out" "rc=0"
+assert_not_contains "... never printing the value" "$out" "sekrit-123"
+out="$(
+  case_run "$TTY_N" strict <<'BODY'
+_drain_tty() { :; }
+_refuse() { cat >/dev/null; return 4; }
+TOKEN='sekrit-123'
+prove_credential TOKEN "Create a new token" _refuse
+echo "after-check"
+BODY
+)"
+rc=$?
+assert_exit "declining the manual step after a refused credential stops the wizard" 1 "$rc"
+assert_not_contains "... before the next step" "$out" "after-check"
+
+out="$(
+  case_run "$TTY_EOF" strict <<'BODY'
+attempt "Add the record by hand" true
+echo "rc=$?"
+BODY
+)"
+assert_contains "attempt runs a command that succeeds without asking anything" "$out" "rc=0"
+out="$(
+  case_run "$TTY_Y" <<'BODY'
+_drain_tty() { :; }
+attempt "Add the TXT record in the registrar's DNS page" false
+printf 'rc=%s\n' "$?"
+finish
+BODY
+)"
+assert_contains "a failed attempt names the command and its status" "$out" "false failed (exit 1)"
+assert_contains "... offering the one manual step" "$out" "Add the TXT record in the registrar's DNS page"
+assert_contains "... and goes on after a yes" "$out" "rc=0"
+assert_contains "... listing it in the summary" "$out" "Finished by hand (1)"
+out="$(
+  case_run "$TTY_N" strict <<'BODY'
+_drain_tty() { :; }
+attempt "Add the TXT record by hand" false
+echo "after-attempt"
+BODY
+)"
+rc=$?
+assert_exit "declining the manual step after a failed attempt stops the wizard" 1 "$rc"
+assert_contains "... saying what failed" "$out" "stopped: false failed (exit 1)"
+assert_not_contains "... before the next step" "$out" "after-attempt"
+
+# --- 16. Record-only values and temporary credentials -----------------------
+
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+record MAIL_REGION eu-west-1
+record MAIL_ACCOUNT acme-mail
+finish
+printf 'env=%s\n' "$(if [[ -e .env ]]; then echo present; else echo absent; fi)"
+BODY
+)"
+assert_contains "record prints its values in the closing summary" "$out" "Recorded (2)"
+assert_contains "... value included" "$out" "MAIL_REGION=eu-west-1"
+assert_contains "... for each value" "$out" "MAIL_ACCOUNT=acme-mail"
+assert_contains "... and writes no file" "$out" "env=absent"
+
+out="$(
+  case_run "$TTY_SECRET" <<'BODY'
+_drain_tty() { :; }
+ask_secret API_TOKEN "Token:" >/dev/null
+(record API_TOKEN "$API_TOKEN")
+printf 'rc=%s\n' "$?"
+BODY
+)"
+assert_contains "record refuses a value captured with ask_secret" "$out" "record: API_TOKEN was captured with ask_secret"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+assert_not_contains "... never printing it" "$out" "sp3cial s3cret"
+
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+(record 'bad-key' x)
+printf 'rc=%s\n' "$?"
+temporary MAIL_API_TOKEN "Mail console: API, Revoke"
+finish
+BODY
+)"
+assert_contains "record validates the key name" "$out" "invalid key name: 'bad-key'"
+assert_contains "temporary lists the credential for deletion" "$out" "temporary credentials to delete when done"
+assert_contains "... with where to delete it" "$out" "MAIL_API_TOKEN: Mail console: API, Revoke"
 
 # --- Tally ------------------------------------------------------------------
 

@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: gen-asks-secret-destination
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: asks-destination
+    type: regex
+    pattern: '^(?=[\s\S]*\.env\b)(?=[\s\S]*\b(?:CI|GitHub(?: Actions)?|Actions|repo(?:sitory)?)\s+secrets?\b)(?=[\s\S]*\b(?:where|which|should|both|or)\b[^\n?]{0,200}\?)'
+    flags: 'im'
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
