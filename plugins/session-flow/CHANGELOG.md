@@ -1,5 +1,30 @@
 # Changelog: session-flow plugin
 
+## [7.11.0] - 2026-11-13
+
+### Added
+
+- `/session-flow:orient catch-up` ends with a one-line offer of a video of the catch-up when
+  `/explainer-video:produce` is available, and says nothing about a video when it is not.
+
+### Changed
+
+- The catch-up word cap (`orient_catch_up_word_cap`) now limits only the What happened part.
+  Every action item is listed in full, never dropped, counted, merged or replaced by a link to
+  fit the cap. A new eval case, `or-catch-up-over-cap-keeps-every-item`, covers it.
+
+## [7.10.0] - 2026-11-13
+
+### Added
+
+- `handoff` gains a tracker short form: when a tracker item (a wayfind map item, say) already holds every finding, decision and remaining action and no session state is left, the resume is two lines, `/clear, then run:` and the command with the item's URL, with no handoff file. Findings not yet on the tracker still take the full file (new `skills/handoff/reference/tracker-short-form.md`).
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
+- `workflow` is the one home for route choice: new `context/pre-implementation-order.md` holds the pre-implementation order, moved in full from `docs/finding-your-unknowns.md`, and the quick-change and foggy-effort on-ramps carry the reasons that were in the interview's routing file.
+
 ## [7.9.16] - 2026-11-13
 
 ### Changed

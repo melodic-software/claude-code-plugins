@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests for parse-ready-skip.sh. Expected outputs follow the `--skip` contract in
-# reference/ready-for-review.md: the step names are pre_ready's five, a reason is
+# reference/ready-for-review.md: the step names are pre_ready's six, a reason is
 # required, and an unattended run is refused, so nothing is skipped by mistake.
 
 set -uo pipefail
@@ -21,6 +21,10 @@ assert_eq "several steps print in run order, whatever order they were given" \
 
 out=$(bash "$SCRIPT" --skip plan-evidence --reason $'stuck\treview\nbot' 2>/dev/null)
 assert_eq "control characters in the reason become spaces" $'reason\tstuck review bot\nskip\tplan-evidence' "$out"
+
+out=$(bash "$SCRIPT" --skip evidence,code-review --reason "no evidence identity" 2>/dev/null)
+assert_eq "the evidence step can be skipped and prints last, its place in run order" \
+  $'reason\tno evidence identity\nskip\tcode-review\nskip\tevidence' "$out"
 
 out=$(bash "$SCRIPT" 2>/dev/null)
 assert_exit "no flag is no override" 0 "$?"

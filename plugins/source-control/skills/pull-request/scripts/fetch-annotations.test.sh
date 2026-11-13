@@ -273,6 +273,70 @@ fi
 # lines into the banner, so the banner must stop before the first one.
 assert_not_contains "--help stops at the header block" "$help_out" "set -uo pipefail"
 
+# ---- --dir: run from a directory outside every checkout ----------------------
+#
+# <checkout>'s one GitHub remote is acme/app, so the repository can come only from --dir. This
+# stub records no gh default, fails `gh repo view`, answers the PR read only with -R acme/app,
+# and fails a REST read of any other repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO
+export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
+CHECKOUT="$TEST_TMPDIR/checkout" FORK="$TEST_TMPDIR/fork" NOREMOTE="$TEST_TMPDIR/noremote"
+OUTSIDE="$TEST_TMPDIR/outside"
+git init -q "$CHECKOUT"
+git -C "$CHECKOUT" remote add origin https://github.com/acme/app.git
+git init -q "$FORK"
+git -C "$FORK" remote add origin https://github.com/me/app.git
+git init -q "$NOREMOTE"
+mkdir -p "$OUTSIDE"
+
+DIR_STUB_DIR="$TEST_TMPDIR/dir-stubs"
+mkdir -p "$DIR_STUB_DIR"
+cat >"$DIR_STUB_DIR/gh" <<STUB_EOF
+#!/usr/bin/env bash
+if [[ "\$1 \$2" == "repo set-default" ]]; then
+  echo "No default remote repository has been set." >&2
+  exit 0
+fi
+if [[ "\$1 \$2 \$3" == "pr view 1" ]]; then
+  [[ " \$* " == *" -R acme/app "* ]] && { echo abc1234; exit 0; }
+  exit 1
+fi
+[[ "\$1" == api && " \$* " == *" repos/acme/app/"* ]] || exit 1
+case "\$*" in
+  *commits/abc1234/check-runs*) cat "$FIXTURE_CHECK_RUNS" ;;
+  *check-runs/100/annotations*) cat "$FIXTURE_ANNOT_100" ;;
+  *check-runs/200/annotations*) cat "$FIXTURE_ANNOT_200" ;;
+  *check-runs/300/annotations*) cat "$FIXTURE_ANNOT_300" ;;
+  *) exit 1 ;;
+esac
+STUB_EOF
+chmod +x "$DIR_STUB_DIR/gh"
+
+run_outside() {
+  (cd "$OUTSIDE" && PATH="$DIR_STUB_DIR:$PATH" bash "$SCRIPT" "$@" 2>&1)
+}
+
+out=$(run_outside 1 --dir "$CHECKOUT")
+assert_eq "--dir from outside every checkout reads the checkout's repository" 3 "$(printf '%s\n' "$out" | grep -c '^{')"
+run_outside 1 >/dev/null
+assert_exit "without --dir, a shell outside every checkout still resolves with gh repo view" 2 "$?"
+out=$(cd "$OUTSIDE" && PATH="$DIR_STUB_DIR:$PATH" FETCH_ANNOT_REPO=acme/app bash "$SCRIPT" 1 --dir "$FORK" 2>&1)
+assert_eq "FETCH_ANNOT_REPO wins over --dir" 3 "$(printf '%s\n' "$out" | grep -c '^{')"
+out=$(cd "$OUTSIDE" && PATH="$DIR_STUB_DIR:$PATH" FETCH_ANNOT_REPO=acme/app bash "$SCRIPT" 1 2>&1)
+assert_eq "FETCH_ANNOT_REPO without --dir names the repository on the PR head read too" 3 "$(printf '%s\n' "$out" | grep -c '^{')"
+out=$(cd "$OUTSIDE" && PATH="$DIR_STUB_DIR:$PATH" GH_REPO=acme/app bash "$SCRIPT" 1 --dir "$FORK" 2>&1)
+assert_eq "GH_REPO names the base repository for a fork checkout" 3 "$(printf '%s\n' "$out" | grep -c '^{')"
+run_outside 1 --dir "$NOREMOTE" >/dev/null
+assert_exit "a --dir checkout with no GitHub remote exits 2" 2 "$?"
+run_outside 1 --dir >/dev/null
+assert_exit "--dir without a value is a usage error" 1 "$?"
+run_outside 1 --dir '' >/dev/null
+assert_exit "an empty --dir is a usage error" 1 "$?"
+run_outside 1 --dir "$TEST_TMPDIR/missing" >/dev/null
+assert_exit "--dir naming no directory is a usage error" 1 "$?"
+run_outside 1 --dir "$CHECKOUT" --dir "$FORK" >/dev/null
+assert_exit "--dir given twice is a usage error" 1 "$?"
+
 # ---- Integration cases (opt-in: INTEGRATION=1) -----------------------------
 #
 # Hits real GitHub API against a known PR in this repo. Skipped by default.

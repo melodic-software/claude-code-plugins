@@ -1,0 +1,11 @@
+# .NET in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
+# Nothing to build, test or lint: the repository has no solution or project of
+# its own, and its C# files are plugin test fixtures no CI job builds. The
+# globs match code-metrics' own map for the lane, so those fixtures are still
+# measured there.
+globs: ["*.cs"]
+build-cmd: null
+test-cmd: null
+check-cmd: null
+fix-cmd: null
+code-fix-cmd: null

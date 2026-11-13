@@ -3476,10 +3476,9 @@ jobs:
   # Issue mode, reuse: the summary pass, in its own job with a read-only
   # GITHUB_TOKEN. It starts only when the run job's issue-prior step named a
   # reused lane branch, as the issue-fields job re-derived it, so that job
-  # ran no model. Every step is
-  # continue-on-error and gated on the one before it: a failed pass
-  # leaves no summary and turns nothing red, and report-outcome keeps the
-  # fixed text.
+  # ran no model. Every step is continue-on-error, and each pass step is
+  # gated on the one before it: a failed pass leaves no summary and turns
+  # nothing red, and report-outcome keeps the fixed text.
   summary:
     name: Summary
     needs: [run, issue-fields]
@@ -3533,13 +3532,6 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # The issue as the skill would get it (write-issue.mjs), and the reused
-      # branch's diff from a blobless fetch into a repository outside the
-      # workspace: git diff reads no attributes or diff drivers from it, so
-      # nothing on the branch runs. tip is the commit the diff read. The fetch
-      # is unauthenticated, so it reads only a public repository. The data
-      # sits under the workspace, since run-claude-cli's --restricted reads
-      # nothing outside it.
       # write-issue.mjs reads the Work status field events and config through
       # resolve-config.mjs, whose packages the resolve-config action below
       # installs only after this pass.
@@ -3547,7 +3539,15 @@ jobs:
         if: steps.node.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 5
-        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      # The issue as the skill would get it (write-issue.mjs), and the reused
+      # branch's diff from a blobless fetch into a repository outside the
+      # workspace: git diff reads no attributes or diff drivers from it, so
+      # nothing on the branch runs. tip is the commit the diff read. The fetch
+      # is unauthenticated, so it reads only a public repository. The data
+      # sits under the workspace, since run-claude-cli's --restricted reads
+      # nothing outside it.
       - name: Write the reused branch's diff and issue for the summary pass
         id: summary-data
         if: steps.node.outcome == 'success'
@@ -3659,10 +3659,10 @@ jobs:
           install-subprocess-isolation: "true"
 
       # One launcher step per secret, as in the run job: the first call's
-      # pass runs on the API key, the second call's on the OAuth token and the
-      # third call's on the central fallback token. The
-      # model reads the data files and nothing else: Read is its one tool,
-      # and the default branch checkout and process files are denied.
+      # pass runs on the API key, the second call's on the OAuth token and
+      # the third call's on the central fallback token. The model reads the
+      # data files and nothing else: Read is its one tool, and the default
+      # branch checkout and process files are denied.
       - name: Summarize the reused branch on the API key
         id: summary-key
         if: steps.isolate.outcome == 'success' && inputs.fallback == ''
@@ -3830,9 +3830,9 @@ jobs:
     # PR head to post a check on, and a run that handed off leaves the check
     # to the caller's fallback call, as does a call broker-check handed off
     # (skip-run), whose skipped run job leaves handed-off empty. In issue
-    # mode this job only ends the lane
-    # lease broker-check posted, whatever the other jobs' results, unless the
-    # caller ends it: in caller-releases-lease mode, a call that did not hand
+    # mode this job only ends the lane lease broker-check posted, whatever
+    # the other jobs' results, unless the caller ends it: in
+    # caller-releases-lease mode, a call that did not hand
     # off and whose issue-fields job set issue-run-started or reuse-branch
     # (the outputs the caller's report-outcome runs on) leaves it to the
     # caller's write runner, and every other call releases it here.
@@ -3955,8 +3955,9 @@ jobs:
       # event's PR head. The PR head just read is never a gated head (it may
       # have moved mid-run), only a target: with no caller or event head, any
       # run head posts failure on it. Any other value or a mismatched PR
-      # number posts failure on the trusted head, never on the run's SHA. With no trusted head nothing is posted
-      # and the step fails. An empty run head (the run stopped before its
+      # number posts failure on the trusted head, never on the run's SHA.
+      # With no trusted head nothing is posted and the step fails. An empty
+      # run head (the run stopped before its
       # trigger gate passed, or the gate read a head other than the caller's,
       # a supersede) never posts failure, which babysit would read as
       # a merge blocker: after the broker-check job's refusal, which includes
@@ -3969,8 +3970,8 @@ jobs:
       # there. A trigger decline cannot be told from a forged empty head
       # here, so both take that neutral. A caller passing post-decline false
       # (fix-docs, dispatched once per PR) posts nothing instead, so the PR is
-      # dispatched again. A handoff never reaches this job:
-      # the fallback call posts that check.
+      # dispatched again. A handoff never reaches this job: the fallback call
+      # posts that check.
       - name: Choose the head the check is posted on
         id: head
         if: always() && inputs.issue-number == ''
@@ -4112,8 +4113,8 @@ jobs:
       # One comment per lane run on the PR (lane-run-report/post.mjs), found
       # by a marker naming the activity, run id, model rung and leg, so a
       # re-run edits it. A checked-out base without the script, or a failed
-      # post, warns and leaves the job green. A broker kill-switch refusal ran
-      # no lane, so it posts none.
+      # post, warns and leaves the job green. A broker kill-switch refusal or
+      # budget stop ran no lane, so it posts none.
       - name: Post the lane run report comment
         if: always() && needs.broker-check.outputs.skip-reason != 'kill-switch' && needs.broker-check.outputs.skip-reason != 'budget'
         continue-on-error: true

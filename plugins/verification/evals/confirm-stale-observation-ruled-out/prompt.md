@@ -1,5 +1,5 @@
 ---
-description: 'Legacy confirm 12 (narration). Before calling a fix failed, the run rules out the observation (stale build, cached page, wrong port or instance) and observes again by a second route (SKILL.md Gotchas, ''Doubt the observation before the code''). Framed like the existing narration cases. names-observation-doubt grades a named observation cause in the reply; doubts-observation-first (llm) legacy expectations 1 and 2 verbatim.'
+description: 'Legacy confirm 12 (narration). Before calling a fix failed, the run rules out the observation (stale build, cached page, wrong port or instance) and observes again by a second route (SKILL.md Stage 2, ''A failed check: suspect the observation first''). Framed like the existing narration cases. names-observation-doubt grades a named observation cause in the reply; doubts-observation-first (llm) legacy expectations 1 and 2 verbatim.'
 tags: [verification, confirm, narration, no-network, fix, observation, routine]
 max_turns: 15
 timeout_seconds: 600

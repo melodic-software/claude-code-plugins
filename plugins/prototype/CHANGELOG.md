@@ -3,6 +3,27 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.2] - 2026-11-13
+
+### Added
+
+- Eval case `ed-claude-design-project-routes`: a request naming an existing claude.ai/design
+  project is routed to that project through the `ClaudeDesign` tool, or to throwaway variants with
+  the reason when the tool is not available, and nothing is written to the project before the plan
+  is approved.
+
+### Changed
+
+- `/prototype:explore-directions` carries one `## Boundary` section for the `design`, `ClaudeDesign`
+  and `playground` surfaces, keeping the suggest sentence, routing split and mutation gate; the
+  full rules move to `reference/boundaries.md`. No behavior change.
+
+## [0.26.1] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [0.26.0] - 2026-11-13
 
 ### Added

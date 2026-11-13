@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.46] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [0.6.45] - 2026-11-13
 
 ### Changed

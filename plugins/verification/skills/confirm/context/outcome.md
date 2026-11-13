@@ -99,6 +99,7 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 - Proof level: <path | live | strict> (<layer that supplied it>; any dropped or skipped layer and why)
 - Stand-in: <none | what the proof ran on in place of the real target; each setup step the stand-in did that the target will not, marked unverified>
 - Capture: <ran | not-applicable | blocked | skipped> (<reason, or none for ran>); <count> evidence artifacts kept
+- Observation check: <no check failed | per failed check: the observation suspected first (probe, driver, capture or environment), the second route observed, and whether that ruled the observation in or out>
 - Evidence loop: <k>/3 | 3/3 cap reached, last NEEDS WORK | <k>/3 (not written: uncommitted changes) | not tracked (detached head)
 - Live workers: <n resolved> (<layer that supplied it>; any dropped layer and why); <n ran> ran (<why fewer, if fewer>); per worker: <entry points> | <result> | <tokens measured> | <wall time measured>; <"live-UI step unverified on this host" on a cloud execution target>
 ```

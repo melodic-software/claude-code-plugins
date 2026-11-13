@@ -1,0 +1,21 @@
+# Repository-wide text checks in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
+# Lint-only: /toolchain:lint runs it, /toolchain:check does not, and no
+# code-metrics lane reads it.
+globs: ["**"]
+build-cmd: null
+test-cmd: null
+check-cmd: |
+  typos
+  gitleaks detect --source . --redact --no-banner --no-git
+  # editorconfig-checker: binary name varies by install method (ec / editorconfig-checker / ec-windows-amd64)
+  "$EC_BIN"
+  # lychee-offline: on-disk link and anchor integrity, no network
+  lychee --offline --no-progress './**/*.md'
+fix-cmd: null
+opt-in: "each tool's own config at the repository root (_typos.toml, .gitleaks.toml, .editorconfig, lychee.toml)"
+install-hint: |
+  typos: winget install Crate-CI.Typos | brew install typos-cli
+  gitleaks: winget install Gitleaks.Gitleaks | brew install gitleaks
+  editorconfig-checker: winget install EditorConfig-Checker.EditorConfig-Checker | brew install editorconfig-checker
+  lychee: winget install lycheeverse.lychee | brew install lychee
+notes: "Lint-only: owned by /toolchain:lint."

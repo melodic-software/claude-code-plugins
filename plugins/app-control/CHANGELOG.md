@@ -3,6 +3,25 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0] - 2026-11-13
+
+### Changed
+
+- **Breaking:** the control-skill contract now requires each step under a
+  feature's `## Drive` to name the action, the exact command or handle, and
+  the observable result after `Result:`. The last step must be a `**Proof.**`
+  step whose `Result:` is the end state and whose `Captures:` names the
+  captures that show it. A steps file's steps hold the same result.
+  `/app-control:map check` reports a step with no stated `Result:` under the
+  new `drive-result` rule; a `## Drive` that hands off in prose has no steps
+  of its own and is not reported.
+
+## [0.22.5] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [0.22.4] - 2026-11-12
 
 ### Changed

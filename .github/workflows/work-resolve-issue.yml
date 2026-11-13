@@ -38,9 +38,9 @@ name: Work Resolve Issue
 # title stay two. Quoted: unquoted, " #" would start a YAML comment.
 run-name: "${{ github.event.issue.title }} #${{ github.event.issue.number }}"
 
-# API_BUDGET_HOLD (outage posture element 2): no step here sets it. report-outcome.mjs, find-prior included,
-# reads through retry-fetch.mjs, which the rate guard never refuses, so its
-# fault holds need none.
+# API_BUDGET_HOLD (outage posture element 2): no step here sets it.
+# report-outcome.mjs, find-prior included, reads through retry-fetch.mjs,
+# which the rate guard never refuses, so its fault holds need none.
 # A step opts in only once its script is shown to hold green with a notice on
 # a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
 # a hold would pass what it could not read, so the rest still end red on a
@@ -104,8 +104,8 @@ jobs:
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
-      # The gate cannot match an unset lanes App id, so the App's own
-      # field writes would read as a stranger's and its exception would never hold.
+      # The gate cannot match an unset lanes App id, so the App's own field
+      # writes would read as a stranger's and its exception would never hold.
       - name: Assert the lanes App sender id and default branch are set
         env:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
@@ -162,7 +162,7 @@ jobs:
       - name: Install resolve-config's packages
         if: steps.kill.outputs.proceed == 'true'
         timeout-minutes: 3
-        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       - name: Check the trigger
         id: gate
@@ -258,17 +258,6 @@ jobs:
             sleep "$((RANDOM % (2 * i + 1)))"
           done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
-      # When the WIP cap check pauses the lane (over the WIP cap or the held
-      # cap on or after wip.pause-from), resolve-issue is skipped: no
-      # slot, no token. work-unblock's sweep re-fires the issue once under the
-      # cap. The check publishes its status as the `wip` output. A read the
-      # pause depends on that fails, or a check that sets no `capped`, holds
-      # (outage posture element 2): resolve-issue starts only on
-      # `capped == 'false'`, the job ends green with a notice, and
-      # work-unblock's sweep re-fires the issue as a WIP cap skip, so its next
-      # run reads again (element 3). No stored state decides the pause. Its
-      # queued cap (`admission-open`) gates only new agent-ready labels in
-      # work-unblock, never this run: a queued issue leaves the count by running.
       - name: Check out the default branch tip
         if: steps.tip.outputs.sha != ''
         continue-on-error: true
@@ -291,6 +280,17 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # When the WIP cap check pauses the lane (over the WIP cap or the held
+      # cap on or after wip.pause-from), resolve-issue is skipped: no
+      # slot, no token. work-unblock's sweep re-fires the issue once under the
+      # cap. The check publishes its status as the `wip` output. A read the
+      # pause depends on that fails, or a check that sets no `capped`, holds
+      # (outage posture element 2): resolve-issue starts only on
+      # `capped == 'false'`, the job ends green with a notice, and
+      # work-unblock's sweep re-fires the issue as a WIP cap skip, so its next
+      # run reads again (element 3). No stored state decides the pause. Its
+      # queued cap (`admission-open`) gates only new agent-ready labels in
+      # work-unblock, never this run: a queued issue leaves the count by running.
       - name: Check the WIP cap
         id: wip
         if: steps.kill.outputs.proceed != 'false'
@@ -313,7 +313,7 @@ jobs:
       # in its own broker-check. On a skip, resolve-issue-subscription runs
       # with fallback credit-stop, and its broker-check writes the skipped key
       # leg's lane record and re-checks the blockers in the slot.
-      # The decision now comes before the first slot wait, so a window that
+      # The decision comes before the first slot wait, so a window that
       # expires during that wait still sends the run to the subscription,
       # which costs plan capacity, not correctness.
       - name: Read the key's credit history
@@ -334,10 +334,11 @@ jobs:
       # the base config (models.issue-dimensions). The run job takes the same
       # dimensions for its turn cap rather than reading the fields again, so a
       # field set while it waits in its slot cannot outgrow the timeout.
-      # Without issue-dimensions the timeout is 40 minutes, a 25-minute leg. A config that
-      # cannot be resolved, or an option it does not map, fails this job. A run
-      # held on an unknown pause skips this read, so it ends green; a paused
-      # run still reads it, since report-skip runs at the WIP cap too.
+      # Without issue-dimensions the timeout is 40 minutes, a 25-minute leg.
+      # A config that cannot be resolved, or an option it does not map, fails
+      # this job. A run held on an unknown pause skips this read, so it ends
+      # green; a paused run still reads it, since report-skip runs at the WIP
+      # cap too.
       - name: Resolve the issue dimensions' timeout
         id: dimensions
         if: steps.wip.outputs.held == 'false'
@@ -517,9 +518,10 @@ jobs:
           CALLS: resolve-issue
         run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
 
-      # Whether the third call can run, never the token. resolve-issue-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last; a failed read leaves it empty, which hands nothing on.
+      # Whether the third call can run, never the token.
+      # resolve-issue-subscription passes it on as fallback-ready, so with the
+      # token empty its subscription leg stays the last; a failed read leaves
+      # it empty, which hands nothing on.
       - name: Check the fallback token
         id: fallback
         env:
@@ -655,11 +657,13 @@ jobs:
       claude-code-oauth-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether resolve-issue-subscription handed off to the fallback token, read from this run's
-  # jobs by handoff-evidence.sh, never from a resolve-issue-subscription output: its broker
-  # allowed it, its run job succeeded and its scan job never ran. It runs
-  # only when resolve-issue-handoff found the fallback token set, so with the token empty
-  # nothing starts that did not before. A failed read starts no third call.
+  # Whether resolve-issue-subscription handed off to the fallback token,
+  # read from this run's jobs by handoff-evidence.sh, never from a
+  # resolve-issue-subscription output: its broker allowed it, its run job
+  # succeeded and its scan job never ran. It runs only when
+  # resolve-issue-handoff found the fallback token set, so with the token
+  # empty nothing starts that did not before. A failed read starts no third
+  # call.
   resolve-issue-subscription-handoff:
     name: Resolve Issue Subscription Handoff
     needs: [resolve-issue-handoff, resolve-issue-subscription]
@@ -715,9 +719,9 @@ jobs:
           tokens: github-token
 
   # The third call, on the central fallback subscription's token alone: it
-  # runs only on resolve-issue-subscription-handoff's read, after resolve-issue-subscription's subscription leg handed off (a
-  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
-  # hands off.
+  # runs only on resolve-issue-subscription-handoff's read, after
+  # resolve-issue-subscription's leg handed off (a limit stop, a credit stop,
+  # or a 401 or 402). It is the last leg and never hands off.
   resolve-issue-fallback:
     name: Resolve Issue Fallback
     needs: [admit, pick-slot, resolve-issue, resolve-issue-handoff, resolve-issue-subscription, resolve-issue-subscription-handoff]
@@ -966,8 +970,9 @@ jobs:
 
   # One `pipeline/<activity>` commit status per lane step on the lane branch's
   # head (post-statuses.mjs). No step is skipped on them; a failing one holds
-  # the merge gate like any failing check. This is the lane's only `statuses: write` grant, on the job's own
-  # GITHUB_TOKEN, and it runs only scripts from the default branch tip.
+  # the merge gate like any failing check. This is the lane's only
+  # `statuses: write` grant, on the job's own GITHUB_TOKEN, and it runs only
+  # scripts from the default branch tip.
   report-statuses:
     name: Report Statuses
     needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback, apply-issue-patch, run-checks, report-outcome]
@@ -1274,8 +1279,8 @@ jobs:
     # any model turn, once the run chose to run the skill, and reaches this
     # file through the read runner's issue-fields job, which checks it and
     # every other issue output read here (the patch outputs come from its
-    # scan job); a run that failed after that
-    # still reports, with apply-issue-patch's branch when it made one.
+    # scan job); a run that failed after that still reports, with
+    # apply-issue-patch's branch when it made one.
     # reuse-branch, also runner-computed, names a lane branch an earlier run
     # left with commits and no report: the work was skipped, a read-only
     # summary pass described the branch, and this opens the PR from it.

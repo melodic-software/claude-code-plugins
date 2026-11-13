@@ -21,7 +21,8 @@ Delete `shop/data/invoices.db` and restart the app.
 
 ## Drive
 
-- Open `/billing`, choose `Export`; a file named `invoices.csv` downloads.
+- Open `/billing`, choose `Export`. Result: a file named `invoices.csv` downloads.
+- **Proof.** Result: `invoices.csv` holds one row per invoice in the range. Captures: logs
 
 ## Gotchas
 

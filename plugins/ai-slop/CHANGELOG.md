@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.9] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [0.18.8] - 2026-11-12
 
 ### Changed

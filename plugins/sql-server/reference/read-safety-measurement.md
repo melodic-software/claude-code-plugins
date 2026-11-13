@@ -87,7 +87,7 @@ Through `query`, a statement that opens a transaction fails with SQL Server's er
 
 ## Results
 
-<!-- measure-read-safety:results:start -->
+<!-- BEGIN GENERATED: measure-read-safety-results. Run node plugins/sql-server/scripts/measure-read-safety.mjs -->
 Run on 2026-11-06 by `scripts/measure-read-safety.mjs` against `mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04`
 (`sha256:245f6b1c8903edae52cb20fa31419cefcde1a49938bb8c3447099011fc871ca3`), SQL Server 17.0.5035.5 Enterprise Developer Edition (64-bit), in a container capped at 2 GB.
 Database `measure`: 200000 rows; READ_COMMITTED_SNAPSHOT off,
@@ -233,4 +233,4 @@ transactions after a topology run 0; table-level locks an agent session held at 
 3 runs show the worst case; they support no estimate of run-to-run spread.
 
 Topology check: PASS. No agent lock wait reached the lock timeout (5000 ms), every call returned within the request timeout (30000 ms), and no transaction was left open. How long anyone waited is the worst-case line above.
-<!-- measure-read-safety:results:end -->
+<!-- END GENERATED: measure-read-safety-results -->
