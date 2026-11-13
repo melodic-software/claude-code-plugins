@@ -274,6 +274,7 @@ lib/ui-feedback/host.html plugins/prototype/notes-bridge/host.html
 lib/ui-feedback/proto-pin.js plugins/prototype/notes-bridge/proto-pin.js
 lib/ui-feedback/note-model.mjs plugins/prototype/notes-bridge/note-model.mjs
 lib/ui-feedback/note.schema.json plugins/prototype/notes-bridge/note.schema.json
+lib/ui-feedback/relocate-note.mjs plugins/prototype/notes-bridge/relocate-note.mjs
 lib/ui-feedback/proto-pin.js plugins/planning/shared/web/proto-pin.js
 lib/view-builder.mjs plugins/review/lib/view-builder.mjs
 lib/view-runtime.js plugins/review/lib/view-runtime.js

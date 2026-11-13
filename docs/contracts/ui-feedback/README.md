@@ -16,6 +16,7 @@ The canonical files live in `lib/ui-feedback/`:
 | `lib/ui-feedback/note.schema.json` | The note contract |
 | `lib/ui-feedback/controls.schema.json` | The controls manifest contract |
 | `lib/ui-feedback/fixtures/` | Valid and invalid notes and manifests |
+| `lib/ui-feedback/relocate-note.mjs` | The relocation script: finds a note's element again in a fresh page and shoots it (see [Re-locating a note](#re-locating-a-note)) |
 | `lib/ui-feedback/notes_bridge.py`, `notes-bridge.sh` | The notes bridge app on the session bridge's loopback adapter, shaped like the view app ([`lib/session-bridge/README.md`](../../../lib/session-bridge/README.md#the-view-app), "The view app") |
 
 Each consumer takes generated copies through [`scripts/shared-copies.txt`](../../../scripts/shared-copies.txt)
@@ -32,6 +33,20 @@ the host page's and the bridge app's, reads its limits from that file; none hard
 an enum. The fixtures in `lib/ui-feedback/fixtures/` run against every validator, so a validator
 that accepts an invalid note or refuses a valid one fails its suite. A new field or limit is a
 schema edit plus fixtures, never a validator edit alone.
+
+## Re-locating a note
+
+A note's element is found again by structure, never by node identity: the variant and screen
+state give the scope, then the anchor rungs run in order, test id and its index in the scope, role,
+then the structural path, and the first that finds one element matches. A match is
+confirmed only when no stronger rung the note carries found nothing. When no rung matches, the
+note's `rect` (the element's box in percent of the page) is the only position left, labeled
+position only. `relocate-note.mjs` reads one note from the bridge's log, checks it against
+`note.schema.json`, and writes a `playwright-cli run-code` script that carries it as one JSON
+literal. The script opens the host page, so the mockup stays in its sandboxed frame, restores the
+view through the switcher's `vs:show` event, and cuts the shot from inside the frame's box, so no
+host-page pixel is in it. Shot files are named from the bridge's integer `seq` only. Notes carry
+no page text yet, so a list row whose position changes cannot be told from its neighbours.
 
 ## Controls
 
