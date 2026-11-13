@@ -705,7 +705,7 @@ the delete. It does not show that a recursive delete in a sibling repository und
 root would run: a deterministic guard that a temp fixture does not exercise may refuse it. The
 guardrails `block-root-delete-target` hook refuses a recursive `rm` whose target "resolves outside
 the payload cwd's git toplevel and is not strictly under a temp root"
-([`plugins/guardrails/README.md`](../../../guardrails/README.md) lines 1662-1663, and its header in
+([`plugins/guardrails/README.md`](../../../guardrails/README.md) lines 1649-1650, and its header in
 `plugins/guardrails/hooks/block-root-delete-target.sh` lines 446-449), and `/tmp` is one of its temp
 roots (`plugins/guardrails/hooks/hook-utils.sh` line 856). Every fixture here was under `/tmp`, so
 that arm could not refuse this delete in either run. The first run's sessions did not load the

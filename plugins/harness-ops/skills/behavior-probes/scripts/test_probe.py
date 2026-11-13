@@ -785,13 +785,26 @@ class SuiteTests(unittest.TestCase):
                 "allow": ["Bash"],
             },
             "autoMode": {"soft_deny": ["$defaults", "x"]},
-            "hooks": {"Stop": []},
+            "model": "opus",
         }
         self.assertEqual(
             probe.real_setup_settings(settings),
             {"permissions": {"additionalDirectories": ["/w/worktrees"]}},
         )
         self.assertEqual(probe.real_setup_settings({"autoMode": {}}), {})
+
+    def test_real_setup_keeps_the_case_hooks(self):
+        hooks = {
+            "InstructionsLoaded": [
+                {"hooks": [{"type": "command", "command": "log.sh"}]}
+            ]
+        }
+        settings = {
+            "permissions": {"allow": ["Bash"]},
+            "autoMode": {"soft_deny": ["$defaults", "x"]},
+            "hooks": hooks,
+        }
+        self.assertEqual(probe.real_setup_settings(settings), {"hooks": hooks})
 
     def test_real_setup_run_passes_only_directory_grants(self):
         if not shutil.which("git") or not shutil.which("bash"):

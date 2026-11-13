@@ -52,9 +52,10 @@ ceiling leaves. For what a run costs, point at
 
 `live --real-setup` repeats cases against the operator's own settings: the run adds `user` to the
 setting sources and passes, from the case's `settings.json`, only
-`permissions.additionalDirectories`, so the operator's rules, not the case's stand-in `autoMode`,
-judge the call. The fixture is still the case's temp directory, outside the operator's real clone
-and worktree roots, so an entry naming those roots does not apply to it; say so beside the result.
+`permissions.additionalDirectories` and `hooks`, so the operator's rules, not the case's stand-in
+`autoMode`, judge the call. The fixture is still the case's temp directory, outside the operator's
+real clone and worktree roots, so an entry naming those roots does not apply to it; say so beside
+the result.
 Run it only when the operator names that repeat.
 
 Each live case runs in its own temp directory with `--setting-sources project,local`, the case's

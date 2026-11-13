@@ -881,12 +881,18 @@ def plant(case: dict, workdir: Path) -> dict:
 
 
 def real_setup_settings(settings: dict) -> dict:
-    """A --real-setup run's case settings: the fixture's directory grants only.
+    """A --real-setup run's case settings: the fixture's directory grants and hooks.
 
     The operator's own settings judge the call; the case's stand-in autoMode and
-    any other key would add rules the operator does not have."""
+    any other key would add rules the operator does not have. Hooks are kept
+    because some cases take their measurement through them."""
+    kept = {}
     dirs = (settings.get("permissions") or {}).get("additionalDirectories")
-    return {"permissions": {"additionalDirectories": dirs}} if dirs else {}
+    if dirs:
+        kept["permissions"] = {"additionalDirectories": dirs}
+    if settings.get("hooks"):
+        kept["hooks"] = settings["hooks"]
+    return kept
 
 
 def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
