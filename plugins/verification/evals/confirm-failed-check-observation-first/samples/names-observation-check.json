@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "- Observation check: capture suspected first; the screenshot predates the 14:09 rebuild, so it is stale. Re-capture after the rebuild before any verdict."
+    },
+    {
+      "answer": "Observation check: ruled in, stale capture (14:02 file, rebuild at 14:09)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The Export button is missing. NEEDS WORK."
+    },
+    {
+      "answer": "The screenshot is stale, so capture again."
+    },
+    {
+      "answer": "Observation check: no check failed."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
