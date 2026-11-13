@@ -352,7 +352,7 @@ for section in ("allow", "soft_deny"):
 # text it must read past; the record of when and why belongs in git history or
 # a decision record. Only entries absent from the built-in list are checked:
 # the shipped entries are not the operator's to edit.
-PROVENANCE = re.compile(r"\b20\d\d-\d\d-\d\d\b|(?<![\w/])(?:[\w.-]+/[\w.-]+)?#\d+\b")  # portability-ok: Python re inside the heredoc, not grep or sed
+PROVENANCE = re.compile(r"\b20\d\d-\d\d-\d\d\b|https?://\S+/(?:issues|pull)/\d+|(?<![\w/.:-])(?:[\w.-]+/[\w.-]+)?#\d+\b")  # portability-ok: Python re inside the heredoc, not grep or sed
 for section in SECTIONS:
     built_in = entries(defaults, section)
     for entry in entries(config, section):

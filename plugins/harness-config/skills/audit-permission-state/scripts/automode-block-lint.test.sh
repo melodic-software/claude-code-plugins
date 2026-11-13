@@ -85,12 +85,15 @@ assert_not_contains "a fixture with no dates or issue references raises no prove
 # --- C5: provenance text in an operator-written entry -------------------------
 PROV_CONFIG="$TEST_TMPDIR/config-provenance.json"
 PROV_DEFAULTS="$TEST_TMPDIR/defaults-provenance.json"
-printf '%s\n' '{"allow": ["Dated Rule: allowed since 2026-10-30 by the owner.", "Ticket Rule: see acme/repo#123.", "Clean Rule: reads in this repository."], "soft_deny": ["Built In: shipped entry dated 2025-01-01."]}' >"$PROV_CONFIG"
+printf '%s\n' '{"allow": ["Dated Rule: allowed since 2026-10-30 by the owner.", "Ticket Rule: see acme/repo#123.", "Bare Rule: per #45.", "Url Rule: per https://github.com/acme/repo/issues/7.", "Lang Rule: C#3 builds and https://example.com/page#4 docs.", "Clean Rule: reads in this repository."], "soft_deny": ["Built In: shipped entry dated 2025-01-01."]}' >"$PROV_CONFIG"
 printf '%s\n' '{"allow": [], "soft_deny": ["Built In: shipped entry dated 2025-01-01."]}' >"$PROV_DEFAULTS"
 OUT_PROV=$(env AUTOMODE_CONFIG_FIXTURE="$PROV_CONFIG" AUTOMODE_DEFAULTS_FIXTURE="$PROV_DEFAULTS" bash "$SCRIPT")
-assert_eq "each operator entry with provenance text fires once" 2 "$(count_matching "$OUT_PROV" '\[C5-provenance\]')"
+assert_eq "each operator entry with provenance text fires once" 4 "$(count_matching "$OUT_PROV" '\[C5-provenance\]')"
 assert_contains "a date is named" "$OUT_PROV" '"Dated Rule" carries provenance text (2026-10-30)'
 assert_contains "an issue reference is named" "$OUT_PROV" '"Ticket Rule" carries provenance text (acme/repo#123)'
+assert_contains "a bare issue number is named" "$OUT_PROV" '"Bare Rule" carries provenance text (#45)'
+assert_contains "an issue URL is named" "$OUT_PROV" '"Url Rule" carries provenance text (https://github.com/acme/repo/issues/7)'
+assert_not_contains "a language name or a page fragment is not an issue reference" "$OUT_PROV" '"Lang Rule"'
 assert_not_contains "a clean entry does not fire" "$OUT_PROV" '"Clean Rule"'
 assert_not_contains "a built-in entry is not the operator's to edit" "$OUT_PROV" '"Built In"'
 
