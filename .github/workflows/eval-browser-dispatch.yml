@@ -557,22 +557,14 @@ jobs:
           done
 
       # The guardrails hooks read every Bash command through shfmt and refuse the
-      # call without it, so a guardrails eval needs it on PATH. Same v3.14.1 pin
-      # and SHA-256 as pr-require-checks.yml. In /opt/tools, since each eval run
+      # call without it, so a guardrails eval needs it on PATH. The
+      # setup-pinned-shfmt action holds the pin; /opt/tools, since each eval run
       # replaces HOME.
       - name: Install pinned shfmt for guardrails
         if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/guardrails')
-        env:
-          SHFMT_VERSION: v3.14.1
-          SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
-        run: |
-          mkdir -p /opt/tools/bin
-          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o /opt/tools/bin/shfmt \
-            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
-          echo "$SHFMT_SHA256  /opt/tools/bin/shfmt" | sha256sum -c -
-          chmod +x /opt/tools/bin/shfmt
-          echo "/opt/tools/bin" >> "$GITHUB_PATH"
-          test "$(/opt/tools/bin/shfmt --version)" = "$SHFMT_VERSION"
+        uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
+        with:
+          bin-dir: /opt/tools/bin
 
       # run-claude-cli's classifier, at the pin every lane runs it, for
       # eval-handoff.mjs: lane.cjs and the three files it loads, nothing run here.
@@ -989,7 +981,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 1
         run: |
-          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
           mkdir -p "$RUNNER_TEMP/key-credit-stop"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
 
@@ -1381,17 +1372,9 @@ jobs:
 
       - name: Install pinned shfmt for guardrails
         if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/guardrails')
-        env:
-          SHFMT_VERSION: v3.14.1
-          SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
-        run: |
-          mkdir -p /opt/tools/bin
-          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o /opt/tools/bin/shfmt \
-            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
-          echo "$SHFMT_SHA256  /opt/tools/bin/shfmt" | sha256sum -c -
-          chmod +x /opt/tools/bin/shfmt
-          echo "/opt/tools/bin" >> "$GITHUB_PATH"
-          test "$(/opt/tools/bin/shfmt --version)" = "$SHFMT_VERSION"
+        uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
+        with:
+          bin-dir: /opt/tools/bin
 
       - name: Check out the launcher's classifier
         if: steps.stage.outputs.go == 'true'
@@ -2070,17 +2053,9 @@ jobs:
 
       - name: Install pinned shfmt for guardrails
         if: steps.stage.outputs.go == 'true' && contains(steps.plugins.outputs.list, 'plugins/guardrails')
-        env:
-          SHFMT_VERSION: v3.14.1
-          SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
-        run: |
-          mkdir -p /opt/tools/bin
-          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o /opt/tools/bin/shfmt \
-            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
-          echo "$SHFMT_SHA256  /opt/tools/bin/shfmt" | sha256sum -c -
-          chmod +x /opt/tools/bin/shfmt
-          echo "/opt/tools/bin" >> "$GITHUB_PATH"
-          test "$(/opt/tools/bin/shfmt --version)" = "$SHFMT_VERSION"
+        uses: ./.base/.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
+        with:
+          bin-dir: /opt/tools/bin
 
       - name: Check out the launcher's classifier
         if: steps.stage.outputs.go == 'true'
