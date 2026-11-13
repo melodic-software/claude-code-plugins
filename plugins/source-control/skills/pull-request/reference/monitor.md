@@ -19,7 +19,7 @@
 
 Phase 3 is an **async event loop**, not a sequential pipeline. After every push (initial PR creation, CI fix, comment fix), monitor CI status AND process comments concurrently as they arrive. Don't wait for all CI checks to complete before reading comments. Bots post at different times.
 
-**The dispatching session owns the watch.** A dispatched subagent's job ends when its pull request is marked ready, with the full head sha in its report; the session that dispatched it runs this phase and the merge. A background wait cannot hold a subagent's turn open.
+**The dispatching session owns the watch.** A dispatched subagent's job ends when its pull request is marked ready, with the full head sha in its report; the session that dispatched it runs this phase and the merge.
 
 ## Monitor entry checklist (in order, before any monitoring work)
 
