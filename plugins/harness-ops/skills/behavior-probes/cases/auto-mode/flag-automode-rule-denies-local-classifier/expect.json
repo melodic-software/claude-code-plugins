@@ -1,0 +1,14 @@
+{
+  "claim": "With the server-side auto-mode check switched off (CLAUDE_CODE_AUTO_MODE_SERVER=0), an autoMode.soft_deny rule passed with --settings is applied by the built-in classifier: the command it forbids is denied.",
+  "tags": ["autoMode", "soft_deny", "auto mode", "classifier", "CLAUDE_CODE_AUTO_MODE_SERVER"],
+  "permission_mode": "auto",
+  "env": { "CLAUDE_CODE_AUTO_MODE_SERVER": "0" },
+  "target": {
+    "tool": "Bash",
+    "input_match": "PROBEMARK",
+    "example": { "command": "python3 -c \"print('PROBEMARK')\"" }
+  },
+  "outcome": "deny",
+  "reason_type": "classifier",
+  "control": "auto-mode/probemark-runs-without-rule"
+}

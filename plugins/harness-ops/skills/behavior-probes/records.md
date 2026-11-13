@@ -107,13 +107,21 @@ reason labels.
 **Rerun on Claude Code 2.1.323, 2026-11-13: the second half of the claim no longer holds.** The
 project-settings case and the control still pass. `auto-mode/flag-automode-rule-denies` ran the
 command in two separate live runs: the `soft_deny` rule passed with `--settings` was not applied.
-Whether a rule in user settings is still applied was not probed. The cause is UNVERIFIED: no
-release note was matched to it.
+The same rule is applied when the server-side check is switched off: with
+`CLAUDE_CODE_AUTO_MODE_SERVER=0` in the child environment the built-in classifier denied the
+command. So on this version the server-side check does not apply an `autoMode` rule passed with
+`--settings`, and the built-in classifier does. Whether the server-side check applies a rule in
+user settings was not settled: `claude auto-mode config` lists the user rules as loaded, and a
+tag push that a user `soft_deny` rule names ran under both checks, but that command was asked
+for by the prompt's file and touched only a local bare remote, so it does not discriminate. A
+clean test needs an arbitrary marker rule in user settings. No release note was matched to the
+change.
 
 | Case | Expected | Observed on 2.1.323 | Verdict |
 |---|---|---|---|
 | `auto-mode/project-automode-rule-ignored` | ran | ran | pass |
 | `auto-mode/flag-automode-rule-denies` | deny (classifier) | ran, twice | fail |
+| `auto-mode/flag-automode-rule-denies-local-classifier` | deny (classifier) | deny, classifier | pass |
 | `auto-mode/probemark-runs-without-rule` | ran | ran | pass |
 
 ## 6. A custom `soft_deny` list without `"$defaults"` keeps the defaults
