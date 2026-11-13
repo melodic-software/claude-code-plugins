@@ -99,7 +99,8 @@ def ass(cues, width, height, font='DejaVu Sans'):
     size, margin_v = round(height * 0.045), round(height * MARGIN_V)
     head = ('[Script Info]\nScriptType: v4.00+\nWrapStyle: 0\nScaledBorderAndShadow: yes\n'
             f'PlayResX: {width}\nPlayResY: {height}\n\n[V4+ Styles]\n'
-            'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, '
+            # ASS field names, spelled as the format defines them.
+            'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, '  # spellchecker:disable-line
             'Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, '
             'MarginL, MarginR, MarginV, Encoding\n'
             f'Style: Default,{font},{size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,'
