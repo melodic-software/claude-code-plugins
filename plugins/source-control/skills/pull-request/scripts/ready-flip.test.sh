@@ -20,11 +20,13 @@ source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 REPORT_REF="$SKILL_DIR/reference/ready-for-review.md"
 
 # block <heading> [<n>] [<file>]: the nth (default first) fenced block in that heading's section
-# of <file> (default: the GitHub ready reference), with <skill-dir> filled in.
+# of <file> (default: the GitHub ready reference), with <skill-dir> filled in and <checkout> read
+# from FLOW_CHECKOUT when the block runs (default: the shell's directory).
 block() {
+  # shellcheck disable=SC2016 # ${FLOW_CHECKOUT:-.} expands in the generated script
   awk -v h="$1" -v n="${2:-1}" '$0 == h { on = 1; next } on && !f && /^## / { exit }
     on && /^```bash/ { if (++i == n) f = 1; next } f && /^```/ { exit } f' "${3:-$REF}" |
-    sed "s#<skill-dir>#$SKILL_DIR#g"
+    sed -e "s#<skill-dir>#$SKILL_DIR#g" -e 's#<checkout>#${FLOW_CHECKOUT:-.}#g'
 }
 
 FLOW="$TEST_TMPDIR/flow.sh"
@@ -111,7 +113,7 @@ new_state() {
 # pre-push head, as a lagging read returns it).
 STUB_BRANCH=$(git -C "$REPO" branch --show-current)
 run_flow() {
-  (cd "${FLOW_CWD:-$REPO}" && PATH="$STUB_DIR:$PATH" STUB_STATE="$STATE" STUB_STALE="$1" STUB_PUSHED="$PUSHED" \
+  (cd "${FLOW_CWD:-$REPO}" && PATH="$STUB_DIR:$PATH" FLOW_CHECKOUT="${FLOW_CHECKOUT:-.}" STUB_STATE="$STATE" STUB_STALE="$1" STUB_PUSHED="$PUSHED" \
     STUB_FORGE="${3:-$PUSHED}" STUB_BRANCH="$STUB_BRANCH" STUB_OID="${STUB_OID:-$BEFORE}" \
     READY_VERIFY_DIR="$STATE/verify" PR_NUMBER=5 REPO=acme/tool HEAD_BEFORE="$2" timeout 30 bash "$FLOW" 2>&1)
 }
@@ -228,6 +230,13 @@ new_state "$PUSHED"
 out=$(FLOW_CWD="$TEST_TMPDIR/other" run_flow "$BEFORE" "$BEFORE")
 assert_contains "from another checkout: HEAD_SHA is the PR worktree's HEAD" "$out" "HEAD_SHA=$PUSHED"
 assert_contains "from another checkout: the guarded flip passes on the PR's head" "$out" "FLIP_EXIT=0"
+
+# The shell sits outside every checkout and <checkout> names the repository by absolute path.
+mkdir -p "$TEST_TMPDIR/outside"
+new_state "$PUSHED"
+out=$(FLOW_CWD="$TEST_TMPDIR/outside" FLOW_CHECKOUT="$REPO" run_flow "$BEFORE" "$BEFORE")
+assert_contains "from outside every checkout: HEAD_SHA is the PR worktree's HEAD" "$out" "HEAD_SHA=$PUSHED"
+assert_contains "from outside every checkout: the guarded flip passes on the PR's head" "$out" "FLIP_EXIT=0"
 
 new_state "$PUSHED"
 out=$(FLOW_CWD="$TEST_TMPDIR/other" STUB_BRANCH=gone run_flow "$BEFORE" "$BEFORE")
