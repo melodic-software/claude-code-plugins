@@ -1627,7 +1627,8 @@ refused whatever the list holds. Empty blocks all.
 `--force-with-lease=<ref>` with `--force-if-includes`, or the empty expect
 `--force-with-lease=<ref>:`. It passes by default: git-push(1) documents `--force-if-includes` as
 the mitigation for a lease a background fetch could satisfy, and the empty expect as "the ref must
-not exist". `block` allows only `--force-with-lease=<ref>:<full-sha>`. Either layer set to `block`
+not exist". `block` allows only `--force-with-lease=<ref>:<full-sha>`; any other option value
+acts as `allow`. Either layer set to `block`
 blocks it: this option, per user, or `unpinned_lease: block` in the repository's
 `docs/conventions/guardrails.yaml` (schema `schemas/guardrails.schema.json`). The team file is read
 from the session's repository (the payload's cwd) at its local `origin/HEAD`, never the working tree
@@ -1754,7 +1755,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0 or false (e.g. lefthook,husky). Empty, the default, uses the built-in set: lefthook, husky, pre_commit, simple_git_hooks. |
 | `block_dangerous_git_enabled` | boolean | `true` | Blocks irreversible git operations: push --force, reset --hard, clean -f, worktree-wide checkout or restore discards, and a push --force-with-lease that leases against a value git resolves at push time. On by default. The README's Option details define the lease case. |
 | `block_dangerous_git_allow` | string | *(none)* | Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus the PowerShell ps-unparsable-* sink tokens the README's Option details list. Empty, the default, blocks all. |
-| `block_dangerous_git_unpinned_lease` | string | `"allow"` | allow (default) lets block-dangerous-git pass a lease with no full commit id: --force-with-lease plus --force-if-includes, or an empty expect. block allows only --force-with-lease=<ref>:<full-sha>. A repository can also set block in its guardrails team file; see the README's Option details. |
+| `block_dangerous_git_unpinned_lease` | string | `"allow"` | allow or block. allow, the default, lets block-dangerous-git pass a lease with no full commit id: --force-with-lease plus --force-if-includes, or an empty expect. block allows only --force-with-lease=<ref>:<full-sha>. Any other value acts as allow. Team-file layer: README Option details. |
 | `block_credential_read_enabled` | boolean | `false` | Blocks a command whose output is a credential: git credential fill, gh auth token, a token-shaped variable echoed, and an interpreter (python -c, node -e) reading .env, .netrc, ~/.ssh/id_* or ~/.aws/credentials. cat is left to Read() deny rules. Off by default: precision below the bar. |
 | `block_credential_read_allow` | string | *(none)* | Comma-separated families block-credential-read permits: credential-fill, gh-auth-token, env-echo, credential-file-read. Empty, the default, blocks all. |
 | `block_cross_domain_enabled` | boolean | `true` | Denies a Bash or PowerShell global git identity write (git config --global user.email and kin, a ~/.gitconfig write). In an identity domain (identity-domains.json) also denies naming another domain's path, using its marker, or gh/az without the domain's config dir. On by default. |

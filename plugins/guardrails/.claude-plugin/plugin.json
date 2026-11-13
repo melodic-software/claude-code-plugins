@@ -73,9 +73,8 @@
     "block_dangerous_git_unpinned_lease": {
       "type": "string",
       "title": "Unpinned force-with-lease push",
-      "description": "allow (default) lets block-dangerous-git pass a lease with no full commit id: --force-with-lease plus --force-if-includes, or an empty expect. block allows only --force-with-lease=<ref>:<full-sha>. A repository can also set block in its guardrails team file; see the README's Option details.",
-      "default": "allow",
-      "options": ["allow", "block"]
+      "description": "allow or block. allow, the default, lets block-dangerous-git pass a lease with no full commit id: --force-with-lease plus --force-if-includes, or an empty expect. block allows only --force-with-lease=<ref>:<full-sha>. Any other value acts as allow. Team-file layer: README Option details.",
+      "default": "allow"
     },
     "block_credential_read_enabled": {
       "type": "boolean",

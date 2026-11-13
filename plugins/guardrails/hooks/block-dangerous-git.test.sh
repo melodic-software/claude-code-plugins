@@ -368,6 +368,8 @@ UNPIN=CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_UNPINNED_LEASE
 run "unpinned_lease unset: --force-with-lease --force-if-includes (allowed)" "git push --force-with-lease --force-if-includes origin main" 0
 run "unpinned_lease=allow: --force-with-lease --force-if-includes (allowed)" "git push --force-with-lease --force-if-includes origin main" 0 "$UNPIN=allow"
 run "unpinned_lease=allow: empty expect (allowed)" "git push --force-with-lease=main: origin main" 0 "$UNPIN=allow"
+run "unpinned_lease=deny (unknown value acts as allow): unpinned lease (allowed)" "git push --force-with-lease --force-if-includes origin main" 0 "$UNPIN=deny"
+run "unpinned_lease=BLOCK (case differs, acts as allow): unpinned lease (allowed)" "git push --force-with-lease --force-if-includes origin main" 0 "$UNPIN=BLOCK"
 run "unpinned_lease=allow: pinned full sha (allowed)" "git push --force-with-lease=main:$SHA1_OID origin main" 0 "$UNPIN=allow"
 run "unpinned_lease=block: --force-with-lease --force-if-includes (blocked)" "git push --force-with-lease --force-if-includes origin main" 2 "$UNPIN=block"
 run "unpinned_lease=block: --force-with-lease=main --force-if-includes (blocked)" "git push --force-with-lease=main --force-if-includes origin main" 2 "$UNPIN=block"
