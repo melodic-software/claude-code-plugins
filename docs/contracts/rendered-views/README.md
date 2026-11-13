@@ -53,7 +53,11 @@ A view sits on one of four tiers, chosen per use case from the defaults below.
   built it with `--connect` and the bridge's view app serves it
   (`lib/session-bridge/README.md`, "The view app"). A model-written K0 or K1 page does not
   use it: it stops at client-interactive and closes the loop with a copied payload. A
-  builder page with no live session says so and keeps its copy and save controls.
+  builder page with no live session says so and keeps its copy and save controls. One
+  checked-in page is the exception: the ui-feedback host page frames a model-written K0 or
+  K1 page in a sandbox and sends the person's notes itself
+  ([ui-feedback, "Trust rules"](../ui-feedback/README.md#trust-rules)). The framed page
+  still carries no `connect-src` and sends nothing to the session.
 - **A K2 page's payloads carry no K2 text.** Every copy, export, or download payload on
   a K2 page, at any tier, holds to rule 9's first bullet: what the reader entered plus
   ids the builder assigned, never a string taken from the data block. A K2 page

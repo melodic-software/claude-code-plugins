@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.3.0] - 2026-11-13
+
+### Added
+
+- `/source-control:pull-request ready`: `pr-worktree.sh` and `verify-gate.sh` take `--dir <checkout>`, as `target-repo.sh` does. `pr-worktree.sh` reads the PR's head and lists worktrees in that checkout, and `verify-gate.sh` finds the common git directory there (`READY_VERIFY_DIR` still wins). The ready phase's command lines pass `--dir`, so a session that works on a repository by absolute path, with its shell in another checkout, finds the PR's worktree and the verify record. Without `--dir`, both scripts use the current directory as before.
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [11.2.6] - 2026-11-13
 
 ### Changed

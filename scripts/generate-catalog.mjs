@@ -13,7 +13,7 @@ import process from "node:process";
 
 // scripts/lib/marker-block.mjs: the locate / compare / report-drift-or-write
 // flow shared with scripts/generate-cheatsheet.mjs, whose suite exercises it.
-import { findMarkerBlock, syncMarkerBlock } from "./lib/marker-block.mjs";
+import { findMarkerBlock, markerForms, syncMarkerBlock, wrapMarkerBlock } from "./lib/marker-block.mjs";
 
 // Paths render with forward slashes on every platform, in messages and in
 // generated links alike.
@@ -29,8 +29,7 @@ const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
 const taxonomyPath = join(root, "docs", "catalog-taxonomy.md");
 const taxonomyLabel = toPosix(relative(root, taxonomyPath));
 
-const START = "<!-- catalog:start -->";
-const END = "<!-- catalog:end -->";
+const FORMS = markerForms("catalog", "Run node scripts/generate-catalog.mjs");
 
 // Category render order, conforming to the vocabulary tiers owned by
 // docs/catalog-taxonomy.md (lifecycle spine, then domain-and-cross-cutting).
@@ -103,7 +102,7 @@ function heading(category) {
     .join(" ");
 }
 
-function buildBlock() {
+function buildBody() {
   const marketplace = JSON.parse(readFileSync(marketplacePath, "utf8"));
 
   const byCategory = new Map(CATEGORY_ORDER.map((category) => [category, []]));
@@ -132,18 +131,22 @@ function buildBlock() {
     sections.push(`## ${heading(category)}\n\n${items.join("\n")}`);
   }
 
-  return `${START}\n\n${sections.join("\n\n")}\n\n${END}`;
+  return sections.join("\n\n");
 }
 
 const check = process.argv.includes("--check");
 const content = readFileSync(outputPath, "utf8");
-const expected = buildBlock();
-const existing = findMarkerBlock(content, START, END);
-if (existing === null) {
+const found = findMarkerBlock(content, FORMS);
+if (found.error === "missing") {
   throw new Error(
-    `${outputLabel} is missing the catalog markers (${START} … ${END}); add them once.`,
+    `${outputLabel} is missing the catalog markers (${FORMS.map((f) => `${f.start} … ${f.end}`).join(" or ")}); add one pair once.`,
   );
 }
+if (found.error) throw new Error(`${outputLabel} ${found.error}.`);
+const existing = found.block;
+const wrapped = wrapMarkerBlock(found.form, buildBody(), FORMS);
+if (wrapped.error) throw new Error(`${outputLabel} ${wrapped.error}.`);
+const expected = wrapped.block;
 
 syncMarkerBlock({
   path: outputPath,

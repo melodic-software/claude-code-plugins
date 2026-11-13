@@ -1,5 +1,17 @@
 # Changelog: evals
 
+## [0.18.9] - 2026-11-13
+
+### Changed
+
+- `plugin-eval` proves a whole-page deletion with a sensitivity control: the page is replaced by a plausible but wrong version and run beside the before version. Every other cut keeps the detection control.
+
+- Corrected in place: the released entries [0.16.1] now name the JavaScript formatting plugin `javascript-format`, its current name.
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
+- The run-home search example in `reading-results.md` and its validity tests use the JavaScript formatting plugin's current name, `javascript-format`.
+
 ## [0.18.8] - 2026-11-12
 
 ### Changed
