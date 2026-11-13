@@ -444,6 +444,22 @@ lib/session-bridge/view-bridge.sh -> plugins/*/view-bridge/view-bridge.sh
 # drift failure.
 view-bridge/session-bridge.conf
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster lines for the
+# duplication audit: the root canonicals and the copies the prototype plugin
+# carries in notes-bridge/ (the notes app), plus the pin helper the planning
+# plugin carries in shared/web/. A path-within-plugin line stays out until a
+# second plugin carries it.
+lib/session-bridge/session_bridge.py -> plugins/*/notes-bridge/session_bridge.py
+lib/session-bridge/watch.sh -> plugins/*/notes-bridge/watch.sh
+lib/session-bridge/wake.sh -> plugins/*/notes-bridge/wake.sh
+lib/session-bridge/view_bridge.py -> plugins/*/notes-bridge/view_bridge.py
+lib/ui-feedback/notes_bridge.py -> plugins/*/notes-bridge/notes_bridge.py
+lib/ui-feedback/notes-bridge.sh -> plugins/*/notes-bridge/notes-bridge.sh
+lib/ui-feedback/host.html -> plugins/*/notes-bridge/host.html
+lib/ui-feedback/proto-pin.js -> plugins/*/notes-bridge/proto-pin.js plugins/*/shared/web/proto-pin.js
+lib/ui-feedback/note-model.mjs -> plugins/*/notes-bridge/note-model.mjs
+lib/ui-feedback/note.schema.json -> plugins/*/notes-bridge/note.schema.json
+
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/prerequisites.mjs. harness-ops carries the first generated copy; every
 # plugin whose prerequisites.json passes the schema carries one too

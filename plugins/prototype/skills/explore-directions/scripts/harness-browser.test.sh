@@ -3,7 +3,7 @@
 # the eval fixture with the bundled switcher inlined, served by this plugin's notes-bridge copy
 # and driven through playwright-cli. It checks the switcher's keys and focus inside the sandboxed
 # frame, that a pick-mode click never reaches the page, that typing in the note never switches
-# variants, that the sent note lands in the bridge's log with its variant and test id and no page
+# variants, that a test id on the variant itself reads as its first match, that the sent note lands in the bridge's log with its variant and test id and no page
 # text, and that a framed page without its own CSP still has every fetch blocked by policy, so it
 # cannot read the token or post a note.
 # SKIPs without playwright-cli, python3 or curl.
@@ -85,7 +85,7 @@ run() { # script
       PASS\ *) ok "$name: ${line#PASS }" ;;
       *) bad "$name: $line" ;;
     esac
-  done < <(printf '%s\n' "$out" | grep -m1 'PASS\|FAIL\|ERROR' | awk '{ gsub(/\\n/, "\n"); print }' |
+  done < <(grep -m1 'PASS\|FAIL\|ERROR' <<<"$out" | awk '{ gsub(/\\n/, "\n"); print }' |
     sed 's/^.*"PASS/PASS/; s/^.*"FAIL/FAIL/; s/^.*"ERROR/ERROR/; s/"$//' | grep -E '^(PASS|FAIL|ERROR) ')
   [[ "$n" -gt 0 ]] || bad "$name: no results ($(printf '%s' "$out" | head -c 400))"
 }

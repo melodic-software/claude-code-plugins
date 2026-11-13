@@ -47,7 +47,7 @@
     const t = el.closest("[data-testid]");
     if (t && (t === scope || scope.contains(t))) {
       a.testid = t.dataset.testid;
-      a.testidIndex = [...scope.querySelectorAll("[data-testid]")].filter(e => e.dataset.testid === a.testid).indexOf(t);
+      a.testidIndex = [scope, ...scope.querySelectorAll("[data-testid]")].filter(e => e.dataset.testid === a.testid).indexOf(t);
     }
     const role = (el.getAttribute("role") || "").trim().split(/\s+/)[0];
     if (role) a.role = role;

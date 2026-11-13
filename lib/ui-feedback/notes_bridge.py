@@ -3,7 +3,8 @@
 Usage: python notes_bridge.py --dir DATA_DIR <command>
   ensure-running [--page NAME] [--port P] [--idle-seconds S]
                              start the server on the data dir (or reuse it, unless it started
-                             from another plugin build: then restart it); print its JSON
+                             from another plugin build or frames another page: then restart
+                             it); print its JSON
   serve --port P --nonce N [--page NAME] [--idle-seconds S]
                              run the server in the foreground (ensure-running spawns this)
   apply --file F             merge the session's replies from F into replies.json, then remove F
@@ -167,7 +168,7 @@ class NotesHub(view.ViewHub):
         self.page = self.dir / page
 
     def identity(self):
-        return {"app": NAME}
+        return {"app": NAME, "page": self.page.name}
 
     def read_state(self):
         """The host page's frame: whether the session listens, and each note's progress and reply."""
@@ -303,13 +304,19 @@ def end_server(d, s):
     bridge.clear_session(d, NAME)
 
 
+def other_page(s, page):
+    """Why the running server `s` frames another page than `page`, or None when it frames `page`."""
+    served = (bridge.ping(s["port"]) or {}).get("page")
+    return None if served == page else f"it frames {served}, not {page}"
+
+
 def cmd_ensure_running(d, a):
     if not shutil.which("curl"):
         sys.exit("missing prerequisite: curl (the watcher needs it on PATH)")
     view.private_dir(d)
     s = bridge.read_session(d, NAME)
     live = bool(s and bridge.running(d, s))
-    stale = live and bridge.stale_build(s)
+    stale = live and (bridge.stale_build(s) or other_page(s, a.page))
     if stale:
         end_server(d, s)
         print(f"restarted the {NAME} server: {stale}", file=sys.stderr)

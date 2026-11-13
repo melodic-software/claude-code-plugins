@@ -46,6 +46,21 @@ async page => {
     await frame.evaluate(() => window.focus());
     await page.keyboard.press("Escape");
     ok("Esc in the frame ends pick mode", await page.getAttribute("#pick", "aria-pressed") === "false");
+
+    // A test id on the variant itself: an element inside it with no closer test id is that test id's first match.
+    await frame.evaluate(() => {
+      const v = document.querySelector('[data-variant="B"]'), p = document.createElement("p");
+      v.dataset.testid = "shipments-cards";
+      p.id = "plain";
+      p.textContent = "no test id here";
+      v.append(p);
+    });
+    await page.click("#pick");
+    await inFrame.locator("#plain").click();
+    await page.waitForSelector("#composer:not([hidden])", { timeout: 5000 });
+    const scoped = await page.textContent("#picked");
+    ok("a test id on the variant itself is its first match", /shipments-cards #1(?!\d)/.test(scoped) && !/NaN/.test(scoped), scoped);
+    await page.click("#cancel");
     ok("no page error", errors.length === 0, errors.join(" | "));
   } catch (e) {
     R.push("ERROR " + String(e).split("\n")[0]);

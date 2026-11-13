@@ -400,6 +400,26 @@ class TestLoop(unittest.TestCase):
         self.assertFalse(canary.exists())
         self.assertFalse(sb.ping(session["port"]))
 
+    def test_ensure_running_with_another_page_restarts_on_that_page(self):
+        for name in ("first.html", "second.html"):
+            (self.dir / name).write_text(f"<p>{name}</p>", encoding="utf-8")
+        r = self.control("ensure-running", "--page", "first.html")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        r = self.control("ensure-running", "--page", "second.html")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("frames first.html, not second.html", r.stderr)
+        started = json.loads(r.stdout)
+        self.assertEqual(started["page"], str(self.dir / "second.html"))
+        self.assertEqual(sb.ping(self.session()["port"])["page"], "second.html")
+        conn = http.client.HTTPConnection(
+            "127.0.0.1", self.session()["port"], timeout=TIMEOUT
+        )
+        try:
+            conn.request("GET", "/api/page", headers=SAME_ORIGIN)
+            self.assertIn(b"<p>second.html</p>", conn.getresponse().read())
+        finally:
+            conn.close()
+
     def test_a_note_sent_with_no_watcher_is_listed_by_status_until_handled(self):
         r = self.control("ensure-running")
         self.assertEqual(r.returncode, 0, r.stderr)
