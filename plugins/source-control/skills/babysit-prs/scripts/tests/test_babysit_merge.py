@@ -2853,24 +2853,16 @@ class ForcePushedHeadsTests(unittest.TestCase):
     hold, read across pages; a listing that is not whole raises."""
 
     @staticmethod
-    def page(total: int, oids: list[Any], cursor: str | None = None) -> dict:
+    def answer(items: dict) -> dict:
+        return {"data": {"repository": {"pullRequest": {"timelineItems": items}}}}
+
+    @classmethod
+    def page(cls, oids: list[Any], cursor: str | None = None) -> dict:
         nodes = [
             {"beforeCommit": None if oid is None else {"oid": oid}} for oid in oids
         ]
         info = {"hasNextPage": cursor is not None, "endCursor": cursor}
-        return {
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "timelineItems": {
-                            "totalCount": total,
-                            "pageInfo": info,
-                            "nodes": nodes,
-                        }
-                    }
-                }
-            }
-        }
+        return cls.answer({"pageInfo": info, "nodes": nodes})
 
     def heads(self, *pages: dict) -> tuple[list[str], mock.MagicMock]:
         with mock.patch.object(
@@ -2879,29 +2871,87 @@ class ForcePushedHeadsTests(unittest.TestCase):
             return merge._force_pushed_heads("owner/repo", 5), read
 
     def test_names_each_replaced_head(self) -> None:
-        heads, _ = self.heads(self.page(3, ["a" * 40, None, "b" * 40]))
+        heads, _ = self.heads(self.page(["a" * 40, None, "b" * 40]))
         self.assertEqual(heads, ["a" * 40, "b" * 40])
 
     def test_reads_every_page_by_its_cursor(self) -> None:
         heads, read = self.heads(
-            self.page(101, ["a" * 40] * 100, cursor="next"),
-            self.page(101, ["b" * 40]),
+            self.page(["a" * 40] * 100, cursor="next"),
+            self.page(["b" * 40]),
         )
         self.assertEqual(heads, ["a" * 40] * 100 + ["b" * 40])
         self.assertNotIn("c=next", read.call_args_list[0].args[0])
         self.assertIn("c=next", read.call_args_list[1].args[0])
 
-    def test_a_count_the_pages_do_not_reach_raises(self) -> None:
-        with self.assertRaises(RuntimeError):
-            self.heads(self.page(101, ["a" * 40]))
+    # Recorded GitHub answers to the gate's query with totalCount,
+    # filteredCount and pageCount added: totalCount counts every timeline
+    # item, whatever itemTypes names. Nine items, none a force push:
+    NO_FORCE_PUSH = {
+        "totalCount": 9,
+        "filteredCount": 0,
+        "pageCount": 0,
+        "pageInfo": {"hasNextPage": False, "endCursor": None},
+        "nodes": [],
+    }
+    # Nine items, one a force push:
+    ONE_FORCE_PUSH = {
+        "totalCount": 9,
+        "filteredCount": 1,
+        "pageCount": 1,
+        "pageInfo": {
+            "hasNextPage": False,
+            "endCursor": "Y3Vyc29yOnYyOpPPAAABodNjVagBqzM1OTk2MjA1Njc1",
+        },
+        "nodes": [
+            {
+                "__typename": "HeadRefForcePushedEvent",
+                "beforeCommit": {"oid": "aa6d0971946598e912086838a6af2b21785cf3ec"},
+            }
+        ],
+    }
+
+    def test_other_timeline_items_and_no_force_push_read_as_none(self) -> None:
+        heads, _ = self.heads(self.answer(self.NO_FORCE_PUSH))
+        self.assertEqual(
+            heads, [], "pull request 15846's recorded answer: no head replaced"
+        )
+
+    def test_a_force_push_among_other_items_names_its_head(self) -> None:
+        heads, _ = self.heads(self.answer(self.ONE_FORCE_PUSH))
+        self.assertEqual(
+            heads,
+            ["aa6d0971946598e912086838a6af2b21785cf3ec"],
+            "pull request 15860's recorded answer: one force push replaced aa6d0971",
+        )
+
+    def test_a_page_that_is_not_an_array_raises(self) -> None:
+        for nodes in (None, {}, "nodes"):
+            info = {"hasNextPage": False, "endCursor": None}
+            with (
+                self.subTest(nodes=nodes),
+                self.assertRaises(RuntimeError, msg="a page of nodes not read"),
+            ):
+                self.heads(self.answer({"pageInfo": info, "nodes": nodes}))
+
+    def test_a_page_with_no_pagination_answer_raises(self) -> None:
+        # totalCount matches the nodes, so only the pagination answer is in doubt.
+        for info in (None, {}, {"hasNextPage": None, "endCursor": None}):
+            items = {"totalCount": 1, "nodes": [{"beforeCommit": {"oid": "a" * 40}}]}
+            if info is not None:
+                items["pageInfo"] = info
+            with (
+                self.subTest(pageInfo=info),
+                self.assertRaises(RuntimeError, msg="whether a next page exists"),
+            ):
+                self.heads(self.answer(items))
 
     def test_a_next_page_with_no_cursor_raises(self) -> None:
         with self.assertRaises(RuntimeError):
-            self.heads(self.page(200, ["a" * 40], cursor=""))
+            self.heads(self.page(["a" * 40], cursor=""))
 
     def test_a_listing_past_the_page_cap_raises(self) -> None:
         pages = [
-            self.page(9999, ["a" * 40], cursor=f"c{i}")
+            self.page(["a" * 40], cursor=f"c{i}")
             for i in range(merge._FORCE_PUSH_PAGES)
         ]
         with self.assertRaises(RuntimeError):

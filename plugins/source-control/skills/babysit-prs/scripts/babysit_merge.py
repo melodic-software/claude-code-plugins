@@ -3422,7 +3422,7 @@ def _main_reviews(
 _FORCE_PUSHES_QUERY = (
     "query($o:String!,$r:String!,$n:Int!,$c:String){repository(owner:$o,name:$r){"
     "pullRequest(number:$n){timelineItems(first:100,after:$c,itemTypes:[HEAD_REF_FORCE_PUSHED_EVENT])"
-    "{totalCount pageInfo{hasNextPage endCursor}"
+    "{pageInfo{hasNextPage endCursor}"
     "nodes{... on HeadRefForcePushedEvent{beforeCommit{oid}}}}}}}"
 )
 # A pull request rebased more often than this is past what the gate reads.
@@ -3433,11 +3433,12 @@ def _force_pushed_heads(repo: str, number: int) -> list[str]:
     """The heads force pushes replaced, which the commits list no longer
     names but whose recorded counts still hold, read a page of 100 at a time
     up to _FORCE_PUSH_PAGES. Any doubt raises, so the evidence is unbound
-    rather than missing a count."""
+    rather than missing a count. The listing is whole when its last page says
+    `hasNextPage: false`: the connection's totalCount counts every timeline
+    item, not only the itemTypes asked for, so no count checks it."""
     owner, name = repo.split("/", 1)
     nodes: list[Any] = []
     cursor = None
-    total = None
     for _ in range(_FORCE_PUSH_PAGES):
         args = [
             "api",
@@ -3461,17 +3462,15 @@ def _force_pushed_heads(repo: str, number: int) -> list[str]:
         info = json_object(items.get("pageInfo"))
         if not is_json_array(page):
             raise RuntimeError(f"#{number} force pushes: unread")
-        total = items.get("totalCount")
         nodes.extend(page)
-        if info.get("hasNextPage") is not True:
+        more = info.get("hasNextPage")
+        if more is False:
             break
         cursor = info.get("endCursor")
-        if not isinstance(cursor, str) or not cursor:
-            raise RuntimeError(f"#{number} force pushes: unread")
+        if more is not True or not isinstance(cursor, str) or not cursor:
+            raise RuntimeError(f"#{number} force pushes: unread or incomplete")
     else:
         raise RuntimeError(f"#{number} force pushes: past {_FORCE_PUSH_PAGES} pages")
-    if total != len(nodes):
-        raise RuntimeError(f"#{number} force pushes: unread or incomplete")
     heads = []
     for node in nodes:
         oid = json_object(json_object(node).get("beforeCommit")).get("oid")
