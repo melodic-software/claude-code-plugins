@@ -19,7 +19,9 @@ owns them instead of restating them:
 
 Never write a price, a cache or batch rate, a per-task or per-session cost, or a percentage saving
 into a skill, agent, reference, doc or prompt. A mechanism, such as each turn resending the
-conversation, is fine; the number is the docs' to state.
+conversation, is fine; the number is the docs' to state. `scripts/check-cost-figures.sh` fails
+a figure in the markdown under these paths, outside the two exceptions below, and names the page
+to link.
 
 On a subscription, present the `/usage` session cost as an estimate of the work, not as spend;
 [Using the `/usage` command](https://code.claude.com/docs/en/costs#using-the-%2Fusage-command)
