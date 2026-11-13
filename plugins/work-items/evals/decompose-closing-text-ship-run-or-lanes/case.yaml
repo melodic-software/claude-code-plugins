@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: decompose-closing-text-ship-run-or-lanes
+graders:
+  - name: 'ship-run'
+    type: 'regex'
+    pattern: '/work-items:ship\s+run\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the /work-items:decompose session does with the stated state. PASS only if it satisfies every point: (1) The report after publishing says that at the keyboard the items run with /work-items:ship run, naming the published container ; (2) It says that otherwise the agent-ready items are left for the lanes to pick up ; (3) It keeps the rest of the Step 5 report: the number of items created, the dependency order, and which items are AFK and which HITL. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted.'

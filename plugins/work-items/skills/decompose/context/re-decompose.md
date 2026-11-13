@@ -49,7 +49,8 @@ edited spec, never hand-patched into meaning something the spec no longer says.
 4. **Regenerate remaining items.** Run this skill's normal Steps 2–4 against the edited spec:
    draft the replacement items, present for approval (the gate is mandatory here exactly as for
    a fresh decomposition), then publish via the seam. `create-item` with
-   `--parent "<container-id>"` (when the container exists) and `--blocked-by` wiring the new
+   `--parent "<container-id>"` (when the container exists; with no container and a tracker-item
+   source, `--parent "<source-item-id>"`, as SKILL.md Step 4 says) and `--blocked-by` wiring the new
    native blocker edges. Replacement items are born triaged like any others. The criterion trace
    counts a criterion an implemented child already carries as carried when the child's
    `## Done when` holds that criterion's text unchanged (a trailing `(passes at base; kept: …)`

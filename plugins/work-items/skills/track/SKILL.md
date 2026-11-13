@@ -81,7 +81,7 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 | `audit` | Detect stale claims, orphaned recurring entries, label hygiene; close decomposed parents whose children are done | [actions/audit.md](actions/audit.md) |
 | `publish-plan` | Post an approved PLAN.md to an item as one marked comment, edited in place on re-publish | [actions/publish-plan.md](actions/publish-plan.md) |
 | `link` | The adapter's text linking a change to an item, from an id or a branch name | [actions/link.md](actions/link.md) |
-| `view` | One item's title, state, labels and body | [actions/view.md](actions/view.md) |
+| `view` | One item's title, state, labels and body, and its comments with `--comments` | [actions/view.md](actions/view.md) |
 | `edit` | Change an item's title, body or labels, add a blocked-by edge, or comment | [actions/edit.md](actions/edit.md) |
 | `changes` | Change requests the tracker links as closing an item | [actions/changes.md](actions/changes.md) |
 | `labels` | The live label set, or which named labels are missing | [actions/labels.md](actions/labels.md) |
