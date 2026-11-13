@@ -28,10 +28,11 @@ const field = (value) => (NUMBER.test(value ?? "") ? Number(value) : null);
 
 function parse(line) {
   const [status, limit, remaining, used, reset, resource, route] = line.trim().split(" ");
-  if (route === "rate_limit" || field(status) === null) {
+  const code = field(status);
+  if (route === "rate_limit" || code === null) {
     return null;
   }
-  return { status: Number(status), limit: field(limit), remaining: field(remaining), used: field(used), reset: field(reset), resource };
+  return { status: code, limit: field(limit), remaining: field(remaining), used: field(used), reset: field(reset), resource };
 }
 
 const isReading = ({ limit, remaining, used, reset }) => [limit, remaining, used, reset].every((value) => value !== null);

@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.21] - 2026-11-12
+
+### Changed
+
+- Corrected in place: the released entries [0.3.8] now name the spell-check plugin `spelling`, its current name.
+
 ## [3.0.20] - 2026-11-12
 
 ### Changed

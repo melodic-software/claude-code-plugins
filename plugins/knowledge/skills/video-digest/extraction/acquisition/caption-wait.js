@@ -71,16 +71,10 @@ export function decideCaptionWait({ liveStatus, endedAtMs }, { deadline = null, 
   }
   const heldDeadlineMs = deadline ? Date.parse(deadline) : Number.NaN;
   const held = Number.isFinite(heldDeadlineMs);
-  let deadlineMs;
-  if (held) {
-    deadlineMs = heldDeadlineMs;
-  } else if (endedAtMs !== null) {
-    deadlineMs = endedAtMs + CAPTION_WAIT_MAX_MS;
-  } else if (liveStatus === "was_live") {
+  if (!held && endedAtMs === null && liveStatus === "was_live") {
     return { state: "none" };
-  } else {
-    deadlineMs = nowMs + CAPTION_WAIT_MAX_MS;
   }
+  const deadlineMs = held ? heldDeadlineMs : (endedAtMs === null ? nowMs : endedAtMs) + CAPTION_WAIT_MAX_MS;
 
   if (nowMs < deadlineMs) {
     return {
@@ -110,13 +104,7 @@ export function captionsPendingMessage({ liveStatus, nextCheckAt, deadline }) {
  */
 export function captionsPendingReport(wait) {
   const { liveStatus, nextCheckAt, deadline } = wait;
-  return {
-    captionsPending: true,
-    liveStatus,
-    nextCheckAt,
-    deadline,
-    message: captionsPendingMessage(wait),
-  };
+  return { captionsPending: true, liveStatus, nextCheckAt, deadline, message: captionsPendingMessage(wait) };
 }
 
 /**

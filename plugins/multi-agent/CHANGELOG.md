@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.4] - 2026-11-12
+
+### Changed
+
+- The orchestrator default's recheck trigger now includes a change to the Projects page's coordinator default.
+
 ## [2.1.3] - 2026-11-12
 
 ### Changed

@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.10.10] - 2026-11-12
+
+### Changed
+
+- References to the spell-check plugin use its new name, `spelling`.
+
 ## [2.10.9] - 2026-11-12
 
 ### Changed

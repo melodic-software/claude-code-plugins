@@ -62,7 +62,6 @@ export async function main(env = process.env, { github, now = () => Date.now() }
       }
     } catch (error) {
       console.log(`::warning::the sweep-gap check could not read the last sweep (${error.message}); the sweep runs`);
-      skip = false;
     }
   }
   appendFileSync(env.GITHUB_OUTPUT, `skip=${skip}\n`);

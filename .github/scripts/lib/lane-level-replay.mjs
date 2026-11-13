@@ -57,9 +57,11 @@ function jsonl(path) {
   return rows;
 }
 
-const bucket = (map, hour, init) => {
-  if (!map.has(hour)) map.set(hour, init());
-  return map.get(hour);
+// The higher of each count, against a bucket's earlier peak when it has one.
+const peak = (was, waiting, running) => ({ waiting: Math.max(was?.waiting ?? 0, waiting), running: Math.max(was?.running ?? 0, running) });
+
+const tally = (counts, key) => {
+  counts[key] = (counts[key] ?? 0) + 1;
 };
 
 // events.log lines dated by counting back from endDate (YYYY-MM-DD, the date
@@ -109,7 +111,10 @@ function resetOf(event) {
 // One reading per UTC hour, from the parsed inputs.
 export function hourlyReadings({ windows = [], app = [], events = [], slots = [], concurrency = [], appLimit, breaker = false }) {
   const hours = new Map();
-  const at = (hour) => bucket(hours, hour, () => ({ signals: [], demand: {} }));
+  const at = (hour) => {
+    if (!hours.has(hour)) hours.set(hour, { signals: [], demand: {} });
+    return hours.get(hour);
+  };
 
   for (const row of windows) {
     if (!Number.isFinite(row.used) || !Number.isFinite(row.limit) || row.limit <= 0) continue;
@@ -132,15 +137,13 @@ export function hourlyReadings({ windows = [], app = [], events = [], slots = []
   }
   for (const row of slots) {
     const h = at(hourOf(row.at));
-    h.demand.slots = { waiting: Math.max(h.demand.slots?.waiting ?? 0, row.waiting), running: Math.max(h.demand.slots?.running ?? 0, row.running) };
+    h.demand.slots = peak(h.demand.slots, row.waiting, row.running);
   }
   for (const row of concurrency) {
     const repo = row.repos?.[REPO];
     if (!repo || repo.partial) continue;
     const h = at(hourOf(epochOf(row.ts)));
-    const waiting = (repo.queued_runs ?? 0) + (repo.waiting_runs ?? 0);
-    const running = repo.in_progress_runs ?? 0;
-    h.demand.proxy = { waiting: Math.max(h.demand.proxy?.waiting ?? 0, waiting), running: Math.max(h.demand.proxy?.running ?? 0, running) };
+    h.demand.proxy = peak(h.demand.proxy, (repo.queued_runs ?? 0) + (repo.waiting_runs ?? 0), repo.in_progress_runs ?? 0);
   }
 
   const out = new Map();
@@ -210,14 +213,11 @@ export function summarize(rows, config) {
   const signalKinds = {};
   const busyShares = [];
   for (const [i, row] of rows.entries()) {
-    levels[row.level] = (levels[row.level] ?? 0) + 1;
-    reasons[row.reason] = (reasons[row.reason] ?? 0) + 1;
-    sources[row.source] = (sources[row.source] ?? 0) + 1;
-    for (const kind of new Set(row.readings?.signals ?? [])) signalKinds[kind] = (signalKinds[kind] ?? 0) + 1;
-    if (row.readings?.signals?.length) {
-      const day = isoOf(row.hour).slice(0, 10);
-      tripsPerDay[day] = (tripsPerDay[day] ?? 0) + 1;
-    }
+    tally(levels, row.level);
+    tally(reasons, row.reason);
+    tally(sources, row.source);
+    for (const kind of new Set(row.readings?.signals ?? [])) tally(signalKinds, kind);
+    if (row.readings?.signals?.length) tally(tripsPerDay, isoOf(row.hour).slice(0, 10));
     if (row.reason === "step-up" && rows[i + 1]?.readings?.signals?.length) raisedIntoTrip.push(isoOf(rows[i + 1].hour));
     const app = row.readings?.pools?.["lanes-app"];
     if (app && row.demand && (row.demand.waiting > 0 || row.demand.running >= (row.before ?? config["lane-level"].default))) busyShares.push(app.used / app.limit);
@@ -273,16 +273,17 @@ export function main(argv = process.argv.slice(2), log = (text) => console.log(t
   const eventsText = readFileSync(values.events, "utf8");
   const endDate = values["events-end-date"] ?? statSync(values.events).mtime.toISOString().slice(0, 10);
   const events = datedEvents(eventsText, endDate);
+  const appLimit = Number(values["app-limit"]);
   const byHour = hourlyReadings({
     windows: jsonl(values.windows),
     app: jsonl(values.app),
     events,
     slots: values.slots ? parseSlots(readFileSync(values.slots, "utf8")) : [],
     concurrency: values.concurrency ? jsonl(values.concurrency) : [],
-    appLimit: Number(values["app-limit"]),
+    appLimit,
     breaker: values.signals === "all",
   });
-  const end = values.end ? hourOf(epochOf(values.end)) : hourOf(Math.floor(Date.now() / 1000));
+  const end = hourOf(values.end ? epochOf(values.end) : Math.floor(Date.now() / 1000));
   const start = end - Number(values.days) * 24 * HOUR;
   const laneLevel = {
     ...LANE_LEVEL_DEFAULTS,
@@ -297,7 +298,7 @@ export function main(argv = process.argv.slice(2), log = (text) => console.log(t
     for (const row of rows) log(line(row));
   }
   const summary = summarize(rows, config);
-  log(JSON.stringify({ from: isoOf(start), to: isoOf(end), appLimit: Number(values["app-limit"]), pools: laneLevel.pools, signals: values.signals, actualLevel: actual, eventsDating: anchorMisses(events), ...summary }, null, 2));
+  log(JSON.stringify({ from: isoOf(start), to: isoOf(end), appLimit, pools: laneLevel.pools, signals: values.signals, actualLevel: actual, eventsDating: anchorMisses(events), ...summary }, null, 2));
   return summary;
 }
 

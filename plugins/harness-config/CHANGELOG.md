@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.5.22] - 2026-11-12
+
+### Changed
+
+- `audit`: the sandbox guidance audits each surface the sandbox leaves out against its own control and reports egress to an unlisted host as blocked only when the permission mode and settings refuse it.
+
 ## [3.5.21] - 2026-11-12
 
 ### Changed
