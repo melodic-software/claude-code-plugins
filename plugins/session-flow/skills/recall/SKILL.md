@@ -32,30 +32,39 @@ pattern. Name the terms in the report.
 
 ## Step 2: Resolve the settings
 
-Resolve `transcript_scope` once, as
+Three settings resolve here, as
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md)
-describes. The user option is `${user_config.transcript_scope}`; a literal, unexpanded
-placeholder means unset, which counts as `worktree`. The repository value is read only when the
-git root is neither `$HOME` nor an ancestor of it: run
-`node "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs" --check --root "<git root>"`,
-then
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh" "<git root>/docs/conventions/session-flow.yaml" transcript_scope`.
-The narrower layer wins (`worktree` < `repo` < `all`). An invalid value in either layer is named
+describes. Each has two layers besides its default:
+
+- **User option.** Claude Code writes its value into this text when the skill loads:
+  `transcript_scope` = `${user_config.transcript_scope}`, `recall_report_kinds` =
+  `${user_config.recall_report_kinds}`, `recall_doc_paths` = `${user_config.recall_doc_paths}`.
+  Read the values here. A value that still reads as a `${user_config.` placeholder means the option
+  is unset. Never put a placeholder in a shell command: no shell holds these values.
+- **Repository value.** Run each command below as its own Bash call, with the git root written out
+  as a literal path. Do not use a loop, `$( )`, a variable or `&&`/`;` chaining. First run
+  `git rev-parse --show-toplevel`. When that root is `$HOME` or an ancestor of it, skip this layer.
+  Otherwise run
+  `node "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs" --check --root "<git root>"`.
+  Then run the reader once per key, three calls in all, each naming one key:
+  `bash "${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh" "<git root>/docs/conventions/session-flow.yaml" <key>`.
+
+For `transcript_scope`, an unset user option counts as `worktree`. The narrower layer wins (`worktree` < `repo` < `all`). An invalid value in either layer is named
 and dropped, and neither stops the run. An invalid user value is named with its option, key and
 value, then counts as unset. An invalid repository value is named with its file, key and value,
 and the key resolves `worktree`. Report one line, for example
 `transcript_scope: worktree (user option unset; docs/conventions/session-flow.yaml says repo)`, or
 `transcript_scope: worktree (user option value 'everything' is not worktree, repo or all; dropped)`.
 
-Resolve `recall_report_kinds` and `recall_doc_paths` the same way, through the same check and
-reader, except that the later layer wins (repository file over user option over default). Each is a
+For `recall_report_kinds` and `recall_doc_paths` the later layer wins (repository file over user
+option over default). Each is a
 comma-separated list; an empty entry, a quote, or a `recall_doc_paths` entry holding anything but
 letters, digits and `_*?./[]-`, starting with `/`, or holding `..` makes the value invalid, and an
-invalid layer is named and dropped. `${user_config.recall_report_kinds}` names the item kinds that count as an incident or a
+invalid layer is named and dropped. `recall_report_kinds` names the item kinds that count as an incident or a
 user report, default `Bug`. Each entry is an issue type or a label, read through the work-items
 label taxonomy: it matches an item whose native issue type is that name, or that carries a label
 of that name or the `type:` label of that name (`type: bug` for `Bug`), ignoring case and surrounding spaces.
-`${user_config.recall_doc_paths}` names the git pathspecs searched for postmortems, default `*.md`
+`recall_doc_paths` names the git pathspecs searched for postmortems, default `*.md`
 (every tracked markdown file). Report one line per key, for example
 `recall_report_kinds: Bug (default)`.
 
@@ -130,15 +139,22 @@ Run each source that is available, and name any that is not:
   no label that names its kind. A match whose kind nothing read shows is of unknown kind: run the
   checks below on it too, and report each one it meets with its kind unconfirmed rather than
   dropping it.
-  Then read the state history of the matches of a `recall_report_kinds` kind or of unknown kind
-  with `/work-items:track view '<id>' --history` (add `--history` to the kind read above rather
-  than viewing an item twice), newest first, at most ten items. Each read is one
-  more tracker request per item, and ten covers the matches of a focused topic. Name the items past
-  the cap as "history not read (over the cap of 10)". The block's `state_history` gives one of three
-  answers: `available: true` lists the item's `closed` and `reopened` events; `available: false`
-  says the tracker cannot report history, with its `reason`; a failed read is an error. Report each
-  of the three as what it is.
-  Among those matches, mark as still reported:
+- **Tracker state history: always run this after a search that matched.** Run
+  `/work-items:track view '<id>' --history` for every match of a `recall_report_kinds` kind or of
+  unknown kind, open or closed. Do it even when the search rows already show the item's kind and
+  state. A search row shows only whether an item is open or closed now, never whether it was closed
+  and reopened. This read is the only place a reopen shows up.
+  - For an item that also needs the kind read above, run one call with both flags:
+    `view '<id>' --comments --history`.
+  - Take the newest matches first, at most ten items. Each read is one more tracker request, and
+    ten covers the matches of a focused topic. Name the items past the cap as "history not read
+    (over the cap of 10)".
+  - The block's `state_history` gives one of three answers. Report each as what it is:
+    - `available: true` lists the item's `closed` and `reopened` events;
+    - `available: false` says the tracker cannot report history, and gives its `reason`;
+    - a failed read is an error.
+- **Still reported.** Among the matches of a `recall_report_kinds` kind or of unknown kind, mark as
+  still reported:
   - each item whose history shows it closed and later reopened (`reopen_count` 1 or more), whether
     it is open now or was closed again, with each close and reopen date, and the count when it was
     reopened more than once;

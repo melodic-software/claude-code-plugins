@@ -1,5 +1,5 @@
 {
   "name": "work-items",
   "version": "0.0.0",
-  "description": "Eval-only stand-in for the work-items plugin: a track skill whose search and view answer from fixed items, one of them closed and reopened with no text saying so."
+  "description": "Eval-only stand-in for the work-items plugin: a track skill whose search and view answer from two fixed items through a bundled reader."
 }
