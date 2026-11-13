@@ -164,6 +164,22 @@ test('no progress: two consecutive rounds without a lower failure count stop the
   assert.equal(result.green, false)
   assert.equal(result.remaining.length, 2)
   assert.equal(by(calls, 'run:').length, 3)
+  assert.deepEqual(result.stalledRootCauses, ['off by one'])
+})
+
+test('a no-progress stop reports the root causes of the two stalled rounds only', async () => {
+  const runs = [red(fail('a.test.js', 3)), red(fail('a.test.js', 2)), red(fail('a.test.js', 2)), red(fail('a.test.js', 2))]
+  const cause = c => () => ({ status: 'fixed', rootCause: c, filesChanged: ['a.test.js'] })
+  const over = { 'fix:1:1': cause('stale cache'), 'fix:2:1': cause('timezone offset'), 'fix:3:1': cause('timezone parsing') }
+  const { result } = await run({ command: 'npm test', maxRounds: 5 }, makeReply(runs, over))
+  assert.equal(result.stoppedBecause, 'no-progress')
+  assert.deepEqual(result.stalledRootCauses, ['timezone offset', 'timezone parsing'])
+})
+
+test('a stop other than no-progress reports no stalled root causes', async () => {
+  const { result } = await run({ command: 'npm test', maxRounds: 1 }, makeReply([red(fail('a.test.js', 2))]))
+  assert.equal(result.stoppedBecause, 'max-rounds')
+  assert.deepEqual(result.stalledRootCauses, [])
 })
 
 test('one round of progress resets the no-progress count', async () => {
@@ -236,6 +252,7 @@ test('every fixer returning null still gets the check, and the no-progress stop 
   const { result, calls } = await run({ command: 'npm test' }, makeReply([stuck], { 'fix:1:1': null, 'fix:2:1': null }))
   assert.equal(by(calls, 'check:').length, 2)
   assert.equal(result.stoppedBecause, 'no-progress')
+  assert.deepEqual(result.stalledRootCauses, [])
 })
 
 test('a null fixer before a green re-run still gets the final verifier', async () => {
