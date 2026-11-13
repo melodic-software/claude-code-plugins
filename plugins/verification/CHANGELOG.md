@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0] - 2026-11-13
+
+### Added
+
+- `confirm-verdict.sh` takes an optional `--dir <checkout>` naming the checkout whose common git directory holds the verdict record (`CONFIRM_VERDICT_DIR` still wins). Without `--dir`, it uses the current directory as before.
+
 ## [0.22.7] - 2026-11-13
 
 ### Changed
