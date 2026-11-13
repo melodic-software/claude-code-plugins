@@ -330,7 +330,7 @@ nothing. Pointer: for the `CLAUDE_EFFORT` variable, see the `effort` row of
 when the lane is not paused or the tripping snapshot could not attribute the account.
 [reference/paused-wait.md](reference/paused-wait.md) owns the format.
 
-`usage_sample` copies the **same** two window percentages the rate-limit guard step below already
+`usage_sample` copies the **same** two window percentages the rate-limits floor step below already
 read at this cycle's **start**, never a second reading, so `at` is when the lane read the snapshot
 file, not the snapshot's own `captured_at` (which the staleness rule lets lag it) and never the
 report time. `at` is always written, so a cycle that could not observe stays distinguishable from

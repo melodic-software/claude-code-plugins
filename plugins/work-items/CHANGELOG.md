@@ -5610,7 +5610,7 @@ verified to go red without it.
   driving decisions via `/planning:interview` (presence-gated), writing answers back as issue
   comments, and flipping unblocked items to the autonomous-eligible role in a single edit. Both
   lanes hold shared loop-layer concerns by citation to the loop-lane convention, inline the
-  rate-limit guard's operable floor byte-identically per its inline-floor rule, and inline the
+  rate-limits operable floor byte-identically per its inline-floor rule, and inline the
   `claude-ops`-compatible sentinel telemetry upsert (an installed plugin cannot invoke a sibling
   plugin's scripts).
 - **`work` gains an autonomous invocation path.** When invoked by a loop lane or another

@@ -124,7 +124,7 @@ id, so write nothing, escalate, and stop. Write `paused_until` before entering a
 a paused lane is never adopted as a dead one. That reference also owns the `instance:` cycle-report
 line.
 
-`usage_sample` copies the **same** two window percentages the rate-limit guard step below already
+`usage_sample` copies the **same** two window percentages the rate-limits floor step below already
 read at this cycle's **start**, never a second reading, so `at` is when the lane read the snapshot
 file, not the snapshot's own `captured_at` (which the staleness rule lets lag it) and never the
 report time. `at` is always written, so a cycle that could not observe stays distinguishable from

@@ -1461,7 +1461,7 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh zizmor {0}
         run: scripts/run-zizmor.sh
 
-      # The rate-limit guard's operable floor is INLINED into six surfaces on
+      # The rate-limits operable floor is INLINED into six surfaces on
       # purpose: an installed plugin cannot read a sibling plugin's files at
       # runtime, so a lane body that only cited the contract could never apply
       # it. cross-plugin-source-drift cannot see that set — it skips SKILL.md by

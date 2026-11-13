@@ -892,7 +892,7 @@ changes is recorded in this convention's [`CHANGELOG.md`](CHANGELOG.md).
 
 The lanes model subscription (Pro/Max) usage as two limits, one over the last five hours and one
 over the week, and
-act only on the operable pause floor in the rate-limit guard binding (§6); the cap's scoping and
+act only on the operable pause floor in the rate-limits binding (§6); the cap's scoping and
 limits are not restated here.
 
 - **Pointer**: for the subscription usage windows and caps, see the

@@ -10253,7 +10253,7 @@ Internal simplification, no behavior change.
   by a reviewable PR, is the recorded lane-enabling act. Shared cross-lane concerns are held by
   citation to the marketplace repository's `docs/conventions/loop-lane/` convention: topology, stop
   shapes including the drain-terminal state, cycle-budget and expiry semantics, capability tiers,
-  and the subagent discipline preamble. The rate-limit guard's operable floor
+  and the subagent discipline preamble. The rate-limits operable floor
   is inlined verbatim per that convention's inline-floor rule. `reference/config-resolution.md`
   widens accordingly: the layered `.claude/source-control.md` surface now documents the
   `babysit_loop_*` key family (stop mode, tier preset, per-dimension overrides, grace-window width,

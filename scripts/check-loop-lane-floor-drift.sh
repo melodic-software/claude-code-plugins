@@ -419,7 +419,7 @@ done
 if ((errors != 0)); then
   cat >&2 <<EOF
 
-The rate-limit guard's operable floor is inlined on purpose: an installed
+The rate-limits operable floor is inlined on purpose: an installed
 plugin cannot read a sibling plugin's files at runtime, so every consumer
 carries its own copy (docs/contracts/loop-lane/README.md section 6). The
 values are DECIDED in one place only:

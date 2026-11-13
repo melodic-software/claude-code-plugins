@@ -392,7 +392,7 @@ Patch. Wording only; no value, topology or invariant changed.
 
 ## [11.0.0] - 2026-10-11
 
-Major. The rate-limit guard binding (§6) changes what every lane does at the pause threshold.
+Major. The rate-limits binding (§6) changes what every lane does at the pause threshold.
 
 - **Pausing is opt-in (§6).** The inlined floor's **Pause threshold** and **Drain-then-pause**
   bullets now pause only a lane whose session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1`.
@@ -477,7 +477,7 @@ changed.
 
 Additive, minor. Section 6 records that the account-identity resolution is built on all three
 sides. No topology, escalation-contract, or tier-vocabulary change, and no §4 loop-layer invariant
-changed: the account-switch rule lives in the §6 rate-limit guard floor.
+changed: the account-switch rule lives in the §6 rate-limits floor.
 
 - **Reader-side invalidation is built (§6).** Lanes read `.oauthAccount.emailAddress` directly from
   `.claude.json` while paused and drop a latched pause on an account change when the new account is
@@ -1026,7 +1026,7 @@ considered and not taken. Each entry below records both cases.
   re-audit a floor change obliges). `rate-limits` 0.2.0 drops its own duplicate copy and cites
   this section. **No lane obligation changes:** naming a gap removes false assurance without adding
   a requirement any lane body would have to inline, which is why the lane-floor fan-out belongs to
-  the design issue and not here. **Bump ambiguity:** §6 is the rate-limit guard binding rather than
+  the design issue and not here. **Bump ambiguity:** §6 is the rate-limits binding rather than
   a §4 loop-layer invariant, and this revision is now framing-only, which reads as additive guidance
   and a **minor**; but it still revises a stated operating premise every consuming lane inlines,
   which reads as a change to a shared invariant and a **major**.
@@ -1063,7 +1063,7 @@ these concerns across two plugins.
   preamble.
 - **Launch surfaces.** `/loop` primary and dependency-free; `claude-ops` `lanes` a one-directional
   supporting launcher (#480), presence-gated with a `/loop` fallback.
-- **Rate-limit guard binding.** Each lane inlines the operable pause floor and cites the guard
+- **Rate-limits binding.** Each lane inlines the operable pause floor and cites the guard
   reader contract for provenance; single-account-per-machine invariant; per-cycle guard-mode
   telemetry.
 

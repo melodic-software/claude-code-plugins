@@ -509,7 +509,7 @@ them
 "Telemetry and durable loop state").
 
 **Both lanes share one subscription's rate-limit windows.** Each lane reads the
-same rate-limit guard floor
+same rate-limits floor
 ([`/work-items:work-loop`](../../plugins/work-items/skills/work-loop/SKILL.md#rate-limits-floor-inlined)).
 A pause recorded there applies to every lane that is running.
 
