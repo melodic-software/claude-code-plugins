@@ -24,8 +24,9 @@ const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SELF = fileURLToPath(import.meta.url);
 const DEFAULT_IMAGE = 'mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04';
 const DEFAULT_DOC = join(PLUGIN_ROOT, 'reference', 'read-safety-measurement.md');
-const START = '<!-- measure-read-safety:results:start -->';
-const END = '<!-- measure-read-safety:results:end -->';
+// The form the ai-slop audit skips, so its fix pass never edits the measured results.
+const START = '<!-- BEGIN GENERATED: measure-read-safety results. Run node plugins/sql-server/scripts/measure-read-safety.mjs -->';
+const END = '<!-- END GENERATED: measure-read-safety results -->';
 const DB = 'measure';
 const ROWS = 200_000;
 const LOCKED_ID = 150_000;

@@ -426,13 +426,14 @@ class MarkerFormTests(unittest.TestCase):
         _, error = overlap.render_view([deep_copy(BASE_ROW)], text)
         self.assertIn(message, error)
 
-    def test_a_new_view_gets_the_start_and_end_markers(self):
+    def test_a_new_view_gets_the_begin_generated_markers(self):
         self.repo.view_path.unlink(missing_ok=True)
         self.assertEqual(self.repo.generate(), 0)
         text = self.repo.view_path.read_text(encoding="utf-8")
-        self.assertIn(f"\n{OLD_MARKERS[0]}\n", text)
-        self.assertTrue(text.endswith(f"\n{OLD_MARKERS[1]}\n"))
-        self.assertNotIn("BEGIN GENERATED", text)
+        self.assertIn(f"\n{GENERATED_MARKERS[0]}\n", text)
+        self.assertTrue(text.endswith(f"\n{GENERATED_MARKERS[1]}\n"))
+        self.assertNotIn("native-surfaces:start", text)
+        self.assertEqual(self.repo.generate(["--check"]), 0)
 
     def test_each_form_regenerates_in_place_and_then_passes_check(self):
         for start, end in (OLD_MARKERS, GENERATED_MARKERS):
@@ -475,7 +476,7 @@ class MarkerFormTests(unittest.TestCase):
         text = self.write_view(*OLD_MARKERS, GENERATED_MARKERS[1])
         self.assert_refused(
             text,
-            f"more than one form ({OLD_MARKERS[0]}, {OLD_MARKERS[1]}; {GENERATED_MARKERS[1]})",
+            f"more than one form ({GENERATED_MARKERS[1]}; {OLD_MARKERS[0]}, {OLD_MARKERS[1]})",
         )
 
     def test_a_generated_body_holding_a_marker_line_fails_before_writing(self):
