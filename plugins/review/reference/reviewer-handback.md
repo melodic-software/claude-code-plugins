@@ -40,20 +40,30 @@ counts: <tier>=<n>, ...
 summary: <one paragraph at most>
 ```
 
+With a findings path, the agent writes a checkpoint to it early, ending `Coverage: in progress`,
+and replaces it with the final report. Settle which text is the report first, then run the
+Incomplete reply check on it:
+
 - `persistence: written`: Read the report from your own copy of the path, never from the
   `artifact:` value. A missing or empty file means the reviewer returned no report.
-- `persistence: by-value`, or a reply with no block: the reply is the report. Write it to your
-  path yourself, replacing any checkpoint the agent left there, then read it as above.
+- `persistence: by-value` with a report, in a result not marked partial: the reply is the report
+  and wins over a checkpoint at the path (the agent's final write failed). Write it to your path
+  yourself, replacing that checkpoint, then read it as above.
+- A reply with no block, or a result marked partial: when the path holds no file or an empty one,
+  a reply that holds a report is written there as above. Never write such a reply over a file with
+  content, least of all one ending `Coverage: in progress`: that checkpoint is the report, and it
+  is incomplete.
 
 Every check a caller runs on the report (the `Criteria read:` and `Coverage:` lines, finding
 verification, severity folding) runs on the file's contents, not on the summary.
 
 ### Incomplete reply
 
-With a findings path, the agent writes a checkpoint to it early, ending `Coverage: in progress`,
-and replaces it with the final report. A reply is incomplete when any of these holds:
+A reply is incomplete when any of these holds:
 
-- the Agent result is marked partial (the agent stopped at its `maxTurns` cap);
+- the Agent result is marked partial: the agent stopped at its `maxTurns` cap, per the `maxTurns`
+  row of
+  [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields);
 - there is no handback block and no report;
 - the file is missing or empty;
 - the file's `Coverage:` line is missing or reads `Coverage: in progress`.
@@ -61,10 +71,10 @@ and replaces it with the final report. A reply is incomplete when any of these h
 Recover it once: resume the same agent with SendMessage to its agent ID, per
 [sub-agents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents), with
 "Stop investigating. Write your report now to the same findings path with what you have, end it
-with a Coverage line naming the files you did not reach, and reply with the handback block."
-Never dispatch a fresh agent instead: it starts from zero and meets the same cap. Re-read the
-file; when it is still incomplete, the review is a partial result and the caller names what was
-missed.
+with a Coverage line naming the files you did not reach, or `Coverage: all changed files reviewed`
+when you reached every one, and reply with the handback block." Never dispatch a fresh agent
+instead: it starts from zero and meets the same cap. Re-read the file; when it is still
+incomplete, the review is a partial result and the caller names what was missed.
 
 Only `Coverage: all changed files reviewed` can be clean; any other value is a partial result
 naming what was missed. A caller with no SendMessage tool or no agent ID, such as a workflow leaf,

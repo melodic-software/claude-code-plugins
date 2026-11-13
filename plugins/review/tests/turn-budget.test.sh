@@ -45,7 +45,7 @@ facts() {
     sec == "Output format" && index($0, "Criteria read:") { print "out_criteria=1" }
     sec == "Output format" && index($0, "Coverage:") { print "out_coverage=1" }
     sec == "Handback" && index($0, "Findings path:") { print "handback=1" }
-    sec == "Handback" && index($0, s) && index($0, "No findings.") { print "never=1" }
+    sec == "Handback" && index($0, s) && index($0, "never holds `No findings.`") { print "never=1" }
   ' "$1"
 }
 
@@ -91,14 +91,30 @@ for a in "${!FACTS[@]}"; do
 done
 
 # Every consumer of the findings file names the same sentinel.
-for rel in reference/reviewer-handback.md skills/quality-gate/context/security.md workflows/fanout-sweep.js; do
+for rel in reference/reviewer-handback.md skills/quality-gate/context/security.md skills/quality-gate/context/self.md workflows/fanout-sweep.js; do
   assert_contains "$rel names the checkpoint sentinel" "$(<"$PLUGIN_DIR/$rel")" "$SENTINEL"
 done
 
-# reviewer-handback.md "After the reply" gives the resume recovery and the partial result.
-after="$(awk '/^## / { on = ($0 == "## After the reply"); next } on' "$PLUGIN_DIR/reference/reviewer-handback.md")"
+# reviewer-handback.md "After the reply", one list item or paragraph per line, wrapping joined.
+after="$(awk '
+  /^## / { on = ($0 == "## After the reply"); next }
+  !on { next }
+  /^[[:space:]]*$/ || /^- / { if (item != "") print item; item = "" }
+  { sub(/^[[:space:]]+/, ""); item = item == "" ? $0 : item " " $0 }
+  END { if (item != "") print item }
+' "$PLUGIN_DIR/reference/reviewer-handback.md")"
 assert_contains "reviewer-handback.md After the reply names SendMessage" "$after" "SendMessage"
 assert_contains "reviewer-handback.md After the reply names a partial result" "$after" "partial"
+assert_contains "reviewer-handback.md After the reply lets only full coverage be clean" "$after" \
+  "Only \`Coverage: all changed files reviewed\` can be clean"
+# A reply with no block must never be written over the agent's checkpoint.
+keeps=0 clobbers=0
+while IFS= read -r item; do
+  [[ $item == *"Never write"* && $item == *"$SENTINEL"* ]] && keeps=1
+  [[ $item == *"no block"* && ($item == *"the reply is the report"* || $item == *"replacing"*) ]] && clobbers=1
+done <<<"$after"
+if ((keeps)); then pass "reviewer-handback.md never writes a reply over a checkpoint"; else fail "reviewer-handback.md never writes a reply over a checkpoint" "no item pairs 'Never write' with '$SENTINEL'"; fi
+if ((clobbers)); then fail "reviewer-handback.md does not take a no-block reply as the report" "an item pairs 'no block' with taking or writing the reply as the report"; else pass "reviewer-handback.md does not take a no-block reply as the report"; fi
 
 if ((FAILED)); then
   printf '%d assertion(s) failed\n' "$FAILED" >&2

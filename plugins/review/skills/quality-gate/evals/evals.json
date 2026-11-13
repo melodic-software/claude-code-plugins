@@ -209,11 +209,11 @@
       "id": 17,
       "name": "self-mode-worker-returns-no-report-is-partial-gate",
       "prompt": "/review:quality-gate self\n\nThe reviewer worker for my 17-file change came back with only a short message saying it ran out of turns and no findings table. Finish the self review.",
-      "expected_output": "A worker return with no report is a partial gate. The orchestrator resumes the worker once with a write-now instruction for the report, not a fresh dispatch; if the gate is still partial, the verdict and the findings artifact say the gate is partial and name what was missed. It does not treat the empty return as no findings.",
+      "expected_output": "A worker return with no report is a partial gate. When the orchestrator holds the worker's agent ID it resumes the worker once with a write-now instruction for the report; without the ID it reports the gate partial. It never dispatches a fresh worker from zero for the missing report. If the gate is still partial, the verdict and the findings artifact say the gate is partial and name what was missed. It does not treat the empty return as no findings.",
       "files": [],
       "expectations": [
         "Treats a worker return with no report as a partial gate, not as a clean pass",
-        "Resumes the worker once with a write-now instruction for the report rather than dispatching a fresh worker from zero",
+        "Resumes the worker once with a write-now instruction when it holds the worker's agent ID, and otherwise reports the gate partial; never dispatches a fresh worker from zero for the missing report",
         "If still partial, the verdict and findings artifact state the gate is partial and name what was missed",
         "Does not present the gate as clean or report no findings on the strength of the empty return"
       ]
@@ -439,11 +439,11 @@
       "id": 34,
       "name": "security-mode-reviewer-returns-no-report-is-partial-gate",
       "prompt": "/review:quality-gate security\n\nThe security reviewer for my 22-file change came back with no report and no handback block, and no findings file exists at the path I gave it. Finish the security review.",
-      "expected_output": "A security reviewer return with no report and no findings file is a partial gate. The orchestrator resumes the same reviewer once with a write-now instruction to write what it has to the same findings path and end it with a Coverage line, rather than dispatching a fresh reviewer from zero. If the return is still incomplete, the verdict and the findings artifact say the gate is partial and name what was missed. It never reports the gate as clean.",
+      "expected_output": "A security reviewer return with no report and no findings file is a partial gate. When the orchestrator holds the reviewer's agent ID it resumes the same reviewer once with a write-now instruction to write what it has to the same findings path and end it with a Coverage line; without the ID it reports the gate partial. It never dispatches a fresh reviewer from zero. If the return is still incomplete, the verdict and the findings artifact say the gate is partial and name what was missed. It never reports the gate as clean.",
       "files": [],
       "expectations": [
         "Treats a security reviewer return with no report and no findings file as a partial gate, not as a clean pass",
-        "Resumes the same reviewer once with a write-now instruction rather than dispatching a fresh reviewer",
+        "Resumes the same reviewer once with a write-now instruction when it holds the reviewer's agent ID, and otherwise reports the gate partial; never dispatches a fresh reviewer from zero",
         "If still incomplete, the verdict and findings artifact state the gate is partial and name what was missed",
         "Does not present the gate as clean or report no findings on the strength of the empty return"
       ]
@@ -452,11 +452,11 @@
       "id": 35,
       "name": "security-mode-checkpoint-file-in-progress-is-partial-gate",
       "prompt": "/review:quality-gate security\n\nThe security reviewer for my change set wrote its findings file, but the file's last line reads `Coverage: in progress` and the reply had no handback block. Finish the security review.",
-      "expected_output": "A findings file whose Coverage line reads `Coverage: in progress` is a checkpoint, not a final report, so the gate is partial. The orchestrator resumes the same reviewer once with a write-now instruction to replace the checkpoint with its final report at the same path. If the file still reads in progress, or its Coverage line names unreached files, the verdict and the findings artifact say the gate is partial, carry the checkpoint's findings, and name what was missed. It never reports the gate as clean.",
+      "expected_output": "A findings file whose Coverage line reads `Coverage: in progress` is a checkpoint, not a final report, so the gate is partial. When the orchestrator holds the reviewer's agent ID it resumes the same reviewer once with a write-now instruction to replace the checkpoint with its final report at the same path; without the ID it reports the gate partial with the checkpoint's findings. It never dispatches a fresh reviewer from zero and never overwrites the checkpoint with the reply. If the file still reads in progress, or its Coverage line names unreached files, the verdict and the findings artifact say the gate is partial, carry the checkpoint's findings, and name what was missed. It never reports the gate as clean.",
       "files": [],
       "expectations": [
         "Treats a findings file ending `Coverage: in progress` as an incomplete checkpoint, not as a final report",
-        "Resumes the same reviewer once with a write-now instruction rather than dispatching a fresh reviewer",
+        "Resumes the same reviewer once with a write-now instruction when it holds the reviewer's agent ID, and otherwise reports the gate partial with the checkpoint's findings; never dispatches a fresh reviewer from zero and never overwrites the checkpoint with the reply",
         "If still incomplete, the verdict and findings artifact state the gate is partial, keep the checkpoint's findings, and name what was missed",
         "Does not present the gate as clean while the Coverage line is anything other than `all changed files reviewed`"
       ]

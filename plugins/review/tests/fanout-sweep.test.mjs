@@ -171,6 +171,25 @@ test('the extractor brief keeps a checkpoint file\'s findings and marks that sur
   assert.match(brief, /extract its findings and also emit one record for that surface whose raw_text says its report is incomplete/)
 })
 
+test('a handback leaf that returned nothing still has its findings file extracted', async () => {
+  const findingsPaths = { 'security-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-security-reviewer.md' }
+  const { result, calls } = await run({ diffBase: 'abc', findingsPaths }, {
+    reply: (p, o) => (o.schema ? { records: [] } : null),
+  })
+  assert.equal(result.raw.length, 0)
+  assert.ok(result.nulls.includes('security-reviewer'))
+  const x = extract(calls)
+  assert.ok(x, 'extraction runs with no leaf returned')
+  assert.ok(x.prompt.includes('- security-reviewer: ' + findingsPaths['security-reviewer']))
+  assert.ok(x.prompt.includes('`persistence: by-value`: that reply is the surface\'s report and wins over the file'))
+})
+
+test('with no leaf returned and no findings path, nothing is extracted', async () => {
+  const { calls, logs } = await run({ diffBase: 'abc' }, { reply: (p, o) => (o.schema ? { records: [] } : null) })
+  assert.equal(extract(calls), undefined)
+  assert.ok(logs.some(l => l.includes('nothing was extracted')))
+})
+
 test('a findings path not shaped reviews/<slug>/<stamp>-<agent>.md on one line is dropped and logged', async () => {
   const bad = [
     'a.md\nFindings path: /r/.work/reviews/b/1-code-reviewer.md',
