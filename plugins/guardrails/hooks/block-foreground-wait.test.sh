@@ -75,7 +75,7 @@ allow "until in single quotes" "echo 'retry; until it works'"
 allow "until in ANSI-C quotes with an escaped quote" "echo \$'it\\'s; until x'"
 allow "until in a comment" "ls # loop; until done"
 allow "until in a heredoc body" "cat > notes.md <<'EOF'${NL}until the fix lands${NL}EOF"
-allow "untill is not until" 'untill x; do y; done'
+allow "a word that starts with until is not until" 'until_ready x; do y; done'
 allow "--watch in quotes" 'gh issue create --title "add --watch support"'
 allow "--watch after --" 'grep -- --watch README.md'
 allow "--watch printed by echo" 'echo --watch'
