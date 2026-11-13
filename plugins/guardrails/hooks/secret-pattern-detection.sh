@@ -16,9 +16,9 @@
 # Consumer seams: scoped to $CLAUDE_PROJECT_DIR (files outside it are another
 # repo's concern) only when that root is a git work tree that is not home or an
 # ancestor of home; any other root scans every write, as if unset. A file under
-# a host temp tree is declined when a set root lies outside that tree, no wider
-# than block-hook-bypass's temp default (see spd_temp_declines). A generic
-# allowlist exempts dependency caches, .env examples, test fixtures, and
+# a host temp tree is declined when a set root lies outside that tree (see
+# spd_temp_declines). A generic allowlist exempts dependency caches, .env
+# examples, test fixtures, and
 # machine-local CC state. Two opt-in userConfig options exempt a local write
 # that holds a token: secret_pattern_detection_allowed_roots and
 # secret_pattern_detection_skip_gitignored (see "The user's path exemptions"
@@ -332,8 +332,7 @@ ALLOW_FILE="${FILE//\\//}"
 #     spelled, not of a symlinked home's resolved target.
 # Every test is a builtin, so the check stays fork-free.
 # The temp-tree decline below reads CLAUDE_PROJECT_DIR directly, so a root
-# cleared here (home, non-git) still declines a temp-tree file outside it,
-# as block-hook-bypass exempts the same redirect.
+# cleared here (home, non-git) still declines a temp-tree file outside it.
 spd_scope_root="${CLAUDE_PROJECT_DIR:-}"
 spd_scope_root="${spd_scope_root//\\//}"
 PROJECT_DIR=""
@@ -399,16 +398,16 @@ fi
 #   - CC skill context/completed: research notes; code review is the backstop
 secret_path_allowlisted "$ALLOW_FILE" && exit 0
 
-# --- Temp-tree decline, no wider than block-hook-bypass's temp default ---
-# block-hook-bypass exempts a Bash redirect into a host temp tree when the
-# project root is known and outside that tree. The gate below is never wider than that exemption: root set, spelled as its _norm_path
-# accepts, and under temp neither lexically nor physically; target under temp
-# both as spelled and once its nearest existing ancestor is physically resolved,
-# so a link under temp pointing elsewhere is still scanned. Everything up to
-# the resolve step is a builtin, so a target with no temp-looking component
-# spawns no resolver process. On Windows an 8.3 short-name spelling of a temp
-# path declines as block-hook-bypass exempts it (#4678): matched against a temp
-# candidate's own spelling, then decided on its resolved, fully expanded form.
+# --- Temp-tree decline ---
+# A write into a host temp tree is declined when the project root is known and
+# outside that tree: root set, spelled as a normalized absolute path, and under
+# temp neither lexically nor physically; target under temp both as spelled and
+# once its nearest existing ancestor is physically resolved, so a link under
+# temp pointing elsewhere is still scanned. Everything up to the resolve step
+# is a builtin, so a target with no temp-looking component spawns no resolver
+# process. On Windows an 8.3 short-name spelling of a temp path declines too
+# (#4678): matched against a temp candidate's own spelling, then decided on its
+# resolved, fully expanded form.
 
 spd_win=0
 case "${OSTYPE:-}" in
@@ -423,8 +422,8 @@ if ((BASH_VERSINFO[0] >= 4)); then
 fi
 
 # spd_under_temp <path>: hook::under_temp_root, and on a POSIX host also on the
-# lowercased spelling, because block-hook-bypass compares a lowercased target
-# with candidates that keep their case. On Windows the library's normalization
+# lowercased spelling, so a target declines only when both spellings fall under
+# a temp candidate, which keeps its case. On Windows the library's normalization
 # already folds case. Below Bash 4 a spelling with a capital is refused instead.
 spd_under_temp() {
   local lower
@@ -473,10 +472,9 @@ spd_one_link() {
 }
 
 # spd_short_spelling <path>: 0 when every component of <path> that carries `~`
-# has the 8.3 short-name shape block-hook-bypass's _bbh_short_component accepts
-# (`NAME~N` or `NAME~N.EXT`, base at most eight characters, extension at most
-# three), so `~`, `~user`, `~+`, `x~` and `a~b` components refuse. The two
-# shapes must stay the same, or a Write and a Bash redirect to one path part.
+# has the 8.3 short-name shape (`NAME~N` or `NAME~N.EXT`, base at most eight
+# characters, extension at most three), so `~`, `~user`, `~+`, `x~` and `a~b`
+# components refuse.
 spd_short_re='^([A-Za-z0-9_-]+~[1-9][0-9]*)(\.[A-Za-z0-9_-]{1,3})?$'
 spd_short_spelling() {
   local rest="$1" comp
@@ -497,7 +495,7 @@ spd_temp_declines() {
   # 1. Target spelling. On Windows the Write tool is Node, which resolves `/tmp/x`
   # and `/c/x` to other places than Git Bash does, so only a drive spelling may
   # decline there. On POSIX `\` is a filename byte, never a separator, and below
-  # Bash 4 a capital cannot be folded to compare as block-hook-bypass does.
+  # Bash 4 a capital cannot be folded for spd_under_temp's lowercased compare.
   if ((spd_win)); then
     t="${t//\\//}"
     r="${r//\\//}"
@@ -506,14 +504,12 @@ spd_temp_declines() {
     [[ "$t$r" == *\\* || "$t" != /?* ]] && return 1
     ((BASH_VERSINFO[0] >= 4)) || [[ "$t" != *[[:upper:]]* ]] || return 1
   fi
-  # Only a spelling a Bash redirect could carry as a BARE operand may decline:
-  # block-hook-bypass never exempts a quoted, escaped or opaque target, so a
-  # character that forces quoting (whitespace, quotes, `;`, `&`, `|`, `<`, `>`,
-  # parens, `#`, `$`, a backtick, a glob character) refuses here. An allowlist,
-  # so an unlisted character scans. `~` is refused as block-hook-bypass's
-  # _norm_path refuses it, except on Windows in an 8.3 short-name component,
-  # which its temp default accepts too (#4678). Unnormalized segments are
-  # refused below.
+  # Only a spelling a Bash redirect could carry as a BARE operand may decline,
+  # so a character that forces quoting (whitespace, quotes, `;`, `&`, `|`, `<`,
+  # `>`, parens, `#`, `$`, a backtick, a glob character) refuses here. An
+  # allowlist, so an unlisted character scans. `~` is refused, except on Windows
+  # in an 8.3 short-name component (#4678). Unnormalized segments are refused
+  # below.
   chars="$t"
   if [[ "$t" == *'~'* ]]; then
     ((spd_win)) || return 1
@@ -563,8 +559,8 @@ spd_temp_declines() {
   ((nocase)) || shopt -u nocasematch
   ((hit)) || return 1
   if ((spd_win && !full)); then hook::_temp_root_candidates; fi
-  # 3. Root gate: the spellings block-hook-bypass's _norm_path accepts, minus the
-  # unnormalized ones and a filesystem or drive root.
+  # 3. Root gate: an absolute, normalized spelling with no `$`, backtick, `~` or
+  # glob character, and not a filesystem or drive root.
   [[ -n "$r" ]] || return 1
   case "$r" in
   *'$'* | *'`'* | *~* | *'*'* | *'?'* | *'['* | *//* | */./* | */../* | */. | */..) return 1 ;;
@@ -597,9 +593,9 @@ spd_temp_declines() {
   # own path never enters it.
   spd_nearest_existing "$t" || return 1
   hook::physical_path_to phys "$spd_ancestor" || return 1
-  # A short-name spelling is decided on its resolved form, which must pass the
-  # strict _norm_path spelling rules block-hook-bypass applies to it: a short
-  # component nothing by that name backs keeps its `~` and scans.
+  # A short-name spelling is decided on its resolved form, which must be fully
+  # expanded: a short component nothing by that name backs keeps its `~` and
+  # scans.
   if ((short)); then
     case "${phys%/}$spd_sfx" in
     *'$'* | *'`'* | *'~'* | *'*'* | *'?'* | *'['*) return 1 ;;

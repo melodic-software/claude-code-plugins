@@ -904,10 +904,10 @@ CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED=false bash "$HOOK" \
   <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'")" >/dev/null 2>&1 || RC=$?
 assert_exit "MCP: disabled guard allows the write" 0 "$RC"
 
-# ============ Temp-tree decline at the Bash exemption's width ================
-# block-hook-bypass exempts a Bash redirect into a host temp tree when the
-# project root is known and outside that tree. A Write of the same content to
-# the same path declines here under the same gate, so the two routes agree.
+# ============ Temp-tree decline ==============================================
+# A Write into a host temp tree declines when the project root is known and
+# outside that tree, and the target is a spelling a Bash redirect could carry
+# as a bare operand.
 #
 # Every spelling case below is the rc 0 payload (D1_ROOT + D1_TARGET) with ONE input
 # changed, so the refusal it pins is the only reason it scans.
@@ -955,7 +955,7 @@ for D1_T in "$D1_TEMP/spd-d1-$$/../../spd-d1-out/f.txt" "${D1_TEMP}Evil/spd-d1/f
   "$D1_TEMP/spd(a)/f.txt" "$D1_TEMP/spd#a/f.txt" "$D1_TEMP/spd&a/f.txt"; do
   assert_exit "D1 target '$D1_T' → exit 2" 2 "$(d1_rc "$D1_ROOT" "$D1_T")"
 done
-# Root spellings block-hook-bypass would not accept, and a filesystem root.
+# Root spellings the root gate refuses, and a filesystem root.
 for D1_R in "$D1_ROOT\$x" "${D1_ROOT}*" "${D1_ROOT}~1" "spd-d1-rel-root" "/"; do
   assert_exit "D1 root '$D1_R' → exit 2" 2 "$(d1_rc "$D1_R" "$D1_TARGET")"
 done
@@ -1003,11 +1003,10 @@ else
   echo "SKIP: D1 temp-file cases (mktemp -d failed)"
 fi
 
-# Width on POSIX: block-hook-bypass lowercases the target before comparing it
-# with temp candidates that keep their case, so a capitalized temp root never
-# exempts there, and the decline must not either. Lifted seam: the spd functions
-# run with OSTYPE forced to POSIX and the candidate set replaced by one
-# test-owned directory, capitalized or not.
+# Width on POSIX: the target's lowercased spelling must also fall under a temp
+# candidate, which keeps its case, so a capitalized temp root never declines.
+# Lifted seam: the spd functions run with OSTYPE forced to POSIX and the
+# candidate set replaced by one test-owned directory, capitalized or not.
 # shellcheck disable=SC2016  # the sed addresses are literal hook source text
 D1_SEAM=$(sed -n '/^spd_win=0$/,/^spd_temp_declines "\$FILE" && exit 0$/p' "$HOOK" | sed '$d')
 d1_seam_rc() { # <candidate dir> -> spd_temp_declines' status for a file under it
@@ -1061,8 +1060,8 @@ if ((D1_WIN)); then
     "$(d1_rc "$D1_HOME" "/tmp/spd-d1-$$/f.txt" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
   D1_SHORT="$(cygpath -s -m "$D1_TEMP")/spd-d1-$$/sub/f.txt"
   if [[ "$D1_SHORT" != "$D1_TARGET" ]]; then
-    # block-hook-bypass exempts a redirect to this spelling (#4678), so the
-    # Write declines too; a short component nothing backs still scans.
+    # An 8.3 short spelling of a temp path declines (#4678); a short
+    # component nothing backs still scans.
     assert_exit "D1 windows: 8.3 short spelling → exit 0" 0 \
       "$(d1_rc "$D1_HOME" "$D1_SHORT" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
     assert_exit "D1 windows: 8.3 spelling with a nonexistent name~9 component → exit 2" 2 \
@@ -1110,8 +1109,7 @@ elif [[ -s "$D1_LOG" ]]; then ok "D1 temp target spawns a resolver"; else bad "D
 # a lowercase fixture holding a `c:` directory, so a `c:/...` drive spelling
 # names a real relative path. A symlink named in the 8.3 shape stands in for the
 # short alias, which the resolver expands to its long target as cygpath -l
-# expands a real one. Each answer must match block-hook-bypass's for the same
-# spelling.
+# expands a real one.
 D1_83="/tmp/spd-d1-83-$$"
 d1_83_rc() { # <target> [PATH] -> spd_temp_declines' status with temp candidate c:/longna~1
   # shellcheck disable=SC2016  # the child shell's expansions are literal source text
