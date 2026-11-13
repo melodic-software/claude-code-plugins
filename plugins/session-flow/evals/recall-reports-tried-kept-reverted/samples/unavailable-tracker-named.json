@@ -19,6 +19,30 @@
     {
       "answer": "- **Pull requests and tracker:** `/source-control:pull-request` and `/work-items:track` aren't available here, so closed PRs and tracker items weren't searched.",
       "why": "real eval answer: aren't available, weren't searched"
+    },
+    {
+      "answer": "gh and the tracker aren't available.",
+      "why": "gh and the tracker named together as unavailable"
+    },
+    {
+      "answer": "I searched git only; the tracker and gh aren't available.",
+      "why": "tracker named first as unavailable"
+    },
+    {
+      "answer": "Work items weren't queried: /work-items:track isn't an available skill.",
+      "why": "work items not queried, skill not available"
+    },
+    {
+      "answer": "The tracker isn't configured in this workspace.",
+      "why": "tracker not configured"
+    },
+    {
+      "answer": "Tracker isn't set up in this repo.",
+      "why": "tracker not set up"
+    },
+    {
+      "answer": "I didn't search the tracker.",
+      "why": "tracker not searched"
     }
   ],
   "fail": [
@@ -61,6 +85,14 @@
     {
       "answer": "Tracker has items and PRs weren't searched.",
       "why": "tracker has items, the negation belongs to the pull requests"
+    },
+    {
+      "answer": "Searched the tracker and the PRs weren't searched.",
+      "why": "tracker searched, the negation belongs to the pull requests"
+    },
+    {
+      "answer": "Tracker items are not yet available for 2 issues: #7, #8.",
+      "why": "tracker items reported, the negation is about something narrower"
     }
   ]
 }
