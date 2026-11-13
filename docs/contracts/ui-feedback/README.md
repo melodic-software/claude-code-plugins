@@ -46,7 +46,7 @@ position only. `relocate-note.mjs` reads one note from the bridge's log, checks 
 literal. The script opens the host page, so the mockup stays in its sandboxed frame, restores the
 view through the switcher's `vs:show` event, and cuts the shot from inside the frame's box, so no
 host-page pixel is in it. Shot files are named from the bridge's integer `seq` only. Notes carry
-no page text yet, so a list row whose position changes cannot be told from its neighbours.
+no page text yet, so a list row whose position changes cannot be told from its neighbors.
 
 ## Controls
 
