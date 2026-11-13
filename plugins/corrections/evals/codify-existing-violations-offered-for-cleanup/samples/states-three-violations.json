@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Existing violations: 3 files import legacy/http (src/cart.ts, src/checkout.ts, src/invoice.ts)."
+    },
+    {
+      "answer": "Three places in the tree already break the rule."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The rule lands with a zero count."
+    },
+    {
+      "answer": "Existing violations: unknown."
+    }
+  ]
+}

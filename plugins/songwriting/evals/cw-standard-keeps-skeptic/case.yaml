@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: cw-standard-keeps-skeptic
+description: "co-write's hard gate with the stated reader line verification: standard: the skeptic refutation row is planned as a fresh subagent, or skipped only with a writer-craft reason, never with a verification skip token."
+tags: [songwriting, co-write, verification-level, read-only]
+plugins: ["../.."]
+expected_outcome: "Lists the hard-gate rows for the next candidate batch, keeps the rubric row as run, and plans the skeptic refutation from a fresh subagent given only the batch, the template and the source paths; writes no verification: skipped line."
+execution:
+  prompt: "/songwriting:co-write Before you write any candidate for the chorus hook of my song about leaving a small town, list each hard-gate row you will run or skip for the first candidate batch, with the reason for any skip, then stop. Do not write a candidate yet. [The level reader has already been run for this case and printed `verification: standard (docs/conventions/songwriting.yaml verification at origin/main)`; this run uses that line and does not run the reader again.]"
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: no-skip-token
+    type: regex
+    pattern: 'verification[*_`\\]*:[*_`\s\\]*skipped'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: plans-skeptic
+    type: llm
+    criteria: "PASS only if the reply plans the skeptic refutation row as a fresh subagent that receives the candidate batch, the template or stress map and the source paths, and not the reasoning behind the candidates. FAIL if it skips the row for a verification-level reason or plans to refute the batch itself."

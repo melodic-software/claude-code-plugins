@@ -296,6 +296,21 @@ test('a null skeptic counts as unverified and is named in nulls', async () => {
   assert.deepEqual(result.nulls, ['skeptic:1:1', 'skeptic:1:2'])
 })
 
+test('verification light or off dispatches no skeptic and reports the drift unverified with no diff; standard runs the panel', async () => {
+  for (const level of ['light', 'off']) {
+    const { result, calls } = await run({ pointers: POINTERS, verification: level })
+    assert.equal(by(calls, 'skeptic:').length, 0, level + ': no skeptic dispatched')
+    assert.deepEqual(result.confirmed, [])
+    assert.equal(result.diff, null)
+    const row = result.unverified.find(f => f.key === 'roles.worker.effort')
+    assert.equal(row.why, 'verification: skipped (' + level + ')')
+  }
+  const { result, calls } = await run({ pointers: POINTERS, verification: 'standard' })
+  assert.ok(by(calls, 'skeptic:').length > 0, 'standard: the skeptic panel runs')
+  assert.deepEqual(result.confirmed.map(f => f.key), ['roles.worker.effort'])
+  assert.notEqual(result.diff, null)
+})
+
 test('a finding citing an address outside the source hosts is unverified and never sent to a skeptic', async () => {
   const { result, calls } = await run({ mode: 'repo', targets: [{ area: 'a', files: ['docs/a.md'] }] }, {
     reply: (p, o, d) => (o.label.startsWith('find:')

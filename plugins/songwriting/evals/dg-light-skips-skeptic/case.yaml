@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: dg-light-skips-skeptic
+description: "diagnose variations with the stated reader line verification: light: the co-write gate's skeptic row is skipped by name as verification: skipped (light) and no skeptic subagent is planned, while the rubric passes still run."
+tags: [songwriting, diagnose, verification-level, read-only]
+plugins: ["../.."]
+expected_outcome: "Before generating, says the rubric passes run on every candidate and the skeptic refutation is skipped as verification: skipped (light); plans no skeptic subagent and no self-refutation in its place."
+execution:
+  prompt: "/songwriting:diagnose variations Line 3 of this verse feels flat: 'I really miss you and I'm feeling kind of sad'. Before you generate anything, say which checks each variation will go through and which you will skip, then stop. [The level reader has already been run for this case and printed `verification: light (docs/conventions/songwriting.yaml verification at origin/main)`; this run uses that line and does not run the reader again.]"
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: writes-skip-token
+    type: regex
+    pattern: 'verification[*_`\\]*:[*_`\s\\]*skipped \(light\)'
+    flags: 'i'
+    target: last_message
+  - name: no-subagent-dispatched
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+  - name: rubric-kept-skeptic-skipped
+    type: llm
+    criteria: "PASS only if the reply keeps the line-edit rubric passes for every variation and names the skeptic refutation as skipped because of the light verification level, with no plan to refute the variations itself in its place. FAIL if it plans a skeptic, or skips the rubric."

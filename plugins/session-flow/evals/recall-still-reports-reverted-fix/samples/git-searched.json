@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --all --grep='This reverts commit' --format='%h %ad %s%n%b' --date=short"
+          }
+        }
+      ],
+      "why": "revert search"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git grep -l -i -F -e 'CSV export' -- '*.md'"
+          }
+        }
+      ],
+      "why": "postmortem search only"
+    }
+  ]
+}

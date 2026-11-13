@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.7.3] - 2026-11-13
+
+### Changed
+
+- `/source-control:babysit-prs`: the agent prompt's standing instructions no longer ask the agent to re-check its work against the active conventions, an instruction with no check behind it.
+
+### Fixed
+
+- `pull-request` merge after AI review accepts a base ruleset that requires `CI Status`, the renamed gate check, as well as one that still requires `ci-status`; it stopped with "base ruleset does not require ci-status" once the org ruleset moved to `CI Status`.
+
 ## [11.7.2] - 2026-11-13
 
 ### Changed

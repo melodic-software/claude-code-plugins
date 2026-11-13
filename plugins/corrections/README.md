@@ -18,9 +18,10 @@ mistake it targets and to pass on the current code.
 there for yourself), or at once on a person's direct "codify this". A person's
 invocation writes the proposal; a model invocation only proposes. It asks before installing any
 blocking check, and reports a check whose proof did not fail on the old ref and pass on the new one as
-unproven. `ratchet_offer` (default on) adds the `/toolchain:ratchet` offer to a proposal on a counting
-rung, and `review_mining_prs` (default 20, from 2 to 200) sets how many merged pull requests `reviews`
-reads. Each is a plugin option, and `corrections.yaml` wins over it.
+unproven. A proposal states the existing violations of its check or rule and offers their cleanup
+in the same change; `ratchet_offer` (default on) adds the `/toolchain:ratchet` offer on a counting
+rung when they are too many for that, and `review_mining_prs` (default 20, from 2 to 200) sets how
+many merged pull requests `reviews` reads. Each is a plugin option, and `corrections.yaml` wins over it.
 
 | Script | What it does |
 |---|---|
@@ -86,7 +87,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `ratchet_offer` | boolean | `true` | When on (default), a /corrections:codify proposal on a rung that counts violations offers /toolchain:ratchet for a non-zero count once the rule exists. Off leaves the offer out. A repository's <home>/corrections.yaml wins over this option. |
+| `ratchet_offer` | boolean | `true` | When on (default), a /corrections:codify proposal on a rung that counts violations offers /toolchain:ratchet once the rule exists, for existing violations too many to clean up in the same change. Off leaves the offer out. A repository's <home>/corrections.yaml wins over this option. |
 | `review_mining_prs` | number<br>*min 2, max 200* | `20` | How many recent merged pull requests /corrections:codify reviews reads for review comments; default 20, from 2 to 200. A repository's <home>/corrections.yaml wins over this option. |
 | `findings_buffer_adapter_repository` | directory | *(none)* | Git common directory (git rev-parse --path-format=absolute --git-common-dir) of the one repository whose own findings-buffer adapter you trust. Applies in that repository's checkout and worktrees only. Unset: only adapters the plugin ships run. |
 | `findings_buffer_adapter_path` | string | *(none)* | That repository's adapter directory, relative to the checkout root, holding executable append.sh and read.sh and a capabilities.json with schema_version 1.x. Set both options or neither. A path out of the checkout or into a nested repository is refused. |

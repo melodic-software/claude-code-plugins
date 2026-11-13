@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/plugins/songwriting/context/pat-pattison/research/meter.md"
+          }
+        }
+      ],
+      "why": "a craft-source read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "skeptic",
+            "prompt": "Build the strongest case against each candidate."
+          }
+        }
+      ],
+      "why": "a skeptic was dispatched"
+    }
+  ]
+}

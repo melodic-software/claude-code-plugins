@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "verification: standard (docs/conventions/plugin-quality.yaml verification at origin/main). Adversarial re-examination runs: a fresh subagent re-derives each finding.",
+      "why": "the reader line, no skip"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verification: skipped (standard)",
+      "why": "a skip token at standard"
+    },
+    {
+      "answer": "- **verification:** skipped (light)",
+      "why": "bold skip label"
+    }
+  ]
+}

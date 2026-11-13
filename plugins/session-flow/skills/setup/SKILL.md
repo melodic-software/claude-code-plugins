@@ -168,7 +168,8 @@ before and after, the diff when one was shown, the written path, and whether the
 
 `/session-flow:orchestrate`, which reads `worker_continuation`; `/session-flow:retro`, whose session mode
 reads `retro_lenses`; `/session-flow:handoff`, which reads
-`wip_commit`; `/session-flow:find-handoff` and `/session-flow:recall`, which read `transcript_scope`.
+`wip_commit`; `/session-flow:find-handoff` and `/session-flow:recall`, which read `transcript_scope`;
+`/session-flow:recall`, which also reads `recall_report_kinds` and `recall_doc_paths`.
 
 ## Gotchas
 
@@ -179,7 +180,8 @@ reads `retro_lenses`; `/session-flow:handoff`, which reads
   read by `/session-flow:orchestrate`, `retro_lenses`, read by `/session-flow:retro` session mode,
   `wip_commit`, read by `/session-flow:handoff`, and
   `transcript_scope`, read by `/session-flow:find-handoff` and `/session-flow:recall`, where the
-  narrower layer wins.
+  narrower layer wins, and `recall_report_kinds` and `recall_doc_paths`, read by
+  `/session-flow:recall`.
 - **The repository file reaches the team only once committed.** `apply` leaves it uncommitted on
   purpose, and the tracked-file pair says so.
 - **`observer_analysis_bare` and auth.** Leave it off unless auth is an env-var API key (why: the

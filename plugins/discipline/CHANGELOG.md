@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.28.0] - 2026-11-13
+
+### Changed
+
+- Every corrector on the shared re-anchor method (`follow-our-standards`, `mind-your-maxims`, `pick-for-the-problem`, `point-dont-copy`, `reason-dont-recite`, `reuse-or-replace`, `script-the-deterministic-work`, `tighten-your-output`, `use-your-skills`) now reads the `verification` level. Under the default `light` (and `off`) it skips the method's step 2 confirmation and step 3 re-derivation subagents and reports `verification: skipped (<level>)`. Set `verification: standard` in `docs/conventions/discipline.yaml` on the default branch to keep them.
+
 ## [0.27.0] - 2026-11-13
 
 ### Changed

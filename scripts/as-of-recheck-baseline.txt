@@ -1,0 +1,20 @@
+# Files that still hold a paragraph with an as-of date and no recheck trigger,
+# as scripts/check-as-of-recheck.sh reads them. One
+# `<repository-relative markdown path> <paragraph count>` per line; a `#` starts
+# a comment. A generated copy is listed by its canonical source.
+#
+# The fix, per .claude/rules/skill-bodies-state-current-rules.md: a paragraph
+# that stores a copied or measured value gets a recheck trigger; one that only
+# points at a source loses its date. Fix the paragraph, then lower the file's
+# count or delete its line.
+#
+# Stale-guarded: an entry whose file is gone, is clean, or holds a different
+# count fails the gate. Never add an entry for new text: give it the trigger.
+docs/contracts/plugin-reconfiguration/README.md 1
+plugins/context-usage/reference/reader-contract.md 1
+plugins/harness-ops/skills/audit-skill-visibility/reference/usage-counters.md 1
+plugins/instruction-placement/skills/migrate/reference/sources.md 1
+plugins/songwriting/skills/suno/context/v55-features.md 1
+plugins/songwriting/skills/suno/reference/suno-drift-audit-ledger.md 1
+plugins/source-control/reference/worktree-root-convention.md 1
+plugins/source-control/skills/babysit-prs/reference/safety.md 1

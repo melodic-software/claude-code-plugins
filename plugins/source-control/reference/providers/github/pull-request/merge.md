@@ -190,8 +190,8 @@ REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
 : "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
 RULES=$(gh api --paginate --slurp "repos/$REPO/rules/branches/<baseRefName>" | jq 'add')
 jq -e 'any(.[]; .type == "required_status_checks"
-  and any(.parameters.required_status_checks[]; .context == "ci-status"))' <<<"$RULES" >/dev/null \
-  || { echo 'base ruleset does not require ci-status: wait for the user' >&2; exit 1; }
+  and any(.parameters.required_status_checks[]; .context | IN("CI Status", "ci-status")))' <<<"$RULES" >/dev/null \
+  || { echo 'base ruleset requires neither CI Status nor ci-status: wait for the user' >&2; exit 1; }
 RUNS=$(gh api --paginate --slurp "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100")
 jq -e '[.[].check_runs[]] as $r
   | def lane($names): [$r[] | select(.name | IN($names[]))]

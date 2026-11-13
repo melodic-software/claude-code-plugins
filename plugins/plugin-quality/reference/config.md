@@ -64,6 +64,16 @@ repo_map:
 | `zone_behavior` | `default` \| `always-conservative` | `always-conservative` forces the unknown/heavy row regardless of a fresh light snapshot (for operators who never want inline handling). It can only tighten, never loosen: zones and criteria route *dispatch*, and no value here can skip the fresh-subagent steps or the emit confirm gate. |
 | `repo_map` | mapping `plugin-name: owner/repo` | Overrides sink-ladder rung 2's registration inference for named plugins (e.g. a plugin whose marketplace registration points at a monorepo mirror). |
 
+## Verification level
+
+The one key outside the topic doc. It lives in `<home>/plugin-quality.yaml`, checked against
+[`schemas/plugin-quality.schema.json`](../schemas/plugin-quality.schema.json), and
+`lib/read-verification.sh` reads it from the default branch only.
+
+| Key | Values | Default | Meaning |
+|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/plugin-quality:audit` runs its adversarial re-examination seam. `standard` keeps the `high`-effort gate; `strict` runs it at every effort; `light` and `off` skip it at every effort and label the findings `unverified`. A skill entry beats the plugin value ([verification level](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). |
+
 ## Sink resolution ladder (step 6 of the audit)
 
 First hit wins:

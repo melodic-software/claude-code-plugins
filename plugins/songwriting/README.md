@@ -63,6 +63,13 @@ plus the project-level template override and layout override described above. Ru
 to inventory your overrides and confirm your artifact layout (the read-only `check` default), then
 `/songwriting:setup apply scaffold <name>` to scaffold a template override from its bundled default, idempotent and safe to re-run to reconfigure.
 
+A repository can also commit `songwriting.yaml` in its convention home (default `docs/conventions`),
+checked against [`schemas/songwriting.schema.json`](schemas/songwriting.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/songwriting:co-write` and `/songwriting:diagnose` dispatch the skeptic refutation pass. `standard` keeps it a row the writer may skip with a reason; `strict` runs it on every batch; `light` and `off` skip it and name the skip `verification: skipped (<level>)`. The rubric's counted passes run at every level. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+
 ## Requirements
 
 None beyond Claude Code for the core skills. The optional Datamuse rhyme/vocabulary helper

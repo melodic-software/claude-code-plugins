@@ -44,6 +44,16 @@
           "default": "opus"
         }
       }
+    },
+    "verification": {
+      "enum": ["off", "light", "standard", "strict"],
+      "default": "light",
+      "description": "How much independent checking this plugin's skills run: off, light (the default: skip the verifier dispatch), standard (run it) or strict (also run the optional passes). Read from this team file's committed copy on the default branch only, so a branch cannot lower it and the user-global and personal files cannot set it. Levels: docs/contracts/verification-level/README.md."
+    },
+    "verification_skills": {
+      "type": "object",
+      "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },
+      "description": "Per-skill verification level, keyed by skill name (for example audit-defaults); an entry beats this file's verification value."
     }
   },
   "$defs": {
