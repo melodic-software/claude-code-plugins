@@ -66,6 +66,7 @@ while (($# > 0)); do
 done
 [[ "$PR" =~ ^[0-9]+$ ]] || die 1 "a pull request number is required"
 [[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || die 1 "--repo must be owner/repo"
+OWNER="${REPO%/*}"
 for tool in gh jq git; do
   command -v "$tool" >/dev/null 2>&1 || die 5 "$tool not found on PATH"
 done
@@ -101,7 +102,7 @@ body_hold=$(jq -r --arg re "$BODY_HOLD_RE" '.body // "" | test("(?m)" + $re; "i"
 [[ "$body_hold" != true ]] || limit held "its body carries a hold"
 
 # shellcheck disable=SC2016 # GraphQL variables, for gh to bind
-if queued=$(gh api graphql -F owner="${REPO%/*}" -F name="${REPO#*/}" -F number="$PR" -f query='
+if queued=$(gh api graphql -F owner="$OWNER" -F name="${REPO#*/}" -F number="$PR" -f query='
   query($owner: String!, $name: String!, $number: Int!) {
     repository(owner: $owner, name: $name) { pullRequest(number: $number) { isInMergeQueue } } }' \
   --jq '.data.repository.pullRequest.isInMergeQueue') && [[ "$queued" == true || "$queued" == false ]]; then
@@ -174,7 +175,7 @@ else
     limit unread "the worktree list"
   fi
   if same_head=$(gh pr list -R "$REPO" --state open --head "$head_branch" --limit 100 --json headRepositoryOwner \
-    --jq "map(select((.headRepositoryOwner.login // \"\") | ascii_downcase ==\"$(tr '[:upper:]' '[:lower:]' <<<"${REPO%/*}")\")) | length") &&
+    --jq "map(select((.headRepositoryOwner.login // \"\") | ascii_downcase ==\"$(tr '[:upper:]' '[:lower:]' <<<"$OWNER")\")) | length") &&
     [[ "$same_head" =~ ^[0-9]+$ ]]; then
     ((same_head <= 1)) || limit no-update "its head branch is not unique among open pull requests"
   else
