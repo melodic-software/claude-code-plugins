@@ -127,10 +127,19 @@ inherit it.
 
 ## Next step per rung
 
-What the proposal's install step says, for every input. With the ratchet offer on, a counting rung
-(`editorconfig-severity`, `analyzer-pack-rule`, `custom-analyzer`, `semgrep-rule`,
-`architecture-test`) ends with it: once the rule exists, a count above zero goes to
-`/toolchain:ratchet`, and a zero count lands the rule.
+What the proposal's install step says, for every input.
+
+Every proposed check or rule states its **existing violations**: how many places in the current
+tree already break it, and how they were counted (the check run over the tree, or a search for an
+instruction or other rung with no check). When no count can be taken, say so. Existing violations
+teach the old way to whoever copies them, so the proposal offers their cleanup in the same change,
+carried out by `/implementation:implement`. One rule chooses between cleanup and ratchet: offer the
+cleanup when every existing violation can be fixed in the change that lands the rule, as one
+reviewable pull request with no fix needing a design decision. Otherwise, or when the count is
+unknown, a counting rung (`editorconfig-severity`, `analyzer-pack-rule`, `custom-analyzer`,
+`semgrep-rule`, `architecture-test`) with the ratchet offer on ends with it: once the rule exists,
+the count goes to `/toolchain:ratchet` and the cleanup follows as its own work. A zero count lands
+the rule.
 
 - **`make-impossible`**: name the type, data structure or API whose shape lets the invalid state
   exist, and the change that would remove it. Hand it to `/architecture:improve` when that skill is

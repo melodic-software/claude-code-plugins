@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: codify-existing-violations-offered-for-cleanup
+description: 'Three files already import the banned module: the proposal states the three and offers their cleanup through /implementation:implement.'
+tags: [codify]
+plugins: ["../.."]
+expected_outcome: 'The proposal states three existing violations, offers their cleanup in the same change through /implementation:implement.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify "imports from the deprecated legacy/http module" codify this. This run has no Bash tool: skip the proof and report the check as unproven, and present the proposal in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 480
+graders:
+  - name: states-three-violations
+    type: 'regex'
+    pattern: '(?:\b3\b|three)[^\n]{0,80}(?:violation|file|place|import)|(?:violation|file|place|import)[^\n]{0,80}(?:\b3\b|three)'
+    flags: 'i'
+    arm: 'both'
+  - name: cleanup-through-implement
+    type: 'regex'
+    pattern: '/implementation:implement'
+    flags: 'i'
+    arm: 'both'
