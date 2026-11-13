@@ -202,6 +202,20 @@ reads the file itself, through a script where the key names one below.
   turns local reviews off. `skills/pull-request/scripts/read-review-venue.sh` resolves it. A value
   other than the four at the level that supplied it resolves to `auto`, with a notice naming the
   level. A repository level the reader cannot read or trust is skipped with a notice.
+- `pr_body_preview`: `post` or `preview`, what `/source-control:pull-request` does with a body it
+  is about to post, at create or when it edits one
+  ([create.md](../skills/pull-request/reference/create.md#243-create-pr) §2.4.3, "Preview the
+  body"). `preview` applies to attended runs only; an unattended run always posts.
+- `pr_body_refresh`: `true` or `false`, whether a run that pushes to an open pull request rewrites
+  the body sections the push made stale
+  ([monitor.md](../skills/pull-request/reference/monitor.md#332-phase-b-fix-all-valid-findings-batch-then-single-push)
+  §3.3.2).
+
+  Both resolve lowest first: the default (`post`; `true`), the `userConfig` value of the same
+  name, then the key in `docs/conventions/source-control.yaml`, read with `lib/convention-key.sh`
+  when git tracks the file, as `pr_body_required_sections` is. Neither is read at the home
+  directory or outside a git working tree. An unknown value at a level is reported, naming the
+  level, and the default applies.
 - `sync_stale_base`: `true` or `false`, whether
   [`push-branch.sh`](../skills/pull-request/scripts/push-branch.sh) merges the pull request's
   base into a branch behind it on overlapping paths just before it pushes (the script header

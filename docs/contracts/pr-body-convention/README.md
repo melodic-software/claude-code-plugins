@@ -41,13 +41,15 @@ records why the preset is the default. It is a deliberate **lane-1 default**
 ([`docs/plugin-philosophy.md`](../../plugin-philosophy.md) "Two-lane convention posture"): it
 presumes nothing about the consumer, so it cannot conflict in any repo the plugin drops into.
 
-Why this shape. **What and why the change does, plus evidence it was verified**, is the
+Why this shape. **What the change does and why, plus evidence it was verified**, is the
 near-universal core of a reviewable PR description (GitHub's own PR-description guidance, Google's
 engineering-practices CL-description doc, GitLab's dogfooded default merge-request template, and a
 cross-section of OSS project PR templates, weighed against anti-heavy-template falsification cases).
 The earlier two-section default met that core but had no place for excluded work or for the callers
 a change affects. `briefing` adds `Scope` and `Risk` for those, caps each section at a few sentences
-or bullets, and drops the two optional sections when they are empty.
+or bullets, and drops the two optional sections when they are empty. `Risk` says what the change
+reaches and how it is undone; the author states no door or risk tier, since an independent rater
+(`/review:merge-risk`) sets that.
 
 A consumer that wants the earlier default declares the keyword `summary-test-plan` (`Summary` and
 `Test plan`, both required). The keyword `briefing` states the default explicitly, for a layer that

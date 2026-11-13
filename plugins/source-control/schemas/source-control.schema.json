@@ -17,6 +17,16 @@
       "default": "auto",
       "description": "Which venue reviews a pull request, read at its base branch and honored only when that base is the default branch. auto reads each review lane's CI health and runs a local review only where CI does not cover the lane; local runs every local review step; ci skips the local review steps and leaves the review to the CI lanes; both runs the local steps and still counts the CI lanes. An unknown value falls back to auto."
     },
+    "pr_body_preview": {
+      "enum": ["post", "preview"],
+      "default": "post",
+      "description": "What /source-control:pull-request does with a PR body it is about to post, at create or when it edits one. post posts it; preview prints the body text and waits for a yes, in attended sessions only, while unattended runs always post. An unknown value falls back to post."
+    },
+    "pr_body_refresh": {
+      "type": "boolean",
+      "default": true,
+      "description": "When true, a /source-control:pull-request run that pushes a change making an open pull request's body stale (what changed, verification, the Left out: line) rewrites those sections in place, so the body describes the current head. false leaves the body as it was."
+    },
     "sync_stale_base": {
       "type": "boolean",
       "default": false,

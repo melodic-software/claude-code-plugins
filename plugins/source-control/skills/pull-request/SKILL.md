@@ -51,6 +51,8 @@ Consumer conventions come from the consuming project's own `CLAUDE.md`, `AGENTS.
 
 **Review venue** (`auto`, `local`, `ci` or `both`) decides which local review steps run before and at the ready flip. The per-user value is `${user_config.review_venue}` (this line carries the substituted value; a literal `${user_config.review_venue}` token means unset), passed as `--user` to `scripts/read-review-venue.sh`. A `review_venue` key in the repository's `docs/conventions/source-control.yaml`, read at the PR's base branch, wins over it. [reference/review-venue.md](reference/review-venue.md) reads it and owns what each value does.
 
+**PR body preview** (`post` or `preview`) decides whether an attended run shows a body and waits for a yes before posting it. The per-user value is `${user_config.pr_body_preview}`; **PR body refresh** (`true` or `false`) decides whether a push to an open PR also rewrites the body sections it made stale, per-user value `${user_config.pr_body_refresh}`. A literal unexpanded token means unset. A key of the same name in the repository's `docs/conventions/source-control.yaml` wins over each; the levels are in [../../reference/config-resolution.md](../../reference/config-resolution.md). [reference/create.md](reference/create.md) §2.4.3 applies the preview and [reference/monitor.md](reference/monitor.md) §3.3.2 the refresh.
+
 ## Emit checklist
 
 For runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/templates/checklist.md` into your project's working-notes location (or track it inline) and tick each `- [ ]` as its phase produces output. It survives `/clear`.
