@@ -103,7 +103,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Autonomy
 
-- [`autonomy`](../plugins/autonomy): Contracts for governed autonomous agent operation: role topology, binding seam, telemetry, return accounting, trigger dispatch, a per-work-class guardrail matrix, a standing-routine catalog, and a runner charter. A guided setup skill writes an org's binding, wires OTLP telemetry (file default), human-attested return capture, and signal adapters behind one governed dispatch entrypoint, binds the guardrail matrix to isolation substrates after a live probe, and schedules routines.
+- [`autonomy`](../plugins/autonomy): Contracts for governed autonomous agent operation: role topology, binding interface, telemetry, return accounting, trigger dispatch, a per-work-class guardrail matrix, a standing-routine catalog, and a runner charter. A guided setup skill writes an org's binding, wires OTLP telemetry (file default), human-attested return capture, and signal adapters behind one governed dispatch entrypoint, binds the guardrail matrix to isolation substrates after a live probe, and schedules routines.
 
 ## Security
 
@@ -123,7 +123,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Project Management
 
-- [`work-items`](../plugins/work-items): Work items through a provider-neutral tracker seam (github, local-markdown, jira, gitea, linear adapters): track (dashboard, creation, race-safe claims, recurring checks, stale-lease audits), scan-todos, decompose (plans to vertical slices), ship (one spec container), triage (intake, unsolicited PRs), work, work-loop (autonomous drain), attend-queue (escalations), morning-brief (read-only daily view), onboard-adapter (new trackers), measure-delivery (DORA metrics), and setup (binds a provider).
+- [`work-items`](../plugins/work-items): Work items through a provider-neutral tracker interface (github, local-markdown, jira, gitea, linear adapters): track (dashboard, creation, race-safe claims, recurring checks, stale-lease audits), scan-todos, decompose (plans to vertical slices), ship (one spec container), triage (intake, unsolicited PRs), work, work-loop (autonomous drain), attend-queue (escalations), morning-brief (read-only daily view), onboard-adapter (new trackers), measure-delivery (DORA metrics), and setup (binds a provider).
 
 ## Operations
 
