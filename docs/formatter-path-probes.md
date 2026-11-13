@@ -38,7 +38,7 @@ The per-edit notice rules above apply to the hooks this table no longer lists.
 | Plugin | Batch row / pre-commit entry | Probe order | Filesystem / repo-local route | Missing-tool report | Checker |
 |---|---|---|---|---|---|
 | `markdown-format` | `hooks/markdown-format.sh` / `git-hooks/markdown-check.sh` | `command -v markdownlint-cli2`, then walk `node_modules/.bin` from the file up to the repo root | `npm i -D markdownlint-cli2` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
-| `biome-format` | `hooks/biome-format.sh` / `git-hooks/biome-check.sh` | `node_modules/.bin/biome` under the governing config, then `command -v biome` | `npm i -D @biomejs/biome` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
+| `javascript-format` | `hooks/javascript-format.sh` / `git-hooks/biome-check.sh` | `node_modules/.bin/biome` under the governing config, then `command -v biome` | `npm i -D @biomejs/biome` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `python-format` | `hooks/python-format.sh` / `git-hooks/ruff-check.sh` | `.venv/{bin,Scripts}/ruff`, then `command -v ruff` | project `.venv` / `pip install ruff` | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `bash-format` | `hooks/bash-format.sh` / `git-hooks/shell-check.sh` | `command -v shfmt`, `command -v shellcheck` | host package / release binary (no npm form) | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |
 | `spelling` | none / `git-hooks/typos-check.sh` | `command -v typos` | cargo / release binary | pre-commit contract | `lib/prerequisites.mjs check`; SessionStart probe |

@@ -3,6 +3,24 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.48] - 2026-11-13
+
+### Changed
+
+- `audit-native-overlap`'s `overlap.py generate` writes a new native-surfaces view with the `<!-- BEGIN GENERATED: native-surfaces. ... -->` / `<!-- END GENERATED: native-surfaces -->` markers the ai-slop audit skips. A view that carries the older `<!-- native-surfaces:start -->` / `<!-- native-surfaces:end -->` markers is still read and regenerated in that form.
+
+## [8.12.47] - 2026-11-13
+
+### Fixed
+
+- `audit-native-overlap`'s `overlap.py generate` and `self-check` read a native-surfaces view fenced by either `<!-- native-surfaces:start -->` / `<!-- native-surfaces:end -->` or the `<!-- BEGIN GENERATED: native-surfaces. ... -->` / `<!-- END GENERATED: native-surfaces -->` form the ai-slop audit skips, and regenerate the block inside the form the view carries. A view with both forms (the message lists the marker lines found), a missing, reversed or repeated marker, or a `BEGIN GENERATED: native-surfaces.` line whose instruction text differs from the expected one (the message prints the expected line) fails and is left unchanged, as does a run whose generated content would hold a marker line. A new view still gets the start/end form.
+
+## [8.12.46] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [8.12.45] - 2026-11-13
 
 ### Fixed

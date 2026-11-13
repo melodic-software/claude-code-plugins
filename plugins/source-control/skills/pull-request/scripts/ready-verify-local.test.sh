@@ -23,8 +23,8 @@ assert_contains "SKILL.md names the skip line" "$skill" "skipped (CI covers it)"
 assert_contains "the ready reference names the --verify-local flag" "$ref" "ready --verify-local"
 assert_contains "the ready reference names the skip line" "$ref" "skipped (CI covers it)"
 # shellcheck disable=SC2016 # the literal command text, not an expansion
-assert_contains "the ready reference reads the tests line for the PR worktree's HEAD" "$ref" \
-  'review-venue.sh" --head "$(git -C "$PR_TREE" rev-parse HEAD)"'
+assert_contains "the ready reference reads the tests line for the PR worktree's HEAD in the resolved repository" "$ref" \
+  'review-venue.sh" --head "$(git -C "$PR_TREE" rev-parse HEAD)" --repo "$REPO"'
 assert_contains "a CI-covered verify drops only --tests" "$ref" "the venue's \`tests\` line read \`ci\` (above), drop \`--tests\` from the command"
 assert_contains "a CI-covered verify still records the gate's result" "$ref" "Record \`pass\` or \`fail\` from its exit status"
 

@@ -139,7 +139,7 @@ Read all three comment surfaces, paginated, printing each item's author and the 
 
 ### Gate 7: No unresolved review threads
 
-An unresolved review thread can hold the merge while every check is green, and Gates 1 to 6 read nothing that shows it. Read the threads with the bundled gate, which counts them exactly as the `/source-control:babysit-prs` merge gate does, outdated ones included. `fetch_review_threads` in `skills/babysit-prs/scripts/babysit_gh.py` owns how threads are fetched and why a failed fetch reports unproven instead of zero:
+An unresolved review thread can hold the merge while every check is green, and Gates 1 to 6 read nothing that shows it. Read the threads with the bundled gate, which counts them exactly as the `/source-control:babysit-prs` merge gate does, outdated ones included. `fetch_review_threads` in `skills/babysit-prs/scripts/babysit_gh.py` owns how threads are fetched and why a failed fetch reports unproven instead of zero. `<owner>/<repo>` is the repository resolved from `<checkout>`, never from the shell's directory; on a triangular flow, the PR's base repository, named explicitly ([GitHub](../../../reference/providers/github/pull-request/readiness.md)):
 
 ```bash
 bash "<scripts-dir>/source-control-review-threads" <owner>/<repo>#<pr_number>

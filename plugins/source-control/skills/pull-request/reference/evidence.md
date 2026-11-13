@@ -46,7 +46,7 @@ scans it with the rest of the rendered body.
    criteria are the list items under the body's `## Acceptance criteria` heading, the section
    [create.md](create.md) §2.4.1 writes; a body with no such heading, or none under it, has none.
    Then run
-   `bash "<skill-dir>/scripts/confirm-verdict.sh" show --head <head>`. Go on only when it prints
+   `bash "<skill-dir>/scripts/confirm-verdict.sh" show --head <head> --dir "<checkout>"`. Go on only when it prints
    `confirm: CONFIRMED for head <head>`. Any other line, a `NEEDS WORK` verdict included, posts
    nothing: the evidence comment follows a verifier pass, never stands in for one.
 2. **Publishable captures.** Read `publishable` from the evidence file. A file that does not parse,

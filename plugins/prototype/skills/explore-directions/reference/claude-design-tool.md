@@ -1,6 +1,7 @@
 # The built-in `ClaudeDesign` tool: verification record
 
-Detail behind the `## Boundary, the built-in ClaudeDesign tool` section in [SKILL.md](../SKILL.md).
+Detail behind the `ClaudeDesign` row of the `## Boundary` section in [SKILL.md](../SKILL.md) and
+[boundaries.md](boundaries.md).
 Each row is a four-part record: the claim, the basis it rests on, the date it was checked, and the
 event that makes it worth checking again. The `visualization` plugin's `visualize` skill keeps its
 own record against the same surface.

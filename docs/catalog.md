@@ -4,7 +4,7 @@ The generated per-category plugin catalog: the block between the markers below i
 plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabulary is owned by
 [`docs/catalog-taxonomy.md`](catalog-taxonomy.md).
 
-<!-- catalog:start -->
+<!-- BEGIN GENERATED: catalog. Run node scripts/generate-catalog.mjs -->
 
 ## Discovery
 
@@ -30,7 +30,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 - [`markdown-format`](../plugins/markdown-format): Rewrites Markdown with markdownlint-cli2 once per batch of tool calls and at git pre-commit, only in repos that carry their own markdownlint config; findings are reported at commit and, unless markdown_format_end_of_turn is false, at each turn end for the uncommitted changes.
 - [`bash-format`](../plugins/bash-format): Auto-format shell scripts with shfmt once per batch of tool calls and again at git pre-commit, and check them with ShellCheck at commit, using the consuming repo's own .editorconfig and .shellcheckrc.
-- [`biome-format`](../plugins/biome-format): Rewrites JavaScript, TypeScript, JSX and JSON with Biome once per batch of tool calls and at git pre-commit, only when a biome.json governs the file, using the consuming repo's own Biome config.
+- [`javascript-format`](../plugins/javascript-format): Rewrites JavaScript, TypeScript, JSX and JSON with Biome once per batch of tool calls and at git pre-commit, only when a biome.json governs the file, using the consuming repo's own Biome config.
 - [`python-format`](../plugins/python-format): Rewrites Python with Ruff's safe fixes and formatter once per batch of tool calls and at git pre-commit, only when a Ruff config governs the file, using the consuming repo's own Ruff config; lint findings are reported at commit.
 - [`spelling`](../plugins/spelling): Spell-check at commit time via typos-cli: a git pre-commit entry that blocks only on typos in the lines a commit adds, with an opt-in end-of-turn check, honoring the consuming repo's own typos configuration.
 - [`go-format`](../plugins/go-format): Auto-format Go and manage imports with goimports once per batch of tool calls and at git pre-commit, skipping generated files, with no consumer-config gate.
@@ -153,4 +153,4 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 - [`ai-briefing`](../plugins/ai-briefing): Build source-backed AI-industry briefings from official vendor publications, configured RSS/Atom feeds, GitHub releases, reputable secondary reporting, and user-supplied URLs. Deduplicate, rank, and present results as markdown or optional HTML/PPTX decks, with repository-owned profile, audience, and brand configuration. Automated X/Twitter collection is disabled; Playwright is used only for deterministic local rendering.
 - [`adhd`](../plugins/adhd): Shapes assistant output for a reader with ADHD: action-first and low-friction. adhd:shape is a standing session posture: lead with the next action, number steps, restate state across turns, cap and rank lists, size work concretely, cut preamble. adhd:clarify reshapes one dense, decision-heavy message: one decision at a time, jargon defined, operative terms quoted verbatim, with an HTML decision table for big content. Reauthored in part from ayghri/i-have-adhd (MIT).
 
-<!-- catalog:end -->
+<!-- END GENERATED: catalog -->

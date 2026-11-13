@@ -12,6 +12,14 @@
 - A generic skill names no `gh` command or GitHub grammar unless it sits behind the operation's
   owner or in a declared-provider surface:
   [ADR 0060](../adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md).
+- A generic skill or agent ships no model-read language, framework, tool or library choice outside
+  the named exceptions; it resolves the choice from the consumer repository:
+  [ADR 0101](../adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md).
+- A new skill that recommends, places or builds enforcement, or an instruction, reads the
+  enforcement ladder, prefers the strongest tier that can decide the matter, and discovers the
+  consumer's tooling first:
+  [enforcement ladder](../contracts/enforcement-ladder/README.md),
+  [ecosystem resolution](../contracts/ecosystem-resolution/README.md).
 - Cross-plugin citations name the skill by `/plugin:skill`, never by path:
   [plugin philosophy](../plugin-philosophy.md#configuration-ownership-and-scope).
 - A new standing instruction names its observed-stumble evidence:

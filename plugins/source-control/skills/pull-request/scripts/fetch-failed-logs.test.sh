@@ -302,6 +302,60 @@ assert_exit "mktemp scratch: size cap returns exit 3" 3 "$?"
 assert_eq "mktemp scratch: an exit 3 keeps the file its message names" "1" \
   "$(find "$TEST_TMPDIR/mktemp-cap" -name 'run-33333-logs.zip' | wc -l | tr -d ' ')"
 
+# ---- --dir: run from a directory outside every checkout ----------------------
+#
+# <checkout>'s one GitHub remote is acme/app, so the repository can come only from --dir. This
+# stub records no gh default, fails `gh repo view`, and fails a REST read of any other repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO
+export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
+CHECKOUT="$TEST_TMPDIR/checkout" FORK="$TEST_TMPDIR/fork" NOREMOTE="$TEST_TMPDIR/noremote"
+OUTSIDE="$TEST_TMPDIR/outside"
+git init -q "$CHECKOUT"
+git -C "$CHECKOUT" remote add origin https://github.com/acme/app.git
+git init -q "$FORK"
+git -C "$FORK" remote add origin https://github.com/me/app.git
+git init -q "$NOREMOTE"
+mkdir -p "$OUTSIDE"
+
+DIR_STUB_DIR="$TEST_TMPDIR/dir-stubs"
+mkdir -p "$DIR_STUB_DIR"
+cat >"$DIR_STUB_DIR/gh" <<STUB_EOF
+#!/usr/bin/env bash
+if [[ "\$1 \$2" == "repo set-default" ]]; then
+  echo "No default remote repository has been set." >&2
+  exit 0
+fi
+[[ "\$1 \$2" == "api repos/acme/app/actions/runs/12345/logs" ]] || exit 1
+cat "$FIXTURE_ZIP"
+STUB_EOF
+chmod +x "$DIR_STUB_DIR/gh"
+
+run_outside() {
+  (cd "$OUTSIDE" && PATH="$DIR_STUB_DIR:$PATH" FETCH_LOGS_SCRATCH="$TEST_TMPDIR/dir-scratch" \
+    bash "$SCRIPT" "$@" 2>&1)
+}
+
+out=$(run_outside 12345 --dir "$CHECKOUT")
+assert_contains "--dir from outside every checkout reads the checkout's repository" "$out" "##[error]CS0246"
+run_outside 12345 >/dev/null
+assert_exit "without --dir, a shell outside every checkout still resolves with gh repo view" 2 "$?"
+out=$(cd "$OUTSIDE" && PATH="$DIR_STUB_DIR:$PATH" FETCH_LOGS_SCRATCH="$TEST_TMPDIR/dir-scratch" \
+  FETCH_LOGS_REPO=acme/app bash "$SCRIPT" 12345 --dir "$FORK" 2>&1)
+assert_contains "FETCH_LOGS_REPO wins over --dir" "$out" "##[error]CS0246"
+out=$(cd "$OUTSIDE" && PATH="$DIR_STUB_DIR:$PATH" FETCH_LOGS_SCRATCH="$TEST_TMPDIR/dir-scratch" \
+  GH_REPO=acme/app bash "$SCRIPT" 12345 --dir "$FORK" 2>&1)
+assert_contains "GH_REPO names the base repository for a fork checkout" "$out" "##[error]CS0246"
+run_outside 12345 --dir "$NOREMOTE" >/dev/null
+assert_exit "a --dir checkout with no GitHub remote exits 2" 2 "$?"
+run_outside 12345 --dir >/dev/null
+assert_exit "--dir without a value is a usage error" 1 "$?"
+run_outside 12345 --dir '' >/dev/null
+assert_exit "an empty --dir is a usage error" 1 "$?"
+run_outside 12345 --dir "$TEST_TMPDIR/missing" >/dev/null
+assert_exit "--dir naming no directory is a usage error" 1 "$?"
+run_outside 12345 --dir "$CHECKOUT" --dir "$FORK" >/dev/null
+assert_exit "--dir given twice is a usage error" 1 "$?"
+
 if [[ "${INTEGRATION:-0}" == "1" ]]; then
   if ! command -v gh >/dev/null 2>&1; then
     skip_case "INTEGRATION mode but gh CLI not available"

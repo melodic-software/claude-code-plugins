@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [1.7.13] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [1.7.12] - 2026-11-12
 
 ### Changed

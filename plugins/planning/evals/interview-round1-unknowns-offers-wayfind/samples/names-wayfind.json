@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: **Should this effort move to /planning:wayfind chart now?**\nContext:\n- You named four open areas: shared patient records, billing, staff sign-in, appointment migration (user, round 1)\n\nMy recommendation: **yes**.",
+      "why": "slash form in a round-1 question"
+    },
+    {
+      "answer": "planning:wayfind could chart these four areas as a map; the interview carries on either way.",
+      "why": "no leading slash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Q1: **Which quality bar is this for?**\n\nMy recommendation: **production**, it holds patient records.",
+      "why": "asks round 1 and never names wayfind"
+    },
+    {
+      "answer": "This is a big effort; a map of the open decisions might help later.",
+      "why": "does not name the skill"
+    }
+  ]
+}

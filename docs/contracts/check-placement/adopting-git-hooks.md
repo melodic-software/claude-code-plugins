@@ -20,7 +20,7 @@ When nobody is there to answer the scope question, setup installs locally.
 
 ## Before enabling a formatter, a cleanup PR
 
-The formatter entries (bash-format, biome-format, go-format, markdown-format, powershell-format,
+The formatter entries (bash-format, go-format, javascript-format, markdown-format, powershell-format,
 python-format) rewrite each staged file in full. In a tree that was never formatted, the first commit
 to touch a file also reformats the rest of it, and the real change is lost in the diff. Format
 first:

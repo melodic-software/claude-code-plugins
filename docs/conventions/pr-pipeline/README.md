@@ -989,7 +989,7 @@ each row to these keys:
 | `max-files` | The most paths one patch may change, or `null`. |
 | `max-blobs` | Merge rows only: the most blobs one merge commit may upload, each one neither the head nor the base holds at its path; over it nothing is written. |
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
-| `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`), `install-script-pin` (`install-script-pin`: the root `package.json` alone, under `dependency-version-change`, with one `allowScripts` install-script pin moved to the exact version the manifest pins, unchanged from the commit before the patch, and nothing else, `installScriptPinRefusal`) or `pr-mode-revert` (`review-threads`: a file whose mode changes between `100644` and `100755` takes the mode its path has at the merge base of the PR head and its base, read through the GitHub API, so the lane can only revert a mode the pull request introduced). |
+| `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`), `install-script-pin` (`install-script-pin`: the root `package.json` alone, under `dependency-version-change`, with one `allowScripts` install-script pin moved to the exact version the manifest pins, unchanged from the commit before the patch, and nothing else, `installScriptPinRefusal`) or `pr-mode-revert` (`review-threads`: a file whose mode changes between `100644` and `100755` takes the mode its path has at the merge base of the PR head and its base, read through the GitHub API, so the lane can only revert a mode the pull request introduced). `protected-content` (`docs`) refuses nothing and leaves content out instead, after every other check passes on the whole patch: see the `docs` row below. |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `thread-trailer` | Optional; `true` (`review-threads`, a `kept-threads` row only) adds after the trailer a `Lane-Thread: <thread id>` line for each kept thread a `VALID` reply in the model job's scanned replies names, the binding `publish-feedback.mjs` requires before it credits the commit to a thread; with no replies read, nothing is committed. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
@@ -1016,8 +1016,24 @@ wait for a clean security review instead) waits for a person, and the
 security lane judges the rest. The `docs` row also refuses, in any case and through
 any `..` segment, a path under a `skills/` directory at any depth (`skills`) and a `SKILL.md`
 anywhere (`skill-md`), and allows only `markdown`, so a non-markdown path escalates
-`patch-protected-path`; it otherwise matches `default`. No other row names those two refusals,
-and none has to. The `review-threads` row alone also refuses a new file at mode `100755` or a
+`patch-protected-path`. Its `protected-content` content rule keeps fix-docs out of content a
+generator or the release tooling owns, and because fix-docs runs once per pull request it drops
+that content rather than refusing the patch. It reads git's own `-U0` hunks of each file and
+leaves out every hunk whose head lines meet a generated region (a standalone
+`<!-- BEGIN GENERATED: ... -->` line through its `<!-- END GENERATED: ... -->` line, the marker
+lines included), that inserts lines between a BEGIN and its END, or that writes a marker line; an
+insertion right before a BEGIN line or right after an END line is outside the region and kept, as
+is every other hunk. The whole change to a file, its mode included, is left out when the file sits
+in the `released` or `historical` tier of [`docs-naming.yaml`](../docs-naming.yaml)
+(`**/CHANGELOG.md`; `docs/adr/**`, `docs/upstream/**`, `.claude/unhobble/**`), when the patch
+deletes a file whose head holds a region (a rename, read as a deletion and an addition, so leaves
+the file at its old path), when its markers do not pair in the head or the patched blob, or when
+the kept or rebuilt blob's regions would not be the head's byte for byte; a mode change to any
+other file is kept. Each dropped hunk or file prints a
+`::warning` naming the file and, for a hunk, the generator its region's BEGIN line names, so the
+fix goes to the generator's inputs. A patch left with no change pushes nothing, escalates nothing
+and skips `not-applicable`. The row otherwise matches `default`. No other row names those two refusals or that
+rule, and none has to. The `review-threads` row alone also refuses a new file at mode `100755` or a
 change to that mode (`new-exec-bit`), so address-feedback can drop an executable bit but never
 add one; `ci-context` and `issue` keep setting script bits. The `ci-context` and `review-threads`
 rows also refuse, in any case and through any `..` segment, a `.gitattributes` file at any depth

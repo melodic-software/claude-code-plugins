@@ -260,7 +260,7 @@ surface is one `PreToolUse` entry, it has a boolean `userConfig` kill switch
 (`settings_write_ask_enabled`), and it has **zero shell hook scripts to lose**.
 `OBSERVED` · HIGH.
 
-`biome-format` is the clearest *demonstration* (ten `if:` rows collapsing to one
+`javascript-format` is the clearest *demonstration* (ten `if:` rows collapsing to one
 predicate) but is ADR-0028 **Class A**, which never splits. `guardrails` is the
 only plugin that would move the budget wall and is also Class A.
 

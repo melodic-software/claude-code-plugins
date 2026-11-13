@@ -17,6 +17,8 @@
 #   section-order      a feature README's sections are out of the contract's order
 #   entry-marker       an entry point line ends with neither `driven` nor `not driven: <reason>`
 #   entry-reason       an entry point line ends `not driven` with no reason
+#   drive-result       a step under a feature README's `## Drive` (a list item at the line start,
+#                      with its indented lines) has no `Result:` or nothing after it
 #   link               a relative Markdown link in any .md file resolves to nothing
 #   shared-use         a `shared/<item>` is named by fewer than two feature files
 #   shared-why         a `shared/<item>` has no `Why shared: <reason>` line (in its README.md
@@ -127,6 +129,16 @@ section_lines() { # <file> <heading> [fenced]
 }
 # Non-blank lines under `## Entry points`.
 entry_lines() { section_lines "$1" "Entry points" | awk NF; }
+# Steps under `## Drive`, one per line: a list item at the line start joined with the indented
+# lines after it, blank lines included, up to the next line that starts unindented.
+drive_steps() {
+  section_lines "$1" Drive | awk '
+    /^([-*+]|[0-9]+[.)])[[:space:]]/ { if (step != "") print step; step = $0; next }
+    !NF { next }
+    step != "" && /^[[:space:]]/ { sub(/^[[:space:]]+/, " "); step = step $0; next }
+    { if (step != "") print step; step = "" }
+    END { if (step != "") print step }'
+}
 
 declare -A features=() indexed=()
 while IFS= read -r f; do features["$f"]=readme; done < <(cd "$dir" && find features -mindepth 2 -type f -name README.md 2>/dev/null | LC_ALL=C sort)
@@ -232,6 +244,10 @@ for f in "${feature_list[@]}"; do
       finding entry-marker "$f" "$e"
     fi
   done < <(entry_lines "$dir/$f")
+
+  while IFS= read -r step; do
+    [[ "$step" =~ Result:[[:space:]]*[^[:space:]] ]] || finding drive-result "$f" "$step"
+  done < <(drive_steps "$dir/$f")
 done
 
 # Relative links in every Markdown file of the control skill.

@@ -3,6 +3,31 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.0] - 2026-11-13
+
+### Added
+
+- `interview` asks in round 1 whether to move to `/planning:wayfind chart` when the opening request itself names unknowns in three or more areas. The user accepts or declines; the interview stays the entry either way, and the fog and question-count triggers still apply after a decline.
+- `interview` proposes a qualified name itself when a term it asks about clashes with a concept the code or the glossary already names, adds it to the terminology matrix, and writes the agreed name through the existing vocabulary route under `domain_docs` (new `context/term-clash.md`).
+- `interview` asks what a prototype must prove when the outcome feeds one, and splits it into one small piece per question that can be built at once in separate worktrees, recorded as `Prototype <n> proves:` acceptance criteria (new `context/prototype-questions.md`).
+- `interview` runs `/discovery:explore` or `/discovery:research` itself when a question turns on a fact, instead of sending the user to find it, and lists such facts in the Brief's captured assumptions tagged `verify during build`.
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
+- `interview` states the quick-change skip in one line when invoked on a change whose diff is quick to review and cheap to retry. `context/routing.md` now keeps only the interview's own triggers and thresholds and points to `/session-flow:workflow` for route choice.
+
+## [3.2.0] - 2026-11-13
+
+### Added
+
+- `prd` and `plan` accept a map issue as their source (`#<map>`, a qualified ID or the item URL). A new shared `context/map-source.md` says how to read it through `/work-items:track view --comments`: from a closed map, the closing comment that states every decision; from an open map, each Decisions-so-far line's resolution comment, following `superseded by` lines to the live decision. The decisions are settled answers that are not asked again, and the map's open items become open questions.
+
+### Changed
+
+- `prd` and `plan` (its publish step) write every tracker link as the item's title linked to its absolute URL, never a bare `#<n>`.
+
 ## [3.1.5] - 2026-11-13
 
 ### Changed

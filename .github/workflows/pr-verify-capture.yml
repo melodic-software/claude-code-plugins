@@ -23,8 +23,8 @@ name: PR Verify Capture
 # started before the runner is isolated as its own OS user with the key on
 # stdin. run-claude-cli's driver legs hold a per-run client key instead and
 # reach the API only through the proxy's loopback port, which refuses any
-# request without that client key. The pull request's plugin code
-# never runs beside either: the driver asks the launch broker
+# request without that client key. The pull request's plugin code never
+# runs beside either: the driver asks the launch broker
 # (control-claude-code's broker.mjs) to start the driven Claude Code inside
 # a sibling sandbox, a bubblewrap sandbox with no network, its own process
 # view and an environment that holds no secret, whose only route out is a
@@ -44,12 +44,12 @@ name: PR Verify Capture
 # leg handed off, or the key is empty), the same job uploads a capture
 # recorded blocked: a subscription token cannot go behind the key proxy, so
 # no second leg could capture, and a job for it would only repeat these
-# gates' reads. A driver that stops
-# at the usage limit after the head checkout leaves a blocked capture saying
-# so, as any driver failure does. Every checkout keeps no credential in its
-# .git/config. Steps after the head checkout load .base's scan-upload,
-# which head code could have changed; the capture is untrusted data to its
-# only reader, and nothing here can write.
+# gates' reads. A driver that stops at the usage limit after the head
+# checkout leaves a blocked capture saying so, as any driver failure does.
+# Every checkout keeps no credential in its .git/config. Steps after the
+# head checkout load .base's scan-upload, which head code could have
+# changed; the capture is untrusted data to its only reader, and nothing
+# here can write.
 #
 # The credit gate (ci-workflows select-model-credential, reading
 # check-key-credit's history) skips the key while its last credit stop is
@@ -62,14 +62,12 @@ name: PR Verify Capture
 # head_repository_id. A forged one can only skip the key leg, which leaves
 # the capture blocked: no credential leak.
 #
-# Both jobs upload the same pr-capture-<pr>-<head-sha> name; find-capture.mjs
-# reads the run's conclusion and the run's artifacts, so either job's
-# capture counts. The judges wait find-capture.mjs WAIT_MS (35 minutes)
-# from their find step's start, which comes about when this run starts. A
-# capture job that hands off ends in about a minute (36 s from job start to
-# the probe's credit stop in run 41984197946), so the subscription job's 30
-# minutes fit; one that starts more than about 5 minutes after this run,
-# on runner queue time, can leave the judges a `running` miss.
+# The job uploads at most one pr-capture-<pr>-<head-sha>, the capture or a
+# blocked one; find-capture.mjs reads the run's conclusion and the run's
+# artifacts. The judges wait find-capture.mjs WAIT_MS (35 minutes) from
+# their find step's start, which comes about when this run starts, so the
+# job's 30 minutes fit; one that starts more than about 5 minutes after this
+# run, on runner queue time, can leave the judges a `running` miss.
 #
 # Every local action runs from the main checkout at ./.base. zizmor's
 # self-repository advice (`$/...`) is ignored on those lines, as in
@@ -80,7 +78,8 @@ on:
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [PR Require Checks]
     types: [completed]
-    # As pr-verify.yml: only a pull_request run is captured.
+    # As pr-verify.yml: only a pull_request run is captured, so a merge-queue
+    # or main run would only start a run that skips.
     branches-ignore: [main, 'gh-readonly-queue/**']
 
 # The judges find this run by its title (find-capture.mjs runTitle): the
@@ -120,8 +119,9 @@ jobs:
       contents: read # check out main and the pull request head
       pull-requests: read # the PR, its comments and reviews, for the resolver and the gate
       actions: read # the upstream run, and verdicts already uploaded
-    # npm's fetch bound and flags for "Install the driven Claude Code"'s npm
-    # ci, from main's checkout.
+    # npm's fetch bound and flags for the job's npm ci calls ("Install the
+    # driven Claude Code" and the driver's engine install), from main's
+    # checkout.
     env:
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
       npm_config_audit: "false"
@@ -172,11 +172,11 @@ jobs:
           CONFIG: .base/docs/conventions/pr-pipeline.yaml
         run: |
           app=$(yq '.merge."verify-capture".app // ""' "$CONFIG")
-          days=$(yq '.merge."verify-capture"."retention-days" // 30' "$CONFIG")
           if [ -z "$app" ]; then
             echo "::notice::merge.verify-capture.app is unset; no capture runs, and each verdict records no-app"
             exit 0
           fi
+          days=$(yq '.merge."verify-capture"."retention-days" // 30' "$CONFIG")
           if ! [[ $app =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]]; then
             echo "::error::merge.verify-capture.app is not an app name"
             exit 1
@@ -412,11 +412,11 @@ jobs:
         run: |
           fonts=$(fc-list ':charset=23f8' family file)
           if ! grep -q NotoSansSymbols2 <<<"$fonts"; then
-            # Each apt call is bounded, so a stalled
-            # mirror or held dpkg lock retries inside the step timeout instead
-            # of outlasting it (both attempts, the sleep and the repair take
-            # at most 285 s of its 300). sudo resets the environment, so the
-            # no-prompt settings for debconf and needrestart go through env.
+            # Each apt call is bounded, so a stalled mirror or held dpkg lock
+            # retries inside the step timeout instead of outlasting it (both
+            # attempts, the sleep and the repair take at most 285 s of its
+            # 300). sudo resets the environment, so the no-prompt settings
+            # for debconf and needrestart go through env.
             apt=(-o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o DPkg::Lock::Timeout=30)
             quiet=(env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a)
             for i in 1 2; do
@@ -448,8 +448,9 @@ jobs:
           sudo install -m 0755 -o root -g root .base/.github/scripts/pr-verify/sibling-init.sh /opt/ccd/sibling-init.sh
           # The driver's path stays inside the code: as argv[1] it would run the driver's CLI.
           /opt/ccd/bin/node --input-type=module -e 'const { ensureInstalled } = await import("/opt/ccd/control-claude-code/driver/driver.mjs"); ensureInstalled("/opt/ccd/deps");'
-          /opt/ccd/bin/node /opt/ccd/control-claude-code/driver/driver.mjs doctor --deps-dir /opt/ccd/deps | tee "$RUNNER_TEMP/ccd-doctor.txt"
-          if ! grep -qx 'engine: loads' "$RUNNER_TEMP/ccd-doctor.txt" || ! grep -qx 'signatures: verified at install' "$RUNNER_TEMP/ccd-doctor.txt"; then
+          doctor="$RUNNER_TEMP/ccd-doctor.txt"
+          /opt/ccd/bin/node /opt/ccd/control-claude-code/driver/driver.mjs doctor --deps-dir /opt/ccd/deps | tee "$doctor"
+          if ! grep -qx 'engine: loads' "$doctor" || ! grep -qx 'signatures: verified at install' "$doctor"; then
             echo "::error::the driver's engine is not installed with verified signatures"
             exit 1
           fi
@@ -725,10 +726,9 @@ jobs:
           pkill -u "$(id -u)" -x -f 'sleep 1800' || true
           echo "::notice::the sibling sandbox sees no credential and no outside process, reaches only the key proxy, and its broker listens"
 
-      # The run directory is made here so it exists for the driver's
-      # add-dirs; run-e2e takes no run-directory argument (its SKILL.md
-      # Arguments), so the capture prompt names it.
-      # FENCE_FILE stands in for Claude Code's credential store
+      # The run directory, which "Start the sibling sandbox" made, is made
+      # again here so the step stands alone. FENCE_FILE stands in for Claude
+      # Code's credential store
       # (~/.claude/.credentials.json): a file that exists under ~/.claude,
       # so a refused Read of it is the fence, not a missing file. Two links in
       # the run directory, which the driver may read and the sibling sandbox
@@ -804,7 +804,8 @@ jobs:
             const fail = (why) => { console.log(`::error::${why}; no driver leg runs`); process.exit(1); };
             const { REAL_SHA: real, CLIENT_KEY: client } = process.env;
             if (!/^[0-9a-f]{64}$/.test(real ?? "") || !/^ccd-outer-[0-9a-f]{64}$/.test(client ?? "")) fail("the key proxy gave no key hash or client key");
-            if (sha(client) === real) fail("the client key is the real key");
+            const clientSha = sha(client);
+            if (clientSha === real) fail("the client key is the real key");
             const settings = JSON.parse(readFileSync("/etc/claude-code/managed-settings.json", "utf8"));
             if (settings.env?.ANTHROPIC_BASE_URL !== "http://127.0.0.1:47101") fail("the managed settings do not send the legs to the key proxy");
             const strings = [];
@@ -826,7 +827,7 @@ jobs:
                 const h = sha(entry.slice(at + 1));
                 values += 1;
                 if (h === real) hits += 1;
-                if (h === sha(client)) canary = true;
+                if (h === clientSha) canary = true;
               }
             }
             if (!canary) fail("the environment scan did not see its canary");
@@ -838,10 +839,11 @@ jobs:
       # own file-tool fence (the same deny rules as "Capture the change", and
       # the same Write and Grep tools with its edit allowances): a Bash child
       # of a driver leg on the proxy's client key and port and the driver's
-      # Claude Code version, where the driver commands will run,
-      # and five Read calls, a Write and a Grep the fence must refuse. continue-on-error lets a
-      # handoff end the job green; "Check the probe" fails the job on any
-      # other probe failure, so no head code runs unprobed.
+      # Claude Code version, where the driver commands will run, and five
+      # Read calls, a Write and a Grep the fence must refuse.
+      # continue-on-error lets a handoff end the job green; "Check the probe"
+      # fails the job on any other probe failure, so no head code runs
+      # unprobed.
       - name: Probe what head code can reach
         id: probe
         if: steps.credential.outputs.present == 'true'
@@ -861,8 +863,8 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "10"
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060), as on "Capture the change", so the probe checks
-          # where the driver commands run.
+          # Sandbox off (melodic-software/ci-workflows#1060), as on "Capture
+          # the change", so the probe checks where the driver commands run.
           sandbox: "false"
           tools: |
             Bash
@@ -907,8 +909,8 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-probe
 
-      # The probe leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason (the job's LEG_FALLBACK_REASON) and durationMs.
+      # The probe leg's lane-outcome record: its credential, outcome, handoff
+      # and durationMs.
       - name: Record the probe leg
         if: always() && steps.probe.outcome != 'skipped'
         continue-on-error: true
@@ -923,18 +925,17 @@ jobs:
           handoff: ${{ steps.probe.outputs.handoff }}
           known-failure-class: ${{ steps.probe.outputs.lane-class }}
           max-turns: "10"
-          fallback-reason: ${{ env.LEG_FALLBACK_REASON }}
 
       # Read by the next runs' credit gate: the artifact its `marker` output
       # names (gate.cjs markerName), uploaded only after the probe's
       # credit-stop handoff, which means the key is out of credit. Written
       # here, before the head checkout, and never later, so this run writes
       # one only on its own probe's evidence. Another same-repository workflow
-      # can still upload this name (see the header); a forged marker only
-      # moves captures to the subscription. The name is written out so its retention
-      # row claims it; a gate that names another marker writes none. Its
-      # upload time starts the window; one day's retention covers windows up
-      # to 24 hours.
+      # can still upload this name (see the header); a forged marker can only
+      # skip the key leg, which leaves the capture blocked. The name is
+      # written out so its retention row claims it; a gate that names another
+      # marker writes none. Its upload time starts the window; one day's
+      # retention covers windows up to 24 hours.
       - name: Write the key's credit-stop marker
         id: credit-marker
         if: always() && steps.credit.outputs.marker == 'key-credit-stop-pr-verify-capture.yml-capture' && steps.probe.outputs.handoff-reason == 'credit-stop'
@@ -1084,6 +1085,8 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      # run-e2e takes no run-directory argument (its SKILL.md Arguments), so
+      # the capture prompt names the run directory.
       - name: Write the capture prompt and schema
         id: prompt
         if: steps.head.outcome == 'success'
@@ -1129,23 +1132,23 @@ jobs:
       # of 2026-11-06; recheck when that list changes). The rules name only
       # main's driver, by its absolute path, one rule per verb the control
       # skill uses, its `## Mask` values source exactly as drive's mask
-      # post-check runs it, the git commands run-e2e and drive run on the head, and
-      # the other commands those skills name: main's testing config and
-      # browser-driver scripts, `claude plugin list --json`, cmp (it only
-      # reads), and the default branch's ls-remote and fetch, each exact,
-      # since `fetch *` or `ls-remote *` would admit --upload-pack, which
-      # runs a program. Every path is absolute: the leg runs from the head
-      # checkout, where a relative .base/ or head path names files the pull
-      # request controls. The plugin skills name absolute paths, since
+      # post-check runs it, the git commands run-e2e and drive run on the
+      # head, and the other commands those skills name: main's testing
+      # config and browser-driver scripts, `claude plugin list --json`, cmp
+      # (it only reads), and the default branch's ls-remote and fetch, each
+      # exact, since `fetch *` or `ls-remote *` would admit --upload-pack,
+      # which runs a program. Every path is absolute: the leg runs from the
+      # head checkout, where a relative .base/ or head path names files the
+      # pull request controls. The plugin skills name absolute paths, since
       # run-claude-cli resolves each plugin-dirs entry to one, and the
-      # control skill makes <skill-dir> absolute. drive's affected_features.py,
-      # which run-e2e needs to find what to drive, runs from main by absolute
-      # path under python3 -I; it replaces any link left at its affected.json
-      # rather than writing through it, so a link the head or the sandbox
-      # plants cannot redirect the write into a .base script these rules run
-      # (a hard link from the sandbox into .base fails anyway: they are
-      # separate mounts, https://man7.org/linux/man-pages/man2/link.2.html
-      # EXDEV). A head copy
+      # control skill makes <skill-dir> absolute. drive's
+      # affected_features.py, which run-e2e needs to find what to drive, runs
+      # from main by absolute path under python3 -I; it replaces any link
+      # left at its affected.json rather than writing through it, so a link
+      # the head or the sandbox plants cannot redirect the write into a .base
+      # script these rules run (a hard link from the sandbox into .base fails
+      # anyway: they are separate mounts,
+      # https://man7.org/linux/man-pages/man2/link.2.html EXDEV). A head copy
       # of the driver or a script matches none of them.
       # File-tool fence: --restricted confines the file tools to the working
       # directories (the workspace and add-dirs); dontAsk denies any edit no
@@ -1153,9 +1156,10 @@ jobs:
       # run directory. Each path rule is absolute, since a ./ rule resolves
       # against the current directory, which moves when the leg cds into the
       # head (https://code.claude.com/docs/en/permissions, as of 2026-11-06;
-      # recheck when its path-pattern table changes). The deny rules keep /proc, /sys, the runner's temp
-      # directory and the home's credential files out of reach as well,
-      # and the probe step proves them on a Read of each.
+      # recheck when its path-pattern table changes). The deny rules keep
+      # /proc, /sys, the runner's temp directory and the home's credential
+      # files out of reach as well; the probe step tries a Read of /proc, the
+      # runner's temp directory and ~/.claude, directly and through a link.
       # Skill fence: only main's two named skills are allowed, so a skill in the
       # head that declares hooks is refused under dontAsk, whatever discovers it.
       # The app under test runs in the sibling sandbox: CCD_BROKER_SOCK sends
@@ -1186,8 +1190,9 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060): driver.mjs launch starts a nested claude and
-          # runs npm ci, which need api.anthropic.com and registry.npmjs.org.
+          # Sandbox off (melodic-software/ci-workflows#1060): driver.mjs
+          # launch starts a nested claude and runs npm ci, which need
+          # api.anthropic.com and registry.npmjs.org.
           sandbox: "false"
           tools: |
             Bash
@@ -1418,6 +1423,7 @@ jobs:
           fi
           kept=0
           while IFS= read -r rel; do
+            [ "$kept" -lt 50 ] || break
             [ "$rel" != e2e-summary.json ] || continue
             case "/$rel/" in
               */../* | */./* | //*) continue ;;
@@ -1425,7 +1431,6 @@ jobs:
             src="$dir/$rel"
             [ "$(realpath -e -- "$src" 2>/dev/null)" = "$src" ] && [ -f "$src" ] || continue
             [ "$(stat -c %s "$src")" -le 10485760 ] || continue
-            [ "$kept" -lt 50 ] || break
             mkdir -p "$OUT/$(dirname "$rel")"
             cp -P -- "$src" "$OUT/$rel"
             if ! [ -f "$OUT/$rel" ] || [ -L "$OUT/$rel" ]; then

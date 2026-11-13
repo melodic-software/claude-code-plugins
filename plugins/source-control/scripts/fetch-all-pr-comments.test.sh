@@ -302,6 +302,61 @@ assert_eq "subset merge emits the general comment" "1" "$partial_count"
 partial_type=$(printf '%s' "$out" | jq -r '.[0].type')
 assert_eq "subset merge type is general" "general" "$partial_type"
 
+# ---- --dir: run from a directory outside every checkout ----------------------
+#
+# <checkout>'s one GitHub remote is acme/app, so the repository can come only from --dir. This
+# stub records no gh default, fails `gh repo view`, and fails a REST read of any other repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO FETCH_COMMENTS_OWNER FETCH_COMMENTS_REPO
+export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
+CHECKOUT="$TEST_TMPDIR/checkout" FORK="$TEST_TMPDIR/fork" NOREMOTE="$TEST_TMPDIR/noremote"
+OUTSIDE="$TEST_TMPDIR/outside"
+git init -q "$CHECKOUT"
+git -C "$CHECKOUT" remote add origin https://github.com/acme/app.git
+git init -q "$FORK"
+git -C "$FORK" remote add origin https://github.com/me/app.git
+git init -q "$NOREMOTE"
+mkdir -p "$OUTSIDE" "$TEST_TMPDIR/bin-dir"
+cat >"$TEST_TMPDIR/bin-dir/gh" <<STUB
+#!/usr/bin/env bash
+if [[ "\$1 \$2" == "repo set-default" ]]; then
+  echo "No default remote repository has been set." >&2
+  exit 0
+fi
+[[ "\$1" == api && " \$* " == *" repos/acme/app/"* ]] || exit 1
+case "\$*" in
+  *issues/${PR_NUM}/comments*) cat "$FIXTURE_GENERAL" ;;
+  *pulls/${PR_NUM}/reviews*) cat "$FIXTURE_REVIEWS" ;;
+  *pulls/${PR_NUM}/comments*) cat "$FIXTURE_INLINE" ;;
+  *) exit 1 ;;
+esac
+STUB
+chmod +x "$TEST_TMPDIR/bin-dir/gh"
+
+# run_outside <args...>: prints the script's exit code, then the number of comments it emitted.
+run_outside() {
+  local out rc
+  out=$(cd "$OUTSIDE" && PATH="$TEST_TMPDIR/bin-dir:$PATH" bash "$SCRIPT" "$@" 2>/dev/null)
+  rc=$?
+  printf '%s %s' "$rc" "$(printf '%s' "$out" | jq 'length' 2>/dev/null)"
+}
+
+assert_eq "--dir from outside every checkout reads the checkout's repository" "0 4" \
+  "$(run_outside "$PR_NUM" --dir "$CHECKOUT")"
+assert_eq "without --dir, a shell outside every checkout still resolves with gh repo view" "2 " \
+  "$(run_outside "$PR_NUM")"
+assert_eq "FETCH_COMMENTS_OWNER + FETCH_COMMENTS_REPO win over --dir" "0 4" \
+  "$(FETCH_COMMENTS_OWNER=acme FETCH_COMMENTS_REPO=app run_outside "$PR_NUM" --dir "$FORK")"
+assert_eq "FETCH_COMMENTS_OWNER alone overrides only the owner --dir resolves" "0 4" \
+  "$(FETCH_COMMENTS_OWNER=acme run_outside "$PR_NUM" --dir "$FORK")"
+assert_eq "GH_REPO names the base repository for a fork checkout" "0 4" \
+  "$(GH_REPO=acme/app run_outside "$PR_NUM" --dir "$FORK")"
+assert_eq "a --dir checkout with no GitHub remote exits 2" "2 " "$(run_outside "$PR_NUM" --dir "$NOREMOTE")"
+assert_eq "--dir without a value is a usage error" "1 " "$(run_outside "$PR_NUM" --dir)"
+assert_eq "an empty --dir is a usage error" "1 " "$(run_outside "$PR_NUM" --dir '')"
+assert_eq "--dir naming no directory is a usage error" "1 " "$(run_outside "$PR_NUM" --dir "$TEST_TMPDIR/missing")"
+assert_eq "--dir given twice is a usage error" "1 " \
+  "$(run_outside "$PR_NUM" --dir "$CHECKOUT" --dir "$FORK")"
+
 # ---- Summary ----------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

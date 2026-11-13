@@ -226,9 +226,9 @@ reads the file itself, through a script where the key names one below.
   `posix-ere`. No skill here reads it. The guardrails enforcement resolver does, and any other value
   turns its enforcement off with a diagnostic; see the
   [commit-convention enforcement README](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/commit-convention/README.md).
-- `pre_ready`: which pre-flip steps `/source-control:pull-request ready` runs, a list of
-  `{step, enabled}` mappings over `base-merge`, `plan-evidence`, `code-review`, `security-review`
-  and `verify`; a step the list leaves out runs. Team level only, with no `userConfig` option: a
+- `pre_ready`: which configurable steps `/source-control:pull-request ready` runs, a list of
+  `{step, enabled}` mappings over `base-merge`, `plan-evidence`, `code-review`, `security-review`,
+  `verify` and `evidence`; a step the list leaves out runs. Team level only, with no `userConfig` option: a
   person cannot switch off a repository's gates. Read at the pull request's base branch, never the
   head, by `skills/pull-request/scripts/read-pre-ready.sh`, and honored only when that base is
   the base repository's default branch. The reader runs every step when the key is missing, the

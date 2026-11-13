@@ -3,6 +3,18 @@
 All notable changes to the `sql-server` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.9] - 2026-11-13
+
+### Changed
+
+- `scripts/measure-read-safety.mjs` writes its results into `reference/read-safety-measurement.md` between `<!-- BEGIN GENERATED: measure-read-safety-results. ... -->` and `<!-- END GENERATED: measure-read-safety-results -->`, the markers the ai-slop audit skips, so its fix pass no longer edits the measured results. The committed doc carries the new markers. A doc that still carries the older `<!-- measure-read-safety:results:start -->` markers is refused before any container starts, with a message naming them and the two lines to put in their place.
+
+## [0.6.8] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [0.6.7] - 2026-11-12
 
 ### Changed

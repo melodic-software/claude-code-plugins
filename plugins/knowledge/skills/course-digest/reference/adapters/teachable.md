@@ -58,7 +58,7 @@ Teachable has **no transcript panel** in DOM. Transcripts are extracted from Hot
 7. Fetch all segments in batches from inside iframe context
 8. Parse, deduplicate, format into timestamped transcript
 
-**Dedup:** HLS subtitle segments overlap by ~6s. Deduplicate by normalized `startTime + text` composite key. Use `lib/vtt-parser.js` for this.
+**Dedup:** HLS subtitle segments overlap by ~6s. Deduplicate by normalized `startTime + text` composite key. Use the vendored `@melodic/video-digestion/transcript/vtt-parser` module (`vendor/video-digestion/transcript/vtt-parser.js` at the plugin root) for this.
 
 **No-captions fallback:** If Video.js player has no subtitle tracks (SUBTITLES group empty), lesson has no captions. Mark as `[no-captions]`. Whisper transcription via ffmpeg is a documented fallback but not implemented in adapter.
 

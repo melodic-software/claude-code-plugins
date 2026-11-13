@@ -27,8 +27,9 @@ name: Upstream Apply Changelog
 # release of a burst in turn; a dispatch names one.
 # A release is skipped only when this workflow's
 # upstream-apply-changelog-done-<release> artifact exists, since --ci never
-# moves the read marker; existing branches and PRs are skipped per item. At most limits.upstream-apply-changelog-per-day
-# runs whose leg ran start in any 24 hours (docs/conventions/pr-pipeline.yaml).
+# moves the read marker; existing branches and PRs are skipped per item.
+# At most limits.upstream-apply-changelog-per-day runs whose leg ran start
+# in any 24 hours (docs/conventions/pr-pipeline.yaml).
 # The model runs as three legs, one credential per job: model on the issue
 # lane's API key, model-subscription on its subscription token when the key
 # leg hands off (a credit stop, or a 401 or 402), the key is empty, or the
@@ -148,8 +149,8 @@ jobs:
           RELEASE_INPUT: ${{ inputs.release }}
           STATUS_FILE: ${{ runner.temp }}/changelog-status.txt
         run: |
-          # The unread releases. The replay cap bounds a replayed range, and a run here
-          # takes one release, so the caps are raised to keep the list printed.
+          # The unread releases. The replay cap bounds a replayed range, and a run
+          # here takes one release, so the caps are raised to keep the list printed.
           if [ "$EVENT_NAME" = schedule ]; then
             bash plugins/harness-ops/skills/changelog/scripts/changelog-status.sh --ledger docs/upstream/claude-code.md \
               --cap-releases 1000 --cap-items 1000000 >"$STATUS_FILE"
@@ -383,9 +384,10 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060): harness-ops:changelog's Bash fetches the
-          # changelog from raw.githubusercontent.com (fetch-changelog.sh), a host
-          # the sandbox's GitHub-only network refuses.
+          # Sandbox off (melodic-software/ci-workflows#1060):
+          # harness-ops:changelog's Bash fetches the changelog from
+          # raw.githubusercontent.com (fetch-changelog.sh), a host the sandbox's
+          # GitHub-only network refuses.
           sandbox: "false"
           tools: |
             Read
@@ -775,9 +777,10 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060): harness-ops:changelog's Bash fetches the
-          # changelog from raw.githubusercontent.com (fetch-changelog.sh), a host
-          # the sandbox's GitHub-only network refuses.
+          # Sandbox off (melodic-software/ci-workflows#1060):
+          # harness-ops:changelog's Bash fetches the changelog from
+          # raw.githubusercontent.com (fetch-changelog.sh), a host the sandbox's
+          # GitHub-only network refuses.
           sandbox: "false"
           tools: |
             Read
@@ -830,13 +833,11 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
-
       # The gate's per-day cap counts these: every leg past the kill switch,
       # a setup failure before the leg included, except one that handed off
       # or found its credential empty, since the next leg then runs the
       # release and records its own start. One start per run, so the cap
-      # stays the brake. The file is rewritten after the leg and scanned, as
-      # the marker is.
+      # stays the brake. The file is rewritten after the leg and scanned.
       - name: Record the start
         id: start
         if: always() && steps.models.outcome != 'skipped' && steps.run.outputs.handoff != 'true' && steps.credential.outputs.present != 'false'
@@ -1119,9 +1120,10 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060): harness-ops:changelog's Bash fetches the
-          # changelog from raw.githubusercontent.com (fetch-changelog.sh), a host
-          # the sandbox's GitHub-only network refuses.
+          # Sandbox off (melodic-software/ci-workflows#1060):
+          # harness-ops:changelog's Bash fetches the changelog from
+          # raw.githubusercontent.com (fetch-changelog.sh), a host the sandbox's
+          # GitHub-only network refuses.
           sandbox: "false"
           tools: |
             Read
@@ -1174,13 +1176,11 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
-
       # The gate's per-day cap counts these: every leg past the kill switch,
-      # a setup failure before the leg included, except one that handed off
-      # or found its credential empty, since the next leg then runs the
-      # release and records its own start. One start per run, so the cap
-      # stays the brake. The file is rewritten after the leg and scanned, as
-      # the marker is.
+      # a setup failure before the leg included, except one that found its
+      # credential empty. This last leg never hands off. One start per run,
+      # so the cap stays the brake. The file is rewritten after the leg and
+      # scanned.
       - name: Record the start
         id: start
         if: always() && steps.models.outcome != 'skipped' && steps.credential.outputs.present != 'false'
@@ -1207,7 +1207,6 @@ jobs:
           path: ${{ runner.temp }}/started/release.txt
           retention-days: 2
           if-no-files-found: error
-
 
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
@@ -1389,8 +1388,8 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060), as on the model legs, so the probe checks the
-          # scrub where their Bash runs.
+          # Sandbox off (melodic-software/ci-workflows#1060), as on the model
+          # legs, so the probe checks the scrub where their Bash runs.
           sandbox: "false"
           cli-version: ${{ needs.gate.outputs.release }}
           tools: |
@@ -1598,8 +1597,8 @@ jobs:
             echo 'Then answer with the last line the command printed. Do nothing else.'
           } >"$PROMPT_FILE"
 
-      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the key goes
-      # only to the api-key input.
+      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the token goes
+      # only to the subscription-token input.
       # continue-on-error lets a handoff end the job green; "Check the probe"
       # fails it on any other probe failure.
       - name: Probe what a Bash child can reach
@@ -1621,8 +1620,8 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060), as on the model legs, so the probe checks the
-          # scrub where their Bash runs.
+          # Sandbox off (melodic-software/ci-workflows#1060), as on the model
+          # legs, so the probe checks the scrub where their Bash runs.
           sandbox: "false"
           cli-version: ${{ needs.gate.outputs.release }}
           tools: |
@@ -1826,10 +1825,10 @@ jobs:
             echo 'Then answer with the last line the command printed. Do nothing else.'
           } >"$PROMPT_FILE"
 
-      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the key goes
-      # only to the api-key input.
-      # continue-on-error lets a handoff end the job green; "Check the probe"
-      # fails it on any other probe failure.
+      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the token goes
+      # only to the fallback-token input.
+      # continue-on-error leaves the verdict to "Check the probe", which
+      # fails the job on any probe failure; this last leg never hands off.
       - name: Probe what a Bash child can reach
         id: probe
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
@@ -1848,8 +1847,8 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060), as on the model legs, so the probe checks the
-          # scrub where their Bash runs.
+          # Sandbox off (melodic-software/ci-workflows#1060), as on the model
+          # legs, so the probe checks the scrub where their Bash runs.
           sandbox: "false"
           cli-version: ${{ needs.gate.outputs.release }}
           tools: |
@@ -1963,8 +1962,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
-    # The scan-carrier key's second holder (owner decision, 2026-11-02): main only, no id-token, no
-    # write token, read-only cache; the environment admits main only.
+    # The scan-carrier key's second holder (owner decision, 2026-11-02):
+    # main only, no id-token, no write token, read-only cache; the
+    # environment admits main only.
     environment:
       name: pr-pipeline-scan-carrier
       deployment: false
@@ -2296,12 +2296,13 @@ jobs:
           tokens: lanes-app github-token
 
   # publish-artifact: pull-requests and issues write, contents read. Opens a
-  # pull request for each branch at the head push-branches left that has none, and files
-  # the release's handoffs as one issue, appending keys an open one lacks; then
-  # records the release done. A cap-exceeded or hold-path plan files its issue, naming its
-  # stop_reason, and is recorded done once that issue holds every handoff key;
-  # a range-not-computed plan files nothing and is not recorded done, so the
-  # next run takes the release again.
+  # pull request for each branch at the head push-branches left that has
+  # none, and files the release's handoffs as one issue, appending keys an
+  # open one lacks; then records the release done. A cap-exceeded or
+  # hold-path plan files its issue, naming its stop_reason, and is recorded
+  # done once that issue holds every handoff key; a range-not-computed plan
+  # files nothing and is not recorded done, so the next run takes the
+  # release again.
   publish:
     name: Publish
     needs: [gate, scan, push-branches]

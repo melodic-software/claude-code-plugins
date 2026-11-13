@@ -8,12 +8,13 @@ name: PR Refine
 # workflow_dispatch only. fix-docs: pr-unblock-dispatch.yml's refine job sends
 # one, on the PR's own pull_request_target event, per ready PR that changes a
 # Markdown file and never had a fix-docs run, when the event's sender is the
-# lanes App or a listed human, except Dependabot, the release App and the standards-sync App, and not for a
-# work-resolve-issue PR tidied in its own run (within the tidy cutoffs)
-# (refine-event-dispatch.mjs over fix-docs-dispatch.mjs); the push and
-# scheduled dispatcher runs send none. It sets dispatcher-run-id; a trusted human may
-# dispatch with pr-number and activity alone. Every job trusts the default
-# branch tip, as the dispatcher runs from the tip.
+# lanes App or a listed human, except Dependabot, the release App and the
+# standards-sync App, and not for a work-resolve-issue PR tidied in its own run
+# (within the tidy cutoffs) (refine-event-dispatch.mjs over
+# fix-docs-dispatch.mjs); the push and scheduled dispatcher runs send none. The
+# refine job sets dispatcher-run-id; a trusted human may dispatch with
+# pr-number and activity alone. Every job trusts the default branch tip, as the
+# dispatcher runs from the tip.
 #
 # Each activity is a model job and its push job (slots[].needs in
 # docs/conventions/pr-pipeline.yaml); pairs on one PR serialize on the per-PR
@@ -24,9 +25,10 @@ name: PR Refine
 # " #" would start a YAML comment and drop the PR number.
 run-name: "pr-refine ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
-# API_BUDGET_HOLD (outage posture element 2): only fix-docs-head's head read and
-# hold check set it, since an unread head or hold holds green and starts
-# nothing. handoff-evidence.sh sets it itself for the fix-docs reads.
+# API_BUDGET_HOLD (outage posture element 2): only plan's changed-files read
+# and fix-docs-head's head read and hold check set it, since an unread file
+# list, head or hold holds green and starts nothing. handoff-evidence.sh sets
+# it itself for the fix-docs reads.
 # A step opts in only once its script is shown to hold green with a notice on
 # a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
 # a hold would pass what it could not read, so the rest still end red on a
@@ -61,12 +63,13 @@ concurrency:
 jobs:
   # A dispatcher that ran an older copy of its file than the tip sent a run the
   # broker refuses every write token (workflow-modified), so this job compares
-  # the two before anything else. On a difference no select job starts: no
-  # model turn, no check and no stop, so the run ends green and the next
-  # dispatcher, on the tip's file, finds the head unhandled and sends it again.
-  # Here and not in the read runner, because the jobs after a select job that
-  # proceeded mint a token whatever the model call did. Only base code and a
-  # read-only token; a dispatch with no dispatcher run skips the steps.
+  # the two before anything else. On a difference the plan job does not start,
+  # nor any job after it: no model turn and no check; the run ends green and
+  # the next dispatcher, on the tip's file, finds the head unhandled and sends
+  # it again. Here and not in the read runner, because the jobs after a
+  # fix-docs-head that proceeded mint a token whatever the model call did.
+  # Only base code and a read-only token; a dispatch with no dispatcher run
+  # skips the steps.
   dispatcher-current:
     name: Dispatcher Current
     runs-on: ubuntu-24.04
@@ -123,13 +126,13 @@ jobs:
   # laneSlots expands them, with `stage: refine` and predicates whose paths
   # and paths-ignore let one of the PR's changed files through (for a pass
   # taking changed-paths, one resolve.mjs slotTargets keeps, as its runner
-  # does), in batches by order and group. A pass's first job starts only on its plan output, so a
-  # PR that matches no pass ends here, every later job skipped, with no model
-  # turn. Only base code and a read-only token. A file list at the REST cap of
-  # 3000 may be cut off, so it plans every pass and each runner's own
-  # applies-when decides. A file list it cannot read holds (outage posture
-  # element 2): one notice, held=true and no passes, and fix-docs-head-held
-  # logs the hold the dispatcher reads to send the PR again.
+  # does), in batches by order and group. A pass's first job starts only on
+  # its plan output, so a PR that matches no pass ends here, every later job
+  # skipped, with no model turn. Only base code and a read-only token. A file
+  # list at the REST cap of 3000 may be cut off, so it plans every pass and
+  # each runner's own applies-when decides. A file list it cannot read holds
+  # (outage posture element 2): one notice, held=true and no passes, and
+  # fix-docs-head-held logs the hold the dispatcher reads to send the PR again.
   plan:
     name: Plan
     needs: dispatcher-current
@@ -334,8 +337,6 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # A GitHub fault on its reads holds: a notice, unread=true, no held
-      # (lane-hold.mjs), so only fix-docs-head-held starts.
       - name: Check the human-gated hold
         id: hold
         if: steps.head.outputs.sha != ''
@@ -401,8 +402,8 @@ jobs:
           overwrite: true
           if-no-files-found: ignore
 
-  # fix-docs is four jobs, so no model ever holds a write token. The model
-  # job: a read activity with no write token and no OIDC token in the job that
+  # fix-docs is split across jobs, so no model ever holds a write token. The
+  # model job: a read activity with no write token and no OIDC token in the job that
   # runs head code. The skill fixes the changed Markdown files; the runner
   # uploads its uncommitted edits as a patch. It runs on the pr-unblock
   # role's API key alone. Drafts and do-not-merge PRs skip in the config's
@@ -514,10 +515,11 @@ jobs:
           overwrite: true
           if-no-files-found: ignore
 
-      # Whether the third call can run, never the token. fix-docs-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last. A failed read leaves it empty. A lagging read sets it, and
-      # the empty handed-off still keeps both later legs from starting.
+      # Whether the third call can run, never the token. fix-docs-subscription
+      # passes it on as fallback-ready, so with the token empty its
+      # subscription leg stays the last. A failed read leaves it empty. A
+      # lagging read sets it, and the empty handed-off still keeps both later
+      # legs from starting.
       - name: Check the fallback token
         id: fallback
         env:
@@ -620,10 +622,11 @@ jobs:
   # allow keeps a kill switch or a refusal from starting a second leg, and the
   # handoff keeps a trigger decline or a supersede (the PR head moved after
   # fix-docs-head read it, so a second leg would supersede too) from starting
-  # one: their scan job runs. Its start reads only fix-docs-handoff, and it holds the OAuth
-  # token alone. fallback: handoff labels the lane record without reading a
-  # fix-docs output: only the run job knows whether it was a credit stop or an
-  # empty key, and head code can forge that.
+  # one: their scan job runs. Its start reads no fix-docs output, only
+  # fix-docs-handoff's, and it holds the OAuth token alone. fallback: handoff
+  # labels the lane record without reading a fix-docs output: only the run job
+  # knows whether it was a credit stop or an empty key, and head code can
+  # forge that.
   fix-docs-subscription:
     name: Fix Docs Subscription
     needs: [fix-docs-head, fix-docs, fix-docs-handoff]
@@ -659,12 +662,12 @@ jobs:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether fix-docs-subscription handed off to the fallback token, read from this run's
-  # jobs by handoff-evidence.sh, never from a fix-docs-subscription output: its broker
-  # allowed it, its run job succeeded and its scan job never ran. It runs
-  # only when fix-docs-handoff found the fallback token set, so with the token empty
-  # nothing starts that did not before. A failed or lagging read starts no third
-  # call.
+  # Whether fix-docs-subscription handed off to the fallback token, read from
+  # this run's jobs by handoff-evidence.sh, never from a fix-docs-subscription
+  # output: its broker allowed it, its run job succeeded and its scan job never
+  # ran. It runs only when fix-docs-handoff found the fallback token set, so
+  # with the token empty neither it nor the third call starts. A failed or
+  # lagging read starts no third call.
   fix-docs-subscription-handoff:
     name: Fix Docs Subscription Handoff
     needs: [fix-docs-handoff, fix-docs-subscription]
@@ -734,9 +737,9 @@ jobs:
           tokens: github-token
 
   # The third call, on the central fallback subscription's token alone: it
-  # runs only on fix-docs-subscription-handoff's read, after fix-docs-subscription's subscription leg handed off (a
-  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
-  # hands off.
+  # runs only on fix-docs-subscription-handoff's read, after
+  # fix-docs-subscription handed off (a limit stop, a credit stop, or a 401 or
+  # 402). It is the last leg and never hands off.
   fix-docs-fallback:
     name: Fix Docs Fallback
     needs: [fix-docs-head, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff]
@@ -773,9 +776,10 @@ jobs:
   # one. The lane has no escalation job, so a refused patch posts the
   # pr-refine / apply-patch check neutral and labels nothing. One leg answers,
   # as for pr-unblock.yml's apply-patch: the fallback call when it ran, else
-  # the first, and every input is that leg's scan job's, never a run job's,
-  # since the run job runs head code. The head is fix-docs-head's, read by a job that ran no head
-  # code; apply-patch still applies onto the head its own gate reads.
+  # the subscription call when it ran, else the first, and every input is that
+  # leg's scan job's, never a run job's, since the run job runs head code. The
+  # head is fix-docs-head's, read by a job that ran no head code; apply-patch
+  # still applies onto the head its own gate reads.
   apply-docs-patch:
     name: Apply Docs Patch
     needs: [fix-docs-head, fix-docs, fix-docs-subscription, fix-docs-fallback]

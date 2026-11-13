@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "Preferred: `claude plugin configure javascript-format@<marketplace> --values-stdin < values.json`.\n\nOn a release without `plugin configure`: `claude plugin install javascript-format@<marketplace> -s <scope> --config javascript_format_enabled=false`."
+    },
+    {
+      "answer": "`claude plugin configure javascript-format@m --values-stdin`, else `claude plugin install -s user javascript-format@m --config javascript_format_enabled=false`.",
+      "why": "a flag between the verb and the target"
+    },
+    {
+      "answer": "Run `claude plugin configure javascript-format@<marketplace> --values-stdin`. On an older release, `claude plugin install -s <scope> javascript-format@<marketplace> --config javascript_format_enabled=false`.",
+      "why": "a placeholder scope flag before the target"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`claude plugin install javascript-format@<marketplace> -s user --config javascript_format_enabled=false`, or `claude plugin configure javascript-format@<marketplace> --values-stdin`.",
+      "why": "fallback named before the preferred route"
+    },
+    {
+      "answer": "`claude plugin configure javascript-format@<marketplace> --values-stdin`, then `claude plugin install javascript-format@<marketplace> --config javascript_format_enabled=true`.",
+      "why": "wrong value"
+    },
+    {
+      "answer": "`claude plugin configure javascript-format@<marketplace> --values-stdin`",
+      "why": "no fallback"
+    }
+  ]
+}

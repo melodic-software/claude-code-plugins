@@ -102,7 +102,7 @@ above the plugin's directory, or with no absolute path or no known plugin direct
 - The fifth is a denied search, in a without-arm run that finished, whose every term names only a
   `suite.plugins` plugin: in a slash-command case the arm lacks the skill it was asked to run, so
   it may search the disk for it (`find / -ipath '*markdown-format*'`,
-  `grep -rIl biome-format <run home>`). The search is one `find` whose only tests are `-name`,
+  `grep -rIl javascript-format <run home>`). The search is one `find` whose only tests are `-name`,
   `-iname`, `-path` or `-ipath` (with their `!` or `-not` negations, which add no term, and
   `-type`, `-maxdepth`, `-mindepth`, `-a` and `-print`, never `-o`), or one `grep`, `egrep` or `fgrep` with plain flags and `-e` patterns, either
   piped only into `head` or `tail` with no file operand; or a `Grep` pattern, or a `Glob` pattern whose every segment other than `*`
@@ -310,6 +310,11 @@ unable to detect a loss: the cut does not ship on it, whatever the after version
 control's before and degraded scores beside the compare. For a whole-plugin rewrite, the
 `/playbooks:skill-authoring` reference `rewrite-a-plugin.md` (step 4) adds which part to degrade
 and preregistering the control before the first paid run.
+
+A whole-page deletion is proven with a sensitivity control instead, since the before text with that
+page removed is the after version itself: replace the page with a plausible but wrong version,
+launch it together with a before run, and read it by the same loss test. Every other cut keeps the
+detection control.
 
 When the compare is VALID, shows no loss, and goes to a pull request a repository holds for it, end
 the comment with the repository's release record for the head it ran, if it defines one. In this
