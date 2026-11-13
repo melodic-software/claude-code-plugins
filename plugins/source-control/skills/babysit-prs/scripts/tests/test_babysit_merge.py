@@ -2933,8 +2933,28 @@ class ForcePushedHeadsTests(unittest.TestCase):
             ):
                 self.heads(self.answer({"pageInfo": info, "nodes": nodes}))
 
+    def test_a_malformed_node_raises(self) -> None:
+        for node in (None, {}, "node"):
+            with (
+                self.subTest(node=node),
+                self.assertRaises(RuntimeError, msg="a force push not read"),
+            ):
+                self.heads(
+                    self.answer(
+                        {
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "nodes": [node],
+                        }
+                    )
+                )
+
+    def test_a_force_push_whose_old_commit_is_gone_names_no_head(self) -> None:
+        heads, _ = self.heads(self.page([None]))
+        self.assertEqual(heads, [], "beforeCommit null: no head to name")
+
     def test_a_page_with_no_pagination_answer_raises(self) -> None:
-        # totalCount matches the nodes, so only the pagination answer is in doubt.
+        # The answer is accepted before this fix: a totalCount equal to the
+        # nodes, with no pagination answer to say the listing is whole.
         for info in (None, {}, {"hasNextPage": None, "endCursor": None}):
             items = {"totalCount": 1, "nodes": [{"beforeCommit": {"oid": "a" * 40}}]}
             if info is not None:

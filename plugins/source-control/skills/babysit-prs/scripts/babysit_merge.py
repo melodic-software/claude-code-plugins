@@ -3473,7 +3473,9 @@ def _force_pushed_heads(repo: str, number: int) -> list[str]:
         raise RuntimeError(f"#{number} force pushes: past {_FORCE_PUSH_PAGES} pages")
     heads = []
     for node in nodes:
-        oid = json_object(json_object(node).get("beforeCommit")).get("oid")
+        if not isinstance(node, dict) or "beforeCommit" not in node:
+            raise RuntimeError(f"#{number} force pushes: unread")
+        oid = json_object(node["beforeCommit"]).get("oid")
         # GitHub leaves beforeCommit null when the old commit is gone.
         if oid is not None:
             heads.append(str(oid))
