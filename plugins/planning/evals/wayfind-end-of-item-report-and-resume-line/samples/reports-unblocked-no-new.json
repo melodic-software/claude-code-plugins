@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Unblocked: 'Decide invoice numbering' (#44). Charted: none.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Closed #42.",
+      "why": "breaks the rule"
+    }
+  ]
+}

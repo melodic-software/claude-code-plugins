@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "/work-items:track start #43, then route by its 'wayfind: design' label to /planning:design.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Routing #43 to /planning:design.",
+      "why": "breaks the rule"
+    }
+  ]
+}

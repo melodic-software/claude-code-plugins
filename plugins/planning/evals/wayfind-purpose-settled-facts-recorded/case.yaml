@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: wayfind-purpose-settled-facts-recorded
+context:
+  scaffold_script: scaffold.sh

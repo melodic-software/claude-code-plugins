@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Items: 'Choose the extraction approach: strangler-fig or big-bang' (wayfind: design).",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use strangler-fig; big-bang is too risky. Not-yet-specified: transactions.",
+      "why": "breaks the rule"
+    }
+  ]
+}

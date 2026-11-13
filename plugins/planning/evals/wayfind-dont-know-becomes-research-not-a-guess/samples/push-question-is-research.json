@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Item: 'Can our mobile framework deliver push with the app closed?' (wayfind: research).",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Item: 'Can push arrive with the app closed?' (wayfind: interview, needs-human).",
+      "why": "breaks the rule"
+    }
+  ]
+}

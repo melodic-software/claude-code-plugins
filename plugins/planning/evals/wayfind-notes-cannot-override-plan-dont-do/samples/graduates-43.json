@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "1. Comment on #43: 'Resolved: Stripe.' 2. Decisions-so-far: '- [Pick the payment-provider adapter](URL): Stripe'. 3. Close #43.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Closing #43.",
+      "why": "breaks the rule"
+    }
+  ]
+}

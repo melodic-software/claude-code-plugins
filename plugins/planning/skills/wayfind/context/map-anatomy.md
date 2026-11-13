@@ -17,14 +17,15 @@ record, or a general summary. This is the map's success condition.>
 
 ## Notes
 
+- Standing constraints every session on this map must obey, one line each.
 - Skills every session on this map consults, one per line (work step 5 invokes each).
-- Durable pointers only: PRs, committed docs, prior items, the map's dossier branch, external
-  links.
-- Memory-tier `<memory_dir>/<slug>/` artifacts are checkout-local. Distill what matters into a
-  line here instead of pointing at a path other readers cannot resolve.
-- Links, not recaps, for anything durably linkable. The memory-tier distillation above is the
-  one sanctioned exception: no other reader can follow such a link, so the distilled line IS the
-  preserved context.
+- Durable pointers every session needs: PRs, committed docs, prior items, the map's dossier
+  branch, external links.
+
+<Nothing else. Background and interview facts go in the seed item's resolution
+comment or the item they concern. Memory-tier `<memory_dir>/<slug>/` artifacts are
+checkout-local: distill what matters there as text instead of pointing at a path other readers
+cannot resolve.>
 
 ## Decisions-so-far
 
@@ -38,14 +39,18 @@ resolution comment lists the interview's settled answers.>
 
 ## Not-yet-specified (fog)
 
-<Prose. The uncertainties you cannot yet phrase as sharp questions. These graduate to typed
-decision items only once working the map makes them sharp. Fog is expected. An empty fog
-section on a young map usually means you haven't looked hard enough.>
+<One bullet per uncertainty you cannot yet phrase as a sharp question, each opening with a short
+bold label. A bullet graduates to a typed decision item only once working the map makes it
+sharp. Fog is expected. An empty fog section on a young map usually means you haven't looked
+hard enough.>
+
+- **<label>**: <what is uncertain, in a line or two>
 
 ## Out-of-scope
 
 <Explicitly excluded, decided NOT to pursue. This ledger is for **scope**, not sharpness.
-Fog (cannot yet phrase the question) stays in Not-yet-specified and never graduates here.
+Fog (cannot yet phrase the question) stays in Not-yet-specified and never moves here for being
+unphrasable, only by the user's explicit scope ruling at closure, recorded with its reason.
 Recording an exclusion is itself a decision; note why. A wrongly scoped existing decision item
 is closed with one line here linking it; it does not get a Decisions-so-far pointer. That
 index is for resolved-in-scope decisions.>
@@ -53,8 +58,10 @@ index is for resolved-in-scope decisions.>
 
 ## Typed decision items
 
-Each sub-issue is one **sharp** question, sized to one session's work. The `wayfind: <type>`
-label sets the routing target (which skill resolves it); the body never states the type:
+Each sub-issue is one topic a single session can work, holding its related **sharp** questions;
+never one item per question. Its body is the question and the criteria an answer must meet,
+nothing else, except a prototype item's, which follows "Prototype item body" below. The `wayfind: <type>` label sets the routing target (which skill resolves it); the
+body never states the type:
 
 | Type | Meaning |
 |---|---|
@@ -67,6 +74,39 @@ label sets the routing target (which skill resolves it); the body never states t
 Mode is materialized as the `needs-human` label (present = HITL), set only on an item that needs
 the user's intent or vision, whatever its type (SKILL.md "Readiness"). Extension policy: a new
 `wayfind: <type>` value requires an existing routing target. Never add a type with nowhere to go.
+
+## Prototype item body
+
+```markdown
+**Prove:** <what the prototype must show; logic or UI>
+**Pass checks:**
+1. <a check anyone can run or see, passed or failed>
+**On fail:** <what happens: which decision is reversed, which item opens>
+**Fallback:** <the named alternative taken on fail, or "none">
+```
+
+## Resolution comments
+
+Every resolution comment is the decision's durable home. A type with no shape below uses
+`Resolved: <decision>. Basis: <one line>` (`tracker-mechanics.md`, "Graduate + close a decision
+item").
+
+- **Research:** the pick and why; its costs; how the alternatives compare; what could not be
+  verified; a link to the full findings file in the item's folder on the dossier branch.
+- **Interview:** the agreed result as a table, then out of scope, deferred, glossary changes and
+  what later items inherit from it.
+- **Prototype:** the verdict (each pass check passed or failed), what it confirms or reverses, and
+  a link to the item's folder on the dossier branch.
+- **Task routed to `/wizard:generate`:** what was set up, by name and location (an account, a
+  secret's name and where it is stored, a dashboard setting's path), never a value.
+
+## Provisional decisions
+
+A decision that rests on a prototype not yet run is recorded as provisional: its Decisions-so-far
+line ends `(provisional until [<prototype title>](<prototype URL>))`. When that prototype
+resolves, a pass confirms it (drop the provisional marker); a fail reverses it through the
+supersede sweep (SKILL.md work step 7), with the prototype's fallback as the new item's starting
+point.
 
 ## Invariants (checked at every `work` session start)
 
@@ -89,8 +129,8 @@ the user's intent or vision, whatever its type (SKILL.md "Readiness"). Extension
    committed; slug spec shared with the pipeline skills) for files one session reads; the map's
    dossier branch (SKILL.md "Shared files") holds files several sessions read. The map never
    cites a concrete `<memory_dir>/<slug>/` path; neither surface holds map state.
-5. **No fog prose that an item already charts.** Charting fog is create-then-delete; an
-   interrupted run can leave the prose behind. Delete it, and chart nothing new from it.
+5. **No fog bullet that an item already charts.** Charting fog is create-then-delete; an
+   interrupted run can leave the bullet behind. Delete it, and chart nothing new from it.
 
 ## Graduation and closure
 
@@ -101,8 +141,13 @@ the user's intent or vision, whatever its type (SKILL.md "Readiness"). Extension
 - **Sweep (per resolution):** open items whose premise the resolution invalidated are rewritten
   or closed as moot, and a closed decision it shows was wrong is superseded by a new item, per
   Work mode step 7.
-- **Closure (whole map):** frontier empty ∧ every decision item closed ⟹ the destination is
-  coherent. Post a closing comment that states every resolved decision in full, close the map,
+- **Closure (whole map):** frontier empty ∧ every decision item closed ∧ Not-yet-specified empty
+  ⟹ the destination is coherent. Each fog bullet left at closure is charted, moved into a mop-up
+  interview item closure offers, or ruled out of scope by the user (moved to Out-of-scope with the
+  reason). Post a closing comment that states every resolved decision in full and names the
+  dossier branch, close the map,
   and hand those decisions to the destination's skill in a source form it accepts
-  (`/planning:prd`, `/work-items:decompose #<map-number>` or `/work-items:work`, or a decision
-  record or general summary; SKILL.md work step 8). Then delete the dossier branch.
+  (`/planning:prd`, `/planning:plan` then `/work-items:decompose` (or
+  `/work-items:decompose #<map-number>` when the decisions already read as slices),
+  `/work-items:work`, or a decision record or general summary; SKILL.md work step 8). The dossier
+  branch is deleted when the destination's container closes, not at map close.

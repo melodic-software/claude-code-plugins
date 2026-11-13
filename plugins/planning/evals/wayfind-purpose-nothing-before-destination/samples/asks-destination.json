@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Destination: a PRD for partner-API v2. Confirm or correct it.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is the map.",
+      "why": "breaks the rule"
+    }
+  ]
+}

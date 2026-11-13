@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "1. Which channel should statements go out on: SFTP, S3 or email? 2. How long should generated files be kept?",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. Which channel: SFTP, S3 or email? 2. What file format should the exports use?",
+      "why": "breaks the rule"
+    }
+  ]
+}

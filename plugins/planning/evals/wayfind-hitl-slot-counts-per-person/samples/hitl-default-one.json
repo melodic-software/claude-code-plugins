@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "wayfind_hitl_concurrency: 1 (default)",
+      "why": "matches"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "wayfind_hitl_concurrency: 2 (planning.yaml)",
+      "why": "does not match"
+    }
+  ]
+}

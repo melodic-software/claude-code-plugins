@@ -79,10 +79,10 @@ A map is never assigned and never carries a claim label: it is a container, not 
 
 ## Create a typed decision item (a child of the map)
 
-`/work-items:track add --parent <map-id> --label 'wayfind: <research|interview|design|prototype|task>' --body-file <item-body.md> "<sharp question>"`
+`/work-items:track add --parent <map-id> --label 'wayfind: <research|interview|design|prototype|task>' --body-file <item-body.md> "<topic>"`
 
-The body says what must be decided, the options if known, and for a `prototype` item whether it is
-logic or UI; it never states the type, which the label carries. Materialize the mode at creation:
+The body holds the question and the criteria an answer must meet, and for a `prototype` item
+whether it is logic or UI, laid out as [`map-anatomy.md`](map-anatomy.md) "Prototype item body"; it never states the type, which the label carries. Materialize the mode at creation:
 add `--label needs-human` only when the item needs the user's intent or vision, whatever its type
 (SKILL.md "Readiness"). Create every item first, with no reference to another item in its body.
 
@@ -113,7 +113,8 @@ listing, closed items included, serves the map hygiene checks.
 ## Claim a frontier item (the `work-items` claim model, one model across both)
 
 Before claiming a `needs-human` item, count the map's open children that carry `needs-human`, do
-not carry `wayfind: research`, and have an assignee, from the same listing; at `wayfind_hitl_concurrency` or more, do not claim it.
+not carry `wayfind: research`, and are assigned to the session identity (the person the claim
+would assign), from the same listing; other assignees' items do not count. At `wayfind_hitl_concurrency` or more, do not claim it.
 Two sessions can both pass that count before either claims, so once a `needs-human` claim
 succeeds, list the children again and recount. Over the limit, rank the counted claims by claim
 order: read each one's active lease comment id (a counted item with no lease comment yet ranks
@@ -152,6 +153,17 @@ Decisions-so-far pointer: see the Decisions-so-far / Out-of-scope sections in
 - **Moot** (another resolution invalidated its premise), no line in either index:
   `/work-items:track done <item-id> --not-planned --summary "Moot: <link to the resolution comment>"`.
 
-## Close the map (frontier empty ∧ all items closed)
+## Graduate a research item
 
-`/work-items:track done <map-id> --summary "Destination coherent, handed to </planning:prd | /work-items:decompose | /work-items:work | a decision record | the closing summary>."`
+After `/discovery:research` returns for a research item:
+
+1. Copy the findings file and its sidecars into the item's folder on the map's dossier branch,
+   creating the branch on first use and linking it from the map's Notes (SKILL.md "Shared files").
+2. Commit and push with the push sequence in SKILL.md "Shared files".
+3. Post the resolution comment in the research shape ([`map-anatomy.md`](map-anatomy.md)
+   "Resolution comments"), linking the findings file on the branch.
+4. Add the Decisions-so-far pointer and close the item, steps 2 and 3 of "In scope" above.
+
+## Close the map (frontier empty ∧ all items closed ∧ Not-yet-specified empty)
+
+`/work-items:track done <map-id> --summary "Destination coherent, handed to </planning:prd | /planning:plan | /work-items:decompose | /work-items:work | a decision record | the closing summary>."`

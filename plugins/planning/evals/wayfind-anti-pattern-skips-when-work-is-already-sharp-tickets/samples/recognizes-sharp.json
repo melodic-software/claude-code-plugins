@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "All three are clear tickets with nothing foggy, so wayfind does not fit.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "There is a lot of fog here; let's chart it.",
+      "why": "breaks the rule"
+    }
+  ]
+}

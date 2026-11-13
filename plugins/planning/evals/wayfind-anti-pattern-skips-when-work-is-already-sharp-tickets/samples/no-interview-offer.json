@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Use /work-items:decompose for the three tickets.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Shall I run /planning:interview first to lock the contract?",
+      "why": "breaks the rule"
+    }
+  ]
+}

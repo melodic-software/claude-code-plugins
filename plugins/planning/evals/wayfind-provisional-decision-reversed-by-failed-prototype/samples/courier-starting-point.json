@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The new item starts from the fallback, Courier.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The new item starts from a fresh vendor survey.",
+      "why": "breaks the rule"
+    }
+  ]
+}

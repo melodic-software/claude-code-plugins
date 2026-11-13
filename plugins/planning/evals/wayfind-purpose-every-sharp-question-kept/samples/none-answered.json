@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "None of these is answered yet; each sits in an item for the session that works it.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Invoicing is monthly and launch currencies are USD and EUR, so those two are settled.",
+      "why": "breaks the rule"
+    }
+  ]
+}
