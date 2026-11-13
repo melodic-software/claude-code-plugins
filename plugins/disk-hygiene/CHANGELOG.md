@@ -1893,7 +1893,7 @@ This version was never released on its own: its change shipped in 0.28.6, togeth
   `reclaimable_local_bytes` uses the same walrus-filter `sum(...)` idiom `preview` already
   uses (callee pure, one evaluation per entry, empty input still int 0), and
   `entry_is_empty_directory` merges two branches with byte-identical bodies into one
-  `isinstance(inventory, (dict, set))`; the repo's ruff-format hook reflowed two token-identical
+  `isinstance(inventory, (dict, set))`; the repo's python-format hook reflowed two token-identical
   regions in the same file. test_python3_alias_probe.py moves a backslash-continued `with` to
   the parenthesized form. Adversarially refutation-verified; suites 317 + 10 green; guard,
   kill-switch, and destructive-boundary code untouched.

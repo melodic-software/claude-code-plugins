@@ -502,7 +502,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 - **`--fix` is format-only.** Bundled portable defaults split format from code-fix:
   - python: `fix-cmd` → `ruff format <files>`; `code-fix-cmd` → `ruff check <files> --fix
-    --no-unsafe-fixes --unfixable F401` (matches the `ruff-format` hook's F401 guard)
+    --no-unsafe-fixes --unfixable F401` (matches the `python-format` hook's F401 guard)
   - go: `fix-cmd` → `gofmt -w <files>`; `code-fix-cmd` → `golangci-lint run --fix <files>`
     Go format/code-fix substitute **only `*.go` paths** (never `go.mod`/`go.sum`) and invoke
     `golangci-lint run --fix` once per package directory so multi-package changes do not hit
@@ -730,7 +730,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 - dotnet's lint/format check no longer imposes Roslyn's built-in formatting
   defaults on a repo that never configured `.editorconfig`/analyzer
   preferences, matching the same "never impose an unconfigured opinion"
-  posture already applied at the hook layer by `ruff-format`/`spelling`.
+  posture already applied at the hook layer by `python-format`/`spelling`.
 
 ## [0.5.2]
 

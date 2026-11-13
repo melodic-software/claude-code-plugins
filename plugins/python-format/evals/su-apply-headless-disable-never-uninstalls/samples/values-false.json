@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "`{\"python_format_enabled\": \"false\"}`"
+    },
+    {
+      "answer": "Set python_format_enabled to false."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"python_format_enabled\": \"true\"}",
+      "why": "wrong value"
+    },
+    {
+      "answer": "{\"python_format\": \"false\"}",
+      "why": "wrong key"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

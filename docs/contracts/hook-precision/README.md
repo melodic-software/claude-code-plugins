@@ -151,11 +151,11 @@ per-batch ceiling.
 | `eol-normalizer` | rewriting line endings | shared, `eol_normalizer_lint_gitignored`, checked only when a rewrite is planned | conforms (#4671); registers with no `if` filter because its matcher is every write |
 | `go-format` | rewriting (goimports) | shared, `go_format_lint_gitignored` | conforms (#4671) |
 | `powershell-format` | rewriting (Invoke-Formatter) and reporting (PSScriptAnalyzer) | shared, `powershell_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
-| `ruff-format` | rewriting and reporting (Ruff) | shared, `ruff_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
+| `python-format` | rewriting and reporting (Ruff) | shared, `python_format_lint_gitignored` | conforms (#4671); reporting moves to pre-commit |
 | `actionlint` (`actionlint-check`) | reporting only | shared, `actionlint_lint_gitignored`; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | conforms (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare; reporting moves to pre-commit |
 
 The helpers live in `lib/hook-utils.sh`. The six hooks that use the snapshot and disclosure guard
-(`bash-format`, `biome-format`, `eol-normalizer`, `go-format`, `powershell-format`, `ruff-format`) also
+(`bash-format`, `biome-format`, `eol-normalizer`, `go-format`, `powershell-format`, `python-format`) also
 carry `rewrite-guard.sh`. `actionlint` and `markdown-format` do not, because they never
 call `hook::rewrite_guard_begin`.
 

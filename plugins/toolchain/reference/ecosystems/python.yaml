@@ -5,7 +5,7 @@
 # fix-cmd is format-only (ruff format). Code-changing autofixes (ruff check
 # --fix) live in code-fix-cmd and require /toolchain:lint --code-fix plus
 # that skill's confirmation / --yes gate. --unfixable F401 matches the
-# ruff-format hook: protects just-added imports during iterative editing;
+# python-format hook: protects just-added imports during iterative editing;
 # F401 still surfaces as a finding — only auto-deletion is suppressed.
 globs: ["*.py", "pyproject.toml", "uv.lock", "pyrightconfig.json"]
 project-discovery: ["pyproject.toml"]

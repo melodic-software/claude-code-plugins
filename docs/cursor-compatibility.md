@@ -47,7 +47,7 @@ Each hook on these events is an accepted no-op in Cursor.
 
 | Event | Plugins | Basis |
 |---|---|---|
-| `PostToolBatch` | bash-format, biome-format, eol-normalizer, go-format, markdown-format, ruff-format | Not in the Cursor docs' event table |
+| `PostToolBatch` | bash-format, biome-format, eol-normalizer, go-format, markdown-format, python-format | Not in the Cursor docs' event table |
 | `Notification` | desktop-notification | Marked not supported in the Cursor docs |
 | `PostCompact` | context-usage | Not in the Cursor docs' event table |
 | `StopFailure` | harness-ops, rate-limit-guard | Not in the Cursor docs' event table |
@@ -58,7 +58,7 @@ Each hook on these events is an accepted no-op in Cursor.
 The six formatters do not rewrite files in Cursor. They stay on `PostToolBatch`, since moving
 them to `PostToolUse` would make them run after every edit in Claude Code. Cursor maps `Stop`, so
 the opt-in end-of-turn check that bash-format, biome-format, go-format, markdown-format and
-ruff-format register on `Stop` is expected to run. (Cursor docs)
+python-format register on `Stop` is expected to run. (Cursor docs)
 
 ## Tool matchers Cursor does not map
 
