@@ -39,7 +39,7 @@ verified one.
 
 ## Status lifecycle
 
-- `proposed`: finding awaiting capacity, verified unless `evidence-verified: false`. The next run's apply lane draws from
+- `proposed`: verified finding awaiting capacity. The next run's apply lane draws from
   these first, before scanning for new ones.
 - `applied`: reduction landed and the batch verification passed; `outcome` names the
   commit or PR.

@@ -103,7 +103,7 @@ cascade keeps one convention home per git root (ADR 0075, fix 13).
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/architecture:improve` reproduces scan claims before it presents them: the deepening lens's Phase 1.5 gate and the conventions lens's "Verify before presenting". `light` and `off` skip both and present those claims labeled `unverified`; the conventions lens then proposes none of them for recording. Read from the team file `<home>/architecture.yaml` at the default branch only, through `lib/read-verification.sh`; the personal file cannot set it, and a skill entry beats the plugin value ([verification level](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/architecture:improve`'s deepening lens reproduces scan claims before it presents them (the Phase 1.5 gate). `light` and `off` skip it and present those claims labeled `unverified`. The conventions lens does not read the level: it reproduces every derived item on every run. Read from the team file `<home>/architecture.yaml` at the default branch only, through `lib/read-verification.sh`; the personal file cannot set it, and a skill entry beats the plugin value ([verification level](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). |
 
 ## C4 dialect surfaces
 

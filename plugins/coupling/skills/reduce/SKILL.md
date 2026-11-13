@@ -163,17 +163,9 @@ never into the apply batch; phase H hands off its ownership rule per the remedia
 finding against the actual artifacts before it reaches the ledger or the user. Confirm the
 edge exists, the mechanism is what the scan claims, and the depended-on side actually changes
 (volatility from history, not vibes). Drop or downgrade what does not reproduce, and record
-that the ledger reflects verified state, not raw scan output. Before this phase, run
-`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin coupling --skill reduce` and copy
-its line into the report
-([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
-Under `light`, and `off`, which acts as `light` here, reproduce nothing and do not check inline in
-its place: write `verification: skipped (<level>)`, ledger every finding with
-`evidence-verified: false`, and present each to the user labeled `unverified`.
+that the ledger reflects verified state, not raw scan output.
 
-**D. Partition and rank.** Every finding phase C passes on gets a lane. A finding with
-`evidence-verified: false` never enters the apply lane: it goes to the route lane, report-only,
-so phase E edits only findings a `standard` or `strict` run reproduced. Apply lane requires ALL of:
+**D. Partition and rank.** Every verified finding gets a lane. Apply lane requires ALL of:
 mechanical, contained in scope, behavior-preserving, and reversible by revert. Anything
 cross-file in remediation or architectural in judgment is route lane. When in doubt, route.
 Rank by `strength × degree × distance × volatility`; a weak-but-everywhere coupling on a hot
@@ -297,10 +289,9 @@ The counterweights this skill exists to hold. Add here when a new one surfaces.
   documents (or functions) that happen to read the same but would change for different
   reasons must not be consolidated. Consolidation actively harms. Test what changes
   together, not what looks alike.
-- **Unverified scan claims do not ship as verified.** A scan claim inherits the report's
-  authority, so phase C reproduces every finding against the artifacts before it reaches the
-  ledger or the user, or, under the `light` and `off` verification levels, labels it
-  `unverified`.
+- **Unverified scan claims do not ship.** A scan claim inherits the report's authority, so
+  phase C reproduces every finding against the artifacts before it reaches the ledger or the
+  user.
 - **A reduction that breaks a test was secretly behavioral.** Revert it and reclassify;
   never patch the test to keep the reduction.
 - **A record that states the old value is correct.** Changelogs, evidence, and decision logs

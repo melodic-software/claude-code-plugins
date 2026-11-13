@@ -34,9 +34,9 @@ separate body Bash calls rather than pre-compute lines ([gather-block convention
 
 Arguments: `$ARGUMENTS`
 
-Verification level: for the `deepening` and `conventions` lenses, run
+Verification level: for the `deepening` lens, run
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin architecture --skill improve` and
-keep its line; each lens's verification step says what the level does there
+keep its line; Phase 1.5 says what the level does there
 ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
 
 ## Purpose
