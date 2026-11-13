@@ -125,8 +125,12 @@ Run each source that is available, and name any that is not:
 - **Tracker items, open and closed.** When `/work-items:track` is among the available skills, run
   `/work-items:track search '<term>'` once per search term; it covers open and closed items.
   Otherwise say the tracker was not searched. Read each match whose kind the rows do not show with
-  `/work-items:track view '<id>' --comments`. Among the matches of a `recall_report_kinds` kind,
-  mark as still reported each open item that was closed before (its body or comments record the
+  `/work-items:track view '<id>' --comments`. Closed rows show no kind, and `view` returns labels
+  but no native issue type, so on a repository that types items natively a closed match can carry
+  no label that names its kind. A match whose kind nothing read shows is of unknown kind: run the
+  checks below on it too, and report each one it meets with its kind unconfirmed rather than
+  dropping it. Among the matches of a `recall_report_kinds` kind or of unknown kind, mark as still
+  reported each open item that was closed before (its body or comments record the
   reopen; when nothing read shows reopen history, say so), each closed item whose fix was reverted
   (a revert above names the item, its fix commit or its pull request), and each group of two or
   more items, open or closed, that report the same symptom.
