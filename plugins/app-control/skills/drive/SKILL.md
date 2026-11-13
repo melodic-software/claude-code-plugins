@@ -16,8 +16,9 @@ current value, duration, easing and progress) or `logs`. e.g. /app-control:drive
 
 ## Purpose
 
-Operate the real app and record what it did. The report holds actions, what was observed and where
-each artifact is. It never says whether a change worked and carries no verdict; the caller judges.
+Operate the real app and record what it did. The report holds actions, each step's stated result
+beside what was observed, and where each artifact is. It never says whether a change worked and
+carries no verdict; the caller judges.
 
 Callers: `/verification:confirm`, `/debugging:debug`, scheduled runs, CI jobs and people. They call
 this skill and never the control skill itself.
@@ -230,6 +231,13 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
   attached process; never stop it. Never close all sessions or kill all processes.
 - **Never judge.** Write what was done and observed in plain words. Leave out any word that rates
   the outcome. Record a `Budget:` value beside its config threshold, never compared with it.
+- **Stated result beside observed, never compared.** Copy each step's stated result as written,
+  its `Result:` in `## Drive` (contract "Drive steps") or its result in a steps file (contract
+  "Steps files"), and record it next to what the step observed, the way a `Budget:` value sits
+  beside its threshold. Write no word that says whether they match. A step that states no result
+  records none. The proof step takes no action: record its stated result, take each capture kind
+  its `Captures:` names with the tool `## Capture` names for it, and record as its observed text
+  each capture's artifact path and what its sidecar or contents hold, adding nothing they do not.
 
 ## Attach
 
