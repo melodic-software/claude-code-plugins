@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "bash \"/plugins/prototype/notes-bridge/notes-bridge.sh\" --dir \"mockup-run\" ensure-running --page explore-directions.html", "description": "x"}}],
+      "why": "relative run dir, quoted"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "bash /p/notes-bridge/notes-bridge.sh --dir /work/space/mockup-run ensure-running", "description": "x"}}],
+      "why": "absolute run dir, default page"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "bash /p/notes-bridge/notes-bridge.sh --dir mockup-run status", "description": "x"}}],
+      "why": "status only, never serves"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "bash /p/notes-bridge/notes-bridge.sh --dir /tmp/other ensure-running", "description": "serve mockup-run"}}],
+      "why": "another directory; the run dir only in the description"
+    }
+  ]
+}

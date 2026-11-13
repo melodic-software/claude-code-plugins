@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "2.3.12",
+  "version": "3.0.0",
   "userConfig": {
     "medium": {
       "type": "string",

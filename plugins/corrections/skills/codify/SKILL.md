@@ -139,7 +139,9 @@ code. Any other exit is **unproven**: the check passed on the old ref, failed on
 the proof could not run, a denied proof call included. The script runs the check command, so it is
 not pre-approved and each proof asks first. Report an unproven check with the exit code and the
 script's own lines, and do not propose it for install. A proof that passes on the old ref says the check does not catch
-the mistake; change the check or the rung, and prove again.
+the mistake; change the check or the rung, and prove again. A check that fails on the current code
+only because existing violations remain is not wrong: report the proof as pending the cleanup or
+the ratchet the proposal offers (section 6), and rerun it once that lands.
 
 ## 5. Missing context
 
@@ -162,12 +164,16 @@ did not escape review needs no answer.
 - **A blocking check** (a hook, a required CI check, a lint at error level): ask before installing it,
   every time, even for a person's invocation. The proposal's consent covers the file it writes, never
   the install. Install nothing unproven.
+- **Approval stays with a person.** Every change codify proposes lands only when a person approves
+  it. Applying one without approval becomes allowed only where an evaluation set scores the surface
+  the change touches and the change does not lower that score.
 
 The proposal holds: the description, the occurrences counted, the rung id and the criterion items
 behind it, the scope and why, the check command, the proof result (old ref, both exit codes), the
-missing-context answer when it applies, and the install step with whether it blocks, taken from
-["Next step per rung"](reference/finding-classes.md#next-step-per-rung). With `ratchet_offer` true,
-a counting rung's proposal also carries that section's offer; false leaves it out.
+missing-context answer when it applies, the existing violations with the cleanup or ratchet offer,
+and the install step with whether it blocks, both taken from
+["Next step per rung"](reference/finding-classes.md#next-step-per-rung). `ratchet_offer` false
+leaves the ratchet offer out; the existing violations and any cleanup offer stay.
 
 ## Report
 
@@ -181,6 +187,7 @@ with the question for any blocking install.
 - It never installs a check unasked, and never installs an unproven one.
 - It never implements a rung. No analyzer, rule, architecture test or hook is written here. Asked to
   "just write the analyzer", decline and hand over the rung's pointer.
+- It never fixes an existing violation. The cleanup it offers runs through `/implementation:implement`.
 - Moving a mistake up the ladder is not promotion in the autonomy sense: it changes no work class or
   guardrail class, and neither implies the other.
 - `note` appends one row and does nothing else.
@@ -191,6 +198,7 @@ with the question for any blocking install.
 - hook: /harness-config:audit-automation-gaps.
 - make-impossible: /architecture:improve.
 - a group at or over the threshold: /corrections:codify "<the group's mistake>".
+- existing violations to clean up: /implementation:implement.
 
 ## Gotchas
 

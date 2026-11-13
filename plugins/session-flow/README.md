@@ -326,12 +326,16 @@ transcript directories `transcript_scope` allows through `scripts/transcript_dir
 worktree first, then the repository's other worktrees, asking before any other project), scans
 them with `skills/recall/scripts/recall_scan.py`, which matches literal terms and redacts every
 snippet before printing it, and has subagents condense each matching session from those redacted
-lines. It adds reverted commits from git, closed unmerged pull requests through `gh`, and open
-tracker items when `/work-items:track` is available, then reports Tried, Kept, Dropped or
-reverted, and Still open in chat, opening with the scope it searched. It writes nothing.
+lines. It adds reverted commits from git, closed unmerged pull requests through `gh`, open and
+closed tracker items when `/work-items:track` is available, and postmortems from the
+`recall_doc_paths` pathspecs, then reports Tried, Kept, Dropped or reverted, Still reported, and
+Still open in chat, opening with the scope it searched. Still reported lists items of a
+`recall_report_kinds` kind that were closed and reopened (read from the tracker's state history
+with `/work-items:track view --history`, up to ten items), whose fix was reverted, or that repeat a
+symptom, plus the topic's postmortems. It writes nothing.
 
 ```shell
-/session-flow:recall webhook retry budget   # scope line, then tried / kept / reverted / open
+/session-flow:recall webhook retry budget   # scope line, then tried / kept / reverted / still reported / open
 ```
 
 ### orchestrate
@@ -605,6 +609,8 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `worker_continuation` | string | `"resume"` | How /session-flow:orchestrate runs a worker's next unit: resume (default) continues the same worker; respawn starts a fresh worker with consolidated scope unless that worker holds state costly to move. A repository's worker_continuation in docs/conventions/session-flow.yaml wins. |
 | `wip_commit` | boolean | `false` | When you ask to pause, /session-flow:handoff makes one local chore(wip): commit of the tracked work. Off by default. Never pushed or run with hooks skipped; refused on the default branch, a detached HEAD, mid-merge or rebase, or a partial staging. docs/conventions/session-flow.yaml wins. |
 | `transcript_scope` | string | `"worktree"` | How far /session-flow:find-handoff and /session-flow:recall read transcripts: worktree widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins. |
+| `recall_report_kinds` | string | `"Bug"` | Comma-separated issue types or labels /session-flow:recall counts as an incident or a user report when it lists what is still reported; default Bug, which also matches a type: bug label. docs/conventions/session-flow.yaml wins. |
+| `recall_doc_paths` | string | `"*.md"` | Comma-separated git pathspecs /session-flow:recall searches for postmortems on the topic; default *.md, every tracked markdown file. docs/conventions/session-flow.yaml wins. |
 | `retro_lenses` | string | `"1"` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |
 | `cloud_route` | string | `"offer"` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
 | `retro_offer` | string | `"offer"` | Whether /session-flow:workflow's end-of-session wrap-up offers a retrospective. offer (default) suggests /session-flow:retro for substantive sessions; off never offers one. Offer only: nothing runs a retro unless you ask. |

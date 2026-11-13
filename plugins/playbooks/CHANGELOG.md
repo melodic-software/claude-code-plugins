@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.34.0] - 2026-11-13
+
+### Changed
+
+- **Breaking:** `/playbooks:fable-5` now resolves the `verification` level at arm time (`lib/read-verification.sh --file docs/conventions/playbooks.yaml`). The fresh-context verifier gate (orchestration chapter, "Fresh-context verification") runs at `standard` and `strict`, and `strict` drops its mechanical-batch exemption. At the default `light`, and at `off`, no verifier is dispatched, the self-review floor still runs, and the completion claim carries `verification: skipped (<level>)`. Set `verification: standard` in `docs/conventions/playbooks.yaml` to restore the verifier.
+
 ## [0.33.9] - 2026-11-13
 
 ### Changed

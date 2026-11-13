@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "**Still reported**\n- github:acme/web#57 Login redirect loop after SSO sign-in (Bug): closed 2026-09-02, reopened 2026-09-10 by reporter-b, so the fix did not hold.\n- github:acme/web#61 Signed-in users keep getting redirected to /login after SSO (Bug): same symptom as #57.\n\n**Still open**\n- none",
+      "why": "the second item's line names the first as the same symptom"
+    },
+    {
+      "answer": "### Still reported\n\n- #57 Login redirect loop after SSO sign-in: reopened 2026-09-10 after its 2026-09-02 close; same symptom as #61.\n- #61 Signed-in users keep getting redirected to /login after SSO: open since 2026-09-12.",
+      "why": "the first item's line names the second as the same symptom"
+    },
+    {
+      "answer": "Still reported: #57 reopened 2026-09-10 after its 2026-09-02 close, and #61 reports the same symptom as #57.",
+      "why": "inline section"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Still reported**\n- #57 Login redirect loop after SSO sign-in: reopened 2026-09-10 after its 2026-09-02 close.\n- #61 Signed-in users keep getting redirected to /login after SSO, see also #57.",
+      "why": "both ids on one line with no same-symptom reason"
+    },
+    {
+      "answer": "**Still reported**\n- #57 Login redirect loop after SSO sign-in: reopened 2026-09-10 after its 2026-09-02 close.\n\n**Still open**\n- #61 Signed-in users keep getting redirected to /login after SSO: same symptom as #57.",
+      "why": "the same-symptom line only under Still open"
+    },
+    {
+      "answer": "**Still reported**\n- #61 Signed-in users keep getting redirected to /login after SSO: same symptom as the login redirect loop.",
+      "why": "same symptom without #57"
+    },
+    {
+      "answer": "**Still reported**\n- #61 Signed-in users keep getting redirected to /login after SSO\n  - same symptom as #57",
+      "why": "reason moved to a sub-bullet without the item's id"
+    },
+    {
+      "answer": "#61 reports the same symptom as #57, which was reopened on 2026-09-10.",
+      "why": "no Still reported section"
+    }
+  ]
+}

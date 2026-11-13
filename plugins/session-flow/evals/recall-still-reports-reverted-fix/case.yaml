@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: recall-still-reports-reverted-fix
+description: Recall on a topic whose bug fix closed an item and was then reverted lists that item under Still reported, citing the revert, and finds the topic's postmortem in the tracked markdown
+tags: [recall, git-history, still-reported]
+expected_outcome: The git history holds a postmortem of a CSV export crash on quoted cells, a fix whose message says Fixes #42, and a revert of that fix because quoting broke spreadsheet imports and the crash came back. The answer searches git for the topic and its reverts, searches the tracked markdown for postmortems, and lists item #42 under Still reported because its fix was reverted, citing the revert's commit SHA and saying the item's tracker state is unconfirmed when the tracker cannot be read. It names the postmortem docs/postmortems/2026-09-csv-export-crash.md and any source it could not use.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/session-flow:recall CSV export crash on quoted cells. Is that fixed, or are users still hitting it?"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: git-searched
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\b|(?<=\\n))git(?:[ \t]+(?:-C[ \t]+(?:\\"[^"]*?\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?|-[A-Za-z]))*[ \t]+log\b'
+    arm: with-only
+  - name: still-reported-names-item
+    type: regex
+    pattern: 'still[ -]reported\b(?:[^\n]*#42\b[^\n]*\brevert|[^\n]*\brevert[^\n]*#42\b|[^\n]*\n(?:(?![ \t#*_>-]*(?:tried|kept|dropped or reverted|still open)\b)[^\n]*\n){0,8}?(?![ \t#*_>-]*(?:tried|kept|dropped or reverted|still open)\b)(?:[^\n]*#42\b[^\n]*\brevert|[^\n]*\brevert[^\n]*#42\b))'
+    flags: 'i'
+    arm: with-only
+  - name: postmortem-cited
+    type: regex
+    pattern: '2026-09-csv-export-crash'
+    flags: 'i'
+    arm: both

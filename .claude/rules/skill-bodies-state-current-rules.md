@@ -22,10 +22,10 @@ that needs the specific at run time fetches it from the pointer.
 
 A stored value is a number or string copied or measured from upstream: a default, limit, version
 gate, price, error string, measured figure (bytes, milliseconds, a hash, a count, with the version
-it was measured on), or pinned SHA. It keeps an as-of date and a recheck trigger, because the value
-itself goes stale. Described or observed behavior with no recorded number or string, a "no docs
-page covers X" note, a source conflict and a "last researched" date are pointers and carry no
-stamp.
+it was measured on), or pinned SHA. Described or observed behavior with no recorded number or
+string, a "no docs page covers X" note, a source conflict and a "last researched" date are
+pointers. `scripts/check-as-of-recheck.sh` fails a paragraph holding an as-of date and no recheck
+trigger, and names the fix: the trigger for a stored value, no date for a pointer.
 
 A record never cures a restatement: restated text with an as-of stamp or `Claim/Basis` block
 beside it is still the defect, fixed by deleting the restated value and keeping the pointer. Older
@@ -33,7 +33,7 @@ beside it is still the defect, fixed by deleting the restated value and keeping 
 defective when a docs-page pointer lacks the section anchor (an upstream issue or probe needs
 none), a blog post is the pointer where a docs section covers the topic (it goes beside the
 pointer as a "correlate with" note), a probe observation names no probe, or a stored value lacks
-its as-of date or trigger.
+its as-of date.
 
 ## Successor sections
 

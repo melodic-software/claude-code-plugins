@@ -17,6 +17,8 @@ session) and `retro_offer` (`offer` or `off`, default `offer`: under `off`,
 | `wip_commit` | an unquoted `true` or `false` | `false` | `/session-flow:handoff` ("WIP commit on an explicit pause") | repository file over user option over default |
 | `retro_lenses` | `1`, `3` (an unquoted `3` is valid) | `1` | `/session-flow:retro` session mode (Phase 2, "Review lenses"; `3` runs three parallel lens subagents merged before scoring) | repository file over user option over default |
 | `transcript_scope` | `worktree`, `repo`, `all` | `worktree` | `/session-flow:find-handoff` (step 2, the transcript scan); `/session-flow:recall` (Steps 2 and 3) | narrowest wins (`worktree` < `repo` < `all`); an unset user option counts as `worktree` |
+| `recall_report_kinds` | comma-separated issue types or labels | `Bug` | `/session-flow:recall` (Steps 2 and 5, the Still reported section) | repository file over user option over default |
+| `recall_doc_paths` | comma-separated git pathspecs | `*.md` | `/session-flow:recall` (Steps 2 and 5, the postmortem search) | repository file over user option over default |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | `/session-flow:orchestrate` (imperative 3), `/session-flow:workflow pre-pr` (step 2) and `/session-flow:retro` session mode (the `retro_lenses: 1` pass), through `lib/read-verification.sh` | repository file only, read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)) |
 
 `transcript_scope` bounds which project directories `/session-flow:find-handoff` and
@@ -27,6 +29,14 @@ every worktree of the repository and asks the same way. `all` widens to every pr
 asking. This key does not follow the later-layer rule below: the narrower of the two layers wins,
 and an unset or unrendered user option counts as `worktree`. A repository file can therefore
 narrow a user's scan but never widen it, and a user who wants `all` sets it in their own option.
+
+`recall_report_kinds` names the item kinds `/session-flow:recall` treats as an incident or a user
+report when it lists reopened items, reverted fixes and repeat reports under Still reported. Each entry is read through the work-items label taxonomy: an entry matches an item of that native issue
+type, or one carrying a label of that name or its `type:` label. `recall_doc_paths` names the git
+pathspecs it searches for postmortems; the default `*.md` covers every tracked markdown file. In the
+repository file, quote a value that starts with `*` or `[` or holds a colon followed by a space, for example
+`recall_doc_paths: "*.md"` or `recall_report_kinds: "type: bug"`; `/session-flow:setup apply`
+writes such a value quoted.
 
 `wip_commit` lets `/session-flow:handoff` make one local `chore(wip): <one-line state>` commit of
 tracked changes, and only when the user asks in this session to pause. A handoff another skill
@@ -55,7 +65,8 @@ The reading skill resolves each key once, lowest layer first:
 3. The key in the repository's `docs/conventions/session-flow.yaml`, read with the plugin's copy
    of the shared reader, `skills/retro/scripts/parse-concern-value.sh`. A missing file or key
    leaves this layer unset. The reader prints nothing both for an absent key and for an empty
-   one (`key:`), so a skill that reads `wip_commit`, `transcript_scope` or `retro_lenses` first
+   one (`key:`), so a skill that reads `wip_commit`, `transcript_scope`, `retro_lenses`,
+   `recall_report_kinds` or `recall_doc_paths` first
    runs `node skills/setup/scripts/setup-apply.mjs --check --root <git root>` from the plugin root.
    When it exits 1, a problem line naming the key marks the repository value invalid, and a
    parse-error line (`line <n>: ...`, no key named) marks every key in the file invalid; any other
