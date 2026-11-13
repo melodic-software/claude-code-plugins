@@ -17,8 +17,10 @@
 #     After a collect that found a post: fills GHPOST_BODY (texts),
 #     GHPOST_BODY_SRC (the file a text was read from, else "") and
 #     GHPOST_BODY_KIND (`file` a body file's content, `command` the whole
-#     command, `word` a posting segment's word, `aux` a here-string or a file
-#     fed through `cat` or `<`), in the order a caller should judge them.
+#     command, `word` a posting segment's word, `attach` a literal `--attach`
+#     operand of `gh pr|issue`, posted in part and judged like a `word`, `aux`
+#     a here-string or a file fed through `cat` or `<`), in the order a caller
+#     should judge them.
 #     GHPOST_PATHS lists every file path the command names, so a caller can
 #     drop those operands from the words it judges.
 #
@@ -33,7 +35,8 @@
 # paths resolve against <cwd>. A `bash -c`/`sh -c` operand and an `eval` are
 # read as commands, and so is the command after `--` in a script wrapper
 # (`bash gate.sh run KEY -- CMD +++ CMD`, `./wrap.sh ... -- CMD`), split on
-# bare `+++` words.
+# bare `+++` words. A `gh pr|issue` `--attach` operand is its own kind when the
+# shell passes it on unchanged and no flag before it takes it as a value.
 #
 # GraphQL counts as a write only when the query text names a mutation.
 
@@ -65,6 +68,7 @@ ghpost::read_to() {
 ghpost::reset() {
   GHPOST_POST=""      # the form of the first posting segment
   GHPOST_TEXTS=()     # words of posting segments
+  GHPOST_ATTACH=()    # literal `--attach` operands of `gh pr|issue` segments
   GHPOST_FILES=()     # body files of posting segments
   GHPOST_STDIN=0      # a posting segment reads stdin
   GHPOST_SUBST=0      # a posting word expands something (`$`, or a split `$(`)
@@ -274,6 +278,16 @@ ghpost::_wrapper() {
   return 1
 }
 
+# ghpost::_literal_operand <word>: 0 when the shell passes <word> on as
+# written. The tokenizer does no brace, glob or IFS expansion, and an operand
+# like `{./x.png,--body=TEXT}` or `./x.png$IFS--body=TEXT` really posts a body,
+# so a word that could expand (on PowerShell, also an array or subexpression)
+# is not one.
+ghpost::_literal_operand() {
+  [[ "$1" != *[\$\`\{*?[]* ]] || return 1
+  [[ "$GHPOST_TOOL" != PowerShell || "$1" != *[,\(@]* ]]
+}
+
 # hook::bash_parse_segments callback: one segment's argv words.
 # shellcheck disable=SC2329  # invoked through hook::bash_parse_segments
 ghpost::segment() {
@@ -380,10 +394,14 @@ ghpost::segment() {
   esac
   [[ -n "$form" ]] || return 0
   [[ -n "$GHPOST_POST" ]] || GHPOST_POST="$form"
-  local w rest skip=0
+  # `attach` is local so a pending `--attach` never reaches the next segment
+  # of a re-entered parse.
+  local w rest skip=0 attach=0 prev="" before
   # shellcheck disable=SC2016  # a regex: `$(` is matched, not expanded
   local re_sub='(\$\(|`)(cat[[:space:]]+|<[[:space:]]*)([^)`]*)'
   for w in "$@"; do
+    before="$prev"
+    prev="$w"
     # A variable or substitution brings its text from elsewhere in the command
     # (`B=...; gh ... --body "$B"`); an unquoted `$(` splits the segment and
     # leaves a word ending in `$`.
@@ -413,6 +431,32 @@ ghpost::segment() {
       --header=*) continue ;;
       *) ;;
       esac
+    fi
+    # gh posts an `--attach` file's alt text or base name, not its path, so a
+    # literal operand is kept apart for the path check to narrow. A dash word
+    # without `=` before it may take `--attach...` as its value (`--body
+    # --attach=X` posts the word), so the word is read whole then. With
+    # `--body --attach X`, X is captured though no flag takes it: gh rejects
+    # it or reads it as the PR or issue selector, and posts it neither way.
+    if [[ "$form" == gh-pr-* || "$form" == gh-issue-* ]]; then
+      if ((attach)); then
+        attach=0
+        if ghpost::_literal_operand "$w"; then
+          GHPOST_ATTACH+=("$w")
+          continue
+        fi
+      elif [[ "$before" != -* || "$before" == - || "$before" == *=* ]]; then
+        case "$w" in
+        --attach) attach=1 ;;
+        --attach=*)
+          if ghpost::_literal_operand "${w#--attach=}"; then
+            GHPOST_ATTACH+=("${w#--attach=}")
+            continue
+          fi
+          ;;
+        *) ;;
+        esac
+      fi
     fi
     GHPOST_TEXTS+=("$w")
   done
@@ -468,10 +512,12 @@ ghpost::bodies() {
     GHPOST_WHOLE=1
     ghpost::_add command "" "$GHPOST_COMMAND"
     for c in ${GHPOST_TEXTS[@]+"${GHPOST_TEXTS[@]}"}; do ghpost::_add word "" "$c"; done
+    for c in ${GHPOST_ATTACH[@]+"${GHPOST_ATTACH[@]}"}; do ghpost::_add attach "" "$c"; done
     for c in ${GHPOST_AUX_TEXTS[@]+"${GHPOST_AUX_TEXTS[@]}"}; do ghpost::_add aux "" "$c"; done
     files=(${GHPOST_AUX_FILES[@]+"${GHPOST_AUX_FILES[@]}"})
   else
     for c in ${GHPOST_TEXTS[@]+"${GHPOST_TEXTS[@]}"}; do ghpost::_add word "" "$c"; done
+    for c in ${GHPOST_ATTACH[@]+"${GHPOST_ATTACH[@]}"}; do ghpost::_add attach "" "$c"; done
     [[ "$GHPOST_COMMAND" == *'`'* ]] && files=(${GHPOST_AUX_FILES[@]+"${GHPOST_AUX_FILES[@]}"})
   fi
   for f in ${files[@]+"${files[@]}"}; do

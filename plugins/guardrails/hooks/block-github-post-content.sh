@@ -25,7 +25,9 @@
 # words less any word that only names one of its body files (`<path>`,
 # `--flag=<path>`, `@<path>`, `k=@<path>`, a word that is only
 # `$(cat <path>)`, and the curl forms), so a `--body-file` operand is not
-# judged; the wrapper script's own words are never posting words. The whole command is not read
+# judged; the wrapper script's own words are never posting words. A literal
+# `--attach` operand is judged by what gh posts from it: the text after its
+# first `#` and its base name. The whole command is not read
 # for paths: it names the wrapper, the working directory and the body file.
 #
 # STAYS QUIET on a command that posts nothing to GitHub (a `gh api` GET, a
@@ -45,6 +47,13 @@
 # a variable or piped from another command, a here-doc inside a `bash -c`
 # operand, and any command past the 16384-character ceiling. A body file past
 # 1 MiB is read to that point only.
+#
+# Blocks by design, failing closed: an `--attach` operand the shell could
+# expand (`$`, a backtick, `{`, a glob character; on PowerShell also `,`, `(`,
+# `@`) or that follows a dash flag without `=` (`--draft --attach X`) is judged
+# whole; on a Windows bash its base name splits on `/` only; and a body's
+# reference to the attached file's absolute path still blocks, since gh posts
+# that reference unchanged when the upload fails.
 #
 # Escape: the `block_github_post_content_enabled` userConfig option; the
 # secret_pattern_detection_enabled and hardcoded_path_check_enabled options
@@ -177,6 +186,19 @@ if ((_bgpc_paths)); then
         *) ;;
         esac
       done
+      ;;
+    attach)
+      # gh posts the alt text, which starts after some `#` (the text after the
+      # first covers every split gh may pick), or by default the file's base
+      # name. Its base name splits on `\` only on Windows, which PowerShell
+      # implies; a Windows bash keeps the stricter split.
+      _bgpc_b="${_bgpc_t##*/}"
+      [[ "$TOOL_NAME" == PowerShell ]] && _bgpc_b="${_bgpc_b##*\\}"
+      if [[ "$_bgpc_t" == *'#'* ]]; then
+        _bgpc_t="${_bgpc_t#*#}"$'\n'"$_bgpc_b"
+      else
+        _bgpc_t="$_bgpc_b"
+      fi
       ;;
     *) ;;
     esac
