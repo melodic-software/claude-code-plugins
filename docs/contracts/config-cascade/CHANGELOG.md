@@ -11,6 +11,9 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **The `verification` rows resolve `light` by default.** Each plugin's `verification` row says an
+  invalid value resolves `light`, following the verification-level contract's new default. The
+  layering axis is unchanged, so `contract_version` stays.
 - **A plugin's config is named by its file, not called a surface; a cascade level is a scope.**
   The contract and its consumer gotchas say config file, plugin or scope where they said config
   surface or tier (#13193), and `### Root rule by surface` is `### Root rule by plugin`. Wording

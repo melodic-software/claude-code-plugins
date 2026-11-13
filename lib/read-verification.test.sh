@@ -2,7 +2,7 @@
 # Tests for lib/read-verification.sh. Expected outputs follow
 # docs/contracts/verification-level/README.md: a skill entry beats the plugin
 # value, the team file is read at origin's default branch only, and anything the
-# reader cannot read or trust resolves standard with its reason.
+# reader cannot read or trust resolves light with its reason.
 # Run directly: bash lib/read-verification.test.sh
 set -uo pipefail
 
@@ -57,12 +57,16 @@ at() { printf 'at origin/main, commit %s' "$(git -C "$1" rev-parse HEAD)"; }
 F=docs/conventions/verification.yaml
 
 repo=$(fixture absent -)
-assert_eq "an absent file resolves standard" \
-  "verification: standard (default; $F sets no level $(at "$repo"))" "$(run "$repo")"
+assert_eq "an absent file resolves light" \
+  "verification: light (default; $F sets no level $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture plugin $'verification: light\n')
 assert_eq "the plugin value applies" \
   "verification: light ($F verification $(at "$repo"))" "$(run "$repo")"
+
+repo=$(fixture explicit-standard $'verification: standard\n')
+assert_eq "an explicit standard raises the level above the light default" \
+  "verification: standard ($F verification $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture home-pointer $'verification: off\n')
 mkdir -p "$repo/team/conv"
@@ -80,7 +84,7 @@ assert_eq "--file reads the fixed path and ignores the convention home" \
   "$(CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" --plugin verification --skill confirm --file "$F")"
 
 assert_eq "--file outside the repository is refused" \
-  "verification: standard (default; --file '../x.yaml' is not a repository-relative .yaml path)" \
+  "verification: light (default; --file '../x.yaml' is not a repository-relative .yaml path)" \
   "$(CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" --plugin verification --skill confirm --file ../x.yaml)"
 
 repo=$(fixture skill $'verification: light\nverification_skills:\n  confirm: strict\n  measure: off\n')
@@ -92,24 +96,24 @@ assert_eq "another skill's entry leaves the plugin value" \
   "verification: light ($F verification $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture invalid $'verification: Strict\n')
-assert_eq "an invalid value is named and gives standard" \
-  "verification: standard (default; $F verification=Strict is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
+assert_eq "an invalid value is named and gives light" \
+  "verification: light (default; $F verification=Strict is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture invalid-skill $'verification: strict\nverification_skills:\n  confirm: lite\n')
-assert_eq "an invalid skill entry gives standard, not the plugin value" \
-  "verification: standard (default; $F verification_skills.confirm=lite is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
+assert_eq "an invalid skill entry gives light, not the plugin value" \
+  "verification: light (default; $F verification_skills.confirm=lite is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture repeated $'verification: strict\nverification: off\n')
-assert_eq "a repeated key is named and gives standard" \
-  "verification: standard (default; $F does not parse or repeats a key $(at "$repo"))" "$(run "$repo")"
+assert_eq "a repeated key is named and gives light" \
+  "verification: light (default; $F does not parse or repeats a key $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture slash $'verification: off/\n')
 assert_eq "a value with a trailing slash is named, never read as off" \
-  "verification: standard (default; $F verification=off/ is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
+  "verification: light (default; $F verification=off/ is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture list-skill $'verification: strict\nverification_skills:\n  confirm: [strict]\n')
-assert_eq "a list-valued skill entry is named and gives standard" \
-  "verification: standard (default; $F verification_skills.confirm is a list or map, not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
+assert_eq "a list-valued skill entry is named and gives light" \
+  "verification: light (default; $F verification_skills.confirm is a list or map, not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
 
 # A tag and a local branch both named origin/main, on a commit that sets off,
 # must not shadow the remote-tracking ref (gitrevisions resolves refs/tags first).
@@ -139,35 +143,35 @@ verification: the working tree's copy gives off ($F verification); the origin/ma
 repo=$(fixture added -)
 printf 'verification: off\n' >"$repo/$F"
 assert_eq "a copy only the branch adds does not apply" \
-  "verification: standard (default; $F sets no level $(at "$repo"))
-verification: the working tree's copy gives off ($F verification); the origin/main copy (standard) applied" "$(run "$repo")"
+  "verification: light (default; $F sets no level $(at "$repo"))
+verification: the working tree's copy gives off ($F verification); the origin/main copy (light) applied" "$(run "$repo")"
 
 repo=$(fixture home $'verification: off\n')
 assert_eq "a \$HOME root skips the layer" \
-  "verification: standard (default; team layer skipped: the root is \$HOME or an ancestor of it)" \
+  "verification: light (default; team layer skipped: the root is \$HOME or an ancestor of it)" \
   "$(HOME="$repo" CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" --plugin verification --skill confirm)"
 
 mkdir -p "$TEST_TMPDIR/loose"
 assert_eq "a non-repo root skips the layer" \
-  "verification: standard (default; team layer skipped: the root is not inside a git working tree)" \
+  "verification: light (default; team layer skipped: the root is not inside a git working tree)" \
   "$(run "$TEST_TMPDIR/loose")"
 
 repo=$(fixture bad-branch $'verification: off\n')
 g -C "$repo" push -q origin 'main:refs/heads/a+b'
 git --git-dir="$TEST_TMPDIR/bad-branch/origin.git" symbolic-ref HEAD 'refs/heads/a+b'
 assert_eq "a bad branch name skips the layer" \
-  "verification: standard (default; team layer skipped: origin's default branch name 'a+b' is not a safe name)" \
+  "verification: light (default; team layer skipped: origin's default branch name 'a+b' is not a safe name)" \
   "$(run "$repo")"
 
 mkdir -p "$TEST_TMPDIR/no-origin"
 g init -q -b main "$TEST_TMPDIR/no-origin"
 assert_eq "no origin skips the layer" \
-  "verification: standard (default; team layer skipped: no origin remote answered git ls-remote --symref origin HEAD)" \
+  "verification: light (default; team layer skipped: no origin remote answered git ls-remote --symref origin HEAD)" \
   "$(run "$TEST_TMPDIR/no-origin")"
 
 repo=$(fixture args $'verification: off\n')
 assert_eq "a skill name holding a dot is refused, not read as a nested key" \
-  "verification: standard (default; --plugin and --skill take a name of lowercase letters, digits and -)" \
+  "verification: light (default; --plugin and --skill take a name of lowercase letters, digits and -)" \
   "$(CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" --plugin verification --skill a.b)"
 rc=0
 CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" >/dev/null 2>&1 || rc=$?

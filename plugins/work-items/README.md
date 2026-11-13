@@ -304,7 +304,7 @@ bug_path:
 ```
 
 `verification` and `verification_skills.<skill>` (`off`, `light`, `standard`
-or `strict`, default `standard`) also live only in the repository file, and are
+or `strict`, default `light`) also live only in the repository file, and are
 read from the default branch through `lib/read-verification.sh`, so a branch
 cannot lower them. `/work-items:work` reads them for the bug path's capture
 check: at `standard` and `strict` a fresh-context subagent confirms each
