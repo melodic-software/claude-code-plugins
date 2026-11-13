@@ -346,10 +346,24 @@ guard::_abort_settle() {
     guard::_abort_deny_resolve
     note="$_GAB_DENY_NOTE"
     _GAB_DENY_NOTE=""
+    # Each layer that names the guard is cited, so the way to turn it off
+    # names every place the guard has to be removed from.
+    local why="" how=""
     if [[ "$_GAB_DENY_OPT" == *" $_GAB_NAME "* ]]; then
-      msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); deny-on-crash: this tool call is denied because the deny_on_crash option names this guard. To let such a call through with a notice instead, remove ${_GAB_NAME} from deny_on_crash in /plugin configure. The failing line is on the hook's stderr.${note}"
-    elif [[ "$_GAB_DENY_TEAM" == *" $_GAB_NAME "* ]]; then
-      msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); deny-on-crash: this tool call is denied because deny_on_crash in ${_GAB_TEAM_REL} names this guard. To let such a call through with a notice instead, remove ${_GAB_NAME} from that list on the default branch. The failing line is on the hook's stderr.${note}"
+      why="the deny_on_crash option names this guard"
+      how="from deny_on_crash in /plugin configure"
+    fi
+    if [[ "$_GAB_DENY_TEAM" == *" $_GAB_NAME "* ]]; then
+      if [[ -n "$why" ]]; then
+        why="the deny_on_crash option and deny_on_crash in ${_GAB_TEAM_REL} both name this guard"
+        how+=" and from deny_on_crash in ${_GAB_TEAM_REL} on the default branch"
+      else
+        why="deny_on_crash in ${_GAB_TEAM_REL} names this guard"
+        how="from that list on the default branch"
+      fi
+    fi
+    if [[ -n "$why" ]]; then
+      msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); deny-on-crash: this tool call is denied because ${why}. To let such a call through with a notice instead, remove ${_GAB_NAME} ${how}. The failing line is on the hook's stderr.${note}"
     fi
     if [[ -n "$msg" ]]; then
       printf '%s\n' "$msg" >&2

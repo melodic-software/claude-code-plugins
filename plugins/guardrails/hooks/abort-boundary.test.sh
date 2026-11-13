@@ -78,9 +78,11 @@ run_hook() {
   # cannot run the feed_run function. It runs outside any repository, so the
   # deny_on_crash team file of the checkout running this suite is not read;
   # a case that wants one sets CLAUDE_PROJECT_DIR to a fixture repository.
+  # The ceiling is the parent: git still walks up from a directory that is
+  # itself a ceiling, and stops only below one.
   (
     cd "$TEST_TMPDIR" || exit 99
-    export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
+    export GIT_CEILING_DIRECTORIES="${TEST_TMPDIR%/*}"
     unset HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_DENY_ON_CRASH
     export CLAUDE_PROJECT_DIR='' \
       CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED=true \
@@ -573,6 +575,13 @@ for via in direct dispatched; do
   assert_contains "$via: a team file that does not parse says so" "$ERR" "does not parse"
   deny_run "CLAUDE_PROJECT_DIR=$TEAM_OTHER" "$DENY_OPT=block-dangerous-git"
   assert_exit "$via: either layer naming the guard denies" 2 "$RC"
+  deny_run "CLAUDE_PROJECT_DIR=$TEAM_DENY" "$DENY_OPT=block-dangerous-git"
+  assert_exit "$via: both layers name the guard: the abort denies" 2 "$RC"
+  assert_contains "$via: both layers name the guard: the notice cites both" "$ERR" \
+    "denied because the deny_on_crash option and deny_on_crash in docs/conventions/guardrails.yaml both name this guard"
+  assert_contains "$via: both layers name the guard: the notice says to remove it from both" "$ERR" \
+    "remove block-dangerous-git from deny_on_crash in /plugin configure and from deny_on_crash in docs/conventions/guardrails.yaml on the default branch"
+  assert_eq "$via: both layers name the guard: exactly one notice line" 1 "$(count_notices "$ERR")"
 
   # No abort, no change: the benign command never reaches the injected line.
   if [[ "$via" == direct ]]; then
