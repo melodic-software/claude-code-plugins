@@ -1,0 +1,15 @@
+# JavaScript and TypeScript in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
+# Each package.json directory is its own project and its own test script runs
+# its suites (node --test in most, vitest in a few). The globs match
+# code-metrics' own map for the lane, so a manifest or lockfile alone does not
+# select this ecosystem.
+globs: ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs"]
+project-discovery: ["package.json"]
+build-cmd: "test ! -f tsconfig.json || npx tsc --noEmit"
+test-cmd: "npm run test --if-present"
+check-cmd: "npx @biomejs/biome check ."
+fix-cmd: "npx @biomejs/biome format --write <files>"
+code-fix-cmd: "npx @biomejs/biome check --write <files>"
+opt-in: "a biome.json in the project directory"
+install-hint: "node 24 or later; npm ci --ignore-scripts in a package with a package-lock.json installs its dependencies"
+notes: "build-cmd runs from each package.json directory and type-checks only where that directory has a tsconfig.json: three packages (plugins/miro/server and the two plugins/knowledge extraction packages). Six plugins keep a tsconfig.json with no package.json beside it; their files resolve to the root package, where nothing is type-checked. test-cmd runs a package's test script when it has one; the root package has none. Biome runs only in a package with its own biome.json (plugins/miro/server today)."

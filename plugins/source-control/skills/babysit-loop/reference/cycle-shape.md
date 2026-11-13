@@ -64,7 +64,7 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    conversation context; the comment is the counters' source of truth) through the
    upsert script's `--read` mode, which considers only comments the lane's own write identity wrote
    ([reference/telemetry-upsert.md](telemetry-upsert.md), "Reading the state block"); classify
-   guard mode against the rate-limit guard floor in [`../SKILL.md`](../SKILL.md); take the cycle-start snapshot with
+   guard mode against the rate-limits floor in [`../SKILL.md`](../SKILL.md); take the cycle-start snapshot with
    `node <plugin-root>/skills/babysit-loop/scripts/lane-snapshot.mjs --repo <owner/repo>`. It reads
    every page of open PRs and open issues through GraphQL cursor pagination and prints them only
    when every page read and each list is whole: no number repeats and the count read equals the

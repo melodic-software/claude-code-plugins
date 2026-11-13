@@ -16,7 +16,7 @@ citation. This lane's specifics:
 - **Actionable work in view**: the cycle-start snapshot holds at least one autonomous-frontier
   candidate or untriaged intake item. A candidate the admission gate's in-flight precondition
   excluded is waiting on its PR, not on this lane, so it does not count, stale or not. Otherwise the cycle is
-  idle and the counter holds. A cycle in which the rate-limit guard barred this lane from claiming new work is **held**, and the
+  idle and the counter holds. A cycle in which the rate-limits floor barred this lane from claiming new work is **held**, and the
   counter likewise holds whatever the snapshot carries. For this lane the bar is the pause window
   itself (the inlined floor's Drain-then-pause rule in [`../SKILL.md`](../SKILL.md)): `rate_limit_latch` gates only adaptive-cap
   ramp-up here, so it alone never holds the counter, per the convention's held-cycle rule.

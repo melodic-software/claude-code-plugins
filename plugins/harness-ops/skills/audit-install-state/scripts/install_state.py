@@ -396,7 +396,7 @@ NAME_SCHEMES: tuple[NameScheme, ...] = (
         "which also carries an authToken -- this engine does not open it.",
     ),
     NameScheme(
-        r"rate-limit-guard/.*\.tmp\.\d+",
+        r"rate-limits/.*\.tmp\.\d+",
         MSYS_SHELL_PID,
         "Git Bash / MSYS2 `$$`, a shell PID in its own namespace, not an OS PID. "
         "Judge by age and zero length instead.",

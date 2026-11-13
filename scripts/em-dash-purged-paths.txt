@@ -407,10 +407,10 @@ plugins/prototype/skills/*/SKILL.md
 plugins/python-format/README.md
 plugins/python-format/CHANGELOG.md
 plugins/python-format/skills/*/SKILL.md
-plugins/rate-limit-guard/README.md
-plugins/rate-limit-guard/CHANGELOG.md
-plugins/rate-limit-guard/reference/*.md
-plugins/rate-limit-guard/skills/*/SKILL.md
+plugins/rate-limits/README.md
+plugins/rate-limits/CHANGELOG.md
+plugins/rate-limits/reference/*.md
+plugins/rate-limits/skills/*/SKILL.md
 plugins/repo-fleet-hygiene/README.md
 plugins/repo-fleet-hygiene/CHANGELOG.md
 plugins/repo-fleet-hygiene/skills/*/SKILL.md

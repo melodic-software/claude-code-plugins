@@ -1,0 +1,8 @@
+# PowerShell in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
+globs: ["*.ps1", "*.psm1"]
+build-cmd: null
+test-cmd: null
+check-cmd: "pwsh -NoProfile -Command 'Invoke-ScriptAnalyzer -Path . -Recurse'"
+fix-cmd: null
+opt-in: "PowerShell files present and pwsh available"
+install-hint: "Install-Module -Name PSScriptAnalyzer (pwsh)"

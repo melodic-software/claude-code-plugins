@@ -10,7 +10,7 @@
 - [4. Loop-layer invariants](#4-loop-layer-invariants)
 - [5. Consumers and launch surfaces](#5-consumers-and-launch-surfaces)
 - [Permission modes](#permission-modes)
-- [6. Rate-limit guard binding](#6-rate-limit-guard-binding)
+- [6. Rate-limits binding](#6-rate-limits-binding)
 - [7. Operator steering through GitHub state](#7-operator-steering-through-github-state)
 - [Confirm-then-record](#confirm-then-record)
 - [8. Scheduled reader](#8-scheduled-reader)
@@ -892,7 +892,7 @@ changes is recorded in this convention's [`CHANGELOG.md`](CHANGELOG.md).
 
 The lanes model subscription (Pro/Max) usage as two limits, one over the last five hours and one
 over the week, and
-act only on the operable pause floor in the rate-limit guard binding (§6); the cap's scoping and
+act only on the operable pause floor in the rate-limits binding (§6); the cap's scoping and
 limits are not restated here.
 
 - **Pointer**: for the subscription usage windows and caps, see the
@@ -1065,7 +1065,7 @@ qualifying progress event is lane-specific and defined in each lane body; the se
 shared. A cycle whose cycle-start snapshot held actionable work for the lane and that ended with no
 qualifying progress increments the counter; an idle cycle, with nothing actionable in view, leaves it
 unchanged (idle is not stalled); any qualifying progress resets it to zero. A **held** cycle is a
-third state and also leaves the counter unchanged: whenever the rate-limit guard (§6) bars the lane
+third state and also leaves the counter unchanged: whenever the rate-limits floor (§6) bars the lane
 from claiming new work, the lane declines mutating work *by design*, so however much sits in its
 snapshot, no qualifying progress was available to make. The **bar** is what the hold keys on, never
 the pause window alone. A lane whose inlined floor latches that suppression in durable state stays
@@ -1090,7 +1090,7 @@ disposition to the operator.
 
 **Per-cycle usage sample (measure-only).** No lane's spend was measured: nothing recorded how much
 of the shared subscription windows a cycle consumed. Each lane therefore records a `usage_sample` in
-that same durable-state block every cycle, holding the two window percentages the rate-limit guard
+that same durable-state block every cycle, holding the two window percentages the rate-limits floor
 (§6) already read that cycle plus each window's rise since the previous sample. The reading is
 already in hand, so measuring costs nothing beyond the write. **The one permitted readback.** The
 previous cycle's sample is read back for exactly one purpose: deriving the new sample's
@@ -1107,7 +1107,7 @@ reading and this one: it covers the interval **preceding** the cycle whose repor
 that cycle's own consumption lands in the next cycle's sample. Read the series as a lagging one. Measure first; whether the data supports acting on it is a later,
 separately decided question. Three properties bound that decision, stated here once and held by
 citation from each lane body: the reading is a snapshot no fresher than the guard's staleness rule
-allows, from a **machine-local**, last-writer-wins file that rate-limit-guard's mod writes in
+allows, from a **machine-local**, last-writer-wins file that rate-limits's mod writes in
 interactive and headless sessions alike, so an unattended lane samples wherever the guard is
 installed and mods are on, and an empty sample means unobserved rather than zero; the figures are **account-scope**, so the three-lane topology means
 concurrent lanes move the same windows and a per-cycle rise is one lane's own consumption only when
@@ -1317,7 +1317,7 @@ has shown stays out of the table. The lanes launcher also passes `--permission-p
 | `-n <name>` | `--bg` launches | The lane's name |
 | `--permission-prompts none` | `-p` launches on Claude Code 2.1.259 or later | Passed; older CLIs reject the flag |
 
-## 6. Rate-limit guard binding
+## 6. Rate-limits binding
 
 All three lanes consume the shared subscription rate-limit windows (§3). An installed plugin cannot
 read a sibling plugin's files or this repo's `docs/` at runtime, so each consuming lane body
@@ -1326,11 +1326,11 @@ and drain-then-pause, and cites the guard's reader contract for provenance only.
 those four items and deliberately restates none of their values: a number written here would be a
 seventh copy, outside the block the check below compares.
 That reader contract is
-[`plugins/rate-limit-guard/reference/reader-contract.md`](../../../plugins/rate-limit-guard/reference/reader-contract.md),
-shipped with the `rate-limit-guard` plugin. This convention records the inline-floor rule so the
+[`plugins/rate-limits/reference/reader-contract.md`](../../../plugins/rate-limits/reference/reader-contract.md),
+shipped with the `rate-limits` plugin. This convention records the inline-floor rule so the
 values stay byte-identical across lanes and to that contract's own floor block.
 
-**Who writes the file, and what wakes a paused lane.** rate-limit-guard's mod writes the fixed-path
+**Who writes the file, and what wakes a paused lane.** rate-limits's mod writes the fixed-path
 file in interactive and headless sessions alike. A paused lane's Monitor on that file wakes on the
 mod's writes, and a machine-wide write floor bounds them: a reading whose whole-point percentages
 have not moved is rewritten no sooner than the floor interval after the file's last write, whichever
@@ -1420,7 +1420,7 @@ gap removes the false assurance that nothing is missing.
 **The resolution is account identity, and all three sides have landed.** The snapshot file carries an
 `account.email` field naming the account whose windows a snapshot describes, present whenever the
 writer could attribute the observation and absent rather than wrong when it could not
-(`plugins/rate-limit-guard/reference/reader-contract.md`, "Snapshot file shape"). Reader-side
+(`plugins/rate-limits/reference/reader-contract.md`, "Snapshot file shape"). Reader-side
 invalidation of latched state is a **MUST** in the inlined floor's "Account switch" bullet: a paused
 lane records the account of the snapshot that tripped the pause (not the account `.claude.json`
 names at pause entry, because the snapshot can be up to 10 minutes old), reads

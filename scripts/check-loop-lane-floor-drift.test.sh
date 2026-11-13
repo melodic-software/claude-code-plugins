@@ -50,7 +50,7 @@ fixture_tree::build TMP --git --label loop-lane-floor-drift || {
   exit 1
 }
 
-SOURCE_REL="plugins/rate-limit-guard/reference/reader-contract.md"
+SOURCE_REL="plugins/rate-limits/reference/reader-contract.md"
 EXACT_CONSUMERS=(
   "plugins/work-items/skills/work-loop/SKILL.md"
   "plugins/work-items/skills/attend-queue/SKILL.md"
@@ -80,7 +80,7 @@ mapfile -t DATA_CARRIER_PATHS < <(awk '
 # bullets: this suite tests the gate's comparison, not the guard's values.
 floor_block() {
   cat <<'EOF'
-- **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+- **Snapshot file (fixed path):** `~/.claude/rate-limits/rate-limits.json`
 - **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 90`
 - **Pause end:** the **tripped** window's `resets_at`
 - **Staleness rule:** a snapshot older than **10 minutes** is stale. Treat the
@@ -95,7 +95,7 @@ EOF
 floor_block_quoted() {
   cat <<'EOF'
 > - **Snapshot file (fixed path):**
->   `~/.claude/rate-limit-guard/rate-limits.json`
+>   `~/.claude/rate-limits/rate-limits.json`
 > - **Pause threshold (fixed):** pause when **either** window
 >   reports `used_percentage >= 90`
 > - **Pause end:** the **tripped** window's `resets_at`
