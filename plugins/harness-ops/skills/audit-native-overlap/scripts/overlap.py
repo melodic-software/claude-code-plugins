@@ -206,22 +206,26 @@ PRESENCE_MENTION_RE = re.compile(
     re.IGNORECASE,
 )
 
-START_MARKER = "<!-- native-surfaces:start -->"
-END_MARKER = "<!-- native-surfaces:end -->"
-# The form the ai-slop audit skips. A view carries exactly one of the two forms, and
-# regenerating keeps the one it carries; a new view gets START_MARKER and END_MARKER.
-# A marker is a standalone line; one opening with GENERATED_START_PREFIX belongs to the
-# generated form even when the rest of the line differs, and is refused naming the
-# expected line. Each form is (prefix of its start line, start line, end line).
-GENERATED_START_PREFIX = "<!-- BEGIN GENERATED: native-surfaces."
-GENERATED_START_MARKER = (
-    f"{GENERATED_START_PREFIX} Edit docs/native-surfaces/records.json, then run "
-    "plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py generate -->"
+# START_MARKER and END_MARKER fence the generated block in the form the ai-slop audit
+# skips, and a new view gets them. A view written with the older LEGACY markers (a
+# consumer repository may still carry one) is read too; a view carries exactly one of
+# the two forms, and regenerating keeps the one it carries. A marker is a standalone
+# line; one opening with START_PREFIX belongs to the BEGIN GENERATED form even when
+# the rest of the line differs, and is refused naming the expected line. Each form is
+# (prefix of its start line, start line, end line). The instruction names the store and
+# the script by what holds in any repository: the store path is configurable, and the
+# script lives under the plugin's install directory, not the repository.
+START_PREFIX = "<!-- BEGIN GENERATED: native-surfaces."
+START_MARKER = (
+    f"{START_PREFIX} Edit the native-overlap store, then run "
+    "python3 ${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py generate -->"
 )
-GENERATED_END_MARKER = "<!-- END GENERATED: native-surfaces -->"
+END_MARKER = "<!-- END GENERATED: native-surfaces -->"
+LEGACY_START_MARKER = "<!-- native-surfaces:start -->"
+LEGACY_END_MARKER = "<!-- native-surfaces:end -->"
 MARKER_FORMS = (
-    (START_MARKER, START_MARKER, END_MARKER),
-    (GENERATED_START_PREFIX, GENERATED_START_MARKER, GENERATED_END_MARKER),
+    (START_PREFIX, START_MARKER, END_MARKER),
+    (LEGACY_START_MARKER, LEGACY_START_MARKER, LEGACY_END_MARKER),
 )
 
 # A `native description:` evidence line quotes the native text verbatim, so one carrying an em dash

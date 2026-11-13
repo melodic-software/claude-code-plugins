@@ -12,7 +12,7 @@ surface and a component in this repository, and each one carries the observable 
 re-deriving it. Availability is never asserted: an observation record says what was seen, where,
 and when. See [`docs/contracts/native-references/`](contracts/native-references/README.md).
 
-<!-- native-surfaces:start -->
+<!-- BEGIN GENERATED: native-surfaces. Edit the native-overlap store, then run python3 ${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py generate -->
 
 ## Summary
 
@@ -1481,4 +1481,4 @@ Pairs ruled not an overlap by a person or a session acting on the owner's record
 | `workflows` | builtin-command | `session-flow:workflow` | /workflows browses Workflow tool runs; ours navigates staged engineering work. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `workflows` | builtin-command | `songwriting:workflow` | /workflows browses Workflow tool runs; ours routes a songwriting session. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 
-<!-- native-surfaces:end -->
+<!-- END GENERATED: native-surfaces -->

@@ -5,10 +5,10 @@
 // in place. scripts/generate-marketplace.mjs passes a whole file as the block.
 //
 // A block is fenced in one of two forms, and a file must carry exactly one:
-// `<!-- x:start -->` ... `<!-- x:end -->`, or
 // `<!-- BEGIN GENERATED: x. <instruction> -->` ... `<!-- END GENERATED: x -->`,
-// the form the ai-slop audit skips. The instruction is `Run <command>` for these
-// generators; the native-surfaces view
+// the form this repository's docs carry and the ai-slop audit skips, or the
+// older `<!-- x:start -->` ... `<!-- x:end -->`, still read. The instruction is
+// `Run <command>` for these generators; the native-surfaces view
 // (plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py) uses the
 // longer `Edit <store>, then run <command>`. The generator rewrites the block
 // inside the form it found, so either form passes --check.
@@ -30,16 +30,16 @@ import process from "node:process";
 
 import { reportFirstDifference } from "./report-first-difference.mjs";
 
-// The marker pairs a block named `name` may carry, the start-and-end form first.
+// The marker pairs a block named `name` may carry, the BEGIN GENERATED form first.
 // `prefix` is the start of every line that opens a block of that form.
 export function markerForms(name, instruction) {
   return [
-    { prefix: `<!-- ${name}:start -->`, start: `<!-- ${name}:start -->`, end: `<!-- ${name}:end -->` },
     {
       prefix: `<!-- BEGIN GENERATED: ${name}.`,
       start: `<!-- BEGIN GENERATED: ${name}. ${instruction} -->`,
       end: `<!-- END GENERATED: ${name} -->`,
     },
+    { prefix: `<!-- ${name}:start -->`, start: `<!-- ${name}:start -->`, end: `<!-- ${name}:end -->` },
   ];
 }
 
