@@ -2101,15 +2101,15 @@ class RunValidityTest(unittest.TestCase):
         home = "/tmp/eval-nop/run/home"
         for plugin, tool, tool_input in (
             ("markdown-format", "Bash", {"command": "find / -ipath '*markdown-format*'"}),
-            ("biome-format", "Bash", {"command": "grep -rIl biome-format %s" % home}),
+            ("javascript-format", "Bash", {"command": "grep -rIl javascript-format %s" % home}),
             ("markdown-format", "Bash",
              {"command": "find / -iname '*Markdown-Format*' -type d 2>/dev/null | head -20"}),
-            ("biome-format", "Bash", {"command": "grep -rl -e '^biome-format' %s" % home}),
+            ("javascript-format", "Bash", {"command": "grep -rl -e '^javascript-format' %s" % home}),
             ("markdown-format", "Bash", {"command":
              "find / -ipath '*markdown-format*' -not -path '/proc/*' 2>/dev/null | head -30"}),
             ("markdown-format", "Bash",
              {"command": "find / -name markdown-format ! -path '/sys/*'"}),
-            ("biome-format", "Grep", {"pattern": "biome-format", "path": home}),
+            ("javascript-format", "Grep", {"pattern": "javascript-format", "path": home}),
             ("markdown-format", "Glob", {"pattern": "**/*markdown-format*/**"}),
         ):
             proc = self.absent_search(tool, tool_input, plugin)
@@ -2123,7 +2123,7 @@ class RunValidityTest(unittest.TestCase):
             # Another path or term, or a search that does more than search.
             ("Bash", {"command": "cat /etc/hosts"}),
             ("Bash", {"command": "find / -name '*.pem'"}),
-            ("Bash", {"command": "grep -rIl biome-format %s" % home}),
+            ("Bash", {"command": "grep -rIl javascript-format %s" % home}),
             ("Bash", {"command": "find / -ipath '*markdown-format*' -exec cat {} +"}),
             ("Bash", {"command": "find / -ipath '*markdown-format*' -delete"}),
             ("Bash", {"command": "find / -ipath '*markdown-format*' > %s/out" % home}),

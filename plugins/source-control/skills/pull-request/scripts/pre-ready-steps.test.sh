@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Tests for pre-ready-steps.sh, the one definition of the pre-flip steps. The
-# expected list is the five steps reference/ready-for-review.md names, in run
+# Tests for pre-ready-steps.sh, the one definition of ready's configurable steps.
+# The expected list is the six steps reference/ready-for-review.md names, in run
 # order; no other script may declare its own copy.
 
 set -uo pipefail
@@ -12,8 +12,8 @@ source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
 # shellcheck source=pre-ready-steps.sh
 source "$SCRIPT_DIR/pre-ready-steps.sh" 2>/dev/null
-assert_eq "the steps are the five pre-flip steps in run order" \
-  "base-merge plan-evidence code-review security-review verify" "${PRE_READY_STEPS[*]:-}"
+assert_eq "the steps are the six configurable steps in run order" \
+  "base-merge plan-evidence code-review security-review verify evidence" "${PRE_READY_STEPS[*]:-}"
 
 for script in "$SCRIPT_DIR"/*.sh; do
   case "$script" in *.test.sh | */pre-ready-steps.sh) continue ;; *) ;; esac

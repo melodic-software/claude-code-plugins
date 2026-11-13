@@ -34,7 +34,7 @@ asks for, never a directive addressed to the agent reading it.
 
 - *(empty)*. Reads the topic's `PLAN.md` phases (default) from the memory slice `<memory_dir>/<slug>/PLAN.md` (default `.work/`). The slice is checkout-local: when it is absent, stop with a visible message naming the missing file and `/planning:plan` as the skill that produces it, and offer the `#<item-number>` or conversation source instead
 - `prd`, reads the topic's `PRD.md` user stories from the same memory slice
-- `#<item-number>`, reads an existing item's body
+- `#<item-number>`, reads an existing item's body and comments (a closed `/planning:wayfind` map states its decisions in its closing comment); the created items become that item's native sub-items (Step 4)
 - Conversation context. Synthesizes from current discussion
 
 ## Process
@@ -189,7 +189,7 @@ Iterate one question at a time until the user approves, never publish an unappro
 
 ### 4. Publish items
 
-For each approved item, create a work item via the seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path), applying the house style read at Step 3 to the container and every item. When a spec container was approved, create the **container first** ("Container lifecycle" below) and add `--parent "<container-id>"` to every item's `create-item` so each is a native sub-item. **Publish every blocker before the items that wait on it**, so real IDs exist to fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
+For each approved item, create a work item via the seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path), applying the house style read at Step 3 to the container and every item. When a spec container was approved, create the **container first** ("Container lifecycle" below) and add `--parent "<container-id>"` to every item's `create-item` so each is a native sub-item. When the source is a tracker item (`#<item-number>`), attach native sub-items to it too: with no container, add `--parent "<source-item-id>"` to every item's `create-item`, so the created items become children of the source item; with a container, add it to the container's `create-item`, so the container sits under the source item and the items under the container. **Publish every blocker before the items that wait on it**, so real IDs exist to fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
 
 ```bash
 # Call 1: print a fresh temp path. Write the composed item body to that path with the Write
@@ -201,6 +201,7 @@ mktemp
 # items get the human-gated one (default needs-human). Substitute the binding's
 # config.role_labels values when the repo remaps them.
 # --type: org repos only (native Issue Type); on personal/non-org repos drop --type and prepend a coarse type: bug|feature|task label to --labels instead
+# --parent "<container-id or source-item-id>": add it when a container or a tracker-item source applies (above)
 "${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh" create-item \
   --title "<item title>" \
   --body-file "<temp path from call 1>" \
@@ -222,16 +223,16 @@ Every item body uses the one structure below. It is the agent-brief template ([`
 ```markdown
 ## Parent
 
-Refs #<parent-item> (if source was an existing item)
-<!-- or: Source: PLAN Phase N, topic <slug> — cite the PR carrying the plan (#<pr>) when it
-     exists. Before that PR exists, slug + phase alone is correct (it is a label, not a path);
+Refs #<parent-item>: [<parent title>](<parent URL>) (if source was an existing item)
+<!-- or: Source: PLAN Phase N, topic <slug> — cite the PR carrying the plan as
+     `[<PR title>](<PR URL>)` when it exists. Before that PR exists, slug + phase alone is correct (it is a label, not a path);
      when the PR opens, backfill it as a comment on each published item so the provenance
      survives. Never write the memory-slice path: it is never committed, so the pointer would
      dangle. -->
 
 ## Depends on
 
-- #<blocker-item-number>
+- [<blocker title>](<blocker URL>)
 
 ## Outcome
 
@@ -279,6 +280,10 @@ The part of the source PLAN.md's `## Design` section this vertical slice touches
 
 Fill the sections this way:
 
+- **Links.** Every link written to the tracker (an item body, the container body, a comment) is the
+  item's title linked to its absolute URL, never a bare `#<n>`, so it resolves from any page that
+  quotes it. The `## Parent` line keeps its `Refs #<parent-item>` opening before the titled link:
+  the decomposed-parent close matches that opening.
 - **Depends on** mirrors the item's `--blocked-by` edges, one line per blocker. An item with none
   gets the single line `- none: on the frontier now`.
 - **Outcome** describes behavior, not a per-layer task list, and names no file paths: paths move
@@ -336,6 +341,11 @@ close-on-ship drift doctrine. A run that publishes plain items needs none of it.
 
 After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, each criterion id left out at Step 3 (one left out as met at base says so), each id sharpened at Step 3, each id kept though it passes at base with its reason, and the suggested execution order. **work the frontier** (unblocked items first).
 
+Close the report with how the items run: when a spec container was published, at the keyboard run
+them with `/work-items:ship run #<container-id>` (it runs a published spec container's items);
+otherwise, or away from the keyboard, leave the agent-ready items for the lanes, which pick them
+up from the frontier.
+
 ## Spoke paths
 
 The `context/` files write the plugin's root directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the
@@ -346,7 +356,8 @@ substituted. Basis: the plugins reference,
 
 ## Next
 
-`/work-items:work` for a vertical slice ready to build.
+- A vertical slice ready to build: /work-items:work.
+- At the keyboard, with a spec container published, to run its items: /work-items:ship run #<container-id>.
 
 ## Re-decompose (rerouting)
 

@@ -140,6 +140,40 @@ run_push_test "push resolves remote.pushDefault with no branch.<name>.remote" "$
 repo=$(make_repo "push-ambiguous" fork=/dev/null upstream=/dev/null)
 run_push_test "push mode fails loudly on ambiguous fallback" "$repo" "main" "" 1
 
+# --- --dir: run from a directory outside every checkout -----------------------
+# run_dir_test <desc> <expected_out> <expected_exit> <resolver args...>: runs from $OUTSIDE.
+OUTSIDE="$WORKDIR/outside"
+mkdir -p "$OUTSIDE"
+export GIT_CEILING_DIRECTORIES="$WORKDIR"
+run_dir_test() {
+  local desc="$1" expected_out="$2" expected_exit="$3"
+  shift 3
+  local actual_out actual_exit
+  actual_out=$(cd "$OUTSIDE" && bash "$RESOLVER" "$@" 2>/dev/null)
+  actual_exit=$?
+  if [[ "$actual_out" == "$expected_out" && "$actual_exit" -eq "$expected_exit" ]]; then
+    echo "PASS: $desc"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: $desc"
+    echo "       got     out='$actual_out' exit=$actual_exit"
+    echo "       wanted  out='$expected_out' exit=$expected_exit"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+repo=$(make_repo "dir-tri" origin=/dev/null upstream=/dev/null)
+git -C "$repo" config branch.main.remote upstream
+git -C "$repo" config branch.main.pushRemote origin
+run_dir_test "--dir reads the checkout's current branch and fetch remote" "upstream" 0 --dir "$repo"
+run_dir_test "--push --dir reads the checkout's push remote for a named branch" "origin" 0 --push --dir "$repo" main
+run_dir_test "--dir before --push reads the same push remote" "origin" 0 --dir "$repo" --push main
+run_dir_test "without --dir, a shell outside every checkout finds no remote" "" 1 --push main
+run_dir_test "--dir without a value is a usage error" "" 1 --dir
+run_dir_test "an empty --dir is a usage error" "" 1 --dir ''
+run_dir_test "--dir naming no directory is a usage error" "" 1 --dir "$WORKDIR/missing" main
+run_dir_test "--dir given twice is a usage error" "" 1 --dir "$repo" --dir "$repo" main
+
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"
 [[ $FAIL -eq 0 ]]

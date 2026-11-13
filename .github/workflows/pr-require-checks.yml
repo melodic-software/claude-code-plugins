@@ -1,31 +1,29 @@
 name: PR Require Checks
 
-# API_BUDGET_HOLD (outage posture element 2): no step here sets it: ci-status is a gate, and a
-# hold would pass a check it could not read.
-# A step opts in only once its script is shown to hold green with a notice on
-# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
-# a hold would pass what it could not read, so the rest still end red on a
-# rate limit past the guard's budget.
+# API_BUDGET_HOLD (outage posture element 2): no step here sets it. A step opts
+# in only once its script is shown to hold green with a notice on a refused call
+# (rate-guard.mjs createRateLimitLatch), and a gate never does: ci-status is a
+# gate, and a hold would pass a check it could not read. So every step here
+# still ends red on a rate limit past the guard's budget.
 on:
-  # A dispatch runs the full contract corpus. pr-merge.yml starts one on main
-  # for the merges since the last, whoever merged, each of the newest tip, at
-  # most one per 30 minutes counting the scheduled and hand-started runs,
-  # except one inside that cap for a lane merge no lane run covers while
-  # merge.full-run-cap-bypass is on (docs/conventions/pr-pipeline.yaml).
+  # A dispatch runs the full contract corpus. pr-merge.yml starts one on main's
+  # newest tip after merges land, whoever merged them, at most one per 30
+  # minutes counting the scheduled and hand-started runs. While
+  # merge.full-run-cap-bypass is on, a lane merge no lane run covers gets one
+  # inside that cap (docs/conventions/pr-pipeline.yaml).
   workflow_dispatch:
   # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
   # repository's merge-queue ruleset, with the org `pull_request` rule and no
   # bypass actor; github-iac GovernedRepositories.cs), and the queue merges a
-  # commit only after this workflow passed on that same SHA in its
-  # merge-group run. A push run re-tested the
-  # SHA the queue had just passed: all 55 main pushes from 2026-10-03T22:40Z
-  # to 10-04T17:41Z did, for 591 job minutes. The check runs that merge-group
-  # run left stay on the commit.
+  # commit only after this workflow passed on that same SHA in its merge-group
+  # run, whose check runs stay on the commit. A push run would re-test a SHA
+  # the queue had just passed: all 55 main pushes from 2026-10-03T22:40Z to
+  # 10-04T17:41Z did, for 591 job minutes.
   #
   # THE WHOLE TREE, TWICE A DAY. A pull request and a merge group test only
-  # what changed, so this run is the net for what a
-  # diff cannot show: a suite that asserts against the live tree, and a
-  # dependency the affected-suite selector does not see. It takes the same path
+  # what changed, so this run is the net for what a diff cannot show: a suite
+  # that asserts against the live tree, and a dependency the affected-suite
+  # selector does not see. It takes the same path
   # as a dispatch: the full contract corpus, the whole-repository ShellCheck and
   # check-25 scans, and every diff-scoped gate at its widest. 09:17 and 16:17
   # UTC are two of the quietest hours for this workflow (3.2 and 4.9 runs an
@@ -35,16 +33,16 @@ on:
     - cron: '17 9,16 * * *'
   pull_request:
     # `ready_for_review` is load-bearing: the draft gate below skips every
-    # lane while a pull request is a draft, and
-    # without this type a draft flipped to ready triggers no run at all, so the
-    # lanes would never get their real answer.
+    # lane while a pull request is a draft, and without this type a draft
+    # flipped to ready triggers no run at all, so the lanes would never get
+    # their real answer.
     #
     # `edited`, `labeled` and `unlabeled` can change the pr-title /
     # do-not-merge / issue-linkage answers without a new commit, so the required
     # check has to re-evaluate. Whether such an event is CONTRACT-ONLY (lanes
     # gated off, ci-status carrying the recorded `ci-lanes` verdict forward) is
     # decided by one predicate, repeated verbatim in the `concurrency` group and
-    # in every job's `if:` except `ci-status`:
+    # in every job's `if:` except `ci-status` and its alias `report-ci-status`:
     #
     #   github.event.pull_request.head.repo.full_name == github.repository &&
     #   (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
@@ -66,12 +64,13 @@ on:
   # (`github.event.merge_group.base_sha`), so the test lanes run the suites
   # the group's own diff selects, as its pull request did, while the
   # detect-changes action, which reads only a pull request's files, fails
-  # open; the base-branch gates decline as on a schedule run; `check-contract` finds no pull
-  # request number and reports `skipped`, because the title and linkage were
-  # already checked on the pull request before it could enter the queue, and a
-  # label can land after enqueue, so a step of its own re-reads `do-not-merge`
-  # and the other hold labels from the API; and `ci-status` aggregates the lanes and records `ci-lanes` on the
-  # merge-group commit (`github.sha`), a SHA no contract-only run ever reads.
+  # open; the base-branch gates decline as on a schedule run; `check-contract`
+  # finds no pull request number and reports `skipped`, because the title and
+  # linkage were already checked on the pull request before it could enter the
+  # queue (a label can land after enqueue, so a step of its own re-reads
+  # `do-not-merge` and the other hold labels from the API); and `ci-status`
+  # aggregates the lanes and records `ci-lanes` on the merge-group commit
+  # (`github.sha`), a SHA no contract-only run ever reads.
   merge_group:
     types: [checks_requested]
 
@@ -83,11 +82,11 @@ permissions:
 # run takes a group of its own keyed on `github.run_id`, so it can neither be
 # cancelled nor evict anything, and it waits only on a full run in flight: its
 # `ci-status` holds for that run, then reads the `ci-lanes` status (see the
-# `ci-status` job). The previous shape queued instead, on a shared
-# group with `cancel-in-progress` false, and eviction is unconditional: a
-# pending run evicted before its `ci-status` job started left the check suite
-# with no `ci-status` check run at all, and the required check stopped reporting
-# until someone re-ran that specific run (melodic-software/github-iac#378).
+# `ci-status` job). A shared group with `cancel-in-progress` false would not
+# do: GitHub evicts a pending run unconditionally, and one evicted before its
+# `ci-status` job started leaves the check suite with no `ci-status` check run
+# at all, so the required check stops reporting until someone re-runs that
+# run (melodic-software/github-iac#378).
 #
 # The full branch keeps one group per pull request, so a `synchronize` still
 # cancels everything on the old SHA; the PR number scopes cancellation to
@@ -125,17 +124,17 @@ concurrency:
 # as steps of that one check.
 #
 # JOB NAMES FOLLOW THE ORG NAMING LINT (melodic-software/standards
-# components/github-actions-conventions), which `lint-repo` runs.
-# One marker, `mark-lanes`, one resolver,
-# `select-tests`, ten working jobs,
-# `lint-repo`, `lint-shell`, `check-plugins`, `check-catalog`, `check-skills`, `test-bash`,
-# `test-python`, `test-node`, `check-managed-files` and `check-tests`, and one aggregate, job `ci-status`, whose
-# check name is `CI Status`; its alias job `report-ci-status` reports that
-# conclusion under the check name `ci-status`, which, like this workflow's and
-# this file's name, is what the org ci-gate ruleset and its verifiers read
-# until that ruleset requires `CI Status`. No ordinals, no tool name for a multi-tool job, no runner OS
-# for a portable lane, and no job name another workflow here also uses. A gate
-# step keeps its `id`, its aggregator key, in whichever job it runs.
+# components/github-actions-conventions), which `lint-repo` runs. One marker,
+# `mark-lanes`; one resolver, `select-tests`; ten working jobs, `lint-repo`,
+# `lint-shell`, `check-plugins`, `check-catalog`, `check-skills`, `test-bash`,
+# `test-python`, `test-node`, `check-managed-files` and `check-tests`; and one
+# aggregate, job `ci-status`, whose check name is `CI Status`. Its alias job
+# `report-ci-status` reports that conclusion under the check name `ci-status`,
+# which, like this workflow's and this file's name, is what the org ci-gate
+# ruleset and its verifiers read until that ruleset requires `CI Status`. No
+# ordinals, no tool name for a multi-tool job, no runner OS for a portable
+# lane, and no job name another workflow here also uses. A gate step keeps its
+# `id`, its aggregator key, in whichever job it runs.
 #
 # A DOMAIN IS A JOB ONLY WHEN THAT SHORTENS THE CRITICAL PATH BY MORE THAN A
 # JOB COSTS: about 15 s of fixed setup bare, about 40 s with a toolchain, or
@@ -144,8 +143,8 @@ concurrency:
 # change selects suites of its ecosystem, and skips otherwise, so a change to
 # shell code starts no Python or Node runner and a C# or docs change starts
 # none. The informational Windows and macOS lane runs in
-# .github/workflows/pr-test-platforms.yml: nothing gates on it, and in this file it
-# held the run open past its own required lanes.
+# .github/workflows/pr-test-platforms.yml: nothing gates on it, and here it
+# would hold the run open past the required lanes.
 #
 # EVERY JOB'S WORK BUDGET IS ceil(max(1.5 x p95, 1.1 x max) / 60) MINUTES, at
 # least 3 and never above 16. Its work is the time from job start to the end of
@@ -197,8 +196,10 @@ concurrency:
 # NO AUDIT OR FUND REQUEST ON INSTALL. `npm ci` otherwise posts an audit report
 # to the registry after installing, and a stalled request held jobs for npm's
 # fetch timeout. https://docs.npmjs.com/cli/v10/using-npm/config#audit
+#
 # NPM'S FETCH TIMEOUT AND RETRIES ARE BOUNDED. .github/npm-fetch.npmrc sets them,
 # read as npm's global config by every npm call here, run-tests.sh's included.
+#
 # A STALLED CACHE SEGMENT GIVES UP IN A MINUTE. actions/cache races each
 # 128 MB segment of a restore against SEGMENT_DOWNLOAD_TIMEOUT_MINS (default
 # 10), longer than most jobs here, so a stalled restore ran out the job limit
@@ -212,49 +213,6 @@ env:
   npm_config_fund: "false"
   npm_config_globalconfig: ${{ github.workspace }}/.github/npm-fetch.npmrc
 jobs:
-  # Single resolution of the diff scope. Every gated step reads a
-  # `needs.select-tests.outputs.*` row instead of re-running the detector, so the
-  # detector runs once per workflow rather than once per lane and there is one
-  # place to reason about what the answer means.
-  #
-  # THE OUTPUTS ARE POSITIVE ON PURPOSE. A consumer writes
-  # `<output> == 'true'` to do work and `<output> == 'false'` to report the
-  # work not applicable. Both are plain equality against a value that
-  # `${{ <expr> }}` can only ever render as the string `true` or the string
-  # `false`, so the two forms are exact complements and a new lane has no
-  # negation to spell wrong. A negated form would rely on a prose comment to
-  # keep that polarity straight across every site.
-  #
-  # FAIL-CLOSED TOWARD RUNNING THE SUITE. `scripts/check-docs-only.sh` already
-  # emits `docs_only=false` on every condition it cannot resolve. This job
-  # covers the cases below the script: a detector that cannot complete — a
-  # non-zero exit, or an output file it could not write — leaves
-  # `steps.detect.outputs.docs_only` unset, which every expression below
-  # resolves toward running, and the full suite runs. The same unset-output
-  # path covers a run with no diff base (a schedule or dispatch run), where
-  # the detect step does not run at all. The
-  # narrowing clauses read the detect-changes action through fromJSON with a
-  # `|| '{}'` default and compare `!= 'false'`, never `== 'true'`, for the same
-  # reason: an unset filter group must run its lane, not skip it.
-  #
-  # Note precisely what each half contributes, because the two are easy to
-  # conflate. `continue-on-error` does NOT clear a step's outputs: a step that
-  # writes to $GITHUB_OUTPUT and then fails keeps what it wrote. What it does is
-  # keep a failed detector from failing THIS job and skipping every consumer.
-  # The output being unset on a failed run is a property of
-  # `scripts/check-docs-only.sh`, which follows every emit with an immediate
-  # `exit 0` and never emits `true` on a path that can subsequently fail. That
-  # invariant is what the consumers ultimately rest on; it is stated in that
-  # script's header and exercised by its suite.
-  #
-  # `scripts/check-docs-only-gate.sh` asserts the workflow-side properties
-  # against this file, so they are checked rather than asserted in prose. It
-  # pins every row below to its exact expression: a row it does not name is a
-  # polarity decision made where nothing can check it.
-  #
-  # The detector self-test runs first and is NOT `continue-on-error`, so a
-  # broken detector turns this job red rather than resolving a scope nobody
-  # verified.
   # A FULL RUN MARKS ITS SHA IN FLIGHT AT ONCE. A contract-only run on this SHA
   # reads the newest bot-written `ci-lanes` status once and passes only on
   # `success`, so this `pending` makes it fail at once instead of carrying
@@ -983,23 +941,60 @@ jobs:
           echo "::error::could not mark ci-lanes pending on $HEAD_SHA; a contract-only run could carry an older verdict forward while this run is in flight."
           exit 1
 
+  # Single resolution of the diff scope. Every gated job and step reads a
+  # `needs.select-tests.outputs.*` row instead of re-running the detector, so
+  # the detector runs once per workflow and there is one place to reason
+  # about what the answer means.
+  #
+  # THE OUTPUTS ARE POSITIVE ON PURPOSE. A consumer writes
+  # `<output> == 'true'` to do work and `<output> == 'false'` to report the
+  # work not applicable. `${{ <expr> }}` renders each row only as the string
+  # `true` or `false`, so the two forms are exact complements and a new lane
+  # has no negation to spell wrong.
+  #
+  # FAIL-CLOSED TOWARD RUNNING THE SUITE. `scripts/check-docs-only.sh` already
+  # emits `docs_only=false` on every condition it cannot resolve. This job
+  # covers the cases below the script: a detector that cannot complete (a
+  # non-zero exit, or an output file it could not write) leaves
+  # `steps.detect.outputs.docs_only` unset, which every row that reads it
+  # resolves toward running. So does a run with no diff base (a schedule or
+  # dispatch run), where the detect step does not run at all. The narrowing
+  # clauses read the detect-changes action through fromJSON with a `|| '{}'`
+  # default, and the plan directly, and compare `!= 'false'`, never
+  # `== 'true'`, for the same reason: an unset filter group or plan must run
+  # its lane, not skip it.
+  #
+  # `continue-on-error` does NOT clear a step's outputs: a step that writes to
+  # $GITHUB_OUTPUT and then fails keeps what it wrote. It only keeps a failed
+  # detector from failing THIS job and skipping every consumer. The output is
+  # unset on a failed run because `scripts/check-docs-only.sh` follows every
+  # emit with an immediate `exit 0` and never emits `true` on a path that can
+  # then fail; that script's header states the invariant and its suite
+  # exercises it.
+  #
+  # `scripts/check-docs-only-gate.sh` checks these workflow-side properties
+  # against this file and pins every output below to its exact expression: a
+  # row it does not name is a polarity decision made where nothing can check
+  # it.
+  #
+  # The detector self-test runs before the detector and is NOT
+  # `continue-on-error`, so a broken detector turns this job red rather than
+  # resolving a scope nobody verified.
   select-tests:
-    # The contract-only gate, verbatim on every job but `ci-status` (see the
-    # predicate spelled out under `on.pull_request.types`). It carries no
-    # status-check function, so on every job that has `needs` those edges still
-    # govern exactly as before: the gate only subtracts the label-flip and
-    # body-edit events, where the lanes would re-run a SHA a full run already
-    # answered and `ci-status` carries that answer forward instead.
+    # The contract-only gate, verbatim on every job but `ci-status` and
+    # `report-ci-status` (see the predicate under `on.pull_request.types`). It
+    # carries no status-check function, so on a job with `needs` those edges
+    # still govern: the gate only subtracts the label-flip and title/body-edit
+    # events, where the lanes would re-run a SHA a full run already answered
+    # and `ci-status` carries that answer forward instead.
     name: Select Tests
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 9
     # The detect-changes action lists the pull request's files through the
-    # API. Nothing else in this workflow needs that read, so it is granted here
-    # and nowhere else. The queue-hold step reads the queued pull request and
-    # its head's commit statuses ("Commit statuses" read, per
-    # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps).
-    # No write scope: this job runs pull request code.
+    # API, and the queue-hold step reads the queued pull request. No step here
+    # reads commit statuses: queueHolds takes only the pull request. No write
+    # scope: this job runs pull request code.
     permissions:
       contents: read
       pull-requests: read
@@ -1032,9 +1027,10 @@ jobs:
       python_plan: ${{ steps.plan.outputs.python_plan }}
       python_needs: ${{ steps.plan.outputs.python_needs }}
       node_packages: ${{ steps.plan.outputs.node_packages }}
-      # The one Playwright browser cache key test-bash and test-python restore and save
-      # under. It is named here because workflow- and job-level env allow neither runner
-      # nor hashFiles. It names the install arguments, so changing them misses the cache.
+      # The one Playwright browser cache key test-bash and test-python restore
+      # and save under. It is named here because workflow- and job-level env
+      # allow neither runner nor hashFiles. It names the install arguments, so
+      # changing them misses the cache.
       playwright_cache_key: ${{ steps.playwright_key.outputs.key }}
     steps:
       - name: Check out
@@ -1059,7 +1055,7 @@ jobs:
       # ci-status, which retries and fails closed. One read, the pull request,
       # through the api-budget gh wrapper, whose api-calls notice the step ends with. The base's
       # module, tracker config and wrapper come from one shallow fetch of the
-      # group's base commit, which leaves `ok=true` only when all of it read;
+      # group's base commit, which leaves `ok=true` once module and wrapper read;
       # it never fails the job, so a failed fetch only leaves the holds to
       # ci-status. The runner's Node runs the module: queueHolds needs no
       # API newer than the image's. Pinned by
@@ -1150,16 +1146,17 @@ jobs:
         env:
           DIFF_BASE: ${{ steps.base.outputs.ref }}
         run: scripts/check-docs-only.sh "$DIFF_BASE"
-      # Every group repeats the toolchain and configuration paths on purpose: a
-      # pull request touching only a lockfile, only a workflow file or only the
-      # ShellCheck configuration changes what every lane would find, so it must
-      # run every lane rather than none. `shell`, `python`, `docs` and
-      # `powershell` feed no output: the unread groups exist so a consumer can
-      # be added without touching the resolver. The test lanes read the plan below, not a group.
+      # `shell`, `python`, `powershell`, `docs` and `workflows` repeat the
+      # toolchain and configuration paths on purpose: a pull request touching
+      # only a lockfile, only a workflow file or only the ShellCheck
+      # configuration changes what every lane would find, so it must run every
+      # lane rather than none. `shell`, `python`, `docs` and `powershell` feed
+      # no output: the unread groups exist so a consumer can be added without
+      # touching the resolver. The test lanes read the plan below, not a group.
       # Patterns are ROOT-ANCHORED gitignore rules, and the action rejects `!`,
       # `?` and `+` outright.
       #
-      # `skill_checker` is the one group that does not repeat the toolchain
+      # `skill_checker` does not repeat the toolchain
       # paths: it names every input an UNCHANGED skill's check-25 verdict
       # depends on (the checker, the corpus gate and its baseline, the list
       # reader it sources, this workflow), and the checker runs bash, grep, sed
@@ -1350,9 +1347,9 @@ jobs:
   # selector reaches it: when the gate, its suite, or a file either one names
   # changed. The `Check ...` step each one pairs with runs on every diff, so a
   # regression the detector would catch is still caught on a diff that changes
-  # no shell file. A diff that reaches neither the gate nor its suite cannot have
-  # broken the gate, and the scheduled whole-tree run runs every suite twice a
-  # day.
+  # no shell file. A diff that reaches neither the gate nor its suite cannot
+  # have broken the gate, and the scheduled whole-tree run runs every suite
+  # twice a day.
   #
   # THIS JOB LINTS THE REPOSITORY AS A WHOLE: the composite text lints and the
   # whole-repository scanners, the CI configuration (actionlint, the dependabot
@@ -1361,14 +1358,16 @@ jobs:
   # check. Python comes with the pinned, hash-locked requirements file because
   # zizmor is a wheel in it.
   #
-  # Markdownlint / typos / editorconfig / gitleaks / eol-renormalize /
-  # comment-hygiene / machine-specific-paths read the changed docs themselves
-  # and run on every diff. actionlint and the dependabot and workflow schemas
-  # read fixed, path-scoped inputs that a diff confined to the docs-only
-  # allowlist (scripts/docs-only-paths.txt) cannot touch, so on such a diff they
-  # report an honest evaluated-and-not-applicable success. Exec-bit,
-  # hook-wiring-liveness, purged-em-dashes, next-graph and vocabulary are NOT
-  # gated: they scan the whole repository, and a shebang/hook file added under
+  # Only the steps that read `.github/**` gate, on `run_workflows`: zizmor,
+  # actionlint, the dependabot and workflow schemas, the runner policy and its
+  # Node install, read-caller-keys, app-key-references, artifact-retention and
+  # workflow naming. On a diff confined to the docs-only allowlist
+  # (scripts/docs-only-paths.txt), which cannot touch those inputs, they report
+  # an honest evaluated-and-not-applicable success. Every other step runs on
+  # every diff. Markdownlint, typos, editorconfig, gitleaks, eol-renormalize,
+  # comment-hygiene and machine-specific-paths read what a docs-only diff
+  # changes. Exec-bit, hook-wiring-liveness, purged-em-dashes, next-graph and
+  # vocabulary scan the whole repository, so a shebang/hook file added under
   # an otherwise docs-only prefix is real input they must still catch, as is a
   # docs-only diff that reintroduces an em dash on a purged surface, strands a
   # planning-chain `## Next` target or brings back a retired vocabulary sense.
@@ -1409,8 +1408,6 @@ jobs:
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
-      # zizmor is a wheel in the pinned, hash-locked requirements file, so this
-      # install is what puts the Actions security lint on PATH.
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -1436,22 +1433,18 @@ jobs:
       # .github/requirements-ci.txt. The github format exits non-zero on any
       # finding, so any finding blocks the lane (the fleet's
       # `fail-on-severity: low` threshold).
-      # GH_TOKEN comes from the job's read-only workflow token, for
-      # the online audits. scripts/run-zizmor.sh runs the offline audits first,
-      # then the online ones, where only a GitHub API network error (403, 429,
-      # 5xx, no response) becomes a warning instead of a failure.
+      # GH_TOKEN, the job's read-only workflow token, is for the online audits:
+      # scripts/run-zizmor.sh runs the offline audits first, then the online
+      # ones, where only a GitHub API network error (403, 429, 5xx, no
+      # response) becomes a warning instead of a failure.
       #
-      # Every `uses: ./.github/actions/download-full-history` in this repository
-      # carries `# zizmor: ignore[self-repository]`. zizmor 1.30 added that
-      # audit to recommend GitHub's `$/...` form over the workspace-relative
-      # `./...` form, and its auto-fix rewrites the call sites. The rewrite
-      # cannot be taken yet (#4130): actionlint (pinned by SHA in the
-      # melodic-software/ci-workflows action this lane also runs) rejects
-      # `$/.github/actions/download-full-history` as "invalid format because ref
-      # is missing", so adopting the audit's advice turns the zizmor finding
-      # into an actionlint error and the lane stays red either way. Drop the
-      # ignore comments and take the auto-fix once that actionlint pin
-      # understands the syntax (#4130).
+      # Every call of a local action in this repository carries
+      # `# zizmor: ignore[self-repository]`. That audit recommends GitHub's
+      # `$/...` form, which the actionlint pinned by SHA in the
+      # melodic-software/ci-workflows action this lane also runs rejects as
+      # "invalid format because ref is missing", so its auto-fix only trades
+      # the zizmor finding for an actionlint error. Drop the ignores and take
+      # the auto-fix once that actionlint pin understands the syntax (#4130).
       - name: Run zizmor
         id: zizmor
         if: needs.select-tests.outputs.run_workflows == 'true'
@@ -1514,22 +1507,21 @@ jobs:
         run: python3 scripts/sync-config-cascade-semantics.py --check
 
       # code-metrics resolves every tunable from one defaults file and restates
-      # every key in a reference table with its default. The setup template is
-      # pinned to that defaults file leaf for leaf by a test; the reference
-      # table was pinned to nothing, and a stale default in a reference reads
-      # exactly like a current one (#3841). The gate is ungated on purpose: a
-      # change that edits only the reference is docs-only, and that is exactly
-      # the edit that can walk the table away from the defaults.
+      # every key in a reference table with its default. A test pins the setup
+      # template to that file leaf for leaf; this gate pins the table, where a
+      # stale default reads exactly like a current one (#3841). Ungated on
+      # purpose: a change that edits only the reference is docs-only, and that
+      # is exactly the edit that can walk the table away from the defaults.
       - name: Check the code-metrics config reference against its defaults file
         id: code_metrics_config_reference
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh code-metrics-config-reference {0}
         run: python3 scripts/check-code-metrics-config-reference.py
 
-      # Skill bodies restate a few defaults in prose. The reference table is
-      # already pinned; these sentences were the remaining unbound copies
-      # (#3768). Ungated for the same reason as the reference gate: a docs-only
-      # edit of a skill sentence is exactly the edit that can drift.
+      # Skill bodies restate a few defaults in prose; this gate binds those
+      # sentences to the defaults file as the reference gate binds the table
+      # (#3768). Ungated for the same reason: a docs-only edit of a skill
+      # sentence is exactly the edit that can drift.
       - name: Check code-metrics skill prose against its defaults file
         id: code_metrics_skill_prose
         continue-on-error: true
@@ -1548,14 +1540,12 @@ jobs:
         run: python3 scripts/check-line-citations.py
 
       # The review-disposition-and-resolution contract is canonical in ONE file
-      # and restated across half a dozen others; nothing checked that the
-      # copies agreed. #1633 shipped seven such defects across five review
-      # rounds — each an individually well-formed surface instructing a lane to
-      # do what another surface forbids — and the HAND-RUN sweep that finally
-      # converged then produced a false "no remaining gaps" of its own, because
-      # it asked whether a qualifier appeared ANYWHERE in a file rather than
-      # inside the passage that restates the rule. This gate is span-scoped for
-      # exactly that reason. Repo-wide and static, so it always runs. See #1659.
+      # and restated across half a dozen others, and a restatement that drops
+      # a qualifier instructs a lane to do what another copy forbids (#1633).
+      # The check is span-scoped: a qualifier must appear inside the passage
+      # that restates the rule, not merely anywhere in its file, the looser
+      # test under which a hand-run sweep reported a false "no remaining gaps".
+      # Repo-wide and static, so it always runs. See #1659.
       - name: Check every restatement carries the canonical clause's qualifiers
         id: contract_clause_coverage
         continue-on-error: true
@@ -1568,20 +1558,19 @@ jobs:
       # This check covers the stale-BASE class only; a branch stale in content
       # but current in history belongs to the post-merge silent-revert canary.
       #
-      # ADVISORY ON pull_request (#7871). `--warn` reports every overlap as a
-      # ::warning listing the overlapping paths and exits 0; only an
-      # inconclusive git state (exit 2) fails the step. The merge queue builds
-      # and tests each change on the current base before it lands, so a PR
-      # that is only behind a fast-moving main is not failed here. merge_group
-      # declines below, as before.
+      # ADVISORY (#7871). `--warn` reports every overlap as a ::warning listing
+      # the overlapping paths and exits 0; only an inconclusive git state
+      # (exit 2) fails the step. The merge queue builds and tests each change
+      # on the current base before it lands, so a PR that is only behind a
+      # fast-moving main is not failed here. Every other event declines: it
+      # has no branch tip to compare with the base.
       #
       # THE HEAD COMMIT, NOT THE MERGE COMMIT. On a pull_request event this job
       # checks out the synthetic merge commit, whose merge-base with the target
       # IS the target tip, so the detector would report every pull request
-      # fresh and prove nothing. Its own former job carried `ref: head.sha` for
-      # exactly that reason. Running it in a detached worktree of the same
-      # clone keeps that head-tip comparison while leaving every other step in
-      # this job on the merge commit, where the diff-scoped gates want to be.
+      # fresh and prove nothing. A detached worktree of the same clone at the
+      # head SHA keeps that head-tip comparison while every other step in this
+      # job stays on the merge commit, where the diff-scoped gates want to be.
       - name: Warn when behind base on overlapping paths
         id: stale_base
         continue-on-error: true
@@ -1627,13 +1616,12 @@ jobs:
         run: scripts/check-docs-only-gate.sh --check
 
       # `ci-status` below is the single check the org ci-gate ruleset keys on,
-      # and its own comment calls its `needs` list "the single source of truth
-      # for the lane list" — but nothing enforced the other direction. A job
-      # defined in THIS file and absent from that list still runs and still
-      # turns red in the run list, while `ci-status` reports success and the
-      # merge proceeds: informational, not a gate. This step closes the loop
-      # mechanically: every job here is in `ci-status.needs`, or carries a
-      # `# lane-coverage-ok: <reason>` annotation recording why it stays out.
+      # and its `needs` list is the lane list. A job defined in THIS file and
+      # absent from that list still runs and still turns red in the run list,
+      # while `ci-status` reports success and the merge proceeds. This step
+      # fails unless every job here is in `ci-status.needs` or carries a
+      # `# lane-coverage-ok: <reason>` annotation recording why it stays out,
+      # and every gate step's `id` is read by its job's aggregator feed.
       - name: Check every pr-require-checks.yml job and gate step is fed to the ci-status aggregate
         id: lane_coverage
         continue-on-error: true
@@ -1723,16 +1711,17 @@ jobs:
         with:
           config: _typos.toml
           paths: ${{ steps.typos_paths.outputs.paths }}
-          # A vendored baseline (a skill pack's, or a tool's gitleaks rules) is
-          # replaced verbatim from upstream or held byte-equal to its canonical
-          # copy, so any spelling correction here would read as permanent
-          # drift. The managed config cannot carry a consumer-local
-          # exclusion, so the exemption lives on the caller. The judge
-          # calibration cases are code copied verbatim from other repositories'
-          # histories, so a correction would change what the judge is measured on;
-          # the developer-experience labeled samples are judge inputs for the same reason.
-          # verify-legacy-fails.json is generated verdict data (SHAs, branch names).
-          # The review revert cases' fixtures are byte copies of this repository's history.
+          # The managed config cannot carry a consumer-local exclusion, so the
+          # exemptions live on the caller. A vendored baseline (a skill pack's,
+          # or a tool's gitleaks rules) is replaced verbatim from upstream or
+          # held byte-equal to its canonical copy, so a spelling correction
+          # would read as permanent drift. The judge calibration cases are code
+          # copied verbatim from other repositories' histories, and the
+          # developer-experience labeled samples are judge inputs, so a
+          # correction would change what the judge is measured on.
+          # verify-legacy-fails.json is generated verdict data (SHAs, branch
+          # names); the review revert cases' fixtures are byte copies of this
+          # repository's history.
           exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/** plugins/developer-experience/evals/sources/labels/** plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json plugins/review/evals/revert-*/fixtures/**
 
       # Every run scans only history the commit under test can reach, so a
@@ -1792,8 +1781,9 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           config: .editorconfig-checker.json
-          # The Node.js release keyring: binary, a byte-exact upstream copy. The
-          # review revert cases' fixtures: byte copies of this repository's history.
+          # The Node.js release keyring: binary, a byte-exact upstream copy.
+          # The review revert cases' fixtures: byte copies of this repository's
+          # history.
           exclude: (^|/)\.github/actions/setup-pinned-node/pubring\.kbx$|(^|/)plugins/review/evals/revert-[^/]+/fixtures/
 
       # The path-scoped readers gate on the filter group of what they read:
@@ -1877,14 +1867,15 @@ jobs:
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
-          # The remove-comments skill's audit action IS a code-comment linter: its detector
-          # fixtures and shape library necessarily contain the markers this policy
-          # bans (TODO/FIXME, PR/issue refs) as test corpus and as the documented
-          # TODO(#issue) sanctioned-exemption. Exempt that action's scripts + evals
-          # (its SKILL.md is markdown, already outside the scan's extension set).
-          # The implementation eval scaffolds write a PLAN.md whose `### Phase N:
-          # ... [TODO]` heading is the phase status tag the skill under test reads,
-          # not a comment; the scan sees the heredoc line as a shell comment.
+          # The remove-comments skill's audit action IS a code-comment linter:
+          # its detector fixtures and shape library necessarily contain the
+          # markers this policy bans (TODO/FIXME, PR/issue refs) as test corpus
+          # and as the documented TODO(#issue) sanctioned-exemption. Exempt that
+          # action's scripts + evals (its SKILL.md is markdown, already outside
+          # the scan's extension set). The implementation eval scaffolds write a
+          # PLAN.md whose `### Phase N: ... [TODO]` heading is the phase status
+          # tag the skill under test reads, not a comment; the scan sees the
+          # heredoc line as a shell comment.
           exclude: >-
             :(exclude)plugins/code-tidying/skills/remove-comments/scripts/detect*
             :(exclude)plugins/code-tidying/skills/remove-comments/scripts/lib/**
@@ -1918,7 +1909,8 @@ jobs:
 
       # Ungated for the same reason: a retired vocabulary sense (rung, default
       # ladder, overlay, tier, surface, contract) comes back through prose, and
-      # the checker reads the whole tracked tree (scripts/vocabulary-senses.json).
+      # the checker reads the whole tracked tree
+      # (scripts/vocabulary-senses.json).
       - name: Check the repository for retired vocabulary senses
         id: vocabulary
         continue-on-error: true
@@ -1966,10 +1958,6 @@ jobs:
       # path, and a step that cannot fail needs neither the flag nor a row
       # reading an outcome that is always `success`. Advisory is the point: the
       # annotations are measured before anything is allowed to block on them.
-      #
-      # The event branch lives in the script rather than in `if:`, because a
-      # merge group has no base ref to diff against and a step cannot carry both an
-      # event gate and a resolver gate.
       - name: Report ai-slop findings on changed markdown
         id: ai_slop_report
         env:
@@ -2133,8 +2121,9 @@ jobs:
   # source (GNU-only constructs, piped early-exit greps, temp-path cleanup,
   # fixture git isolation, discriminating skips, the kill-switch hoist, silent
   # prerequisite skips, slow hook shapes). Every one is a gate step: absorbed
-  # with `continue-on-error`, fed to the aggregator at the foot of this job. Python comes with the pinned requirements file because
-  # the slow-shapes gate reads hook frontmatter through PyYAML.
+  # with `continue-on-error`, fed to the aggregator at the foot of this job.
+  # Python comes with the pinned requirements file because the slow-shapes
+  # gate reads hook frontmatter through PyYAML.
   #
   # ITS OWN JOB BECAUSE OF THE WHOLE-REPOSITORY SCAN. ShellCheck lints the
   # changed shell files on most diffs, but the whole repository (up to 292 s
@@ -2194,10 +2183,9 @@ jobs:
 
       # Every guard ships a `<name>_enabled` switch, and an operator who turns
       # one off is entitled to stop paying for it. Reading that switch through
-      # hook::check_enabled means the whole 2,684-line hook-utils.sh is parsed
-      # first — ~3.5 ms of a disabled standalone guard's ~5.3 ms on this runner.
-      # The audit that prompted #3712 found the switch below the source in 43 of
-      # 43 hooks, and scripts/sync-shared-copies.sh covers the vendored library
+      # hook::check_enabled parses the whole of hook-utils.sh first, so rule 1
+      # holds a PreToolUse or PostToolUse hook's switch above its first source
+      # (#3712). scripts/sync-shared-copies.sh covers the vendored library
       # copies but NOT the entry scripts, so nothing else here would notice the
       # ordering drifting back. Rule 2 holds every other blocking event to the
       # same order: a Stop or Notification hook's first early exit comes before
@@ -2234,15 +2222,12 @@ jobs:
         run: scripts/check-discriminating-test-skips.sh
 
       # A test suite that BUILDS a git fixture must clear the inherited git
-      # environment, in shell and in Python alike. `git -C <fixture>` is a
-      # readability guard, not an isolation guarantee: an exported ABSOLUTE
-      # GIT_DIR overrides repository DISCOVERY, so the fixture identity lands
-      # in the CALLER's .git/config — shared by every worktree of the clone —
-      # and the caller's next commit is silently re-authored. That failed
-      # required_signatures with `no_user` and cost #2827 -> #2830 (#2840).
-      # Skipped on a diff that touches no shell or Python file and not the
-      # baseline: the gate reads exactly those (see the skill-count gate in
-      # `lint-repo` for the pattern).
+      # environment, in shell and in Python alike: an exported ABSOLUTE GIT_DIR
+      # overrides repository DISCOVERY even under `git -C <fixture>`, so the
+      # fixture identity lands in the CALLER's .git/config, shared by every
+      # worktree of the clone, and re-authors the caller's next commit (#2840).
+      # Declined with a notice on a diff that touches no shell or Python file,
+      # the baseline, or this workflow.
       - name: Check fixture git isolation
         id: fixture_git_isolation
         continue-on-error: true
@@ -2312,15 +2297,16 @@ jobs:
       # A BLANK LIST IS A WHOLE-REPOSITORY SCAN, NOT AN EMPTY ONE: the composite
       # cannot tell a blank input from an unset one, so it falls back to its own
       # discovery. That is the wanted answer on the whole tree (no diff base:
-      # a schedule or dispatch run), and on any diff that changes what every script is judged
-      # against: the rcfile, a sourced shell file outside plugins/ (lib/,
-      # scripts/lib/, a scripts/ harness), or this workflow, which pins the
-      # composite and so the ShellCheck version. A failed basename search also
-      # falls back to it. Deletions stay in the diff so removing a library still
-      # counts. A path git prints quoted (non-ASCII, tab, newline) or that holds
-      # a space cannot survive the whitespace-separated list, so it full-scans
-      # too. This branches in the shell rather than in `if:` because a step
-      # cannot carry both a resolver gate and an event gate.
+      # a schedule or dispatch run), and on any diff that changes what every
+      # script is judged against: the rcfile, a sourced shell file outside
+      # plugins/ (lib/, scripts/lib/, a scripts/ harness), or this workflow,
+      # which pins the composite and so the ShellCheck version. A failed
+      # basename search also falls back to it. Deletions stay in the diff so
+      # removing a library still counts. A path git prints quoted (non-ASCII,
+      # tab, newline) or that holds a space cannot survive the
+      # whitespace-separated list, so it full-scans too. This branches in the
+      # shell rather than in `if:` because the diff base is a data output,
+      # which the docs-only gate never admits in a condition.
       #
       # THE LANE IS SCOPED, NEVER SKIPPED. Every resolver gate carries the
       # docs-only term: a pull request whose only change is a shell script under
@@ -2377,11 +2363,10 @@ jobs:
         if: always()
         env:
           # The feed's rules are stated on the one in `lint-repo`; the docs-only
-          # gate pins them on every job.
-          # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
-          # the job's own check-run annotations (checks: read), else points at
-          # the step log.
+          # gate pins them on every job. Gates that run as `uses:` actions,
+          # whose output scripts/run-hygiene-gate.sh cannot capture: a failure
+          # here quotes the job's own check-run annotations (checks: read),
+          # else points at the step log.
           CHECK_RUN_ID: ${{ job.check_run_id }}
           GH_TOKEN: ${{ github.token }}
           STEP_LOG_CHECKS: shellcheck
@@ -2409,14 +2394,13 @@ jobs:
   # gates, the hook-declaration gates, the performance counter ceilings, the
   # cross-plugin drift check, and the delivery checks of the shared-library
   # copies. The steps that read the root npm install (`claude plugin validate`
-  # and the rendered-view HTML assets), with the copy and prerequisite gates
-  # moved beside them, are `check-catalog`'s: as one job the two took up to
-  # 125 s against a 3-minute work budget that holds a p95 of at most 120.
+  # and the rendered-view HTML assets), and the copy and prerequisite gates,
+  # are `check-catalog`'s, whose header says why.
   #
   # The hook, catalog and changelog gates run first, on Python with the pinned
-  # requirements, then the manifest schema steps, whose composite leaves uv on
-  # PATH for every later step. Node follows for the counter ceilings, gated
-  # like the steps that read it.
+  # requirements, then the manifest schema steps, on the check-jsonschema that
+  # install provides. Node follows for the counter ceilings, gated like the
+  # steps that read it.
   #
   # The shared-library bump checks need base history: `download-full-history`
   # runs once, at the top, and every bump check below resolves
@@ -2487,10 +2471,7 @@ jobs:
       # Windows `bash` resolves to the WSL relay System32\bash.exe and `python3`
       # to a zero-length WindowsApps alias stub, and the hook never launches. A
       # failed launch is a NON-BLOCKING error, so a PreToolUse guard wired this
-      # way silently enforces nothing. This class has shipped three times in
-      # disk-hygiene alone (#1006 fixed it, #1504 reintroduced it, #2570 fixed
-      # it again) while the harness-config audit checklist carried it as an
-      # `error` row the whole time — a checklist a human reads is not a gate.
+      # way silently enforces nothing (#1006, #1504, #2570).
       - name: Check hook declarations for exec-form bare command names
         id: hook_exec_form
         continue-on-error: true
@@ -2568,14 +2549,10 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh plugin-options-docs {0}
         run: python3 scripts/sync-plugin-options-docs.py --check
 
-      # #1547: a routine `git merge origin/main` silently dropped
-      # plugins/guardrails/.claude-plugin/plugin.json for ~14 minutes on a
-      # branch while .claude-plugin/marketplace.json still catalogued
-      # "guardrails" at that directory — no conflict markers, nothing to alert
-      # the author; an AI reviewer reading the diff caught it, not CI.
       # check-jsonschema validates the SHAPE of a manifest that exists; it
-      # cannot see one that is simply absent. Repo-wide and static, so it
-      # always runs.
+      # cannot see one that is absent, as when a merge silently drops a
+      # plugin.json the catalog still lists (#1547). Repo-wide and static, so
+      # it always runs.
       - name: Check every catalog entry resolves to a present, name-matching plugin manifest, and no plugin has a top-level bin/
         id: plugin_manifest_presence
         continue-on-error: true
@@ -2606,17 +2583,16 @@ jobs:
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh changelog-parity {0}
         run: scripts/check-changelog-parity.sh --check
-      # The merge queue runs the bump, fragment and vendor gates too (#6443 merged a
-      # hand bump the queue never checked), against HEAD^1: the queued squash
-      # commit is this pull request's own change on top of main and every entry
-      # ahead of it. The group event names no pull request, so this step reads
-      # the queued one from the group's head ref
-      # (gh-readonly-queue/<base>/pr-<number>-<base sha>): its author and its
-      # head branch, which the release and Dependabot exemptions read on
-      # pull_request, and its head commit, fetched so the Dependabot exemption
-      # reads the pull request's own commits rather than the queue's squash.
-      # The SHA in the ref is the commit the group is built on, not the pull
-      # request's head, so the head comes from the pull request itself.
+      # The merge queue runs the bump, fragment and vendor gates too (#6443),
+      # against HEAD^1: the queued squash commit is this pull request's own
+      # change on top of main and every entry ahead of it. The group event
+      # names no pull request, so this step reads the queued one from the
+      # group's head ref (gh-readonly-queue/<base>/pr-<number>-<base sha>): its
+      # author and its head branch, which the release and Dependabot exemptions
+      # read on pull_request, and its head commit, fetched so the Dependabot
+      # exemption reads the pull request's own commits rather than the queue's
+      # squash. The SHA in the ref is the commit the group is built on, not the
+      # pull request's head, so the head comes from the pull request itself.
       - name: Resolve the queued pull request
         id: queued_pr
         if: github.event_name == 'merge_group'
@@ -2777,9 +2753,7 @@ jobs:
       # committed copy at the plugin root (vendor/), so no sync-*.sh byte-drift
       # gate applies; the invariant that replaces it is delivery-by-version — a
       # vendor/ source change must bump the plugin's manifest version, the
-      # update cache key, or installed consumers never receive it. Only prose
-      # enforced that, and two unbumped vendor edits shipped (b3445bc2,
-      # b01dace3).
+      # update cache key, or installed consumers never receive it.
       - name: Verify a vendor/ source change bumps the plugin's version
         id: vendor_version_bump
         continue-on-error: true
@@ -2821,14 +2795,11 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh plugin-schema {0}
         run: check-jsonschema --schemafile https://json.schemastore.org/claude-code-plugin-manifest.json plugins/*/.claude-plugin/plugin.json
 
-      # JSON Schema validates the ALREADY-PARSED document, so it structurally
-      # cannot see a duplicate object key -- by the time a schema runs, the
-      # earlier member is already gone (every JSON parser resolves a repeated
-      # key last-wins). #1492 shipped plugins/skill-quality/.claude-plugin/
-      # plugin.json with two "version" members through this exact schema step
-      # green. scripts/check-manifest-duplicate-keys.py reads the raw
-      # key/value pairs via object_pairs_hook, BEFORE that collapse, so it
-      # catches what the schema step next to it cannot. See #1498.
+      # JSON Schema validates the ALREADY-PARSED document, so it cannot see a
+      # duplicate object key: every JSON parser keeps the last member, and a
+      # manifest with two "version" members passed the schema step (#1492).
+      # scripts/check-manifest-duplicate-keys.py reads the raw key/value pairs
+      # via object_pairs_hook, BEFORE that collapse (#1498).
       - name: Detect duplicate keys in plugin/marketplace manifests
         id: duplicate_keys
         if: needs.select-tests.outputs.run_manifests == 'true'
@@ -2838,8 +2809,8 @@ jobs:
 
       # Node for the counter ceilings, whose hook rows start each hook through
       # its node launcher. They read no root npm install: that is
-      # `check-catalog`'s. Gated like that step, so a docs-only diff does not
-      # pay for it.
+      # `check-catalog`'s. Gated like the counter ceilings, so a docs-only diff
+      # does not pay for it.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
         uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -2848,9 +2819,7 @@ jobs:
 
       # The shared-library delivery checks (ADR 0019): a change to a canonical
       # bumps every carrying plugin. That the copies match their canonical is
-      # checked in `check-catalog`. The bump checks need a base ref, so they
-      # return early off a pull request rather than diffing against a ref that
-      # does not exist.
+      # checked in `check-catalog`.
       - name: Verify carrying plugins bumped when a generated copy's canonical changed
         if: needs.select-tests.outputs.run_tests == 'true'
         env:
@@ -3072,7 +3041,8 @@ jobs:
         # only its own directory. Every repository-wide pass (contracts,
         # catalog, the --strict catalog pass, mods) still runs. Every plugin
         # when there is no diff base, or when the validator, its report
-        # renderer, the CLI's lockfile or this workflow changed.
+        # renderer, the root package.json or lockfile, or this workflow
+        # changed.
         env:
           VALIDATE_CONTRACTS_BASE_REF: origin/${{ github.base_ref || 'main' }}
           DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
@@ -3117,17 +3087,15 @@ jobs:
 
   # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
   # portability lint, leaf names, spoke paths, the listing budgets, the eval
-  # schema and quality lint, the invocation probes, the detector/eval crosswalk
-  # and coverage, orphaned fixtures, the fleet finding and grammar gates, and
-  # precompute composition. Python comes with the pinned requirements file, and
-  # the eval-coverage gate reads the pinned shfmt.
+  # schema, quality lint and suite validation, the invocation probes, the
+  # detector/eval crosswalk and coverage, orphaned fixtures, the fleet finding
+  # and grammar gates, and precompute composition. Python comes with the pinned
+  # requirements file, and the eval-coverage gate reads the pinned shfmt.
   #
   # ITS OWN JOB BECAUSE OF CHECK 25. The full skill corpus (about 300 s) runs on
   # a diff that touches the checker or its inputs, and the changed-skills gate
   # checks each changed skill in turn; beside `lint-repo` either one would set
   # the critical path.
-  #
-  # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-skills:
     name: Check Skills
     needs: [select-tests]
@@ -3283,8 +3251,8 @@ jobs:
       # checker. On a pull request it runs the static contract gate
       # (trigger-keyword preservation vs the base ref, frontmatter, line caps,
       # broken refs, evals presence) over each changed skill under
-      # plugins/*/skills/**. Eval sets are schema-validated AND quality-linted
-      # on every event.
+      # plugins/*/skills/**. Every event schema-validates every eval set and
+      # quality-lints the ones its diff touched (every set without a diff base).
       #
       # The whole corpus (every SKILL.md through the full checker, about 300 s
       # of this job) runs on a pull request only when `skill_checker` matched,
@@ -3338,12 +3306,12 @@ jobs:
         run: bash plugins/skill-quality/scripts/check-evals-quality.test.sh
       # Beyond-schema quality lint (FAIL tier: duplicate case ids/names, empty
       # criterion items, unresolvable files fixtures; WARN tier stays advisory
-      # and never fails the step). Whole-repo and static, so it runs on every
-      # event like the schema step above.
-      # Each eval set is linted on its own, and its `files` entries resolve
-      # under its skill directory (evals/ or the skill root), so a diff lints
-      # the set of every skill directory it touched; the whole corpus when the
-      # lint itself or this workflow changed, or when there is no diff base.
+      # and never fails the step). Static, and it runs on every event like the
+      # schema step above. Each eval set is linted on its own, and its `files`
+      # entries resolve under its skill directory (evals/ or the skill root), so
+      # a diff lints the set of every skill directory it touched; the whole
+      # corpus when the lint itself or this workflow changed, or when there is
+      # no diff base.
       - name: Lint every eval set for quality
         id: evals_quality
         continue-on-error: true
@@ -3421,26 +3389,24 @@ jobs:
       # consumer's 8,000-char fallback is not measured: this fleet is
       # permanently many times over it, so that number carries no signal.
       #
-      # THE FRACTION IS READ FROM .claude/settings.json, never repeated here.
-      # A literal 0.05 in this file would be a second copy of a value that
-      # lives in exactly one place, free to drift the moment anyone retunes the
-      # setting — and it would drift silently, because a wrong basis still
-      # prints a confident OK. Reading it means the tripwire follows the
-      # setting by construction. A tree that stops setting the key is a warning
-      # rather than a silently green step: the repo would then be on the
-      # harness default 0.01 and this measurement would be measuring nothing.
+      # THE FRACTION IS READ FROM .claude/settings.json, never repeated here, so
+      # the tripwire follows the setting by construction; a second copy would
+      # drift silently, because a wrong basis still prints a confident OK. A
+      # tree that stops setting the key is a warning rather than a silently
+      # green step: the repo would then be on the harness default 0.01 and this
+      # measurement would be measuring nothing.
       #
       # THE WINDOW IS PINNED TO THE TIGHTER BASIS, 750,000 tokens, which is
       # what #3505 exhibited live. The budget is a FRACTION of the live
       # context window, so the same fraction buys a third more characters on
       # a 1M-token model than at 750k. Measuring the 1M basis would put this
-      # WARN roughly
-      # a month after the 750k consumers had already overflowed, and a tripwire
-      # that fires after the failure it exists to predict is worse than none.
-      # (Neither basis speaks for a 200k-window consumer, whose budget the
-      # fleet overflows today; docs/cloud-sessions.md records that.)
-      # Report-only (the script always exits 0). The fix for the aggregate is
-      # trimming descriptions at their source, not raising the fraction.
+      # WARN roughly a month after the 750k consumers had already overflowed,
+      # and a tripwire that fires after the failure it exists to predict is
+      # worse than none. (Neither basis speaks for a 200k-window consumer,
+      # whose budget the fleet overflows today; docs/cloud-sessions.md records
+      # that.) Report-only: the script exits 0 on an overflow (2 only on a
+      # usage error). The fix for the aggregate is trimming descriptions at
+      # their source, not raising the fraction.
       - name: Report the skill-listing budget at this repo's configured fraction
         id: listing_budget_configured
         if: github.event_name == 'schedule'
@@ -3521,25 +3487,25 @@ jobs:
   # (scripts/plan-test-lanes.sh): the shell suites the change selects go to
   # `test-bash`, its Python suites to `test-python`, and the Node packages they
   # reach to `test-node`; a Node suite with a sibling .test.sh runs through
-  # that wrapper in `test-bash`, and a Pester suite in pr-test-platforms.yml. The
-  # whole tree (a schedule, a dispatch, or a change
-  # to this workflow or its actions) runs every suite of every lane.
+  # that wrapper in `test-bash`, and a Pester suite in pr-test-platforms.yml.
+  # The whole tree (a schedule, a dispatch, or a change to this workflow or its
+  # actions) runs every suite of every lane.
   #
   # ORDERED SKIPS. Each test lane carries the contract-only and draft gates and
-  # one more term, its own `run_<lane>` row of `select-tests`: a lane the plan gives no
-  # work skips as a job instead of paying a runner and a queue slot to report
-  # nothing. `ci-status` passes such a skip only where `select-tests` succeeded and
-  # its row for that lane says 'false'; any other skipped lane is red
-  # (scripts/check-docs-only-gate.sh pins both halves).
+  # one more term, its own `run_<lane>` row of `select-tests`: a lane the plan
+  # gives no work skips as a job instead of paying a runner and a queue slot to
+  # report nothing. `ci-status` passes such a skip only where `select-tests`
+  # succeeded and its row for that lane says 'false'; any other skipped lane is
+  # red (scripts/check-docs-only-gate.sh pins both halves).
   #
   # ONE TO TWELVE LEGS, SIZED FROM THE SELECTION. The plan packs the selected
   # suites into legs of about 120 suite-seconds each (scripts/suite-seconds.txt),
   # longest first onto the least-loaded leg, at most twelve, and twelve on the
-  # whole tree. A leg costs about 45 s of setup before it runs a suite, so the count
-  # follows the work rather than a fixed fan-out. The job key stays one entry in
-  # `ci-status.needs` at any size. `fail-fast: false` because a leg is a slice
-  # of one selection: cancelling the others on the first failure would hide
-  # every other failure behind whichever leg lost the race.
+  # whole tree. A leg costs about 45 s of setup before it runs a suite, so the
+  # count follows the work rather than a fixed fan-out. The job key stays one
+  # entry in `ci-status.needs` at any size. `fail-fast: false` because a leg is
+  # a slice of one selection: cancelling the others on the first failure would
+  # hide every other failure behind whichever leg lost the race.
   #
   # Three suites at a time per leg, not four (scripts/run-plugin-tests.sh
   # --jobs 3). The runner has 4 vCPUs and the suites are spawn-bound, so four
@@ -3600,16 +3566,17 @@ jobs:
       - name: Install and verify ShellCheck toolchain
         # This canonical action also makes the exact ShellCheck version
         # available to the bash-format contract suites in this same job. It
-        # verifies the install on one small file that sources nothing; the
-        # ShellCheck gate in `lint-shell` is what lints the repository.
+        # verifies the install on one small file whose one source is marked
+        # source=/dev/null; the ShellCheck gate in `lint-shell` is what lints
+        # the repository.
         uses: melodic-software/ci-workflows/.github/actions/shellcheck@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
       # The eval-coverage gate's suite reads `shfmt --to-json` and exits 2 when
       # shfmt is missing, so this job installs the same v3.14.1 pin as
-      # check-skills. The shfmt, DuckDB and lefthook downloads are cached by version (four
-      # red main runs in two weeks were these downloads failing), and a miss
+      # `check-skills`. The shfmt, DuckDB and lefthook downloads are cached by
+      # version (they were a recurring cause of red main runs), and a miss
       # retries transient failures. `--no-progress-meter` instead of `-s` keeps
       # curl's "Will retry" warning in the log. The SHA-256 check runs on a hit
       # too.
@@ -3690,12 +3657,13 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ env.BROWSER_CACHE_KEY }}
       # The animation wheels (numpy and opencv; the speech suites need their
-      # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
-      # inventory's parser packages go only on a leg whose suites need them,
-      # per the plan (`LEG_PLAN`). An under-install is loud, not quiet: those
-      # suites fail rather than skip without their dependency
-      # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, DEMO_VIDEO_REQUIRE_DEPS,
-      # INVENTORY_REQUIRE_ACORN).
+      # numpy), demo-video's locked numpy and Pillow, the inventory's parser
+      # packages and check-visual-parity's pixelmatch and pngjs go only on a leg
+      # whose suites need them, per the plan (`LEG_PLAN`). An under-install is
+      # loud, not quiet: those suites fail rather than skip without their
+      # dependency (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS,
+      # DEMO_VIDEO_REQUIRE_DEPS, INVENTORY_REQUIRE_ACORN and
+      # VISUAL_COMPARE_REQUIRE).
       - name: Install locked plugin test toolchains
         timeout-minutes: 5
         id: toolchains
@@ -3843,9 +3811,8 @@ jobs:
   # module and the planning share module, which alone ran 234 s serially on
   # main and would hold its leg near the 280 s that 1.5 x p95 allows, spread
   # their tests over pytest-xdist workers, one test class to a worker
-  # (`--dist loadscope`), since a class's tests share ordered state.
-  # Node and the root
-  # npm install come too: Python suites run the claude CLI from
+  # (`--dist loadscope`), since a class's tests share ordered state. Node and
+  # the root npm install come too: Python suites run the claude CLI from
   # node_modules/.bin and the inventory's parser packages through node.
   test-python:
     name: Test Python
@@ -3982,15 +3949,15 @@ jobs:
           done <"$RUNNER_TEMP/leg-suites.txt"
           exit "$rc"
 
-  # THE NODE PACKAGES THE CHANGE REACHES: the five sub-projects with their own
-  # install, typecheck, lint and test chains (the miro MCP server, the
-  # ai-briefing build, the video-digest and course-digest extraction pipelines,
-  # the resolve-config action)
-  # and the packages of scripts/outside-node-packages.txt. A package runs when
-  # a file under it, its test facade or a `file:` dependency changed, when a
-  # selected Node suite sits under it, on a Node pin, and on the whole tree
-  # (`PACKAGES`). A step for a package the plan does not name exits 0 on
-  # its first line. One job: the chains measure 31 s together.
+  # THE NODE PACKAGES THE CHANGE REACHES: five sub-projects with their own
+  # install and test steps (the miro MCP server, the ai-briefing build, the
+  # video-digest and course-digest extraction pipelines, the resolve-config
+  # action) and the packages of scripts/outside-node-packages.txt. A package
+  # runs when a file under it, its test facade or a `file:` dependency
+  # changed, when a selected Node suite sits under it, on a Node pin, and on
+  # the whole tree (`PACKAGES`). Each sub-project step exits 0 on its first
+  # line when the plan does not name its package. One job: the chains
+  # measure 31 s together.
   test-node:
     name: Test Node
     needs: [select-tests]
@@ -4006,13 +3973,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # One setup-node for every package, keyed on every lockfile they install
-      # from, so a change to any one of them invalidates the cache the others
-      # share.
       - name: Set up Node
         uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
+      # One npm cache for every package, keyed on the Node pin and the five
+      # sub-projects' lockfiles, so a change to any one of them invalidates the
+      # cache the others share.
       - name: Restore the npm cache
         id: npm_cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -4087,11 +4054,10 @@ jobs:
           [[ " $PACKAGES " == *" plugins/knowledge/skills/video-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh test
 
-      # ai-briefing's build/render pipeline is a Node package (native
-      # `node --test` suite) no other lane installs or runs — including
+      # ai-briefing's build/render pipeline is a Node package (a native
+      # `node --test` suite) no other lane installs or runs, including
       # test/url-policy.test.js, which asserts the SSRF gate (lib/url-policy.js)
-      # that decides which URLs the briefing validator is allowed to
-      # dereference (#1488).
+      # that decides which URLs the briefing validator may dereference.
       - name: Install dependencies
         timeout-minutes: 3
         run: |
@@ -4102,11 +4068,8 @@ jobs:
           [[ " $PACKAGES " == *" plugins/ai-briefing/skills/generate/output/build "* ]] || exit 0
           bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh test
 
-      # The knowledge plugin's course-digest extraction pipeline is a Node
-      # package (typecheck + vitest suite) no other lane installs or runs —
-      # same shape as video-digest, including the shared vendor/ packages
-      # pulled in as file: dependencies via the package's .npmrc
-      # install-links=true (#1507).
+      # The knowledge plugin's course-digest extraction pipeline: the same shape
+      # as video-digest's above, shared vendor/ packages included.
       - name: Install dependencies
         timeout-minutes: 3
         run: |
@@ -4173,10 +4136,9 @@ jobs:
   # trust boundary only while all of this holds: the action pinned by full SHA,
   # called from this code-owned file, exactly the permissions below, full
   # history, and no paths filter. A merge group run checks each queued pull
-  # request's own diff, read from the pulls API, by the same rules; a sync
-  # pull request must be queued alone. The synced
-  # pr-check-managed-files-hosted.yml runs the same guard advisory and
-  # paths-filtered; this job is the gate.
+  # request's own diff, read from the pulls API, by the same rules; a sync pull
+  # request must be queued alone. The synced pr-check-managed-files-hosted.yml
+  # runs the same guard advisory and paths-filtered; this job is the gate.
   check-managed-files:
     name: Check Managed Files
     needs: [select-tests]
@@ -4209,8 +4171,6 @@ jobs:
   # path. Wall about 140 s on the whole tree, so ceil(max(210, 154) / 60) = 4
   # minutes. Sharded over 4 cores the scan took 64 s, for 3 minutes, but needs
   # a second fail-closed denominator: a shard with no test file exits 2.
-  #
-  # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-tests:
     name: Check Tests
     needs: [select-tests]
@@ -4268,27 +4228,32 @@ jobs:
     # `ci-lanes` commit status the last full run recorded on this SHA.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    # 9 s p95 and 42 s max in full mode, about 10 s contract-only, up to 10
-    # minutes more while a contract-only run holds, and up to 8 more while the
-    # review-lane step waits for a review (REVIEW_WAIT_SECONDS, ending 120 s
-    # before gh_read's deadline, so inside its margin). The cap covers that hold
-    # plus the worst case of the pinned composites' waits: two 60 s rate-limit waits
-    # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
-    # of own-gate retries, 7 s of status-write retries and the 90 s
-    # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
-    # 15 s of gh_read retry sleeps for every read, never past gh_read's
-    # deadline: the hold-lift step's two reads, the runner tail, the hold
-    # reason, the lanes pull, the review-lane step's six, the lanes-hold
-    # step's eight (in the merge
-    # queue 50 s more for its pass record's download, a cold read's listing
-    # more, and the verdict reader's reads more, about 73 with pr-merge's carried
-    # reads and about 860 without them, measured 2026-10-25, up to the cold-read
-    # headroom check's cold_cost under the listing's caps; its wall time is
-    # unmeasured, and a cold one can reach the cap, which fails red), about four and a half minutes, plus the cost-hold step's
-    # reads: one for most pull requests, which stop at the label events; for a lane-labeled one whose body cites a
-    # decision, about eight (nine on a Refs issue), and two more per review
-    # run since the window opened, plus the base-config checkout's fetch
-    # (seconds; its retries replace the contents reads' 15 s each).
+    # 9 s p95 and 42 s max in full mode, about 10 s contract-only. The cap
+    # adds to that:
+    # - up to 10 minutes while a contract-only run holds;
+    # - up to 8 more while the review-lane step waits for a review
+    #   (REVIEW_WAIT_SECONDS, ending 120 s before gh_read's deadline, so
+    #   inside its margin);
+    # - the worst case of the pinned composites' waits, about five and a half
+    #   minutes: two 60 s rate-limit waits (`rate-limit-wait-seconds` on
+    #   check-contract and aggregate-results), 120 s of own-gate retries, 7 s
+    #   of status-write retries and the 90 s `rerun-wait-seconds` wait;
+    # - about four and a half minutes of gh_read retry sleeps, up to 15 s for
+    #   every read and never past gh_read's deadline: the hold-lift step's two
+    #   reads, the runner tail, the hold reason, the lanes pull, the review-lane
+    #   step's six and the lanes-hold step's eight. In the merge queue the
+    #   lanes-hold step takes 50 s more for its pass record's download, more
+    #   for a cold read's listing, and more for the verdict reader's reads:
+    #   about 73 with pr-merge's carried reads and about 860 without them
+    #   (measured 2026-10-25), up to the cold-read headroom check's cold_cost
+    #   under the listing's caps. Its wall time is unmeasured, and a cold one
+    #   can reach the cap, which fails red;
+    # - the cost-hold step's reads: one for most pull requests, which stop at
+    #   the label events; for a lane-labeled one whose body cites a decision,
+    #   about eight (nine on a Refs issue), and two more per review run since
+    #   the window opened;
+    # - the base-config checkout's fetch (seconds; its retries replace the
+    #   contents reads' 15 s each).
     # 20: a cold verdict reader in the merge queue takes about 6 to 11
     # minutes (0.4 to 0.7 s a call, as pr-merge's reader logs, for about 860
     # calls), and at most about 15 under the listing's caps (793 per-FAIL
@@ -5448,23 +5413,23 @@ jobs:
         with:
           node-version-file: .base/.node-version
       # THE HOLD STEPS READ THEIR CONFIG ONCE, FROM THE DEFAULT BRANCH'S TIP AT
-      # RUN TIME, OR THE BASE COMMIT FOR ANOTHER BASE. The tracker
-      # config names the human-gated label, the trusted-actor list names who
-      # may lift a hold and, with pr-pipeline.yaml's merge.agent-identity, the
-      # lanes App's id that LANES_APP_ID must equal, and its
-      # merge.trust-path-hold-apps the agent Apps whose trust-gate changes the
-      # review-lanes step holds; all are read there, never at the head,
-      # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
-      # whose refsIssue the cost step runs and whose holds the lanes-hold step
-      # runs, and clear-escalations.mjs with every
-      # module and data file it loads, whose recheckStaleHold the hold-lift
-      # step runs. A re-run replays the event, whose base.sha stays stale, so
-      # a pull request into the default branch, or a layer of a native stack
-      # into it, reads that branch's tip as it stands now: a policy merged
-      # since applies on the next run, and a layer never reads the unmerged
-      # layer below it. A pull request's head cannot change the default
-      # branch, so the tip is no more the pull request's code than the base
-      # commit is. A merge group, and any other pull request into another
+      # RUN TIME, OR THE BASE COMMIT FOR ANOTHER BASE. The tracker config names
+      # the human-gated label; the trusted-actor list names who may lift a hold
+      # and, with pr-pipeline.yaml's merge.agent-identity, the lanes App's id
+      # that LANES_APP_ID must equal; pr-pipeline.yaml's
+      # merge.trust-path-hold-apps names the agent Apps whose trust-gate
+      # changes the review-lanes step holds. The code that judges the holds is
+      # read there too: merge-holds.mjs, whose refsIssue the cost step runs and
+      # whose holds the lanes-hold step runs, and clear-escalations.mjs with
+      # every module and data file it loads, whose recheckStaleHold the
+      # hold-lift step runs. None is read at the head, so the pull request
+      # cannot rewrite its own hold. A re-run replays the event, whose base.sha
+      # stays stale, so a pull request into the default branch, or a layer of a
+      # native stack into it, reads that branch's tip as it stands now: a
+      # policy merged since applies on the next run, and a layer never reads
+      # the unmerged layer below it. A pull request's head cannot change the
+      # default branch, so the tip is no more the pull request's code than the
+      # base commit is. A merge group, and any other pull request into another
       # branch, keep the event's base SHA.
       # hold_ref resolves the commit and outputs it only as 40 hex: it reads
       # the tip with an unauthenticated `git ls-remote` of this public
@@ -5944,13 +5909,15 @@ jobs:
       # lane's `<!-- claude-lane-hold lane=` comment by claude[bot], or by
       # github-actions[bot] when its last non-blank line is the lane's
       # `claude-lane: <lane>` footer and the lane's run recorded it
-      # (lane_holds), or pr-merge's refusal, a
-      # merge.agent-identity comment with `<!-- babysit-merge-risk -->` on its
-      # first or second line, whose fenced reasons it names, so the error
-      # names the hold that set the label. Without one the error names none. An unreadable tracker config or label list fails closed.
-      # It outputs the label's name, and `held=false` once the live labels
-      # read without it, for the hold-lift step below. Pinned
-      # by scripts/ci-hold-human-gated.test.sh, which runs this body.
+      # (lane_holds), or pr-merge's refusal, a merge.agent-identity comment
+      # whose first two lines hold `<!-- babysit-merge-risk -->` and
+      # `<!-- work-items:escalation lane=pr-merge kind=escalated -->`, whose
+      # fenced reasons it names, so the error names the hold that set the
+      # label. Without one the error names none. An unreadable tracker config
+      # or label list fails closed. It outputs the label's name, and
+      # `held=false` once the live labels read without it, for the hold-lift
+      # step below. Pinned by scripts/ci-hold-human-gated.test.sh, which runs
+      # this body.
       - name: Fail a pull request carrying the human-gated label
         id: human_gated
         if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
@@ -6100,8 +6067,6 @@ jobs:
             exit 0
           fi
           trusted_humans || exit 1
-          # A trusted person adding the label back starts a new hold that person's
-          # removal lifts, so a hold an untrusted account lifted can be recovered.
           lifted=$(jq -rs --arg label "$HUMAN_GATED" --arg held_at "$held_at" --arg humans " $humans " '[add[]
             | select(.label.name == $label)] as $events
             | ([$held_at, ($events[] | select(.event == "labeled" and .created_at > $held_at
@@ -6118,9 +6083,9 @@ jobs:
             exit 1
           fi
           # A stale hold the lanes App cleared (clear-escalations.mjs
-          # stale-review-hold): the App removed the label itself, after its own
-          # comment since the hold opening with that clear's marker; the
-          # newest such marker names a head no review-lane hold comment names,
+          # stale-review-hold): the App removed the label itself, and its
+          # newest comment between the hold and that removal opens with the
+          # clear's marker, which names a head no review-lane hold comment names,
           # every hold comment names its head, and none names this head. Hold
           # comments count from the label's last removal before the label the
           # App removed went on, as clear-escalations.mjs holdsSince counts
@@ -6190,23 +6155,25 @@ jobs:
       # event stops pr-verify from judging the next head (pr-verify.yml), so
       # the pass that removes the label would never come. The rule is the base
       # checkout's merge-holds.mjs labelHolds (the human-gated label by its
-      # humanGatedLabel, as the step above resolves it), which select-tests'
-      # queueHolds runs too; a base module that cannot judge fails closed. It reads only that one pull request: under the ruleset's ALLGREEN grouping a
-      # pull request merges only when its own group passes, and a failed group
-      # removes the pull request it was built for, never one ahead of it
-      # (HEADGREEN would need every entry read), so failing on an earlier
-      # entry's label would eject an unlabeled pull request while the labeled
-      # one still merged. A label that lands after this step passed does not stop the merge;
-      # dequeue the pull request as well. An unparsable ref, an unreadable
-      # tracker config or an unreadable or cut label list fails closed. The
-      # labels come live from one GraphQL read, which also answers the link.
-      # For a pull
-      # request an automation opened it then applies the trust hold to its
-      # linked issue (comment in the body). report-outcome's Hold: line covers
-      # the label at PR open and enable-auto-merge at arm time, so this holds a
-      # label added after either: that GraphQL read, a labels read for a Refs
-      # issue, and one timeline read per linked issue; an unreadable one, or
-      # the base's trusted-actor list unreadable, fails closed. Pinned by
+      # humanGatedLabel, as the human-gated step resolves it), which
+      # select-tests' queueHolds runs too; a base module that cannot judge
+      # fails closed. It reads only that one pull request: under the
+      # ruleset's ALLGREEN grouping a pull request merges only when its own
+      # group passes, and a failed group removes the pull request it was
+      # built for, never one ahead of it (HEADGREEN would need every entry
+      # read), so failing on an earlier entry's label would eject an
+      # unlabeled pull request while the labeled one still merged. A label
+      # that lands after this step passed does not stop the merge; dequeue
+      # the pull request as well. An unparsable ref, an unreadable tracker
+      # config or an unreadable or cut label list fails closed. The labels
+      # come live from one GraphQL read, which also answers the link. For a
+      # pull request an automation opened, the step then applies the trust
+      # hold to its linked issue (comment in the body). report-outcome's
+      # Hold: line covers the label at PR open and enable-auto-merge at arm
+      # time, so this holds a label added after either, using that GraphQL
+      # read, a labels read for a Refs issue and one timeline read per linked
+      # issue; an unreadable one, or the base's trusted-actor list
+      # unreadable, fails closed. Pinned by
       # scripts/ci-hold-merge-group.test.sh, which runs this body.
       - name: Fail a queued pull request carrying a hold label
         if: github.event_name == 'merge_group'
@@ -6400,15 +6367,16 @@ jobs:
       # PR-MERGE'S CARRIED READS: the lanes-hold step's verdict reader is their
       # one reader, and it exits at its author check for every other author.
       # This step reads the queued pull request through pr_read with the args
-      # the pr-unblock and lanes-hold steps read it with, so their reads answer
-      # from the cache and the job makes no more REST calls than before.
+      # the lanes-hold step reads it with, so that step's read answers from
+      # the cache.
       # `lanes` is `false` only when the read proves an author that is not the
       # lanes App (the lanes-hold step's own test). `verify_judged` is `false`
       # only when it also proves an author pr-verify does not judge, by the
       # lanes-hold step's predicate over merge.verify-authors in the hold
       # config's pr-pipeline.yaml and its trusted-actor list; the three
-      # verdict-read steps below skip on it. An unread pull, ref, id or config
-      # leaves both unset, and those steps run as before.
+      # verdict-read steps below skip on it. An unread pull, ref or id leaves
+      # both unset, and an unread config leaves `verify_judged` unset; either
+      # way those steps run.
       - name: Read whether the queued pull request is the lanes App's
         id: queued_author
         if: ${{ !cancelled() && github.event_name == 'merge_group' }}
@@ -6460,15 +6428,15 @@ jobs:
             echo "#$pr is not the lanes App's, and pr-verify does not judge its author; the carry steps are skipped."
           fi
       # MAIN'S TIP, LISTED ONCE FOR THE CARRY READERS. carry-run-cache.mjs and
-      # head-ref-map.mjs each run in their own process
-      # and take a run's carried reads only when its head commit is on main
+      # head-ref-map.mjs each run in their own process and take a run's
+      # carried reads only when its head commit is on main
       # (head-ref-map.mjs onMain), which otherwise reads the tag named main (a
       # 404 that no process shares) and main's tip over REST. One
       # unauthenticated `git ls-remote` of this public repository, run outside
       # any checkout, lists both refs; the tip is output only when the listing
       # succeeded, names refs/heads/main once as 40 hex and holds no tag named
-      # main. Anything else outputs nothing, and onMain reads both refs as
-      # before. Each run is still compared with the tip.
+      # main. Anything else outputs nothing, and onMain reads both refs
+      # itself. Each run is still compared with the tip.
       - name: List main's tip for the carry readers
         id: main_tip
         if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.verify_judged != 'false' }}
@@ -6495,17 +6463,17 @@ jobs:
       # 860 (one run read and compare per FAIL and a download per untied
       # FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs, and at
       # most the cold-read headroom check's cold_cost under the listing's
-      # caps (that check states the derivation). They
-      # come from that run's pr-merge-run-cache artifact, found as pr-merge.yml
-      # finds it (carry-run-cache.mjs `read`): only that run's steps could
+      # caps (that check states the derivation). They come from that run's
+      # pr-merge-run-cache artifact, found as pr-merge.yml finds it
+      # (carry-run-cache.mjs `read`): only that run's steps could
       # upload it. This job holds write scopes and is the required check, so it
       # restores no Actions cache, which any job in main's cache scope can
       # write and whose restore extracts its archive anywhere in the workspace
       # (#9455). Every kept read still lands in a carried-* section the reader
       # uses only where it counts a FAIL, never to turn one away or allow a
-      # pass. Any error leaves the cache empty, and the step holds a cold
-      # reader. Both steps skip a queued pull request whose author the step
-      # above proved pr-verify does not judge. Rules:
+      # pass. Any error leaves the cache empty, and the lanes-hold step holds a
+      # cold reader. Both steps skip a queued pull request whose author the
+      # queued_author step proved pr-verify does not judge. Rules:
       # .github/scripts/pr-merge/carry-run-cache.mjs.
       - name: Read the verdict reads pr-merge's last scheduled run kept
         id: verdict_reads_restore
@@ -6552,21 +6520,23 @@ jobs:
       # its own hold: from the hold config checkout (base_config), with
       # pr-pipeline.yaml and the trusted-actor list, in the queue at the
       # group's base commit and on a pull request event at the default
-      # branch's tip at run time, for a pull request into main. A
-      # pull request into any other branch is never armed and is not read, so
-      # it cannot choose a branch whose module runs here with this job's token. On a pull request event and in the merge queue
-      # (the pull request named in the group's ref, as the step above reads
-      # it), the body, comments, reviews and inline comments are read live,
-      # never from the payload a re-run replays, and so are the changed files;
-      # a list shorter than changed_files fails closed. A body hold is not
-      # read here: the lanes App's hold line puts on `do-not-merge`, which the
+      # branch's tip at run time, for a pull request into main. A pull
+      # request into any other branch is never armed and is not read, so it
+      # cannot choose a branch whose module runs here with this job's token.
+      # On a pull request event and in the merge queue (the pull request
+      # named in the group's ref, as the queued hold-label step reads it),
+      # the body, comments, reviews and inline comments are read live, never
+      # from the payload a re-run replays, and so are the changed files; a
+      # list shorter than changed_files fails closed. A body hold is not read
+      # here: the lanes App's hold line puts on `do-not-merge`, which the
       # label steps hold on. A comment re-runs nothing, so a veto posted while
       # armed is enforced when the queue builds the group, and after a veto
-      # is lifted ci-status needs a re-run. Only the lanes App's pull requests are read, by numeric id
-      # (pr-pipeline.yaml merge.agent-identity, as trusted-actors.json lists
-      # it); every other pull request merges through pr-merge's gate or a
-      # person, but for the verifier holds below. An unreadable pull request,
-      # module, config, file list or discussion fails closed.
+      # is lifted ci-status needs a re-run. Only the lanes App's pull requests
+      # are read, by numeric id (pr-pipeline.yaml merge.agent-identity, as
+      # trusted-actors.json lists it); every other pull request merges
+      # through pr-merge's gate or a person, but for the verifier holds
+      # below. An unreadable pull request, module, config, file list or
+      # discussion fails closed.
       # IN THE MERGE QUEUE, ANOTHER AUTHOR PR-VERIFY JUDGES HOLDS ON A FAIL:
       # an owner's credentials can queue a pull request pr-verify failed, so
       # one whose author resolve-pr.mjs resolvePull judges (no dependency
@@ -6593,8 +6563,8 @@ jobs:
       # Once both read `false`, maintenance-reconcile-lost-runs.yml re-runs
       # ci-status on each open lanes App pull request this failed, at most 3
       # per half-hourly run, when ci-status was the run's only failed job on
-      # attempt 1 (its `switch` kind keys on the error's "the lanes kill
-      # switch is on" text, which reconcile.test.mjs pins here).
+      # attempt 1 (its `switch` kind keys on switchHold's "the lanes kill
+      # switch is on" text, which reconcile.test.mjs pins this step to print).
       # IN THE MERGE QUEUE A LANES APP PULL REQUEST ALSO NEEDS A VERIFIER PASS
       # AT ITS HEAD: a PASS or PASS-NOTES artifact of a completed, successful
       # pr-verify.yml run on main (merge-holds.mjs verdictHold), taken by
@@ -6616,13 +6586,15 @@ jobs:
       # index by exact name, or with no legacy FAILs file every page of the
       # listing, saved to BABYSIT_VERIFY_LISTING) with
       # pr-merge's head-ref map and carried run cache, so a FAIL uploaded
-      # after enable-auto-merge's one listing of its run still holds. Its report goes to merge-holds.mjs
+      # after enable-auto-merge's one listing of its run still holds. Its
+      # report goes to merge-holds.mjs
       # evidenceHold, which holds on every refusal but the three a pass decides
       # (those stay with verdictHold and linkHold): every FAIL class,
       # verify:unreadable and verify:too-old. The same approval of the head
       # lifts it. Every verifier hold's error annotation is titled
       # `pr-verify hold` (merge-holds.mjs VERIFIER_TITLE), so a reader of this
-      # step's annotations tells it from a hold path. The reader reads with this job's token, which holds no
+      # step's annotations tells it from a hold path. The reader reads with
+      # this job's token, which holds no
       # issues scope: on this public repository its issue reads answer as
       # public reads, and one that does not read refuses verify:unreadable,
       # which holds. Its gh calls go to the gh binary, outside this step's
@@ -6801,7 +6773,8 @@ jobs:
               exit 0
             fi
             BASE_SHA=$(jq -r '.base.sha' <<<"$pull")
-            # An armed pull request's new head is held by the merge queue's check for a pr-verify pass at the exact head it merges (below).
+            # An armed pull request's new head is held by the merge queue's
+            # check for a pr-verify pass at the exact head it merges (below).
           fi
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
@@ -7127,12 +7100,11 @@ jobs:
           fi
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
       # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
-      # row says the change gives it no work. Its
-      # `skipped` becomes `success` for the aggregate only when `select-tests`
-      # succeeded and that row is exactly 'false'; every other result passes
-      # through as it is, so a skip that hid work stays `skipped` and the
-      # aggregate fails it. Pinned by scripts/ci-ordered-skips.test.sh, which
-      # runs this body.
+      # row says the change gives it no work. Its `skipped` becomes `success`
+      # for the aggregate only when `select-tests` succeeded and that row is
+      # exactly 'false'; every other result passes through as it is, so a
+      # skip that hid work stays `skipped` and the aggregate fails it. Pinned
+      # by scripts/ci-ordered-skips.test.sh, which runs this body.
       - name: Check each skipped lane against scope
         id: lanes
         if: ${{ !cancelled() }}
@@ -7192,9 +7164,10 @@ jobs:
           # how many steps of the job are in progress.
           step-name: Aggregate lane results
           token: ${{ github.token }}
-      # After the aggregate, so a contract-only run that holds for a full run reaches
-      # this check once that run has finished. Before it, a review still running
-      # failed the job in the very window a yield happens, and the hold never ran.
+      # After the aggregate, so a contract-only run that holds for a full run
+      # reaches this check once that run has finished; before it, a review
+      # still running would fail the job in the window a yield happens, and
+      # the hold would never run.
       # BOTH REVIEW LANES REVIEW THE HEAD. Neither review check is required by a
       # ruleset (github-iac ADR 0017); this step makes ci-status need them. For
       # each lane it takes the newest pull_request run of the lane's caller
@@ -7209,7 +7182,8 @@ jobs:
       # It passes only when a counted review of that lane on this pull
       # request covers that head, followed through further no-change skips
       # up to 10 heads back, the rule and cap babysit_review_evidence.py
-      # binds by (`_skip_target`, `SKIP_HOPS`). Any other skip record never counts. A pending, failed or cancelled
+      # binds by (`_skip_target`, `SKIP_HOPS`). Any other skip record never
+      # counts. A pending, failed or cancelled
       # review fails, as does a skipped one (a fork, or a bot outside the
       # caller's allowed-bot-sender-ids), with the cause named. A lane the
       # kill switch stopped (its kill-switch job succeeded and ran its
@@ -7613,12 +7587,12 @@ jobs:
           # 120 s before gh_read's deadline, reading that run once a poll. A
           # lane with no run is not waited for: the push that made the head
           # creates its review runs before this job starts, so one missing now
-          # rarely comes. The wait decides nothing: the loop after it reads every lane
-          # as before, and a read that fails ends the wait for that loop to fail
-          # closed. Both reads take the lanes from one listing of the head's
-          # runs: the loop reuses the wait's when nothing waited, and reads it
-          # again after a wait. A review still running at the cap fails as
-          # before, and rerun-ci-status re-runs ci-status when it finishes.
+          # rarely comes. The wait decides nothing: the loop after it reads
+          # every lane, and a read that fails ends the wait for that loop to
+          # fail closed. Both reads take the lanes from one listing of the
+          # head's runs: the loop reuses the wait's when nothing waited, and
+          # reads it again after a wait. A review still running at the cap
+          # fails, and rerun-ci-status re-runs ci-status when it finishes.
           poll=${REVIEW_POLL_SECONDS:-60} polls=$((${REVIEW_WAIT_SECONDS:-480} / ${REVIEW_POLL_SECONDS:-60}))
           stop_at=$(($(cat "$RUNNER_TEMP/gh-read.deadline" 2>/dev/null || echo 120) - 120))
           declare -A waiting=()

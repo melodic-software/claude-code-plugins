@@ -738,11 +738,12 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
 # #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical
 # does-NOT-do: only the ADR fallback wording changed (by hand -> ADR candidate in the register row); the fudge-prohibition bullet is untouched and byte-pinned. loop.md Step 2: only item 8 changed, replacing the record-decision outcome claim and saying how its skip offer is answered (asked in me/auto, taken in lock or unattended); no constraint-ledger row or process-change line moved.
 # Re-audit: the gotchas.md pointer moves out of the does-NOT list to a line above it, so it no longer reads as something the skill does not do; every does-NOT bullet, the fudge prohibition included, is unchanged.
+# The deep-dive bullet now says the interview dispatches exploration itself for a fact that needs more than a quick lookup (owner decision: the interview runs explore and research itself). Every other bullet, the fudge prohibition included, is unchanged.
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Next" \
-  "7b17ed95b24e4a8c4f2a4f40aa02ebce1df3d46497736c09f5d1d35381dce47a"
+  "261ea805a3e429229840ef9c86bacdae791acedfa9aedbfb2d95c5e949273d84"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
 # unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,

@@ -394,7 +394,7 @@ marketplace comes from these rows.
 | `scripts/check-affected.sh --no-fetch` (this repository) | pre-push | 15.5 s median on a 28-file range; 0.52 s on one file | reference host (Linux, WSL2) | 2026-10-15 |
 | actionlint, per edit (`.github/workflows/*.yml`) | PostToolUse today; moving to pre-commit | 44 ms median (43-47) | reference host (Linux, WSL2) | 2026-10-15 |
 | bash-format, per edit (`.sh`, configured) | PostToolUse today | 64 ms median (62-68) | reference host (Linux, WSL2) | 2026-10-15 |
-| biome-format, per edit (`.ts`, configured) | PostToolUse today | 62 ms median (60-77) | reference host (Linux, WSL2) | 2026-10-15 |
+| javascript-format, per edit (`.ts`, configured) | PostToolUse today | 62 ms median (60-77) | reference host (Linux, WSL2) | 2026-10-15 |
 | markdown-format, per edit (`.md`, configured) | PostToolUse today | 180 ms median (174-186) | reference host (Linux, WSL2) | 2026-10-15 |
 | powershell-format, per edit (`.ps1`, configured) | PostToolUse today | 973 ms median (918-1,026) | reference host (Linux, WSL2) | 2026-10-15 |
 | python-format, per edit (`.py`, configured) | PostToolUse today | 75 ms median (73-83) | reference host (Linux, WSL2) | 2026-10-15 |

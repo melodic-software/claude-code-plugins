@@ -28,29 +28,49 @@
 # base.
 #
 # Usage:
-#   resolve-remote.sh [--push] [branch-name]
+#   resolve-remote.sh [--push] [--dir <checkout>] [branch-name]
 #
-# With no branch arg, falls back to `git branch --show-current`. Prints the
-# resolved remote name on stdout and exits 0 on success. Exits 1 with a
-# diagnostic on stderr when resolution is ambiguous or no remote is configured
-# at all.
+# --dir names the checkout whose branch and remote config are read (default:
+# the current directory). With no branch arg, falls back to
+# `git branch --show-current`. Prints the resolved remote name on stdout and
+# exits 0 on success. Exits 1 with a diagnostic on stderr when resolution is
+# ambiguous, no remote is configured at all, or --dir is not given once with a
+# directory.
 set -uo pipefail
 
-PUSH=0
-if [[ "${1:-}" == "--push" ]]; then
-  PUSH=1
-  shift
+PUSH=0 CHECKOUT=""
+while (($# > 0)); do
+  case "$1" in
+  --push)
+    PUSH=1
+    shift
+    ;;
+  --dir)
+    if (($# < 2)) || [[ -z "$2" || -n "$CHECKOUT" ]]; then
+      echo "error: --dir needs one value and is given once" >&2
+      exit 1
+    fi
+    CHECKOUT="$2"
+    shift 2
+    ;;
+  *) break ;;
+  esac
+done
+CHECKOUT="${CHECKOUT:-.}"
+if [[ ! -d "$CHECKOUT" ]]; then
+  echo "error: --dir $(printf '%q' "$CHECKOUT") is not a directory" >&2
+  exit 1
 fi
 
 BRANCH="${1:-}"
-[[ -n "$BRANCH" ]] || BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
+[[ -n "$BRANCH" ]] || BRANCH="$(git -C "$CHECKOUT" branch --show-current 2>/dev/null | tr -d '\r')"
 
 # Read a remote-name config key, normalizing the CRLF a Git-for-Windows config
 # read can carry. A "." value names the local repo rather than a remote, so it
 # is reported as unset and the caller falls through to the next candidate.
 remote_config() {
   local value
-  value=$(git config "$1" 2>/dev/null | tr -d '\r')
+  value=$(git -C "$CHECKOUT" config "$1" 2>/dev/null | tr -d '\r')
   [[ "$value" == "." ]] && value=""
   printf '%s' "$value"
 }
@@ -66,7 +86,7 @@ fi
 [[ -n "$REMOTE" ]] || REMOTE=$(remote_config "branch.${BRANCH}.remote")
 
 if [[ -z "$REMOTE" ]]; then
-  mapfile -t REMOTES < <(git remote)
+  mapfile -t REMOTES < <(git -C "$CHECKOUT" remote)
   if [[ ${#REMOTES[@]} -eq 0 ]]; then
     echo "error: cannot resolve a remote for branch '${BRANCH}': no branch.${BRANCH}.remote is set and no remotes are configured." >&2
     exit 1

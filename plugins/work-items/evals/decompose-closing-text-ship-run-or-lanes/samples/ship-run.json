@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "At the keyboard, run them with `/work-items:ship run #900`; otherwise the lanes pick up the agent-ready items.",
+      "why": "command with the container"
+    },
+    {
+      "answer": "Next: /work-items:ship run github:o/r#900",
+      "why": "qualified id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Next: /work-items:ship status #900",
+      "why": "near miss: status, not run"
+    },
+    {
+      "answer": "Run /work-items:work to build the first item.",
+      "why": "only the single-item path"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

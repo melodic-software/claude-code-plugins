@@ -12,7 +12,7 @@ surface and a component in this repository, and each one carries the observable 
 re-deriving it. Availability is never asserted: an observation record says what was seen, where,
 and when. See `docs/contracts/native-references/`.
 
-<!-- native-surfaces:start -->
+<!-- BEGIN GENERATED: native-surfaces. Edit the native-overlap store, then run python3 ${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py generate -->
 
 ## Summary
 
@@ -75,4 +75,4 @@ Pairs ruled not an overlap by a person or a session acting on the owner's record
 
 No dismissals recorded.
 
-<!-- native-surfaces:end -->
+<!-- END GENERATED: native-surfaces -->

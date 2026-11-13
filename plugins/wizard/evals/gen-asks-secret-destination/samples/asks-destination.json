@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| API key | browser | `MAPVERSE_API_KEY` | yes | ? | Console: Keys, Create key |\n\nNothing in the repo reads this key yet. Where should it be kept: `.env`, a GitHub secret, or both?",
+      "why": "asks with both choices"
+    },
+    {
+      "answer": "The repository does not say where the key lands. Should the wizard save it to .env, to a CI secret, or both?",
+      "why": "should the wizard save it"
+    },
+    {
+      "answer": "Nothing here reads the key yet. Do you want it kept in .env, as a secret in GitHub, or both?",
+      "why": "secret in GitHub"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The wizard saves MAPVERSE_API_KEY to .env. Does this table look right?",
+      "why": "assumed .env, never offered a CI secret"
+    },
+    {
+      "answer": "I saved the key to .env and as a GitHub secret.",
+      "why": "no question"
+    }
+  ]
+}

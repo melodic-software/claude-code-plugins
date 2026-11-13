@@ -55,7 +55,7 @@ The summary is institutional memory someone reads later, so lead with what was d
 
    Apply the read-modify-write keyword check + prepend from the adapter "PR closing-keyword mechanics" section, keyed to THIS item: if the (unmerged) PR body carries neither a closing keyword for this item (its `closes` line, or any of the provider's other closing keywords the adapter section lists) nor an opt-out marker for it (its `refs` line, an opt-out marker that section lists, or `No related issue:`), prepend the `closes` line. A closing keyword targeting a *different* item does not count. If an opt-out marker for this item is present, leave the body alone (Step 4's opt-out branch handles it); if merged, the keyword can no longer auto-fire and Step 4's close is the only path.
 
-1. **Check the decomposed parent.** When this run closed the item, its body has a `## Parent` section reading `Refs #<parent>` and the `<!-- work-items:born-triaged -->` marker, and that parent is open, run "Decomposed parent close" in [`reference/issue-conventions.md`](../../../reference/issue-conventions.md) for that parent, and report what it did.
+1. **Check the decomposed parent.** When this run closed the item, its body has a `## Parent` section opening `Refs #<parent>` and the `<!-- work-items:born-triaged -->` marker, and that parent is open, run "Decomposed parent close" in [`reference/issue-conventions.md`](../../../reference/issue-conventions.md) for that parent, and report what it did.
 
 1. **Confirm:** "Closed **#N**: {title}. Summary: {summary}"
 

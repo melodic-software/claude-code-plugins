@@ -20,11 +20,13 @@ source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 REPORT_REF="$SKILL_DIR/reference/ready-for-review.md"
 
 # block <heading> [<n>] [<file>]: the nth (default first) fenced block in that heading's section
-# of <file> (default: the GitHub ready reference), with <skill-dir> filled in.
+# of <file> (default: the GitHub ready reference), with <skill-dir> filled in and <checkout> read
+# from FLOW_CHECKOUT when the block runs (default: the shell's directory).
 block() {
+  # shellcheck disable=SC2016 # ${FLOW_CHECKOUT:-.} expands in the generated script
   awk -v h="$1" -v n="${2:-1}" '$0 == h { on = 1; next } on && !f && /^## / { exit }
     on && /^```bash/ { if (++i == n) f = 1; next } f && /^```/ { exit } f' "${3:-$REF}" |
-    sed "s#<skill-dir>#$SKILL_DIR#g"
+    sed -e "s#<skill-dir>#$SKILL_DIR#g" -e 's#<checkout>#${FLOW_CHECKOUT:-.}#g'
 }
 
 FLOW="$TEST_TMPDIR/flow.sh"
@@ -43,7 +45,7 @@ if ! grep -q 'verify-gate.sh" check --head' "$FLOW" || ! grep -q '^ready_run_see
   exit 1
 fi
 REPORT="$TEST_TMPDIR/report.sh"
-block "## 2.5.6 Report" 1 "$REPORT_REF" >"$REPORT"
+block "## 2.5.7 Report" 1 "$REPORT_REF" >"$REPORT"
 if ! grep -q 'confirm-verdict.sh" show --head' "$REPORT"; then
   echo "FAIL: the confirm verdict block was not found in $REPORT_REF" >&2
   exit 1
@@ -62,9 +64,15 @@ mkdir -p "$STUB_DIR"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$STUB_DIR/sleep"
 # The forge's first head read returns STUB_STALE, later reads STUB_FORGE (default: the pushed
 # commit); pr-worktree.sh's head read returns STUB_BRANCH and STUB_OID. Runs exist only for the pushed commit, and a new one only once the PR is flipped. Each
-# run list logs the commit it asked about; `pr ready` logs the flip.
+# run list logs the commit it asked about; `pr ready` logs the flip. A call that names neither
+# `-R acme/tool` nor GH_REPO=acme/tool fails, as gh does outside a checkout, so a read the
+# reference leaves untargeted cannot pass by the stub's grace.
 cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
+if [[ "${GH_REPO:-}" != acme/tool && " $* " != *" -R acme/tool "* ]]; then
+  echo "stub gh: no repository named for: $*" >&2
+  exit 1
+fi
 case "$1 $2" in
 "pr view")
   if [[ "$*" == *headRefName* ]]; then
@@ -108,10 +116,13 @@ new_state() {
 
 # run_flow <stale-head> <head-before> [<later-forge-head>], in the state new_state made, from
 # $FLOW_CWD (default: the PR's checkout), with pr-worktree.sh reading STUB_OID (default: the
-# pre-push head, as a lagging read returns it).
+# pre-push head, as a lagging read returns it), and GH_REPO exported as the reference's "Find the
+# PR for the branch" block exports it (FLOW_GH_REPO, default acme/tool; empty leaves it unset).
 STUB_BRANCH=$(git -C "$REPO" branch --show-current)
 run_flow() {
-  (cd "${FLOW_CWD:-$REPO}" && PATH="$STUB_DIR:$PATH" STUB_STATE="$STATE" STUB_STALE="$1" STUB_PUSHED="$PUSHED" \
+  (unset GH_REPO
+    [[ -z "${FLOW_GH_REPO-acme/tool}" ]] || export GH_REPO="${FLOW_GH_REPO-acme/tool}"
+    cd "${FLOW_CWD:-$REPO}" && PATH="$STUB_DIR:$PATH" FLOW_CHECKOUT="${FLOW_CHECKOUT:-.}" STUB_STATE="$STATE" STUB_STALE="$1" STUB_PUSHED="$PUSHED" \
     STUB_FORGE="${3:-$PUSHED}" STUB_BRANCH="$STUB_BRANCH" STUB_OID="${STUB_OID:-$BEFORE}" \
     READY_VERIFY_DIR="$STATE/verify" PR_NUMBER=5 REPO=acme/tool HEAD_BEFORE="$2" timeout 30 bash "$FLOW" 2>&1)
 }
@@ -134,12 +145,12 @@ new_state "$BEFORE"
 out=$(run_flow "$BEFORE" "$BEFORE")
 assert_contains "a record for the pre-push commit only: the guard refuses" "$out" "FLIP_EXIT=2"
 
-# The /verification:confirm verdict: recorded per head, named in the 2.5.6 report for the PR
+# The /verification:confirm verdict: recorded per head, named in the 2.5.7 report for the PR
 # worktree's HEAD, and advisory, so neither NEEDS WORK nor a missing verdict stops the flip or
 # changes the verify gate's result for that head.
 confirm_record() { CONFIRM_VERDICT_DIR="$STATE/confirm" bash "$SKILL_DIR/scripts/confirm-verdict.sh" record "$@"; }
 run_report() {
-  (cd "$REPO" && PATH="$STUB_DIR:$PATH" STUB_STATE="$STATE" STUB_BRANCH="$STUB_BRANCH" STUB_OID="$PUSHED" \
+  (cd "$REPO" && PATH="$STUB_DIR:$PATH" GH_REPO=acme/tool STUB_STATE="$STATE" STUB_BRANCH="$STUB_BRANCH" STUB_OID="$PUSHED" \
     CONFIRM_VERDICT_DIR="$STATE/confirm" PR_NUMBER=5 timeout 30 bash "$REPORT" 2>&1)
 }
 
@@ -229,6 +240,20 @@ out=$(FLOW_CWD="$TEST_TMPDIR/other" run_flow "$BEFORE" "$BEFORE")
 assert_contains "from another checkout: HEAD_SHA is the PR worktree's HEAD" "$out" "HEAD_SHA=$PUSHED"
 assert_contains "from another checkout: the guarded flip passes on the PR's head" "$out" "FLIP_EXIT=0"
 
+# The shell sits outside every checkout and <checkout> names the repository by absolute path.
+mkdir -p "$TEST_TMPDIR/outside"
+new_state "$PUSHED"
+out=$(FLOW_CWD="$TEST_TMPDIR/outside" FLOW_CHECKOUT="$REPO" run_flow "$BEFORE" "$BEFORE")
+assert_contains "from outside every checkout: HEAD_SHA is the PR worktree's HEAD" "$out" "HEAD_SHA=$PUSHED"
+assert_contains "from outside every checkout: the guarded flip passes on the PR's head" "$out" "FLIP_EXIT=0"
+
+# The same shell without GH_REPO: the untargeted reads fail as gh fails outside a checkout, so the
+# case above passes only because the reads follow the exported repository.
+new_state "$PUSHED"
+out=$(FLOW_GH_REPO='' FLOW_CWD="$TEST_TMPDIR/outside" FLOW_CHECKOUT="$REPO" run_flow "$BEFORE" "$BEFORE")
+[[ -e "$STATE/flipped" ]] && flipped=yes || flipped=no
+assert_eq "from outside every checkout without GH_REPO: the PR is not flipped" "no" "$flipped"
+
 new_state "$PUSHED"
 out=$(FLOW_CWD="$TEST_TMPDIR/other" STUB_BRANCH=gone run_flow "$BEFORE" "$BEFORE")
 [[ -e "$STATE/flipped" ]] && flipped=yes || flipped=no
@@ -240,6 +265,16 @@ out=$(FLOW_CWD="$TEST_TMPDIR/other" STUB_OID="$PEER" run_flow "$BEFORE" "$BEFORE
 [[ -e "$STATE/flipped" ]] && flipped=yes || flipped=no
 assert_eq "the worktree on the head branch lacks the PR's head commit: the PR is not flipped" "no" "$flipped"
 assert_contains "the worktree on the head branch lacks the PR's head commit: the refusal names it" "$out" "$PEER"
+
+# The 2.5.7 report from a shell outside every checkout, with no CONFIRM_VERDICT_DIR: the verdicts
+# come from the repository's common git directory, reached through <checkout>.
+new_state ""
+bash "$SKILL_DIR/scripts/confirm-verdict.sh" record --head "$PUSHED" --verdict CONFIRMED --dir "$REPO"
+bash "$SKILL_DIR/scripts/confirm-verdict.sh" record --of measure --head "$PUSHED" --verdict MIXED --dir "$REPO"
+out=$(cd "$TEST_TMPDIR/outside" && PATH="$STUB_DIR:$PATH" GH_REPO=acme/tool STUB_STATE="$STATE" STUB_BRANCH="$STUB_BRANCH" \
+  STUB_OID="$PUSHED" FLOW_CHECKOUT="$REPO" PR_NUMBER=5 timeout 30 bash "$REPORT" 2>&1)
+assert_eq "from outside every checkout: the report names both verdicts for the head" "confirm: CONFIRMED for head $PUSHED
+measure: MIXED for head $PUSHED" "$out"
 
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0

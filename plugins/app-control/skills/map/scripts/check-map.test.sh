@@ -48,6 +48,7 @@ Reprovision through the admin page.
 ## Drive
 
 1. $2
+2. **Proof.** Result: the page shows the change. Captures: screenshot
 
 ## Gotchas
 
@@ -97,10 +98,10 @@ values: config.account.email
 EOF
   feature_readme "- Basket icon in the header | driven
 - Checkout page link | not driven: needs a payment sandbox" \
-    "Sign in with shared/sign-in, then open the cart. Related: [export](../billing/export/README.md)." \
+    "Sign in with shared/sign-in, then open the cart. Related: [export](../billing/export/README.md). Result: the cart lists one item." \
     >"$skill/features/cart/README.md"
   feature_readme "- Export button on the billing page | driven" \
-    "Sign in with shared/sign-in, then press Export." \
+    "Sign in with shared/sign-in, then press Export. Result: invoices.csv downloads." \
     >"$skill/features/billing/export/README.md"
   printf '# Sign in\n\nWhy shared: cart and export both start signed in.\n' >"$skill/shared/sign-in/README.md"
 }
@@ -173,7 +174,7 @@ assert_equals "index-duplicate" "$(run_check)" "index-duplicate | SKILL.md | fea
 
 new_case
 mkdir -p "$SKILL/features/search"
-feature_readme "- Search box | driven" "Type a query." >"$SKILL/features/search/README.md"
+feature_readme "- Search box | driven" "Type a query. Result: matches list." >"$SKILL/features/search/README.md"
 assert_equals "index-missing" "$(run_check)" "index-missing | features/search/README.md | no index line names this feature file"
 
 new_case
@@ -214,6 +215,37 @@ assert_equals "entry-marker" "$(run_check)" "entry-marker | features/cart/README
 new_case
 replace "$SKILL/features/cart/README.md" "not driven: needs a payment sandbox" "not driven"
 assert_equals "entry-reason" "$(run_check)" "entry-reason | features/cart/README.md | - Checkout page link | not driven"
+
+new_case
+replace "$SKILL/features/cart/README.md" " Result: the cart lists one item." ""
+assert_equals "drive-result" "$(run_check)" \
+  "drive-result | features/cart/README.md | 1. Sign in with shared/sign-in, then open the cart. Related: [export](../billing/export/README.md)."
+new_case
+replace "$SKILL/features/cart/README.md" "**Proof.** Result: the page" "**Proof.** The page"
+assert_equals "drive-result: a proof step with no Result" "$(run_check)" \
+  "drive-result | features/cart/README.md | 2. **Proof.** The page shows the change. Captures: screenshot"
+new_case
+replace "$SKILL/features/cart/README.md" " Result: the cart lists one item." " Result:"
+assert_equals "drive-result: a Result with nothing after it" "$(run_check)" \
+  "drive-result | features/cart/README.md | 1. Sign in with shared/sign-in, then open the cart. Related: [export](../billing/export/README.md). Result:"
+# A Result on an indented line of the step, after a blank line, belongs to that step.
+new_case
+replace "$SKILL/features/cart/README.md" " Result: the cart lists one item." "
+
+   Result: the cart lists one item."
+assert_equals "drive-result: a Result on the step's indented line" "$(run_check)" ""
+# A Result on an unindented line after the step ends the step and does not count for it.
+new_case
+replace "$SKILL/features/billing/export/README.md" " Result: invoices.csv downloads." "
+Result: invoices.csv downloads."
+assert_equals "drive-result: a Result on an unindented line" "$(run_check)" \
+  "drive-result | features/billing/export/README.md | 1. Sign in with shared/sign-in, then press Export."
+# A Drive that hands off in prose holds no steps of its own.
+new_case
+replace "$SKILL/features/billing/export/README.md" "1. Sign in with shared/sign-in, then press Export. Result: invoices.csv downloads.
+2. **Proof.** Result: the page shows the change. Captures: screenshot" \
+  "Drive it as the shared/sign-in steps, then the export steps file. Preconditions: a billing role."
+assert_equals "drive-result: a prose hand-off has no steps" "$(run_check)" ""
 
 new_case
 replace "$SKILL/features/cart/README.md" "../billing/export/README.md" "../billing/exports/README.md"

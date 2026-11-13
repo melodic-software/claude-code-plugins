@@ -1,0 +1,61 @@
+{
+  "session_probe": {
+    "run_if_unset_or_true": "JAVASCRIPT_FORMAT_ENABLED"
+  },
+  "requires": [
+    {
+      "id": "biome",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:javascript-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "biome"
+        ],
+        "local_bin": [
+          "node_modules/.bin/biome"
+        ]
+      },
+      "degrade": "Without biome, the hook cannot format or lint edited JavaScript, TypeScript, JSON and CSS files.",
+      "install": {
+        "npm": "npm i -D @biomejs/biome"
+      }
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:javascript-format.sh"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the javascript-format hooks skip their work.",
+      "install": {
+        "docs": "https://jqlang.org/download/"
+      }
+    },
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the javascript-format hooks cannot launch, so they do nothing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      }
+    }
+  ]
+}

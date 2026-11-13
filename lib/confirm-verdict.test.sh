@@ -168,5 +168,27 @@ assert_eq "measure show outside a repository prints nothing" "" \
 (cd "$TMP/norepo" && bash "$SCRIPT" record --head "$HEAD_A" --verdict CONFIRMED >/dev/null 2>&1)
 assert_exit "record outside a repository cannot write state" 2 "$?"
 
+# --dir names the checkout, so a shell outside every checkout records and shows where a show from
+# the checkout itself reads.
+(cd "$TMP/norepo" && bash "$SCRIPT" record --head "$HEAD_W2" --verdict CONFIRMED --dir "$WT")
+assert_exit "a record with --dir from outside the checkout succeeds" 0 "$?"
+out=$(cd "$REPO" && bash "$SCRIPT" show --head "$HEAD_W2" 2>&1)
+assert_eq "a record made with --dir from outside reaches a show from the checkout" "confirm: CONFIRMED for head $HEAD_W2" "$out"
+out=$(cd "$TMP/norepo" && bash "$SCRIPT" show --head "$HEAD_W2" --dir "$REPO" 2>&1)
+assert_eq "a show with --dir from outside the checkout reads the same record" "confirm: CONFIRMED for head $HEAD_W2" "$out"
+(cd "$TMP/norepo" && bash "$SCRIPT" record --of measure --head "$HEAD_W2" --verdict MIXED --dir "$REPO")
+out=$(cd "$TMP/norepo" && bash "$SCRIPT" show --of measure --head "$HEAD_W2" --dir "$WT" 2>&1)
+assert_eq "a measure record and show with --dir from outside the checkout agree" "measure: MIXED for head $HEAD_W2" "$out"
+out=$(cd "$TMP/norepo" && CONFIRM_VERDICT_DIR="$TMP/override" bash "$SCRIPT" show --head "$HEAD_W2" --dir "$REPO" 2>&1)
+assert_eq "CONFIRM_VERDICT_DIR wins over --dir" "confirm: no verdict recorded for head $HEAD_W2" "$out"
+bash "$SCRIPT" show --head "$HEAD_W2" --dir >/dev/null 2>&1
+assert_exit "--dir without a value is a usage error" 1 "$?"
+bash "$SCRIPT" show --head "$HEAD_W2" --dir '' >/dev/null 2>&1
+assert_exit "an empty --dir is a usage error" 1 "$?"
+bash "$SCRIPT" show --head "$HEAD_W2" --dir "$TMP/missing" >/dev/null 2>&1
+assert_exit "--dir naming no directory is a usage error" 1 "$?"
+bash "$SCRIPT" show --head "$HEAD_W2" --dir "$REPO" --dir "$WT" >/dev/null 2>&1
+assert_exit "--dir given twice is a usage error" 1 "$?"
+
 ((FAILED == 0)) || exit 1
 exit 0

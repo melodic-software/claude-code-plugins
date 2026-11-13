@@ -38,5 +38,5 @@ environment.
 - **A prototype of any other app** shows its snapshot on the interview's prototype page; its live
   build is never framed there, and the page opens it in a new tab.
 - **Handover.** Hand over the manifest path in place of a `file://` path or route URL, plus the
-  tradeoffs table. People answer through the interview's question, so the reply template and the
+  tradeoffs table and the check list from SKILL.md step 4, driven from a clean state first. People answer through the interview's question, so the reply template and the
   copy-out terminator are not needed; step 5 reads the test ids from each snapshot's markup.

@@ -9,9 +9,9 @@ run-name: "${{ inputs.pr && format('pr-merge: arm #{0}', inputs.pr) || '' }}"
 # as class C2 and reads no `work-class:` label: it merges one only when the
 # pr-verify verifier passed its current commit against that issue. Instead of
 # the owner merging each one by hand, this workflow asks the existing merge gate
-# (the babysit merge script) about each such PR and, when the gate says yes, adds the PR to GitHub's merge queue at
-# the exact commit the gate checked. The merge queue then runs CI one last
-# time and merges.
+# (the babysit merge script) about each such PR and, when the gate says yes,
+# adds the PR to GitHub's merge queue at the exact commit the gate checked.
+# The merge queue then runs CI one last time and merges.
 #
 # Dependabot PRs are the other kind it merges, made only of Dependabot's own
 # verified commits and only once `ci-status` passes. A non-major bump from an
@@ -46,11 +46,11 @@ run-name: "${{ inputs.pr && format('pr-merge: arm #{0}', inputs.pr) || '' }}"
 # scheduled run while the lane is live, and that job starts one inside the cap
 # for a lane merge no lane run covers while merge.full-run-cap-bypass is on
 # (docs/conventions/pr-pipeline.yaml). That run raises no workflow_run event
-# (GITHUB_TOKEN started it), so when it ends red the post-merge-dispatch job
-# on the next scheduled run while the lane is live sends its run id and head SHA to
-# post-merge-demotion-alert.yml through workflow_dispatch, which files the
-# post-merge record and fix issues and reports the red-main culprit once the
-# re-run fails too. A red run this workflow dispatched gets its one re-run
+# (GITHUB_TOKEN started it), so when it ends red that job's next live run
+# sends its run id and head SHA to post-merge-demotion-alert.yml through
+# workflow_dispatch, which files the post-merge record and fix issues and
+# reports the red-main culprit once the re-run fails too. A red run this
+# workflow dispatched gets its one re-run
 # from the post-merge-dispatch job, which records it, when it is inside a lane
 # merge's attribution window, or was created within
 # red-main.confirm-wait-minutes plus 50 minutes and demotes by the
@@ -70,12 +70,13 @@ run-name: "${{ inputs.pr && format('pr-merge: arm #{0}', inputs.pr) || '' }}"
 # in its body, or add the `do-not-merge` or `needs-human` label (the
 # human-gated role label). The gate refuses all of them.
 
-# API_BUDGET_HOLD (outage posture element 2): only the candidate listing sets it (retry_call holds it
-# green with `held`); every other guarded step is not yet shown to hold.
-# A step opts in only once its script is shown to hold green with a notice on
-# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
-# a hold would pass what it could not read, so the rest still end red on a
-# rate limit past the guard's budget.
+# API_BUDGET_HOLD (outage posture element 2): only the candidate listing sets
+# it (retry_call holds it green with `held`); every other guarded step is not
+# yet shown to hold. A step opts in only once its script is shown to hold
+# green with a notice on a refused call (rate-guard.mjs
+# createRateLimitLatch); a gate never does, since a hold would pass what it
+# could not read, so the rest still end red on a rate limit past the guard's
+# budget.
 on:
   # Every trigger below is only a wake-up call. The run never trusts the event
   # for a PR's state: it lists the open PRs from the GitHub API and checks
@@ -344,11 +345,12 @@ jobs:
               . .base/.github/actions/log-api-budget/api-budget.bash
               . .base/.github/scripts/pr-merge/rate-stop.bash
               stop=$(rate_stop_label)
+              needs=false
               if server=$(rate_stop_server); then
-                echo "::error title=GitHub server error::the post-merge check stopped on $(rate_stop_cause); no full run is started or re-run" && needs=false
+                echo "::error title=GitHub server error::the post-merge check stopped on $(rate_stop_cause); no full run is started or re-run"
                 echo "rate-limited=$stop, held on HTTP $server with a Retry-After" >>"$GITHUB_OUTPUT"
               else
-                echo "::error::the post-merge check stopped on a GitHub rate limit; no full run is started or re-run" && needs=false
+                echo "::error::the post-merge check stopped on a GitHub rate limit; no full run is started or re-run"
                 echo "rate-limited=${stop:-an unrecorded pool until its reset}" >>"$GITHUB_OUTPUT"
               fi
               ;;
@@ -430,14 +432,15 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      # The same body as dispatch-full-run's step of this name; see there.
-      # It runs whether or not the post-merge check did, while the lane is
-      # live: a merge the cap skipped gets its run here. With the kill switch
-      # or report-only on, this job reads and sends nothing that spends API or
-      # starts a run; dispatch-full-run's push
-      # carve-out still starts a run per merge outside the cap. A read stopped
-      # on a rate limit stops the step red, as the alert step's, and its stop
-      # is the job's rate-limited output: nothing after it calls GitHub.
+      # The same cap logic as dispatch-full-run's step of this name, except
+      # that this copy classifies a failed read with the shared rate guard
+      # (rate-stop.bash): a rate limit stops the step red, as the alert step's,
+      # and its stop is the job's rate-limited output, so nothing after it
+      # calls GitHub. It runs whether or not the post-merge check did, while
+      # the lane is live: a merge the cap skipped gets its run here. With the
+      # kill switch or report-only on, this job reads and sends nothing that
+      # spends API or starts a run; dispatch-full-run's push carve-out still
+      # starts a run per merge outside the cap.
       - name: Read main's full-run cover
         id: cover
         if: steps.kill.outputs.proceed == 'true' && steps.mode.outputs.live == 'true'
@@ -484,12 +487,13 @@ jobs:
       # merge with no dispatch run under way for it, and the cover listing
       # holds no non-cancelled github-actions[bot] dispatch (`lane`, the only
       # run the post-merge check credits a lane merge) created at or after the
-      # merge on a commit that contains it. A run at a commit this checkout lacks is newer than
-      # the checkout, so it counts as cover; a merge the checkout lacks, or
-      # older than the oldest listed run, is skipped. The dispatch then starts
-      # one run of main's tip for the whole batch, and the next tick finds it
-      # in the listing. pr-require-checks.yml's main-dispatch concurrency
-      # group keeps a burst to one run going and one waiting.
+      # merge on a commit that contains it. A run at a commit this checkout
+      # lacks is newer than the checkout, so it counts as cover; a merge the
+      # checkout lacks, or older than the oldest listed lane run, is skipped.
+      # The dispatch then starts one run of main's tip for the whole batch,
+      # and the next tick finds it in the listing. pr-require-checks.yml's
+      # main-dispatch concurrency group keeps a burst to one run going and one
+      # waiting.
       - name: Find lane merges no full run covers
         id: bypass
         if: >-
@@ -793,11 +797,12 @@ jobs:
       # merge, whoever merged, as dispatch-full-run starts the run, but only
       # while the lane is live: with the kill switch or report-only on this
       # job reads and sends nothing, and a red run is sent on the first run
-      # after both clear, within LOOKBACK_HOURS. A rate limit stops the step red, as the re-run step's, and
-      # one the cover read stopped on skips it; any other failed read or send
-      # sends nothing more and leaves the run to the next one. LOOKBACK_HOURS:
-      # a red run is sent within 30 minutes of its end; 6 hours outlasts a day
-      # of missed schedules many times over (judgment).
+      # after both clear, within LOOKBACK_HOURS. A rate limit stops the step
+      # red, as the re-run step's, and one an earlier step stopped on skips it;
+      # any other failed read or send sends nothing more and leaves the run to
+      # the next one. LOOKBACK_HOURS: a red run is sent within 30 minutes of
+      # its end; 6 hours outlasts a day of missed schedules many times over
+      # (judgment).
       - name: Send a red full run to the demotion alert
         id: alert
         if: >-
@@ -968,9 +973,9 @@ jobs:
     # `Merge` checks on PRs and makes the merge hook refuse them. Waiting is
     # harmless because every run re-reads its PRs from the API, and a run
     # with a pending successor that does its work skips the gate (the
-    # superseded step). GitHub caps
-    # the waiting line at 100 runs and rejects the rest, so the triggers above
-    # must start runs more slowly than they finish.
+    # superseded step). GitHub caps the waiting line at 100 runs and rejects
+    # the rest, so the triggers above must start runs more slowly than they
+    # finish.
     concurrency:
       group: pr-merge
       queue: max
@@ -979,12 +984,12 @@ jobs:
     # which is what ends a long sweep: the budget stops between candidates,
     # a timeout can stop one between its check and its merge-queue write.
     # 48 leaves about two minutes before the loop, the listing's 60 s of retry
-    # waits among them, then the longer of the
-    # budget plus the last candidate's read limit (merge.gate-candidate-minutes,
-    # 4) and a deferred candidate's ceiling (merge.gate-deferred-minutes, 20;
-    # it is always gated first), plus one read's own timeout, the escalation
-    # clear's 15 (three reader runs of 4), the eval-hold release's 3, the
-    # writes and the closing steps (workflow.test.mjs checks it).
+    # waits among them, then the longer of the budget plus the last
+    # candidate's read limit (merge.gate-candidate-minutes, 4) and a deferred
+    # candidate's ceiling (merge.gate-deferred-minutes, 20; it is always gated
+    # first), plus one read's own timeout, the escalation clear's 15 (three
+    # reader runs of 4), the eval-hold release's 3, the writes and the closing
+    # steps (workflow.test.mjs checks it).
     timeout-minutes: 48
     permissions:
       contents: read # check out main
@@ -1215,17 +1220,17 @@ jobs:
           rate-limit-hold-ok: true
 
       # Candidates: open, non-draft PRs into main that the lanes App
-      # (merge.agent-identity on main) or the owner account opened, plus
-      # Dependabot's unless merge.dependabot.mode is off. The lanes App's are
-      # listed only under `merge.lane-prs: gate`; under native they merge
-      # through GitHub's auto-merge (the enable-auto-merge job), so the gate
-      # never reads them. This is only a shortlist; the gate checks
-      # the author, the closing issue and verifier verdict or the Dependabot
-      # tier, and every other rule again. A candidate the gate would refuse on
-      # its listed labels or body alone (the `do-not-merge` label, the
-      # human-gated role label from the tracker binding in
-      # docs/conventions/work-items.yaml, `needs-human` by
-      # default, or a hold in the body) is set aside here before it costs
+      # (merge.agent-identity on main) opened, or a trusted-actors.json
+      # account while adoption.idle-hours is set, plus Dependabot's unless
+      # merge.dependabot.mode is off. The lanes App's are listed only under
+      # `merge.lane-prs: gate`; under native they merge through GitHub's
+      # auto-merge (the enable-auto-merge job), so the gate never reads them.
+      # This is only a shortlist; the gate checks the author, the closing
+      # issue and verifier verdict or the Dependabot tier, and every other
+      # rule again. A candidate the gate would refuse on its listed labels or
+      # body alone (the `do-not-merge` label, the human-gated role label from
+      # the tracker binding in docs/conventions/work-items.yaml, `needs-human`
+      # by default, or a hold in the body) is set aside here before it costs
       # lane-token calls (babysit_merge_prefilter.py); the summary still
       # reports it. Read with the job's own read-only token.
       - name: List the candidate PRs
@@ -1441,9 +1446,8 @@ jobs:
       # lands in a carried-* section the gate uses only where it counts a
       # FAIL, never to turn one away or allow a PASS, and reads GitHub for any
       # other answer; a completed review-lane run is used while its live
-      # listing still matches. Rules:
-      # .github/scripts/pr-merge/carry-run-cache.mjs. Any error
-      # leaves the run cache empty, and the gate reads GitHub.
+      # listing still matches. Any error leaves the run cache empty, and the
+      # gate reads GitHub. Rules: .github/scripts/pr-merge/carry-run-cache.mjs.
       - name: Read the verdict reads the last run kept
         if: steps.candidates.outputs.listed == 'true'
         continue-on-error: true
@@ -1481,9 +1485,9 @@ jobs:
       # The post-merge check, read-only, on every run that listed, whether or
       # not any PR is a candidate: after the queue lands the last lane PR
       # there is none, yet that merge still needs its full CI run to be
-      # verified. It looks only
-      # at PRs this lane put in the merge queue itself; merges by a person or
-      # by another App (a release PR, say) are not the lane's to check.
+      # verified. It looks only at PRs this lane put in the merge queue
+      # itself; merges by a person or by another App (a release PR, say) are
+      # not the lane's to check.
       # It runs before the gate, which reuses its answer for every candidate
       # whose base has the same floor while no lane merge has landed since
       # (--postmerge-result); a PR that merges during the run is in the
@@ -1498,11 +1502,10 @@ jobs:
       # inputs, is reused instead when it judged (exit 0, 1 or 5), the check's
       # code here reads as at the commit it ran, and the lane room's reuse
       # rule keeps it (babysit_verify_evidence.py settle): its report, exit
-      # code and lane records. This job needs that one, so the
-      # report is kept before this step starts, unless that job failed or kept
-      # none; with none, or any other, this job runs the check. A pattern, not
-      # a name: a pattern that matches nothing downloads nothing and does not
-      # fail.
+      # code and lane records. This job needs that one, so the report is kept
+      # before this step starts, unless that job failed or kept none; with
+      # none, or any other, this job runs the check. A pattern, not a name: a
+      # pattern that matches nothing downloads nothing and does not fail.
       - name: Read this run's post-merge report
         if: >-
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
@@ -1569,20 +1572,21 @@ jobs:
           [ "$code" != 75 ] || exit 1
 
       # A failed lane merge (the check above exited 1) holds the gate until a
-      # human closes every open demotion record, and the gate reads only records the
-      # lanes App or github-actions[bot] filed. post-merge-demotion-alert.yml
-      # hears of a full run this workflow dispatched only when the push job
-      # sends it, and not of one the merge job or post-merge-dispatch started:
-      # a run started with GITHUB_TOKEN raises no workflow_run event. So the check runs again
-      # with --remediate under the lane token, which disarms the lane's armed
-      # pull requests, dequeues the lane's merge-queue entries and files the
-      # record (or comments on it, reopening it on a new sighting). The lane token holds no Actions
-      # permission, so the re-run and dispatch --remediate also attempts fail
-      # here and are reported as a write failure (exit 4); the
-      # post-merge-dispatch job starts those. Live mode only.
-      # A held listing skips it, as it skips the check above: the job files
-      # and dequeues nothing, and the next run that lists records the failed
-      # merge and dequeues the lane's entries.
+      # human closes every open demotion record, and the gate reads only
+      # records the lanes App or github-actions[bot] filed.
+      # post-merge-demotion-alert.yml hears of a full run this workflow
+      # dispatched only when the push job sends it, and not of one the merge
+      # job or post-merge-dispatch started: a run started with GITHUB_TOKEN
+      # raises no workflow_run event. So the check runs again with --remediate
+      # under the lane token, which disarms the lane's armed pull requests,
+      # dequeues the lane's merge-queue entries and files the record (or
+      # comments on it, reopening it on a new sighting). The lane token holds
+      # no Actions permission, so the re-run and dispatch --remediate also
+      # attempts fail here and are reported as a write failure (exit 4); the
+      # post-merge-dispatch job starts those. Live mode only. A held listing
+      # skips it, as it skips the check above: the job files and dequeues
+      # nothing, and the next run that lists records the failed merge and
+      # dequeues the lane's entries.
       - name: Record a failed lane merge
         if: >-
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
@@ -1595,11 +1599,11 @@ jobs:
         run: |
           set -euo pipefail
           identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          report=$RUNNER_TEMP/post-merge-remediate.json
           code=0
           python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
             --repo "$REPO" --agent-identity "$identity" --lane-merges-only --remediate \
-            </dev/null >"$RUNNER_TEMP/post-merge-remediate.json" || code=$?
-          report=$RUNNER_TEMP/post-merge-remediate.json
+            </dev/null >"$report" || code=$?
           echo "::group::post-merge remediation: exit $code"
           cat "$report"
           echo "::endgroup::"
@@ -1637,19 +1641,18 @@ jobs:
         run: |
           set -euo pipefail
           report=$RUNNER_TEMP/post-merge.json
-          if ! jq -e '.settle | length > 0' "$report" >/dev/null 2>&1; then
-            exit 0
-          fi
+          settled=$RUNNER_TEMP/post-merge-settle.json
+          jq -e '.settle | length > 0' "$report" >/dev/null 2>&1 || exit 0
           identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           code=0
           python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
             --repo "$REPO" --agent-identity "$identity" --settle-from "$report" \
-            </dev/null >"$RUNNER_TEMP/post-merge-settle.json" || code=$?
-          cat "$RUNNER_TEMP/post-merge-settle.json"
+            </dev/null >"$settled" || code=$?
+          cat "$settled"
           if [ "$code" != 0 ]; then
             echo "::warning::settling verified lane merges exited $code; no marker was posted"
           fi
-          jq -r '.warnings[]?' "$RUNNER_TEMP/post-merge-settle.json" 2>/dev/null | while IFS= read -r warning; do
+          jq -r '.warnings[]?' "$settled" 2>/dev/null | while IFS= read -r warning; do
             echo "::warning::$warning"
           done
 
@@ -1706,11 +1709,11 @@ jobs:
       # the same script the local babysit loop uses, run as the pr-merge lane:
       # it refuses on any hold, missing review, failing check, risk above LOW,
       # a changed file on the denied list, no passing verifier verdict at the
-      # head, or a head that moved since listing.
-      # A Dependabot PR is judged by its tier and `ci-status` instead of the
-      # risk score, denied list and verdict.
-      # When it passes (and that PR's kind is live) it posts the checked commit as
-      # a pin comment and adds the PR to the merge queue at that commit.
+      # head, or a head that moved since listing. A Dependabot PR is judged by
+      # its tier and `ci-status` instead of the risk score, denied list and
+      # verdict. When it passes (and that PR's kind is live) it posts the
+      # checked commit as a pin comment and adds the PR to the merge queue at
+      # that commit.
       # The gate's token cannot read the kill switch, so it gets this run's
       # own answer from the first step: the word `proceed`, or nothing. It
       # stops on anything but `proceed`. For the same reason it gets the
@@ -1849,6 +1852,12 @@ jobs:
             ' "$out" >>"$results"
             save
             reached=$((reached + 1))
+            if [ "$code" = 11 ] && [ "$was_deferred" = true ]; then
+              echo "::warning::PR #$number's gate ran past merge.gate-deferred-minutes ($DEFERRED_MINUTES) after a deferral; it goes back to the capped rotation"
+            elif [ "$code" = 11 ] && [ -z "$deferred" ]; then
+              deferred=$number
+            fi
+            echo "{\"last\":$number${deferred:+,\"deferred\":$deferred}}" >"$cursor"
             # 75: the gate stopped on a GitHub rate limit (babysit_gh.py); a
             # later candidate's gate would call GitHub again while limited.
             if [ "$code" = 75 ]; then
@@ -1859,15 +1868,8 @@ jobs:
               else
                 echo "::error title=GitHub rate limit::PR #$number's gate stopped on a GitHub rate limit; no later candidate is gated this run"
               fi
-              echo "{\"last\":$number${deferred:+,\"deferred\":$deferred}}" >"$cursor"
               break
             fi
-            if [ "$code" = 11 ] && [ "$was_deferred" = true ]; then
-              echo "::warning::PR #$number's gate ran past merge.gate-deferred-minutes ($DEFERRED_MINUTES) after a deferral; it goes back to the capped rotation"
-            elif [ "$code" = 11 ] && [ -z "$deferred" ]; then
-              deferred=$number
-            fi
-            echo "{\"last\":$number${deferred:+,\"deferred\":$deferred}}" >"$cursor"
           done < <(jq -r '.[] | "\(.number) \(.head) \(.updatedAt) \(.deferred == true)"' "$RUNNER_TEMP/candidates.json")
           dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$summary")
           echo "dispatch=$dispatch" >>"$GITHUB_OUTPUT"
@@ -1901,10 +1903,10 @@ jobs:
 
       # The next run's head-ref map: the one read above and this run's
       # downloads, for ids the run's last listing still lists, or the map
-      # read above alone when the run saved no listing. Only a
-      # scheduled or hand-started run's map is read back, so only one uploads
-      # it; also after a timeout, since each download is in the run cache as
-      # it is read. Rules: .github/scripts/pr-merge/head-ref-map.mjs.
+      # read above alone when the run saved no listing. Only a scheduled or
+      # hand-started run's map is read back, so only one uploads it; also
+      # after a timeout, since each download is in the run cache as it is
+      # read. Rules: .github/scripts/pr-merge/head-ref-map.mjs.
       - name: Keep the head refs the gate read
         id: head-refs
         if: >-
@@ -1943,8 +1945,8 @@ jobs:
 
       # The next run's lane records: those the checks above read in and
       # proved, unexpired and listed by the run's last artifact listing, or
-      # unexpired alone when the run saved none. Only a scheduled or hand-started run's
-      # file is read back, so only one uploads it. Rules:
+      # unexpired alone when the run saved none. Only a scheduled or
+      # hand-started run's file is read back, so only one uploads it. Rules:
       # .github/scripts/pr-merge/lane-records.mjs.
       - name: Keep the lane records the checks proved
         id: lane-records
@@ -2163,15 +2165,14 @@ jobs:
       # broker named, recorded in a marker comment first. It runs after the
       # gate, which refuses a PR with a failing check, and not while the lane
       # is report-only, after the gate's rate-limit stop, or on a listing that
-      # held or ended red. A PR from a branch
-      # merge.refire-skip-branches names (one a workflow rebuilds) is left
-      # alone. A PR that changed since the listing, or whose branch a fresh
-      # read shows moved or gone after a 409 or 422 on the ref update, is a
-      # warning counted in the closing `outcome` line and fails nothing; any
-      # other failure fails the step. An address-feedback run refused that
-      # way is left to the feedback sweep, which dispatches it again on main.
-      # Rules:
-      # .github/scripts/pr-merge/refire-refused.mjs.
+      # held or ended red. A PR from a branch merge.refire-skip-branches names
+      # (one a workflow rebuilds) is left alone. A PR that changed since the
+      # listing, or whose branch a fresh read shows moved or gone after a 409
+      # or 422 on the ref update, is a warning counted in the closing
+      # `outcome` line and fails nothing; any other failure fails the step. An
+      # address-feedback run refused that way is left to the feedback sweep,
+      # which dispatches it again on main.
+      # Rules: .github/scripts/pr-merge/refire-refused.mjs.
       - name: Re-fire lane runs refused as workflow-modified
         if: >-
           always() && github.event_name == 'schedule'
@@ -2197,12 +2198,12 @@ jobs:
       # reason no longer holds at the PR's head (workflow-staged, a conflict
       # reason, feedback-protected-path, a ci-fix stop other than
       # ci-fix-protected-path once trusted human pushes moved the head and its
-      # checks pass, read with this
-      # job's own token and the base trusted-actor list), after a comment naming the reason
-      # and the head: never a label a person set, and never after anyone but
-      # the App commented or reviewed since it went on. At most five a run, and not
-      # while the lane is report-only, after the gate's rate-limit stop, or on a
-      # listing that held or ended red.
+      # checks pass, read with this job's own token and the base trusted-actor
+      # list), after a comment naming the reason and the head: never a label a
+      # person set, and never after anyone but the App commented or reviewed
+      # since it went on. At most five a run, and not while the lane is
+      # report-only, after the gate's rate-limit stop, or on a listing that
+      # held or ended red.
       # Under merge.lane-prs native, a label enable-auto-merge set at the
       # current head is judged again with the gate's reader, at most three
       # reads a run of up to four minutes each, sharing the gate step's run
@@ -2346,27 +2347,25 @@ jobs:
           fi
 
   # Turns on GitHub's native auto-merge for each open lanes App pull request
-  # into main that carries no hold, and turns it off on
-  # one that now carries a hold (a `Hold:` line, do-not-merge, the human-gated
-  # label). Every event is a wake-up: the script lists the pull requests
-  # itself. A listed human's unlabel wakes a run; an edit or ready change
-  # disarms at the next scheduled run, which also arms a new pull request and
-  # catches what the events missed. A PR-scoped dispatch (inputs.pr, which
-  # pr-verify starts on a pass verdict) reads and arms only that pull
-  # request, its room from the last sweep's post-merge report, after a
-  # one-read pre-check that ends the wake while no full run covers the
-  # newest lane merge. Only the
-  # scheduled run and a dispatched one arm, on
-  # the issue link (one closing issue, or one plain `Refs:` issue) and verdict
-  # pr-merge's gate would take at the head, with no hold on the gate's risk
-  # score (babysit_verify_evidence.py `evidence --lane-link --lane-reviews`,
-  # its Actions reads with the job's GITHUB_TOKEN from the head-ref map and
-  # run cache the last gate run kept), and only while the gate's lane has
-  # room (`lane-room`, from this run's post-merge-dispatch report): while the
-  # gate holds the lane off they also disarm every armed lane pull request.
-  # Event runs read none of these and only disarm on a hold.
-  # Its own job and token: the broker mints one token per
-  # job. Rules: .github/scripts/pr-merge/enable-auto-merge.mjs.
+  # into main that carries no hold, and turns it off on one that now carries
+  # a hold (a `Hold:` line, do-not-merge, the human-gated label). Every event
+  # is a wake-up: the script lists the pull requests itself. A listed human's
+  # unlabel wakes a run; an edit or ready change disarms at the next scheduled
+  # run, which also arms a new pull request and catches what the events
+  # missed. A PR-scoped dispatch (inputs.pr, which pr-verify starts on a pass
+  # verdict) reads and arms only that pull request, its room from the last
+  # sweep's post-merge report, after a one-read pre-check that ends the wake
+  # while no full run covers the newest lane merge. Only the scheduled run and
+  # a dispatched one arm, on the issue link (one closing issue, or one plain
+  # `Refs:` issue) and verdict pr-merge's gate would take at the head, with
+  # no hold on the gate's risk score (babysit_verify_evidence.py
+  # `evidence --lane-link --lane-reviews`, its Actions reads with the job's
+  # GITHUB_TOKEN from the head-ref map and run cache the last gate run kept),
+  # and only while the gate's lane has room (`lane-room`, from this run's
+  # post-merge-dispatch report): while the gate holds the lane off they also
+  # disarm every armed lane pull request. Event runs read none of these and
+  # only disarm on a hold. Its own job and token: the broker mints one token
+  # per job. Rules: .github/scripts/pr-merge/enable-auto-merge.mjs.
   enable-auto-merge:
     # On the schedule and a hand-started sweep it waits for
     # post-merge-dispatch and reads its report; on every other event and a
@@ -2380,7 +2379,7 @@ jobs:
     # listed human at the who step): any other event's job is skipped before
     # it joins the group, so its check reads skipped, never pending behind the
     # queue. A schedule tick the pacer paces (post-merge-dispatch's paced
-    # output) skips it; a PR-scoped dispatch, which skips that job, never is.
+    # output) skips it; a PR-scoped dispatch skips that job, so is never paced.
     if: >-
       !cancelled()
       && github.ref == 'refs/heads/main' && github.event_name != 'push'
@@ -2481,7 +2480,7 @@ jobs:
       # Same rule as the merge job's who step (who.mjs): a listed human by
       # account id, a scheduled run's first attempt, or pr-verify's PR-scoped
       # dispatch (github-actions[bot], attempt 1, on main, with DISPATCH_PR);
-      # any other run stops here quietly.
+      # any other run stops here, green, with a notice.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true'
@@ -2563,13 +2562,13 @@ jobs:
       # reads before it, and the wake ends here on one read with the same
       # outcome. The ancestry is read locally from the full-history .base
       # checkout; a head_sha it does not hold, a covered, unreadable or
-      # missing answer, a rate limit or a timeout runs the steps below as
-      # before. "Lane merge" here means a commit merge.agent-identity
-      # authored, while the full check judges the merges it enqueued
+      # missing answer, a rate limit or a timeout runs the steps below.
+      # "Lane merge" here means a commit merge.agent-identity authored, while
+      # the full check judges the merges it enqueued
       # (babysit_merge_policy.py lane_merges_only). Where the two differ, a
       # wrong uncovered answer only delays the arming until a dispatch run
-      # covers the commit or the next sweep, and a wrong covered one runs
-      # today's path.
+      # covers the commit or the next sweep, and a wrong covered one runs the
+      # steps below.
       - name: Check whether a full run covers the newest lane merge
         id: precheck
         if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr
@@ -2617,7 +2616,7 @@ jobs:
       # fresh check (settle's code-changed). Then neither the run cache nor
       # the lane records below is read, as only the fresh check and the arm
       # step use them. Any other answer, an error included, leaves changed
-      # unset, and keep-report decides as before.
+      # unset, and keep-report decides.
       - name: Check whether the last sweep's report predates a code change
         id: code
         if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr && steps.precheck.outputs.uncovered != 'true'
@@ -2633,7 +2632,7 @@ jobs:
           [ "$code" != 1 ] || echo "changed=true" >>"$GITHUB_OUTPUT"
 
       # The verdict reader of a scheduled or hand-started run ties untied
-      # FAILs as the gate job does: the carried run cache here, and the
+      # FAILs as the merge job's gate does: the carried run cache here, and the
       # head-ref map after the post-merge report is settled. Any error leaves
       # none, and the reader reads GitHub instead. Event runs read no verdict
       # and need neither.
@@ -2709,23 +2708,22 @@ jobs:
       # A report refused as code-changed ends the wake with no fresh check:
       # a fresh check at 110-169 calls after that refusal rarely arms, so the
       # next sweep decides. Any other report that does not stand is never
-      # reused: the step removes it
-      # and runs the sweep's post-merge check fresh, as post-merge-dispatch
-      # does when its idle tick refuses, with this job's read-only token (the
-      # check writes nothing without --remediate). The fresh report stands
-      # only when the check passed (exit 0 or 5) and `settle --idle-tick
-      # --fresh` keeps it too: the wake starts no full run or re-run and
-      # files nothing, so it arms only on a report that needs none of those
-      # (idle_report_refusal: no hold, no needsDispatch, no reruns), with the
-      # quarantine and pin reads as well. `--fresh` skips only the verifying
-      # runs test (idle_runs_refusal): the check just read those runs, and a
-      # sweep arms on the report post-merge-dispatch just made with no idle
-      # rule. Any
-      # other result removes it and skips the arm step: a wake with no
-      # standing report decides nothing, so it neither arms nor disarms (an
-      # unreadable room would disarm every armed lane pull request), and the
-      # next sweep checks again. The fresh check makes the sweep's own reads,
-      # under the same bounds, and no others.
+      # reused: the step removes it and runs the sweep's post-merge check
+      # fresh, as post-merge-dispatch does when its idle tick refuses, with
+      # this job's read-only token (the check writes nothing without
+      # --remediate). The fresh report stands only when the check passed
+      # (exit 0 or 5) and `settle --idle-tick --fresh` keeps it too: the wake
+      # starts no full run or re-run and files nothing, so it arms only on a
+      # report that needs none of those (idle_report_refusal: no hold, no
+      # needsDispatch, no reruns), with the quarantine and pin reads as well.
+      # `--fresh` skips only the verifying runs test (idle_runs_refusal): the
+      # check just read those runs, and a sweep arms on the report
+      # post-merge-dispatch just made with no idle rule. Any other result
+      # removes it and skips the arm step: a wake with no standing report
+      # decides nothing, so it neither arms nor disarms (an unreadable room
+      # would disarm every armed lane pull request), and the next sweep
+      # checks again. The fresh check makes the sweep's own reads, under the
+      # same bounds, and no others.
       - name: Keep the last sweep's report only while nothing it read has moved
         id: keep-report
         if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr && steps.precheck.outputs.uncovered != 'true'
@@ -2771,7 +2769,8 @@ jobs:
             echo "the last sweep's post-merge report does not stand for this run; the post-merge check runs fresh"
             identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
             fresh=0
-            # Written now, so a check that times out or is cancelled still says it ran.
+            # Written now, so a check that times out or is cancelled still
+            # says it ran.
             echo "fresh-started=true" >>"$GITHUB_OUTPUT"
             # --stop-uncovered ends the check with exit 6 once its run
             # listings show a judged merge no dispatch run covers: that report
@@ -2893,8 +2892,8 @@ jobs:
           SKIP_MAX_MINUTES=$(yq '.merge."skip-unchanged"."max-minutes" // ""' "$config")
           SKIP_MAX_SKIPS=$(yq '.merge."skip-unchanged"."max-skips" // ""' "$config")
           mkdir -p "$(dirname "$EAM_SKIP_OUT")"
-          # The commit whose code ran the report's check, for lane-room: none
-          # reads the report again.
+          # The commit whose code ran the report's check, for lane-room, which
+          # reads the report again or refuses it when that code changed.
           POSTMERGE_CODE_SHA=$(cat "$RUNNER_TEMP/post-merge/post-merge-code-sha" 2>/dev/null || true)
           export SKIP_MAX_MINUTES SKIP_MAX_SKIPS
           export REPORT_ONLY LANES_BOT_LOGIN RISK_ESCALATION_MINUTES POSTMERGE_CODE_SHA
@@ -2927,13 +2926,14 @@ jobs:
 
       # The verdict reads this job's reader made, for the next run's two
       # jobs: the merge gate reads no lane verdict, so only this reader fills
-      # run-record; both fill lane-run, the completed review-lane runs. Kept as the merge job keeps its own, and uploaded under a
-      # name of their own, so the merge job's file keeps its skip refusals;
-      # `read` adds only this file's carried-* sections to them. Only a
-      # scheduled or hand-started run's file is read back, so only one
-      # uploads it, and only when it kept a read: an empty file would hide an
-      # older one. A PR-scoped dispatch (inputs.pr) uploads neither file, nor
-      # the skip records above: they cover one pull request, not a sweep
+      # run-record; both fill lane-run, the completed review-lane runs. Kept
+      # as the merge job keeps its own, and uploaded under a name of their
+      # own, so the merge job's file keeps its skip refusals; `read` adds only
+      # this file's carried-* sections to them. Only a scheduled or
+      # hand-started run's file is read back, so only one uploads it, and only
+      # when it kept a read: an empty file would hide an older one. A
+      # PR-scoped dispatch (inputs.pr) uploads neither file, nor the skip
+      # records above: they cover one pull request, not a sweep
       # (rotation.mjs trustedRun skips such a run too).
       - name: Keep the verdict reads that never change
         id: carry
@@ -2989,8 +2989,9 @@ jobs:
 
       # Under always(), not the lane token, so a run that stops before it mints
       # one (superseded, refused) still logs the job token's calls; a token
-      # with no reading gets no line. After post-merge-dispatch's rate-limit
-      # stop the job made no call and checked nothing out.
+      # with no reading logs a count of 0 and no api-budget line. After
+      # post-merge-dispatch's rate-limit stop the job made no call and checked
+      # nothing out.
       - name: Log the API budget at job end
         id: budget-end
         if: always() && needs.post-merge-dispatch.outputs.rate-limited == ''
@@ -3070,34 +3071,6 @@ jobs:
             echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
           fi
 
-  # Starts the full CI run that verifies main. Starting a workflow needs
-  # `actions: write`, which the lane App token does not have, so this job does
-  # it with its own GitHub token, in two cases:
-  #   * The merge job says a lane PR merged during its run, which it never
-  #     says while nothing can merge. A run woken by pull_request_target
-  #     leaves it to the next run: the post-merge check does not trust a
-  #     dispatch from that event, which runs the PR base branch's copy of
-  #     this file.
-  #   * A push to main, whoever merged: a person, a release App or the lanes
-  #     App. The run it starts is a `dispatch` signal for
-  #     post-merge-demotion-alert.yml, and for a lane merge the post-merge
-  #     check credits it through the artifact below.
-  # An earlier lane merge the post-merge check still finds unverified is the
-  # post-merge-dispatch job's, which is also the catch-up for a push dispatch
-  # that failed. A lane merge can get a second run from it when it checks the
-  # merge before the push dispatch's run exists.
-  #
-  # BURSTS COLLAPSE IN TWO PLACES. This job starts no run while one of main
-  # started within the cap (the cover step), and pr-require-checks.yml holds
-  # main's dispatches in one group with no `queue` key: one runs, one waits,
-  # and a newer one replaces the waiting one before it starts. A running full
-  # run is never cancelled: babysit_postmerge.py and
-  # post-merge-demotion-alert.yml both count a cancelled full run as red, and
-  # skip a replaced one (cancelled, no job). Push jobs share one group without
-  # `cancel-in-progress`, so two pushes never read the cover at once. The job
-  # ends once it dispatches: post-merge-dispatch sends a red run to
-  # post-merge-demotion-alert.yml on the next scheduled run. Every other event
-  # takes a group of its own and does not wait.
   # A lanes App pull request whose refusal the lanes clear shows it as a
   # failing pr-merge/unarmed commit status on its head once the refusal has
   # stood merge.risk-escalation-minutes, never the human-gated label, and a
@@ -3158,6 +3131,34 @@ jobs:
         with:
           tokens: github-token
 
+  # Starts the full CI run that verifies main. Starting a workflow needs
+  # `actions: write`, which the lane App token does not have, so this job does
+  # it with its own GitHub token, in two cases:
+  #   * The merge job says a lane PR merged during its run, which it never
+  #     says while nothing can merge. A run woken by pull_request_target
+  #     leaves it to the next run: the post-merge check does not trust a
+  #     dispatch from that event, which runs the PR base branch's copy of
+  #     this file.
+  #   * A push to main, whoever merged: a person, a release App or the lanes
+  #     App. The run it starts is a `dispatch` signal for
+  #     post-merge-demotion-alert.yml, and for a lane merge the post-merge
+  #     check credits it through the artifact below.
+  # An earlier lane merge the post-merge check still finds unverified is the
+  # post-merge-dispatch job's, which is also the catch-up for a push dispatch
+  # that failed. A lane merge can get a second run from it when it checks the
+  # merge before the push dispatch's run exists.
+  #
+  # BURSTS COLLAPSE IN TWO PLACES. This job starts no run while one of main
+  # started within the cap (the cover step), and pr-require-checks.yml holds
+  # main's dispatches in one group with no `queue` key: one runs, one waits,
+  # and a newer one replaces the waiting one before it starts. A running full
+  # run is never cancelled: babysit_postmerge.py and
+  # post-merge-demotion-alert.yml both count a cancelled full run as red, and
+  # skip a replaced one (cancelled, no job). Push jobs share one group without
+  # `cancel-in-progress`, so two pushes never read the cover at once. The job
+  # ends once it dispatches: post-merge-dispatch sends a red run to
+  # post-merge-demotion-alert.yml on the next scheduled run. Every other event
+  # takes a group of its own and does not wait.
   dispatch-full-run:
     name: Dispatch Full Run
     needs: [merge]
@@ -3218,20 +3219,20 @@ jobs:
       # anyone (a pull request from a fork's main branch is not one), skipping
       # a cancelled one (replaced before it started, or cancelled later, which
       # reads red): capped=true when one was created within CAP_MINUTES,
-      # uncovered=true when none is at TIP. Each keeps `lane`, whether
-      # github-actions[bot] dispatched it, for post-merge-dispatch's bypass. A failed read
-      # sets neither, so the run dispatches as it would with no cap, except a
-      # read refused for a rate limit, which stops the step red with
-      # rate-limited=true and sends nothing more. This job checks out only
-      # the api-budget library, not rate-stop.bash, so the match is the
-      # pattern rate-stop.bash's rate_stop_from reads; post-merge-dispatch's
-      # copy of this step sources that guard. A merge the cap skips is
-      # covered by the next push after the window or, while the lane is
-      # live, by post-merge-dispatch on the
-      # next scheduled run, whose dispatch starts main's tip once nothing
-      # covers it, whoever merged. CAP_MINUTES: the efficiency plan of 2026-10-26
-      # (item 5, owner decision): 116 runs a day at a median 84.1 runner-min
-      # become at most 48.
+      # uncovered=true when none is at TIP. `uncovered`, each run's `lane`
+      # (whether github-actions[bot] dispatched it) and the listing file are
+      # for post-merge-dispatch's copy of this step; this job reads only
+      # `capped` and `rate-limited`. A failed read sets no output, so the run
+      # dispatches as it would with no cap, except a read refused for a rate
+      # limit, which stops the step red with rate-limited=true and sends
+      # nothing more. This job's sparse checkout holds no rate-stop.bash, so
+      # the grep below matches the pattern its rate_stop_from reads;
+      # post-merge-dispatch's copy sources that guard. A merge the cap skips
+      # is covered by the next push after the window or, while the lane is
+      # live, by post-merge-dispatch on the next scheduled run, which starts
+      # main's tip once nothing covers it, whoever merged. CAP_MINUTES: the
+      # efficiency plan of 2026-10-26 (item 5, owner decision): 116 runs a day
+      # at a median 84.1 runner-min become at most 48.
       - name: Read main's full-run cover
         id: cover
         env:
@@ -3268,24 +3269,23 @@ jobs:
           fi
 
       # At most three POSTs. Any 429, or a 403 with a retry-after, remaining
-      # 0, or a message naming a rate limit, is never sent again:
-      # GitHub may ban an integration that keeps calling while limited, so the
-      # step fails red naming the reset, the later of retry-after and
+      # 0, or a message naming a rate limit, is never sent again: GitHub may
+      # ban an integration that keeps calling while limited, so the step
+      # fails red naming the reset, the later of retry-after and
       # x-ratelimit-reset while remaining is 0, else a minute on for a
-      # secondary limit and an hour on for any other. No response
-      # is sent again, after a full-jitter backoff (up to
-      # 10 s, then 20 s), only when gh's error shows the connection failed
-      # before the request went out: a `dial tcp` error (a DNS lookup, a
-      # refused or unreachable connection, a connect timeout) or a failed or
-      # timed-out TLS handshake. Any other answer, a 5xx, a timeout or a reset on an open
-      # connection included, is not sent again: the run may exist, and a
-      # second run would have no record. The waits sum to
-      # at most WAIT_CAP seconds; one that does not fit is not taken. A
-      # dispatch that still fails sets no run id and ends green with a
-      # warning: nothing is recorded. The post-merge-dispatch job on the next
-      # scheduled run starts one for main's tip, which covers the merge.
-      # WAIT_CAP: of the 10 minutes, about 1 goes to the cover read and the
-      # record upload; 180 s of the rest.
+      # secondary limit and an hour on for any other. A POST is sent again,
+      # after a full-jitter backoff (up to 10 s, then 20 s), only when gh's
+      # error shows the connection failed before the request went out: a
+      # `dial tcp` error (a DNS lookup, a refused or unreachable connection, a
+      # connect timeout) or a failed or timed-out TLS handshake. Any other
+      # answer, a 5xx, a timeout or a reset on an open connection included,
+      # is not sent again: the run may exist, and a second run would have no
+      # record. The waits sum to at most WAIT_CAP seconds; one that does not
+      # fit is not taken. A dispatch that still fails sets no run id and ends
+      # green with a warning: nothing is recorded, and post-merge-dispatch on
+      # the next scheduled run starts one for main's tip, which covers the
+      # merge. WAIT_CAP: of the 10 minutes, about 1 goes to the cover read and
+      # the record upload; 180 s of the rest.
       - name: Start the full CI run on main
         id: dispatch
         if: steps.cover.outputs.rate-limited != 'true' && steps.cover.outputs.capped != 'true'
@@ -3427,7 +3427,7 @@ jobs:
   # checks: write could pass that check, so only this job, which runs nothing
   # but main's check writer and holds no lane token, gets it. Its runs wait in
   # line like the merge job's, so two never write at once and none is
-  # cancelled onto a PR head; every step after the checkout cannot fail it.
+  # cancelled onto a PR head; every step after Node's setup cannot fail it.
   gate-check:
     name: Gate Check
     needs: [merge]

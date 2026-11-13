@@ -212,7 +212,7 @@ export function validateManifest(manifest) {
     } else {
       errors.push(...keysErrors(sp, ["run_if_unset_or_true"], "session_probe"));
       if ("run_if_unset_or_true" in sp && !matches(sp.run_if_unset_or_true, OPTION_RE)) {
-        errors.push("session_probe.run_if_unset_or_true must be an option name in capitals, such as BIOME_FORMAT_ENABLED");
+        errors.push("session_probe.run_if_unset_or_true must be an option name in capitals, such as EXAMPLE_ENABLED");
       }
     }
   }
@@ -541,7 +541,7 @@ function parseArgs(argv) {
       opts.dataDir = rest[++i];
     } else if (arg === "--run-if-unset-or-true" && mode === "probe") {
       if (!rest[i + 1] || !OPTION_RE.test(rest[i + 1])) {
-        throw new UsageError("--run-if-unset-or-true needs the option name in capitals, such as BIOME_FORMAT_ENABLED");
+        throw new UsageError("--run-if-unset-or-true needs the option name in capitals, such as EXAMPLE_ENABLED");
       }
       opts.gate = rest[++i];
     } else if (!arg.startsWith("--") && mode !== "report" && opts.roots.length === 0) {

@@ -170,7 +170,7 @@ Constraints:
   substrate, define the synthetic set once and have every variant render it. States derive from
   that one set, never from copies of it: an empty state renders it filtered to nothing, an error
   state renders an error value in its place, so a search for any data literal finds one
-  definition.
+  definition. The page opens on that seeded set with Seed, Clear and Reset controls, plus pagination, filter and sort toggles when a variant renders a list: [reference/data-controls.md](reference/data-controls.md).
 - **Proposed test ids.** Every interactive element, and every element a test would assert on (a
   row, a count, an error message), carries a proposed `data-testid` named `<screen>-<element>`
   (`shipments-parcel-row`). An element that recurs across variants or states keeps one id, so the
@@ -348,7 +348,7 @@ responds, the console is clean. The `/user-interface:audit` pass from the setup 
 exactly the mistakes a fast prototype ships (`transition: all`, unlabeled icon buttons, animating
 layout properties, missing reduced motion).
 
-The handover message has four parts, in this order:
+The handover message has five parts, in this order:
 
 1. **Where to look.** The mockup's `file://` path (one per screen) or the real-stack route URL,
    and the keys that flip it, and under each one line per variant: its key, its name, its states
@@ -361,9 +361,9 @@ The handover message has four parts, in this order:
    Sell each honestly and never pre-pick a favorite; asked which you would choose, answer from the
    product's personality and how often people will use it. No variant is folded in before the
    user answers the reply template.
-4. **The reply template** below, machine-legible, for the user to fill, so the answer comes back
-   as the next prompt in a form that needs no re-reading (on the mockup substrate, the copy-out
-   terminator lifts it).
+4. **Check list.** The ordered list of actions and expected results from the [clean-state proof](../../context/discipline.md#clean-state-proof-and-check-list) (do the flip-through above as that proof, from a fresh page load), for the user to work through before filling in the reply template.
+5. **The reply template** below, machine-legible, for the user to fill, so the answer comes back
+   as the next prompt in a form that needs no re-reading (on the mockup substrate, the copy-out terminator lifts it).
 
 The template has repeatable `steal` lines and a `graft` direction because a mixed verdict is a
 complete answer, not an indecisive one. On `/shipments` it might read `direction: graft`, then
@@ -420,58 +420,24 @@ delete the switcher and every variant file in the same change that merges the wi
 behind gets imported by mistake and falls out of date. Under sub-shape A, revert the mount block
 too, then grep for its fence comments and confirm nothing is left.
 
-## Boundary, the bundled `design` skill
+## Boundary
 
-One native Claude Code surface drafts layouts as this skill does, and the two get conflated when
-the intent selector lands on the HTML mockup substrate:
+Before acting on a row, read [reference/boundaries.md](reference/boundaries.md) for the full rule.
 
-- **`design` (bundled skill)**: drafts artboards on one canvas and publishes the canvas as a
-  Claude Design Artifact; how that canvas persists, is shared and is edited is [Artifacts § Draft a design canvas](https://code.claude.com/docs/en/artifacts#draft-a-design-canvas).
-  It is reserved for the person to run as `/design`; the model does not invoke it.
-- **This skill (marketplace plugin).** Throwaway variants as a local HTML mockup by default, or on
-  the real stack on request, switchable from a control bar; only the winning-variant key survives.
-
-**Routing.** On the mockup host, this skill builds the mockup whether or not the user runs
-`/design`. Unless the resolved medium keeps the view on this machine ([reference/medium.md](reference/medium.md)), which drops this offer, tell the user before building: If /design is available in your session (gate basis:
-the verification record in [reference/design-canvas.md](reference/design-canvas.md)), you
-can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas.
-State the lifecycle difference with it; the design-canvas subsection above carries the offer
-shape. A local skill named `design` at any level shadows the bundled command (precedence: [Skills § Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)), and the
-bundled one never appears in your skill listing, so a `design` entry in that listing is a
-shadowing local skill: do not make the offer, and tell the user a local `design` skill shadows the
-bundled canvas command. A local `design` skill that disables model invocation shadows it too and
-is hidden from you, so every offer adds that `/design`'s description should read "Make a new
-Design artifact from a brief"; anything else is a local skill, not the canvas, and not to be run
-for it. With `--unattended`, make no `/design` suggestion, record none, and never attempt the
-command: build without asking.
-
-**Mutation gate.** The canvas persists under the user's account. This skill never runs it, never
-publishes on its own initiative, and never references the canvas from anything tracked in the
-repository; the capture discipline records the winning key and notes only.
-
-## Boundary, the built-in `ClaudeDesign` tool
-
-A request to mock up a page can name a Claude Design project the person already has, and then it
-means that project, not a new mockup. What the tool and this skill each do is in
-[reference/claude-design-tool.md](reference/claude-design-tool.md) "The two compared".
-
-**Routing.** When the person names or links an existing claude.ai/design project, or asks for the
-work to go into one, and the `ClaudeDesign` tool resolves in this session, use that tool for the
-project's files. Otherwise this skill builds its variants as today. The tool is the project's
-editor; this skill is the throwaway comparison.
-
-**Mutation gate.** A `ClaudeDesign` write changes a project the person's team shares. Write only
-to the project the person named, and only after they asked for the change. A first write asks the
-person for a one-time project approval, or goes through the tool's plan step. The tool refuses
-writes in some execution contexts, which the probe record in
-[reference/claude-design-tool.md](reference/claude-design-tool.md) lists; report the refusal and
-never retry around it. The four-part records live in that file.
-
-## Boundary, the marketplace `playground` plugin
-
-A parameter explorer that hands back a prompt is the `playground` skill's job, not this one's: [reference/native-playground.md](reference/native-playground.md) holds
-how the two differ, the routing rule, the mutation gate and the availability records; read it when
-an ask to "try options visually" could mean either.
+- **`design` (bundled skill)**: only the person runs `/design`; never run or publish the canvas or
+  cite it in tracked files. Before building on the mockup host, unless the medium keeps the view on
+  this machine or `--unattended` is set (then suggest and record nothing), tell the user:
+  If /design is available in your session (gate basis: the verification record in
+  [reference/design-canvas.md](reference/design-canvas.md)), you can run `/design <scope>` instead
+  of or alongside this skill for a hand-editable design canvas.
+  Every offer adds that `/design`'s description should read "Make a new Design artifact from a
+  brief". A `design` entry in your skill listing is a local skill shadowing the bundled one: make
+  no offer, and tell the user a local `design` skill shadows the bundled canvas command.
+- **`ClaudeDesign` (built-in tool)**: for an existing claude.ai/design project the person names,
+  links or asks for, use the tool when it resolves; write only to that project, only after they
+  asked, and report a refusal without retrying around it.
+- **`playground` (marketplace plugin)**: a parameter explorer that hands back a prompt is its job,
+  not this skill's.
 
 ## Next
 

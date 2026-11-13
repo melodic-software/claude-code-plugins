@@ -11,12 +11,14 @@ The repository is resolved once, before the PR, and every read and write below t
 ([target repository](../README.md#target-repository)): the writes name it, and the exported
 `GH_REPO` carries it to every other `gh` call, the scripts' included. A shell that runs a later
 block runs this block's first two lines first. A non-zero exit from `target-repo.sh` ends the phase with its stderr
-reported.
+reported. `<checkout>` is the checkout of the PR's repository the session works on, as
+[2.5.3](../../../../skills/pull-request/reference/ready-for-review.md#253-review-and-verify-the-updated-head)
+defines it, so neither the repository nor the branch depends on the shell's directory.
 
 ```bash
-REPO=$(bash "<skill-dir>/scripts/target-repo.sh") || exit 1
+REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
 export GH_REPO="$REPO"
-BRANCH=$(git branch --show-current)
+BRANCH=$(git -C "<checkout>" branch --show-current)
 PR_NUMBER=$(gh pr view "$BRANCH" -R "$REPO" --json number -q '.number' 2>/dev/null)
 ```
 
@@ -121,8 +123,8 @@ Both answers come from the base's rulesets and, where one exists, its classic br
 protection read that fails counts as no rule.
 
 ```bash
-RULES=$(gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/$BASE" | jq -c 'add // []')
-CLASSIC=$(gh api "repos/{owner}/{repo}/branches/$BASE/protection" 2>/dev/null) || CLASSIC='{}'
+RULES=$(gh api --paginate --slurp "repos/$REPO/rules/branches/$BASE" | jq -c 'add // []')
+CLASSIC=$(gh api "repos/$REPO/branches/$BASE/protection" 2>/dev/null) || CLASSIC='{}'
 # true: an update dismisses approvals
 jq -nr --argjson r "$RULES" --argjson c "$CLASSIC" 'any($r[]; .type == "pull_request"
   and .parameters.dismiss_stale_reviews_on_push == true)
@@ -150,7 +152,7 @@ Exit 0 means the pull request has a reviewer: a person's review, or a review req
 comparison after the push, in one conversation comment.
 
 ```bash
-PEOPLE=$(gh api --paginate --slurp "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" |
+PEOPLE=$(gh api --paginate --slurp "repos/$REPO/pulls/$PR_NUMBER/reviews" |
   jq 'add // [] | map(select(.user.type != "Bot")) | length')
 REQUESTED=$(gh pr view "$PR_NUMBER" --json reviewRequests -q '.reviewRequests | length')
 [ "${PEOPLE:-0}" -gt 0 ] || [ "${REQUESTED:-0}" -gt 0 ]
@@ -211,18 +213,21 @@ SHA, so they work in any repository without knowing its CI file name. A run list
 SHA means the push's event reached the workflows; the wait never looks at a run's result. The push
 starts one run per workflow, possibly a few seconds apart, so the wait ends only when the count is
 above zero and unchanged across two polls, keeping a late sibling out of the flip's snapshot. Skip
-the wait when the head is unchanged, but still run the `HEAD_SHA` assignment, which the flip block
-reads.
+the wait when the head is unchanged, but still run the `PR_TREE` and `HEAD_SHA` assignments, which
+the flip block reads.
 
 `HEAD_SHA` is the PR worktree's HEAD, the commit the verify gate recorded: `pr-worktree.sh`
 finds the worktree that has the PR's head branch checked out with the PR's head commit in its
-history, whichever checkout the shell sits in, and exits non-zero when none has. GitHub's
+history, whichever checkout the shell sits in, and exits non-zero when none has. `<checkout>` is
+the checkout the phase names
+([PR worktree](../../../../skills/pull-request/reference/ready-for-review.md#253-review-and-verify-the-updated-head)),
+and the flip's `verify-gate.sh check` reads the record through `--dir "$PR_TREE"`. GitHub's
 `headRefOid` can lag a push by a read, so the block polls the PR's head until it equals
 `HEAD_SHA`, up to 60 seconds, instead of trusting the first read. A head that never matches (a peer push, a push that failed, local commits never
 pushed) leaves `HEAD_MATCH=0`, and the flip below refuses.
 
 ```bash
-PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1
+PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<checkout>") || exit 1
 HEAD_SHA=$(git -C "$PR_TREE" rev-parse HEAD) || exit 1
 HEAD_MATCH=0
 for _ in $(seq 12); do   # 12 polls x 5 s = 60 s
@@ -257,7 +262,7 @@ RUNS_BEFORE=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
   --json databaseId -q 'map(.databaseId)') || RUNS_BEFORE='[]'
 [ "$HEAD_MATCH" = 1 ] &&
   [ "$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid')" = "$HEAD_SHA" ] &&
-  bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
+  bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" --dir "$PR_TREE" &&
   gh pr ready "$PR_NUMBER" -R "$REPO"
 ```
 
@@ -277,7 +282,7 @@ route, guarded the same way:
 ```bash
 [ "$HEAD_MATCH" = 1 ] &&
   [ "$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid')" = "$HEAD_SHA" ] &&
-  bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
+  bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" --dir "$PR_TREE" &&
   gh api --method POST "repos/$REPO/pulls/$PR_NUMBER/ccr/ready_for_review"
 ```
 

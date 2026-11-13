@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Q2: **Should the prototype prove these three things, one prototype each?**\nContext:\n- You doubt split payments in test mode, the one-page layout on a phone, and cart speed at 500 items (user, round 1)\n\nMy recommendation: **yes**: three small prototypes, each answering one question, built at once in separate worktrees.",
+      "why": "asks what to prove and splits by question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q2: **Which pages should the checkout prototype have?**\n\nMy recommendation: **cart, payment and confirmation in one prototype**.",
+      "why": "one prototype, no proof question"
+    }
+  ]
+}

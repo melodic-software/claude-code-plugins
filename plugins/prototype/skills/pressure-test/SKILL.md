@@ -249,8 +249,16 @@ remember a file path. With no task runner, write the command at the top of a pro
 
 ### 4. Hand it over
 
+Before the handover, run the shared discipline's
+[clean-state proof](../../context/discipline.md#clean-state-proof-and-check-list): start the
+prototype from a clean state, drive it yourself through an ordered check list, and leave it clean.
+For the loans case the list opens: "1. Start with `pnpm run loans-proto`. Expect: one copy, on
+the shelf, no loans. 2. Press `b` to borrow. Expect: on loan, due in 14 days." For the HTML demo
+shell, the guided walkthroughs supply the list's steps, in the order the person should run them.
+
 Give the user the run command (for the HTML demo shell, the page's `file://` path; open the page
-for them or pass them the file).
+for them or pass them the file), the check list and what your own run showed, then ask for the
+verdict once they have worked through the list.
 
 Sort each remark the user makes while driving into one of two piles:
 

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "1. Invoke `/work-items:track view #812 --comments` to read the map and its comments.",
+      "why": "the action with the flag"
+    },
+    {
+      "answer": "The run reads the item with /work-items:track view 812 --repo o/r --comments.",
+      "why": "flag after another option"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Read it with `/work-items:track view #812`, then ask the user for the decisions.",
+      "why": "near miss: no comments read"
+    },
+    {
+      "answer": "gh issue view 812 --comments",
+      "why": "a provider command"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}

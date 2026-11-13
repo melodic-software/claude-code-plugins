@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "session-flow:handoff"}}],
+      "why": "the skill itself"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "/repo/.work/handoffs/20261112T120000Z-handoff-booking.md", "content": "# Handoff"}}],
+      "why": "writes a handoff file"
+    }
+  ]
+}

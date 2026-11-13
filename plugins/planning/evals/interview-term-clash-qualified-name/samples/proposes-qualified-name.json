@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: **Should the group that pays be called a household account?**\nContext:\n- You mean a family that gets one invoice (user, round 1)\n- Account already means one person's sign-in identity (src/auth/account.ts:2)\n\nMy recommendation: **household account**, it keeps Account for sign-in.",
+      "why": "names the clash and proposes the qualified name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Account already means a sign-in identity here. What would you like to call the paying group instead?",
+      "why": "asks the user to invent the name"
+    },
+    {
+      "answer": "Q1: **How many members can one account pay for?**",
+      "why": "adopts the bare word"
+    }
+  ]
+}

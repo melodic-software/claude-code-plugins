@@ -3,6 +3,22 @@
 All notable changes to the `python-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
+## [2.0.0] - 2026-11-13
+
+### Changed
+
+- The plugin is now `python-format`: install it as `python-format@<marketplace>`, and its setup skill runs as `/python-format:setup`.
+- The options are `python_format_enabled`, `python_format_lint_gitignored` and `python_format_end_of_turn`, with kill-switch variables `CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_ENABLED`, `CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_LINT_GITIGNORED` and `CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_END_OF_TURN`. Saved values move to the new keys through the dotfiles rename map on the next converge; a machine not managed by that dotfiles repository sets them again, and repeats any opt-out it had: `python_format_enabled` set to `false`, or the plugin disabled, now under `python-format@<marketplace>`.
+- The git pre-commit entry installs under `.githooks/python-format/`, its decline key is `checks.python-format.ruff-check.declined`, and its findings start with `python-format:`. In a repository that had the entry, `/python-format:setup check` reports what the earlier install left as `superseded`, and `/python-format:setup apply install-git-hooks` installs the entry, removes those artifacts on your yes and keeps an earlier decline under the new key.
+
+- Corrected in place: released entries now use the plugin's current name and options, and entries that named a skill, telemetry schema path or environment variable removed earlier describe it instead: [0.12.11], [0.11.5], [0.10.0], [0.9.8], [0.9.0], [0.8.10], [0.8.6], [0.8.5], [0.8.0], [0.7.6], [0.7.5], [0.7.0], [0.6.54], [0.6.53], [0.6.36], [0.6.35], [0.6.32], [0.6.27], [0.6.23], [0.5.4], [0.4.3], [0.4.0], [0.2.0].
+
 ## [1.1.2] - 2026-11-12
 
 ### Changed

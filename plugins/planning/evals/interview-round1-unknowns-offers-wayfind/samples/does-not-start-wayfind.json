@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "planning:interview", "args": "clinic group"}}],
+      "why": "the interview itself"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "planning:wayfind", "args": "chart clinic group"}}],
+      "why": "switches on its own"
+    }
+  ]
+}

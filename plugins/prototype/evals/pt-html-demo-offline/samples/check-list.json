@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Open file:///tmp/pressure-test-a1B2c3/pressure-test.html.\nI opened it fresh and pressed through all three walkthroughs; each ended in the state below.\nCheck list:\n1. Open the page. Expect: an empty cart of 100.00 and no coupons.\n2. Apply SAVE10. Expect: total 90.00.\n3. Apply FREESHIP. Expect: shipping 0.00, total 90.00.\n4. Apply a second percent coupon. Expect: refused, one percent coupon per order.",
+      "why": "ordered list with expected results, drive reported"
+    },
+    {
+      "answer": "Open file:///tmp/pressure-test-a1B2c3/pressure-test.html.\n1. Apply SAVE10. Expect: total 90.00.\n2. Apply LOYAL5. Expect: total 85.50.\nNot driven: no browser is available here, so I ran the module through these events from a script; the page itself is untested.",
+      "why": "steps not driven in the page are marked with the reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here is the demo: file:///tmp/pressure-test-a1B2c3/pressure-test.html. Click around and tell me what you think.",
+      "why": "no check list"
+    },
+    {
+      "answer": "Open file:///tmp/pressure-test-a1B2c3/pressure-test.html.\n1. Apply SAVE10.\n2. Apply FREESHIP.\n3. Apply LOYAL5.\nEverything works.",
+      "why": "steps without expected results, working claimed without a drive"
+    }
+  ]
+}

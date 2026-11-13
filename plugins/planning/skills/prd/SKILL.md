@@ -1,6 +1,6 @@
 ---
 description: "Write a Product Requirements Document that locks product intent (problem, users, success metrics) before any engineering plan, in three tiers with a review mode. Use when: 'write a PRD', 'spec out a feature', 'product brief', 'product requirements doc', 'define the requirements', 'what are we actually building', 'acceptance criteria', 'how will we know it worked', or a user-facing change needs written alignment. Engineering-internal work: /planning:interview or /planning:plan."
-argument-hint: "[tier] [task description]"
+argument-hint: "[tier] [task description|#<map>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Lock product intent. Problem, users, success metrics. Before planning
 ---
 
-**Arguments.** `[tier] [task description]`. e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review
+**Arguments.** `[tier] [task description|#<map>]`. e.g., /planning:prd, /planning:prd one-pager add gig calendar, /planning:prd review
 
 ## Repository context. Gather first
 
@@ -66,6 +66,7 @@ Read `$ARGUMENTS` whole. If its first word is one of the tier words in the table
 |----------|--------|----------|
 | *(empty)* | **Smart default** | If a prior PRD exists for the topic, offer resume/revise/start-fresh. Otherwise prompt for tier + task. |
 | `<task description>` (no tier word) | **Full PRD, prompt for tier** | Run skip-condition check, then ask which template tier (one-pager / consumer-feature / B2B-internal). |
+| `[tier] #<map>` | **PRD from a map issue** | Step 2 reads its decisions |
 | `one-pager <task>` | **Tier 1. Thin one-pager** | Small feature, single team, fast lock. ~½ page. |
 | `consumer <task>` or `consumer-feature <task>` | **Tier 2. Consumer feature** | User-facing app feature with metrics, user stories, risk surface. ~1 page. |
 | `b2b <task>` or `b2b-internal <task>` | **Tier 3. B2B / internal** | Stakeholders, compliance, integration, rollout, change-management. ~2 pages. |
@@ -91,6 +92,7 @@ Spend the first turn grounding yourself, in parallel:
 
 - Take product direction and current modules from the project's always-loaded instructions (root `CLAUDE.md` / `AGENTS.md`), already in context; read a nested `AGENTS.md` under the area the topic touches, since those load only when a file they cover is read
 - When the topic touches a known module, read the domain glossary: `/domain-driven-design:ubiquitous-language lookup` via the Skill tool when available, else Glob `**/*{glossary,Glossary,GLOSSARY,ubiquitous,UBIQUITOUS}*.md` and Read the match covering the area
+- An item ref (`#<map>`): read it per [map-source](../../context/map-source.md)
 - `Glob` and `Grep` for keywords from `$ARGUMENTS` to spot existing surfaces
 - `git log --oneline -20` for recent product direction
 - List the project's own rules files that govern the area (architecture, modules, conventions)
@@ -266,7 +268,7 @@ Review checks structure and convention; `/planning:devils-advocate` (run later a
 - **Does not run exploration or research**. Step 2's survey is a fast grounding pass. If product framing requires deep external research (competitive analysis, market data), pause the PRD and recommend the research capability first
 - **Does not gate other skills**. Engineering-internal tasks skip `/planning:prd`; product features can skip it if intent is already locked elsewhere (roadmap doc, recent ADR, prior PRD)
 - **Does not adversarially attack the user's product idea**. Surface obvious product risk once in the *risks* section and continue. Pushback belongs in product review, not PRD authoring
-- **Does not write code, run tests, or modify anything outside the topic's memory slice**, apart from pasting the locked PRD into the pull request body or linked issue
+- **Does not write code, run tests, or modify anything outside the topic's memory slice**, apart from pasting the locked PRD into the pull request body or linked issue. Every link written to the tracker (that paste, a comment) is the item's title linked to its absolute URL, never a bare `#<n>`, so it resolves from any page that quotes it
 - **Does not export Gherkin**. Nothing here emits `.feature` files or `Given`/`When`/`Then` scenarios; the EARS tags are a bracketed prefix vocabulary on a plain bullet, not a step grammar. A Gherkin export is a separate slice against a separate contract
 
 ## Composition with other skills

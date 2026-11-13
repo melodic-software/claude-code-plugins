@@ -111,7 +111,6 @@ plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.sh 9
 plugins/autonomy/skills/setup/scripts/generate-identity-prerequisites.test.sh 1
 plugins/autonomy/skills/setup/scripts/resolve-prerequisites.fixtures.test.sh 1
 plugins/bash-format/hooks/bash-format.test.sh 5
-plugins/biome-format/hooks/biome-format.test.sh 5
 plugins/bugs/scripts/concat-gotchas.test.sh 1
 plugins/code-metrics/scripts/collectors/test_adapter_paths.py 1
 plugins/code-metrics/scripts/collectors/test_cpd.py 1
@@ -394,6 +393,7 @@ plugins/instruction-placement/scripts/verify-load.test.sh 1
 plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh 5
 plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh 2
 plugins/instruction-placement/skills/migrate/scripts/remove-shims.test.sh 5
+plugins/javascript-format/hooks/javascript-format.test.sh 5
 plugins/kindle-dedrm/skills/manage/scripts/check-drift.test.sh 1
 plugins/kindle-dedrm/skills/manage/scripts/sync-prep.test.sh 1
 plugins/knowledge/skills/course-digest/scripts/run-tests.test.sh 1

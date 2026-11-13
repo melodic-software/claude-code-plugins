@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.10.12] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [2.10.11] - 2026-11-13
 
 ### Changed
