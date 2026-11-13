@@ -59,8 +59,12 @@ BINDING = re.compile(r"<!-- claude-lane-run id=([1-9][0-9]{0,19}) sha=([0-9a-f]{
 VERDICT = "lane_bound"
 
 
+def _text(body: Any) -> str:
+    return "" if body is None else str(body)
+
+
 def _lines(body: Any) -> list[str]:
-    return ("" if body is None else str(body)).replace("\r\n", "\n").split("\n")
+    return _text(body).replace("\r\n", "\n").split("\n")
 
 
 def _non_blank(lines: list[str]) -> list[int]:
@@ -82,7 +86,7 @@ def binding_of(body: Any) -> tuple[str, str] | None:
     footed body's footer, or None."""
     lines = _lines(body)
     at = _non_blank(lines)
-    if len(at) < 2 or lane_footer(body) is None:
+    if len(at) < 2 or not FOOTER.fullmatch(lines[at[-1]].strip()):
         return None
     match = BINDING.fullmatch(lines[at[-2]].strip())
     return (match[1], match[2]) if match else None
@@ -91,7 +95,7 @@ def binding_of(body: Any) -> tuple[str, str] | None:
 def without_binding(body: Any) -> str:
     """The body without its binding line, the shape every reader parsed
     before the lanes wrote one."""
-    text = "" if body is None else str(body)
+    text = _text(body)
     if binding_of(text) is None:
         return text
     lines = text.split("\n")
@@ -101,7 +105,7 @@ def without_binding(body: Any) -> str:
 
 
 def body_digest(body: Any) -> str:
-    return hashlib.sha256(("" if body is None else str(body)).encode("utf-8")).hexdigest()
+    return hashlib.sha256(_text(body).encode("utf-8")).hexdigest()
 
 
 def _time(value: Any) -> datetime | None:
@@ -158,7 +162,7 @@ def record_entries(text: Any) -> list[dict[str, Any]]:
     """The entries of one record's comments.jsonl; a line that is not an
     object is skipped."""
     entries = []
-    for line in ("" if text is None else str(text)).split("\n"):
+    for line in _text(text).split("\n"):
         try:
             entry = json.loads(line)
         except ValueError:
@@ -168,12 +172,16 @@ def record_entries(text: Any) -> list[dict[str, Any]]:
     return entries
 
 
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _same_int(value: Any, expected: int | None) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value == expected
+    return _is_int(value) and value == expected
 
 
 def _int(value: Any) -> int | None:
-    if isinstance(value, int) and not isinstance(value, bool):
+    if _is_int(value):
         return value
     if isinstance(value, str) and re.fullmatch(r"[0-9]+", value):
         return int(value)
@@ -236,24 +244,23 @@ def lane_checker(
     comment that carries a binding."""
     runs: dict[str, tuple[Any, BaseException | None]] = {}
     pulls: list[Mapping[str, Any]] = []
+    number = _int(pr)
 
     def head() -> Mapping[str, Any]:
         if not pulls:
             pulls.append(get_pull(number))
         found = pulls[0].get("head") if isinstance(pulls[0], Mapping) else None
         return found if isinstance(found, Mapping) else {}
-    number = _int(pr)
 
     def read_run(run_id: str) -> Any:
         if run_id not in runs:
             try:
                 run = get_run(run_id)
-                records = [
+                live = [
                     a
                     for a in list_artifacts(run_id)
-                    if str((a or {}).get("name") or "").startswith(RECORD_PREFIX)
+                    if str((a or {}).get("name") or "").startswith(RECORD_PREFIX) and a.get("expired") is not True
                 ]
-                live = [a for a in records if a.get("expired") is not True]
                 entries: list[dict[str, Any]] = []
                 recorded: set[str] = set()
                 for artifact in live:
@@ -312,12 +319,13 @@ def lane_checker(
         if run.get("status") != "completed":
             raise RuntimeError(f"lane run {run_id} is still running, so its comment record may not be uploaded yet")
         attempt = run.get("run_attempt")
-        attempts = attempt if isinstance(attempt, int) and not isinstance(attempt, bool) and attempt > 0 else 1
+        attempts = attempt if _is_int(attempt) and attempt > 0 else 1
         if all(f"{RECORD_PREFIX}{lane}-{n}" in recorded for n in range(1, attempts + 1)):
             return False
         at = _time(comment.get("createdAt"))
         start, end = _time(run.get("created_at")), _time(run.get("updated_at"))
-        in_window = None not in (at, start, end) and start <= at <= end  # type: ignore[operator]
-        return in_window and not was_edited(comment)
+        if at is None or start is None or end is None:
+            return False
+        return start <= at <= end and not was_edited(comment)
 
     return check
