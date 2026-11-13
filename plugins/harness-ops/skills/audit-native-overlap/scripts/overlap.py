@@ -208,6 +208,14 @@ PRESENCE_MENTION_RE = re.compile(
 
 START_MARKER = "<!-- native-surfaces:start -->"
 END_MARKER = "<!-- native-surfaces:end -->"
+# The form the ai-slop audit skips. A view carries exactly one of the two forms, and
+# regenerating keeps the one it carries; a new view gets START_MARKER and END_MARKER.
+GENERATED_START_MARKER = (
+    "<!-- BEGIN GENERATED: native-surfaces. Edit docs/native-surfaces/records.json, then run "
+    "plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py generate -->"
+)
+GENERATED_END_MARKER = "<!-- END GENERATED: native-surfaces -->"
+MARKER_FORMS = ((START_MARKER, END_MARKER), (GENERATED_START_MARKER, GENERATED_END_MARKER))
 
 # A `native description:` evidence line quotes the native text verbatim, so one carrying an em dash
 # keeps it and tells the ai-slop audit to skip each physical line that carries one. Authored
@@ -1162,14 +1170,26 @@ def render_view(
     block = render_block(rows, dismissals or [])
     if existing is None:
         return f"{VIEW_HEADER}\n{START_MARKER}\n\n{block}\n{END_MARKER}\n", None
-    start = existing.find(START_MARKER)
-    end = existing.find(END_MARKER)
-    if start == -1 or end == -1 or end < start:
+    present = [form for form in MARKER_FORMS if form[0] in existing or form[1] in existing]
+    if not present:
+        pairs = " or ".join(f"{start} … {end}" for start, end in MARKER_FORMS)
         return None, (
-            f"the view is missing the markers ({START_MARKER} … {END_MARKER}); "
-            "add them once, or delete the file and regenerate it"
+            f"the view is missing the markers ({pairs}); "
+            "add one pair once, or delete the file and regenerate it"
         )
-    head = existing[: start + len(START_MARKER)]
+    if len(present) > 1:
+        starts = ", ".join(start for start, _ in present)
+        return None, f"the view carries markers of more than one form ({starts}); keep one"
+    start_marker, end_marker = present[0]
+    starts, ends = existing.count(start_marker), existing.count(end_marker)
+    start = existing.find(start_marker)
+    end = existing.find(end_marker)
+    if starts != 1 or ends != 1 or end < start + len(start_marker):
+        return None, (
+            f"the view has unbalanced markers ({starts} of {start_marker}, {ends} of {end_marker}); "
+            "it needs exactly one of each, start first"
+        )
+    head = existing[: start + len(start_marker)]
     tail = existing[end:]
     return f"{head}\n\n{block}\n{tail}", None
 

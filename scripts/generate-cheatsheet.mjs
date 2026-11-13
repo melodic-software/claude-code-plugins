@@ -30,7 +30,7 @@ import process from "node:process";
 // scripts/lib/marker-block.mjs: the locate / compare / report-drift-or-write
 // flow shared with scripts/generate-catalog.mjs; exercised through this file's
 // --check path.
-import { findMarkerBlock, syncMarkerBlock } from "./lib/marker-block.mjs";
+import { findMarkerBlock, markerForms, syncMarkerBlock } from "./lib/marker-block.mjs";
 
 const argv = process.argv.slice(2);
 const check = argv.includes("--check");
@@ -42,8 +42,8 @@ if (rootFlag !== -1 && (!root || root.startsWith("--"))) {
 }
 
 const OUTPUT_PATH = join(root, "docs", "skill-cheat-sheet.md");
-const START = "<!-- cheatsheet:start -->";
-const END = "<!-- cheatsheet:end -->";
+const FORMS = markerForms("cheatsheet", "node scripts/generate-cheatsheet.mjs");
+const FORMS_TEXT = FORMS.map((f) => `${f.start} ... ${f.end}`).join(" or ");
 
 const config = await import(
   pathToFileURL(join(root, "scripts", "cheatsheet-config.mjs")).href
@@ -274,18 +274,21 @@ for (const stage of STAGES) {
   sections.push(`## ${stage.heading}\n\n${header}\n${body}`);
 }
 
-const block = `${START}\n\n${toc.join("\n")}\n\n${sections.join("\n\n")}\n\n${END}`;
+const body = `${toc.join("\n")}\n\n${sections.join("\n\n")}`;
 
 // --- Write / check -------------------------------------------------------------
 
 if (!existsSync(OUTPUT_PATH)) {
-  fail([`${OUTPUT_PATH} is missing; create it once with the markers (${START} ... ${END})`]);
+  fail([`${OUTPUT_PATH} is missing; create it once with the markers (${FORMS_TEXT})`]);
 }
 const sheet = readFileSync(OUTPUT_PATH, "utf8");
-const existing = findMarkerBlock(sheet, START, END);
-if (existing === null) {
-  fail([`${OUTPUT_PATH} is missing the cheatsheet markers (${START} ... ${END})`]);
+const found = findMarkerBlock(sheet, FORMS);
+if (found.error === "missing") {
+  fail([`${OUTPUT_PATH} is missing the cheatsheet markers (${FORMS_TEXT})`]);
 }
+if (found.error) fail([`${OUTPUT_PATH} ${found.error}`]);
+const existing = found.block;
+const block = `${found.form.start}\n\n${body}\n\n${found.form.end}`;
 
 syncMarkerBlock({
   path: OUTPUT_PATH,
