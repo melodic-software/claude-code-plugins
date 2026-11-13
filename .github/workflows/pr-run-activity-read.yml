@@ -2491,17 +2491,12 @@ jobs:
             const SHA = /^[0-9a-f]{40}$/;
             const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const BRANCH = new RegExp(`^${escape(LANE)}/issue-${escape(ISSUE_NUMBER)}-[1-9][0-9]*-[1-9][0-9]*$`);
-            if (STARTED !== 'true' && STARTED !== 'false') {
-              core.setFailed('bad-output: the run job\'s issue-run-started output is not one the runner sets; nothing is published');
-              return;
-            }
-            core.setOutput('issue-run-started', STARTED);
             const bad = (name) => core.setFailed(`bad-output: the run job's ${name} output is not one the runner sets; nothing is published`);
-            for (const [name, value] of [['reuse-branch', REUSE_BRANCH], ['resume-branch', RESUME_BRANCH]]) {
-              if (value !== '' && !BRANCH.test(value)) return bad(name);
+            if (STARTED !== 'true' && STARTED !== 'false') return bad('issue-run-started');
+            core.setOutput('issue-run-started', STARTED);
+            for (const [name, value, shape] of [['reuse-branch', REUSE_BRANCH, BRANCH], ['resume-branch', RESUME_BRANCH, BRANCH], ['base-sha', BASE_SHA, SHA], ['resume-tip', RESUME_TIP, SHA]]) {
+              if (value !== '' && !shape.test(value)) return bad(name);
             }
-            if (BASE_SHA !== '' && !SHA.test(BASE_SHA)) return bad('base-sha');
-            if (RESUME_TIP !== '' && !SHA.test(RESUME_TIP)) return bad('resume-tip');
             // The combinations the run job's steps make.
             if (REUSE_BRANCH !== '' && (STARTED !== 'false' || RESUME_BRANCH !== '' || RESUME_TIP !== '')) return bad('reuse-branch');
             if ((RESUME_BRANCH === '') !== (RESUME_TIP === '') || (RESUME_TIP !== '' && STARTED !== 'true')) return bad('resume-tip');
@@ -3006,8 +3001,9 @@ jobs:
       # PR mode: the skill ran Bash with the API key in reach, and artifacts
       # are readable by anyone who can read the repository; masking covers
       # logs and summaries only. Before any upload or summary, this copies
-      # what leaves (the reply, the run fields, the replies and the patch) into a fresh
-      # directory and scans those copies; the uploads and the summary read
+      # what leaves (the reply, the run fields, the replies, the dependency
+      # verdict, the issue outcome and the patch) into a fresh directory and
+      # scans those copies; the uploads and the summary read
       # only the copies, and the patch-sha256 the apply job checks is the
       # scanned copy's. The patch is applied as the apply job applies it,
       # onto the gated head in a scratch index, and every file it makes is
@@ -3170,8 +3166,8 @@ jobs:
               // label only warns, on a plain line. Each source has a kind,
               // which names no model-chosen text.
               // A block keeps its fingerprint (hitFingerprint: rule, file,
-              // line, none of the match) for the summary;
-              // a gate without it, or a throw in it, keeps none.
+              // line, none of the match) for the summary; a gate without it,
+              // or a throw in it, keeps none.
               const warned = new Set();
               const files = new Map([[reply, 'reply.txt'], [turns, 'act-turns.json'], [patch, 'patch.diff'], [replies, 'replies.jsonl'], [verdict, 'dependency-verdict.json'], [outcome, 'work-outcome.json'], [lane, 'lane.json']]);
               const judge = (kind, bytes, diff = false) => {
