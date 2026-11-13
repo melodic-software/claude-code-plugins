@@ -753,7 +753,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-
       - name: Report the subscription's handoff
         if: always() && steps.run.outputs.handoff == 'true'
         continue-on-error: true
@@ -1040,8 +1039,6 @@ jobs:
           execution-file: ${{ steps.run.outputs.execution-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
-
-
 
       # The leg's lane-outcome record: its credential, outcome, handoff,
       # fallback reason and durationMs, one record per leg.
