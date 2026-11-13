@@ -5335,13 +5335,18 @@ jobs:
       # unmarked bullet is never filed. A top-level list item in the section,
       # which runs to the next `#` or `##` heading, must start with the
       # marker; prose, continuation lines, nested items and fenced blocks are
-      # not read. A body edit re-runs this job as a contract-only event. A merge
-      # group carries no body; the pull request was checked before enqueue.
+      # not read. ADVISORY by owner decision on #15937: each unmarked bullet is
+      # a ::warning plus a step-summary row, and the step exits 0, as the
+      # pull-request contract's linkage check does. Setting
+      # FAIL_ON_UNMARKED_FOLLOW_UPS to 'true' makes it fail ci-status. A body
+      # edit re-runs this job as a contract-only event. A merge group carries
+      # no body; the pull request was checked before enqueue.
       # Pinned by scripts/ci-follow-ups-marker.test.sh, which runs this body.
       - name: Require the advisory marker on each Follow-ups bullet
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
+          FAIL_ON_UNMARKED_FOLLOW_UPS: 'false'
           LC_ALL: C.UTF-8
         run: |
           marker='Pre-existing (advisory):'
@@ -5349,7 +5354,8 @@ jobs:
           heading_re='^#{1,2}[[:blank:]]'
           section_re='^##[[:blank:]]+Follow-ups[[:blank:]]*$'
           item_re='^([-*+]|[0-9]+[.)])[[:blank:]]+(.*)$'
-          n=0 in=0 fence='' found=0
+          n=0 in=0 fence='' found=0 rows='' level=warning
+          [ "$FAIL_ON_UNMARKED_FOLLOW_UPS" != true ] || level=error
           while IFS= read -r line || [ -n "$line" ]; do
             n=$((n + 1))
             if [[ $line =~ $fence_re ]]; then
@@ -5368,14 +5374,28 @@ jobs:
             if [ "$in" -eq 1 ] && [[ $line =~ $item_re ]]; then
               entry=${BASH_REMATCH[2]}
               if [[ $entry != "$marker"* ]]; then
-                found=1
+                found=$((found + 1))
                 short=${entry:0:100}
-                echo "::error::pull request body line $n is a bullet under '## Follow-ups' that does not start with '$marker': '${short//%/%25}'. The sweep run when the paused issue filing lifts files only entries that start with that marker (AGENTS.md, Review advisories while issue filing is paused). For a review advisory, start it with '$marker '; for any other follow-up, move it out of '## Follow-ups' to a heading of its own, or file it as an issue."
+                fix="For a review advisory, start it with '$marker '; for any other follow-up, move it out of '## Follow-ups' to a heading of its own, or file it as an issue."
+                echo "::$level::$fix Pull request body line $n is a bullet under '## Follow-ups' without that marker: '${short//%/%25}'. The sweep run when the paused issue filing lifts files only entries that start with that marker (AGENTS.md, Review advisories while issue filing is paused)."
+                rows+="| $n | ${short//|/\\|} |"$'\n'
               fi
             fi
           done <<<"${PR_BODY//$'\r'/}"
-          [ "$found" -eq 0 ] || exit 1
-          echo "Every bullet under '## Follow-ups' starts with '$marker'."
+          if [ "$found" -eq 0 ]; then
+            echo "Every bullet under '## Follow-ups' starts with '$marker'."
+            exit 0
+          fi
+          {
+            echo "### $found bullet(s) under '## Follow-ups' lack '$marker'"
+            echo
+            echo "For a review advisory, start the bullet with \`$marker\`; for any other follow-up, move it out of \`## Follow-ups\` to a heading of its own, or file it as an issue."
+            echo
+            echo '| body line | bullet |'
+            echo '|---|---|'
+            printf '%s' "$rows"
+          } >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
+          [ "$FAIL_ON_UNMARKED_FOLLOW_UPS" != true ] || exit 1
       # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
       # and tested nothing, and the aggregate below passes those skips. That
       # green check stays on the head after the ready flip until the

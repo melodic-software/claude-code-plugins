@@ -92,8 +92,9 @@ each under `## Follow-ups` in the PR body instead, each entry starting with
 `Pre-existing (advisory):` (the source-control plugin's `reference/review-discipline.md` D4.6);
 review threads keep their D4.6 route. When the pause lifts, one sweep searches merged PRs' bodies
 and review summaries for that marker and files each entry as an issue.
-`## Follow-ups` holds only those entries, and `ci-status` fails a bullet there without the marker:
-a follow-up that is not a review advisory goes under a heading of its own or into a filed issue.
+`## Follow-ups` holds only those entries, and `ci-status` reports a bullet there without the
+marker: a follow-up that is not a review advisory goes under a heading of its own or into a filed
+issue.
 
 ### Unattended lanes
 
