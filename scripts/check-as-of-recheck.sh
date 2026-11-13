@@ -112,7 +112,15 @@ if ((${#files[@]} > 0)); then
     }
     # The last paragraph of the previous file closes before `file` moves on.
     FNR == 1 { close_file(); file = FILENAME }
-    /^[ \t]*(```|~~~)/ { flush(); fence = !fence; next }
+    # A fence closes only on a bare run of its opener character at least as
+    # long, so a four-backtick example can hold a three-backtick block.
+    /^[ \t]*(```|~~~)/ {
+      s = $0; sub(/^[ \t]*/, "", s); c = substr(s, 1, 1); n = 0
+      while (substr(s, n + 1, 1) == c) n++
+      if (!fence) { flush(); fence = 1; fch = c; flen = n }
+      else if (c == fch && n >= flen && substr(s, n + 1) ~ /^[ \t]*$/) fence = 0
+      next
+    }
     fence { next }
     /^[ \t]*$/ { flush(); next }
     /^[ \t]*(#|[|])/ { flush(); buf = $0; start = FNR; flush(); next }

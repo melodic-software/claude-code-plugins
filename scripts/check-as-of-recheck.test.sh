@@ -101,6 +101,16 @@ run_case "a list item is not covered by the next item when that item carries no 
   "printf '\n- The cap is 3, as of 2026-01-01.\n- Another fact.\n' >>$SKILL/SKILL.md" \
   "$SKILL/SKILL.md:27: FIX:"
 
+run_case "a fence closes only on its own opener, so a nested example stays skipped" 0 \
+  "printf '\n%s\n%s\n# as of 2026-01-01\n%s\nas of 2026-01-02\n%s\n' '\`\`\`\`markdown' '\`\`\`bash' '\`\`\`' '\`\`\`\`' >>$SKILL/SKILL.md"
+
+run_case "a tilde fence is not closed by backticks" 0 \
+  "printf '\n~~~text\n\`\`\`\nas of 2026-01-01\n~~~\n' >>$SKILL/SKILL.md"
+
+run_case "text after a closed fence is read again" 1 \
+  "printf '\n\`\`\`\`\nx\n\`\`\`\`\n\nCap 3, as of 2026-01-01.\n' >>$SKILL/SKILL.md" \
+  "$SKILL/SKILL.md:31: FIX:"
+
 run_case "a table row stands alone" 1 \
   "printf '\n| cap | 3, as of 2026-01-01 |\n| next | recheck when it moves |\n' >>$SKILL/SKILL.md" \
   "$SKILL/SKILL.md:27: FIX:"
