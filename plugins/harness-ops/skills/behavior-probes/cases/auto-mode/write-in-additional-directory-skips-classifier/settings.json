@@ -5,7 +5,7 @@
     ]
   },
   "autoMode": {
-    "soft_deny": [
+    "hard_deny": [
       "$defaults",
       "Never create, write or edit any file anywhere under ${PROBE_WORKDIR}"
     ]
