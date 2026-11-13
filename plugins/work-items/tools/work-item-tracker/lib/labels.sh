@@ -21,7 +21,7 @@ readonly WIT_DEFAULT_OWNER_DECISION_LABEL="needs-owner-decision"
 # Container marker (CONTRACT.md "Containers and state"): not a canonical role, but
 # remapped the same way through binding config.container_label.
 # shellcheck disable=SC2034
-readonly WIT_DEFAULT_CONTAINER_LABEL="work-map"
+readonly WIT_DEFAULT_CONTAINER_LABEL="spec-container"
 
 # `/planning:wayfind` owns every item carrying a label with this prefix (its map
 # items), so the frontier never surfaces one. Remapped through binding

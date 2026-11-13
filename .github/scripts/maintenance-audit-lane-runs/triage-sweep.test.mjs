@@ -116,13 +116,13 @@ test("a born-triaged issue in status: ready with no agent-ready, deferral, hold 
 });
 
 // /planning:wayfind and /work-items:decompose route an issue with a routing
-// label (the binding's container label, default `work-map`, or a label
+// label (the binding's container label, default `spec-container`, or a label
 // starting with its wayfind prefix, default `wayfind:`); intake skips it, so
 // a dispatch would only count toward a needless hand-off.
 test("an issue whose own labels hold a routing label is no candidate, as the binding names it", () => {
   const issues = [
     issue(1, { labels: [{ name: "wayfind: design" }] }),
-    issue(2, { labels: [{ name: "work-map" }] }),
+    issue(2, { labels: [{ name: "spec-container" }] }),
     issue(3, { labels: [{ name: "epic" }] }),
     issue(4, { labels: [{ name: "fog: storage" }] }),
     issue(5),
@@ -479,7 +479,7 @@ test("an issue with a status label is left alone, whatever its comments", async 
 });
 
 test("a pass writes and dispatches nothing for a routing-labeled issue, as the pass's binding names it", async () => {
-  const issues = [issue(1, { labels: [{ name: "wayfind: design" }] }), issue(2, { labels: [{ name: "work-map" }] })];
+  const issues = [issue(1, { labels: [{ name: "wayfind: design" }] }), issue(2, { labels: [{ name: "spec-container" }] })];
   const gh = fakeGitHub({ issues });
   assert.equal((await sweep(gh)).candidates, 0);
   assert.deepEqual(gh.writes, []);

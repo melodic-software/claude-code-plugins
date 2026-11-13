@@ -9,6 +9,6 @@ expected_outcome: 'Resolves the container and shape, gates the seam''s claim ver
 
 /work-items:ship run #340
 
-The user is at the terminal. #340 is an open container item labeled work-map. The container body carries `**Execution shape:** integration branch → single PR` and `**Integration branch:** integration/340-search-rewrite`. No sub-item is claimed. Three sub-items are open and unblocked with no edges between them; a fourth is blocked by one of the three. The implementation plugin is installed, and the seam's `capabilities` reports `claim`, `list-sub-items`, `renew-lease` and `release` supported. The user approves each item list the run shows. Every dispatched item comes back accepted, the fourth included once its blocker closes.
+The user is at the terminal. #340 is an open container item labeled spec-container. The container body carries `**Execution shape:** integration branch → single PR` and `**Integration branch:** integration/340-search-rewrite`. No sub-item is claimed. Three sub-items are open and unblocked with no edges between them; a fourth is blocked by one of the three. The implementation plugin is installed, and the seam's `capabilities` reports `claim`, `list-sub-items`, `renew-lease` and `release` supported. The user approves each item list the run shows. Every dispatched item comes back accepted, the fourth included once its blocker closes.
 
 Treat the state above as what this run's reads return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does, in order, and why.
