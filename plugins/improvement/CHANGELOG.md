@@ -3,6 +3,14 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.16] - 2026-11-13
+
+### Changed
+
+- Standards contract 1.1.5 (`reference/standards-contract.md`) synced: planning and implementing
+  skills also read the repository's review-criteria index, `docs/review/README.md` when present;
+  no other change to this plugin.
+
 ## [0.4.15] - 2026-11-12
 
 ### Changed
