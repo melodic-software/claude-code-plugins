@@ -312,6 +312,13 @@ print_row_diff() {
     }'
 }
 
+# print_fix: the `write` command that clears the drift. It names the root
+# discovery read ($PWD, after the `cd` into --root), since `write` without
+# --root would render the caller's directory into the target.
+print_fix() {
+  printf 'FIX\tbash "%s/render-index.sh" write --file "%s" --root "%s"\n' "$SCRIPT_DIR" "$TARGET" "$PWD"
+}
+
 # A drive-letter path may arrive with backslashes (`C:\repo\AGENTS.md`), the
 # spelling a PowerShell or cmd caller produces. GNU dirname and basename do not
 # treat `\` as a separator, so splitting that value yields `.` and the whole
@@ -561,7 +568,7 @@ check)
   # it is stale text that outlived what it indexed, and `write` clears it.
   if block_is_empty "$BLOCK"; then
     printf 'DRIFTED\t%s\tnothing to index; the block should be removed\n' "$TARGET"
-    printf 'FIX\tbash "%s/render-index.sh" write --file "%s"\n' "$SCRIPT_DIR" "$TARGET"
+    print_fix
     exit 1
   fi
   current="$(awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
@@ -575,7 +582,7 @@ check)
   fi
   printf 'DRIFTED\t%s\n' "$TARGET"
   print_row_diff "$current" "$BLOCK"
-  printf 'FIX\tbash "%s/render-index.sh" write --file "%s"\n' "$SCRIPT_DIR" "$TARGET"
+  print_fix
   exit 1
   ;;
 

@@ -333,6 +333,11 @@ assert_contains "and names the row to add" "$out" "ADD	| \`.claude/rules/new.md\
 assert_contains "and the command that fixes it" "$out" "FIX	bash "
 run check --file "$target" --root "$repo" >/dev/null 2>&1
 assert_eq "a drifted check exits 1" "1" "$?"
+# The FIX command run from another directory rewrites the block from --root.
+fix_cmd="$(printf '%s\n' "$out" | sed -n 's/^FIX	//p')"
+(cd "$neutral" && eval "$fix_cmd") >/dev/null 2>&1
+out="$(cd "$neutral" && run check --file "$target" --root "$repo")"
+assert_contains "the FIX command, run from elsewhere, restores sync" "$out" "IN-SYNC"
 
 run write --file "$target" --root "$repo" >/dev/null 2>&1
 out="$(run check --file "$target" --root "$repo")"
