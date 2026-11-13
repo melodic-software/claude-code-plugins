@@ -358,6 +358,19 @@ for lease_case in "--force-with-lease=main:origin/main" "--force-with-lease"; do
   assert_contains "lease block message ($lease_case) prescribes a resolved literal object id" \
     "$lease_msg" '<full-sha>'
 done
+# The --force, -f and + refspec blocks name both lease forms this guard and the
+# AGENTS.md force-push rule allow (--mirror prescribes specific refs instead),
+# and the no-expected-value lease block names the flag that makes it pass.
+for force_case in "--force" "-f" "+HEAD:main"; do
+  force_msg=$(cd "$REPO_SHA1" && bash "$HOOK" <<<"$(command_json "git push origin $force_case")" 2>&1)
+  assert_contains "push-force block message ($force_case) names the pinned lease" \
+    "$force_msg" '--force-with-lease=<ref>:<full-sha>'
+  assert_contains "push-force block message ($force_case) names the mitigated lease" \
+    "$force_msg" '--force-with-lease --force-if-includes'
+done
+tracking_msg=$(cd "$REPO_SHA1" && bash "$HOOK" <<<"$(command_json "git push --force-with-lease=main origin main")" 2>&1)
+assert_contains "no-expected-value lease block message names --force-if-includes" \
+  "$tracking_msg" '--force-if-includes'
 
 run "git push (plain, allowed)" "git push" 0
 run "git push -u origin main (allowed)" "git push -u origin main" 0

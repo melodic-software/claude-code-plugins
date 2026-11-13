@@ -45,10 +45,13 @@ Stop and ask only when you can't continue without the user, or before anything d
 outside this session's work:
 
 - deleting data;
-- force-pushing, except on a feature branch `git push --force-with-lease=<branch>:<sha>` with the
-  full SHA of the remote tip this session last fetched or pushed, so a peer's newer commit fails
-  the push instead of being overwritten; never a bare `--force`, a lease without the SHA, or a `+`
-  refspec;
+- force-pushing, except on a feature branch with a lease that makes a peer's newer commit fail the
+  push instead of being overwritten: `git push --force-with-lease=<branch>:<sha>` with the full SHA
+  of the remote tip this session last fetched or pushed (an empty `<sha>` when the branch must not
+  exist yet), or `git push --force-with-lease[=<branch>] --force-if-includes`, which also fails
+  when a fetch brought in a commit the local branch never included; never a bare `--force`, `-f`
+  alone or bundled, `--mirror`, a `+` refspec, or a push with any lease spelling outside those two
+  forms, such as one pinned to a branch name or a short SHA, even beside `--force-if-includes`;
 - pushing to the default branch;
 - commenting on a PR or issue outside the melodic-software and kyle-sexton owners;
 - marking a PR ready (it starts the review lanes), except as the next subsection allows;
