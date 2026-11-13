@@ -9,7 +9,7 @@
       "why": "table row"
     },
     {
-      "answer": "### CRITICAL\n\n- src/upload/validate.js:2: the 25 MB limit copies MAX_UPLOAD_MB; import it. Confidence: high\n\n### SUGGESTION\n\n- src/payments/labels.js:4: Shotgun Surgery.",
+      "answer": "### CRITICAL\n\n- src/upload/validate.js:2: the 25 MB limit copies MAX_UPLOAD_MB; import it. Confidence: high\n\n### IMPORTANT\n\n- src/payments/labels.js:4: Shotgun Surgery.",
       "why": "finding under a CRITICAL section heading"
     },
     {
