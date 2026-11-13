@@ -69,7 +69,7 @@ dotnet test
 
 - **All green** → remove tagged debug instrumentation first (grep the `[DEBUG-...]` prefix), then commit fix + test together (atomic). Exit loop. Suggest `/verification:confirm` for comprehensive validation
 - **New failure** → a sibling bug or a side effect. Loop back to step 1 with the new failure
-- **Same test still fails** → the fix was insufficient; re-examine the root cause
+- **Same test still fails** → the fix was insufficient; re-examine the root cause. On the second failed fix, run the premise check under [When to escalate](#when-to-escalate) first
 
 ## Check for siblings
 
@@ -86,6 +86,14 @@ After fixing one instance, ask whether the same bug exists in similar code paths
 - **Each loop iteration is a potential commit**. If you fixed one bug but found another, commit the first fix before starting the second loop
 
 ## When to escalate
+
+**Second failed fix.** When a second fix fails the retest, check the premise before a third fix
+and before the replanning below. When `/debugging:debug` resolves in this session, invoke it via
+the Skill tool with the failing test and both fixes, and follow its check for a second failed fix.
+Otherwise reduce what the two fixes share to one checkable claim and test it with the step 1 test
+before any third fix. Skip the check only when the two fixes rest on different claims, and name
+both claims when you skip it. The check is advisory: the retest and the regression run stay the
+loop's gates.
 
 If after 3 iterations the fix keeps breaking other things:
 

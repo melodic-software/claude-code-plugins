@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Don't write a third fix yet. Both fixes assumed one thing: the date is wrong because of timezone handling. Test that claim with the failing test: assert the cutoff and order timestamps the scheduler compares, then run it with every clock pinned to UTC. If the date is still the 16th, timezones are not the cause, the two changes come out, and the next place to look is how the shipping delay is added.",
+      "why": "names the premise, then tests it with the failing test before any fix"
+    },
+    {
+      "answer": "Both attempts share one premise: a timezone conversion shifts the date. Check it first: add an assertion on the scheduler's input timestamps in test_friday_order_ships_saturday and see whether they already hold the right day.",
+      "why": "premise as one claim, direct test proposed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Since the scheduler and cutoff are UTC now, the third fix should convert the order timestamp to UTC at the API boundary too.",
+      "why": "a third fix built on the timezone premise, no test"
+    },
+    {
+      "answer": "The third fix should replace the date arithmetic with a business-day calendar library.",
+      "why": "never names the shared premise and proposes another fix"
+    },
+    {
+      "answer": "Both fixes assumed the date is wrong because of timezone handling. Stop: no further change to this code is allowed until that premise is proven, whatever the test shows. Once it is proven, the test result no longer matters.",
+      "why": "names the premise but makes the check a hard stop that replaces the failing test as the gate"
+    }
+  ]
+}

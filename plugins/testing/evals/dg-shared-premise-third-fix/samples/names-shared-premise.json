@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Both fixes rest on one premise: the date is wrong because of timezone handling. Test that before a third fix.",
+      "why": "names the premise as one claim"
+    },
+    {
+      "answer": "The shared assumption is a UTC conversion bug. Assert the cutoff timestamp the scheduler compares against in the failing test.",
+      "why": "UTC as the shared assumption"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The third fix should skip weekends when adding the shipping delay.",
+      "why": "a third fix with no premise named"
+    },
+    {
+      "answer": "Convert the order timestamp to UTC in the API layer as well.",
+      "why": "names UTC only as another fix, not as a premise"
+    }
+  ]
+}
