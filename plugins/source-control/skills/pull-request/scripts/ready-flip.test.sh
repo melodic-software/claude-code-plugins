@@ -64,9 +64,15 @@ mkdir -p "$STUB_DIR"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$STUB_DIR/sleep"
 # The forge's first head read returns STUB_STALE, later reads STUB_FORGE (default: the pushed
 # commit); pr-worktree.sh's head read returns STUB_BRANCH and STUB_OID. Runs exist only for the pushed commit, and a new one only once the PR is flipped. Each
-# run list logs the commit it asked about; `pr ready` logs the flip.
+# run list logs the commit it asked about; `pr ready` logs the flip. A call that names neither
+# `-R acme/tool` nor GH_REPO=acme/tool fails, as gh does outside a checkout, so a read the
+# reference leaves untargeted cannot pass by the stub's grace.
 cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
+if [[ "${GH_REPO:-}" != acme/tool && " $* " != *" -R acme/tool "* ]]; then
+  echo "stub gh: no repository named for: $*" >&2
+  exit 1
+fi
 case "$1 $2" in
 "pr view")
   if [[ "$*" == *headRefName* ]]; then
@@ -110,10 +116,13 @@ new_state() {
 
 # run_flow <stale-head> <head-before> [<later-forge-head>], in the state new_state made, from
 # $FLOW_CWD (default: the PR's checkout), with pr-worktree.sh reading STUB_OID (default: the
-# pre-push head, as a lagging read returns it).
+# pre-push head, as a lagging read returns it), and GH_REPO exported as the reference's "Find the
+# PR for the branch" block exports it (FLOW_GH_REPO, default acme/tool; empty leaves it unset).
 STUB_BRANCH=$(git -C "$REPO" branch --show-current)
 run_flow() {
-  (cd "${FLOW_CWD:-$REPO}" && PATH="$STUB_DIR:$PATH" FLOW_CHECKOUT="${FLOW_CHECKOUT:-.}" STUB_STATE="$STATE" STUB_STALE="$1" STUB_PUSHED="$PUSHED" \
+  (unset GH_REPO
+    [[ -z "${FLOW_GH_REPO-acme/tool}" ]] || export GH_REPO="${FLOW_GH_REPO-acme/tool}"
+    cd "${FLOW_CWD:-$REPO}" && PATH="$STUB_DIR:$PATH" FLOW_CHECKOUT="${FLOW_CHECKOUT:-.}" STUB_STATE="$STATE" STUB_STALE="$1" STUB_PUSHED="$PUSHED" \
     STUB_FORGE="${3:-$PUSHED}" STUB_BRANCH="$STUB_BRANCH" STUB_OID="${STUB_OID:-$BEFORE}" \
     READY_VERIFY_DIR="$STATE/verify" PR_NUMBER=5 REPO=acme/tool HEAD_BEFORE="$2" timeout 30 bash "$FLOW" 2>&1)
 }
@@ -141,7 +150,7 @@ assert_contains "a record for the pre-push commit only: the guard refuses" "$out
 # changes the verify gate's result for that head.
 confirm_record() { CONFIRM_VERDICT_DIR="$STATE/confirm" bash "$SKILL_DIR/scripts/confirm-verdict.sh" record "$@"; }
 run_report() {
-  (cd "$REPO" && PATH="$STUB_DIR:$PATH" STUB_STATE="$STATE" STUB_BRANCH="$STUB_BRANCH" STUB_OID="$PUSHED" \
+  (cd "$REPO" && PATH="$STUB_DIR:$PATH" GH_REPO=acme/tool STUB_STATE="$STATE" STUB_BRANCH="$STUB_BRANCH" STUB_OID="$PUSHED" \
     CONFIRM_VERDICT_DIR="$STATE/confirm" PR_NUMBER=5 timeout 30 bash "$REPORT" 2>&1)
 }
 
@@ -237,6 +246,13 @@ new_state "$PUSHED"
 out=$(FLOW_CWD="$TEST_TMPDIR/outside" FLOW_CHECKOUT="$REPO" run_flow "$BEFORE" "$BEFORE")
 assert_contains "from outside every checkout: HEAD_SHA is the PR worktree's HEAD" "$out" "HEAD_SHA=$PUSHED"
 assert_contains "from outside every checkout: the guarded flip passes on the PR's head" "$out" "FLIP_EXIT=0"
+
+# The same shell without GH_REPO: the untargeted reads fail as gh fails outside a checkout, so the
+# case above passes only because the reads follow the exported repository.
+new_state "$PUSHED"
+out=$(FLOW_GH_REPO='' FLOW_CWD="$TEST_TMPDIR/outside" FLOW_CHECKOUT="$REPO" run_flow "$BEFORE" "$BEFORE")
+[[ -e "$STATE/flipped" ]] && flipped=yes || flipped=no
+assert_eq "from outside every checkout without GH_REPO: the PR is not flipped" "no" "$flipped"
 
 new_state "$PUSHED"
 out=$(FLOW_CWD="$TEST_TMPDIR/other" STUB_BRANCH=gone run_flow "$BEFORE" "$BEFORE")
