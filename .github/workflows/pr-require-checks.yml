@@ -5328,6 +5328,54 @@ jobs:
           done <<<"$text"
           [ "$found" -eq 0 ] || exit 1
           echo "No squash message line starts with 'committer '."
+      # EVERY `## Follow-ups` BULLET CARRIES THE ADVISORY MARKER. While issue
+      # filing for review advisories is paused, each one is listed there, and
+      # the sweep run when the pause lifts finds entries only by the marker
+      # (AGENTS.md "Review advisories while issue filing is paused"), so an
+      # unmarked bullet is never filed. A top-level list item in the section,
+      # which runs to the next `#` or `##` heading, must start with the
+      # marker; prose, continuation lines, nested items and fenced blocks are
+      # not read. A body edit re-runs this job as a contract-only event. A merge
+      # group carries no body; the pull request was checked before enqueue.
+      # Pinned by scripts/ci-follow-ups-marker.test.sh, which runs this body.
+      - name: Require the advisory marker on each Follow-ups bullet
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          LC_ALL: C.UTF-8
+        run: |
+          marker='Pre-existing (advisory):'
+          fence_re='^ {0,3}(```|~~~)'
+          heading_re='^#{1,2}[[:blank:]]'
+          section_re='^##[[:blank:]]+Follow-ups[[:blank:]]*$'
+          item_re='^([-*+]|[0-9]+[.)])[[:blank:]]+(.*)$'
+          n=0 in=0 fence='' found=0
+          while IFS= read -r line || [ -n "$line" ]; do
+            n=$((n + 1))
+            if [[ $line =~ $fence_re ]]; then
+              if [ -z "$fence" ]; then
+                fence=${BASH_REMATCH[1]}
+              elif [ "${BASH_REMATCH[1]}" = "$fence" ]; then
+                fence=
+              fi
+              continue
+            fi
+            [ -z "$fence" ] || continue
+            if [[ $line =~ $heading_re ]]; then
+              if [[ $line =~ $section_re ]]; then in=1; else in=0; fi
+              continue
+            fi
+            if [ "$in" -eq 1 ] && [[ $line =~ $item_re ]]; then
+              entry=${BASH_REMATCH[2]}
+              if [[ $entry != "$marker"* ]]; then
+                found=1
+                short=${entry:0:100}
+                echo "::error::pull request body line $n is a bullet under '## Follow-ups' that does not start with '$marker': '${short//%/%25}'. The sweep run when the paused issue filing lifts files only entries that start with that marker (AGENTS.md, Review advisories while issue filing is paused). For a review advisory, start it with '$marker '; for any other follow-up, move it out of '## Follow-ups' to a heading of its own, or file it as an issue."
+              fi
+            fi
+          done <<<"${PR_BODY//$'\r'/}"
+          [ "$found" -eq 0 ] || exit 1
+          echo "Every bullet under '## Follow-ups' starts with '$marker'."
       # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
       # and tested nothing, and the aggregate below passes those skips. That
       # green check stays on the head after the ready flip until the
