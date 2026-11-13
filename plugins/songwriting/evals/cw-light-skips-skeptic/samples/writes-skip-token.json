@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Skeptic refutation returned | skipped: verification: skipped (light) |",
+      "why": "the named skip in the gate table"
+    },
+    {
+      "answer": "- **verification:** skipped (light)",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| Skeptic refutation returned | run |",
+      "why": "the row runs"
+    },
+    {
+      "answer": "verification: skipped (cost)",
+      "why": "a different skip reason"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "type": "object",
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slice": { "enum": ["A", "C", "D"] },
+          "title": { "type": "string" },
+          "problem": { "type": "string" },
+          "root_cause": { "type": "string" },
+          "proposed_fix": { "type": "string" },
+          "workflow": { "type": "string" },
+          "job": { "type": "string" },
+          "signature": { "type": "string" },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": { "type": "string" },
+                "line": { "type": "integer" },
+                "quote": { "type": "string" }
+              },
+              "required": ["path", "line", "quote"],
+              "additionalProperties": false
+            }
+          },
+          "covered_by": { "type": ["integer", "null"] }
+        },
+        "required": [
+          "slice",
+          "title",
+          "problem",
+          "root_cause",
+          "proposed_fix",
+          "workflow",
+          "job",
+          "signature",
+          "evidence",
+          "covered_by"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["findings"],
+  "additionalProperties": false
+}

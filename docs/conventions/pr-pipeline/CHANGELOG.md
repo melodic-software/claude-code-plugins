@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [10.0.1] - 2026-11-13
+
+### Fixed
+
+- The lane run report comment posts on the pull request again. The `report` job of both `pr-run-activity-read.yml` and `pr-run-activity-write.yml` now holds `pull-requests: write`, which GitHub required for `POST /repos/{repo}/issues/{pull}/comments` on a pull request when the job held `issues: write` alone (403 `Resource not accessible by integration`). Every job calling either runner grants `pull-requests: write`; the model jobs keep `pull-requests: read`.
+
+## [10.0.0] - 2026-11-13
+
+### Changed
+
+- `check-born-triaged` treats `spec-container` as the container label when `tracker.config.container_label` is absent or empty, matching the work-items default. Intake triage, the triage sweep, intake re-entry, the WIP cap, `check-blockers` and `label-unblocked` skip an issue carrying `spec-container` or a `wayfind:` label; an issue carrying only `work-map` is no longer skipped by default.
+
 ## [9.28.0] - 2026-11-13
 
 ### Changed

@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: dd-light-skips-verifier-arms
+context:
+  scaffold_script: scaffold.sh

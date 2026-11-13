@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.0] - 2026-11-13
+
+### Added
+
+- **block-dangerous-git can allow only a lease pinned to a full commit id ([#15940](https://github.com/melodic-software/claude-code-plugins/issues/15940)).** The new `block_dangerous_git_unpinned_lease` option (`allow` by default, `block`), or `unpinned_lease: block` in a repository's `docs/conventions/guardrails.yaml` at its local `origin/HEAD`, blocks a lease that pins no full commit id: `--force-with-lease` with `--force-if-includes`, or the empty expect `--force-with-lease=<ref>:`. Either layer set to `block` blocks it. The default is unchanged, since git documents both forms as safe. Every force-push block message now names only `--force-with-lease=<ref>:<full-sha>`, the form that passes under both values.
+
+## [3.2.0] - 2026-11-13
+
+### Added
+
+- `block-foreground-wait` denies a foreground Bash call that waits with an `until` loop or a `--watch` flag. The reason says to set `run_in_background` to true or watch the command with the Monitor tool. A call whose `run_in_background` is true passes, as do the words in quotes, comments and heredoc bodies. A `--watch` after `--` is matched only for a script runner, which passes it to the script (`npm test -- --watch`); `block_foreground_wait_script_runners` lists the runners, by default `npm,pnpm,yarn,bun,npx`. Kill switch: `block_foreground_wait_enabled`, on by default.
+
 ## [3.1.5] - 2026-11-13
 
 ### Changed

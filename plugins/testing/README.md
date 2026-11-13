@@ -128,7 +128,9 @@ named and dropped. A testing release without this key stops its test scan on `pi
 
 `verification` (`off | light | standard | strict`, default `light`) and `verification_skills`
 (per-skill levels; an entry beats `verification`) set whether `/testing:cleanup`'s Cannot-fail-only mode
-dispatches its fresh-context skeptic: under `light` and `off` it dispatches none and deletes nothing. Both keys
+dispatches its fresh-context skeptic: under `light` and `off` it dispatches none and deletes nothing.
+They also set whether `/testing:write` calls the advisor checkpoint for a HIGH or CRITICAL suite:
+under `light` and `off` it calls none. Both keys
 are read from `docs/conventions/testing.yaml` on the default branch only, through
 `lib/read-verification.sh`; levels are in the marketplace's
 [verification level contract](../../docs/contracts/verification-level/README.md).

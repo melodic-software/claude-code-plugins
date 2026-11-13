@@ -528,7 +528,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -635,7 +635,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -732,7 +732,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -779,7 +779,7 @@ jobs:
     permissions:
       actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -1311,7 +1311,7 @@ jobs:
     permissions:
       actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -1646,7 +1646,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -1753,7 +1753,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -1851,7 +1851,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -1904,7 +1904,7 @@ jobs:
     permissions:
       actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -2944,7 +2944,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 1
         run: |
-          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
           mkdir -p "$RUNNER_TEMP/key-credit-stop"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
 
@@ -3023,7 +3022,7 @@ jobs:
     permissions:
       actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -3093,7 +3092,7 @@ jobs:
     permissions:
       actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -3403,7 +3402,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -3509,7 +3508,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -3606,7 +3605,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -3653,7 +3652,7 @@ jobs:
     permissions:
       actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -3699,7 +3698,7 @@ jobs:
     permissions:
       actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -3735,7 +3734,7 @@ jobs:
     permissions:
       actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -3981,7 +3980,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -4093,7 +4092,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -4190,7 +4189,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -4236,7 +4235,7 @@ jobs:
     permissions:
       actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -4288,7 +4287,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -4391,7 +4390,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -4489,7 +4488,7 @@ jobs:
     permissions:
       actions: read # the read runner's key-credit gate lists the credit-stop markers
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -4525,7 +4524,7 @@ jobs:
     permissions:
       actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write
@@ -4848,7 +4847,7 @@ jobs:
     permissions:
       actions: read # the write runner's run job reads the review lanes' comment records
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
       issues: write
       id-token: write

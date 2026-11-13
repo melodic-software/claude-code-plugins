@@ -88,6 +88,20 @@ out="$(run team apply --layer team --write roles.verifier.effort=xhigh)"
 assert_contains "team with no file creates the concern YAML" "$out" "wrote: $T/team/repo/docs/conventions/multi-agent.yaml"
 out="$(run team check session=opus)"
 assert_contains "the new YAML is the team layer" "$out" '"layer":"team","path":"'"$T/team/repo/docs/conventions/multi-agent.yaml"'","state":"read"'
+out="$(run team apply --layer team --write verification=standard)"
+assert_contains "team apply writes the verification level" "$(cat "$T/team/repo/docs/conventions/multi-agent.yaml")" 'verification: standard'
+run team apply --layer local --write verification=light >/dev/null
+assert_eq "local apply of the verification level is a usage error" 2 "$?"
+assert_contains "the refusal names the team layer" "$(cat "$T/team.err")" "verification is read from the team layer only"
+out="$(run team apply --layer team --write verification_skills.audit-defaults=strict)"
+assert_contains "team apply writes a per-skill level" "$(cat "$T/team/repo/docs/conventions/multi-agent.yaml")" 'audit-defaults: strict'
+before="$(cat "$T/team/repo/docs/conventions/multi-agent.yaml")"
+for bad in verification=Standard verification=lite verification_skills.x=bad; do
+  run team apply --layer team --write "$bad" >/dev/null
+  assert_eq "$bad is refused as a usage error" 2 "$?"
+  assert_contains "$bad: the refusal names the key and value" "$(cat "$T/team.err")" "${bad%%=*}: '${bad#*=}' is not off, light, standard or strict"
+  assert_eq "$bad leaves the team file unchanged" "$before" "$(cat "$T/team/repo/docs/conventions/multi-agent.yaml")"
+done
 
 # A bound convention home moves the team YAML apply writes.
 fixture bound

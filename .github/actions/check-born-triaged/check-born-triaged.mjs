@@ -6,6 +6,8 @@
 // or the lanes App (matched by numeric id), and it has an Issue Type and a
 // status: a Work status field a trusted account set to anything but
 // needs-triage (read-status.mjs folds it into the labels), or a status label.
+// The agent-ready label alone is no status while the Work status is
+// configured and unset (reason `label-only`).
 // Anything else, including any read failure, lets intake run.
 import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
@@ -20,8 +22,9 @@ import { isStatusLabel, statusReader } from "../resolve-config/read-status.mjs";
 
 export const BORN_TRIAGED_MARKER = "<!-- work-items:born-triaged -->";
 
+const AGENT_READY = "agent-ready";
 // The bare labels that name a status; every other status label starts `status:`.
-const STATUS_LABELS = new Set(["agent-ready", "needs-human", "needs-spec", "admission-deferred"]);
+const STATUS_LABELS = new Set([AGENT_READY, "needs-human", "needs-spec", "admission-deferred"]);
 // Reasons a later read can change: the publisher sets the type and some
 // labels in calls after the issue is created.
 const PENDING = new Set(["no-type", "no-status"]);
@@ -128,7 +131,16 @@ export async function run({ fetchIssue, list, lanesAppId, statusOf, routing = RO
     }
     result = checkBornTriaged({ issue, list, lanesAppId });
     if (statusOf && (result.reason === "born-triaged" || result.reason === "no-status")) {
-      result = checkBornTriaged({ issue, list, lanesAppId, names: await statusOf(Number(issue.number), labelNames(issue)) });
+      const number = Number(issue.number);
+      const names = await statusOf(number, labelNames(issue));
+      // The agent-ready label starts no lane run, and admission writes the
+      // Work status, so with the field unset it is no status: intake triages
+      // the issue at once rather than waiting for a status no one will set.
+      const labelOnly = names.includes(AGENT_READY) && (await statusOf.unset?.(number));
+      result = checkBornTriaged({ issue, list, lanesAppId, names: labelOnly ? names.filter((name) => name !== AGENT_READY) : names });
+      if (labelOnly && result.reason === "no-status") {
+        result = triage("label-only");
+      }
     }
     if (!PENDING.has(result.reason)) {
       return result;

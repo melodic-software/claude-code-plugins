@@ -1042,7 +1042,7 @@ jobs:
 
       # The trusted-text job's read, used only when it matches this leg
       # (take-shared-text.sh); a missing or mismatched one leaves the leg to
-      # read its own, as before.
+      # read its own.
       - name: Download the shared trusted PR text
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.trusted-text.outputs.sha256 != '' && needs.trusted-text.outputs.run-attempt == github.run_attempt
         continue-on-error: true
@@ -1472,7 +1472,7 @@ jobs:
       # decision and any chunk's launcher handoff (select-model-credential).
       # always(), so it decides even in a job that hit its own timeout; the
       # step after it writes the answer only when every step before it
-      # succeeded, as before.
+      # succeeded.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -1989,7 +1989,7 @@ jobs:
 
       # The trusted-text job's read, used only when it matches this leg
       # (take-shared-text.sh); a missing or mismatched one leaves the leg to
-      # read its own, as before.
+      # read its own.
       - name: Download the shared trusted PR text
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.trusted-text.outputs.sha256 != '' && needs.trusted-text.outputs.run-attempt == github.run_attempt
         continue-on-error: true
@@ -2433,7 +2433,7 @@ jobs:
       # decision and any chunk's launcher handoff (select-model-credential).
       # always(), so it decides even in a job that hit its own timeout; the
       # step after it writes the answer only when every step before it
-      # succeeded, as before.
+      # succeeded.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -2910,7 +2910,7 @@ jobs:
 
       # The trusted-text job's read, used only when it matches this leg
       # (take-shared-text.sh); a missing or mismatched one leaves the leg to
-      # read its own, as before.
+      # read its own.
       - name: Download the shared trusted PR text
         if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && needs.trusted-text.outputs.sha256 != '' && needs.trusted-text.outputs.run-attempt == github.run_attempt
         continue-on-error: true

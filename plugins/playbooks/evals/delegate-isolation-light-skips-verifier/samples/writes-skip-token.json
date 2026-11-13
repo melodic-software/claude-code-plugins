@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "verification: light (docs/conventions/playbooks.yaml verification at origin/main)\nverification: skipped (light)",
+      "why": "the reader line and the skip token"
+    },
+    {
+      "answer": "- **verification:** skipped (light)",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "verification: light (docs/conventions/playbooks.yaml verification at origin/main)",
+      "why": "the reader line alone, no skip token"
+    },
+    {
+      "answer": "verification: skipped (cost)",
+      "why": "a different skip reason"
+    }
+  ]
+}

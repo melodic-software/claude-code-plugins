@@ -49,7 +49,7 @@ Emitters must never emit a duplicate key.
 - `verdict`: `relevant` | `not-relevant` | `uncertain`. `relevant` feeds the approved queue;
   `uncertain` routes to the interview, never silently either way. Any other value fails loudly.
 - `rationale`: non-empty string; one or two sentences of why. The gate checks presence, not
-  quality. Quality is the fresh-eyes verifier's lane.
+  quality, and no other check judges the rationale.
 - `evidence`: the proof-of-reading token:
   - `quote`: non-empty string, verbatim from the snapshot.
   - `start_byte` / `end_byte`: the quote's exact span in RAW SNAPSHOT bytes (end exclusive).

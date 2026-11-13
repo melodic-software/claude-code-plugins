@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "handle_refund"
+          }
+        }
+      ],
+      "why": "a search only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "verify rename",
+            "prompt": "Check zero hits for handle_refund across the repository."
+          }
+        }
+      ],
+      "why": "a fresh-context verifier was dispatched"
+    }
+  ]
+}

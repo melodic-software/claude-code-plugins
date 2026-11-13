@@ -42,7 +42,7 @@ on:
     # check has to re-evaluate. Whether such an event is CONTRACT-ONLY (lanes
     # gated off, ci-status carrying the recorded `ci-lanes` verdict forward) is
     # decided by one predicate, repeated verbatim in the `concurrency` group and
-    # in every job's `if:` except `ci-status` and its alias `report-ci-status`:
+    # in every job's `if:` except `ci-status`:
     #
     #   github.event.pull_request.head.repo.full_name == github.repository &&
     #   (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
@@ -128,10 +128,9 @@ concurrency:
 # `mark-lanes`; one resolver, `select-tests`; ten working jobs, `lint-repo`,
 # `lint-shell`, `check-plugins`, `check-catalog`, `check-skills`, `test-bash`,
 # `test-python`, `test-node`, `check-managed-files` and `check-tests`; and one
-# aggregate, job `ci-status`, whose check name is `CI Status`. Its alias job
-# `report-ci-status` reports that conclusion under the check name `ci-status`,
-# which, like this workflow's and this file's name, is what the org ci-gate
-# ruleset and its verifiers read until that ruleset requires `CI Status`. No
+# aggregate, job `ci-status`, whose check name `CI Status` is, like this
+# workflow's and this file's name, what the org ci-gate ruleset and its
+# verifiers read. No
 # ordinals, no tool name for a multi-tool job, no runner OS for a portable
 # lane, and no job name another workflow here also uses. A gate step keeps its
 # `id`, its aggregator key, in whichever job it runs.
@@ -984,8 +983,8 @@ jobs:
   # `continue-on-error`, so a broken detector turns this job red rather than
   # resolving a scope nobody verified.
   select-tests:
-    # The contract-only gate, verbatim on every job but `ci-status` and
-    # `report-ci-status` (see the predicate under `on.pull_request.types`). It
+    # The contract-only gate, verbatim on every job but `ci-status` (see the
+    # predicate under `on.pull_request.types`). It
     # carries no status-check function, so on a job with `needs` those edges
     # still govern: the gate only subtracts the label-flip and title/body-edit
     # events, where the lanes would re-run a SHA a full run already answered
@@ -1486,6 +1485,27 @@ jobs:
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh adr-numbers {0}
         run: scripts/check-adr-numbers.sh --check
+
+      # The AGENTS.md "Conventions that load on demand" table is generated from
+      # .claude/rules/ and the nested instruction files. Ungated: a change that
+      # adds, removes or renames only a rule is docs-only, and that is the edit
+      # that leaves the table stale. On drift it names each row to add, change
+      # or remove, then the command that rewrites the table.
+      - name: Check the AGENTS.md rules index matches .claude/rules/
+        id: rules_index
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh rules-index {0}
+        run: bash plugins/instruction-placement/scripts/render-index.sh check --file AGENTS.md
+
+      # An as-of date in a skill, agent or reference paragraph needs a recheck
+      # trigger beside it (.claude/rules/skill-bodies-state-current-rules.md).
+      # Ungated: the edit that adds one is docs-only. Existing debt sits in
+      # scripts/as-of-recheck-baseline.txt, which fails when it could shrink.
+      - name: Check every as-of date in a skill file has a recheck trigger
+        id: as_of_recheck
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh as-of-recheck {0}
+        run: scripts/check-as-of-recheck.sh --check
 
       # Each tracked docs/conventions/<concern>.yaml against its JSON Schema
       # (ADR 0064 Decisions 6 and 7). Ungated: a change that edits only a
@@ -2075,6 +2095,8 @@ jobs:
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
+            rules-index=${{ steps.rules_index.outcome }}
+            as-of-recheck=${{ steps.as_of_recheck.outcome }}
             convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
@@ -5316,6 +5338,87 @@ jobs:
           done <<<"$text"
           [ "$found" -eq 0 ] || exit 1
           echo "No squash message line starts with 'committer '."
+      # EVERY `## Follow-ups` BULLET CARRIES THE ADVISORY MARKER. While issue
+      # filing for review advisories is paused, each one is listed there, and
+      # the sweep run when the pause lifts finds entries only by the marker
+      # (AGENTS.md "Review advisories while issue filing is paused"), so an
+      # unmarked bullet is never filed. A top-level list item in the section,
+      # which runs to the next `#` or `##` heading, must start with the
+      # marker, at any indent of up to three spaces; prose,
+      # continuation lines, nested items and fenced blocks are not read. ADVISORY by owner decision on #15937: each unmarked bullet is
+      # a ::warning plus a step-summary row, and the step exits 0, as the
+      # pull-request contract's linkage check does. Setting
+      # FAIL_ON_UNMARKED_FOLLOW_UPS to 'true' makes it fail ci-status. A body
+      # edit re-runs this job as a contract-only event. A merge group carries
+      # no body; the pull request was checked before enqueue.
+      # Pinned by scripts/ci-follow-ups-marker.test.sh, which runs this body.
+      - name: Require the advisory marker on each Follow-ups bullet
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          FAIL_ON_UNMARKED_FOLLOW_UPS: 'false'
+          LC_ALL: C.UTF-8
+        run: |
+          marker='Pre-existing (advisory):'
+          fence_re='^ {0,3}(```|~~~)'
+          heading_re='^#{1,2}[[:blank:]]'
+          section_re='^##[[:blank:]]+Follow-ups[[:blank:]]*$'
+          item_re='^( {0,3})([-*+]|[0-9]+[.)])([[:blank:]]+)(.*)$'
+          indent_re='^( *)'
+          n=0 in=0 fence='' found=0 rows='' level=warning col='' blank=0 was_blank=0
+          [ "$FAIL_ON_UNMARKED_FOLLOW_UPS" != true ] || level=error
+          while IFS= read -r line || [ -n "$line" ]; do
+            n=$((n + 1))
+            if [[ $line =~ $fence_re ]]; then
+              if [ -z "$fence" ]; then
+                fence=${BASH_REMATCH[1]}
+              elif [ "${BASH_REMATCH[1]}" = "$fence" ]; then
+                fence=
+              fi
+              continue
+            fi
+            [ -z "$fence" ] || continue
+            if [[ $line =~ $heading_re ]]; then
+              if [[ $line =~ $section_re ]]; then in=1; else in=0; fi
+              col='' blank=0
+              continue
+            fi
+            # A list item is top level unless it is indented to the content
+            # column of the item above it (CommonMark), which `col` holds. A
+            # blank line then a less-indented non-item line ends the list.
+            if [[ $line == *[![:blank:]]* ]]; then was_blank=$blank blank=0; else blank=1; fi
+            [ "$in" -eq 1 ] || continue
+            if [[ $line =~ $item_re ]] && { [ -z "$col" ] || [ "${#BASH_REMATCH[1]}" -lt "$col" ]; }; then
+              gap=${#BASH_REMATCH[3]}
+              [ "$gap" -le 4 ] || gap=1
+              col=$((${#BASH_REMATCH[1]} + ${#BASH_REMATCH[2]} + gap))
+              entry=${BASH_REMATCH[4]}
+              if [[ $entry != "$marker"* ]]; then
+                found=$((found + 1))
+                short=${entry:0:100}
+                fix="For a review advisory, start it with '$marker '; for any other follow-up, move it out of '## Follow-ups' to a heading of its own, or file it as an issue."
+                echo "::$level::$fix Pull request body line $n is a bullet under '## Follow-ups' without that marker: '${short//%/%25}'. The sweep run when the paused issue filing lifts files only entries that start with that marker (AGENTS.md, Review advisories while issue filing is paused)."
+                rows+="| $n | ${short//|/\\|} |"$'\n'
+              fi
+            elif [ "$blank" -eq 0 ] && [ "$was_blank" -eq 1 ] && [[ $line =~ $indent_re ]] &&
+              [ "${#BASH_REMATCH[1]}" -lt "${col:-0}" ]; then
+              col=''
+            fi
+          done <<<"${PR_BODY//$'\r'/}"
+          if [ "$found" -eq 0 ]; then
+            echo "Every bullet under '## Follow-ups' starts with '$marker'."
+            exit 0
+          fi
+          {
+            echo "### $found bullet(s) under '## Follow-ups' lack '$marker'"
+            echo
+            echo "For a review advisory, start the bullet with \`$marker\`; for any other follow-up, move it out of \`## Follow-ups\` to a heading of its own, or file it as an issue."
+            echo
+            echo '| body line | bullet |'
+            echo '|---|---|'
+            printf '%s' "$rows"
+          } >>"${GITHUB_STEP_SUMMARY:-/dev/null}"
+          [ "$FAIL_ON_UNMARKED_FOLLOW_UPS" != true ] || exit 1
       # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
       # and tested nothing, and the aggregate below passes those skips. That
       # green check stays on the head after the ready flip until the
@@ -7128,9 +7231,6 @@ jobs:
           yield-wait-seconds: ${{ ((job.status == 'failure' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) || github.event.pull_request.draft) && '0' || '600' }}
           rerun-contract-only-siblings: ${{ github.event.pull_request.draft && 'false' || 'true' }}
           carry-forward-wait-seconds: '0'
-          # report-ci-status mirrors this gate under `ci-status` and runs on
-          # contract-only events too; the run-shape reads must ignore it.
-          alias-jobs: ci-status
           # This step's own name, so the own-step lookup never depends on
           # how many steps of the job are in progress.
           step-name: Aggregate lane results
@@ -7682,23 +7782,3 @@ jobs:
         timeout-minutes: 1
         run: |
           [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_calls github-token; api_budget_emit_content; api_budget_emit_routes github-token; }
-
-  # Keeps the required context `ci-status` reporting CI Status's conclusion
-  # until the github-iac ci-gate ruleset requires `CI Status`; then it is
-  # removed. Like CI Status it carries no contract-only gate, so it reports on
-  # every event the gate runs on. Re-run CI Status, never this job: a re-run of
-  # this one alone replays its old `needs` result.
-  report-ci-status: # lane-coverage-ok: reports CI Status's conclusion under the required context `ci-status`
-    name: ci-status
-    needs: [ci-status]
-    if: ${{ always() }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 3
-    permissions: {}
-    steps:
-      - name: Report the conclusion of `CI Status`
-        env:
-          RESULT: ${{ needs.ci-status.result }}
-        run: |
-          echo "CI Status: $RESULT"
-          [ "$RESULT" = success ]

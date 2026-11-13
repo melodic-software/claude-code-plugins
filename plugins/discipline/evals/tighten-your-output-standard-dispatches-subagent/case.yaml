@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: tighten-your-output-standard-dispatches-subagent
+context:
+  scaffold_script: scaffold.sh

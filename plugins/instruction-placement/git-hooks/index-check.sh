@@ -74,4 +74,7 @@ fi
 
 printf '%s:1: the rules index no longer matches .claude/rules/. Regenerate it: bash "%s" write --file "%s" --root "%s", then stage %s\n' \
   "$target" "$renderer" "$PWD/$target" "$PWD" "$target" >&2
+# The row lines name what to add, change or remove; check's own FIX line names
+# the scratch tree at pre-commit, so the command above replaces it.
+printf '%s\n' "$verdict" | grep -E '^(ADD|CHANGE|REMOVE|NOTE)'$'\t' >&2
 exit 1

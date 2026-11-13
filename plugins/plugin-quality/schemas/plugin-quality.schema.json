@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/plugin-quality/schemas/plugin-quality.schema.json",
+  "title": "Plugin-quality team config",
+  "description": "Schema for plugin-quality.yaml in a repository's convention home (default docs/conventions): the verification level of the plugin-quality plugin, read by /plugin-quality:audit and listed in plugins/plugin-quality/reference/config.md. The plugin's other keys stay in the topic doc <home>/plugin-quality/README.md. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "verification": {
+      "enum": ["off", "light", "standard", "strict"],
+      "default": "light",
+      "description": "How much independent checking this plugin's skills run: off, light (the default: skip the verifier dispatch), standard (run it) or strict (also run the optional passes). Read from the default branch's committed copy only, so a branch cannot lower it. Levels: docs/contracts/verification-level/README.md."
+    },
+    "verification_skills": {
+      "type": "object",
+      "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },
+      "description": "Per-skill verification level, keyed by skill name (for example audit); an entry beats this file's verification value."
+    }
+  }
+}

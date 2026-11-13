@@ -69,6 +69,11 @@ the code without spending clarity, tests, error handling, conventions, or
 observability. When a cut would cost any of those, leave the longer form and
 say why.
 
+Resolve the verification level once with
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill tighten-your-output --file docs/conventions/discipline.yaml`
+and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):
+`light` and `off` skip the method doc's step 2 and step 3 subagents, as it says.
+
 ## Routing, where batch and proactive work live
 
 - **Prose a person reads (a ticket comment, a pull-request body, a doc, a

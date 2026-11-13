@@ -11,6 +11,16 @@
       "description": "What the fable-5 playbook does when the user describes a problem without asking for a change. report: assess, report and offer the fix. fix: make the change and present the result; questions and thinking out loud stay assessments, and destructive or outward-visible steps still wait for consent.",
       "enum": ["report", "fix"],
       "default": "report"
+    },
+    "verification": {
+      "enum": ["off", "light", "standard", "strict"],
+      "default": "light",
+      "description": "How much independent checking this plugin's skills run: off, light (the default: skip the verifier dispatch), standard (run it) or strict (also run the optional passes). Read from the default branch's committed copy only, so a branch cannot lower it; no userConfig option. Levels: docs/contracts/verification-level/README.md."
+    },
+    "verification_skills": {
+      "type": "object",
+      "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },
+      "description": "Per-skill verification level, keyed by skill name (for example fable-5); an entry beats this file's verification value."
     }
   }
 }

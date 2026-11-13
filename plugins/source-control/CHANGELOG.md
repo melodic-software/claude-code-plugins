@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.7.3] - 2026-11-13
+
+### Changed
+
+- `/source-control:babysit-prs`: the agent prompt's standing instructions no longer ask the agent to re-check its work against the active conventions, an instruction with no check behind it.
+
+### Fixed
+
+- `pull-request` merge after AI review accepts a base ruleset that requires `CI Status`, the renamed gate check, as well as one that still requires `ci-status`; it stopped with "base ruleset does not require ci-status" once the org ruleset moved to `CI Status`.
+
+## [11.7.2] - 2026-11-13
+
+### Changed
+
+- `CARRY_REFUSES` lists `plugins/instruction-placement/scripts/**`, since this repository's `pr-require-checks.yml` now runs `render-index.sh` from it: a push touching that directory stops an approval carrying, the same as every other script a hold path runs ([#15933](https://github.com/melodic-software/claude-code-plugins/issues/15933)).
+
 ## [11.7.1] - 2026-11-13
 
 ### Fixed
