@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Unless a caller or user reads that text, it is a change detector: assert the error type callers branch on instead.",
+      "why": "names the error type"
+    },
+    {
+      "answer": "```ts\nexpect(() => parseConfig('{}')).toThrow(ConfigError);\n```",
+      "why": "asserts the class in code"
+    },
+    {
+      "answer": "Catch it and check `err instanceof MissingFieldError`.",
+      "why": "instanceof a named class"
+    },
+    {
+      "answer": "Check the type of the error instead: `await expect(p).rejects.toBeInstanceOf(ConfigError)`.",
+      "why": "type of the error, and toBeInstanceOf"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, keep it: pinning the exact message is precise.",
+      "why": "endorses the message with no type"
+    },
+    {
+      "answer": "Loosen it to `toThrow(/name/)` so small rewordings still pass.",
+      "why": "a looser message match is still wording, not the type"
+    },
+    {
+      "answer": "Use `toThrow()` so any error passes.",
+      "why": "a bare toThrow names no type"
+    }
+  ]
+}

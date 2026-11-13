@@ -1,10 +1,11 @@
 # good-for: rule-zero-assertion
-# The pytest.raises context manager is the assertion.
+# The pytest.raises context manager is the assertion. It pins the error type
+# callers branch on, not the message wording.
 import pytest
 
-from prices import parse_price
+from prices import PriceFormatError, parse_price
 
 
 def test_parse_price_rejects_words():
-    with pytest.raises(ValueError, match="not a price"):
+    with pytest.raises(PriceFormatError):
         parse_price("four dollars")
