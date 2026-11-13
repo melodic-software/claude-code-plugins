@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.5] - 2026-11-13
+
+### Changed
+
+- References to the context-window plugin use its new name, context-usage: the `/context-usage` commands, the `mcp__context-usage__status` tool and the `~/.claude/context-usage/` directory.
+
 ## [5.0.4] - 2026-11-12
 
 ### Changed
