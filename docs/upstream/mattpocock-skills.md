@@ -11,6 +11,9 @@ The companion page for the other upstream skill collection we adapt is
 conflicts with a skill derived from this repository. Rows below link upstream at the pinned commit
 and hold our decisions only, in our words; read upstream at the link for what it says.
 
+The author's Home Repo pattern, which keeps his private skills in a hub repository and points it
+at this one, is recorded in [`aihero-home-repo-pattern.md`](aihero-home-repo-pattern.md).
+
 **Last audited upstream state:** `mattpocock/skills@4ae2317ddb22b046e26455e4f9c9b3aaaf62212d` under `skills/` (v1.3.2 plus three later commits, 39 skills, audited 2026-11-03; the previous pin was `d81f3a1`, the v1.3 content).
 
 The changes from `d81f3a1` to `main@49dd158` were read on 2026-10-10. The [Map](#map) holds that

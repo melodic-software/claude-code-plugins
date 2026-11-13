@@ -440,7 +440,7 @@ the glossary carries the vocabulary, this table carries why.
 | AFK criterion | **ADOPT** (adapted) | The router-edge name lane 2 adopted (autonomous-feasibility test pointing to `session-flow:orchestrate`); admission licensed by its distinct project meaning |
 | asset rush | **ADOPT** | Failure-mode name already operative in lane 4's rows and the chain records; names the critique the interview-first pipeline answers |
 | context load / cognitive load (the two loads) | **ADOPT** | Adopted into the `docs-hygiene:write-for-agents` design by lane 7 (#2962); recorded as vocabulary riding that design |
-| navigation pointer | **ADOPT** | Lane 9 adopted the criteria under this name (#2987); the canonical term for curated CLAUDE.md navigation entries |
+| navigation pointer | **ADOPT** | Lane 9 adopted the criteria under this name (#2987); the canonical term for curated CLAUDE.md navigation entries. Pointers from a hub repository to its siblings are recorded in [`aihero-home-repo-pattern.md`](aihero-home-repo-pattern.md) |
 | design concept | **REJECT** (mapping recorded) | Maps to our existing "shared understanding" (lane 4, Q33); a second name for an owned concept violates vocabulary parsimony |
 | sycophancy | **REJECT** (as project vocabulary) | Generic LLM-behavior term with no distinct project meaning (glossary admission rule); free-prose use unaffected |
 | sediment | **REJECT** | Collides with the code-sense use in `playbooks:fable-5` execution doctrine; the pruning concept is covered by the docs-hygiene audit family |
