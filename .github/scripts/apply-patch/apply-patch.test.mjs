@@ -827,7 +827,6 @@ for (const [what, patched, warnings] of [
 
 for (const [what, head, patched, kept] of [
   ["a final END line with no line end", "p\n<!-- BEGIN GENERATED: g -->\nx\n<!-- END GENERATED: g -->", "P\n<!-- BEGIN GENERATED: g -->\ny\n<!-- END GENERATED: g -->", "P\n<!-- BEGIN GENERATED: g -->\nx\n<!-- END GENERATED: g -->"],
-  ["CRLF lines", "p\r\n<!-- BEGIN GENERATED: g -->\r\nx\r\n<!-- END GENERATED: g -->\r\n", "P\r\n<!-- BEGIN GENERATED: g -->\r\ny\r\n<!-- END GENERATED: g -->\r\n", "P\r\n<!-- BEGIN GENERATED: g -->\r\nx\r\n<!-- END GENERATED: g -->\r\n"],
 ]) {
   test(`a region edit in a file of ${what} is dropped and the prose edit kept, byte for byte`, async (t) => {
     const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/b.md"), patched), {
@@ -840,6 +839,54 @@ for (const [what, head, patched, kept] of [
     const tree = api.calls.find((call) => call.createCommit).createCommit.tree;
     assert.equal(execFileSync("git", ["cat-file", "blob", `${tree}:docs/b.md`], { cwd: fix.repo, encoding: "latin1" }), kept);
   });
+}
+
+// A head commit and a patch whose blobs hold exactly the given bytes, built
+// with plumbing that runs no filter (hash-object --no-filters, update-index
+// --cacheinfo), in a repository whose own core.autocrlf and .gitattributes
+// (committed and in the work tree) are set as given for apply-patch to meet.
+function filteredFixture(t, head, patched, { autocrlf, attributes }) {
+  const repo = scratch(t);
+  git(repo, ["init", "-q", "-b", "main"]);
+  git(repo, ["config", "user.email", "t@example.com"]);
+  git(repo, ["config", "user.name", "t"]);
+  if (autocrlf) {
+    git(repo, ["config", "core.autocrlf", autocrlf]);
+  }
+  const base = attributes ? { ".gitattributes": `${attributes}\n`, ...head } : head;
+  if (attributes) {
+    writeFileSync(join(repo, ".gitattributes"), `${attributes}\n`);
+  }
+  const treeOf = (files) => {
+    const env = { ...process.env, GIT_INDEX_FILE: join(scratch(t), "index") };
+    for (const [path, text] of Object.entries(files)) {
+      const sha = execFileSync("git", ["hash-object", "-w", "--no-filters", "--stdin"], { cwd: repo, input: Buffer.from(text, "latin1"), encoding: "utf8" }).trim();
+      execFileSync("git", ["update-index", "--add", "--cacheinfo", `100644,${sha},${path}`], { cwd: repo, env });
+    }
+    return execFileSync("git", ["write-tree"], { cwd: repo, env, encoding: "utf8" }).trim();
+  };
+  const headSha = git(repo, ["commit-tree", treeOf(base), "-m", "head"]);
+  git(repo, ["update-ref", "refs/heads/main", headSha]);
+  const text = execFileSync("git", ["diff", "--binary", "--full-index", "--no-renames", headSha, treeOf({ ...base, ...patched })], { cwd: repo, encoding: "latin1" });
+  const patchFile = join(scratch(t), "patch.diff");
+  writeFileSync(patchFile, text, "latin1");
+  return { repo, head: headSha, patchFile, sum: sha256(Buffer.from(text, "latin1")) };
+}
+
+const CRLF_HEAD = "p\r\n<!-- BEGIN GENERATED: g -->\r\nx\r\n<!-- END GENERATED: g -->\r\n";
+for (const autocrlf of ["input", "true", null]) {
+  for (const attributes of [null, "*.md text=auto eol=lf", "*.md -diff", "*.md binary"]) {
+    test(`a CRLF region edit is dropped and the CRLF prose edit kept byte for byte with core.autocrlf ${autocrlf ?? "unset"} and .gitattributes ${attributes ?? "absent"}`, async (t) => {
+      const fix = filteredFixture(t, { "docs/b.md": CRLF_HEAD }, { "docs/b.md": CRLF_HEAD.replace("p", "P").replace("x", "y") }, { autocrlf, attributes });
+      assert.equal(execFileSync("git", ["cat-file", "blob", `${fix.head}:docs/b.md`], { cwd: fix.repo, encoding: "latin1" }), CRLF_HEAD, "the fixture's head blob holds CRLF");
+      const api = fakeApi(fix.repo, fix.head);
+      const lines = [];
+      assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+      assert.deepEqual(lines, [regionWarning("docs/b.md", 3, "g"), `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+      const tree = api.calls.find((call) => call.createCommit).createCommit.tree;
+      assert.equal(execFileSync("git", ["cat-file", "blob", `${tree}:docs/b.md`], { cwd: fix.repo, encoding: "latin1" }), CRLF_HEAD.replace("p", "P"));
+    });
+  }
 }
 
 test("a file whose only change is inside a region goes back to the head's blob while another file pushes", async (t) => {

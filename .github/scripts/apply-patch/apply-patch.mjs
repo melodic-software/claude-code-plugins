@@ -431,7 +431,10 @@ function hunksOf(git, entry, oldCount, newCount) {
   if (ZERO.test(entry.oldSha) || ZERO.test(entry.newSha)) {
     return [{ oldStart: 0, oldCount, newStart: 0, newCount }];
   }
-  const diff = git(["diff", "-U0", "-a", "--no-color", "--no-ext-diff", "--no-textconv", entry.oldSha, entry.newSha]).toString("latin1");
+  // Two blob ids carry no path, so no .gitattributes text, eol, diff or
+  // binary setting applies, and core.autocrlf does not touch diff output;
+  // every option a repository config could change is given here.
+  const diff = git(["diff", "-U0", "--inter-hunk-context=0", "-a", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", entry.oldSha, entry.newSha]).toString("latin1");
   const at = (start, count) => (count === 0 ? start : start - 1);
   return Array.from(diff.matchAll(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/gm), ([, a, b = "1", c, d = "1"]) => ({
     oldStart: at(Number(a), Number(b)),
@@ -474,7 +477,12 @@ function protectedRegions(git, entry) {
   const warnings = [];
   const parts = [];
   let cursor = 0;
-  for (const hunk of hunksOf(git, entry, oldStarts.length, newStarts.length)) {
+  const hunks = hunksOf(git, entry, oldStarts.length, newStarts.length);
+  // Blobs that differ with no hunk read cannot be split, so nothing of them is pushed.
+  if (hunks.length === 0 && !before.equals(after)) {
+    return restore("whose change git shows as no hunk");
+  }
+  for (const hunk of hunks) {
     const last = hunk.oldStart + hunk.oldCount - 1;
     let region = hunk.oldCount > 0 ? head.regions.find((r) => r.begin <= last && hunk.oldStart <= r.end) : head.regions.find((r) => r.begin < hunk.oldStart && hunk.oldStart <= r.end);
     if (!region) {
