@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0] - 2026-11-13
+
+### Changed
+
+- `render-index.sh check` names the fix when the index drifts: after `DRIFTED` it prints one `ADD`, `CHANGE` or `REMOVE` line per differing row, keyed by the surface path, with the row's text (a `NOTE` line when every row matches and only the surrounding text differs), then a `FIX` line with the `write` command. The pre-commit entry `index-check.sh` prints those row lines under its own regenerate command. What counts as drift is unchanged ([#15933](https://github.com/melodic-software/claude-code-plugins/issues/15933)).
+
 ## [1.1.1] - 2026-11-13
 
 ### Changed
