@@ -122,7 +122,7 @@ anywhere but a handoff, recommend that route and write no save-point. A user's e
 `/session-flow:handoff` always writes one.
 
 - A heavy or degrading session (the user's report, a context-measuring mechanism such as
-  `context-guard`'s zone report, or responses drifting, repeating, or looping, never your own
+  `context-usage`'s zone report, or responses drifting, repeating, or looping, never your own
   estimate of the remaining window), when `/session-flow:workflow`'s continuation router routes
   here rather than to `/compact`
 - Extending the session chain, the deliberate escape-and-resume cadence (save-point, `/clear`,

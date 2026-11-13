@@ -664,7 +664,7 @@ test('command: any other argument gets the usage line', NO_WRITES, async ($, on)
   expect((await drawn($, 'terminal')).some(t => BAND_ROW.test(t))).toBe(false)
 })
 
-for (const name of ['band', 'context-guard']) {
+for (const name of ['band', 'context-usage']) {
   test(`command: /${name} is not this guard's and reaches the hook beneath`, NO_WRITES, async ($, on) => {
     const seen: string[] = []
     world(on)

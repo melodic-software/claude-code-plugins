@@ -59,8 +59,8 @@ constraints below.
    ends for a consumer when the record's cleanup runs, and for the fleet when the record is
    demoted to report-only. This is the one sanctioned dual-read; silent shims remain forbidden.
 6. **Machine-scope exclusion.** The retirement schema is repository-scope only; there is no
-   `scope` field. Machine-scope surfaces under `~/.claude/` (context-guard, rate-limit-guard,
-   machine-health) keep their bespoke detection, with the twin drift between context-guard and
+   `scope` field. Machine-scope surfaces under `~/.claude/` (context-usage, rate-limit-guard,
+   machine-health) keep their bespoke detection, with the twin drift between context-usage and
    rate-limit-guard fixed by the sync registry rather than by the schema.
 
 ## Alternatives considered

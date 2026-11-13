@@ -1,0 +1,52 @@
+schema_version: "1.1"
+name: su-check-null-usage-is-info
+graders:
+  - name: 'null-is-info'
+    type: 'llm'
+    criteria: 'The reply grades the fresh snapshot with a null used_percentage as INFO, not FAIL.'
+    focus: 'last_message'
+  - name: 'null-when'
+    type: 'llm'
+    criteria: 'The reply names both states in which the null happens: before the session''s first response, and right after /compact.'
+    focus: 'last_message'
+  - name: 'nothing-to-fix'
+    type: 'llm'
+    criteria: 'The reply says the teammate needs to do nothing about the null field: it does not advise reinstalling, rewiring, re-running apply or changing settings for it.'
+    focus: 'last_message'
+  - name: 'names-reader-contract'
+    type: 'regex'
+    pattern: '\breader[- ]contract(?:\.md)?(?![\w-]|\.\w)'
+    target: 'last_message'
+  - name: 'no-state-shell-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\"command\":\"(?:(?!<<)(?:''[^'']*''|[^\"\\'']|\\.))*?(?:>{1,2}\s*|\btee\s+(?:-a\s+)?|\bsed\s+-i\S*\s+(?:''[^'']*''|(?!\\n)[^\"\\;&|'']|\\[^n\"])*?|\b(?:mv|cp)\s+(?:-\S+\s+)*(?!-)(?:[^\s;&|<>\\]|\\.)+\s+)(?:\\\"|'')?(?:[^\s\"\\;&|<>'']*/)?(?:\.claude/plugins/|(?:settings(?:\.local)?|\.claude|zones)\.json(?![\w.-])|context-usage/context/|cache-line\.mjs(?![\w.-]))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-plugin-cli-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?claude(?:\.exe)?(?:\\\"|'')?(?:(?:\s|\\\\\\n)+-[^\s\"\\]+)*(?:\s|\\\\\\n)+plugins?(?:\s|\\\\\\n)+(?:install|uninstall|remove|configure|enable|disable|update)\b(?!\s+--help\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-install'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:(?:\\"|'')(?:[^"\\;&|'']|\\\\)*(?:/|\\\\)|(?:\\"|'')?(?:(?:[^\s"\\;&|='']|\\\\)*(?:/|\\\\))?)(?:sudo|doas|gsudo|pkexec|env|nice|ionice|nohup|time|timeout|stdbuf|setsid|flock|chroot|unbuffer|busybox|xargs|exec|arch|wsl|ssh|docker|podman)(?:\.exe)?(?:\\"|'')?(?:(?:\s|\\t|\\\\\\n)+(?!(?:e?grep|fgrep|rg|echo|printf|cat|man|which|type)\b)(?:(?!\\t|\\\\\\n)[^\s"&;|])+)*?(?:\s|\\t|\\\\\\n)+)?(?:(?:\\"|'')(?:[^"\\;&|'']|\\\\)*(?:/|\\\\)|(?:\\"|'')?(?:(?:[^\s"\\;&|='']|\\\\)*(?:/|\\\\))?)(?:(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|pacman|snap|winget|scoop|choco|nvm|fnm|volta|asdf|mise|rtx|aqua|conda|pip(?:x|3(?:\.\d+)*)?|npm|pnpm|yarn|go|cargo|rustup|uv)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)+(?:install|reinstall|add|use|upgrade|i|-S)\b|pacman(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)+-S\w*|(?:mise|asdf|rtx|aqua)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?:\s|\\t|\\\\\\n)+up\b|nix(?:-env)?\s+(?:-i\b|profile\s+install|shell|run)|docker\s+(?:pull|run)\b|(?:npx|uvx)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?:\s|\\t|\\\\\\n)+(?!-{1,2}(?:version|help|v|h)\b)|Install-(?:Module|PSResource)\b|(?:pwsh|powershell)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?:\s|\\t|\\\\\\n)+(?:(?:[^"\\]|\\.)*?(?:[{(;|=&]|\\n|(?<![\w-])-[Cc]\w*(?:\s|\\t|\\\\\\n)))?(?:\s|(?:\\"|''))*(?:[\w.]+\\\\)?Install-(?:Module|PSResource)\b|curl(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|''[^'']*''|\\"(?:[^"\\]|\\(?!")[\s\S])*\\"|(?!\\n)(?:[^"\\&;|\'']|\\(?!["n])[\s\S]))*?(?:\s|\\t|\\\\\\n)(?:-[A-Za-z]*[oO]|--output(?:-dir)?\b|--remote-name(?:-all)?\b)(?!=?(?:\s|\\t|\\\\\\n)*(?:/dev/null|NUL)\b)|(?:curl|wget)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|\d>&\d|[02-9]>>?(?:\s|\\t|\\\\\\n)*[^\s"\\;&|>]+|''[^'']*''|\\"(?:[^"\\]|\\(?!")[\s\S])*\\"|\|(?!\|)|\\(?!["n])[\s\S]|[^"\\&;|''>])*?(?<![02-9&])&?>{1,2}(?!>|&[\d-])(?!&?(?:\s|\\t|\\\\\\n)*(?:/dev/null|NUL)\b)|(?:curl|wget)(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?:\\\\\\n|\d>&\d|''[^'']*''|\\"(?:[^"\\]|\\(?!")[\s\S])*\\"|(?!\\n)(?:[^"\\&;\'']|\\(?!["n])[\s\S]))*?(?<!\|)\|(?!\|)(?:\s|\\t|\\\\\\n)*(?!(?:head|tail|e?grep|fgrep|rg|jq|yq|sed|awk|cut|sort|uniq|wc|tr|less|more|cat|column)\b)[^\s|]|wget(?:\.(?:exe|cmd|bat))?(?:\\"|'')?(?=(?:\s|\\t|\\\\\\n))(?!(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)(?:--spider\b|(?:-[A-Za-z]*O|--output-document)(?:=|(?:\s|\\t|\\\\\\n)*)(?:\\"|'')?(?:-|/dev/null|NUL)(?=\\"|''|[\s"|;&>]|\\[nt])))(?:\\\\\\n|(?!\\n)(?:[^"\\&;|]|\\.))*?(?:\s|\\t|\\\\\\n)(?:\\"|'')?https?://|(?:bash|dash|zsh|sh|source|\.)(?:\s+-\S+)*\s+<\(\s*(?:curl|wget)\b|(?:(?:bash|dash|zsh|sh)(?:\s+-\w+)*?\s+-\w*c\w*|eval)\s+(?:\\"|'')?\$\(\s*(?:curl|wget)\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

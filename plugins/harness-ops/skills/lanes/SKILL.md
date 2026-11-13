@@ -59,9 +59,9 @@ its own context on demand: the model cannot `/clear` itself from a loop re-run.
   live.
 
 Any "restart the loop when context passes ~N%" discipline has no in-session enforcement.
-Where the context-guard module loads, it writes the session's context snapshot in `-p` and
+Where the context-usage module loads, it writes the session's context snapshot in `-p` and
 `--bg` sessions too, so a lane can read its own zone from that snapshot; zone lines reach the
-model only with context-guard's `model_notices` option on, which is off by default. A lane still
+model only with context-usage's `model_notices` option on, which is off by default. A lane still
 cannot reset its own context from inside the loop.
 
 The context change that *does* happen automatically in-session is Claude Code's
@@ -146,7 +146,7 @@ execution-target convention, `docs/contracts/execution-target/` in the marketpla
 
 ## Mods state
 
-context-guard and rate-limit-guard run as mods. When mods cannot load, a lane gets only
+context-usage and rate-limit-guard run as mods. When mods cannot load, a lane gets only
 their reactive settings hooks, with no zone lines and no blocking gate, and nothing inside
 the lane says so. So `start`, `restart` and `status` print a `mods:` line under each lane:
 
@@ -165,7 +165,7 @@ the lane says so. So `start`, `restart` and `status` print a `mods:` line under 
 
 The line reports and never changes the exit code. In `status` it describes what a launch
 would get now, not what a running lane got when it launched. Check a running lane from
-inside it by looking for `mcp__context-guard__status` in its tool list, or with
+inside it by looking for `mcp__context-usage__status` in its tool list, or with
 `/rate-limit-guard:setup`.
 
 The causes, and which of them `claude plugin test` reports, belong to upstream; this skill

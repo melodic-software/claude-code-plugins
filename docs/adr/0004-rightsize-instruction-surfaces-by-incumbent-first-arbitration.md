@@ -69,7 +69,7 @@ re-decide.
 | # | Decision | Consequence |
 |---|---|---|
 | D-12 | **Fix the `guardrails` PreToolUse root cause.** p50 12–19s blocking every Bash call, ~1,464 runs in six days; a sibling guard in the same event class runs at 2ms | Not a matcher narrowing, not a disable. Root cause |
-| D-13 | **Remove the zero-usage plugins** except `plugin-quality`, `context-guard` (both shipped the same day) and `visualization` (one hit under a different leaf name) | ~16 plugins, ~7.4k est. resident tokens |
+| D-13 | **Remove the zero-usage plugins** except `plugin-quality`, `context-usage` (both shipped the same day) and `visualization` (one hit under a different leaf name) | ~16 plugins, ~7.4k est. resident tokens |
 
 ### Operator-reserved calls (ratified 2026-07-25, second round)
 

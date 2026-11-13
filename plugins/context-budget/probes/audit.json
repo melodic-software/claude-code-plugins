@@ -109,7 +109,7 @@
       "id": "neg-val-02",
       "split": "validation",
       "expect_trigger": false,
-      "request": "Check whether the context-guard hook has what it needs, node and jq."
+      "request": "Check whether the context-usage hook has what it needs, node and jq."
     },
     {
       "id": "neg-val-03",

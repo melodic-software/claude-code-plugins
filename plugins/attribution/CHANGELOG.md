@@ -1762,7 +1762,7 @@
   inventoried: `docs/CLOUD-SESSIONS.md` (3 against 4),
   `docs/conventions/loop-lane/README.md` (4 against 5),
   `docs/topics/fresh-eyes-checkpoint-audit/design/design-resolution.md` (1 against 2),
-  `plugins/context-guard/CHANGELOG.md` (4 against 5), and
+  `plugins/context-usage/CHANGELOG.md` (4 against 5), and
   `plugins/session-flow/CHANGELOG.md` (7 against 8). All five agree now.
 
   An earlier draft of this entry said three, because it sampled five of the seven affected files
@@ -1835,7 +1835,7 @@
 
   Two of the seven newly parsed stamps had been declined as bare years
   (`docs/upstream/aihero-course.md:127`,
-  `plugins/context-guard/reference/cloud-headless-capture.md:78`); the other five were not detected
+  `plugins/context-usage/reference/cloud-headless-capture.md:78`); the other five were not detected
   as candidates at all, because truncation left nothing date-shaped in the window. None of the seven
   is expired. The oldest is 40 days, and the oldest parsed stamp anywhere in the corpus is 142 days
   against a 180-day window, so no lapsed stamp had been hidden by this.

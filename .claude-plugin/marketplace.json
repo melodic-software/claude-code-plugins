@@ -775,8 +775,8 @@
       ]
     },
     {
-      "name": "context-guard",
-      "source": "./plugins/context-guard",
+      "name": "context-usage",
+      "source": "./plugins/context-usage",
       "category": "claude-code",
       "defaultEnabled": false,
       "tags": [
@@ -816,7 +816,7 @@
         "review",
         "quality",
         "work-item",
-        "context-guard",
+        "context-usage",
         "skill"
       ]
     },

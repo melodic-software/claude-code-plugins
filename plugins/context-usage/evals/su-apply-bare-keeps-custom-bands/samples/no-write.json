@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat ~/.claude/context-usage/zones.json"
+          }
+        }
+      ],
+      "why": "a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/eval-home/.claude/context-usage/zones.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "any Write"
+    }
+  ]
+}

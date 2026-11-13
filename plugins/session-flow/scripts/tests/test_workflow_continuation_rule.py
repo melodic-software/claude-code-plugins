@@ -8,7 +8,7 @@ CONTINUATION = (
     Path(__file__).resolve().parents[2] / "skills" / "workflow" / "context" / "continuation.md"
 )
 RULE = (
-    "**Between human stages, suggest a handoff only at context-guard zone `heavy`"
+    "**Between human stages, suggest a handoff only at context-usage zone `heavy`"
     " or on its compaction marker.**"
 )
 

@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "plugin-usage-is-not-skill-usage",
-      "prompt": "My ~/.claude.json says the guardrails plugin has usageCount 105 and context-guard has 98. Those are my most-used skills, right?",
+      "prompt": "My ~/.claude.json says the guardrails plugin has usageCount 105 and context-usage has 98. Those are my most-used skills, right?",
       "expected_output": "Corrects the premise: pluginUsage counts hook, agent, MCP, and LSP dispatch, not skill invocation, and those two plugins are hook-heavy infrastructure whose skills may never have been invoked at all. Also notes that pluginUsage rows are seeded at install with usageCount 0 beside a current lastUsedAt, so recency read off that field is meaningless unless the count is above zero.",
       "files": [],
       "expectations": [

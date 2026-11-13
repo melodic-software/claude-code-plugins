@@ -84,7 +84,7 @@
       "id": "neg-train-03",
       "split": "train",
       "expect_trigger": false,
-      "request": "Audit the context-guard plugin now that I've used it today, and file a ticket for its owners."
+      "request": "Audit the context-usage plugin now that I've used it today, and file a ticket for its owners."
     },
     {
       "id": "neg-train-04",

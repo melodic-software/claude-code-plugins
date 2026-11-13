@@ -185,4 +185,4 @@ uninstall.
 - Install `node`, update Claude Code, or install any system package.
 - Write or delete anything under `~/.claude/rate-limit-guard/`. The module and the hook own
   `rate-limits.json` and `stop-events.jsonl`.
-- Edit the sibling `context-guard` plugin's files.
+- Edit the sibling `context-usage` plugin's files.

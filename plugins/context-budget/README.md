@@ -71,7 +71,7 @@ listing that fills the default budget is about 1% of the window in the tokens th
 line states the row's share and does not say the listing is over a budget. The threshold is fixed,
 with no option to change it. The row shows its percent rounded, so a Skills row at 0.6% reads "1%"
 with no color. No other category has a documented level, so no other row warns. How full the
-context is stays with `context-guard`.
+context is stays with `context-usage`.
 
 - **Pointer:** [skills § Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short),
   and `SLASH_COMMAND_TOOL_CHAR_BUDGET` on [environment variables](https://code.claude.com/docs/en/env-vars)
@@ -228,7 +228,7 @@ An uninstall can delete this directory; the audit tells the operator so near the
 - Per-skill / per-agent / per-MCP-tool attribution belongs to `/context` natively.
 - This plugin answers "what is my context made of": the startup measurement and the live
   breakdown. How full the context is and what happens as it fills (zones, notices to Claude,
-  toasts, the one-line level row) belongs to the `context-guard` plugin.
+  toasts, the one-line level row) belongs to the `context-usage` plugin.
 - Measurements describe **headless** sessions of the **local CLI**; interactive sessions and
   cloud/web surfaces can compose the payload differently, and reports say so.
 

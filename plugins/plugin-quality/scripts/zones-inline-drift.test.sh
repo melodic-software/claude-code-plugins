@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Drift check: plugin-quality's copy of the context-guard zone floor must stay
-# byte-identical (value-level) to the context-guard reader contract that owns
+# Drift check: plugin-quality's copy of the context-usage zone floor must stay
+# byte-identical (value-level) to the context-usage reader contract that owns
 # it.
 #
 # This is the consumer-lane drift check the reader contract's "Inline-floor
@@ -37,10 +37,10 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="$SCRIPT_DIR/context-zone.sh"
 SKILL="$SCRIPT_DIR/../skills/audit/SKILL.md"
-CONTRACT="$SCRIPT_DIR/../../context-guard/reference/reader-contract.md"
+CONTRACT="$SCRIPT_DIR/../../context-usage/reference/reader-contract.md"
 
 if [[ ! -r "$CONTRACT" ]]; then
-  echo "SKIP: context-guard reader contract not reachable (installed-cache isolation) — drift lane runs in the monorepo only"
+  echo "SKIP: context-usage reader contract not reachable (installed-cache isolation) — drift lane runs in the monorepo only"
   exit 0
 fi
 
@@ -71,8 +71,8 @@ resolver_and_contract() {
 }
 
 resolver_and_contract "staleness window (10 minutes)" "10 minutes"
-resolver_and_contract "snapshot path pattern" "~/.claude/context-guard/context/<session_id>.json"
-resolver_and_contract "zones file path" "~/.claude/context-guard/zones.json"
+resolver_and_contract "snapshot path pattern" "~/.claude/context-usage/context/<session_id>.json"
+resolver_and_contract "zones file path" "~/.claude/context-usage/zones.json"
 resolver_and_contract "percentage floor" "light ≤ 50 < moderate ≤ 75 < heavy"
 resolver_and_contract "200k-class token band" "200000: light ≤ 100000 < moderate ≤ 150000 < heavy"
 resolver_and_contract "1M-class token band" "1000000: light ≤ 128000 < moderate ≤ 500000 < heavy"

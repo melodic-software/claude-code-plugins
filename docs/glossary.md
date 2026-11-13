@@ -71,7 +71,7 @@ claim resting on one is verified against the primary before it ships.
 
 **light zone**
 
-The healthiest of `context-guard`'s three context zones (`light` / `moderate` / `heavy`), naming
+The healthiest of `context-usage`'s three context zones (`light` / `moderate` / `heavy`), naming
 the band rather than any token figure. The band numbers are declared judgment defaults and tunable
 per consumer.
 

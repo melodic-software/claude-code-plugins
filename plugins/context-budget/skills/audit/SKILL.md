@@ -69,7 +69,7 @@ Two rules govern everything this skill says, per the plugin's
   `/skill-doctor`, see <https://code.claude.com/docs/en/skills#find-unused-skills>; for `/doctor`,
   see <https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor>.
 - Per-skill / per-agent / per-MCP-tool attribution → `/context` natively, which the person runs.
-- Live in-session occupancy over time → the `context-guard` plugin, if installed.
+- Live in-session occupancy over time → the `context-usage` plugin, if installed.
 - Settings correctness, permission-rule state → the `harness-config` plugin, if installed.
 
 ## Boundary, the bundled `explain-usage` skill
@@ -309,7 +309,7 @@ light-zone headline (reclaimed reasoning space, never cost), measured category t
 per-tool table with incomparable rows carrying reasons instead of numbers, lever findings grouped
 by honesty category with citations and emitted config, route-outs, then degradations and caveats.
 Persist it to `<data-dir>/reports/<UTC-timestamp>-audit.md`, one file per run, and present it
-to the operator. When `context-guard` is installed its zone vocabulary may frame the headline;
+to the operator. When `context-usage` is installed its zone vocabulary may frame the headline;
 otherwise use the payload's share of the measured window.
 
 ## Reading the numbers honestly

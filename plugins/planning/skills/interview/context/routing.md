@@ -28,10 +28,10 @@ recommendation; the third is a pointer:
   the trigger; one is noise. This is the fog evidence wayfind's too-big AND foggy stop rule needs,
   so a recommendation to chart always rests on it.
 - **Size alone: the context zone has worsened → `/session-flow:workflow`.** The session's
-  context-guard report (the zone line the module injects, or its `mcp__context-guard__status`
+  context-usage report (the zone line the module injects, or its `mcp__context-usage__status`
   tool) puts the session in a worse zone than the one it reported at entry. Use only a report the
   harness already surfaced or that tool; do not poll your own context statistics, and write no
-  token or percentage figure here, because the zone thresholds belong to context-guard. No report,
+  token or percentage figure here, because the zone thresholds belong to context-usage. No report,
   or `unknown`, is not a trigger. With no fog trigger, this recommends routing the continuation
   through `/session-flow:workflow` (Step 5), not wayfind. When both hold, recommend wayfind.
 - **Question count: the register passed `wayfind_suggest_questions` → suggest `/planning:wayfind

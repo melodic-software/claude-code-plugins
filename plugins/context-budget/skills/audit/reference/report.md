@@ -8,7 +8,7 @@ it exists, is a separate explicitly-invoked override.
 
 The report leads with **reclaimed reasoning space**: the share of the context window the fixed
 payload occupies and what measured trims would return to the model's working room. Cost per
-million tokens is never the lead and never a required line. When the `context-guard` plugin is
+million tokens is never the lead and never a required line. When the `context-usage` plugin is
 installed, its zone vocabulary (light/moderate/heavy bands) may frame the headline; absent it,
 report the payload as a percentage of the measured window (`totalTokens` / `maxTokens` in sdk
 mode; the displayed fraction in cli-parse mode).

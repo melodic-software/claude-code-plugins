@@ -357,7 +357,7 @@ Fleet audits check, per wired producer hook:
 - Any `systemMessage` that is neither a prerequisite-skip notice nor a content-mutation notice
   satisfies all three carve-out conditions, or is the one owner-approved exception named below,
   and its model-channel counterpart asserts no operator presence. Not mechanically gated, but reviewed per hook. No settings hook in the fleet meets all three
-  today: `context-guard`'s operator menu, the site that did, now comes from its mod as a transcript
+  today: `context-usage`'s operator menu, the site that did, now comes from its mod as a transcript
   line (`$.ui.log`) and a toast (`$.ui.toast`), with a notice row only on surfaces other than the
   terminal, none of which reaches Claude, so it is no `systemMessage`.
   Every call site is a prerequisite skip or a content-mutation notice, so a new kind is a signal
@@ -386,7 +386,7 @@ quiet skip needs a sanctioned helper call or an explicit `# silent-skip-ok:` ann
 
 ### Recorded exception: the guard mods' lines and telemetry (owner-approved, 2026-10-03)
 
-`context-guard`'s and `rate-limit-guard`'s mods add lines to tool results and prompts about the
+`context-usage`'s and `rate-limit-guard`'s mods add lines to tool results and prompts about the
 session's context and rate-limit windows, which the Frequency rule's "no countdown or budget line
 after tool results" would otherwise bar. They are admitted on this shape, and only on it (the owner
 amended the What bullet twice on 2026-10-04: dropping the standing-rule sentence, then admitting
@@ -401,14 +401,14 @@ gets nothing from either mod and the shape below does not arise:
   a window's reset time moves earlier while a window is past quiet or a line is due, saying earlier lines no longer apply,
   with the current reading (owner decision on #6445, 2026-10-18).
 - **What.** Each line names its plugin and a verdict worded as a fact. The verdict names no action,
-  claims no authority and gives no order. `context-guard`'s boundary lines add that continuing is
+  claims no authority and gives no order. `context-usage`'s boundary lines add that continuing is
   the user's call, and may be followed by the heavy-zone save note or an operator-configured
   `zones.json` action. `rate-limit-guard`'s lines carry the verdict only. Since 2026-10-11 (#7118)
   each mod may also follow its verdict lines with one constant options line per carrier, the only
   text this exception admits that names actions on a context channel: `rate-limit-guard`'s at an
   approach or threshold line (continue at the same model, effort and review depth, the user can
   switch accounts, or schedule after the reset; usage never calls for lowering any of the three),
-  `context-guard`'s past `light` (record decisions in a durable file, then continue, compact or hand
+  `context-usage`'s past `light` (record decisions in a durable file, then continue, compact or hand
   off as Claude and the user choose; a zone never calls for terser output, fewer agents or lower
   quality). The owner decided this after sessions moved subagents to a smaller model, stopped
   launching agents and steered toward handoffs on the verdict alone. An earlier `Keep working.`

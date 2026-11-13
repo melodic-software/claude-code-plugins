@@ -9,7 +9,7 @@
 //
 //   rate-limit-guard: node write-snapshot.mjs ~/.claude/rate-limit-guard/rate-limits.json \
 //                       --preserve-key rate_limits [--floor 300]
-//   context-guard:    node write-snapshot.mjs ~/.claude/context-guard/context/<session_id>.json \
+//   context-usage:    node write-snapshot.mjs ~/.claude/context-usage/context/<session_id>.json \
 //                       --prune [--floor <seconds>]
 //
 //   <target>              absolute path to <name>.json, <name> of [A-Za-z0-9_.-] not starting

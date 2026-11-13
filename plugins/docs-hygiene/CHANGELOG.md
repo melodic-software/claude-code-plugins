@@ -3027,7 +3027,7 @@ Four defects in the bucket design above, surfaced by automated review of the shi
 ### Fixed
 
 - **Form 1's trailing boundary excludes a hyphen.** `\b` treats a hyphen as a word boundary, so
-  `\B/<old>\b` matched `/context-guard` when renaming `context`, and Form 1 is Certain and sits
+  `\B/<old>\b` matched `/context-usage` when renaming `context`, and Form 1 is Certain and sits
   on container mode's Certain allowlist, so an unrelated command went through the default
   auto-apply path and was rewritten. Slash-command and container names are kebab-case, so this
   fires constantly rather than rarely. Now uses the same consumed `([^\w-]|$)` terminator as
@@ -3220,8 +3220,8 @@ Four defects in the bucket design above, surfaced by automated review of the shi
   correction mechanism when evidence picks the wrong mode, but they appeared in no flag contract,
   and unknown flags are rejected, so the documented override could not be honored.
 - **Forms 13 and 15 no longer match inside a hyphenated superstring.** Container IDs are
-  kebab-case, but a word boundary counts a hyphen as a boundary, so renaming `guard` matched
-  `context-guard@marketplace`, and renaming `context` matched `/plugin configure context-guard`.
+  kebab-case, but a word boundary counts a hyphen as a boundary, so renaming `usage` matched
+  `context-usage@marketplace`, and renaming `context` matched `/plugin configure context-usage`.
   On Certain-rated forms that silently auto-rewrites a DIFFERENT plugin's identifier. Both ends
   of both forms now exclude an adjacent `-`. Verified against a marketplace where 32 plugin names
   are hyphenated.

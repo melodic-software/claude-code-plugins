@@ -54,7 +54,7 @@ All sources absent → every key unset → defaults apply exactly as written bel
 
 ## Context-gate (before step 1, re-evaluated at steps 2 and 5)
 
-This skill consumes the `context-guard` plugin's per-session snapshots as a **soft dependency**.
+This skill consumes the `context-usage` plugin's per-session snapshots as a **soft dependency**.
 No manifest dependency; fresh data informs dispatch, absence degrades conservatively.
 `zone_behavior: always-conservative` from the resolved config short-circuits this gate to the
 unknown row before the resolver runs, and wins over any word the resolver would have returned,
@@ -62,8 +62,8 @@ including a fresh `light` (the notice names the config, not a missing snapshot, 
 
 Resolve the zone by running this plugin's own copy of the resolver, never by re-deriving the
 bands here and never by invoking another plugin's script from the cache.
-`${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh` is byte-identical to the context-guard canonical it
-is synced from, which is what makes this skill the same-plugin caller the context-guard reader
+`${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh` is byte-identical to the context-usage canonical it
+is synced from, which is what makes this skill the same-plugin caller the context-usage reader
 contract scopes its resolver invocation to.
 
 1. This session's id is `${CLAUDE_SESSION_ID}`. If that literal string appears unexpanded, the
@@ -79,14 +79,15 @@ contract scopes its resolver invocation to.
    or any other word, is `unknown`. stderr carries band-configuration notices only and never
    changes the word. The resolver owns the snapshot read, the `zones.json` band override, the
    staleness window, the token-shape version floor, and the two-shape combination rule, whose
-   values the context-guard reader contract owns.
+   values the context-usage reader contract owns.
 3. **`unknown` takes the conservative row.** It is the conservative word and it carries no
    direction: not evidence of a full window, not evidence of an empty one. Report it as "no fresh
    context snapshot", never as a defect, a broken install, or a reason to ask the operator to fix
    something, and never synthesize a zone from another source to replace it.
 4. **Compaction overrides the resolved word:** if the main thread knows this session was compacted
-   or summarized, including when the context-guard evidence-degraded marker
-   `~/.claude/context-guard/context/<session_id>.compacted` exists. Treat it as
+   or summarized, including when the context-usage evidence-degraded marker
+   `~/.claude/context-usage/context/<session_id>.compacted` exists (or, for a session compacted
+   before the plugin's rename, `~/.claude/context-guard/context/<session_id>.compacted`). Treat it as
    evidence-degraded: the heavy row applies regardless of a green zone (a compacted session's
    numbers reset while its evidence is already gone). The resolver does not read that marker;
    this check is the consumer's.
