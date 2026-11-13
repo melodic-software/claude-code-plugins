@@ -135,7 +135,7 @@ Parse the first token of `$ARGUMENTS`.
 | *(empty)* | **auto** | Open map exists → list its frontier by title, recommend one item and wait for the user's pick (several open maps: name them and ask which); an unattended session goes straight to `work`. No open map → propose `chart` and wait for the user's yes |
 | `chart [topic]` | **Chart** | Build or extend a map, without asking first. **Interactive only**. Refuses non-interactive sessions (charting burns assumptions that need a human) |
 | `work [map] [item]` | **Work** | Work one frontier item: the named one, else the first in creation order |
-| An item reference (URL, `#<n>` or tracker key) | **Work** | Work that item on its map |
+| An item reference (URL, `#<n>` or tracker key) | **Work** | Work that item on its map. A reference to a map itself (it carries the container label) is handled as *(empty)* for that map |
 | Any other text | **auto** | The text is the topic: an open map for it → as *(empty)*. Else propose `chart` with the topic and wait for the user's yes |
 
 ## Chart mode
@@ -160,10 +160,9 @@ that charting needs an interactive session. Do not fabricate a map.
    - Sort every remaining uncertainty through the fog test: sharp → candidate decision item;
      foggy → a *Not-yet-specified* bullet. Tell the user once that "I don't know" is a full
      answer.
-   - **Ask ready questions now.** A sharp question that already has a recommendation and waits
-     on no other decision is not map material: ask all of them in one `/planning:interview`
-     round before any map exists, and add the answers to the seed item's settled answers. Only
-     what stays open becomes an item.
+   - **Set ready questions aside.** A sharp question that already has a recommendation and
+     waits on no other decision is not map material: hold it for the one round step 2 asks.
+     Only what stays open after that round becomes an item.
    - **No-fog bail-out:** if the survey leaves *both* halves of the trigger unmet (every
      uncertainty is already sharp, or the whole effort fits one session), the effort skips the
      map. STOP and route out instead of fabricating one: a single contract to lock → invoke
@@ -184,6 +183,10 @@ that charting needs an interactive session. Do not fabricate a map.
      set of build items to decompose, one change, a decision record, or a general summary.
      Recommend a PRD for a coding effort, and a decision record or summary for one that is not.
      Narrow it to one bounded destination when it reads like a whole product.
+   - **Ready questions.** Next, ask every question step 1 set aside in one
+     `/planning:interview` round. The answers join the seed item's settled answers; with no
+     interview ledger, the seed item is still created to hold them (step 1's close-at-once
+     sequence).
    - **Proposed map.** Show the map as it would be created and wait for one yes: the
      Destination; each item to create with its title, type, mode and what it waits on; the
      Not-yet-specified bullets; the Out-of-scope list. Apply the changes the user asks for and
@@ -201,8 +204,9 @@ that charting needs an interactive session. Do not fabricate a map.
    - **Notes**: only what every session on this map must obey or consult: standing
      constraints, one line each; the skills to consult; durable pointers (PRs, committed docs,
      prior items, the dossier branch, external links). Background and interview facts go in the
-     seed item's resolution comment or the item they concern. Never a memory-tier
-     `<memory_dir>/` path, which other readers cannot resolve.
+     seed item's resolution comment or the item they concern. Memory-tier
+     `<memory_dir>/` artifacts are checkout-local, so distill their relevant content there as
+     text instead of pointing at paths other readers cannot resolve.
    - **Decisions-so-far**: a *pointer index* of resolved-in-scope decisions. Each home is its own
      item's resolution comment, never recopied here; wrongly scoped closures get no pointer.
    - **Not-yet-specified**: fog, one bullet per uncertainty, each opening with a short bold
@@ -234,7 +238,9 @@ that charting needs an interactive session. Do not fabricate a map.
    instead; closed-as-moot items have only their closing comment); no item resolved-in-comment
    but still open; no Not-yet-specified bullet that an item already charts (delete it). Fix
    violations before proceeding.
-2. **Load the map at low resolution.** Read the map body and its child list; open an item's body
+2. **Load the map at low resolution.** Read the map body, its child list and the seed item's
+   resolution comment when the map has one (it holds the settled answers and facts, so none is
+   asked again); open an item's body
    only when the step at hand needs it (the picked item, a blocker, a decision the sweep checks).
 3. **Compute the frontier.** `frontier = open ∧ zero OPEN blockers ∧ unassigned` (count open
    blockers, not the raw edge count), in creation order. In a non-interactive session, filter OUT

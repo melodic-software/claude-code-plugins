@@ -23,8 +23,9 @@ record, or a general summary. This is the map's success condition.>
   branch, external links.
 
 <Nothing else. Background and interview facts go in the seed item's resolution
-comment or the item they concern. Never a memory-tier `<memory_dir>/<slug>/` path: it is
-checkout-local, so no other reader can resolve it.>
+comment or the item they concern. Memory-tier `<memory_dir>/<slug>/` artifacts are
+checkout-local: distill what matters there as text instead of pointing at a path other readers
+cannot resolve.>
 
 ## Decisions-so-far
 
