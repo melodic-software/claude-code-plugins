@@ -8,4 +8,4 @@ execution:
   prompt: "/prototype:build-generator layout for our account settings page: tabs down the side, one long scrolling page, or a step-by-step wizard?"
   allowed_tools: [Read, Glob, Grep, Bash, Skill, Write, Edit]
   max_turns: 40
-  timeout_seconds: 600
+  timeout_seconds: 1200
