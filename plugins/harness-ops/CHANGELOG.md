@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.48] - 2026-11-13
+
+### Changed
+
+- `audit-native-overlap`'s `overlap.py generate` writes a new native-surfaces view with the `<!-- BEGIN GENERATED: native-surfaces. ... -->` / `<!-- END GENERATED: native-surfaces -->` markers the ai-slop audit skips. A view that carries the older `<!-- native-surfaces:start -->` / `<!-- native-surfaces:end -->` markers is still read and regenerated in that form.
+
 ## [8.12.47] - 2026-11-13
 
 ### Fixed
