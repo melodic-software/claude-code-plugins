@@ -3,6 +3,27 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.7.1] - 2026-11-13
+
+### Fixed
+
+- The unattended merge gate no longer refuses a pull request with `no-lane-job` because an earlier head's review run was superseded: when the head moved while Wait Refine waited, the caller job was skipped and the run reviewed nothing, so the open-findings scan now passes over it. At the pinned head such a run still binds nothing. Such a run also no longer drops the blocking security count carried from an earlier head's review.
+
+## [11.7.0] - 2026-11-13
+
+### Added
+
+- `branch-update-signals.sh` takes `--dir <checkout>`, as `fetch-all-pr-comments.sh` and `resolve-remote.sh` do: every git read runs in that checkout, and the repository is resolved there with `target-repo.sh` (which honors `GH_REPO`); `--repo` still wins. Without `--dir`, the script reads the current directory and gh's `{owner}/{repo}` placeholders as before.
+
+### Changed
+
+- References to the rate-limit windows plugin use its new name, rate-limits: the `rate-limits@melodic-software` id, the `/rate-limits:setup` command, the `mcp__rate-limits__status` tool and the `~/.claude/rate-limits/` directory.
+- Corrected in place: the released entries [0.79.21], [0.79.20], [0.79.13], [0.79.9], [0.74.0], [0.55.55], [0.55.28], [0.49.1], [0.39.0], [0.31.4], [0.24.0], [0.36.0], [0.33.1] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
+### Fixed
+
+- `/source-control:pull-request ready` 2.5.2 and the shared update sequence name `<branch-checkout>`, the path of the checkout holding the branch (for a PR, the worktree `pr-worktree.sh` prints), where they said "from the PR's checkout": `push-branch.sh`, `resolve-remote.sh` and `branch-update-signals.sh` get `--dir "<branch-checkout>"`, and the base fetch and merge, the fast-forward after the forge's update and the signed-head read run with `git -C "<branch-checkout>"`, so a session whose shell is outside the PR's checkout can run the step.
+
 ## [11.6.0] - 2026-11-13
 
 ### Added

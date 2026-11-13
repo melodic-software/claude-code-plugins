@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "/work-items:track start #42, then /planning:interview for 'Choose the billing aggregate'.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Nothing to claim; stopping.",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Or rule it out of scope; it then moves to Out-of-scope with your reason.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Option: a mop-up interview item.",
+      "why": "breaks the rule"
+    }
+  ]
+}

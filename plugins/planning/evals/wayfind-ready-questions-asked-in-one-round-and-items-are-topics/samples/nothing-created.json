@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing created yet; answer the three and I'll show the proposed map.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Created the map issue and the catalogue item.",
+      "why": "breaks the rule"
+    }
+  ]
+}

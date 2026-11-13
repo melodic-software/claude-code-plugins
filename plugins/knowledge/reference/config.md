@@ -31,7 +31,7 @@ run never stops on an invalid value.
 | Key | Values | Default | Argument | Reader and effect |
 |---|---|---|---|---|
 | `upstream_records_dir` | a repository-relative directory: not absolute, no leading `~`, no `..` segment, inside the working tree | `docs/upstream` | `--out <dir>`, which also takes an absolute directory | `/knowledge:absorb-upstream` writes its record in this directory. |
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | none | `/knowledge:video-digest` Phase 9.4: whether the vision fidelity spot-check goes to a fresh-context subagent; `light` and `off` skip it and the slice is reported structural complete only. Team layer only, read from the default branch through `lib/read-verification.sh`, not the layers above; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | none | `/knowledge:video-digest` Phase 9.4: whether the vision fidelity spot-check goes to a fresh-context subagent; `light` and `off` skip it and the slice is reported structural complete only. Team layer only, read from the default branch through `lib/read-verification.sh`, not the layers above; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)). |
 
 An absolute `--out` is valid only when `scripts/repo-visibility.mjs` reads `private`, `internal`
 or `local` for that directory (`private` or `internal` only when every fetch and push URL of every

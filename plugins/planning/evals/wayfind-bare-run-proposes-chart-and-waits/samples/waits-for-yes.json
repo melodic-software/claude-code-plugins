@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Want me to chart it? I'll start once you say yes.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Charting now. Items: 'Pick the routing engine'. Not-yet-specified: **Zones**: unclear.",
+      "why": "breaks the rule"
+    }
+  ]
+}

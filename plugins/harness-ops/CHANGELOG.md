@@ -3,6 +3,27 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.0.0] - 2026-11-13
+
+### Added
+
+- The control-claude-code driver answers `--help`, listing its verbs, and `<verb> --help`, giving one verb's flags; `cli/account.mjs` answers `--help` too. Each driver verb that writes or sends (`launch`, `type`, `screenshot`, `record`, `stop`, `ready`, `log`) takes `--dry-run`, which checks the arguments, prints what the verb would do and does nothing. Usage errors now say where to read the flags.
+
+### Changed
+
+- **Breaking:** the `verification` level now defaults to `light` when the default branch sets no `verification` key or cannot be read: verifier dispatches are skipped and the skip line is written. An invalid value or a team file that does not parse still resolves `standard`, naming the error. Set `verification: standard` (or `strict`), or `verification_skills.<skill>`, in the team file on the default branch to raise it.
+
+## [8.12.49] - 2026-11-13
+
+### Added
+
+- `behavior-probes`: three `hub-start` case pairs, each case beside its control: an `rm -rf` of a 200-file tracked directory in the sibling repository named only by a file in the hub (expected denied) against the same command named by the prompt; whether the sibling's `CLAUDE.md` loads on a Read by absolute path, against a hub subdirectory's `CLAUDE.md`, read from an `InstructionsLoaded` hook log; and where a subagent spawned with `isolation: "worktree"` runs, against one spawned with no isolation. New scaffolds `cases/lib/hub-fixtures.sh`, `instructions-probe.sh` and `cwd-probe-agent.sh` build them inside the run's temp directory. The cases are listed as pending in `records.md` until their first live run.
+
+### Changed
+
+- References to the rate-limit windows plugin use its new name, rate-limits: the `rate-limits@melodic-software` id, the `/rate-limits:setup` command, the `mcp__rate-limits__status` tool and the `~/.claude/rate-limits/` directory.
+- Corrected in place: the released entries [3.14.0], [0.29.0], [0.21.1] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [8.12.48] - 2026-11-13
 
 ### Changed

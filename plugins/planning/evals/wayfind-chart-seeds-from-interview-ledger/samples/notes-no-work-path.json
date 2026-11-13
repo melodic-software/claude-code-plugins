@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "## Notes\n- Retention rules follow the seed item's comment.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Notes\n- Interview ledger: .work/data-retention/interview-checklist.md",
+      "why": "breaks the rule"
+    }
+  ]
+}

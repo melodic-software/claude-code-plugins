@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "## Not-yet-specified\n- **Analytics deletion**: what deletion means for derived data is unclear.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Items: 'Define deletion for derived analytics' (wayfind: interview).",
+      "why": "breaks the rule"
+    }
+  ]
+}

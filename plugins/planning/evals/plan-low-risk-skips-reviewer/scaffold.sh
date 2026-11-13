@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# A sandbox repository with no planning settings (verification standard, plan_stress_test auto),
-# pushed to a local bare origin, holding a small textkit package with a test, a feature branch that
-# changes it, and a settled one-function draft plan with LOW blast radius and no stress-test trigger.
+# A sandbox repository whose planning team file sets only verification: standard (plan_stress_test
+# stays auto), pushed to a local bare origin, holding a small textkit package with a test, a feature
+# branch that changes it, and a settled one-function draft plan with LOW blast radius and no
+# stress-test trigger.
 set -euo pipefail
 
 git init -q -b main
-mkdir -p textkit tests
+mkdir -p textkit tests docs/conventions
+printf 'verification: standard\n' >docs/conventions/planning.yaml
 printf '# textkit\n\nSmall text helpers. slugify lives in textkit/slug.py.\n' >README.md
 : >textkit/__init__.py
 cat >textkit/slug.py <<'PY'

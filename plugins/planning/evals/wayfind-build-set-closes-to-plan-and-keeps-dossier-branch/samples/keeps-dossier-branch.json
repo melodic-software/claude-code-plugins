@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The dossier branch stays until the destination's container closes.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Map closed; deleting dossier/600-module-extraction.",
+      "why": "breaks the rule"
+    }
+  ]
+}

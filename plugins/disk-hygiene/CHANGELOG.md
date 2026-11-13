@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.30] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.20.33], [0.9.4] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [1.0.29] - 2026-11-13
 
 ### Changed

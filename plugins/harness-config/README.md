@@ -248,7 +248,7 @@ implementation plan as Small, Medium or Large; on, it may state the size in time
 budget you state is kept in your words either way. A `time_units` key in
 `<home>/harness-config.yaml` sets it for a repository and wins over the option. That file is the
 one tracked consumer-project file; it also holds `audit-pass`'s suppression record, above, and
-the `verification` level (`off | light | standard | strict`, default `standard`, with per-skill
+the `verification` level (`off | light | standard | strict`, default `light`, with per-skill
 `verification_skills`), read from the default branch only by `lib/read-verification.sh`, which
 decides whether `audit-automation-gaps`, `audit-instructions`, `audit-pass` and
 `audit-prompting-postures` dispatch their fresh-context verifiers

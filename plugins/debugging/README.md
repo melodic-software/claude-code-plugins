@@ -70,7 +70,7 @@ to set these keys, checked against [`schemas/debugging.schema.json`](schemas/deb
 | Key | Values | Default | What it controls |
 |---|---|---|---|
 | `always_on_signal` | `when-instrumented`, `always`, `never` | `when-instrumented` | When `/debugging:debug` Phase 6 proposes one cheap, always-on signal that would have shown the deciding fact at first look: only after Phase 4 instrumentation ran, on every run, or never. |
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/debugging:debug` dispatches its fresh-context outcome verifier: `light` and `off` skip it and record the outcome unverified. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/debugging:debug` dispatches its fresh-context outcome verifier: `light` and `off` skip it and record the outcome unverified. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

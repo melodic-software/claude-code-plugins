@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.0] - 2026-11-13
+
+### Changed
+
+- **Breaking:** the `verification` level now defaults to `light` when the default branch sets no `verification` key or cannot be read: verifier dispatches are skipped and the skip line is written. An invalid value or a team file that does not parse still resolves `standard`, naming the error. Set `verification: standard` (or `strict`), or `verification_skills.<skill>`, in the team file on the default branch to raise it.
+
+## [3.3.2] - 2026-11-13
+
+### Added
+
+- The design skill's copy of the shared type rules (`reference/type-discipline.md`) gains a row:
+  two values that share a primitive type and must never be swapped each get their own distinct
+  nominal type, produced only by their parse.
+
+## [3.3.1] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.26.3] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [3.3.0] - 2026-11-13
 
 ### Added

@@ -110,7 +110,7 @@ to set these keys, checked against
 
 | Key | Values | Default | What it controls |
 |---|---|---|---|
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/codebase-health:audit` runs its Phase 2 false-positive gate as a separate subagent: `strict` dispatches it even after an inline Phase 1, `light` and `off` skip it and report the findings `unverified`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/codebase-health:audit` runs its Phase 2 false-positive gate as a separate subagent: `strict` dispatches it even after an inline Phase 1, `light` and `off` skip it and report the findings `unverified`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

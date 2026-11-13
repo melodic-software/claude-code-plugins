@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Closes to /planning:plan with the decisions as its task, then /work-items:decompose from the plan.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Closes to /work-items:decompose #600.",
+      "why": "breaks the rule"
+    }
+  ]
+}

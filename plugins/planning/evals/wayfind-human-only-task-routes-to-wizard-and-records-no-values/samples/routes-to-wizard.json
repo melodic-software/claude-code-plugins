@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Routing #507 to /wizard:generate for a guided script you run.",
+      "why": "matches"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll sign up for Knock myself.",
+      "why": "does not match"
+    }
+  ]
+}

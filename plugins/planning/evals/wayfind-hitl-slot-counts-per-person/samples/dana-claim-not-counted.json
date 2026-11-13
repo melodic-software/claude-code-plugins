@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Dana's claim on #41 counts for Dana, not you; you hold none, so #42 is open to you.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The one needs-human slot is held by #41, so #42 is skipped.",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Working 'Choose the cart persistence model' (#43) on 'Map: checkout redesign'.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Proposing a chart for 'issues/43'. Shall I chart it?",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "/discovery:research 'Pick the index library' at verification level light, no verifier pass.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/discovery:research 'Pick the index library' at strict, then run the verifier.",
+      "why": "breaks the rule"
+    }
+  ]
+}

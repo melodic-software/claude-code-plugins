@@ -126,7 +126,7 @@ to set these keys, checked against
 
 | Key | Values | Default | What it controls |
 |---|---|---|---|
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | How much of `/playwright:demo-video`'s independent frame review (step 8) runs: `light` and `off` skip the quality judgment and report the video as not independently judged for quality, but the fresh-context check for secrets and personal data in the frames still runs and still gates posting. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | How much of `/playwright:demo-video`'s independent frame review (step 8) runs: `light` and `off` skip the quality judgment and report the video as not independently judged for quality, but the fresh-context check for secrets and personal data in the frames still runs and still gates posting. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

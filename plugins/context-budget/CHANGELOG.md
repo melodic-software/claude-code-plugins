@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.1.10] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.6.14] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [1.1.9] - 2026-11-13
 
 ### Changed

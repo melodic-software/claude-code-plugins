@@ -12,7 +12,11 @@
 #
 #   verification_skills.<skill>   wins when set
 #   verification                  the plugin's value otherwise
-#   standard                      no value, an invalid value, or no readable layer
+#   standard                      an invalid value, or a file that does not parse
+#   light                         no value, or no readable layer
+#
+# An invalid value falls to standard, not light, so a team that set a level
+# keeps a floor through a typo.
 #
 # The team layer is the only layer, read at origin/<default>: the working-tree
 # copy never applies, so a branch cannot lower its own level. When the working
@@ -32,7 +36,8 @@
 #
 # Output: one line, `verification: <level> (<source>)`, for example
 #   verification: light (docs/conventions/docs-hygiene.yaml verification_skills.compress at origin/main, commit <sha>)
-#   verification: standard (default; team layer skipped: <reason>)
+#   verification: light (default; team layer skipped: <reason>)
+#   verification: standard (default; docs/conventions/verification.yaml verification=Strict is not off, light, standard or strict at origin/main, commit <sha>)
 # then, when the working tree's copy differs, a second `verification:` line.
 # Always exit 0: every case ends in a level, so an unattended run never stops.
 set -uo pipefail
@@ -42,8 +47,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/config-root.sh"
 
 say() { printf 'verification: %s\n' "${1//[[:cntrl:]]/ }"; }
-standard() {
-  say "standard ($1)"
+fallback() {
+  say "light ($1)"
   exit 0
 }
 
@@ -52,7 +57,7 @@ plugin="" skill="" fixed=""
 while (($#)); do
   case "$1" in
   --plugin | --skill | --file)
-    (($# >= 2)) || standard "$usage"
+    (($# >= 2)) || fallback "$usage"
     case "$1" in
     --plugin) plugin="$2" ;;
     --skill) skill="$2" ;;
@@ -60,32 +65,32 @@ while (($#)); do
     esac
     shift 2
     ;;
-  *) standard "$usage" ;;
+  *) fallback "$usage" ;;
   esac
 done
 name='^[a-z0-9][a-z0-9-]*$'
 [[ "$plugin" =~ $name && "$skill" =~ $name ]] ||
-  standard "default; --plugin and --skill take a name of lowercase letters, digits and -"
+  fallback "default; --plugin and --skill take a name of lowercase letters, digits and -"
 if [[ -n "$fixed" ]] && [[ ! "$fixed" =~ ^[A-Za-z0-9._/-]+\.yaml$ || "$fixed" == [/-]* || "$fixed" == *..* ]]; then
-  standard "default; --file '$fixed' is not a repository-relative .yaml path"
+  fallback "default; --file '$fixed' is not a repository-relative .yaml path"
 fi
 
 root="$(config_root_resolve)"
 case "$(config_root_classify "$root")" in
-home) standard "default; team layer skipped: the root is \$HOME or an ancestor of it" ;;
-non-repo) standard "default; team layer skipped: the root is not inside a git working tree" ;;
+home) fallback "default; team layer skipped: the root is \$HOME or an ancestor of it" ;;
+non-repo) fallback "default; team layer skipped: the root is not inside a git working tree" ;;
 *) ;;
 esac
 root="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)" ||
-  standard "default; team layer skipped: the repository top level could not be read"
+  fallback "default; team layer skipped: the repository top level could not be read"
 
 symref="$(git -C "$root" ls-remote --symref origin HEAD 2>/dev/null)" ||
-  standard "default; team layer skipped: no origin remote answered git ls-remote --symref origin HEAD"
+  fallback "default; team layer skipped: no origin remote answered git ls-remote --symref origin HEAD"
 branch="$(awk '$1 == "ref:" && $3 == "HEAD" { print $2; exit }' <<<"$symref")"
 branch="${branch#refs/heads/}"
-[[ -n "$branch" ]] || standard "default; team layer skipped: origin names no default branch"
+[[ -n "$branch" ]] || fallback "default; team layer skipped: origin names no default branch"
 if [[ ! "$branch" =~ ^[A-Za-z0-9._/-]+$ || "$branch" == -* || "$branch" == *..* ]]; then
-  standard "default; team layer skipped: origin's default branch name '$branch' is not a safe name"
+  fallback "default; team layer skipped: origin's default branch name '$branch' is not a safe name"
 fi
 
 stale=""
@@ -94,7 +99,7 @@ stale=""
 git -C "$root" fetch --quiet origin "+refs/heads/$branch:refs/remotes/origin/$branch" >/dev/null 2>&1 ||
   stale="; the fetch failed, so the last fetched copy may be stale"
 sha="$(git -C "$root" rev-parse --verify --quiet --end-of-options "refs/remotes/origin/$branch^{commit}")" ||
-  standard "default; team layer skipped: origin/$branch has not been fetched"
+  fallback "default; team layer skipped: origin/$branch has not been fetched"
 
 # Every read below names the commit, never a short ref a same-named tag or
 # local branch could shadow.
@@ -106,7 +111,7 @@ else
   case "$rc" in
   0) ;;
   1 | 4) home=docs/conventions ;;
-  *) standard "default; team layer skipped: the convention-home pointer at origin/$branch is broken (resolve-convention-home.sh exit $rc)" ;;
+  *) fallback "default; team layer skipped: the convention-home pointer at origin/$branch is broken (resolve-convention-home.sh exit $rc)" ;;
   esac
   file="$home/$plugin.yaml"
 fi
@@ -118,7 +123,7 @@ at="at origin/$branch, commit $sha$stale"
 # `off/` or a list is named as invalid rather than read as a level.
 resolve() {
   local text records v k
-  LEVEL=standard KEY="" ERR=""
+  LEVEL=light KEY="" ERR=""
   if [[ -n "${1:-}" ]]; then
     text="$(git -C "$root" show --end-of-options "$1:$file" 2>/dev/null)" || return
   else
@@ -126,12 +131,12 @@ resolve() {
     text="$(<"$root/$file")"
   fi
   records="$(LC_ALL=C awk -f "$SCRIPT_DIR/yaml-subset.awk" <<<"$text" 2>/dev/null)" || {
-    ERR="$file does not parse or repeats a key"
+    LEVEL=standard ERR="$file does not parse or repeats a key"
     return
   }
   for k in "verification_skills.$skill" verification; do
     if awk -F '\t' -v k="$k." 'index($1, k) == 1 { found = 1 } END { exit !found }' <<<"$records"; then
-      ERR="$file $k is a list or map, not off, light, standard or strict"
+      LEVEL=standard ERR="$file $k is a list or map, not off, light, standard or strict"
       return
     fi
     v="$(awk -F '\t' -v k="$k" '$1 == k { print substr($0, length($1) + 2); exit }' <<<"$records")"
@@ -141,7 +146,7 @@ resolve() {
   if [[ "$v" =~ ^(off|light|standard|strict)$ ]]; then
     LEVEL="$v" KEY="$k"
   else
-    ERR="$file $k=$v is not off, light, standard or strict"
+    LEVEL=standard ERR="$file $k=$v is not off, light, standard or strict"
   fi
 }
 
@@ -151,7 +156,7 @@ describe() {
   elif [[ -n "$KEY" ]]; then
     printf '%s (%s %s' "$LEVEL" "$file" "$KEY"
   else
-    printf 'standard (default; %s sets no level' "$file"
+    printf 'light (default; %s sets no level' "$file"
   fi
 }
 

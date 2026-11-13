@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The comment records the key's name and where it is stored, never its value.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Paste the API key here and I'll put it in the resolution comment.",
+      "why": "breaks the rule"
+    }
+  ]
+}

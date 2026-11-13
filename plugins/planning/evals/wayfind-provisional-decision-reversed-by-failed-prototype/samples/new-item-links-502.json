@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Open 'Re-pick the vendor' linking [Pick the vendor](URL); #502 stays closed and unedited.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Reopen #502 and change its resolution to Courier.",
+      "why": "breaks the rule"
+    }
+  ]
+}

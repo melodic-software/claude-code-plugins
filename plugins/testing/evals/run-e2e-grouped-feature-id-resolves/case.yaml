@@ -1,12 +1,12 @@
 schema_version: "1.1"
 name: run-e2e-grouped-feature-id-resolves
-description: Without app-control, run-e2e resolves a module-qualified feature id named in the scenario to the grouped folder's README.md before any legacy file, reports its entry points under that id, and refreshes nothing
-tags: [run-e2e, run-e2e-feature-id, feature-resolution, unattended, invented]
-expected_outcome: "The run takes own driving (app-control not installed, unattended). It resolves billing/export to .claude/skills/control-shop/features/billing/export/README.md, never opening the stray legacy features/billing/export.md, and its report has one line for each of that README's two entry points, the Export button and GET /api/invoices.csv, each under the id billing/export and reported not driven with a reason. It carries `touched features not matched (app-control not installed)`, refreshes nothing, names installing app-control as the next step, launches nothing and asks nothing."
+description: Without app-control, run-e2e resolves a module-qualified feature id named in the scenario to the grouped folder's README.md before any legacy file, starts the expected outcome from that file's stated results, names the stated result the change's requirement replaces, reports its entry points under that id, and refreshes nothing
+tags: [run-e2e, run-e2e-feature-id, run-e2e-stated-results, feature-resolution, unattended, invented]
+expected_outcome: "The run takes own driving (app-control not installed, unattended). It resolves billing/export to .claude/skills/control-shop/features/billing/export/README.md, never opening the stray legacy features/billing/export.md, and its report has one line for each of that README's two entry points, the Export button and GET /api/invoices.csv, each under the id billing/export and reported not driven with a reason. The Export button's expected outcome starts from the README's stated results (invoices.csv downloads; the Proof step's header row date,number,amount) and adds the acceptance criterion on top; since the criterion changes the header row to date,number,amount,currency, the requirement wins and a line under the Export button's report line names the stated header row date,number,amount as replaced. It carries `touched features not matched (app-control not installed)`, refreshes nothing, names installing app-control as the next step, launches nothing and asks nothing."
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/testing:run-e2e --unattended billing/export\n\nContext, not part of the scenario: the app-control plugin is not installed. This branch changes only shop/billing/export/csv.py. Do not launch, install or run anything. Since nothing runs here, report each entry point as not driven, with the reason. Name the feature file this run reads for the scenario and write the report lines the run would produce, then stop."
+  prompt: "/testing:run-e2e --unattended billing/export\n\nContext, not part of the scenario: the app-control plugin is not installed. This branch changes only shop/billing/export/csv.py, and its acceptance criterion is: the exported CSV's header row is date,number,amount,currency. Do not launch, install or run anything. Since nothing runs here, report each entry point as not driven, with the reason. Name the feature file this run reads for the scenario, write the expected outcome each entry point would be judged against, and write the report lines the run would produce, then stop."
   allowed_tools: [Read, Glob, Grep]
   max_turns: 12
   timeout_seconds: 300
@@ -34,6 +34,13 @@ graders:
     pattern: '^\W*billing/export[`*\s]*\|'
     flags: m
     arm: both
+  - name: quotes-replaced-result
+    type: regex
+    pattern: 'date,number,amount(?!,)'
+    arm: both
+  - name: names-replaced-stated-result
+    type: llm
+    criteria: "PASS only if the reply (1) writes the Export button's expected outcome starting from the feature file's stated results, the step result that invoices.csv downloads and the Proof step's end state, a header row of date,number,amount, (2) adds the acceptance criterion, a header row of date,number,amount,currency, on top and lets it win over the stated header row, and (3) on a line under the Export button's report line names the stated result it replaced, the date,number,amount header row. FAIL if it expects the date,number,amount header row as the passing outcome, drops the acceptance criterion, writes the expected outcome from the requirement alone, says the feature states no results, writes `no stated results` for the Export button, or edits or proposes editing the feature file itself. Saying a later /app-control:map refresh should weigh the replaced result is not a failure."
   - name: reports-readme-entry-points
     type: llm
     criteria: "PASS only if the reply (1) names .claude/skills/control-shop/features/billing/export/README.md (or features/billing/export/README.md) as the feature file for billing/export, (2) gives one report line for each of its two entry points, the Export button on the billing page and GET /api/invoices.csv, each as passed, failed or not driven with a reason, and (3) reports that touched features were not matched because app-control is not installed and names installing app-control as the next step. FAIL if it gives /app-control:map refresh as the next step instead of installing app-control, says a refresh ran, uses features/billing/export.md or lists any of that file's entry points (Download PDF, Email invoices, GET /api/invoices.pdf, the nightly invoice email), says the feature cannot be found, reports the cart feature as touched, or asks the person anything. Saying what a later run with app-control will refresh is not a failure."

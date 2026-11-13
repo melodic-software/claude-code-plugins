@@ -2453,6 +2453,107 @@ class KillSwitchRerunTests(Base):
             self.assertUnbound(result[lane], "lane-source-changed")
 
 
+def superseded(
+    lane: str,
+    sha: str = S,
+    *,
+    caller: str | None = None,
+    caller_conclusion: str | None = "skipped",
+) -> dict[str, Any]:
+    """Attempt 1 as run 43399258472 recorded it: Wait Refine saw the head move
+    (proceed=false), so the reusable's caller job was skipped and the run
+    succeeded with no lane job. A `caller_conclusion` of None leaves the
+    caller job out."""
+    caller = caller or JOBS[lane].split(" / ", 1)[0]
+    names = [("Kill Switch", "success"), ("Resolve Model", "success")]
+    names.append(("Wait Refine", "success"))
+    if caller_conclusion is not None:
+        names.append((caller, caller_conclusion))
+    return {
+        "run_attempt": 1,
+        "head_sha": sha,
+        "status": "completed",
+        "conclusion": "success",
+        "jobs": [
+            {
+                "id": next(_ids),
+                "run_attempt": 1,
+                "name": name,
+                "status": "completed",
+                "conclusion": conclusion,
+                "head_sha": sha,
+                "annotations": [],
+            }
+            for name, conclusion in names
+        ],
+    }
+
+
+class SupersededRunTests(Base):
+    """A run whose caller job Wait Refine skipped (the head moved while it
+    waited) reviewed nothing: on an earlier head it does not unbind the lane,
+    and at the pinned head it binds nothing."""
+
+    def test_a_superseded_run_on_an_earlier_head_does_not_unbind(self) -> None:
+        for lane in LANES:
+            for names in (JOBS, RENAMED_JOBS):
+                caller = names[lane].split(" / ", 1)[0]
+                with self.subTest(lane=lane, caller=caller):
+                    stopped = run(lane, S0, attempts=[superseded(lane, S0, caller=caller)])
+                    result = self.bind([stopped, whole(lane, S)])
+                    self.assertIsNone(result[lane].unbound_reason)
+                    self.assertTrue(result[lane].bound)
+                    self.assertEqual(result[lane].open_findings, 0)
+
+    def test_an_earlier_run_with_no_lane_job_and_no_skipped_caller_unbinds(self) -> None:
+        for lane, other in zip(LANES, reversed(LANES), strict=True):
+            own = JOBS[lane].split(" / ", 1)[0]
+            for name, conclusion, run_conclusion in (
+                (own, None, "success"),
+                (own, "success", "success"),
+                (own, "failure", "success"),
+                # A failed run whose caller was skipped, not upstream-stopped.
+                (own, "skipped", "failure"),
+                (JOBS[other].split(" / ", 1)[0], "skipped", "success"),
+                ("Wait Refine", "skipped", "success"),
+            ):
+                with self.subTest(
+                    lane=lane, caller=name, conclusion=conclusion, run=run_conclusion
+                ):
+                    first = superseded(lane, S0, caller=name, caller_conclusion=conclusion)
+                    first["conclusion"] = run_conclusion
+                    stopped = run(lane, S0, attempts=[first])
+                    result = self.bind([stopped, whole(lane, S)])
+                    self.assertUnbound(result[lane], "no-lane-job")
+
+    def test_a_superseded_run_at_the_pinned_head_does_not_bind(self) -> None:
+        # The newest run at the head reviewed nothing, so nothing proves a
+        # review of it, whatever an earlier head's review found.
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                result = self.bind(
+                    [
+                        whole(lane, S0),
+                        run(lane, S, attempts=[superseded(lane)], created="2026-01-02T00:00:00Z"),
+                    ]
+                )
+                self.assertUnbound(result[lane], "no-lane-job")
+
+    def test_a_skipped_caller_beside_a_status_job_is_read_as_a_review(self) -> None:
+        # Malformed: the status job ran, so its record is read as ever.
+        first = superseded("claude-review", S0)
+        reviewed = attempt(
+            "claude-review",
+            S0,
+            1,
+            [record("claude-review", S0, "findings=0 inline=1 scope=whole")],
+        )
+        first["jobs"].append(reviewed["jobs"][0])
+        stopped = run("claude-review", S0, attempts=[first])
+        result = self.bind([stopped, whole("claude-review", S)])
+        self.assertUnbound(result["claude-review"], "count-inconsistent")
+
+
 # The caller workflows' `Stop on upstream status` error (pr-review-hosted.yml,
 # pr-review-security-hosted.yml), which fails the kill-switch job.
 UPSTREAM_STOP = {
@@ -3965,6 +4066,32 @@ class CarriedBlockingTests(Base):
                 self.assertFalse(lanes[self.SEC].bound)
                 self.assertEqual(lanes[self.SEC].blocking_findings, 1)
                 self.assertEqual(self.person(lanes), ["security-finding"])
+
+    def test_a_superseded_run_at_the_new_head_still_carries_it(self) -> None:
+        # The run at S2 reviewed nothing; the review at S still leaves the
+        # finding open, so the count is carried, not dropped.
+        runs, threads = self.critical_at_s()
+        stopped = run(
+            self.SEC,
+            self.S2,
+            attempts=[superseded(self.SEC, self.S2)],
+            created="2026-01-02T00:00:00Z",
+        )
+        lanes = by_lane(
+            ev.bind(
+                self.S2,
+                [*runs, stopped],
+                both_markers(),
+                threads,
+                is_human=is_human,
+                head_file=fixed_head,
+                changed_paths=(),
+                floor=risk.floor_for(),
+            )
+        )
+        self.assertUnbound(lanes[self.SEC], "no-lane-job")
+        self.assertEqual(lanes[self.SEC].blocking_findings, 1)
+        self.assertEqual(self.person(lanes), ["security-finding"])
 
     def test_an_older_marker_naming_a_head_is_read_only_off_the_newest(
         self,
