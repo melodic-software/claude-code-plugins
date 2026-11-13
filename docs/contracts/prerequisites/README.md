@@ -122,13 +122,13 @@ A hook plugin registers no SessionStart row for its prerequisites. It declares `
 the top of its `prerequisites.json`, naming its kill-switch option, if it has one:
 
 ```json
-"session_probe": { "run_if_unset_or_true": "BIOME_FORMAT_ENABLED" },
+"session_probe": { "run_if_unset_or_true": "EXAMPLE_ENABLED" },
 ```
 
 harness-ops' one SessionStart row, `hooks/prerequisites-fleet.mjs`, runs the `probe` of each enabled
 plugin that declares it, as a child with that plugin's `CLAUDE_PLUGIN_ROOT` and
 `CLAUDE_PLUGIN_DATA`, and prints their notices as one message. It skips a plugin whose
-`run_if_unset_or_true` option (`BIOME_FORMAT_ENABLED` reads `biome_format_enabled`) is set to
+`run_if_unset_or_true` option (`EXAMPLE_ENABLED` reads `example_enabled`) is set to
 anything but `true` in the operator's settings, else in the option's declared default. A plugin
 that does not declare `session_probe` is never probed at session start.
 

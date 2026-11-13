@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| javascript_format_enabled | INFO | true (default) |\n| javascript_format_lint_gitignored | INFO | false (default) |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "javascript_format_lint_gitignored is false.",
+      "why": "near miss: no javascript_format_enabled value"
+    },
+    {
+      "answer": "javascript_format_enabled is on and javascript_format_lint_gitignored is on.",
+      "why": "wrong value for the gitignored option"
+    }
+  ]
+}

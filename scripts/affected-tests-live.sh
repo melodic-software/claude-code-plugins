@@ -244,7 +244,7 @@ read_pairs=(
   "$s_dims|$tracker_lib/lease.sh"
   "plugins/python-format/hooks/python-format.test.sh|plugins/python-format/lib/git-hooks/install.mjs"
   "plugins/python-format/hooks/python-format.test.sh|plugins/python-format/lib/prerequisites.mjs"
-  "plugins/biome-format/hooks/biome-format-end-of-turn.test.sh|plugins/biome-format/hooks/exec-bash.mjs"
+  "plugins/javascript-format/hooks/javascript-format-end-of-turn.test.sh|plugins/javascript-format/hooks/exec-bash.mjs"
   "plugins/code-metrics/skills/audit/scripts/audit-complexity.test.sh|plugins/code-metrics/scripts/yaml_subset.py"
   "plugins/instruction-placement/git-hooks/index-check.test.sh|plugins/instruction-placement/.claude-plugin/plugin.json"
   # Suites that read every plugin's manifest through a path built from parts.

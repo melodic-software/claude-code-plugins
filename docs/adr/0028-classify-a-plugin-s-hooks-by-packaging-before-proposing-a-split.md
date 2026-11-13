@@ -11,8 +11,8 @@ such split is proposed, the plugin is placed in one of three classes, and only o
 candidate:
 
 - **Class A: the hooks ARE the plugin.** Removing them leaves a shell. Twelve plugins:
-  `actionlint`, `bash-format`, `biome-format`, `desktop-notification`, `eol-normalizer`,
-  `go-format`, `guardrails`, `markdown-format`, `powershell-format`, `rate-limit-guard`,
+  `actionlint`, `bash-format`, `desktop-notification`, `eol-normalizer`, `go-format`,
+  `guardrails`, `javascript-format`, `markdown-format`, `powershell-format`, `rate-limit-guard`,
   `python-format`, `spelling`. Each carries exactly one skill and that skill is `setup`, the
   thing that installs and configures the hooks. Splitting hooks out of these produces an empty
   plugin and a hook bundle, which is the same plugin under two names. **Never split.**

@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/javascript-format/hooks/javascript-format.sh"
+          }
+        }
+      ],
+      "why": "the hook"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "biome.json"
+          }
+        }
+      ],
+      "why": "another json"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/settings.json"
+          }
+        }
+      ],
+      "why": "project settings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/repo/.claude/settings.local.json"
+          }
+        }
+      ],
+      "why": "local settings"
+    }
+  ]
+}

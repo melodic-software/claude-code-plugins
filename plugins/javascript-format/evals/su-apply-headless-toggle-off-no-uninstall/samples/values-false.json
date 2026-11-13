@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "`{\"javascript_format_enabled\": \"false\"}`"
+    },
+    {
+      "answer": "Set javascript_format_enabled to false."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"javascript_format_enabled\": \"true\"}",
+      "why": "wrong value"
+    },
+    {
+      "answer": "{\"javascript_format_lint_gitignored\": \"false\"}",
+      "why": "near miss: the wrong key"
+    }
+  ]
+}

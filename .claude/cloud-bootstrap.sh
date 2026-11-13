@@ -114,7 +114,7 @@ fi
 
 # --- Root npm toolchain (required) --------------------------------------------
 # Provides the pinned claude CLI, Biome, and markdownlint-cli2 that
-# scripts/validate-plugins.sh, the biome-format contract tests, and the
+# scripts/validate-plugins.sh, the javascript-format contract tests, and the
 # markdown-format hook expect. markdownlint-cli2 must stay a root
 # package-lock install: npm -g lands in the nvm prefix, which hook processes
 # do not inherit (#2739 / #2748). Skipped when node_modules is already in sync

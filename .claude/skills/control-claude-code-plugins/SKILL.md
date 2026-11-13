@@ -66,7 +66,6 @@ The driving tool's `## Mask`.
 - attribution | features/attribution/README.md | entry points: 4 | sources: plugins/attribution/skills/*/SKILL.md
 - autonomy | features/autonomy/README.md | entry points: 4 | sources: plugins/autonomy/skills/*/SKILL.md
 - bash-format | features/bash-format/README.md | entry points: 4 | sources: plugins/bash-format/skills/*/SKILL.md
-- biome-format | features/biome-format/README.md | entry points: 4 | sources: plugins/biome-format/skills/*/SKILL.md
 - bugs | features/bugs/README.md | entry points: 4 | sources: plugins/bugs/skills/*/SKILL.md
 - code-metrics | features/code-metrics/README.md | entry points: 4 | sources: plugins/code-metrics/skills/*/SKILL.md
 - code-tidying | features/code-tidying/README.md | entry points: 4 | sources: plugins/code-tidying/skills/*/SKILL.md
@@ -105,6 +104,7 @@ The driving tool's `## Mask`.
 - implementation | features/implementation/README.md | entry points: 4 | sources: plugins/implementation/skills/*/SKILL.md
 - improvement | features/improvement/README.md | entry points: 4 | sources: plugins/improvement/skills/*/SKILL.md
 - instruction-placement | features/instruction-placement/README.md | entry points: 4 | sources: plugins/instruction-placement/skills/*/SKILL.md
+- javascript-format | features/javascript-format/README.md | entry points: 4 | sources: plugins/javascript-format/skills/*/SKILL.md
 - kindle-dedrm | features/kindle-dedrm/README.md | entry points: 4 | sources: plugins/kindle-dedrm/skills/*/SKILL.md
 - knowledge | features/knowledge/README.md | entry points: 4 | sources: plugins/knowledge/skills/*/SKILL.md
 - machine-health | features/machine-health/README.md | entry points: 4 | sources: plugins/machine-health/skills/*/SKILL.md
