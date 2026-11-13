@@ -12,7 +12,11 @@
 #
 #   verification_skills.<skill>   wins when set
 #   verification                  the plugin's value otherwise
-#   light                         no value, an invalid value, or no readable layer
+#   standard                      an invalid value, or a file that does not parse
+#   light                         no value, or no readable layer
+#
+# An invalid value falls to standard, not light, so a team that set a level
+# keeps a floor through a typo.
 #
 # The team layer is the only layer, read at origin/<default>: the working-tree
 # copy never applies, so a branch cannot lower its own level. When the working
@@ -33,6 +37,7 @@
 # Output: one line, `verification: <level> (<source>)`, for example
 #   verification: light (docs/conventions/docs-hygiene.yaml verification_skills.compress at origin/main, commit <sha>)
 #   verification: light (default; team layer skipped: <reason>)
+#   verification: standard (default; docs/conventions/verification.yaml verification=Strict is not off, light, standard or strict at origin/main, commit <sha>)
 # then, when the working tree's copy differs, a second `verification:` line.
 # Always exit 0: every case ends in a level, so an unattended run never stops.
 set -uo pipefail
@@ -126,12 +131,12 @@ resolve() {
     text="$(<"$root/$file")"
   fi
   records="$(LC_ALL=C awk -f "$SCRIPT_DIR/yaml-subset.awk" <<<"$text" 2>/dev/null)" || {
-    ERR="$file does not parse or repeats a key"
+    LEVEL=standard ERR="$file does not parse or repeats a key"
     return
   }
   for k in "verification_skills.$skill" verification; do
     if awk -F '\t' -v k="$k." 'index($1, k) == 1 { found = 1 } END { exit !found }' <<<"$records"; then
-      ERR="$file $k is a list or map, not off, light, standard or strict"
+      LEVEL=standard ERR="$file $k is a list or map, not off, light, standard or strict"
       return
     fi
     v="$(awk -F '\t' -v k="$k" '$1 == k { print substr($0, length($1) + 2); exit }' <<<"$records")"
@@ -141,13 +146,13 @@ resolve() {
   if [[ "$v" =~ ^(off|light|standard|strict)$ ]]; then
     LEVEL="$v" KEY="$k"
   else
-    ERR="$file $k=$v is not off, light, standard or strict"
+    LEVEL=standard ERR="$file $k=$v is not off, light, standard or strict"
   fi
 }
 
 describe() {
   if [[ -n "$ERR" ]]; then
-    printf 'light (default; %s' "$ERR"
+    printf 'standard (default; %s' "$ERR"
   elif [[ -n "$KEY" ]]; then
     printf '%s (%s %s' "$LEVEL" "$file" "$KEY"
   else

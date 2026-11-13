@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Tests for lib/read-verification.sh. Expected outputs follow
 # docs/contracts/verification-level/README.md: a skill entry beats the plugin
-# value, the team file is read at origin's default branch only, and anything the
-# reader cannot read or trust resolves light with its reason.
+# value, the team file is read at origin's default branch only, a layer with no
+# value to read resolves light, and an invalid value or unparseable file resolves
+# standard, each with its reason.
 # Run directly: bash lib/read-verification.test.sh
 set -uo pipefail
 
@@ -96,24 +97,32 @@ assert_eq "another skill's entry leaves the plugin value" \
   "verification: light ($F verification $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture invalid $'verification: Strict\n')
-assert_eq "an invalid value is named and gives light" \
-  "verification: light (default; $F verification=Strict is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
+assert_eq "an invalid value is named and keeps the standard floor" \
+  "verification: standard (default; $F verification=Strict is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture invalid-skill $'verification: strict\nverification_skills:\n  confirm: lite\n')
-assert_eq "an invalid skill entry gives light, not the plugin value" \
-  "verification: light (default; $F verification_skills.confirm=lite is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
+assert_eq "an invalid skill entry keeps the standard floor, not the plugin value" \
+  "verification: standard (default; $F verification_skills.confirm=lite is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
+
+repo=$(fixture unparseable $'verification: |\n  strict\n')
+assert_eq "a file that does not parse is named and keeps the standard floor" \
+  "verification: standard (default; $F does not parse or repeats a key $(at "$repo"))" "$(run "$repo")"
+
+repo=$(fixture no-key $'proof_level: live\n')
+assert_eq "a file that sets no level resolves light" \
+  "verification: light (default; $F sets no level $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture repeated $'verification: strict\nverification: off\n')
-assert_eq "a repeated key is named and gives light" \
-  "verification: light (default; $F does not parse or repeats a key $(at "$repo"))" "$(run "$repo")"
+assert_eq "a repeated key is named and keeps the standard floor" \
+  "verification: standard (default; $F does not parse or repeats a key $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture slash $'verification: off/\n')
 assert_eq "a value with a trailing slash is named, never read as off" \
-  "verification: light (default; $F verification=off/ is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
+  "verification: standard (default; $F verification=off/ is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
 
 repo=$(fixture list-skill $'verification: strict\nverification_skills:\n  confirm: [strict]\n')
-assert_eq "a list-valued skill entry is named and gives light" \
-  "verification: light (default; $F verification_skills.confirm is a list or map, not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
+assert_eq "a list-valued skill entry is named and keeps the standard floor" \
+  "verification: standard (default; $F verification_skills.confirm is a list or map, not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
 
 # A tag and a local branch both named origin/main, on a commit that sets off,
 # must not shadow the remote-tracking ref (gitrevisions resolves refs/tags first).

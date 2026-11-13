@@ -47,10 +47,12 @@ emits the results labeled unverified instead of skipping them.
   copy gives another level, a second line names both copies.
 - The root rule of `lib/config-root.sh classify` comes first: a `$HOME` or non-repository root
   skips the layer. So do no `origin`, a default branch name outside letters, digits, `.`, `_`, `/`
-  and `-` (or one with a leading `-` or `..`), and an unfetched default branch. Each skip resolves
-  `light` with its reason.
-- An invalid value, at either key, is named and resolves `light`, as does a file that does not
-  parse. A failed fetch reads the last fetched copy and says it may be stale.
+  and `-` (or one with a leading `-` or `..`), an unfetched default branch, and a broken
+  convention-home pointer. Each skip resolves `light` with its reason, as do no file and a file
+  that sets no level.
+- An invalid value at either key (not `off`, `light`, `standard` or `strict`, or a list or map),
+  and a file that does not parse, are named and resolve `standard`: a team that set a level keeps
+  a floor through a typo. A failed fetch reads the last fetched copy and says it may be stale.
 
 ## Interactions with other settings
 
