@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Second pass, once both ids exist: wire blocked-by and edit the channel body to link the format item.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Create the channel item blocked by the format item (to be created next).",
+      "why": "breaks the rule"
+    }
+  ]
+}

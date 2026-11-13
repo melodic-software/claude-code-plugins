@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Stopping. Re-run /planning:wayfind chart in an interactive session.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No human is available, so I picked the destination myself: a PRD. Map follows.",
+      "why": "breaks the rule"
+    }
+  ]
+}

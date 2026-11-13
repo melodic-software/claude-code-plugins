@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "1. Create 'Pick the export format'. 2. Create 'Choose the delivery channel'. 3. Then wire them.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. Create 'Choose the delivery channel' with body 'depends on #57'. 2. Create 'Pick the export format'.",
+      "why": "breaks the rule"
+    }
+  ]
+}

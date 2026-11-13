@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "1. Map Out-of-scope: '- [Should we also rewrite the mobile app?](URL): web billing only.' 2. Close #51.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Posted the resolution 'not rewriting mobile' on #51 and closed it as resolved.",
+      "why": "breaks the rule"
+    }
+  ]
+}

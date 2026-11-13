@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Picking 'Choose the billing aggregate' (#42): claimed, routed to /planning:interview.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolved all three: aggregate per tenant (#42), Stripe (#43), per-tenant numbering (#44).",
+      "why": "breaks the rule"
+    }
+  ]
+}

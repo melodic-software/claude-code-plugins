@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Items: 'Decide partner signup' (self sign-up or invitation; mandatory identity fields; verify the registration number?) and 'Decide billing setup' (monthly or annual; launch currencies; who approves credit limits).",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Items: 'Decide partner signup' (self sign-up or invitation; mandatory fields) and 'Decide invoicing cadence'.",
+      "why": "breaks the rule"
+    }
+  ]
+}

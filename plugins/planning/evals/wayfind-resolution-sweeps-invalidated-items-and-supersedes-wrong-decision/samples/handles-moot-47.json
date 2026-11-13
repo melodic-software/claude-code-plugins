@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Close #47 as not planned with the comment 'Moot: see [Decide invoice numbering](URL#comment)'.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Close #47.",
+      "why": "breaks the rule"
+    }
+  ]
+}

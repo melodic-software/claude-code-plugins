@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "No answers recorded; these need you.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "To close the map I decided all three: REST, Postgres, monthly billing.",
+      "why": "breaks the rule"
+    }
+  ]
+}

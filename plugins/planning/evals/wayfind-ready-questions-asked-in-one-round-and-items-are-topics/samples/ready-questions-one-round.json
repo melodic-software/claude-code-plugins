@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Three quick ones, together: 1. Email digests on by default? Recommend yes. 2. Keep the SMS toggle? Recommend no. 3. Per-channel mute? Recommend yes.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Items: 'Email digests on by default?', 'Keep the legacy SMS toggle?', 'Show a per-channel mute?'.",
+      "why": "breaks the rule"
+    }
+  ]
+}

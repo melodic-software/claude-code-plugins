@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Deferred: mutual TLS. Glossary: added 'partner app'.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Deferred: none.",
+      "why": "breaks the rule"
+    }
+  ]
+}

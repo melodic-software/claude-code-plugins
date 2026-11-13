@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "No map exists for the warehouse-routing rework. Shall I chart one?",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is a summary of the warehouse-routing interview.",
+      "why": "breaks the rule"
+    }
+  ]
+}

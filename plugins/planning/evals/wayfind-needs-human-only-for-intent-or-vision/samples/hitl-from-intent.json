@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "needs-human only where your vision decides it; the library pick has its budget, so an agent can settle it.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Interview items get needs-human, design items don't.",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Routing #145 to /planning:design with the item's question and criteria; that skill's rounds settle it.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Decision: three aggregates, Invoice, Subscription and Payment. Posting that as the resolution.",
+      "why": "breaks the rule"
+    }
+  ]
+}

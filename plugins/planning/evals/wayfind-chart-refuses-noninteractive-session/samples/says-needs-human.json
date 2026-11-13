@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Charting needs a human in the loop, so it cannot run in an unattended batch job.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is the map I drafted on my own assumptions.",
+      "why": "breaks the rule"
+    }
+  ]
+}

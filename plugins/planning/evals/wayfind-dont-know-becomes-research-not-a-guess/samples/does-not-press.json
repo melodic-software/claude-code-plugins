@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "'I don't know' is a full answer; a research item takes it.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Please check with your mobile team and tell me whether it can.",
+      "why": "breaks the rule"
+    }
+  ]
+}

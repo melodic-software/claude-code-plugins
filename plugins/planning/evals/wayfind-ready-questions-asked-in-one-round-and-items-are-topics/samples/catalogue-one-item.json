@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Item: 'Define the notification catalogue' (which events exist, their names, who receives each).",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Items: 'Which events exist?', 'What are they named?', 'Who receives each?'.",
+      "why": "breaks the rule"
+    }
+  ]
+}

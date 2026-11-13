@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Out-of-scope line added, #51 closed; no Decisions-so-far pointer, since it is out of scope.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Decisions-so-far: '- [Should we also rewrite the mobile app?](URL): no (resolved today)'.",
+      "why": "breaks the rule"
+    }
+  ]
+}

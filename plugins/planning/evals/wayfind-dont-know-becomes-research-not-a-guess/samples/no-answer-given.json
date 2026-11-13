@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Research settles that; I won't guess.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It almost certainly can, via APNs and FCM; I recommend assuming yes.",
+      "why": "breaks the rule"
+    }
+  ]
+}

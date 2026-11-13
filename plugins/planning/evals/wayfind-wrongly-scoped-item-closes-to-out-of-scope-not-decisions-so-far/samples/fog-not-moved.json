@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Only the #51 line goes in Out-of-scope; the fog stays where it is.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Also moved the fog bullet about mobile sync into Out-of-scope.",
+      "why": "breaks the rule"
+    }
+  ]
+}
