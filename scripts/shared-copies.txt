@@ -264,6 +264,17 @@ lib/session-bridge/watch.sh plugins/review/view-bridge/watch.sh
 lib/session-bridge/wake.sh plugins/review/view-bridge/wake.sh
 lib/session-bridge/view_bridge.py plugins/review/view-bridge/view_bridge.py
 lib/session-bridge/view-bridge.sh plugins/review/view-bridge/view-bridge.sh
+lib/session-bridge/session_bridge.py plugins/prototype/notes-bridge/session_bridge.py
+lib/session-bridge/watch.sh plugins/prototype/notes-bridge/watch.sh
+lib/session-bridge/wake.sh plugins/prototype/notes-bridge/wake.sh
+lib/session-bridge/view_bridge.py plugins/prototype/notes-bridge/view_bridge.py
+lib/ui-feedback/notes_bridge.py plugins/prototype/notes-bridge/notes_bridge.py
+lib/ui-feedback/notes-bridge.sh plugins/prototype/notes-bridge/notes-bridge.sh
+lib/ui-feedback/host.html plugins/prototype/notes-bridge/host.html
+lib/ui-feedback/proto-pin.js plugins/prototype/notes-bridge/proto-pin.js
+lib/ui-feedback/note-model.mjs plugins/prototype/notes-bridge/note-model.mjs
+lib/ui-feedback/note.schema.json plugins/prototype/notes-bridge/note.schema.json
+lib/ui-feedback/proto-pin.js plugins/planning/shared/web/proto-pin.js
 lib/view-builder.mjs plugins/review/lib/view-builder.mjs
 lib/view-runtime.js plugins/review/lib/view-runtime.js
 lib/view-builder.mjs plugins/education/lib/view-builder.mjs
