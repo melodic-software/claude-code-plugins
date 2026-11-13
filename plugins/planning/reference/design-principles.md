@@ -80,9 +80,9 @@ or a labeled secondary where the primary could not be fetched.
   [Exception Handling](https://web.stanford.edu/~ouster/cgi-bin/cs190-winter18/lecture.php?topic=exceptions)
   (Winter 2018); Jim Shore, [Fail Fast](https://martinfowler.com/ieeeSoftware/failFast.pdf),
   *IEEE Software* (2004).
-- **Make illegal states unrepresentable**: Model data so invalid combinations cannot be built
-  (one variant per state, not flags that can disagree); in Markdown, a frontmatter or config
-  schema rejects invalid combinations. Source: Yaron Minsky,
+- **Make illegal states unrepresentable**: Model data so invalid combinations cannot be built;
+  `/planning:design`'s type-discipline reference holds the decisions for code. In Markdown, a
+  frontmatter or config schema rejects invalid combinations. Source: Yaron Minsky,
   [Effective ML Revisited](https://blog.janestreet.com/effective-ml-revisited/) (2011).
 - **YAGNI cheap-now test**: Build no capability for a presumptive feature; build ahead only when
   it is cheap now, adds little complexity and significantly cuts later cost. Work that makes the
@@ -92,8 +92,9 @@ or a labeled secondary where the primary could not be fetched.
   ones. Whether to generalize now or wait for real duplication is, by this plugin's own policy,
   a per-task question for the user, answered from expected repetition or per-client variation, the
   product's existing structure, and upstream context. With known repetition or variation,
-  generalize up front and isolate what varies; otherwise extract on the third occurrence (the Rule of Three), and when an
-  abstraction stops fitting, inline it back into its callers rather than adding conditionals.
+  generalize up front and isolate what varies; otherwise extract on the third occurrence (the
+  Rule of Three), and when an abstraction stops fitting, inline it back into its callers rather
+  than adding conditionals.
   Source: Sandi Metz, [The Wrong Abstraction](https://sandimetz.com/blog/2016/1/20/the-wrong-abstraction)
   (2016); Rule of Three (secondary):
   [Rule of three (computer programming)](https://en.wikipedia.org/wiki/Rule_of_three_(computer_programming)),

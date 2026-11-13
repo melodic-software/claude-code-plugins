@@ -432,9 +432,8 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
   variation-point pass. Skip on early-exit, `status`, or trivial single-file work. Apply
   [`reference/design-defaults.md`](reference/design-defaults.md) first (quality bar, consumer
   standards, the Brief's quality requirements, generalize-now-or-wait, per-tenant configurability
-  as vendor guidance), then recommend from SRP, OCP, LSP, ISP, DIP, composition over inheritance,
-  reuse and DRY of knowledge, coupling and cohesion, information hiding, deep modules and YAGNI per
-  [`design-principles.md`](${CLAUDE_PLUGIN_ROOT}/reference/design-principles.md).
+  as vendor guidance), then recommend from every principle
+  [`design-principles.md`](${CLAUDE_PLUGIN_ROOT}/reference/design-principles.md) lists.
 
 ## What this skill does NOT do
 
