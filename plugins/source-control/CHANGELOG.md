@@ -8778,7 +8778,7 @@ Internal simplification, no behavior change.
 
 - **`babysit-loop` samples per-cycle usage into its durable state block
   (melodic-software/claude-code-plugins#1651).** A lane's spend was a blind spot: the cycle budget
-  counts cycles, the rate-limit guard's pause is a ceiling, and nothing recorded how much of the
+  counts cycles, the rate-limits floor's pause is a ceiling, and nothing recorded how much of the
   shared subscription windows a cycle actually consumed. The durable-state block now carries a
   `usage_sample`, the two window percentages the guard step **already reads** every cycle, plus the
   rise since the previous sample, so measuring adds a write, not an observation. The field is
@@ -8916,7 +8916,7 @@ Internal simplification, no behavior change.
   with no qualifying progress increments it. Qualifying progress means a PR merged or closed, a PR
   materially changed (head, reviews, comments, checks, draft elevation, foreign activity included;
   the lane's own repeat attempt at the same still-unresolved blocker never re-qualifies), or a new
-  escalation written. An idle cycle (no open PRs), or one held by the rate-limit guard, meaning
+  escalation written. An idle cycle (no open PRs), or one held by the rate-limits floor, meaning
   `rate_limit_latch` set, which starts no new mutating work and outlives the pause end, leaves it
   unchanged, and any qualifying progress resets it. At the threshold (new `babysit_loop_no_progress_threshold` config key, default 3) the
   lane raises a stall escalation through the existing escalation contract, a
@@ -9204,7 +9204,7 @@ Internal simplification, no behavior change.
 
 ### Fixed
 
-- **`babysit-loop` no longer downgrades the whole rate-limit guard because one window is absurd
+- **`babysit-loop` no longer downgrades the whole rate-limits floor because one window is absurd
   (#1612).** The lane body inlined the reader contract's mode table, "tee file absent, stale, missing
   `rate_limits`, or absurd values → mode unknown → reactive-only", which collapses the guard wholesale
   as soon as any single value is absurd. Against the floor's "pause when **either** window reports

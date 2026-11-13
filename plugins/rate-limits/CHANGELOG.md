@@ -521,7 +521,7 @@ All notable changes to the `rate-limits` plugin are documented here. Format foll
 
 ### Removed
 
-- **The statusline tee, the shim, the compose script, the bench and their tests.** The module does their job, so no status line wrapping, spool, `RLG_TEE_NOCHANGE_FLOOR` or `RLG_TEE_ASYNC` remains. `setup apply`, which installed the shim, is gone with it.
+- **The statusline tee, the shim, the compose script, the bench and their tests.** The module does their job, so no status line wrapping, spool, unchanged-reading floor variable or async switch variable remains. `setup apply`, which installed the shim, is gone with it.
 
 ### Upgrading
 
@@ -1035,7 +1035,7 @@ Run `/rate-limits:setup` after updating and follow the unwire steps it prints, s
   `account*` key (that one wins, and the writer adds nothing beside it); the state file is not
   **strictly older** than the chosen record's spool file, which means a switch may have happened
   between the observation and the flush; or the writer ran on a path with no spool to date that
-  comparison against (`RLG_TEE_ASYNC=1`, or bash below 4.2). Statusline output and exit codes are
+  comparison against (the tee's async switch variable set to 1, or bash below 4.2). Statusline output and exit codes are
   unchanged in every case, as they are for every other tee outcome.
 
   **Strictly older, so an equal timestamp omits.** Mtime resolution is coarse on several
@@ -1249,9 +1249,9 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `jq -S 'del(.captured_at)'`.
 - **Every tuning knob is validated before it reaches bash arithmetic.** Bash evaluates the text of
   an arithmetic operand, so `(( now - last < $KNOB ))` with an unvalidated environment value shaped
-  like `BASH_VERSINFO[$(cmd)0]` runs `cmd` on every render. `RLG_TEE_NOCHANGE_FLOOR`,
-  `RLG_TEE_SWEEP_INTERVAL` and `RLG_TEE_DISABLED_RECHECK` are now checked against `^[0-9]+$` and
-  fall back to their defaults otherwise, exactly as `RLG_TEE_DRAIN_INTERVAL` and every stamp read
+  like `BASH_VERSINFO[$(cmd)0]` runs `cmd` on every render. The tee's unchanged-reading floor,
+  sweep interval and disabled-recheck variables are now checked against `^[0-9]+$` and
+  fall back to their defaults otherwise, exactly as its drain interval variable and every stamp read
   from disk already were. The check is a builtin, so the traced zero-fork render path is unchanged.
 - **The reader contract and README describe the bounded skip.** Both had kept the earlier promise
   that the snapshot trails the newest refresh by at most 30 seconds, and the script header still
@@ -1626,7 +1626,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
   Bash 4.2 is the floor (`%(%s)T` is a 4.2 builtin). Below it, on macOS bash 3.2 where
   `fork` is cheap and this problem does not arise, the previous synchronous path runs
-  untouched, and `RLG_TEE_ASYNC=1` keeps its current behavior on every version.
+  untouched, and the tee's async switch variable set to 1 keeps its current behavior on every version.
 
   All 75 pre-existing assertions pass unmodified; the suite is now 96.
 
@@ -1652,7 +1652,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   and not through a temp file.** A settings file can hold credentials, and argv is
   world-readable via `ps`/`/proc/<pid>/cmdline` for the life of the process while
   `/proc/<pid>/environ` is owner-only. Both readers now bind `$doc` from
-  `env.RLG_SETTINGS_DOC` through one shared prelude, so neither can drift back:
+  the tee's settings-document environment variable through one shared prelude, so neither can drift back:
   `_rlg_settings_option`, which the managed scope calls on every refresh wherever a
   `managed-settings.json` exists, and `_rlg_probe`.
 
@@ -1708,7 +1708,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 ### Added
 
-- **`RLG_TEE_ASYNC=1` detaches the snapshot from the render. Off by default, and the measurements
+- **The tee's async switch variable, set to 1, detaches the snapshot from the render. Off by default, and the measurements
   say why.** The snapshot is a side effect. Nothing the wrapped command prints depends on it, and
   the reader contract budgets ten minutes of staleness, so it is a natural candidate for running
   out of line. It skips no work: every refresh still takes the lock and writes.

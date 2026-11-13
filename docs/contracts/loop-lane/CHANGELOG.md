@@ -791,7 +791,7 @@ no lane's behavior, and a purely additive telemetry key reads as additive guidan
 no durable-state block.
 
 - **Per-cycle usage sample (§4).** No lane's spend was measured: the cycle budget counts cycles,
-  the rate-limit guard's pause is a ceiling, and nothing recorded how much of the shared
+  the rate-limits floor's pause is a ceiling, and nothing recorded how much of the shared
   subscription windows a cycle consumed. Each loop lane now records a `usage_sample` in its #502
   durable state every cycle, holding the two window percentages the guard step (§6) **already read**
   that cycle plus the rise since the previous sample. The reading is in hand, so the invariant costs
@@ -853,7 +853,7 @@ taken.
   so a lane cycling with zero aggregate progress was invisible to itself. Each unattended lane now
   persists a `no_progress_streak` counter in its #502 durable state (absent = 0): a cycle with
   actionable work in the cycle-start snapshot and no lane-defined qualifying progress increments
-  it, while an idle cycle, or one held, meaning the rate-limit guard (§6) barred the lane from
+  it, while an idle cycle, or one held, meaning the rate-limits floor (§6) barred the lane from
   claiming new work, which each lane's floor defines and which can outlive the pause window, leaves
   it unchanged, and any qualifying progress resets it. Reaching the stall
   threshold (default 3; lane-configurable) **escalates through §2's existing contract and keeps

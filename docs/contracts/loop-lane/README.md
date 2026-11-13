@@ -1065,7 +1065,7 @@ qualifying progress event is lane-specific and defined in each lane body; the se
 shared. A cycle whose cycle-start snapshot held actionable work for the lane and that ended with no
 qualifying progress increments the counter; an idle cycle, with nothing actionable in view, leaves it
 unchanged (idle is not stalled); any qualifying progress resets it to zero. A **held** cycle is a
-third state and also leaves the counter unchanged: whenever the rate-limit guard (§6) bars the lane
+third state and also leaves the counter unchanged: whenever the rate-limits floor (§6) bars the lane
 from claiming new work, the lane declines mutating work *by design*, so however much sits in its
 snapshot, no qualifying progress was available to make. The **bar** is what the hold keys on, never
 the pause window alone. A lane whose inlined floor latches that suppression in durable state stays
@@ -1090,7 +1090,7 @@ disposition to the operator.
 
 **Per-cycle usage sample (measure-only).** No lane's spend was measured: nothing recorded how much
 of the shared subscription windows a cycle consumed. Each lane therefore records a `usage_sample` in
-that same durable-state block every cycle, holding the two window percentages the rate-limit guard
+that same durable-state block every cycle, holding the two window percentages the rate-limits floor
 (§6) already read that cycle plus each window's rise since the previous sample. The reading is
 already in hand, so measuring costs nothing beyond the write. **The one permitted readback.** The
 previous cycle's sample is read back for exactly one purpose: deriving the new sample's

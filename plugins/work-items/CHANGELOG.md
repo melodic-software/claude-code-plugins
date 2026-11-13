@@ -5164,7 +5164,7 @@ verified to go red without it.
 ### Added
 
 - **`work-loop` samples per-cycle usage into its durable state block (#1651).** A lane's spend was a
-  blind spot: the cycle budget counts cycles, the rate-limit guard's pause is a ceiling, and nothing
+  blind spot: the cycle budget counts cycles, the rate-limits floor's pause is a ceiling, and nothing
   recorded how much of the shared subscription windows a cycle actually consumed. The durable-state
   block now carries a `usage_sample`, the two window percentages the guard step **already reads**
   every cycle, plus the rise since the previous sample, so measuring adds a write, not an
@@ -5195,7 +5195,7 @@ verified to go red without it.
   `no_progress_streak` counter beside `clean_streak` in its `#502` durable state block: a cycle
   with actionable work in the cycle-start snapshot (frontier candidates or untriaged intake) that
   ends with no qualifying progress, meaning no item advanced and no PR opened, increments it. An
-  idle cycle leaves it unchanged, as does one held under the rate-limit guard's pause, where the
+  idle cycle leaves it unchanged, as does one held under the rate-limits floor's pause, where the
   lane declines work by design. Any qualifying progress resets it. At the threshold (new
   `work_loop_no_progress_threshold` userConfig key, default 3) the lane raises a stall escalation
   through the existing escalation contract, a `Lane stall: work-loop` tracker item with the
@@ -5318,7 +5318,7 @@ verified to go red without it.
 
 ### Fixed
 
-- **`work-loop` and `attend-queue` no longer downgrade the whole rate-limit guard because one window
+- **`work-loop` and `attend-queue` no longer downgrade the whole rate-limits floor because one window
   is absurd (#1612).** Both lane bodies inlined the reader contract's mode table, "tee file absent,
   stale, missing `rate_limits`, or absurd values → mode unknown → reactive-only", which collapses the
   guard wholesale as soon as any single value is absurd. Against the floor's "pause when **either**
