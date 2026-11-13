@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.0] - 2026-11-13
+
+### Added
+
+- `block-foreground-wait` denies a foreground Bash call that waits with an `until` loop or a `--watch` flag. The reason says to set `run_in_background` to true or watch the command with the Monitor tool. A call whose `run_in_background` is true passes, as do the words in quotes, comments and heredoc bodies. A `--watch` after `--` is matched only for a script runner, which passes it to the script (`npm test -- --watch`); `block_foreground_wait_script_runners` lists the runners, by default `npm,pnpm,yarn,bun,npx`. Kill switch: `block_foreground_wait_enabled`, on by default.
+
 ## [3.1.5] - 2026-11-13
 
 ### Changed
