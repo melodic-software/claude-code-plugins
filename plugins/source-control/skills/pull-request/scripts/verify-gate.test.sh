@@ -70,4 +70,25 @@ assert_exit "a pass recorded from the main checkout covers a check from a linked
 (cd "$REPO" && bash "$SCRIPT" check --head "$HEAD_W" >/dev/null 2>&1)
 assert_exit "a failure recorded from a linked worktree reaches a check from the main checkout" 3 "$?"
 
+# --dir names the checkout, so a shell outside every checkout records where a check from the
+# checkout itself reads.
+OUTSIDE="$TEST_TMPDIR/outside"
+mkdir -p "$OUTSIDE"
+(cd "$OUTSIDE" && bash "$SCRIPT" record --head "$HEAD_W" --result pass --dir "$WT")
+assert_exit "a record with --dir from outside the checkout succeeds" 0 "$?"
+(cd "$REPO" && bash "$SCRIPT" check --head "$HEAD_W")
+assert_exit "a pass recorded with --dir from outside covers a check from the checkout" 0 "$?"
+(cd "$OUTSIDE" && bash "$SCRIPT" check --head "$HEAD_W" --dir "$REPO")
+assert_exit "a check with --dir from outside the checkout reads the same record" 0 "$?"
+(cd "$OUTSIDE" && bash "$SCRIPT" check --head "$HEAD_W" >/dev/null 2>&1)
+assert_exit "without --dir, a shell outside every checkout cannot read the record" 2 "$?"
+(cd "$OUTSIDE" && READY_VERIFY_DIR="$TEST_TMPDIR/override" bash "$SCRIPT" check --head "$HEAD_W" --dir "$REPO" >/dev/null 2>&1)
+assert_exit "READY_VERIFY_DIR wins over --dir" 2 "$?"
+bash "$SCRIPT" check --head "$HEAD_W" --dir >/dev/null 2>&1
+assert_exit "--dir without a value is a usage error" 1 "$?"
+bash "$SCRIPT" check --head "$HEAD_W" --dir "$TEST_TMPDIR/missing" >/dev/null 2>&1
+assert_exit "--dir naming no directory is a usage error" 1 "$?"
+bash "$SCRIPT" check --head "$HEAD_W" --dir "$REPO" --dir "$WT" >/dev/null 2>&1
+assert_exit "--dir given twice is a usage error" 1 "$?"
+
 [[ $FAILED -eq 0 ]] || exit 1

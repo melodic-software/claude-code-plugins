@@ -11,11 +11,14 @@
 # top level back.
 #
 # Usage:
-#   pr-worktree.sh --pr <number>
+#   pr-worktree.sh --pr <number> [--dir <checkout>]
+#
+# --dir names any checkout of the PR's repository; both the head read and the worktree list run
+# against it. Default: the current directory.
 #
 # Exit codes:
 #   0  the worktree's absolute path is on stdout
-#   1  invalid argument
+#   1  invalid argument, or --dir names no directory
 #   2  the head branch or commit could not be read, or no worktree has the branch checked out
 #      with the head commit in its history
 
@@ -32,7 +35,7 @@ die() {
   exit "$1"
 }
 
-PR=""
+PR="" DIR=""
 while (($# > 0)); do
   case "$1" in
   -h | --help) usage ;;
@@ -41,12 +44,19 @@ while (($# > 0)); do
     PR="$2"
     shift 2
     ;;
+  --dir)
+    (($# >= 2)) && [[ -n "$2" && -z "$DIR" ]] || die 1 "--dir needs one value and is given once"
+    DIR="$2"
+    shift 2
+    ;;
   *) die 1 "unknown argument $(printf '%q' "$1") (use --help)" ;;
   esac
 done
 [[ "$PR" =~ ^[0-9]+$ ]] || die 1 "--pr needs a pull request number"
+DIR="${DIR:-.}"
+[[ -d "$DIR" ]] || die 1 "--dir $(printf '%q' "$DIR") is not a directory"
 
-HEAD_READ=$(gh pr view "$PR" --json headRefName,headRefOid -q '.headRefName + " " + .headRefOid' 2>/dev/null | tr -d '\r') ||
+HEAD_READ=$(CDPATH='' cd -- "$DIR" && gh pr view "$PR" --json headRefName,headRefOid -q '.headRefName + " " + .headRefOid' 2>/dev/null | tr -d '\r') ||
   die 2 "the head branch of PR $PR could not be read"
 read -r BRANCH HEAD_OID <<<"$HEAD_READ"
 [[ -n "${BRANCH:-}" && "${HEAD_OID:-}" =~ ^[0-9a-f]{40}$ ]] || die 2 "the head branch and commit of PR $PR could not be read"
@@ -65,6 +75,6 @@ while IFS= read -r LINE; do
     ;;
   *) ;;
   esac
-done < <(git worktree list --porcelain 2>/dev/null)
+done < <(git -C "$DIR" worktree list --porcelain 2>/dev/null)
 
 die 2 "PR $PR's head branch '$BRANCH' is checked out in no worktree of this repository; check it out with the forge's PR checkout, then run the gate again"

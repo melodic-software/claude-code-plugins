@@ -100,8 +100,27 @@ assert_exit "--pr given twice is a usage error" 1 "$?"
 bash "$SCRIPT" --bogus >/dev/null 2>&1
 assert_exit "an unknown argument is a usage error" 1 "$?"
 
-# The verify gate command of the ready reference (2.5.3), run from the main checkout.
-GATE=$(grep -F 'pr-worktree.sh" --pr' "$REF" | grep -F 'check-affected.sh" --tests' | sed -e 's/^ *//' -e "s#<skill-dir>#$SKILL_DIR#g")
+# --dir names the checkout, so a shell outside every checkout finds the PR's worktree.
+OUTSIDE="$TEST_TMPDIR/outside"
+mkdir -p "$OUTSIDE"
+out=$(cd "$OUTSIDE" && bash "$SCRIPT" --pr 7 --dir "$MAIN")
+assert_exit "with --dir from outside the checkout: the PR's worktree is found" 0 "$?"
+assert_eq "with --dir from outside the checkout: the path is the PR's worktree" "$PR_WT_REAL" "$(physical_dir "$out")"
+out=$(cd "$OUTSIDE" && bash "$SCRIPT" --dir "$PR_WT" --pr 7)
+assert_exit "with --dir naming the PR's worktree: found" 0 "$?"
+assert_eq "with --dir naming the PR's worktree: its own top level comes back" "$PR_WT_REAL" "$(physical_dir "$out")"
+(cd "$OUTSIDE" && bash "$SCRIPT" --pr 7 >/dev/null 2>&1)
+assert_exit "without --dir, a shell outside every checkout finds no worktree" 2 "$?"
+bash "$SCRIPT" --pr 7 --dir >/dev/null 2>&1
+assert_exit "--dir without a value is a usage error" 1 "$?"
+bash "$SCRIPT" --pr 7 --dir "$TEST_TMPDIR/missing" >/dev/null 2>&1
+assert_exit "--dir naming no directory is a usage error" 1 "$?"
+bash "$SCRIPT" --pr 7 --dir "$MAIN" --dir "$PR_WT" >/dev/null 2>&1
+assert_exit "--dir given twice is a usage error" 1 "$?"
+
+# The verify gate command of the ready reference (2.5.3), with <checkout> naming the main checkout,
+# run from that checkout and from outside every checkout.
+GATE=$(grep -F 'pr-worktree.sh" --pr' "$REF" | grep -F 'check-affected.sh" --tests' | sed -e 's/^ *//' -e "s#<skill-dir>#$SKILL_DIR#g" -e "s#<checkout>#$MAIN#g")
 if [[ -z "$GATE" ]]; then
   echo "FAIL: the verify gate command was not found in $REF" >&2
   exit 1
@@ -113,6 +132,12 @@ assert_contains "the gate checks the PR's worktree" "$out" "checked $PR_WT_REAL"
 assert_contains "the gate output lists the PR's changed files" "$out" "changed: feature.md"
 assert_eq "the gate records a pass for the PR worktree's HEAD" "pass" "$(cat "$READY_VERIFY_DIR/$PR_HEAD" 2>/dev/null)"
 assert_file_absent "nothing is recorded for the main checkout's HEAD" "$READY_VERIFY_DIR/$MAIN_HEAD"
+
+rm -rf "$READY_VERIFY_DIR"
+out=$(cd "$OUTSIDE" && PR_NUMBER=7 bash -c "$GATE" 2>&1)
+assert_exit "the gate command from outside every checkout succeeds" 0 "$?"
+assert_contains "from outside: the gate checks the PR's worktree" "$out" "checked $PR_WT_REAL"
+assert_eq "from outside: the gate records a pass for the PR worktree's HEAD" "pass" "$(cat "$READY_VERIFY_DIR/$PR_HEAD" 2>/dev/null)"
 
 rm -rf "$READY_VERIFY_DIR"
 out=$(cd "$MAIN" && STUB_BRANCH=feat/elsewhere PR_NUMBER=7 bash -c "$GATE" 2>&1)
