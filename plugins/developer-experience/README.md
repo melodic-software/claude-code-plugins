@@ -39,4 +39,4 @@ to set these keys, checked against
 
 | Key | Values | Default | What it controls |
 |---|---|---|---|
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/developer-experience:build-cli` review mode dispatches its fresh-context reviewer: `strict` dispatches it for every review, `light` and `off` skip it, and the main session runs the review itself with every gap labeled `unverified`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/developer-experience:build-cli` review mode dispatches its fresh-context reviewer: `strict` dispatches it for every review, `light` and `off` skip it, and the main session runs the review itself with every gap labeled `unverified`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
