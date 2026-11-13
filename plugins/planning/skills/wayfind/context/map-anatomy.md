@@ -19,9 +19,10 @@ record, or a general summary. This is the map's success condition.>
 
 - Standing constraints every session on this map must obey, one line each.
 - Skills every session on this map consults, one per line (work step 5 invokes each).
-- The map's dossier branch, once it exists.
+- Durable pointers every session needs: PRs, committed docs, prior items, the map's dossier
+  branch, external links.
 
-<Nothing else. Background, interview facts and other pointers go in the seed item's resolution
+<Nothing else. Background and interview facts go in the seed item's resolution
 comment or the item they concern. Never a memory-tier `<memory_dir>/<slug>/` path: it is
 checkout-local, so no other reader can resolve it.>
 

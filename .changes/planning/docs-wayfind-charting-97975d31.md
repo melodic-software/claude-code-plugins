@@ -9,5 +9,5 @@ bump: minor
 - **Chart's first question is what done looks like**, recommending a PRD for a coding effort and a decision record or summary otherwise.
 - **"I don't know" is a full answer.** Chart sorts each unknown by who can settle it: evidence (a research item, researched before anyone recommends an answer), the user (an interview item), or nobody yet (fog).
 - **Chart reads the repository's glossary and work-item conventions** before its first question.
-- **Shorter maps.** Notes holds only standing constraints, the skills to consult and the dossier branch link; fog is one labelled bullet per uncertainty; an item body is the question and the criteria an answer must meet.
+- **Shorter maps.** Notes holds only standing constraints, the skills to consult and durable pointers; fog is one labelled bullet per uncertainty; an item body is the question and the criteria an answer must meet.
 - **Items are topics.** A decision item is a topic one session can work, with its related questions inside it. Sharp questions that already have a recommendation and wait on nothing are asked in one interview round before the map exists.

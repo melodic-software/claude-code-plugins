@@ -199,9 +199,10 @@ that charting needs an interactive session. Do not fabricate a map.
    five sections:
    - **Destination**: the confirmed destination from step 2.
    - **Notes**: only what every session on this map must obey or consult: standing
-     constraints, one line each; the skills to consult; the dossier branch link. Background and
-     interview facts go in the seed item's resolution comment or the item they concern. Never a
-     memory-tier `<memory_dir>/` path, which other readers cannot resolve.
+     constraints, one line each; the skills to consult; durable pointers (PRs, committed docs,
+     prior items, the dossier branch, external links). Background and interview facts go in the
+     seed item's resolution comment or the item they concern. Never a memory-tier
+     `<memory_dir>/` path, which other readers cannot resolve.
    - **Decisions-so-far**: a *pointer index* of resolved-in-scope decisions. Each home is its own
      item's resolution comment, never recopied here; wrongly scoped closures get no pointer.
    - **Not-yet-specified**: fog, one bullet per uncertainty, each opening with a short bold
