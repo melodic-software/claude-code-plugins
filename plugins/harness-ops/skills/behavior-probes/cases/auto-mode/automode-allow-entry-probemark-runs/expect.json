@@ -1,0 +1,15 @@
+{
+  "claim": "Control: in auto mode, with an autoMode.allow entry for it and no deny rule, the PROBEMARK command runs.",
+  "tags": ["deny rule", "permissions.deny", "autoMode", "allow", "auto mode", "classifier", "rule precedence"],
+  "docs": [
+    "https://code.claude.com/docs/en/auto-mode-config#override-the-block-and-allow-rules"
+  ],
+  "permission_mode": "auto",
+  "target": {
+    "tool": "Bash",
+    "input_match": "PROBEMARK",
+    "example": {"command": "python3 -c \"print('PROBEMARK')\""}
+  },
+  "outcome": "ran",
+  "match": "PROBEMARK"
+}

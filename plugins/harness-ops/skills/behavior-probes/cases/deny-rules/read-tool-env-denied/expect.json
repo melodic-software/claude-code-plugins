@@ -1,0 +1,15 @@
+{
+  "claim": "Under dontAsk, a Read(./.env) deny rule denies the Read tool on .env.",
+  "tags": ["Read rule", "deny rule", "permissions.deny", "Bash", "file commands", "dontAsk"],
+  "docs": [
+    "https://code.claude.com/docs/en/permissions#read-and-edit"
+  ],
+  "permission_mode": "dontAsk",
+  "target": {
+    "tool": "Read",
+    "input_match": "\"file_path\": \"[^\"]*/\\.env\"",
+    "example": {"file_path": "/tmp/cc-probe-dry/.env"}
+  },
+  "outcome": "deny",
+  "control": "deny-rules/read-tool-env-runs"
+}

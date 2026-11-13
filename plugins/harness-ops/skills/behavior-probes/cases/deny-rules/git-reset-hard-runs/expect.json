@@ -1,0 +1,16 @@
+{
+  "claim": "Control: under dontAsk with Bash(git reset --hard HEAD) allowed and no deny rule, `git reset --hard HEAD` runs.",
+  "tags": ["deny rule", "permissions.deny", "Bash rule", "git reset", "git -C", "dontAsk"],
+  "docs": [
+    "https://code.claude.com/docs/en/permissions#wildcard-patterns"
+  ],
+  "permission_mode": "dontAsk",
+  "cwd": "repo",
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"git reset --hard HEAD\"",
+    "example": {"command": "git reset --hard HEAD"}
+  },
+  "outcome": "ran",
+  "match": "HEAD is now at"
+}

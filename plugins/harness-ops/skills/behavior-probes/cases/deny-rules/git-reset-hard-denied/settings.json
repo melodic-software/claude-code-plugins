@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git reset --hard HEAD)"
+    ],
+    "deny": [
+      "Bash(git reset --hard *)"
+    ]
+  }
+}

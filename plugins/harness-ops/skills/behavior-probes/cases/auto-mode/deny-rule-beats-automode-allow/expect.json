@@ -1,0 +1,18 @@
+{
+  "claim": "In auto mode, a permissions.deny rule denies a command an autoMode.allow entry approves: the rule resolves the call before the classifier is consulted.",
+  "tags": ["deny rule", "permissions.deny", "autoMode", "allow", "auto mode", "classifier", "rule precedence"],
+  "docs": [
+    "https://code.claude.com/docs/en/permission-modes#how-the-classifier-evaluates-actions",
+    "https://code.claude.com/docs/en/auto-mode-config#add-a-human-checkpoint",
+    "https://code.claude.com/docs/en/permissions#manage-permissions"
+  ],
+  "permission_mode": "auto",
+  "target": {
+    "tool": "Bash",
+    "input_match": "PROBEMARK",
+    "example": {"command": "python3 -c \"print('PROBEMARK')\""}
+  },
+  "outcome": "deny",
+  "reason_type": "rule",
+  "control": "auto-mode/automode-allow-entry-probemark-runs"
+}
