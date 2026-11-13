@@ -68,7 +68,7 @@
     {
       "id": 6,
       "name": "autonomous-fresh-context-verifier-before-done",
-      "prompt": "/implementation:implement-dispatch — autonomous run. Phase 3 changes behavior (a new validation branch in the order intake path); its workers have returned and their acceptance criteria look met; mark the phase DONE.",
+      "prompt": "/implementation:implement-dispatch — autonomous run. Phase 3 changes behavior (a new validation branch in the order intake path); its workers have returned and their acceptance criteria look met; mark the phase DONE. [The verification reader prints `verification: standard (docs/conventions/implementation.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "In autonomous mode, because phase 3 changes behavior, before marking the phase [DONE] it dispatches a fresh-context verifier subagent that checks the phase's acceptance criteria against the actual diff — a separate agent, never the producing context auditing itself — and surfaces that result in the response before ending the turn. It still runs the Step 4 phase-boundary ritual, scaled to residency: plan marks, a DEVIATIONS.md entry, and the commit when it stays resident, and the full ritual when it clears, switches model or domain, or ends the run.",
       "files": [],
       "expectations": [
@@ -149,7 +149,7 @@
     {
       "id": 12,
       "name": "post-phase-source-commit-gets-fresh-verifier",
-      "prompt": "/implementation:implement-dispatch — autonomous run, no human in the turn cycle. Every numbered phase is marked [DONE]. The orchestrator then made one more source edit in the main window, a bug fix to a helper, and is about to push the branch and open the PR.",
+      "prompt": "/implementation:implement-dispatch — autonomous run, no human in the turn cycle. Every numbered phase is marked [DONE]. The orchestrator then made one more source edit in the main window, a bug fix to a helper, and is about to push the branch and open the PR. [The verification reader prints `verification: standard (docs/conventions/implementation.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Dispatches implementation:phase-verifier over the post-phase diff with the orchestrator's rationale withheld, spawns no worker, and neither pushes nor opens the PR until the verdict returns; an INCONCLUSIVE verdict is not treated as a pass.",
       "files": [],
       "expectations": [
@@ -634,7 +634,7 @@
       "id": 48,
       "name": "phase-verdict-is-keyed-to-the-head-sha",
       "narration": true,
-      "prompt": "/implementation:implement-dispatch, autonomous run. Phase 2 of .work/ledger-sync/PLAN.md passed its phase-verifier when branch feat/ledger-sync was at commit a1b2c3d. Before Phase 2 was marked [DONE], the worker rebased the branch onto the updated default branch, and its head is now e4f5a6b. Finish the Phase 2 boundary.",
+      "prompt": "/implementation:implement-dispatch, autonomous run. Phase 2 of .work/ledger-sync/PLAN.md passed its phase-verifier when branch feat/ledger-sync was at commit a1b2c3d. Before Phase 2 was marked [DONE], the worker rebased the branch onto the updated default branch, and its head is now e4f5a6b. Finish the Phase 2 boundary. [The verification reader prints `verification: standard (docs/conventions/implementation.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "The verdict was recorded against head SHA a1b2c3d. The rebase moved the head, so that verdict no longer counts: the orchestrator reruns the build/test gate and dispatches a fresh phase-verifier against e4f5a6b, and marks Phase 2 [DONE] only on a passing verdict recorded against e4f5a6b.",
       "files": [],
       "expectations": [
@@ -675,7 +675,7 @@
       "id": 51,
       "name": "autonomous-run-ends-with-trail-review-raised-to-worker-model",
       "narration": true,
-      "prompt": "/implementation:implement-dispatch, autonomous run (a loop harness drives the turns). The plan's three phases are all marked [DONE] with phase-verifier verdicts; Phase 1 and Phase 3 ran on implementation:implementer at opus and Phase 2 on implementation:scoped-implementer at sonnet. The run kept .work/greenhouse-alerts/DEVIATIONS.md with five entries; the branch started at commit 4be19c2. /multi-agent:route is among the available skills and its verifier role prints single sonnet @ high. No post-phase commit was made.",
+      "prompt": "/implementation:implement-dispatch, autonomous run (a loop harness drives the turns). The plan's three phases are all marked [DONE] with phase-verifier verdicts; Phase 1 and Phase 3 ran on implementation:implementer at opus and Phase 2 on implementation:scoped-implementer at sonnet. The run kept .work/greenhouse-alerts/DEVIATIONS.md with five entries; the branch started at commit 4be19c2. /multi-agent:route is among the available skills and its verifier role prints single sonnet @ high. No post-phase commit was made. [The verification reader prints `verification: standard (docs/conventions/implementation.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Before handing off to /implementation:implement Step 5, the orchestrator dispatches implementation:phase-verifier once as the trail review, with the Agent model parameter set to opus: route gave sonnet, and the run's strongest worker ran on opus, so the model is raised. The verifier gets the DEVIATIONS.md path, the run's diff from 4be19c2 to the current head, and binary criteria: each entry's evidence resolves, each entry states its outcome or unverified, each deviation has its four fields, and the diff has no departure from the plan without an entry. The orchestrator appends one discovery entry with the verdict and the model, and Step 5's report lists any failed criterion.",
       "files": [],
       "expectations": [
@@ -690,7 +690,7 @@
       "id": 52,
       "name": "interactive-run-skips-trail-review-even-with-log",
       "narration": true,
-      "prompt": "/implementation:implement-dispatch, interactive run: the user reviews each turn and opted into the deviations log at the start. Both worker-routed phases are now marked [DONE] with phase-verifier verdicts, and .work/bike-rental/DEVIATIONS.md holds three entries. No post-phase commit was made.",
+      "prompt": "/implementation:implement-dispatch, interactive run: the user reviews each turn and opted into the deviations log at the start. Both worker-routed phases are now marked [DONE] with phase-verifier verdicts, and .work/bike-rental/DEVIATIONS.md holds three entries. No post-phase commit was made. [The verification reader prints `verification: standard (docs/conventions/implementation.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Because the run is interactive, no trail review runs: the orchestrator does not dispatch a further phase-verifier over the deviations log, even though the log exists. It goes on to /implementation:implement Step 5, whose report states that no trail review ran.",
       "files": [],
       "expectations": [
@@ -704,7 +704,7 @@
       "id": 53,
       "name": "item-list-runs-without-plan-and-holds-unlanded-dependent",
       "narration": true,
-      "prompt": "/implementation:implement-dispatch --items .work/ci-perf/findings.md — no PLAN.md exists; the findings file lists F1 (targets scripts/ci/select.sh, acceptance: `bash tests/select.test.sh` passes), F2 (targets scripts/ci/matrix.sh, blocked-by: F1, acceptance: `bash tests/matrix.test.sh` passes) and F3 (targets docs/ci.md, acceptance: markdownlint clean). None is a tracker item. I wrote this list in the item-list shape and approve it. Plan the first wave.",
+      "prompt": "/implementation:implement-dispatch --items .work/ci-perf/findings.md — no PLAN.md exists; the findings file lists F1 (targets scripts/ci/select.sh, acceptance: `bash tests/select.test.sh` passes), F2 (targets scripts/ci/matrix.sh, blocked-by: F1, acceptance: `bash tests/matrix.test.sh` passes) and F3 (targets docs/ci.md, acceptance: markdownlint clean). None is a tracker item. I wrote this list in the item-list shape and approve it. Plan the first wave. [The verification reader prints `verification: standard (docs/conventions/implementation.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Runs the list without asking for a plan. F1 and F3 are ready and go out together with disjoint fences; F2 is held because its declared blocker F1 has not landed on the base, and the run returns F2 as held with that reason rather than dispatching it on F1's unmerged branch. Each dispatched item gets its own fresh-context verifier with its acceptance check as the criteria.",
       "files": [],
       "expectations": [
@@ -731,7 +731,7 @@
       "id": 55,
       "name": "independent-phases-share-one-wave",
       "narration": true,
-      "prompt": "/implementation:implement-dispatch - autonomous run, commit authority orchestrator in one assigned worktree. The approved plan has phase 1 (one row, src/api/*.py) and phase 2 (one row, docs/api.md). Its dependency graph has no edge between them, its file-overlap matrix shows no overlap, and its Recommended shape is 'Wave A (parallel sub-agents, single message): 1, 2'. Nobody asked for parallel dispatch. Plan the first wave.",
+      "prompt": "/implementation:implement-dispatch - autonomous run, commit authority orchestrator in one assigned worktree. The approved plan has phase 1 (one row, src/api/*.py) and phase 2 (one row, docs/api.md). Its dependency graph has no edge between them, its file-overlap matrix shows no overlap, and its Recommended shape is 'Wave A (parallel sub-agents, single message): 1, 2'. Nobody asked for parallel dispatch. Plan the first wave. [The verification reader prints `verification: standard (docs/conventions/implementation.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Phases 1 and 2 are independent by the plan's Execution shape, so both rows go out in one wave by default, without asking. Their fences are composed together and are disjoint, each row's FORBIDDEN list carries the other's paths, and the two rows count against the wave cap together. Each phase keeps its own acceptance criteria in its brief, gets its own phase-verifier and its own phase-boundary commit, and is not marked [DONE] on its sibling's verdict.",
       "files": [],
       "expectations": [

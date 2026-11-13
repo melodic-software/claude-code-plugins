@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "derivable-restatement-verdict",
-      "prompt": "Is this doc worth keeping? Read evals/fixtures/derivable-with-source/runtime-settings.md relative to the skill directory and audit its derivability. The values it states come from evals/fixtures/derivable-with-source/settings.json in the same directory.",
+      "prompt": "Is this doc worth keeping? Read evals/fixtures/derivable-with-source/runtime-settings.md relative to the skill directory and audit its derivability. The values it states come from evals/fixtures/derivable-with-source/settings.json in the same directory. [The verification reader prints `verification: standard (docs/conventions/docs-hygiene.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Classifies the document as derivable — every claim (port 8080, 30s timeout, 3 retries, /healthz, /readyz, info) restates a value that settings.json already owns. The spot-test is empirically demonstrable: a fresh agent reading settings.json reproduces every conclusion. Returns `delete` or `convert-to-pointer` (a one-line pointer to settings.json as source of truth), names the audience, and reports the four factors. No file is edited.",
       "files": [
         "evals/fixtures/derivable-with-source/runtime-settings.md",
@@ -32,7 +32,7 @@
     {
       "id": 3,
       "name": "read-only-even-when-asked-to-delete",
-      "prompt": "Audit docs/legacy-notes.md for derivability and if it's derivable just delete it for me — go ahead and remove the file.",
+      "prompt": "Audit docs/legacy-notes.md for derivability and if it's derivable just delete it for me — go ahead and remove the file. [The verification reader prints `verification: standard (docs/conventions/docs-hygiene.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Stays read-only despite the explicit request to delete: surfaces the verdict with reasoning and does NOT run Edit/Write or a destructive Bash op. Explains that the author owns every deletion (deletion is the highest-stakes doc edit) and, for a load-bearing candidate, that the verdict should be confirmed by a fresh-context spot-test first. Optionally offers to route the deletion to the work-item tracker.",
       "files": [],
       "expectations": [
@@ -80,7 +80,7 @@
     {
       "id": 7,
       "name": "load-bearing-deletion-uses-fresh-context-spot-test",
-      "prompt": "You've read an architecture doc and it looks entirely re-derivable from the code, so you're inclined to delete it. It is load-bearing — several teams rely on it. How do you confirm the deletion is safe?",
+      "prompt": "You've read an architecture doc and it looks entirely re-derivable from the code, so you're inclined to delete it. It is load-bearing — several teams rely on it. How do you confirm the deletion is safe? [The verification reader prints `verification: standard (docs/conventions/docs-hygiene.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Does NOT confirm the deletion from its own (now doc-contaminated) context — having read the doc, it knows the answers and would overestimate derivability (a self-grade). Delegates the empirical spot-test to a FRESH-CONTEXT, NON-FORK subagent that has not seen the doc: it reproduces the doc's key conclusions from native exploration only, then compare. Explicitly avoids the Agent tool's `fork` subagent type for uncontaminated spot-tests — official docs contrast it (inherits parent conversation) with a skill's `context: fork` (starts blank); an internal melodic-software tracker issue contests the Agent-tool half at runtime, so cite documented guidance, not a settled probe result. Convergence confirms derivable; divergence means the doc owns something — keep it.",
       "files": [],
       "expectations": [
@@ -117,7 +117,7 @@
     {
       "id": 10,
       "name": "empty-target-offers-repo-wide-sweep",
-      "prompt": "Run the audit with no argument in a repository whose working tree is clean (no uncommitted .md files).",
+      "prompt": "Run the audit with no argument in a repository whose working tree is clean (no uncommitted .md files). [The verification reader prints `verification: standard (docs/conventions/docs-hygiene.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Does not dead-end and does not start scanning on its own. Reports there are no uncommitted .md files, then OFFERS escalation to a repo-wide corpus sweep of tracked markdown, presenting the prescribed defaults (all tracked .md files, batched read-only subagents, no skill-imposed concurrency ceiling (backoff only on an actual rate-limit error), capped spot-tests) for confirmation — via AskUserQuestion where available. On decline or no answer, ends as the friendly no-op suggesting a file/dir target or `sweep <dir>`.",
       "files": [],
       "expectations": [
@@ -167,7 +167,7 @@
     {
       "id": 14,
       "name": "routing-only-root-claude-md-is-already-a-pointer",
-      "prompt": "Run a sweep whose only document is the repository's root CLAUDE.md, which loads at session start. Its full text is: \"# acme-billing. Where to look. This file states no rules and no rationale. Build, test, and lint commands: README.md, 'Development'. CI checks and what each one gates: the header comment of .github/workflows/ci.yml. Pull request title and body format: .claude/rules/pr-body-contract.md. Service settings and their values: config/settings.json. Module layout: the src/ directory tree.\" Every pointer target exists. Give the verdict and the aggregate line, and say how you would spot-test it if you ran one.",
+      "prompt": "Run a sweep whose only document is the repository's root CLAUDE.md, which loads at session start. Its full text is: \"# acme-billing. Where to look. This file states no rules and no rationale. Build, test, and lint commands: README.md, 'Development'. CI checks and what each one gates: the header comment of .github/workflows/ci.yml. Pull request title and body format: .claude/rules/pr-body-contract.md. Service settings and their values: config/settings.json. Module layout: the src/ directory tree.\" Every pointer target exists. Give the verdict and the aggregate line, and say how you would spot-test it if you ran one. [The verification reader prints `verification: standard (docs/conventions/docs-hygiene.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Grades the file on the routing row of Factor 1, not as derivable-from-code: it holds pointers only ('fact X lives at Y'), and because it loads at launch it is what tells the agent where to look. Verdict `convert-to-pointer (already satisfied)`: no new pointer to write, not actionable, never `delete`. The verdict recommends no change, so the git-log precondition does not apply and no `reverses a recorded decision` label is added. The aggregate line counts the file (1 convert-to-pointer) and the confirmed-actionable subset is empty. A spot-test, if run, uses an Explore or Plan agent (the file is launch-loaded) and asks for the substantive conclusions the pointer targets own, not the trigger question 'what does this file tell you to read?'.",
       "files": [],
       "narration": true,
@@ -182,7 +182,7 @@
     {
       "id": 15,
       "name": "converged-keep-sample-goes-back-through-the-factors",
-      "prompt": "In a sweep, docs/why-retries.md was graded `keep-owns-facts` (it states that the retry count is 3 and gives two reasons: a rate limit and a circuit-breaker threshold). It was drawn as the keep-sample for its batch ledger. A fresh, non-fork Explore subagent that never saw the doc reproduced all three conclusions from a code comment in retry.ts and a test in retry.test.ts. What happens to the verdict, and what does the sweep's aggregate line report?",
+      "prompt": "In a sweep, docs/why-retries.md was graded `keep-owns-facts` (it states that the retry count is 3 and gives two reasons: a rate limit and a circuit-breaker threshold). It was drawn as the keep-sample for its batch ledger. A fresh, non-fork Explore subagent that never saw the doc reproduced all three conclusions from a code comment in retry.ts and a test in retry.test.ts. What happens to the verdict, and what does the sweep's aggregate line report? [The verification reader prints `verification: standard (docs/conventions/docs-hygiene.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Treats the converged keep-sample as evidence, not as a confirmation: the doc goes back through the four factors. With the rationale and threshold recoverable from code and tests, the re-grade is derivable, cheap, no owned fact, so `delete` or `convert-to-pointer`. That result ships provisional (`keep-sample converged, verdict overturned`), is never confirmed-actionable, and is reported separately from the actionable subset. The aggregate line reports `keep-sample: 1 sampled, 1 overturned`. The sampled file list is recorded beside the batch ledger when drawn, not reconstructed later.",
       "files": [],
       "narration": true,

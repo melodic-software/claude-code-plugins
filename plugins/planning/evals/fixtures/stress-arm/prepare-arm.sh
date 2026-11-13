@@ -38,7 +38,7 @@ cp -R "$root/." "$dest/"
 rm -rf "${dest:?}/evals/results"
 
 fixture="$dest/evals/fixtures/stress-arm"
-printf 'plan_stress_test:\n  plan: %s\n  proposal: %s\n  incumbent: %s\n' "$value" "$value" "$value" >"$fixture/planning.yaml"
+printf 'verification: standard\nplan_stress_test:\n  plan: %s\n  proposal: %s\n  incumbent: %s\n' "$value" "$value" "$value" >"$fixture/planning.yaml"
 
 if [[ -n "$degrade" ]]; then
   skill="$dest/skills/devils-advocate/SKILL.md"

@@ -17,7 +17,7 @@
     {
       "id": 2,
       "name": "fix-runs-semantic-guard",
-      "prompt": "/ai-slop:audit fix evals/fixtures/fix-guarded-rewrite.md relative to the skill directory. Treat the audited file as tracked in the repo under audit. Work on a copy so the committed fixture stays byte-identical.",
+      "prompt": "/ai-slop:audit fix evals/fixtures/fix-guarded-rewrite.md relative to the skill directory. Treat the audited file as tracked in the repo under audit. Work on a copy so the committed fixture stays byte-identical. [The verification reader prints `verification: standard (docs/conventions/ai-slop.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "The fixture's four findings — two em dashes (lines 3 and 7) and two filler phrases ('It is worth noting that' on line 3, 'Due to the fact that' on line 4) — are rewritten in one per-file pass, the before/after pair is verified by a fresh-context semantic-diff subagent that reverts semantic loss or ambiguity, then the detector re-runs and the findings file is re-emitted so no stale findings survive.",
       "files": ["evals/fixtures/fix-guarded-rewrite.md"],
       "expectations": [
@@ -215,7 +215,7 @@
     {
       "id": 16,
       "name": "release-note-rewrite-keeps-every-fact",
-      "prompt": "/ai-slop:audit fix evals/fixtures/release-note.md relative to the skill directory: rewrite this release note, it sounds like ChatGPT wrote it. Work on a copy so the committed fixture stays byte-identical.",
+      "prompt": "/ai-slop:audit fix evals/fixtures/release-note.md relative to the skill directory: rewrite this release note, it sounds like ChatGPT wrote it. Work on a copy so the committed fixture stays byte-identical. [The verification reader prints `verification: standard (docs/conventions/ai-slop.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "The detector reports one finding, rule-chatbot-artifacts on line 8 ('I hope this helps'), and the rubric reports the closing 'The future looks bright for the exporter.' under rule-generic-conclusions. The fix reads reference/rewrite-guide.md first and rewrites the copy. The detector flags none of the model vocabulary in this file, so the self-audit catches it through the guide's judgment rows: 'pivotal' and 'delves into' go, 'leverages' becomes 'uses', 'Additionally' becomes 'also' or is dropped, 'showcases' becomes 'has' or 'adds', and those swaps are reported as self-audit findings, not detector findings. The generic closer and the chat residue are deleted. Every fact survives: the streaming writer sends each row as soon as it is read, a 2 GB table no longer has to fit in memory, and the new `--dry-run` flag prints the row count without writing a file. A fresh-context semantic-diff check compares before and after.",
       "files": [
         "evals/fixtures/release-note.md"

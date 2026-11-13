@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Run mutation testing on my changes.",
+      "prompt": "Run mutation testing on my changes. [The verification reader prints `verification: standard (docs/conventions/mutation-testing.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Preflights (config resolved across its layers with the contributing layer of each value named, tool available, tree clean in targets, baseline suite green with wall-clock recorded, the `git status --porcelain` Phase 0 snapshot captured, and the tool's write regime resolved from the project's config), scopes to changed lines vs the configured diff-target, applies the arid suppression record, selects covering tests ONCE and caches the selection, reports the planned scope and estimated cost before running, generates at most one mutant per changed line, executes with guaranteed revert and verifies restoration against the Phase 0 snapshot at the earliest point the resolved regime permits, delegates survivor triage to a fresh-context subagent, and reports per file ranked by oracle gap. Writes no tests, and either leaves tracked source byte-identical or ends in failure naming what it could not restore.",
       "files": []
     },
@@ -15,7 +15,7 @@
     },
     {
       "id": 3,
-      "prompt": "Seven mutants survived. Which ones matter?",
+      "prompt": "Seven mutants survived. Which ones matter? [The verification reader prints `verification: standard (docs/conventions/mutation-testing.yaml verification at origin/main, commit 9c2e4f1)`.]",
       "expected_output": "Delegates the productive / arid / equivalent classification to a fresh-context (non-fork) subagent rather than judging in the authoring context, naming this as the self-grade bias class. Hands over the artifact (mutated line, surrounding code, covering tests), not the reasoning that produced the mutants. Prefers a cross-vendor advisor for the equivalence call when one is installed, with the same-vendor fresh-context subagent as the stated fallback. Reports any WITHHOLDING claim that cannot cite its evidence as unclassified rather than as the class claimed — equivalence without a differential demonstration, and aridity without a complete proposed suppression entry that `bash \"${CLAUDE_PLUGIN_ROOT}/scripts/suppression-lint.sh\" -` reports `ok` for, piped in so nothing is written, AND whose `reason` names the behavior the suite deliberately does not assert on. The lint's verdict is the test, not the model's own reading of the vocabulary table: a `malformed`, `mismatch`, or `unknown-kind` line leaves the survivor unclassified. Free prose in `claim` fails that way even when the entry is otherwise complete and the reason is good: a survivor fitting no node kind is not arid.",
       "files": []
     },
