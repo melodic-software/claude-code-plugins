@@ -1,5 +1,5 @@
 ---
-bump: minor
+bump: major
 ---
 
 ### Changed
