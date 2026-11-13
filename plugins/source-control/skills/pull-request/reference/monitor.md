@@ -19,6 +19,8 @@
 
 Phase 3 is an **async event loop**, not a sequential pipeline. After every push (initial PR creation, CI fix, comment fix), monitor CI status AND process comments concurrently as they arrive. Don't wait for all CI checks to complete before reading comments. Bots post at different times.
 
+**The dispatching session owns the watch.** A dispatched subagent's job ends when its pull request is marked ready, with the full head sha in its report; the session that dispatched it runs this phase and the merge.
+
 ## Monitor entry checklist (in order, before any monitoring work)
 
 On entering Phase 3 (`monitor`, `comments`, or `full` reaching monitor), complete these steps in order before any CI polling or comment evaluation; the environment-dependent event-delivery choice comes first. Standalone `create` runs Steps 1-3 when its session will keep acting on the PR it opened ([create.md](create.md) §2.6); `create --pushed` leaves them to its caller. `comments --ci` skips this checklist: the runner has checked out the head and kept the threads. `dependency --ci` and `ci --ci` do not enter Phase 3.
@@ -280,7 +282,7 @@ After each push, run this loop until convergence (**every** check in a terminal 
 ### Polling CI from more than one worker
 
 When more than one worker polls CI under the same token (parallel PR monitors, babysit-prs workers,
-subagents each watching a PR), read the PR and its checks over REST instead of the CLI's
+one session watching several PRs), read the PR and its checks over REST instead of the CLI's
 GraphQL-backed checks list (a blocking watch included) or PR view. The §3.0.1 poll script is that
 REST read: its state check and CI block (the `head_sha` read through `cur_checks`) run standalone
 with `OWNER`, `REPO`, and `PR_NUMBER` set
