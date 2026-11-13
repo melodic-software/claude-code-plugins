@@ -1,6 +1,6 @@
 ---
 description: "Backlog reads through the bound tracker: search open and closed items, view one item with its comments and state history. Use when another skill searches or reads tracker items."
-argument-hint: "search <query> | view <id> [--comments] [--history]"
+argument-hint: "[search|view] [args]"
 user-invocable: true
 disable-model-invocation: false
 ---
