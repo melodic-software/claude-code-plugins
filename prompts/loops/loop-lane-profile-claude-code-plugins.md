@@ -27,7 +27,8 @@ Filled instance for the repository in use as of 2026-07-25.
 | `{{RUNTIME_SURFACES}}` | see below. Derived, not a two-glob list |
 
 - Runtime surfaces: **not** just `SKILL.md` and `reference/*.md`, and not
-  bounded by `plugins/` either. Under the fail-closed definition above,
+  bounded by `plugins/` either. Under the fail-closed definition in the
+  template's [Per-repository profile](loop-lane-prompts.md#per-repository-profile),
   **every tracked markdown file** (`git ls-files '*.md'`) is runtime for
   classification until individually proven inert. The plugin tree is the bulk
   of it: `SKILL.md`, `agents/*.md` (the six installed reviewer agents among them),
@@ -57,10 +58,11 @@ Filled instance for the repository in use as of 2026-07-25.
   authoring this document the open count read 50, 44, 40, 38, 28, then 25.
   It fell by three *between two commands in the same session*, because the
   worker lane drains it continuously. Any number written here is wrong before
-  it is read. Run the classification-count command above, the one returning
-  `fetched`, `classified`, and `body_only`, and use what it returns; a rung
-  decision made from a quoted figure is a decision about a repository that no
-  longer exists.
+  it is read. Run the classification-count command in the template's
+  [Per-repository profile](loop-lane-prompts.md#per-repository-profile), the
+  one returning `fetched`, `classified`, and `body_only`, and use what it
+  returns; a rung decision made from a quoted figure is a decision about a
+  repository that no longer exists.
 - No autonomy binding file exists, so the C2 promotion evidence above is
   not recorded here.
 - `#820` carries `do-not-merge`; its body embeds a veto-before-merge
