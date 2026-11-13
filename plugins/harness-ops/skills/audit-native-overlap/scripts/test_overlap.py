@@ -402,8 +402,8 @@ class GenerateTests(unittest.TestCase):
 
 OLD_MARKERS = ("<!-- native-surfaces:start -->", "<!-- native-surfaces:end -->")
 GENERATED_MARKERS = (
-    "<!-- BEGIN GENERATED: native-surfaces. Edit docs/native-surfaces/records.json, then run "
-    "plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py generate -->",
+    "<!-- BEGIN GENERATED: native-surfaces. Edit the native-overlap store, then run "
+    "python3 ${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py generate -->",
     "<!-- END GENERATED: native-surfaces -->",
 )
 

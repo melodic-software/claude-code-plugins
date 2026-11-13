@@ -12,7 +12,7 @@ surface and a component in this repository, and each one carries the observable 
 re-deriving it. Availability is never asserted: an observation record says what was seen, where,
 and when. See [`docs/contracts/native-references/`](contracts/native-references/README.md).
 
-<!-- BEGIN GENERATED: native-surfaces. Edit docs/native-surfaces/records.json, then run plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py generate -->
+<!-- BEGIN GENERATED: native-surfaces. Edit the native-overlap store, then run python3 ${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py generate -->
 
 ## Summary
 

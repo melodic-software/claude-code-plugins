@@ -25,8 +25,9 @@ const SELF = fileURLToPath(import.meta.url);
 const DEFAULT_IMAGE = 'mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04';
 const DEFAULT_DOC = join(PLUGIN_ROOT, 'reference', 'read-safety-measurement.md');
 // The form the ai-slop audit skips, so its fix pass never edits the measured results.
-const START = '<!-- BEGIN GENERATED: measure-read-safety results. Run node plugins/sql-server/scripts/measure-read-safety.mjs -->';
-const END = '<!-- END GENERATED: measure-read-safety results -->';
+const START = '<!-- BEGIN GENERATED: measure-read-safety-results. Run node plugins/sql-server/scripts/measure-read-safety.mjs -->';
+const END = '<!-- END GENERATED: measure-read-safety-results -->';
+const RETIRED = ['<!-- measure-read-safety:results:start -->', '<!-- measure-read-safety:results:end -->'];
 const DB = 'measure';
 const ROWS = 200_000;
 const LOCKED_ID = 150_000;
@@ -97,7 +98,14 @@ async function measure() {
   const docPath = resolve(values.doc ?? DEFAULT_DOC);
   const runs = Number(values.runs ?? 3);
   if (!Number.isInteger(runs) || runs < 1) throw new Error('--runs takes a whole number of at least 1');
-  if (!hasMarkers(readFileSync(docPath, 'utf8'))) throw new Error(`${docPath} has no results markers`);
+  const doc = readFileSync(docPath, 'utf8');
+  if (!hasMarkers(doc)) {
+    const retired = RETIRED.filter((marker) => doc.includes(marker));
+    if (retired.length > 0) {
+      throw new Error(`${docPath} carries the retired results markers ${retired.join(' and ')}; replace them with ${START} and ${END}`);
+    }
+    throw new Error(`${docPath} has no results markers`);
+  }
 
   const name = `sql-server-measure-${randomBytes(4).toString('hex')}`;
   const work = mkdtempSync(join(tmpdir(), 'sql-server-measure-'));

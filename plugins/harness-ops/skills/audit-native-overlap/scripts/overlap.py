@@ -212,11 +212,13 @@ PRESENCE_MENTION_RE = re.compile(
 # the two forms, and regenerating keeps the one it carries. A marker is a standalone
 # line; one opening with START_PREFIX belongs to the BEGIN GENERATED form even when
 # the rest of the line differs, and is refused naming the expected line. Each form is
-# (prefix of its start line, start line, end line).
+# (prefix of its start line, start line, end line). The instruction names the store and
+# the script by what holds in any repository: the store path is configurable, and the
+# script lives under the plugin's install directory, not the repository.
 START_PREFIX = "<!-- BEGIN GENERATED: native-surfaces."
 START_MARKER = (
-    f"{START_PREFIX} Edit docs/native-surfaces/records.json, then run "
-    "plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py generate -->"
+    f"{START_PREFIX} Edit the native-overlap store, then run "
+    "python3 ${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py generate -->"
 )
 END_MARKER = "<!-- END GENERATED: native-surfaces -->"
 LEGACY_START_MARKER = "<!-- native-surfaces:start -->"
