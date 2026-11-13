@@ -3,6 +3,14 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.43] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
+- Corrected in place: the released entries [0.24.2] now name the spell-check plugin `spelling`, its current name.
+
 ## [8.12.42] - 2026-11-12
 
 ### Changed

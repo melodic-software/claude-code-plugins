@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.14] - 2026-11-12
+
+### Changed
+
+- `code-review`: the summary ends with how many candidates the verifier dropped, so verifier precision can be baselined.
+
+- Internal simplification, no behavior change.
+
 ## [8.4.13] - 2026-11-12
 
 ### Changed

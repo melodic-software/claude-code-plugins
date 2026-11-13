@@ -3,6 +3,16 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-11-12
+
+### Changed
+
+- The plugin is now `spelling`: install it as `spelling@<marketplace>`, and its setup skill runs as `/spelling:setup`.
+- The options are `spelling_enabled` and `spelling_end_of_turn`, with kill-switch variables `CLAUDE_PLUGIN_OPTION_SPELLING_ENABLED` and `CLAUDE_PLUGIN_OPTION_SPELLING_END_OF_TURN`. Saved values move to the new keys through the dotfiles rename map on the next converge; a machine not managed by that dotfiles repository sets them again.
+- The git pre-commit entry installs under `.githooks/spelling/`, its decline key is `checks.spelling.typos-check.declined`, and its findings start with `spelling:`. In a repository that had the entry, `/spelling:setup check` reports what the earlier install left as `superseded`, and `/spelling:setup apply install-git-hooks` installs the entry, removes those artifacts on your yes and keeps an earlier decline under the new key.
+
+- Corrected in place: the released entries [0.12.11], [0.11.5], [0.10.0], [0.9.8], [0.9.0], [0.8.11], [0.8.6], [0.8.5], [0.8.0], [0.7.6], [0.7.5], [0.7.1], [0.7.0], [0.6.62], [0.6.60], [0.6.59], [0.6.57], [0.6.43], [0.6.42], [0.6.32], [0.6.28], [0.6.16], [0.6.4], [0.5.3], [0.5.2], [0.5.0], [0.4.4], [0.4.0], [0.3.4], [0.1.0] now name the spell-check plugin `spelling`, its current name.
+
 ## [1.1.0] - 2026-11-12
 
 ### Added
