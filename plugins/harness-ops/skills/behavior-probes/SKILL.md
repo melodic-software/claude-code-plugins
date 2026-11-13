@@ -71,7 +71,10 @@ expect a deny when `;`, `&&`, `|` or `$()` adds a `touch` the rule does not appr
 settings put a stub `gh` first on `PATH` that logs its arguments and prints `gh-stub-marker`, so a
 call that gets through touches no real issue; the control passes only on that marker.
 
-The `deny-rules` area runs under `dontAsk`, so no classifier verdict mixes into a rule's outcome. It
+The `deny-rules` area runs under `dontAsk`, to keep classifier verdicts out of a rule's outcome;
+what that mode evaluates is
+[its section](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)'s
+to state. It
 checks which forms of a read a `Read(./.env)` deny stops (the Read tool, `cat`, `bash -c`), whether a
 `Bash` deny on `git reset --hard` stops a `git -C .` form an exact allow rule approves, and whether
 a `!` carve-out's place in the deny list decides what it carves out. Each case's `docs` names the
