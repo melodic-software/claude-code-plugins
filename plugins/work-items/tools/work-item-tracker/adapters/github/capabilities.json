@@ -25,7 +25,8 @@
     "sub_items": true,
     "leases": true,
     "labels": true,
-    "list_items_label_filter": true
+    "list_items_label_filter": true,
+    "state_history": true
   },
   "limits": {
     "sub_items_per_parent": 100,
