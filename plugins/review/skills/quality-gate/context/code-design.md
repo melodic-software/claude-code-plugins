@@ -71,10 +71,11 @@ These are judgment, not a review guide's rule. Each is SUGGESTION at most:
 ### Change amplification
 
 A change-amplification finding is IMPORTANT, never CRITICAL, with no file-count threshold. Its
-evidence is the file and line of every site the one change had to edit; a declared registry entry,
-a generated file and a rename or move are not sites. When moving the repeated knowledge behind one
-module is too large for this change, the Action names a `/coupling:reduce` follow-up instead of
-asking for the fix here.
+evidence is the file and line of every site the one change had to edit. Not sites: a declared
+registry entry, a generated file, a rename or move, and the representation each layer needs for
+one change (an entity, its DTO and its mapper for a new field). When moving the repeated knowledge
+behind one module is too large for this change, the Action names a `/coupling:reduce` follow-up
+instead of asking for the fix here.
 
 ## Dispatch
 
