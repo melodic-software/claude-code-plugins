@@ -175,7 +175,7 @@
             "lease_ttl_hours": { "type": "integer", "minimum": 0, "description": "Claim lease lifetime in hours. Required." },
             "lease_ttl_minutes": { "type": "integer", "minimum": 0, "maximum": 59, "description": "Minutes added to lease_ttl_hours. Absent: 0." },
             "storage_dir": { "type": "string", "description": "The local-markdown store, required for that provider. A relative path roots at the repository root." },
-            "container_label": { "type": "string", "description": "The label that marks a spec container. Absent or empty: work-map." },
+            "container_label": { "type": "string", "description": "The label that marks a spec container. Absent or empty: spec-container." },
             "role_labels": {
               "type": "object",
               "additionalProperties": { "type": "string" },

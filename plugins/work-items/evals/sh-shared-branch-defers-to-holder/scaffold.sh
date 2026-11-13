@@ -42,7 +42,7 @@ $6
 MD
 }
 
-item 1 "Invoice export" '[]' '["work-map"]' 'null' "## Brief
+item 1 "Invoice export" '[]' '["spec-container"]' 'null' "## Brief
 
 Goal: finance downloads a month of invoices as one CSV.
 

@@ -9,6 +9,6 @@ expected_outcome: 'Stops before any claim and reports that run is attended only 
 
 /work-items:ship run #360
 
-Invoked from a /loop cycle in a background session; no human is attached. #360 is an open container item labeled work-map. The container body carries `**Execution shape:** per-item PRs` and two ready sub-items.
+Invoked from a /loop cycle in a background session; no human is attached. #360 is an open container item labeled spec-container. The container body carries `**Execution shape:** per-item PRs` and two ready sub-items.
 
 Treat the state above as what this run's reads return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does, in order, and why.

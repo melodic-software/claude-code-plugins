@@ -47,7 +47,7 @@
       "expected_output": "Chart mode treats the caller's unattended declaration as the signal and STOPS, reporting that charting needs a human in the loop, rather than fabricating a map on its own.",
       "files": [],
       "expectations": [
-        "Output does NOT create a work-map issue or fabricate decision items",
+        "Output does NOT create a map issue or fabricate decision items",
         "Output explicitly states that charting requires an interactive session with a human",
         "Output stops rather than substituting its own judgment for the missing human input"
       ]
@@ -71,7 +71,7 @@
       "expected_output": "The skill recognizes this work is already a set of sharp, answerable tickets rather than a too-big-and-foggy effort, declines to build a map for it, and routes the three tickets to /work-items:decompose. The no-fog bail-out fires before the no-interview offer, so it does not offer to run /planning:interview first.",
       "files": [],
       "expectations": [
-        "Output does NOT create a work-map or decision items for this request",
+        "Output does NOT create a map or decision items for this request",
         "Output recognizes the three items are already sharp and answerable rather than foggy",
         "Output recommends /work-items:decompose (or /work-items) as the better-fit skill instead of charting",
         "Output does NOT offer to run /planning:interview first"
