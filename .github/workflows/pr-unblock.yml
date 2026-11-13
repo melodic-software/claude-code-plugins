@@ -3428,10 +3428,10 @@ jobs:
       claude-api-key: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether review-dependency's report job posted its check, read from this run's
-  # jobs as fix-ci-handoff reads fix-ci's, never from an review-dependency
-  # output: the run job runs head code and can forge them. A failed read
-  # leaves posted empty, which starts the fallback call.
+  # Whether review-dependency's report job posted its check, read from this
+  # run's jobs as fix-ci-handoff reads fix-ci's, never from a
+  # review-dependency output: the run job runs head code and can forge them.
+  # A failed read leaves posted empty, which starts the fallback call.
   review-dependency-handoff:
     name: Review Dependency Handoff
     needs: [review-dependency-select, review-dependency]
@@ -3479,9 +3479,10 @@ jobs:
           CALLS: review-dependency
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
 
-      # Whether the third call can run, never the token. review-dependency-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last; a failed read leaves it empty, which hands nothing on.
+      # Whether the third call can run, never the token.
+      # review-dependency-subscription passes it on as fallback-ready, so with
+      # the token empty its subscription leg stays the last; a failed read
+      # leaves it empty, which hands nothing on.
       - name: Check the fallback token
         id: fallback
         env:
@@ -3533,11 +3534,13 @@ jobs:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether review-dependency-subscription handed off to the fallback token, read from this run's
-  # jobs by handoff-evidence.sh, never from a review-dependency-subscription output: its broker
-  # allowed it, its run job succeeded and its scan job never ran. It runs
-  # only when review-dependency-handoff found the fallback token set, so with the token empty
-  # nothing starts that did not before. A failed read starts no third call.
+  # Whether review-dependency-subscription handed off to the fallback token,
+  # read from this run's jobs by handoff-evidence.sh, never from a
+  # review-dependency-subscription output: its broker allowed it, its run job
+  # succeeded and its scan job never ran. It runs only when
+  # review-dependency-handoff found the fallback token set, so with the token
+  # empty nothing starts that did not before. A failed read starts no third
+  # call.
   review-dependency-subscription-handoff:
     name: Review Dependency Subscription Handoff
     needs: [review-dependency-handoff, review-dependency-subscription]
@@ -3593,9 +3596,9 @@ jobs:
           tokens: github-token
 
   # The third call, on the central fallback subscription's token alone: it
-  # runs only on review-dependency-subscription-handoff's read, after review-dependency-subscription's subscription leg handed off (a
-  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
-  # hands off.
+  # runs only on review-dependency-subscription-handoff's read, after
+  # review-dependency-subscription's leg handed off (a limit stop, a credit
+  # stop, or a 401 or 402). It is the last leg and never hands off.
   review-dependency-fallback:
     name: Review Dependency Fallback
     needs: [review-dependency-select, review-dependency, review-dependency-handoff, review-dependency-subscription, review-dependency-subscription-handoff]
@@ -3640,9 +3643,9 @@ jobs:
     name: Apply Dependency Patch
     needs: [review-dependency-select, review-dependency, review-dependency-subscription, review-dependency-fallback]
     # One leg answers the round: the fallback call when it ran, else the
-    # first, and every model-call input below is that leg's scan job's, so
-    # one leg's patch never pairs with the other's verdict and an empty
-    # field never falls through.
+    # subscription call when it ran, else the first, and every model-call
+    # input below is that leg's scan job's, so one leg's patch never pairs
+    # with another's verdict and an empty field never falls through.
     if: >-
       ${{ !cancelled()
       && (needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '') == 'written'
@@ -3755,9 +3758,9 @@ jobs:
       # The verdict, its SHA-256 and the patch state, all from the one leg
       # apply-dependency-patch reads; only the scan job, which ran no model
       # or head code, sets these outputs. The scan's refusal arrives as the
-      # scan-refusal job's marker artifact, which the verdict job downloads. The verdict's
-      # attempt names the model run in the round marker, so "Re-run failed
-      # jobs" on this job alone still downloads it.
+      # scan-refusal job's marker artifact, which the verdict job downloads.
+      # The verdict's attempt names the model run in the round marker, so
+      # "Re-run failed jobs" on this job alone still downloads it.
       dependency-run-attempt: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-attempt || '' }}
       dependency-verdict-sha256: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-sha256 || '' }}
       dependency-patch-state: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '' }}
@@ -3788,8 +3791,9 @@ jobs:
       escalation-reason: ${{ steps.context.outputs.escalation-reason }}
       context-sha256: ${{ steps.context.outputs.context-sha256 }}
       # awaiting-human when the human-gated label holds fix-ci, lane-stopped
-      # on the round cap, which fix-ci-not-run posts; lane-escalated when another lane's escalation
-      # put the label on, so apply-patch pushes past it.
+      # on the round cap, which fix-ci-not-run posts; lane-escalated when
+      # another lane's escalation put the label on, so apply-patch pushes past
+      # it.
       skip-reason: ${{ steps.context.outputs.skip-reason }}
       lane-escalated: ${{ steps.context.outputs.lane-escalated }}
       # true when a whole, settled listing of the head's checks has none
@@ -3902,7 +3906,7 @@ jobs:
   # check) or stop (the round cap, lane-stopped) runs no fix-ci job,
   # so no fix-ci check would land on the head and fix-ci-dispatch.mjs would
   # dispatch it again on every run. This job posts fix-ci neutral on that head,
-  # as publish-feedback-not-run does; a kill-switch stop leaves the head empty.
+  # as address-feedback-not-run does; a kill-switch stop leaves the head empty.
   fix-ci-not-run:
     name: Fix CI Not Run
     needs: fix-ci-context
@@ -4056,9 +4060,10 @@ jobs:
           CALLS: fix-ci
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
 
-      # Whether the third call can run, never the token. fix-ci-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last; a failed read leaves it empty, which hands nothing on.
+      # Whether the third call can run, never the token.
+      # fix-ci-subscription passes it on as fallback-ready, so with
+      # the token empty its subscription leg stays the last; a failed read
+      # leaves it empty, which hands nothing on.
       - name: Check the fallback token
         id: fallback
         env:
@@ -4114,11 +4119,12 @@ jobs:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether fix-ci-subscription handed off to the fallback token, read from this run's
-  # jobs by handoff-evidence.sh, never from a fix-ci-subscription output: its broker
-  # allowed it, its run job succeeded and its scan job never ran. It runs
-  # only when fix-ci-handoff found the fallback token set, so with the token empty
-  # nothing starts that did not before. A failed read starts no third call.
+  # Whether fix-ci-subscription handed off to the fallback token, read from
+  # this run's jobs by handoff-evidence.sh, never from a fix-ci-subscription
+  # output: its broker allowed it, its run job succeeded and its scan job
+  # never ran. It runs only when fix-ci-handoff found the fallback token set,
+  # so with the token empty nothing starts that did not before. A failed read
+  # starts no third call.
   fix-ci-subscription-handoff:
     name: Fix CI Subscription Handoff
     needs: [fix-ci-handoff, fix-ci-subscription]
@@ -4174,9 +4180,9 @@ jobs:
           tokens: github-token
 
   # The third call, on the central fallback subscription's token alone: it
-  # runs only on fix-ci-subscription-handoff's read, after fix-ci-subscription's subscription leg handed off (a
-  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
-  # hands off.
+  # runs only on fix-ci-subscription-handoff's read, after
+  # fix-ci-subscription's leg handed off (a limit stop, a credit
+  # stop, or a 401 or 402). It is the last leg and never hands off.
   fix-ci-fallback:
     name: Fix CI Fallback
     needs: [fix-ci-context, fix-ci, fix-ci-handoff, fix-ci-subscription, fix-ci-subscription-handoff]
@@ -4216,9 +4222,9 @@ jobs:
   # collection the run's collector refused, hands the PR to a person (a
   # refused collection reaches select with no patch-state, which escalates
   # ci-fix-invalid); a pushed patch hands none, so the new head's CI decides.
-  # One leg answers: the fallback call when it ran,
-  # else the first, and every input is that leg's scan job's, never a run
-  # job's; a call that handed off left none.
+  # One leg answers: the fallback call when it ran, else the subscription
+  # call when it ran, else the first, and every input is that leg's scan
+  # job's, never a run job's; a call that handed off left none.
   apply-patch:
     name: Apply Patch
     needs: [fix-ci-context, fix-ci, fix-ci-subscription, fix-ci-fallback]
@@ -4255,8 +4261,8 @@ jobs:
       patch-weaken-retry: ${{ needs.fix-ci-context.outputs.weaken-retry }}
       # The head fix-ci-context gated, from a job that ran no head code; the
       # read runner's own head-sha output is the run job's, which head code
-      # could forge. Both fix-ci calls refuse a context for another head, so a
-      # patch was made on this one. apply-patch compares it with the head its
+      # could forge. Every fix-ci call refuses a context for another head, so
+      # a patch was made on this one. apply-patch compares it with the head its
       # own trigger gate reads at apply time, and its push needs the branch
       # still at that head.
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
@@ -4357,9 +4363,10 @@ jobs:
           CALLS: fix-ci-rung-up
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
 
-      # Whether the third call can run, never the token. fix-ci-rung-up-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last; a failed read leaves it empty, which hands nothing on.
+      # Whether the third call can run, never the token.
+      # fix-ci-rung-up-subscription passes it on as fallback-ready, so with
+      # the token empty its subscription leg stays the last; a failed read
+      # leaves it empty, which hands nothing on.
       - name: Check the fallback token
         id: fallback
         env:
@@ -4410,11 +4417,13 @@ jobs:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether fix-ci-rung-up-subscription handed off to the fallback token, read from this run's
-  # jobs by handoff-evidence.sh, never from a fix-ci-rung-up-subscription output: its broker
-  # allowed it, its run job succeeded and its scan job never ran. It runs
-  # only when fix-ci-rung-up-handoff found the fallback token set, so with the token empty
-  # nothing starts that did not before. A failed read starts no third call.
+  # Whether fix-ci-rung-up-subscription handed off to the fallback token,
+  # read from this run's jobs by handoff-evidence.sh, never from a
+  # fix-ci-rung-up-subscription output: its broker allowed it, its run job
+  # succeeded and its scan job never ran. It runs only when
+  # fix-ci-rung-up-handoff found the fallback token set, so with the token
+  # empty nothing starts that did not before. A failed read starts no third
+  # call.
   fix-ci-rung-up-subscription-handoff:
     name: Fix CI Rung Up Subscription Handoff
     needs: [fix-ci-rung-up-handoff, fix-ci-rung-up-subscription]
@@ -4470,9 +4479,9 @@ jobs:
           tokens: github-token
 
   # The third call, on the central fallback subscription's token alone: it
-  # runs only on fix-ci-rung-up-subscription-handoff's read, after fix-ci-rung-up-subscription's subscription leg handed off (a
-  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
-  # hands off.
+  # runs only on fix-ci-rung-up-subscription-handoff's read, after
+  # fix-ci-rung-up-subscription's leg handed off (a limit stop, a credit
+  # stop, or a 401 or 402). It is the last leg and never hands off.
   fix-ci-rung-up-fallback:
     name: Fix CI Rung Up Fallback
     needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-handoff, fix-ci-rung-up-subscription, fix-ci-rung-up-subscription-handoff]
@@ -4630,21 +4639,20 @@ jobs:
   # or verdict job acted and ended with no stop: report-escalation.sh clear
   # then posts success over a failure an earlier stop left on the same head,
   # so a same-head retry that landed leaves nothing red. A job that succeeded
-  # on a skip (the reply script's no-model-turn, a gate or head-recheck skip)
-  # (a rung-up skip included) landed nothing and leaves the failure in place;
-  # the address-feedback sweep counts a no-model-turn skip toward
-  # SWEEP_HEAD_CAP (feedback-dispatch.mjs RELEASES). clear also runs when a
-  # select job that succeeded finds the stop gone on its head (stop-resolved:
-  # every thread resolved, or no check failing), since no push, reply or
-  # verdict job runs then. This script job, with no
-  # model, is the lane's only
-  # statuses: write, on its own GITHUB_TOKEN: the lanes App token the
-  # escalation comment uses carries no statuses permission. actions: read and
-  # checks: read let status mode read this run's jobs and the reply job's
-  # annotations: a feedback-publish-failed whose lane token a retry takes the
-  # head on (refire-refused.mjs tokenRefusal) posts no status, and its
-  # status-withheld output keeps report-escalation from posting the
-  # lane-stopped comment for it.
+  # on a skip (the reply script's no-model-turn, a gate or head-recheck skip,
+  # or a rung-up skip) landed nothing and leaves the failure in place; the
+  # address-feedback sweep counts a no-model-turn skip toward SWEEP_HEAD_CAP
+  # (feedback-dispatch.mjs RELEASES). clear also runs when a select job that
+  # succeeded finds the stop gone on its head (stop-resolved: every thread
+  # resolved, or no check failing), since no push, reply or verdict job runs
+  # then. This script job, with no model, is the lane's only statuses: write,
+  # on its own GITHUB_TOKEN: the lanes App token the escalation comment uses
+  # carries no statuses permission. actions: read and checks: read let status
+  # mode read this run's jobs and the reply job's annotations: a
+  # feedback-publish-failed whose lane token a retry takes the head on
+  # (refire-refused.mjs tokenRefusal) posts no status, and its status-withheld
+  # output keeps report-escalation from posting the lane-stopped comment for
+  # it.
   report-stop-status:
     name: Report Stop Status
     needs:
