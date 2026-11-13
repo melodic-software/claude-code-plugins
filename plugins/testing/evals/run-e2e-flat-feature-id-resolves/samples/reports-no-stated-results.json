@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "cart | the basket icon in the header | not driven (nothing is launched here)\n  no stated results",
+      "why": "the fallback line under the report line"
+    },
+    {
+      "answer": "| `cart` | POST /api/cart/items | not driven (nothing is launched here) |\n\n- **No stated results**: the expected outcome comes from the requirement alone.",
+      "why": "capitalized and bold"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "cart | the basket icon in the header | not driven (nothing is launched here)\n  expected: the basket lists the first item",
+      "why": "an expected outcome with no word that the file states no result"
+    },
+    {
+      "answer": "cart | the Add to cart button | not driven (nothing is launched here)\n  stated results: Open /cart, add the first item, open the basket",
+      "why": "treats the Drive step as a stated result"
+    }
+  ]
+}
