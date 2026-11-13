@@ -1497,6 +1497,16 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh rules-index {0}
         run: bash plugins/instruction-placement/scripts/render-index.sh check --file AGENTS.md
 
+      # An as-of date in a skill, agent or reference paragraph needs a recheck
+      # trigger beside it (.claude/rules/skill-bodies-state-current-rules.md).
+      # Ungated: the edit that adds one is docs-only. Existing debt sits in
+      # scripts/as-of-recheck-baseline.txt, which fails when it could shrink.
+      - name: Check every as-of date in a skill file has a recheck trigger
+        id: as_of_recheck
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh as-of-recheck {0}
+        run: scripts/check-as-of-recheck.sh --check
+
       # Each tracked docs/conventions/<concern>.yaml against its JSON Schema
       # (ADR 0064 Decisions 6 and 7). Ungated: a change that edits only a
       # convention YAML is docs-only, and that is the edit this gate reads.
@@ -2086,6 +2096,7 @@ jobs:
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
             rules-index=${{ steps.rules_index.outcome }}
+            as-of-recheck=${{ steps.as_of_recheck.outcome }}
             convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
