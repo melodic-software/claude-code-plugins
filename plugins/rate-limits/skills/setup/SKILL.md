@@ -190,7 +190,8 @@ finishes it.
 1. **A session still running the earlier name.** When any file in `~/.claude/rate-limit-guard/`
    changed within the staleness window the reader contract's operable floor fixes (read it from
    `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`), stop: that session's module rewrites
-   the snapshot there and would recreate the directory.
+   the snapshot there and would recreate the directory. This check cannot see an idle session on
+   the earlier name; whatever such a session writes later, a later `apply` merges.
 2. **The status line.** When the `statusLine` command in effect (user, project and local
    `settings.json`, the most specific scope that sets it) names a path under
    `~/.claude/rate-limit-guard/`, stop and print that command for the operator; never edit a
@@ -203,18 +204,23 @@ finishes it.
    operator decides what it is.
 4. **The stop record.** No old `stop-events.jsonl` (a machine that never hit a rate-limit stop):
    skip to step 5. Otherwise create `~/.claude/rate-limits/` with mode 700 when absent and run this
-   block, which holds the hook's own lock for the whole merge: the same `flock -w 2` on fd 9 over
-   `stop-events.jsonl.lock` that `hooks/record-rate-limit-stop.sh` and `hook::append_jsonl` in
-   `hooks/hook-utils.sh` take, and no lock where `flock` is missing, as the hook runs there. The
-   old records go first and the new file's after them, because the hook appends newest last and
-   its rotation keeps the last lines. The old file is renamed aside before the merged file
-   replaces the new one, so no later `apply` can merge it twice:
+   block, which holds the hook's own lock in both directories for the whole merge: the same
+   `flock -w 2` over `stop-events.jsonl.lock` that `hooks/record-rate-limit-stop.sh` and
+   `hook::append_jsonl` in `hooks/hook-utils.sh` take, the old directory's first (fd 8, which a
+   session on the earlier name writes under), then the new one's (fd 9), and no lock where `flock`
+   is missing, as the hook runs there. The old records go first and the new file's after them,
+   because the hook appends newest last and its rotation keeps the last lines. The old file is
+   renamed aside before the merged file replaces the new one, and the aside copy is deleted inside
+   the block, so no later `apply` can merge it twice:
 
    ```bash
    old="$HOME/.claude/rate-limit-guard/stop-events.jsonl"
    new="$HOME/.claude/rate-limits/stop-events.jsonl"
    (
-     if command -v flock >/dev/null 2>&1; then flock -w 2 9 || exit 3; fi
+     if command -v flock >/dev/null 2>&1; then
+       flock -w 2 8 || exit 3
+       flock -w 2 9 || exit 4
+     fi
      umask 077
      if [ ! -e "$new" ]; then mv -- "$old" "$new" || exit 1; exit 0; fi
      tmp="$new.tmp.$BASHPID" aside="$old.merged.$BASHPID"
@@ -222,14 +228,17 @@ finishes it.
        cat -- "$new"; } >"$tmp" && mv -- "$old" "$aside" || { rm -f -- "$tmp"; exit 1; }
      mv -f -- "$tmp" "$new" || { mv -- "$aside" "$old"; rm -f -- "$tmp"; exit 1; }
      rm -f -- "$aside"
-   ) 9>"$HOME/.claude/rate-limits/stop-events.jsonl.lock"
+   ) 8>>"$HOME/.claude/rate-limit-guard/stop-events.jsonl.lock" \
+     9>>"$HOME/.claude/rate-limits/stop-events.jsonl.lock"
    ```
 
-   Exit 3: the lock stayed held for 2 seconds; stop. Any other non-zero exit: stop and say the
-   merge failed.
-5. **Remove the old directory.** Delete the known entries step 3 listed (the aside copy step 4
-   left included), then the emptied `bin/`, `spool/` and the directory itself. Report what moved
-   or merged, with the line counts, and what was removed.
+   Exit 3: the old directory's lock stayed held for 2 seconds; exit 4: the new directory's did;
+   stop either way. Any other non-zero exit: stop and say the merge failed.
+5. **Remove the old directory.** First check that no `stop-events.jsonl` exists in
+   `~/.claude/rate-limit-guard/`: a session on the earlier name may have written one since
+   step 4. If one does, stop and say a later `apply` merges it. Otherwise delete the known
+   entries step 3 listed, then the emptied `bin/`, `spool/` and the directory itself. Report what
+   moved or merged, with the line counts, and what was removed.
 
 A second `apply` finds nothing to move and changes nothing; say so.
 
