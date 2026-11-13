@@ -31,7 +31,10 @@ the request. With neither, rate as `production` and put
 
 ## Bundled criteria
 
-Principles are code smells from Fowler, *Refactoring* (2nd ed.), chapter 3, "Bad Smells in Code".
+Principles are smells from the shipped baseline in
+[`reference/design-smells.md`](../../../reference/design-smells.md), named as there; this table
+rates them whatever `smell_baseline` says, since that setting governs only the `code-reviewer`
+agent.
 Markdown means Markdown prose files; code is every other changed file.
 
 | Criterion | Principle | Flag | Code, `internal` or `production` | Markdown | Any surface, `prototype` |

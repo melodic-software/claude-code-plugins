@@ -1,5 +1,5 @@
 ---
-description: "Check or apply the review plugin's repository setup: the standards index and docs/conventions/review.yaml settings."
+description: "Check or apply the review plugin's repository setup: the standards index, docs/conventions/review.yaml settings, and the repository's own design-smell list."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -78,7 +78,9 @@ a regular file). `apply` is the fix.
    default, unless the team wants `/review:fanout run-everything` to run each review prompt on
    several model tiers, in which case `model`, or to use the Codex reviewer as its model-diversity
    panel, in which case `codex`; `fanout_act_on_cap`: `2`, the default, unless the team wants
-   more or fewer rows under each `/review:fanout` `## By axis` heading marked act on). Never
+   more or fewer rows under each `/review:fanout` `## By axis` heading marked act on;
+   `smell_baseline`: `default`, unless the team wants no smell check (`off`) or its own list, which
+   [Design-smell list](#design-smell-list) writes and points the key at). Never
    invent a key the schema
    does not list. `downstream_probe` is a policy floor read from the default branch, so a value
    written here takes effect once it is merged there.
@@ -131,6 +133,23 @@ a regular file). `apply` is the fix.
 5. **Verify.** Re-run the `check` row and report the value it prints, not the value written. Then
    the tracked-file pair from the `apply` task below on `docs/conventions/review.yaml`.
 
+## Design-smell list
+
+When the operator asks for the repository's own design-smell list, or answers `smell_baseline`
+with one, offer the catalog in `${CLAUDE_PLUGIN_ROOT}/reference/design-smells.md`: every entry of
+its "Baseline" and "Further candidates" sections, the baseline ones marked as shipped. Write only
+what the operator picks:
+
+1. **Ask** which entries to keep, and where the file goes (recommend `<standards_dir>/design-smells.md`,
+   with the root resolved as the `apply` task below does). Never pre-select the further candidates.
+2. **Show, then write.** Show the file text, the chosen entries copied in the catalog's
+   `- Name: sign → remedy` shape, and write it on an explicit yes. An existing file is shown as a
+   diff and never overwritten without a yes.
+3. **Point the reviewer at it.** Set the key through the [Repository settings](#repository-settings)
+   `apply` steps, `smell_baseline=<repository-relative path>`, diff and confirmation included. When
+   the file sits under the standards root, also offer its index row (the binding's row shape).
+4. **Verify** with the tracked-file pair from the `apply` task below on the written file.
+
 ## `apply` task
 
 Plugin-side notes on top of the binding's procedure:
@@ -171,10 +190,11 @@ the value `check` reads back, and whether the file is tracked.
 - Run a review. That is `/review:quality-gate` and this plugin's reviewer agents; they resolve
   criteria through the index this setup bootstraps.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. The per-user
-  `downstream_probe`, `fanout_diversity` and `fanout_act_on_cap` options are set through
+  `downstream_probe`, `fanout_diversity`, `fanout_act_on_cap` and `smell_baseline` options are set through
   `/plugin configure`, not here.
 - Write any settings file other than `docs/conventions/review.yaml` and, when the operator asks
-  to change a digest setting, `docs/conventions/review-digest.yaml`.
+  to change a digest setting, `docs/conventions/review-digest.yaml`. The design-smell list it may
+  write is criteria, not settings.
 - Edit the consumer's root `.gitignore` or any ignore file it did not itself create, the single
   setup-owned ignore file is the standards root's bootstrap-shipped `<standards_dir>/.gitignore`.
 - Write anything into the plugin directory or the plugin data directory
