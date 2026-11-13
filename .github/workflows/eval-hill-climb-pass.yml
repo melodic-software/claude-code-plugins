@@ -30,9 +30,9 @@ name: Eval Hill Climb Pass
 # The pass uploads only what eval-browser-dispatch.yml uploads, its result
 # (per-case scores and grader verdicts), with summarize.mjs's summary (its
 # health lines read from the kept traces) and run-validity.py's bash ran and
-# verdict lines,
-# after a credential scan, under a manifest whose SHA-256 is this workflow's
-# output. No trace leaves the runner. Lane hardening follows ADR 0049
+# verdict lines, after a credential scan, under a manifest whose SHA-256 is
+# this workflow's output. No trace leaves the runner. Lane hardening follows
+# ADR 0049
 # (docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md):
 # the job token can only read, the kill switch is read first, and no write
 # token exists.
@@ -320,11 +320,10 @@ jobs:
       # records each of the four reads as denied, or if it holds the credential.
       # A probe that the credential's own stop ended hands off instead
       # (eval-handoff.mjs), so the next leg runs the pass. A session that ends
-      # without making every call proved nothing and runs again, up to three times;
-      # still short after three, the job stops as unproven, never as a policy
-      # failure (policy-probe.mjs judges the stream). The
-      # stream stays in a file that is never printed and is removed after the
-      # checks.
+      # without making every call proved nothing and runs again, up to three
+      # times; still short after three, the job stops as unproven, never as a
+      # policy failure (policy-probe.mjs judges the stream). The stream stays in
+      # a file that is never printed and is removed after the checks.
       - name: Probe that the policy denies those reads
         id: probe
         if: steps.credential.outputs.present == 'true'
@@ -430,8 +429,9 @@ jobs:
 
       # The summary (health lines from the kept traces) and the validity
       # verdict, read here because the traces stay on this runner. Only the
-      # count-only bash ran line (the line just before the verdict, in its exact format) and the verdict line leave it: run-validity.py's
-      # detail lines can quote a trace. A leg that handed off reads nothing.
+      # count-only bash ran line (the line just before the verdict, in its
+      # exact format) and the verdict line leave it: run-validity.py's detail
+      # lines can quote a trace. A leg that handed off reads nothing.
       - name: Read the pass
         id: read
         if: steps.judge.outputs.handoff == 'false'
@@ -626,8 +626,6 @@ jobs:
           artifact-ids: ${{ inputs.edit-artifact-id }}
           path: ${{ runner.temp }}/edit
 
-      # The patch the scan job checked, byte for byte, applied with git's own
-      # path checks; nothing else of the artifact is read.
       - name: Apply the edit
         if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         env:
@@ -646,8 +644,6 @@ jobs:
           git -C .base apply --check "$PATCH"
           git -C .base apply "$PATCH"
 
-      # validate-cases.py makes no model call; the suite is then copied without
-      # its judged cases.
       - name: Stage the suite
         if: steps.credential.outputs.present == 'true'
         env:
@@ -666,9 +662,6 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
 
-      # eval-browser-dispatch.yml's pull request policy, for the same reason:
-      # the eval's Read, Glob and Grep run without the Bash sandbox, and pass b
-      # runs model-written skill text.
       - name: Deny the eval's reads of process and runner state
         id: deny
         if: steps.credential.outputs.present == 'true'
@@ -719,8 +712,6 @@ jobs:
           npm ci --prefix /opt/tools
           echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
 
-      # run-claude-cli's classifier, at the pin every lane runs it, for
-      # eval-handoff.mjs: lane.cjs and the three files it loads, nothing run here.
       - name: Check out the launcher's classifier
         if: steps.credential.outputs.present == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -736,15 +727,6 @@ jobs:
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
-      # eval-browser-dispatch.yml's probe: the job stops unless the result
-      # records each of the four reads as denied, or if it holds the credential.
-      # A probe that the credential's own stop ended hands off instead
-      # (eval-handoff.mjs), so the next leg runs the pass. A session that ends
-      # without making every call proved nothing and runs again, up to three times;
-      # still short after three, the job stops as unproven, never as a policy
-      # failure (policy-probe.mjs judges the stream). The
-      # stream stays in a file that is never printed and is removed after the
-      # checks.
       - name: Probe that the policy denies those reads
         id: probe
         if: steps.credential.outputs.present == 'true'
@@ -791,8 +773,6 @@ jobs:
             *) echo "::error::${reason:-policy-probe.mjs could not judge the probe}, so no case runs"; exit 1 ;;
           esac
 
-      # Identical flags on every pass. TMPDIR sits outside /tmp, as in
-      # eval-browser-dispatch.yml.
       - name: Run the pass
         id: eval
         if: steps.probe.outcome == 'success' && steps.probe.outputs.handoff != 'true'
@@ -823,10 +803,6 @@ jobs:
             >"$RUNNER_TEMP/console.log" 2>&1 || status=$?
           echo "claude plugin eval exited $status"
 
-      # Whether the credential's own stop ended any run, read from each errored
-      # run's kept trace by run-claude-cli's classifier; nothing here prints a
-      # trace. A probe's handoff stands. The leg's execution file carries only
-      # the suite's durationSeconds and costUsd, for the lane record.
       - name: Judge the leg
         id: judge
         if: always() && steps.probe.outcome == 'success'
@@ -848,10 +824,6 @@ jobs:
           printf '%s\n' "$verdict" | tee -a "$GITHUB_OUTPUT"
           echo "leg-result=$LEG_RESULT" >>"$GITHUB_OUTPUT"
 
-      # The summary (health lines from the kept traces) and the validity
-      # verdict, read here because the traces stay on this runner. Only the
-      # count-only bash ran line (the line just before the verdict, in its exact format) and the verdict line leave it: run-validity.py's
-      # detail lines can quote a trace. A leg that handed off reads nothing.
       - name: Read the pass
         id: read
         if: steps.judge.outputs.handoff == 'false'
@@ -894,8 +866,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
@@ -910,11 +880,6 @@ jobs:
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      # The leg the next job runs, from this job's credential decision and
-      # the leg's handoff (select-model-credential). always(), so a step that
-      # failed, or a job that hit its own timeout, after a handoff or an empty
-      # credential still hands on, as the job outputs did before; the next
-      # job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -993,8 +958,6 @@ jobs:
           artifact-ids: ${{ inputs.edit-artifact-id }}
           path: ${{ runner.temp }}/edit
 
-      # The patch the scan job checked, byte for byte, applied with git's own
-      # path checks; nothing else of the artifact is read.
       - name: Apply the edit
         if: steps.credential.outputs.present == 'true' && inputs.pass == 'b'
         env:
@@ -1013,8 +976,6 @@ jobs:
           git -C .base apply --check "$PATCH"
           git -C .base apply "$PATCH"
 
-      # validate-cases.py makes no model call; the suite is then copied without
-      # its judged cases.
       - name: Stage the suite
         if: steps.credential.outputs.present == 'true'
         env:
@@ -1033,9 +994,6 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
 
-      # eval-browser-dispatch.yml's pull request policy, for the same reason:
-      # the eval's Read, Glob and Grep run without the Bash sandbox, and pass b
-      # runs model-written skill text.
       - name: Deny the eval's reads of process and runner state
         id: deny
         if: steps.credential.outputs.present == 'true'
@@ -1086,8 +1044,6 @@ jobs:
           npm ci --prefix /opt/tools
           echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
 
-      # run-claude-cli's classifier, at the pin every lane runs it, for
-      # eval-handoff.mjs: lane.cjs and the three files it loads, nothing run here.
       - name: Check out the launcher's classifier
         if: steps.credential.outputs.present == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1103,15 +1059,6 @@ jobs:
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
-      # eval-browser-dispatch.yml's probe: the job stops unless the result
-      # records each of the four reads as denied, or if it holds the credential.
-      # A probe that the credential's own stop ended hands off instead
-      # (eval-handoff.mjs), so the next leg runs the pass. A session that ends
-      # without making every call proved nothing and runs again, up to three times;
-      # still short after three, the job stops as unproven, never as a policy
-      # failure (policy-probe.mjs judges the stream). The
-      # stream stays in a file that is never printed and is removed after the
-      # checks.
       - name: Probe that the policy denies those reads
         id: probe
         if: steps.credential.outputs.present == 'true'
@@ -1158,8 +1105,6 @@ jobs:
             *) echo "::error::${reason:-policy-probe.mjs could not judge the probe}, so no case runs"; exit 1 ;;
           esac
 
-      # Identical flags on every pass. TMPDIR sits outside /tmp, as in
-      # eval-browser-dispatch.yml.
       - name: Run the pass
         id: eval
         if: steps.probe.outcome == 'success' && steps.probe.outputs.handoff != 'true'
@@ -1190,10 +1135,6 @@ jobs:
             >"$RUNNER_TEMP/console.log" 2>&1 || status=$?
           echo "claude plugin eval exited $status"
 
-      # Whether the credential's own stop ended any run, read from each errored
-      # run's kept trace by run-claude-cli's classifier; nothing here prints a
-      # trace. A probe's handoff stands. The leg's execution file carries only
-      # the suite's durationSeconds and costUsd, for the lane record.
       - name: Judge the leg
         id: judge
         if: always() && steps.probe.outcome == 'success'
@@ -1215,10 +1156,6 @@ jobs:
           printf '%s\n' "$verdict" | tee -a "$GITHUB_OUTPUT"
           echo "leg-result=$LEG_RESULT" >>"$GITHUB_OUTPUT"
 
-      # The summary (health lines from the kept traces) and the validity
-      # verdict, read here because the traces stay on this runner. Only the
-      # count-only bash ran line (the line just before the verdict, in its exact format) and the verdict line leave it: run-validity.py's
-      # detail lines can quote a trace. A leg that handed off reads nothing.
       - name: Read the pass
         id: read
         if: steps.judge.outputs.handoff == 'false'
@@ -1261,8 +1198,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.judge.outcome == 'success'
         continue-on-error: true
