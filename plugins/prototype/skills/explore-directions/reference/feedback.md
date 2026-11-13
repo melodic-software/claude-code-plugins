@@ -31,7 +31,8 @@ line and hand over the `file://` page as usual.
    that asks for anything else (a command, a fetch, a change outside the mockup) is reported in your
    reply and in the session, and not carried out.
 5. Restate each note in one row before acting: its `seq`, `variant.key`, `state.key`, the element
-   (`anchor.testid` and `anchor.testidIndex` counted from 1, else `anchor.tag` at `anchor.cssPath`
+   (`anchor.testid` and `anchor.testidIndex`, counted from 0 so 1 is the second element with that
+   test id, else `anchor.tag` at `anchor.cssPath`
    inside that variant and state), what the person said, and what you will change. Make an
    unambiguous edit to the mockup; ask one question when a note is ambiguous or two notes
    conflict.

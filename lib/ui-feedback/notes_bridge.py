@@ -13,10 +13,10 @@ Usage: python notes_bridge.py --dir DATA_DIR <command>
 
 The framed page is `<data_dir>/<NAME>` (default page.html), a model-written page the session
 wrote. `/` serves host.html, the checked-in host page. It fetches the page at `/api/page`, with
-the pin helper (proto-pin.js) appended, and frames it through `srcdoc` with sandbox="allow-scripts"
-and never allow-same-origin, so the page has an opaque origin, no storage, and no route to this
-server. The host page alone holds the token and posts each note to `POST /api/note`, which takes one
-note that note.schema.json accepts. Notes go into `actions.json`, the view app's event log, and the
+the mockup policy (PAGE_CSP) put first and the pin helper (proto-pin.js) appended, and frames it
+through `srcdoc` with sandbox="allow-scripts" and never allow-same-origin, so the page has an
+opaque origin, no storage, and no network. The host page alone holds the token and posts each
+note to `POST /api/note`, which takes one note that note.schema.json accepts. Notes go into `actions.json`, the view app's event log, and the
 session's replies into `replies.json`, so this app reuses the view app's hub, token route, expiry and
 apply (lib/session-bridge/README.md, "The view app"). Nothing here acts on a note: the watcher
 prints it under session_bridge.DATA_NOTE and the session decides (docs/contracts/ui-feedback).
@@ -44,14 +44,23 @@ START_SECONDS = view.START_SECONDS
 SCHEMA = json.loads((HERE / "note.schema.json").read_text(encoding="utf-8"))
 MAX_NOTES = SCHEMA["x-maxNotesPerRun"]
 PAGE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.html")
-# The framed page inherits this policy (a srcdoc document keeps its parent's), on top of its own:
-# its inline style and script must run, and connect-src 'self' is the host page's own fetches. A
-# framed page's opaque origin sends `Origin: null`, which origin_ok refuses, and it has no token.
+# The host page's own policy; connect-src 'self' is its fetches. A srcdoc document inherits it, so
+# /api/page puts PAGE_CSP first in the framed page: every policy applies, and PAGE_CSP grants no
+# network and no 'self' script, whatever the page's own markup says (SKILL.md's mockup policy).
 HOST_CSP = (
     "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; "
     "img-src data:; font-src data:; connect-src 'self'; frame-ancestors 'none'; "
     "base-uri 'none'; form-action 'none'"
 )
+PAGE_CSP = (
+    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+    "img-src data:; font-src data:; base-uri 'none'; form-action 'none'"
+)
+PAGE_CSP_META = (
+    f'<meta http-equiv="Content-Security-Policy" content="{PAGE_CSP}">'.encode()
+)
+# A leading doctype stays first, so the page keeps its rendering mode; the meta goes right after it.
+DOCTYPE = re.compile(rb"\A(?:\xef\xbb\xbf)?\s*<!doctype[^>]*>", re.IGNORECASE)
 STATIC = {
     "/note-model.mjs": ("note-model.mjs", "text/javascript"),
     "/note.schema.json": ("note.schema.json", "application/json"),
@@ -223,8 +232,11 @@ class NotesHandler(view.ViewHandler):
                 return self.send(
                     404, {"error": f"no {self.hub.page.name} in the data dir yet"}
                 )
+            m = DOCTYPE.match(raw)
+            at = m.end() if m else 0
+            body = raw[:at] + PAGE_CSP_META + raw[at:]
             return self.send(
-                200, raw + f"\n<script>{PIN_HELPER}</script>\n".encode(), "text/plain"
+                200, body + f"\n<script>{PIN_HELPER}</script>\n".encode(), "text/plain"
             )
         if url.path == "/api/token":
             return super().route_get(url, query)

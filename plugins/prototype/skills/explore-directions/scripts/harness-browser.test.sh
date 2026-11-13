@@ -4,7 +4,8 @@
 # and driven through playwright-cli. It checks the switcher's keys and focus inside the sandboxed
 # frame, that a pick-mode click never reaches the page, that typing in the note never switches
 # variants, that the sent note lands in the bridge's log with its variant and test id and no page
-# text, and that a framed page without its own CSP still cannot read the token or post a note.
+# text, and that a framed page without its own CSP still has every fetch blocked by policy, so it
+# cannot read the token or post a note.
 # SKIPs without playwright-cli, python3 or curl.
 # test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html
 set -euo pipefail
