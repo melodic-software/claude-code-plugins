@@ -50,9 +50,9 @@ From `$ARGUMENTS`:
 
 - `#<number>` / qualified id. Fetch it directly (`"$TRACKER" get-item <id>`, qualifying a bare
   number per the adapter's "Resolve item ID" first). Verify it carries the binding-resolved
-  container label (`config.container_label`, default `work-map`. Warn loudly when defaulting) and
+  container label (`config.container_label`, default `spec-container`. Warn loudly when defaulting) and
   a body with the `**Execution shape:**` line decompose appends to every container it publishes
-  (wayfind maps share the label but never write that line). A labeled item without the line is
+  (a wayfind map that also carries the container label never writes that line). A labeled item without the line is
   reported as not a spec container, and only an item without the container label that has a
   native parent routes to that parent with a note.
 - `<topic-slug>` or empty. Read the topic's PLAN.md (`<memory_dir>/<slug>/PLAN.md`)

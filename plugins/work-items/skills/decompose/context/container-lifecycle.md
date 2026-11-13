@@ -87,7 +87,7 @@ coordination provider instead of publishing a spec that cannot travel.
     the `**Execution shape:**` line, so the shape line and its sibling stay last for
     `/work-items:ship` to read back. Found nothing: emit nothing, no heading and no placeholder.
 - **Labels**: the container label resolved from the binding (`config.container_label`, default
-  `work-map`. [`reference/label-taxonomy.md`](../../../reference/label-taxonomy.md)
+  `spec-container`. [`reference/label-taxonomy.md`](../../../reference/label-taxonomy.md)
   "Container label") plus the human-gated role label: a container is never claimable and never
   its own frontier item (`<plugin-root>/tools/work-item-tracker/CONTRACT.md` "Containers
   and state").
@@ -102,8 +102,8 @@ coordination provider instead of publishing a spec that cannot travel.
   fresh session, this recorded line is what its presence gate reads; in-session memory does
   not survive to it. The fallback discovery path (no line found) is a tracker query for an
   open item carrying the binding-resolved container label whose body cites the topic slug and
-  carries the `**Execution shape:**` line this skill appends to every container (wayfind maps
-  share the label but never write it). A labeled item without that line is skipped and named
+  carries the `**Execution shape:**` line this skill appends to every container (a wayfind map
+  that also carries the label never writes it). A labeled item without that line is skipped and named
   in the report, never adopted.
 
 **Ship ritual, close at ship, archival by closure.** `/work-items:ship` is the macro router

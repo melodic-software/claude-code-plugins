@@ -1,6 +1,6 @@
 # #700 Map: invoice export
 
-URL: https://example.com/acme/shop/issues/700. State: open. Labels: work-map.
+URL: https://example.com/acme/shop/issues/700. State: open. Labels: wayfind: map.
 
 ## Destination
 

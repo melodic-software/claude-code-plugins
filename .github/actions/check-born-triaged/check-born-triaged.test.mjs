@@ -241,13 +241,13 @@ test("run skips a wayfind decision item on its routing label alone, in one read"
   assert.equal(calls, 1);
 });
 
-test("run skips a map on the default container label", async () => {
-  const { result } = await once({ body: "## Destination", labels: ["work-map"] });
-  assert.deepEqual(result, { skip: "true", reason: "routing-label", label: "work-map" });
+test("run skips a spec container on the default container label", async () => {
+  const { result } = await once({ body: "## Destination", labels: ["spec-container"] });
+  assert.deepEqual(result, { skip: "true", reason: "routing-label", label: "spec-container" });
 });
 
 test("run matches the wayfind prefix only at the start of a label", async () => {
-  for (const labels of [["not-wayfind: x"], ["wayfinding"], ["work-map-old"]]) {
+  for (const labels of [["not-wayfind: x"], ["wayfinding"], ["spec-container-old"], ["work-map"]]) {
     assert.deepEqual((await once({ body: "x", labels })).result, { skip: "false", reason: "no-marker" }, labels[0]);
   }
 });
@@ -256,7 +256,7 @@ test("run uses the binding's remapped routing labels instead of the defaults", a
   const routing = { container: "decision-map", prefix: "route: " };
   assert.deepEqual((await once({ body: "x", labels: ["decision-map"] }, { routing })).result, { skip: "true", reason: "routing-label", label: "decision-map" });
   assert.deepEqual((await once({ body: "x", labels: ["route: design"] }, { routing })).result, { skip: "true", reason: "routing-label", label: "route: design" });
-  for (const labels of [["work-map"], ["wayfind: task"]]) {
+  for (const labels of [["spec-container"], ["wayfind: task"]]) {
     assert.deepEqual((await once({ body: "x", labels }, { routing })).result, { skip: "false", reason: "no-marker" }, labels[0]);
   }
 });
@@ -270,9 +270,9 @@ test("run without the born-triaged rule skips only a routing label, in one read"
 });
 
 test("routingLabels reads the binding's keys and keeps each default when absent or empty", () => {
-  assert.deepEqual(routingLabels(null), { container: "work-map", prefix: "wayfind:" });
-  assert.deepEqual(routingLabels({ config: { lease_ttl_hours: 24 } }), { container: "work-map", prefix: "wayfind:" });
-  assert.deepEqual(routingLabels({ config: { container_label: "", wayfind_label_prefix: "" } }), { container: "work-map", prefix: "wayfind:" });
+  assert.deepEqual(routingLabels(null), { container: "spec-container", prefix: "wayfind:" });
+  assert.deepEqual(routingLabels({ config: { lease_ttl_hours: 24 } }), { container: "spec-container", prefix: "wayfind:" });
+  assert.deepEqual(routingLabels({ config: { container_label: "", wayfind_label_prefix: "" } }), { container: "spec-container", prefix: "wayfind:" });
   assert.deepEqual(routingLabels({ config: { container_label: "epic", wayfind_label_prefix: "wf/" } }), { container: "epic", prefix: "wf/" });
   assert.throws(() => routingLabels({ config: { container_label: ["a"] } }), /container_label is not a string/);
   assert.throws(() => routingLabels({ config: { wayfind_label_prefix: 3 } }), /wayfind_label_prefix is not a string/);

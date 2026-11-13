@@ -78,13 +78,15 @@ CONTAINERS='{
   "schema_version": "1.0",
   "items": [
     {"id":"github:o/r#1","state":"open","assignees":[],"labels":[],"blocked_by_count":0},
-    {"id":"github:o/r#10","state":"open","assignees":[],"labels":["work-map"],"blocked_by_count":0}
+    {"id":"github:o/r#10","state":"open","assignees":[],"labels":["spec-container"],"blocked_by_count":0}
   ]
 }'
 IDS="$(frontier_ids false <<<"$CONTAINERS")"
-assert_eq "default frontier excludes the container (work-map)" "github:o/r#1" "$IDS"
+assert_eq "default frontier excludes the container (spec-container)" "github:o/r#1" "$IDS"
 IDS="$(frontier_ids true <<<"$CONTAINERS")"
 assert_eq "autonomous frontier also excludes the container" "github:o/r#1" "$IDS"
+IDS="$(frontier_ids false <<<'{"schema_version":"1.0","items":[{"id":"github:o/r#11","state":"open","assignees":[],"labels":["work-map"],"blocked_by_count":0}]}')"
+assert_eq "the retired work-map label is not the default container label" "github:o/r#11" "$IDS"
 
 # A wayfind map item (any `wayfind:` label) belongs to /planning:wayfind, so neither
 # frontier surfaces it; a label that only contains the text elsewhere still does.
@@ -112,7 +114,7 @@ REMAP_CONTAINER='{
   "schema_version": "1.0",
   "items": [
     {"id":"github:o/r#1","state":"open","assignees":[],"labels":[],"blocked_by_count":0},
-    {"id":"github:o/r#10","state":"open","assignees":[],"labels":["work-map"],"blocked_by_count":0},
+    {"id":"github:o/r#10","state":"open","assignees":[],"labels":["spec-container"],"blocked_by_count":0},
     {"id":"github:o/r#11","state":"open","assignees":[],"labels":["decision-map"],"blocked_by_count":0}
   ]
 }'
