@@ -62,6 +62,34 @@ holds the evidence only when the repository's own secrets and machine-data check
 files; otherwise nothing is pushed, and the note records where the files were and why they were not
 pushed.
 
+## Clean-state proof and check list
+
+`/prototype:pressure-test` and `/prototype:explore-directions` run this before they hand a
+prototype over. The person's first look should be at a prototype already shown to work, starting
+from the same state they will start from, with a list that tells them what to try and in what
+order.
+
+1. **Start clean.** Start the prototype the way the person will: the one command, a fresh process
+   or a fresh page load. Nothing from building it or from an earlier run is left behind: no
+   leftover records, no test entry typed while building, no state carried in a scratch store or a
+   dev database. When storage is the question (rule 3), wipe the store first. When the prototype
+   has a reset control, the clean state is what reset gives.
+2. **Write the check list.** Number the steps in the order the person should take them, each one
+   action and the result to expect: "3. Press `w` to renew. Expect: refused, the copy is reserved."
+   Cover the question the prototype exists to answer, at least one case the rules or the screen
+   must refuse or handle, and one ordinary run.
+3. **Drive it yourself.** From the clean start, walk the list in order with the same entry point
+   the person uses: feed a terminal app its keys on standard input, or open a page with
+   `/playwright:playwright` when it is among the available skills. Where the shell cannot take
+   scripted input, drive the module through the same events from a scratch script and say the
+   shell itself was not driven. This is a run, not a test suite (rule 4): nothing it uses is kept.
+   Fix what fails and walk the list again. Mark each step you could not drive `not driven:
+   <why>`, and never report a step as working that you did not run.
+4. **Leave it clean.** Restart it, or press reset, so the person starts where the list starts.
+5. **Hand over, then ask.** Give the check list with the handover, say what you drove and what
+   you saw, and ask for the verdict only after the list, so the person tries each step before
+   judging.
+
 ## When done
 
 Capture what the prototype taught somewhere durable: wherever your project keeps design

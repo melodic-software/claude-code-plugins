@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/explore-directions.html\",\"content\":\"<!doctype html>\\n<html><body><div class=\\\"data-bar\\\"><button>Seed 10</button><button>Clear</button><button>Reset</button></div></body></html>\\n\"}}]}}",
+      "why": "page written with Write, three button labels"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > \\\"$RUN/explore-directions.html\\\" <<'HTML'\\n<script>bar.append(btn('Seed 10'), btn('Clear'), btn('Reset'));</script>\\nHTML\",\"description\":\"x\"}}]}}",
+      "why": "page written with Bash, labels as script strings"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"Add \\\"Seed\\\", \\\"Clear\\\" and \\\"Reset\\\" controls.\"}]}}",
+      "why": "tool result carrying the labels"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/explore-directions.html\",\"content\":\"<!doctype html>\\n<html><body><button>Seed 10</button><button>Reset</button></body></html>\\n\"}}]}}",
+      "why": "no Clear control"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/explore-directions.html\",\"content\":\"<style>.row{clear: both}</style><script>const seed = 1; form.reset(); list.clear();</script>\\n\"}}]}}",
+      "why": "lowercase code words, no controls"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -n 'Seed' 'Clear' 'Reset' SKILL.md\",\"description\":\"x\"}}]}}",
+      "why": "Bash search, not a write"
+    }
+  ]
+}
