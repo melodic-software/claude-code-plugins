@@ -720,4 +720,4 @@ trigger.
 | `hub-start/worktree-readme-sed-allowed` | allow | ran | pass | `(Bash completed with no output)` |
 
 Nine sessions, `probe.py run --live --retries 1 --max-runs 20 --max-cost-usd 10` naming each case,
-no retry; the sessions reported USD 0.42 in total.
+no retry.
