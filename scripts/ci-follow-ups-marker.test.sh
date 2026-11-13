@@ -109,6 +109,36 @@ expect "a bullet under a ### heading inside Follow-ups is still checked" 0 "## F
 expect "a heading with trailing blanks still opens the section" 0 "## Follow-ups  "$'\t'"
 - x" "line 2"
 expect "CRLF line endings are read as LF" 0 $'Closes #1\r\n\r\n## Follow-ups\r\n\r\n- x\r\n' "line 5"
+# CommonMark: up to three leading spaces is still a top-level item.
+expect "a top-level bullet indented two spaces is reported" 0 "## Follow-ups
+
+  - Unmarked advisory" "line 3"
+expect "a top-level bullet indented three spaces is reported" 0 "## Follow-ups
+   * x" "line 2"
+expect "an indented bullet after a narrower-content item is top level" 0 "## Follow-ups
+- $MARK a
+ - b" "line 3"
+expect "after prose ends the list, an indented bullet is top level again" 0 "## Follow-ups
+- $MARK a
+
+Some prose.
+
+  - b" "line 6"
+expect "a lazy continuation keeps the list, so its nested bullet is skipped" 0 "## Follow-ups
+- $MARK a
+lazy continuation
+  - nested" "" "::warning::"
+expect "a nested bullet under a marked item is skipped" 0 "## Follow-ups
+
+- $MARK a
+
+  - nested point" "" "::warning::"
+expect "a nested item under a numbered entry is skipped" 0 "## Follow-ups
+1. $MARK a
+   - nested" "" "::warning::"
+expect "a bullet indented four spaces with no item above is not an item" 0 "## Follow-ups
+
+    - code, not a list" "" "::warning::"
 expect "a % in the bullet is escaped for the annotation" 0 "## Follow-ups
 - 50% done" "50%25 done"
 expect "report-only: a finding is a warning, not an error" 0 "## Follow-ups

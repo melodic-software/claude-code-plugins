@@ -5334,8 +5334,8 @@ jobs:
       # (AGENTS.md "Review advisories while issue filing is paused"), so an
       # unmarked bullet is never filed. A top-level list item in the section,
       # which runs to the next `#` or `##` heading, must start with the
-      # marker; prose, continuation lines, nested items and fenced blocks are
-      # not read. ADVISORY by owner decision on #15937: each unmarked bullet is
+      # marker, at any indent of up to three spaces; prose,
+      # continuation lines, nested items and fenced blocks are not read. ADVISORY by owner decision on #15937: each unmarked bullet is
       # a ::warning plus a step-summary row, and the step exits 0, as the
       # pull-request contract's linkage check does. Setting
       # FAIL_ON_UNMARKED_FOLLOW_UPS to 'true' makes it fail ci-status. A body
@@ -5353,8 +5353,9 @@ jobs:
           fence_re='^ {0,3}(```|~~~)'
           heading_re='^#{1,2}[[:blank:]]'
           section_re='^##[[:blank:]]+Follow-ups[[:blank:]]*$'
-          item_re='^([-*+]|[0-9]+[.)])[[:blank:]]+(.*)$'
-          n=0 in=0 fence='' found=0 rows='' level=warning
+          item_re='^( {0,3})([-*+]|[0-9]+[.)])([[:blank:]]+)(.*)$'
+          indent_re='^( *)'
+          n=0 in=0 fence='' found=0 rows='' level=warning col='' blank=0 was_blank=0
           [ "$FAIL_ON_UNMARKED_FOLLOW_UPS" != true ] || level=error
           while IFS= read -r line || [ -n "$line" ]; do
             n=$((n + 1))
@@ -5369,10 +5370,19 @@ jobs:
             [ -z "$fence" ] || continue
             if [[ $line =~ $heading_re ]]; then
               if [[ $line =~ $section_re ]]; then in=1; else in=0; fi
+              col='' blank=0
               continue
             fi
-            if [ "$in" -eq 1 ] && [[ $line =~ $item_re ]]; then
-              entry=${BASH_REMATCH[2]}
+            # A list item is top level unless it is indented to the content
+            # column of the item above it (CommonMark), which `col` holds. A
+            # blank line then a less-indented non-item line ends the list.
+            if [[ $line == *[![:blank:]]* ]]; then was_blank=$blank blank=0; else blank=1; fi
+            [ "$in" -eq 1 ] || continue
+            if [[ $line =~ $item_re ]] && { [ -z "$col" ] || [ "${#BASH_REMATCH[1]}" -lt "$col" ]; }; then
+              gap=${#BASH_REMATCH[3]}
+              [ "$gap" -le 4 ] || gap=1
+              col=$((${#BASH_REMATCH[1]} + ${#BASH_REMATCH[2]} + gap))
+              entry=${BASH_REMATCH[4]}
               if [[ $entry != "$marker"* ]]; then
                 found=$((found + 1))
                 short=${entry:0:100}
@@ -5380,6 +5390,9 @@ jobs:
                 echo "::$level::$fix Pull request body line $n is a bullet under '## Follow-ups' without that marker: '${short//%/%25}'. The sweep run when the paused issue filing lifts files only entries that start with that marker (AGENTS.md, Review advisories while issue filing is paused)."
                 rows+="| $n | ${short//|/\\|} |"$'\n'
               fi
+            elif [ "$blank" -eq 0 ] && [ "$was_blank" -eq 1 ] && [[ $line =~ $indent_re ]] &&
+              [ "${#BASH_REMATCH[1]}" -lt "${col:-0}" ]; then
+              col=''
             fi
           done <<<"${PR_BODY//$'\r'/}"
           if [ "$found" -eq 0 ]; then
