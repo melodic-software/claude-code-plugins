@@ -423,14 +423,7 @@ jobs:
       - name: Install the pinned YAML reader
         if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         continue-on-error: true
-        run: |
-          awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \
-            .base/.github/requirements-ci.txt >"$RUNNER_TEMP/pyyaml-requirements.txt"
-          python3 -m pip install --disable-pip-version-check --only-binary=:all: \
-            --require-hashes --requirement "$RUNNER_TEMP/pyyaml-requirements.txt" || {
-            echo "::warning::PyYAML did not install; the FAIL-cap read fails and rounds run under their own caps"
-            exit 1
-          }
+        run: bash .base/.github/scripts/lib/install-pinned-pyyaml.sh 'PyYAML did not install; the FAIL-cap read fails and rounds run under their own caps'
 
       - name: Dispatch address-feedback
         id: dispatch

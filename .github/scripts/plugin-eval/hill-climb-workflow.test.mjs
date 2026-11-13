@@ -65,7 +65,7 @@ test("the writes run only after a verified win, check what they carry before the
   for (const block of [push, publish]) {
     assert.doesNotMatch(block, /run-claude-cli|claude plugin eval|claude -p|secrets\./);
     assert.match(block, /kill-switch-ok: true\n/);
-    assert.match(step(block, "Revoke the lane token"), /DELETE/);
+    assert.match(step(block, "Revoke the lane token"), /revoke-lane-token\.sh/);
   }
   assert.ok(push.indexOf("- name: Check the edit") < push.indexOf("- name: Request the lane token"));
   assert.match(step(push, "Check the edit"), /\[ "\$\{sum%% \*\}" != "\$WANT" \]/);

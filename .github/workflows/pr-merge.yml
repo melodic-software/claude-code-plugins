@@ -1071,14 +1071,7 @@ jobs:
 
       - name: Install the pinned YAML reader
         continue-on-error: true
-        run: |
-          awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \
-            .base/.github/requirements-ci.txt >"$RUNNER_TEMP/pyyaml-requirements.txt"
-          python3 -m pip install --disable-pip-version-check --only-binary=:all: \
-            --require-hashes --requirement "$RUNNER_TEMP/pyyaml-requirements.txt" || {
-            echo "::warning::PyYAML did not install; no workflow-file change binds its review this run"
-            exit 1
-          }
+        run: bash .base/.github/scripts/lib/install-pinned-pyyaml.sh 'PyYAML did not install; no workflow-file change binds its review this run'
 
       # The off switch, checked before anything else.
       - name: Check the kill switch
@@ -2334,17 +2327,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-        run: |
-          # The header goes through stdin so the token never appears in a
-          # process listing.
-          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
-            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
-              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
-          if [ "$status" = 204 ]; then
-            echo "the lane token is revoked"
-          else
-            echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
-          fi
+        run: bash .base/.github/scripts/lib/revoke-lane-token.sh
 
   # Turns on GitHub's native auto-merge for each open lanes App pull request
   # into main that carries no hold, and turns it off on one that now carries
@@ -2461,14 +2444,7 @@ jobs:
 
       - name: Install the pinned YAML reader
         continue-on-error: true
-        run: |
-          awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \
-            .base/.github/requirements-ci.txt >"$RUNNER_TEMP/pyyaml-requirements.txt"
-          python3 -m pip install --disable-pip-version-check --only-binary=:all: \
-            --require-hashes --requirement "$RUNNER_TEMP/pyyaml-requirements.txt" || {
-            echo "::warning::PyYAML did not install; no workflow-file change binds its review this run"
-            exit 1
-          }
+        run: bash .base/.github/scripts/lib/install-pinned-pyyaml.sh 'PyYAML did not install; no workflow-file change binds its review this run'
 
       - name: Check the kill switch
         id: kill
@@ -3061,15 +3037,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-        run: |
-          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
-            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
-              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
-          if [ "$status" = 204 ]; then
-            echo "the lane token is revoked"
-          else
-            echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
-          fi
+        run: bash .base/.github/scripts/lib/revoke-lane-token.sh
 
   # A lanes App pull request whose refusal the lanes clear shows it as a
   # failing pr-merge/unarmed commit status on its head once the refusal has
