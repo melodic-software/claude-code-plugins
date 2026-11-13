@@ -4,9 +4,9 @@ name: PR Feedback Dispatch
 # a lanes App PR: .github/scripts/pr-unblock/feedback-dispatch.mjs dispatches
 # pr-unblock.yml once both lanes have reviewed the PR's current head and an
 # unresolved thread exists that the reviewer bot left alone or a trusted
-# person answered after the lane escalated it. The write runner
-# denies the lanes App as a workflow_run actor, so the lane cannot run on this
-# event directly; the gate and the broker accept this dispatcher's runs only
+# person answered after the lane escalated it. The write runner denies the
+# lanes App as a workflow_run actor, so the lane cannot run on this event
+# directly; the gate and the broker accept this dispatcher's runs only
 # through the review run its record names, at the PR's current head.
 #
 # No model and no App token: the job's GITHUB_TOKEN can only read and start
@@ -32,15 +32,9 @@ name: PR Feedback Dispatch
 # thread takes more than this job's token holds). A pass with no such thread
 # dispatches nothing. On a PR a person opened, a fail is one PR comment and
 # the pr-verify-failed label, which ci-status holds in the merge queue, and a
-# pass at its head removes the label; neither dispatches. While the lanes
-# kill switch is on, the post-verify-notes job fails at its kill-switch step
-# before any read, and the lost-run reconciler re-runs that job once the
-# switch lifts (maintenance-reconcile-lost-runs/reconcile.mjs, the Verdict
-# kind), so the verdict is applied late rather than dropped. That re-run
-# sends no round itself (the gate trusts only an attempt-1 dispatcher): on a
-# lanes App PR it names the head and verdict in a pr-feedback-deferred record,
-# and the next tick sends the round an on-time verdict would have
-# (feedback-dispatch.mjs recoverDeferred).
+# pass at its head removes the label; neither dispatches. A verdict the lanes
+# kill switch stops is applied late, not dropped: see post-verify-notes'
+# `Stop on the kill switch` and `Name the deferred verdict` steps.
 #
 # A completed scheduled pr-unblock-dispatch.yml run, its half-hourly tick,
 # starts the dispatch job too, which sweeps the open lanes App PRs for a head
@@ -85,8 +79,8 @@ name: PR Feedback Dispatch
 # ci-status hold. An approval has no event of its own here: a review event
 # would run the PR's copy of this file.
 #
-# The token's rate-limit readings, from the script's own responses, are logged
-# at the end of the job (.github/actions/log-api-budget).
+# The token's rate-limit readings are logged at the end of each job
+# (.github/actions/log-api-budget).
 
 # API_BUDGET_HOLD (outage posture element 2): no step here sets it: feedback-dispatch.mjs is not yet
 # shown to hold green on every refused read.
@@ -204,8 +198,6 @@ jobs:
             echo "::error::the upstream run id is not a run id"
             exit 1
           fi
-          # Each `gh api` call keeps its rate-limit reading for the job-end
-          # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           # Every verdict-shaped name, then the ones the readers take (the
@@ -675,8 +667,8 @@ jobs:
   # re-run to the later lane's run after that one read: only the lane that
   # finished last acts, and a ci-status re-run inside the 60 s margin below
   # is not re-run again. The per-head concurrency group keeps the two from
-  # running at once, and a last read of the run's
-  # attempt comes just before the re-run. A head with no run of the
+  # running at once, and a last read of the run's attempt comes just before
+  # the re-run. A head with no run of the
   # other lane (one lane only) re-runs on this lane alone. A head the PR has
   # moved past, or a closed PR, is left alone. A ci-status job not started
   # yet, or one that began reading the reviews more than 60 s after both
@@ -686,8 +678,8 @@ jobs:
   # can only pass again, and still starts pr-verify on the head again. The
   # read's start is ci-status's `Require both review lanes on this head`
   # step's, else the job's, which is earlier: the jobs API can list a job's
-  # steps empty. One that
-  # started earlier and is still in progress waits for its run, polled every
+  # steps empty. One that started earlier and is still in progress waits for
+  # its run, polled every
   # 60 s for at most 10 minutes, then is re-run. No model, and no checkout
   # but the trusted-actors list and the api-budget library: the token can
   # only read contents, runs and the PR and re-run a job. Each call's
@@ -749,9 +741,10 @@ jobs:
             sleep "$((RANDOM % (2 * i + 1)))"
           done
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
-      # The list the record check reads, from the default branch, never the
-      # PR head, the reconciler-record check, the api-budget library and the
-      # upload scanner. A failed checkout leaves no list and no scanner:
+      # From the default branch, never the PR head: the trusted-actors list
+      # the record check reads, the reconciler-record check, the api-budget
+      # library, the kill-switch check and the upload scanner. A failed
+      # checkout leaves no list and no scanner:
       # ci-status is still re-run, unrecorded unless the review run is a first
       # attempt, and no reading is logged; a lanes App PR's is not re-run, as
       # its kill switch reads as on.
@@ -775,7 +768,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       # Node for the reconciler-record check; a failed setup leaves the
-      # reconciler's review re-runs unrecorded, as before.
+      # reconciler's review re-runs unrecorded, as a failed checkout does.
       - name: Set up Node
         continue-on-error: true
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -833,7 +826,8 @@ jobs:
             [[ $REVIEW_RERUNNER_ID =~ ^[1-9][0-9]{0,14}$ ]] &&
               jq -e --argjson id "$REVIEW_RERUNNER_ID" '.actors | any(.id == $id and .kind == "human")' "$TRUSTED_ACTORS" >/dev/null 2>&1
           }
-          # Only a listed person's approval lifts a hold: any other ends here, before any API call.
+          # Only a listed person's approval lifts a hold: any other ends here,
+          # before any API call.
           if [[ $LANE_PATH == "$approved" ]] && ! listed_human; then
             echo "The approval is by ${REVIEW_RERUNNER_ID:-an unnamed actor}, not a person on the trusted-actor list; it lifts no ci-status hold."
             exit 0
@@ -874,10 +868,11 @@ jobs:
           # or missing review, at attempt 1, after its PENDING_BACKOFF_MINUTES.
           # Should both re-run it, the read_at check below ends this job on
           # an attempt that started after the lanes finished. What overlap
-          # remains is two POSTs inside check-then-act gaps, which GitHub would refuse while the first re-run is going
-          # (UNVERIFIED) rather than start a third attempt. Should both land,
-          # the extra attempt has no record of its own, so pr-verify refuses
-          # it: the head is stranded for a person, never let through.
+          # remains is two POSTs inside check-then-act gaps, which GitHub
+          # would refuse while the first re-run is going (UNVERIFIED) rather
+          # than start a third attempt. Should both land, the extra attempt
+          # has no record of its own, so pr-verify refuses it: the head is
+          # stranded for a person, never let through.
           # Any other failure is read three times, then fails, or with
           # read_soft set returns 1 for the caller to read another way.
           # A path read again (the poll below) is sent as a conditional GET
@@ -931,8 +926,8 @@ jobs:
             echo "::error::could not read $2 after the rate-limit waits; re-run this run." >&2
             exit 1
           }
-          # ci-status's own choice of run: the newest pull_request run of the file on the head.
-          # A fork's run at the same SHA is never it.
+          # ci-status's own choice of run: the newest pull_request run of the
+          # file on the head. A fork's run at the same SHA is never it.
           newest() {
             jq -c --arg path ".github/workflows/$1" --arg sha "$HEAD_SHA" --arg repo "$GITHUB_REPOSITORY" '[.workflow_runs[]
               | select(.path == $path and .head_sha == $sha and .event == "pull_request"
