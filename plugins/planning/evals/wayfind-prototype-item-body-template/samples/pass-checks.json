@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "**Pass checks:**\n1. The templated email arrives.\n2. The in-app message appears.\n3. Both from one call.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Pass checks:** it works well.",
+      "why": "breaks the rule"
+    }
+  ]
+}

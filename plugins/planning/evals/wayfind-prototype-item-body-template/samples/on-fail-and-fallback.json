@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "**On fail:** reverse the vendor choice and open a new vendor item. **Fallback:** Courier.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Fallback:** none.",
+      "why": "breaks the rule"
+    }
+  ]
+}

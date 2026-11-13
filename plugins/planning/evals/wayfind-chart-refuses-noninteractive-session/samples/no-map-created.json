@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Charting needs an interactive session with a human. Stopping; nothing created.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Map: customer-data-platform overhaul. Items: 'Pick the identity store', 'Choose the event schema'.",
+      "why": "breaks the rule"
+    }
+  ]
+}

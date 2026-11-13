@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "In a non-interactive session the needs-human items drop out, so the frontier is empty: all remaining decisions need a human.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Picking #146 and starting it.",
+      "why": "breaks the rule"
+    }
+  ]
+}

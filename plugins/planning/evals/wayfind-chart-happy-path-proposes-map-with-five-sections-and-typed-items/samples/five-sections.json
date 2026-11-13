@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "## Destination\nBuild items.\n## Notes\n- none\n## Decisions-so-far\n## Not-yet-specified\n- **Tx**: x\n## Out-of-scope\n- DB split",
+      "why": "matches"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Destination\nBuild items.\n## Items\n- Strangler or big-bang\n## Out of scope\n- DB split",
+      "why": "does not match"
+    }
+  ]
+}

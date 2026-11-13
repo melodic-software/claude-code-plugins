@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The failed prototype reverses 'Pick the vendor' (Knock).",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Knock stays the vendor; we'll add a second call.",
+      "why": "breaks the rule"
+    }
+  ]
+}

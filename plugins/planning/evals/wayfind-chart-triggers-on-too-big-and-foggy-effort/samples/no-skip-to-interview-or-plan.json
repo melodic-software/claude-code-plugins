@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Charting now: sorting the uncertainties into items and fog.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This needs an interview first. Shall I run /planning:interview?",
+      "why": "breaks the rule"
+    }
+  ]
+}

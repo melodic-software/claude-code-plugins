@@ -1,0 +1,24 @@
+# #700 Map: invoice export
+
+URL: https://github.com/acme/shop/issues/700. State: open. Labels: work-map.
+
+## Destination
+
+A PRD for invoice export.
+
+## Notes
+
+- Export files are CSV with a header row: the downstream ERP requires it.
+
+## Decisions-so-far
+
+- [Settled in the interview](https://github.com/acme/shop/issues/701): exports run nightly at
+  02:00 UTC (resolved 2026-11-10)
+
+## Not-yet-specified
+
+- **Very large customers**: something about their exports feels unsettled.
+
+## Out-of-scope
+
+- Real-time export.

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing created; waiting for your yes.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Created map 'Warehouse-routing rework' and item 'Pick the routing engine'.",
+      "why": "breaks the rule"
+    }
+  ]
+}

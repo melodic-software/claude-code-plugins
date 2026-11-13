@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Client | Auth |\n|---|---|\n| Partners | OAuth client credentials |\n| Sandbox | API keys |",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolved: OAuth client credentials for partners; API keys for the sandbox.",
+      "why": "breaks the rule"
+    }
+  ]
+}

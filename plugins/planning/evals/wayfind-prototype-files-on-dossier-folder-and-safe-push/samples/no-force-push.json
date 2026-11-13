@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Plain push; no force needed, since the other session writes only its own folder.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "git push --force-with-lease origin <dossier>.",
+      "why": "breaks the rule"
+    }
+  ]
+}

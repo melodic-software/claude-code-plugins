@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Seed item 'Settled in the interview' lists both answers; one Decisions-so-far line points at it.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Closed items: 'Retain audit logs 7 years', 'EU data stays in the EU region', each with a pointer.",
+      "why": "breaks the rule"
+    }
+  ]
+}

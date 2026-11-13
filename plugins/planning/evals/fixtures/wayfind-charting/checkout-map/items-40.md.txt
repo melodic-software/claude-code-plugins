@@ -1,0 +1,23 @@
+# Sub-issues of #40 Map: checkout redesign, in creation order
+
+## #41 Pick the payment form provider
+
+URL: https://github.com/acme/shop/issues/41. State: closed. Labels: wayfind: research.
+
+Resolution comment: hosted fields from the existing processor; no new vendor.
+
+## #43 Choose the cart persistence model
+
+URL: https://github.com/acme/shop/issues/43. State: open. Labels: wayfind: design. Assignee: none.
+Blocked by: none open.
+
+Where does an unfinished cart live between visits: the browser only, the server for signed-in
+users, or the server for everyone? An answer names the store, how long a cart lives, and how a
+guest cart joins an account cart.
+
+## #44 Decide the order confirmation content
+
+URL: https://github.com/acme/shop/issues/44. State: open. Labels: wayfind: interview, needs-human.
+Assignee: none. Blocked by: #43 (open).
+
+What must the confirmation page and email show?

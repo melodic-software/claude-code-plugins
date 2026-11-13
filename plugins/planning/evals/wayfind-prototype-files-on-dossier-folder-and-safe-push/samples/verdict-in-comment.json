@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Resolution: verdict pass, every check passed; files in the item's folder.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolution: files saved.",
+      "why": "breaks the rule"
+    }
+  ]
+}

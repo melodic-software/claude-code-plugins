@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Map Notes: files are CSV with a header row (ERP requirement). Seed item resolution: exports run nightly at 02:00 UTC; largest customer about 4 million invoice lines a month; 'statement' = one monthly export for one customer.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Map Notes: files are CSV with a header row. Seed item resolution: exports run nightly at 02:00 UTC.",
+      "why": "breaks the rule"
+    }
+  ]
+}

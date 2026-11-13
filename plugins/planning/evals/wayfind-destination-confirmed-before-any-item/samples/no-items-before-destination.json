@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Waiting on the destination before anything else.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Created 'Pick the auth scheme'. Also, what is the destination?",
+      "why": "breaks the rule"
+    }
+  ]
+}

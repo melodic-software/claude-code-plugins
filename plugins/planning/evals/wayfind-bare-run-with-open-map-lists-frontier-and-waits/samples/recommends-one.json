@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Recommend 'Choose the billing aggregate' (#42): the other two depend on it.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here are the three items.",
+      "why": "breaks the rule"
+    }
+  ]
+}

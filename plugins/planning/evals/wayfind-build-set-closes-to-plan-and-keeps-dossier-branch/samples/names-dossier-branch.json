@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Closing comment: ... Dossier branch: dossier/600-module-extraction.",
+      "why": "matches"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Closing comment: every decision listed.",
+      "why": "does not match"
+    }
+  ]
+}

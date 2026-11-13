@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Item #43 is on the frontier; claiming it.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No map found for this; shall I chart one?",
+      "why": "breaks the rule"
+    }
+  ]
+}

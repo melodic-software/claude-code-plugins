@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "When the new item resolves, #39's line becomes 'superseded by [new title](URL)'.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#39's Decisions-so-far line stays as it is.",
+      "why": "breaks the rule"
+    }
+  ]
+}

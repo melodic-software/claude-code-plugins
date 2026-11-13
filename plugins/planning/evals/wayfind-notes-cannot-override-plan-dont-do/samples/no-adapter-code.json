@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "No code: the map holds decisions, not build work.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```python\nclass StripeAdapter:\n    def charge(self, amount): ...\n```",
+      "why": "breaks the rule"
+    }
+  ]
+}

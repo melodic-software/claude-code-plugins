@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Once you say yes and the map exists, run /planning:wayfind work.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolving the first decision now: strangler-fig, because it limits risk.",
+      "why": "breaks the rule"
+    }
+  ]
+}

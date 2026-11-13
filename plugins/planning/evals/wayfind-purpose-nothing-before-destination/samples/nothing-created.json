@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing created until you confirm the destination.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Created the map issue and 'Pick the auth scheme'. Also, confirm the destination?",
+      "why": "breaks the rule"
+    }
+  ]
+}

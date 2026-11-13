@@ -2,6 +2,10 @@
 bump: minor
 ---
 
+### Added
+
+- **Plugin-eval cases for `/planning:wayfind`:** each `evals.json` case as an `evals/wayfind-*` case with one grader per expectation, and `fixtures/wayfind-charting/prepare-arm.sh` to build a before or after arm.
+
 ### Changed
 
 - **`/planning:wayfind` routes its argument.** An item link, `#<n>` or tracker key works that item on its map; any other text is the topic. A bare call with an open map lists the frontier, recommends one item and waits for the pick.
