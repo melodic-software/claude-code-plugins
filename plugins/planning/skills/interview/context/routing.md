@@ -14,7 +14,7 @@ interview, and then it runs as usual.
 
 Which stage or skill the work goes to next, and why, is route choice, and its one home is
 `/session-flow:workflow`: its quick-change and foggy-effort on-ramps, and its pre-implementation
-order (`/session-flow:workflow steps`). This file keeps only the interview's own triggers and
+order. This file keeps only the interview's own triggers and
 thresholds.
 
 An effort plainly over its budget: run the scope cut in [`composition.md`](composition.md) "Scope

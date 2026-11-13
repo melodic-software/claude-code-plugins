@@ -99,8 +99,9 @@ contracts, and plan decides files and symbols.
 For unfamiliar territory, stages 1-7 sit inside a longer pre-implementation order (blindspot →
 brainstorm/prototype → interview, escalating to wayfind when it outgrows one session, and calling
 a PRD when product intent is unsettled → reference port → design → plan → decompose);
-`context/steps.md` "Pre-implementation order" states it with rationale and is its one home: other
-skills and docs point there for route choice.
+`context/pre-implementation-order.md` states it with rationale and is its one home: other skills
+and docs point there for route choice. Load it when the work enters unfamiliar territory or
+another skill asks which planning pass comes next.
 
 ### 2. Detect current position
 

@@ -75,8 +75,8 @@ metaphor, not adopted as house vocabulary (see `glossary.md` rejected terms).
 
 The ordered pre-implementation passes (blindspot, brainstorm or prototype, interview with its PRD
 and wayfind escalations, reference port, design, plan, decompose), the skill for each, and when
-each runs live in one place: `/session-flow:workflow`, which owns route choice. Read them with
-`/session-flow:workflow steps`, section "Pre-implementation order".
+each runs live in one place: `/session-flow:workflow`, which owns route choice; run it and ask
+for the pre-implementation order.
 
 ## Prompt-pattern catalog
 

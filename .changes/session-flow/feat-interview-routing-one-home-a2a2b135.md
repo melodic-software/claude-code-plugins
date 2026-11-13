@@ -8,4 +8,4 @@ bump: minor
 
 ### Changed
 
-- `workflow` is the one home for route choice: `context/steps.md` gains "Pre-implementation order", moved in full from `docs/finding-your-unknowns.md`, and the quick-change and foggy-effort on-ramps carry the reasons that were in the interview's routing file.
+- `workflow` is the one home for route choice: new `context/pre-implementation-order.md` holds the pre-implementation order, moved in full from `docs/finding-your-unknowns.md`, and the quick-change and foggy-effort on-ramps carry the reasons that were in the interview's routing file.
