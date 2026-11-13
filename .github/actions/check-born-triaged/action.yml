@@ -6,7 +6,8 @@ description: >
   wayfind prefix; or, with born-triaged true, when it carries the born-triaged
   marker, its author is a listed human or the lanes App (by numeric id), and it
   has an Issue Type and a status (a Work status field a trusted account set, or
-  a status label). Re-reads the issue for up to about 25 seconds while only the
+  a status label; agent-ready alone counts only while the field is not
+  configured). Re-reads the issue for up to about 25 seconds while only the
   type or status is missing. Fails when
   resolve-config's dependencies do not install or the Work status field
   cannot be read; any other read failure emits skip=false, and a rate limit,
@@ -44,7 +45,7 @@ outputs:
     description: "`true` when intake should skip the issue, otherwise `false`."
     value: ${{ steps.check.outputs.skip }}
   reason:
-    description: "`routing-label`, `born-triaged`, `born-triaged-off`, `no-marker`, `untrusted-author`, `no-type`, `no-status`, `list-unreadable` or `issue-unreadable`."
+    description: "`routing-label`, `born-triaged`, `born-triaged-off`, `no-marker`, `untrusted-author`, `no-type`, `no-status`, `label-only`, `list-unreadable` or `issue-unreadable`."
     value: ${{ steps.check.outputs.reason }}
   label:
     description: The routing label that skipped the issue; empty otherwise.
