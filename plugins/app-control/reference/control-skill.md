@@ -358,7 +358,11 @@ A feature may keep its Drive steps in a machine-readable steps file in its own f
 project's choice; the contract fixes only what they mean. The feature's `## Drive` names the file,
 and its prose names steps by id and never repeats a selector the file holds. Every step holds a
 result: what a user should observe once it runs, with the meaning [Drive steps](#drive-steps)
-gives it, and the last step before the finally steps is the proof step. A feature whose steps
+gives it. The proof step belongs to the list a run expands to, not to each file: it is the last
+step before the finally steps, kept in the feature's own steps file, so an included file needs
+none. In the file it is a step with an id, a result and the capture kinds that show the end state,
+and no action or command: the run performs nothing for it and reports it by its id, with the
+captures it names, after the steps before it have run. A feature whose steps
 include a `shared/` item names `shared/<item>` in its feature file, which is how Shared items counts
 its users.
 
