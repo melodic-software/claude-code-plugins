@@ -62,6 +62,19 @@
         "Searches the recall_doc_paths pathspecs for a postmortem and cites it by path",
         "Writes no file and makes no commit"
       ]
+    },
+    {
+      "id": 6,
+      "name": "still-reports-reopened-bug",
+      "prompt": "We shipped a fix for the login redirect loop after SSO sign-in. Did it hold?",
+      "expected_output": "The skill searches the tracker for open and closed items through /work-items:track search, reads the state history of the matched bug items with /work-items:track view --history (at most ten), and lists an item the history shows closed and later reopened under Still reported with its close and reopen dates, even when no comment mentions the reopen. When the tracker reports history as not available, it says so instead of reporting that nothing was reopened. It writes nothing.",
+      "files": [],
+      "expectations": [
+        "Reads the state history of the matched bug items with /work-items:track view --history",
+        "Lists the item that was closed and later reopened under Still reported, with its close and reopen dates",
+        "Says when the tracker cannot report state history rather than reporting that nothing was reopened",
+        "Writes no file and makes no commit"
+      ]
     }
   ]
 }

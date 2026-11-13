@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "**Kept**\n- 2026-09-01 stop the login redirect loop after SSO sign-in (a1b2c3d), still in src/sso.ts.\n\n**Still reported**\n- github:acme/web#57 Login redirect loop after SSO sign-in (Bug): closed 2026-09-02, reopened 2026-09-10 by reporter-b, so the fix in a1b2c3d did not hold.\n\n**Still open**\n- none",
+      "why": "item listed under its own header"
+    },
+    {
+      "answer": "Still reported: #57, reopened 2026-09-10 after its 2026-09-02 close.",
+      "why": "inline section"
+    },
+    {
+      "answer": "### Still reported\n\n- History read for #57 and #12.\n- #57 was reopened after the fix closed it (closed 2026-09-02, reopened 2026-09-10)",
+      "why": "item on a later line of the section"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Still reported**\n- none\n\n**Still open**\n- #57 Login redirect loop after SSO sign-in, reopened 2026-09-10",
+      "why": "item only under Still open"
+    },
+    {
+      "answer": "#57 was closed on 2026-09-02 and reopened on 2026-09-10, so the fix did not hold.",
+      "why": "no Still reported section"
+    },
+    {
+      "answer": "**Still reported**\n- Login redirect loop: reopened 2026-09-10",
+      "why": "item id missing"
+    },
+    {
+      "answer": "**Still reported**\n- #57 Login redirect loop after SSO sign-in is open.",
+      "why": "listed without the reopen that makes it still reported"
+    }
+  ]
+}

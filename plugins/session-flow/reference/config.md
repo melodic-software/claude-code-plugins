@@ -31,8 +31,7 @@ and an unset or unrendered user option counts as `worktree`. A repository file c
 narrow a user's scan but never widen it, and a user who wants `all` sets it in their own option.
 
 `recall_report_kinds` names the item kinds `/session-flow:recall` treats as an incident or a user
-report when it lists reverted fixes, repeat reports and reopens an item's text records under
-Still reported. Each entry is read through the work-items label taxonomy: an entry matches an item of that native issue
+report when it lists reopened items, reverted fixes and repeat reports under Still reported. Each entry is read through the work-items label taxonomy: an entry matches an item of that native issue
 type, or one carrying a label of that name or its `type:` label. `recall_doc_paths` names the git
 pathspecs it searches for postmortems; the default `*.md` covers every tracked markdown file. In the
 repository file, quote a value that starts with `*` or `[` or holds a colon followed by a space, for example
