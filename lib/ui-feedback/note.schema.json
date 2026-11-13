@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "note.schema.json",
+  "title": "UI feedback note",
+  "description": "One note a person pins to a non-final UI. The only definition of a note's fields, enums and limits (docs/contracts/ui-feedback). x-version moves on any change; x-maxNotesPerRun caps the notes one bridge run stores. Text is 1 to 4000 characters: long enough for a paragraph of review, short enough that a batch of notes stays readable in one session turn. Every string the page supplies is an id or a key; none is page text.",
+  "x-version": 1,
+  "x-maxNotesPerRun": 500,
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "anchor", "text"],
+  "properties": {
+    "kind": { "enum": ["element"] },
+    "variant": { "$ref": "#/$defs/keyed" },
+    "state": { "$ref": "#/$defs/keyed" },
+    "content": { "enum": ["demo", "worst"] },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tag", "cssPath"],
+      "properties": {
+        "testid": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,128}$" },
+        "testidIndex": { "type": "integer", "minimum": 0, "maximum": 9999 },
+        "role": { "type": "string", "pattern": "^[a-z]{1,32}$" },
+        "tag": { "type": "string", "pattern": "^[a-z][a-z0-9]{0,15}(?:-[a-z0-9]{1,15}){0,3}$" },
+        "cssPath": {
+          "type": "string",
+          "maxLength": 1000,
+          "pattern": "^(?:[a-z][a-z0-9]{0,15}(?:-[a-z0-9]{1,15}){0,3}:nth-of-type\\([1-9][0-9]{0,3}\\)(?: > [a-z][a-z0-9]{0,15}(?:-[a-z0-9]{1,15}){0,3}:nth-of-type\\([1-9][0-9]{0,3}\\)){0,31})?$"
+        }
+      }
+    },
+    "text": { "type": "string", "minLength": 1, "maxLength": 4000 }
+  },
+  "$defs": {
+    "keyed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$" }
+      }
+    }
+  }
+}
