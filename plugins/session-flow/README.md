@@ -303,7 +303,7 @@ session's process tree so it outlives the session. The tailer reads the transcri
 cost, detects end by mtime-idle, then runs the same checkpoint method headless (a cheap `claude -p`) and
 appends the redacted findings to this session's ledger. An **opt-in** SessionStart hook
 (`observer_enabled`, default off, installing the plugin changes nothing) automates the same launcher
-for every real session; the manual `arm` is primary. The substrate, lifecycle, config, untrusted-data
+for every real session; the manual `arm` is primary. The mechanism, lifecycle, config, untrusted-data
 boundary, and the deferred native Observer-Agents alternative are documented in
 `reference/observer.md`; prerequisites are verified by `/session-flow:setup`.
 
