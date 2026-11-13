@@ -2,7 +2,7 @@
 # Tests for lib/read-verification.sh. Expected outputs follow
 # docs/contracts/verification-level/README.md: a skill entry beats the plugin
 # value, the team file is read at origin's default branch only, a layer with no
-# value to read resolves light, and an invalid value or unparseable file resolves
+# value to read resolves light, and an invalid value or unparsable file resolves
 # standard, each with its reason.
 # Run directly: bash lib/read-verification.test.sh
 set -uo pipefail
@@ -104,7 +104,7 @@ repo=$(fixture invalid-skill $'verification: strict\nverification_skills:\n  con
 assert_eq "an invalid skill entry keeps the standard floor, not the plugin value" \
   "verification: standard (default; $F verification_skills.confirm=lite is not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
 
-repo=$(fixture unparseable $'verification: |\n  strict\n')
+repo=$(fixture unparsable $'verification: |\n  strict\n')
 assert_eq "a file that does not parse is named and keeps the standard floor" \
   "verification: standard (default; $F does not parse or repeats a key $(at "$repo"))" "$(run "$repo")"
 
