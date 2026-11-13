@@ -54,12 +54,12 @@ suffix.
 
 ## Check labels (first use in a repo)
 
-`/planning:wayfind` uses its own taxonomy: the container label (default `work-map`), `wayfind: research|interview|design|prototype|task`
+`/planning:wayfind` uses its own taxonomy: the container label (default `work-map`), `wayfind: map`, `wayfind: research|interview|design|prototype|task`
 (axis labels follow the colon-space grammar so label-as-code owners with a `prefix: value` convention
 can declare them verbatim), `needs-human`. At chart-mode entry, **verify** the taxonomy is present,
 because creating an item with an unknown label fails:
 
-`/work-items:track labels '<container-label>' 'wayfind: research' 'wayfind: interview' 'wayfind: design' 'wayfind: prototype' 'wayfind: task' needs-human`
+`/work-items:track labels '<container-label>' 'wayfind: map' 'wayfind: research' 'wayfind: interview' 'wayfind: design' 'wayfind: prototype' 'wayfind: task' needs-human`
 
 It prints one `MISSING: <name>` line per absent label. Read the consuming repository's instructions
 and configuration for label ownership. If they declare a label-as-code source of truth, treat that
@@ -70,7 +70,8 @@ hoc.
 
 ## Create / extend the map
 
-`/work-items:track add --label '<container-label>' --body-file <map-body.md> "Map: <effort>"`, adding
+`/work-items:track add --label '<container-label>' --label 'wayfind: map' --body-file <map-body.md> "Map: <effort>"`
+(the `wayfind: map` label is what keeps the map out of triage and claimable work), adding
 `--label` for any repo program labels. Body per [`map-anatomy.md`](map-anatomy.md). Extending an
 existing map edits its body: read it with `/work-items:track view <map-id>`, change the section, and
 write the whole body back with `/work-items:track edit <map-id> --body-file <path>`.
