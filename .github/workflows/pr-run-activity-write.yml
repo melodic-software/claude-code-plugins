@@ -2070,11 +2070,9 @@ jobs:
       - name: Check the lane's commits are signed
         id: signed
         if: >-
-          inputs.issue-number == '' && (
-          always()
+          always() && inputs.issue-number == ''
           && needs.run.outputs.can-commit != 'false'
           && needs.run.outputs.pr-number != ''
-          )
         uses: ./.base/.github/actions/check-signed-commits # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ needs.run.outputs.pr-number }}
@@ -2122,18 +2120,14 @@ jobs:
       # the dispatch ref, which is not the PR's commit, so nothing is posted.
       - name: Note that no check is posted without a head SHA
         if: >-
-          inputs.issue-number == '' && (
-          always() && github.event_name != 'pull_request'
-          && needs.run.outputs.head-sha == ''
-          )
+          always() && inputs.issue-number == ''
+          && github.event_name != 'pull_request' && needs.run.outputs.head-sha == ''
         run: echo "The run job gated no head SHA, so no check run is posted." >>"$GITHUB_STEP_SUMMARY"
 
       - name: Post the check run
         if: >-
-          inputs.issue-number == '' && (
-          always() && !(github.event_name != 'pull_request'
-          && needs.run.outputs.head-sha == '')
-          )
+          always() && inputs.issue-number == ''
+          && !(github.event_name != 'pull_request' && needs.run.outputs.head-sha == '')
         uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
         with:
           lane: ${{ inputs.lane }}
