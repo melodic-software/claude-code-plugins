@@ -10,7 +10,13 @@
     "comment_posture": {
       "enum": ["auto", "none", "necessary", "explanatory", "strict", "balanced", "conservative", "aggressive"],
       "default": "auto",
-      "description": "Which comments /code-tidying:remove-comments keeps. auto: explanatory, or necessary in a pull-request pipeline run. none: only machine-read directives, license headers, TODO(#issue) markers, paired records and public-API doc comments stay. necessary: also verified outside-constraint comments. explanatory: every comment that passes the earn-its-keep test. Deprecated, still resolved: strict and balanced read as explanatory, conservative as explanatory plus safe, aggressive as necessary."
+      "description": "Which comments /code-tidying:remove-comments keeps. auto: necessary. none: only machine-read directives, license headers, TODO(#issue) markers, paired records and public-API doc comments stay. necessary: the floor plus the keep list comment_keep_list resolves. explanatory: every comment that passes the earn-its-keep test. Deprecated, still resolved: strict and balanced read as explanatory, conservative as explanatory plus safe, aggressive as necessary."
+    },
+    "comment_keep_list": {
+      "type": "string",
+      "minLength": 1,
+      "default": "default",
+      "description": "What the necessary posture keeps above the floor. default: the shipped list, skills/remove-comments/reference/keep-list.md. Otherwise a repository-relative path to a file whose criteria replace the shipped list; the floor always stays. An absolute path, a .. segment or a path naming no regular file is invalid."
     },
     "comment_edit_scope": {
       "enum": ["diff", "files"],

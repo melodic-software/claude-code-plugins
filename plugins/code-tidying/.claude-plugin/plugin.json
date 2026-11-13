@@ -36,7 +36,7 @@
     "comment_posture": {
       "type": "string",
       "title": "Comment posture",
-      "description": "Which comments remove-comments keeps. auto (default): explanatory, or necessary with --pipeline. none: only directives, license headers, TODO(#issue), paired records and public doc comments. necessary: also verified outside-constraint comments. explanatory: whatever passes the earn-its-keep test.",
+      "description": "Which comments remove-comments keeps. auto (default): necessary. none: only directives, license headers, TODO(#issue), paired records and public doc comments. necessary: those plus the keep list (comment_keep_list). explanatory: whatever passes the earn-its-keep test.",
       "default": "auto",
       "options": [
         "auto",
@@ -44,6 +44,12 @@
         "necessary",
         "explanatory"
       ]
+    },
+    "comment_keep_list": {
+      "type": "string",
+      "title": "Comment keep list",
+      "description": "What the necessary posture keeps above the floor. default: the shipped list (public-API doc comments, verified outside-constraint comments). A repository-relative path: that file's criteria replace the shipped list; the floor always stays.",
+      "default": "default"
     },
     "comment_edit_scope": {
       "type": "string",

@@ -26,7 +26,7 @@ behavior, while a token comparison is exhaustive over the file.
 |---|---|---|---|
 | **`explanatory`** | Applied, each deletion certified by the tier-0 proof | Applied per the tier table below; otherwise proposed | Earn-its-keep triage; a criterion-2 failure is deleted behind the tier-0 proof, an over-budget comment rewritten; narrative staged before either |
 | **`safe`** | Applied, same certification | Always proposed: no code-structure change is applied | Same triage, but **nothing class-C is applied**: a criterion-2 deletion and an over-budget rewrite are both proposed, with the narrative staged. Only class A deletes here |
-| **`necessary`** | Applied, same certification | Dissolved when the tier's gate passes; otherwise deleted, narrative staged, with a reshape flag | Earn-its-keep is replaced by the keep list in `SKILL.md`: the floor, public-API doc comments, and, within `class_c_max_lines`, verified outside-constraint comments stay; every other class-C comment is staged and deleted behind the tier-0 proof, never rewritten |
+| **`necessary`** | Applied, same certification | Dissolved when the tier's gate passes; otherwise deleted, narrative staged, with a reshape flag | Earn-its-keep is replaced by the floor and the resolved keep list (`SKILL.md`, Postures); every other class-C comment is staged and deleted behind the tier-0 proof, never rewritten |
 | **`none`** | Applied, same certification | Deleted as a comment, no move attempted, narrative staged, with a reshape flag | Only the floor and public-API doc comments stay |
 | **`report`** | Proposed | Proposed | Proposed. Nothing is applied in any class; the posture in effect decides which treatment each proposal names, and the run never asks a question |
 

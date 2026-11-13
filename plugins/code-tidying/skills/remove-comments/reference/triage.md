@@ -126,10 +126,9 @@ Criterion 3 has its own treatment, the rewrite above; only criterion 2 sends a c
 Under `safe` this deletion is **proposed, never applied**. That mode applies class-A deletions only, and a comment that reached this branch is class C whatever its
 test returned. What the run may apply is set by the mode, never by a verdict reached inside it.
 
-Under `necessary` and `none` the criteria are not what decides. The keep list in `SKILL.md`
-does: the floor, public-API doc comments, and (under `necessary`) a verified outside-constraint
-comment stay,
-and every other comment here is staged and deleted behind the same token proof, recoverable
+Under `necessary` and `none` the criteria are not what decides. The posture's keep list does
+(`SKILL.md`, Postures): the floor stays, and above it public-API doc comments under `none` and the
+resolved keep list under `necessary`; every other comment here is staged and deleted behind the same token proof, recoverable
 rationale or not. Criterion 2 is not evaluated for them, since its answer changes nothing.
 
 **Whole-file verdict.** Where the majority of a file's class-C comments carry contract, negative, or

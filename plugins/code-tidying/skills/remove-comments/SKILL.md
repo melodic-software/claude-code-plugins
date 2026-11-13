@@ -41,7 +41,8 @@ the report's first lines.
 
 | Key | userConfig | Values | Default |
 |---|---|---|---|
-| `comment_posture` | `${user_config.comment_posture}` | `auto`, `none`, `necessary`, `explanatory` | `auto`: `explanatory`, or `necessary` when `--pipeline` is passed |
+| `comment_posture` | `${user_config.comment_posture}` | `auto`, `none`, `necessary`, `explanatory` | `auto`: `necessary` |
+| `comment_keep_list` | `${user_config.comment_keep_list}` | `default`, or a repository-relative path to a file | `default`: [reference/keep-list.md](reference/keep-list.md) |
 | `comment_edit_scope` | `${user_config.comment_edit_scope}` | `diff`, `files` | `diff` |
 | `encode_constraints_unattended` | `${user_config.encode_constraints_unattended}` | `true`, `false` | `false` |
 | `class_c_max_lines` | `${user_config.class_c_max_lines}` | 1 to 40 | `2` |
@@ -53,7 +54,12 @@ its overrides file. An unexpanded or empty `userConfig` value is unset. Old post
 `balanced` read as `explanatory`, `conservative` as `explanatory` plus `safe`, `aggressive` as
 `necessary`. Old per-run tokens too: `aggressive` means `necessary` and `strip` means `none`.
 
-`--pipeline` marks a run the pull-request pipeline starts. It changes only the `auto` posture;
+`comment_keep_list` replaces what `necessary` keeps above the floor; it never changes the floor.
+A path holds the repository's own criteria in the shape of the shipped file; an absolute path, a
+`..` segment or a path naming no regular file is invalid, in `userConfig` too. Read the resolved
+list before triage, and when it is not the shipped one, name its path in the report's first lines.
+
+`--pipeline` marks a run the pull-request pipeline starts. It changes no setting, and
 whether a run may ask is still decided by the `AskUserQuestion` tool, in the workflow's step 1.
 
 ## Purpose
@@ -78,7 +84,7 @@ zero edits.
 | `override [target]` | Lift the GLOBAL HARD path list for this run's target, so `/code-tidying:remove-comments override ruff.toml` triages a file the list would drop. Path entries only; every lifted path is named in the report with its channel. |
 | `--added-since <base>` | Only comments on lines the branch adds against the merge base of `<base>` and `HEAD`, from `${CLAUDE_SKILL_DIR}/scripts/added-lines.sh <base>` (`<start><TAB><count><TAB><path>` per hunk). With no target its files are the scope and `scope-code-files.sh` is not run. Exit 2 is reported and the run stops. |
 | `--notes <path>` | Append the staged narrative block to `<path>` too. Refuse a symlink, then check `git ls-files --error-unmatch <path>`: a tracked or symlinked path is refused, the run continues, and the block is reported only. |
-| `--pipeline` | The run is the pull-request pipeline's comment pass: the `auto` posture is `necessary`. |
+| `--pipeline` | The run is the pull-request pipeline's comment pass; it changes no setting. |
 
 Match tokens whole and strip them before reading the target. `./safe`, `./none`, `./report` and
 the like are paths, not tokens. Precedence: `report` decides that nothing applies; then `safe`;
@@ -94,12 +100,13 @@ orchestrator: it runs workflow steps 1 and 2, dispatches, checks what comes back
 class-B moves, and reports.
 
 1. **Dispatch** with the resolved scope (files, and lines under `diff`), posture, settings, the
-   discovered markers and the tooling layer. Model and effort: the agent's own definition, unless
+   resolved keep list's path, the discovered markers and the tooling layer. Model and effort: the
+   agent's own definition, unless
    `/multi-agent:route worker code` resolves in this session and a config layer (basis `config`)
    sets the `worker` role, in which case pass that role's `single` variant model and effort.
 2. **Check its report and its diff.** Re-run `change-shape.sh` on every file it touched, before
    against after: anything but COMMENT-ONLY is reverted. Check each deletion against the floor and
-   the posture's keep list, and each keep against the rule it names. Reject a report that edits code,
+   the resolved keep list, and each keep against the rule it names. Reject a report that edits code,
    reaches outside the scope, deletes a kept comment or misstates a reason.
 3. **On a rejection**, revert that report's edits and dispatch once more, naming the failure. A
    second rejection is reverted, reported as open, and the run fails.
@@ -119,10 +126,10 @@ the gates in [reference/safety.md](reference/safety.md).
 
 | | `explanatory` | `necessary` | `none` |
 |---|---|---|---|
-| Default for | interactive runs | the pull-request pipeline (`--pipeline`) | opt-in only |
+| Default for | opt-in only | every run (`auto`) | opt-in only |
 | Class A | deleted | deleted | deleted |
 | Class B | dissolved by its move when the gate passes, else kept with a proposal | dissolved when the gate passes, else deleted with a reshape flag | deleted with a reshape flag; no move is attempted |
-| Class C | kept when it passes the earn-its-keep test, rewritten terser over the line budget; a criterion-2 failure is deleted | only the survivor list below stays; every other comment is deleted with a reshape flag or an open-constraint line, never rewritten | only the floor stays |
+| Class C | kept when it passes the earn-its-keep test, rewritten terser over the line budget; a criterion-2 failure is deleted | only the resolved keep list stays; every other comment is deleted with a reshape flag or an open-constraint line, never rewritten | only the floor stays |
 | A tie (doubt about a class or a keep) | keeps the comment or proposes | deletes, except doubt about the floor, which keeps | deletes, except doubt about the floor |
 
 **The floor, kept in every posture**: machine-read directives (shebangs, lint pragmas, encoding
@@ -133,23 +140,11 @@ pair, because deleting half of a paired record is a correctness bug. A pragma th
 correctness or safety rule stays (deleting it changes lint output, so it is not a comment edit), and
 under `none` and `necessary` its symbol is listed as open root-cause work.
 
-**What `necessary` keeps above the floor**:
-
-- public-API doc comments in the language's structured doc-comment form (a docstring, an XML doc,
-  JSDoc or TSDoc, a GoDoc sentence) on a public declaration;
-- a **comment on behavior an outside party forces**: the code does something only because a
-  dependency, platform, vendor service or protocol this repository cannot change requires it, and
-  the comment names that party and its limit (`# The gateway closes idle sockets at 60s, so the
-  keepalive is 45s`). Keep it only when verified: the adjacent code depends on the named party and
-  nothing in this repository could remove the reason. The outside fact itself need not be provable
-  from here; a comment the code contradicts is class A;
-- an **issue or RFC link that explains a constraint** the code cannot state (`# Header order is
-  fixed by RFC 9110 section 5.3`).
-
-Both outside-constraint keeps are held to `class_c_max_lines`. A comment naming a workaround is never
-one of them, link or not: it is deleted and listed as open root-cause work, unless it is a
-`TODO(#issue)` marker. A warning of consequence, a unit or sentinel annotation, a section divider and
-rationale about this repository's own code are **our-code surprises**: deleted, narrative staged, and
+**What `necessary` keeps above the floor** is the resolved keep list: the shipped
+[reference/keep-list.md](reference/keep-list.md), or the file `comment_keep_list` names. A keep
+other than a public-API doc comment is held to `class_c_max_lines`. Unless the list keeps it, a
+warning of consequence, a unit or sentinel annotation, a section divider and rationale about this
+repository's own code are **our-code surprises**: deleted, narrative staged, and
 each one a reshape flag naming the symbol and the move that would make the comment unnecessary
 (rename, extract, a type, an assertion, a redesign). A constraint the code could enforce gets the
 encode step in [actions/remove.md](actions/remove.md#encode-a-constraint).

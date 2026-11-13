@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: interaction-dot-aggressive-path
-description: ./aggressive is read as a directory target under the default posture, not as the aggressive mode
+description: ./aggressive is read as a directory target under the team file's explanatory posture, not as the aggressive mode
 tags: [calibration, interaction, invented]
-expected_outcome: aggressive/class-c.sh is triaged under default strict; the set-the-counter comment is deleted; the retry rationale, absent from history, is kept; code is unchanged.
+expected_outcome: aggressive/class-c.sh is triaged under the team file's explanatory posture; the set-the-counter comment is deleted; the retry rationale, absent from history, is kept; code is unchanged.
 context:
   scaffold_script: scaffold.sh
 execution:

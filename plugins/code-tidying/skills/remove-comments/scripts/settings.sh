@@ -21,7 +21,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$HERE/../../../lib"
 READER="$LIB/parse-concern-value.sh"
-KEYS=(comment_posture comment_edit_scope encode_constraints_unattended class_c_max_lines apply_local_renames)
+KEYS=(comment_posture comment_keep_list comment_edit_scope encode_constraints_unattended class_c_max_lines apply_local_renames)
 
 if (($# > 1)); then
   echo "settings: usage: settings.sh [<dir>]" >&2
@@ -37,6 +37,10 @@ valid() {
   encode_constraints_unattended:true | encode_constraints_unattended:false) return 0 ;;
   apply_local_renames:true | apply_local_renames:false) return 0 ;;
   class_c_max_lines:*) [[ "$2" =~ ^[0-9]+$ ]] && (($2 >= 1 && $2 <= 40)) ;;
+  comment_keep_list:default) return 0 ;;
+  comment_keep_list:/* | comment_keep_list:..) return 1 ;;
+  comment_keep_list:../* | comment_keep_list:*/.. | comment_keep_list:*/../*) return 1 ;;
+  comment_keep_list:*) [[ -f "$root/$2" ]] ;;
   *) return 1 ;;
   esac
 }
