@@ -111,16 +111,14 @@ plugin_list=$("$claude_bin" plugin list --json 2>/dev/null) || skip "claude plug
 # The first enabled codex@openai-codex installation. A plugin loaded in place from its
 # marketplace folder reports that folder as readFromFolder instead of installPath.
 plugin_root=$(printf '%s' "$plugin_list" | node -e '
-let text = "";
-process.stdin.on("data", (chunk) => { text += chunk; });
-process.stdin.on("end", () => {
-  let entries;
-  try { entries = JSON.parse(text); } catch { entries = null; }
-  if (!Array.isArray(entries)) { process.stdout.write("::unreadable::"); return; }
+let entries;
+try { entries = JSON.parse(require("fs").readFileSync(0, "utf8")); } catch {}
+if (!Array.isArray(entries)) process.stdout.write("::unreadable::");
+else {
   const hit = entries.find((e) => e && e.id === "codex@openai-codex" && e.enabled === true);
   const root = hit && (hit.readFromFolder || hit.installPath);
   if (typeof root === "string" && root) process.stdout.write(root);
-});
+}
 ' 2>/dev/null)
 [[ "$plugin_root" != "::unreadable::" ]] || skip "claude plugin list --json gave no readable list"
 [[ -n "$plugin_root" ]] || skip "codex@openai-codex is not installed or not enabled"
@@ -131,15 +129,12 @@ companion="$plugin_root/scripts/codex-companion.mjs"
 # `setup --json` with neither review-gate flag only reports; it changes nothing.
 setup_json=$(node "$companion" setup --json 2>/dev/null)
 readiness=$(printf '%s' "$setup_json" | node -e '
-let text = "";
-process.stdin.on("data", (chunk) => { text += chunk; });
-process.stdin.on("end", () => {
-  let report;
-  try { report = JSON.parse(text); } catch { process.stdout.write("unreadable"); return; }
-  if (!report || !report.codex || report.codex.available !== true) process.stdout.write("no-cli");
-  else if (!report.auth || report.auth.loggedIn !== true) process.stdout.write("no-login");
-  else process.stdout.write("ready");
-});
+let status = "unreadable";
+try {
+  const report = JSON.parse(require("fs").readFileSync(0, "utf8"));
+  status = report?.codex?.available !== true ? "no-cli" : report.auth?.loggedIn !== true ? "no-login" : "ready";
+} catch {}
+process.stdout.write(status);
 ' 2>/dev/null)
 case "$readiness" in
 ready) ;;
