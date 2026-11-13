@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.1] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.26.3] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [3.3.0] - 2026-11-13
 
 ### Added

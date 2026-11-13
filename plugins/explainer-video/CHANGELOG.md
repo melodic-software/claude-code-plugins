@@ -3,6 +3,12 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.13] - 2026-11-13
+
+### Security
+
+- The locked Python set pins `soupsieve` 4.0, up from 2.10, which fixes a polynomial-time denial of service in the descendant combinator (GHSA-mmhr-3c5m-f64f).
+
 ## [1.1.12] - 2026-11-13
 
 ### Changed
