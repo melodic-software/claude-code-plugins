@@ -75,8 +75,17 @@ def _also_changed(d):
     return f'<section class="also-changed"><h2>Also changed</h2><ul>{rows}</ul></section>'
 
 
+def inside(base_dir, rel):
+    """base_dir / rel with symlinks resolved; ValueError when it lands outside base_dir."""
+    base = Path(base_dir or '.').resolve()
+    path = (base / str(rel)).resolve()
+    if not path.is_relative_to(base):
+        raise ValueError(f'{rel!r} resolves outside the storyboard folder')
+    return path
+
+
 def _screenshot(d, base_dir):
-    path = Path(base_dir or '.') / str(d.get('image', ''))
+    path = inside(base_dir, d.get('image', ''))
     mime = IMAGE_TYPES.get(path.suffix.lower())
     if not mime or not path.is_file():
         raise ValueError(f'screenshot image {d.get("image")!r} is not a readable png, jpeg or webp file')

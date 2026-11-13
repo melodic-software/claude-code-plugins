@@ -46,6 +46,14 @@ class ParseTest(unittest.TestCase):
         with self.assertRaisesRegex(mt.StoryboardError, 'version'):
             mt.parse(board(version=2))
 
+    def test_screenshot_paths_stay_inside_the_storyboard_folder(self):
+        for image, sidecar in (('../x.png', 's.txt'), ('/etc/x.png', 's.txt'), ('x.png', '../s.txt'),
+                               ('x.png', 'C:\\s.txt')):
+            b = board()
+            b['moments'][1].update(template='screenshot', data={'image': image, 'sidecar': sidecar})
+            with self.subTest(image=image, sidecar=sidecar), self.assertRaisesRegex(mt.StoryboardError, 'relative'):
+                mt.parse(b)
+
     def test_screenshot_needs_sidecar(self):
         b = board()
         b['moments'][1].update(template='screenshot', data={'image': 'shot.png'})

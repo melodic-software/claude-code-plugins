@@ -12,6 +12,7 @@ fails closed (a rule did not load). Standard library plus redact.py beside this 
 import getpass
 import re
 import socket
+from collections import Counter
 from dataclasses import dataclass, field
 
 import redact
@@ -28,6 +29,10 @@ class ScanResult:
     @property
     def ok(self):
         return not self.findings and not self.fail_closed
+
+
+def _labels(text):
+    return Counter(m.group(1) or 'email' for m in _LABEL.finditer(text))
 
 
 def _alone(word):
@@ -49,8 +54,9 @@ def scan(texts, rules=None, host=None, user=None, extra=()):
     for source, text in texts.items():
         text = str(text)
         cleaned = redactor.redact(text)
-        kinds = {m.group(1) or 'email' for m in _LABEL.finditer(cleaned)} - {m.group(1) or 'email'
-                                                                              for m in _LABEL.finditer(text)}
+        # Per-kind counts, not sets: a label already in the text must not hide a new secret of its kind.
+        added = _labels(cleaned) - _labels(text)
+        kinds = set(added)
         if cleaned.count('~') > text.count('~'):
             kinds.add('home-path')
         kinds |= {kind for kind, pattern in machine if pattern.search(text)}

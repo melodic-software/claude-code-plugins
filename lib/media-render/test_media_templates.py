@@ -41,6 +41,11 @@ class TemplatesTest(unittest.TestCase):
             self.assertIn('src="data:image/png;base64,', out)
             with self.assertRaises(ValueError):
                 tpl.page({'template': 'screenshot', 'data': {'image': 'x.svg'}}, 't', 'c', (1, 1), base_dir=d)
+            with tempfile.TemporaryDirectory() as other:
+                Path(other, 'secret.png').write_bytes(b'\x89PNG\r\n')
+                Path(d, 'link.png').symlink_to(Path(other, 'secret.png'))
+                with self.assertRaisesRegex(ValueError, 'outside'):
+                    tpl.page({'template': 'screenshot', 'data': {'image': 'link.png'}}, 't', 'c', (1, 1), base_dir=d)
 
     def test_custom_stylesheet_replaces_bundled_and_cannot_close_style(self):
         out = tpl.page({'template': 'title', 'data': {}}, 't', 'c', (1, 1), stylesheet='body{}</style><b>')

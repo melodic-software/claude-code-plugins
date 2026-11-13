@@ -3603,28 +3603,28 @@ jobs:
         uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
         with:
           cache-dir: ~/.cache/ci-tools
-      # demo-video renders and probes its fixture with ffmpeg and ffprobe, which the
+      # demo-video and media-render render and probe their fixtures with ffmpeg and ffprobe, which the
       # hosted image does not carry. install-pinned-ffmpeg.sh installs both from its
       # pinned BtbN build, checked against the SHA-256 on every run. The archive is
-      # about 154 MB, so it has its own cache entry that only the demovideo leg
-      # restores and saves. The step timeout makes a stalled download fail here
+      # about 154 MB, so it has its own cache entry that only the demovideo and mediarender
+      # legs restore and save. The step timeout makes a stalled download fail here
       # instead of spending the leg.
       - name: Restore the pinned ffmpeg download
         id: ffmpeg_cache
-        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo')
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo') || contains(fromJSON(env.LEG_PLAN)[env.LEG], 'mediarender')
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools-ffmpeg
           key: ci-tools-ffmpeg-${{ runner.os }}-n8.1.3-9-g29e619e767
-      - name: Install ffmpeg for demo-video
+      - name: Install ffmpeg for demo-video and media-render
         timeout-minutes: 2
         run: |
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
-          [[ "$leg_needs" == *demovideo* ]] || exit 0
+          [[ "$leg_needs" == *demovideo* || "$leg_needs" == *mediarender* ]] || exit 0
           bash .github/scripts/lib/install-pinned-ffmpeg.sh "$HOME/.local/bin" "$HOME/.cache/ci-tools-ffmpeg"
       - name: Save the pinned ffmpeg download
-        if: github.ref == 'refs/heads/main' && contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo') && steps.ffmpeg_cache.outputs.cache-hit != 'true'
+        if: github.ref == 'refs/heads/main' && (contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo') || contains(fromJSON(env.LEG_PLAN)[env.LEG], 'mediarender')) && steps.ffmpeg_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools-ffmpeg

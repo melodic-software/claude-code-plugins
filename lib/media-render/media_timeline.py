@@ -11,12 +11,21 @@ timeline(board, words, hold) -> {'holds', 'chapters', 'audio', 'words', 'beats',
 With no narration (words None) every moment holds max(min_seconds, words * seconds_per_word + extra_seconds).
 Standard library only.
 """
+from pathlib import PurePosixPath, PureWindowsPath
 
 TEMPLATES = ('title', 'code-hunk', 'diagram', 'before-after', 'risk-map', 'also-changed', 'screenshot')
 
 
 class StoryboardError(ValueError):
     pass
+
+
+def _inside(path):
+    """A relative path with no parent step, read as POSIX and as Windows (a storyboard may come from either)."""
+    if not isinstance(path, str) or not path:
+        return False
+    return not any(p.is_absolute() or p.drive or '..' in p.parts
+                   for p in (PurePosixPath(path), PureWindowsPath(path)))
 
 
 def parse(data):
@@ -44,8 +53,12 @@ def parse(data):
             raise StoryboardError(f'{where}: narration is empty; only a title moment may be silent')
         if m['template'] == 'also-changed' and not m.get('covers'):
             raise StoryboardError(f'{where}: an also-changed moment must list what it covers')
-        if m['template'] == 'screenshot' and not m.get('data', {}).get('sidecar'):
-            raise StoryboardError(f'{where}: a screenshot needs a frame-text sidecar (data.sidecar) for the scan')
+        if m['template'] == 'screenshot':
+            if not m.get('data', {}).get('sidecar'):
+                raise StoryboardError(f'{where}: a screenshot needs a frame-text sidecar (data.sidecar) for the scan')
+            for key in ('image', 'sidecar'):
+                if not _inside(m['data'].get(key)):
+                    raise StoryboardError(f'{where}: data.{key} must be a relative path inside the storyboard folder')
     return {**data, 'chapters': chapters, 'moments': moments}
 
 

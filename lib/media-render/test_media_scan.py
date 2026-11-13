@@ -25,6 +25,12 @@ class ScanTest(unittest.TestCase):
         self.assertIn({'source': 'm2', 'kind': 'home-path'}, r.findings)
         self.assertNotIn(token, str(r.findings))
 
+    def test_a_label_already_in_the_text_does_not_hide_a_new_secret_of_its_kind(self):
+        token = 'ghp_' + 'a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8'
+        address = 'ops' + '@' + 'example.org'
+        r = self.scan({'m1': f'<redacted:github-pat> then {token}', 'm2': f'<email> and {address}'})
+        self.assertEqual(sorted({f['source'] for f in r.findings}), ['m1', 'm2'])
+
     def test_user_name_matches_alone_not_inside_a_handle(self):
         self.assertEqual(self.scan({'m1': 'reviewed by octo-cat'}).findings, [])
         self.assertEqual(len(self.scan({'m1': 'octo ran it'}).findings), 1)

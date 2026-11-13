@@ -64,6 +64,16 @@ class Refusals(unittest.TestCase):
         self.assertEqual(len(script.strip().split('\n\n')), 5)
         self.assertFalse((self.dir / 'out' / 'frames').exists())
 
+    def test_a_folder_stills_did_not_create_is_never_cleared(self):
+        out = self.dir / 'mine'
+        out.mkdir()
+        (out / 'keep.txt').write_text('mine')
+        r = run('--storyboard', BOARD, '--out', out, '--script-only')
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertEqual((out / 'keep.txt').read_text(), 'mine')
+        self.assertEqual(run('--storyboard', BOARD, '--out', self.dir / 'fresh', '--script-only').returncode, 0)
+        self.assertEqual(run('--storyboard', BOARD, '--out', self.dir / 'fresh', '--script-only').returncode, 0)
+
     def test_planted_home_path_stops_before_any_video(self):
         home = '/' + 'home/' + 'someone/project/notes.txt'   # assembled at run time, as the redact tests do
         path = self.board(lambda d: d['moments'][2]['data']['lines'].append({'n': 47, 'kind': '+', 'text': home}))

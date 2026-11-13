@@ -39,6 +39,7 @@ DEFAULTS = json.loads(Path(__file__).with_name('defaults.json').read_text(encodi
 FRAMES = DEFAULTS['frames']
 PROFILE = 'reviewer-stills'
 CHROMIUM_INSTALL_S = 600
+MARKER = '.stills-output'   # only a folder holding it is cleared on the next run
 
 
 def fail(code, message):
@@ -51,7 +52,7 @@ def sidecars(board, base):
     out = {}
     for m in board['moments']:
         if m['template'] == 'screenshot':
-            path = base / m['data']['sidecar']
+            path = media_templates.inside(base, m['data']['sidecar'])
             if not path.is_file():
                 raise FileNotFoundError(f'moment {m["id"]!r}: sidecar {m["data"]["sidecar"]} is missing')
             out[m['id']] = path.read_text(encoding='utf-8')
@@ -159,7 +160,7 @@ def main(argv=None):
     chapters = {c['id']: c['title'] for c in board['chapters']}
     try:
         side = sidecars(board, base)
-    except FileNotFoundError as e:
+    except (FileNotFoundError, ValueError) as e:
         return fail(3, f'sidecar: {e}; a screenshot needs its frame text for the scan, so it is refused')
     scan = media_scan.scan(scan_texts(board, chapters, side), rules=Path(__file__).resolve().parents[1] / 'vendor'
                            / 'gitleaks' / 'gitleaks-rules.json')
@@ -168,8 +169,13 @@ def main(argv=None):
                                                                            for f in scan.findings)
         return fail(4, f'scan: stopped before anything was rendered: {why}')
     out = a.out.resolve()
-    shutil.rmtree(out, ignore_errors=True)
-    out.mkdir(parents=True)
+    if out.exists() and any(out.iterdir()):
+        if not (out / MARKER).is_file():
+            return fail(2, f'{out} is not empty and was not written by stills.py; name a new or empty folder')
+        shutil.rmtree(out)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / MARKER).write_text('written by explainer-video stills.py; the next run clears this folder\n',
+                              encoding='utf-8')
     (out / 'script.txt').write_text(media_timeline.script(board), encoding='utf-8')
     if a.script_only:
         print(f'SCRIPT: {out / "script.txt"} (storyboard valid, scan passed)')
