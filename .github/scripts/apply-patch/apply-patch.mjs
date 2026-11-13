@@ -436,12 +436,16 @@ function hunksOf(git, entry, oldCount, newCount) {
   // every option a repository config could change is given here.
   const diff = git(["diff", "-U0", "--inter-hunk-context=0", "-a", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", entry.oldSha, entry.newSha]).toString("latin1");
   const at = (start, count) => (count === 0 ? start : start - 1);
-  return Array.from(diff.matchAll(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/gm), ([, a, b = "1", c, d = "1"]) => ({
-    oldStart: at(Number(a), Number(b)),
-    oldCount: Number(b),
-    newStart: at(Number(c), Number(d)),
-    newCount: Number(d),
-  }));
+  // A header is a whole line from LF to LF: a CR inside a content line never
+  // starts one.
+  return diff.split("\n").flatMap((line) => {
+    const header = line.startsWith("@@ -") ? /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line) : null;
+    if (!header) {
+      return [];
+    }
+    const [, a, b = "1", c, d = "1"] = header;
+    return [{ oldStart: at(Number(a), Number(b)), oldCount: Number(b), newStart: at(Number(c), Number(d)), newCount: Number(d) }];
+  });
 }
 
 const regionBytes = (lines, regions) => JSON.stringify(regions.map((region) => lines.slice(region.begin, region.end + 1).join("")));
@@ -454,8 +458,11 @@ const regionBytes = (lines, regions) => JSON.stringify(regions.map((region) => l
 // BEGIN line or right after an END line is outside and kept. The whole change
 // is left out for a frozen tier's file, for markers that do not pair in
 // either blob, and whenever the rebuilt blob's regions are not byte for byte
-// the head's. A mode change is kept unless the whole change is left out.
-function protectedRegions(git, entry) {
+// the head's, and the deletion of a file whose head holds a region is left
+// out whole. Patched bytes are kept only when their regions are the head's
+// byte for byte, whatever the hunk list says. A mode change is kept unless
+// the whole change is left out. `hunks` is hunksOf, or a list a test injects.
+export function protectedRegions(git, entry, hunks = hunksOf) {
   const restore = (why) => ({ sha: entry.oldSha, mode: entry.oldMode, warnings: [fileWarning(entry.path, why)] });
   const tier = frozenTier(entry.path);
   if (tier) {
@@ -467,22 +474,22 @@ function protectedRegions(git, entry) {
   if (head.error || patched.error) {
     return restore("whose generated-region markers do not pair");
   }
-  const keep = { sha: entry.newSha, mode: entry.newMode, warnings: [] };
   if (head.regions.length === 0 && patched.regions.length === 0) {
-    return keep;
+    return { sha: entry.newSha, mode: entry.newMode, warnings: [] };
   }
+  if (ZERO.test(entry.newSha)) {
+    return restore(`which it deletes though it holds a generated region (${head.regions[0].generator})`);
+  }
+  const headRegions = regionBytes(linesOf(before), head.regions);
+  const keepPatched = () =>
+    regionBytes(linesOf(after), patched.regions) === headRegions ? { sha: entry.newSha, mode: entry.newMode, warnings: [] } : restore("whose generated regions the patch would change");
   const [oldStarts, newStarts] = [lineStarts(before), lineStarts(after)];
   const slice = (bytes, starts, from, count) => bytes.subarray(starts[from] ?? bytes.length, starts[from + count] ?? bytes.length);
   const isMarker = (line) => BEGIN_GENERATED.test(markerText(line)) || END_GENERATED.test(markerText(line));
   const warnings = [];
   const parts = [];
   let cursor = 0;
-  const hunks = hunksOf(git, entry, oldStarts.length, newStarts.length);
-  // Blobs that differ with no hunk read cannot be split, so nothing of them is pushed.
-  if (hunks.length === 0 && !before.equals(after)) {
-    return restore("whose change git shows as no hunk");
-  }
-  for (const hunk of hunks) {
+  for (const hunk of hunks(git, entry, oldStarts.length, newStarts.length)) {
     const last = hunk.oldStart + hunk.oldCount - 1;
     let region = hunk.oldCount > 0 ? head.regions.find((r) => r.begin <= last && hunk.oldStart <= r.end) : head.regions.find((r) => r.begin < hunk.oldStart && hunk.oldStart <= r.end);
     if (!region) {
@@ -503,16 +510,17 @@ function protectedRegions(git, entry) {
     cursor = hunk.oldStart + hunk.oldCount;
   }
   if (warnings.length === 0) {
-    return keep;
+    return keepPatched();
   }
   parts.push(slice(before, oldStarts, cursor, oldStarts.length - cursor));
   const rebuilt = Buffer.concat(parts);
   const check = generatedRegions(rebuilt);
-  if (check.error || regionBytes(linesOf(rebuilt), check.regions) !== regionBytes(linesOf(before), head.regions)) {
+  if (check.error || regionBytes(linesOf(rebuilt), check.regions) !== headRegions) {
     return restore("whose generated regions its kept hunks would change");
   }
+  // The head's bytes, under the patch's mode change if it made one.
   if (rebuilt.equals(before)) {
-    return { sha: entry.oldSha, mode: entry.newMode, warnings };
+    return { sha: entry.oldSha, mode: ZERO.test(entry.oldSha) ? entry.oldMode : entry.newMode, warnings };
   }
   return { sha: git(["hash-object", "-w", "--no-filters", "--stdin"], { input: rebuilt, stdio: ["pipe", "pipe", "pipe"] }).toString("utf8").trim(), mode: entry.newMode, warnings };
 }
@@ -532,6 +540,11 @@ export const CONTENT_DROPS = {
         warnings.push(warning);
       }
       if (outcome.sha !== entry.newSha || outcome.mode !== entry.newMode) {
+        // --index-info reads mode 0 as a removal whatever the id, so a kept
+        // blob must carry a file mode.
+        if (!ZERO.test(outcome.sha) && ![REGULAR, EXECUTABLE].includes(outcome.mode)) {
+          throw new Error(`protected-content would set ${entry.path} to blob ${outcome.sha} at mode ${outcome.mode}`);
+        }
         updates.push(ZERO.test(outcome.sha) ? `0 ${"0".repeat(40)}\t${entry.path}` : `${outcome.mode} ${outcome.sha}\t${entry.path}`);
       }
     }
@@ -678,7 +691,7 @@ export function checkRow(row) {
     fail(`names an unknown content rule: ${row["content-rule"]}`);
   }
   // pushMerge runs no drop rule, so a merge row naming one would push what it should drop.
-  if (JSON.stringify(row.commit?.parents) === '["head","base"]' && Object.hasOwn(CONTENT_DROPS, String(row["content-rule"]))) {
+  if (isMerge(row) && Object.hasOwn(CONTENT_DROPS, String(row["content-rule"]))) {
     fail(`names the drop rule ${row["content-rule"]} on a merge row`);
   }
   if (row["reads-report"] !== null && !Object.hasOwn(REPORTS, row["reads-report"])) {

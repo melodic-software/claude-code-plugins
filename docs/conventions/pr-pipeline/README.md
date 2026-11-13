@@ -1025,9 +1025,11 @@ lines included), that inserts lines between a BEGIN and its END, or that writes 
 insertion right before a BEGIN line or right after an END line is outside the region and kept, as
 is every other hunk. The whole change to a file, its mode included, is left out when the file sits
 in the `released` or `historical` tier of [`docs-naming.yaml`](../docs-naming.yaml)
-(`**/CHANGELOG.md`; `docs/adr/**`, `docs/upstream/**`, `.claude/unhobble/**`), when its markers do
-not pair in the head or the patched blob, or when the rebuilt blob's regions would not be the
-head's byte for byte; a mode change to any other file is kept. Each dropped hunk or file prints a
+(`**/CHANGELOG.md`; `docs/adr/**`, `docs/upstream/**`, `.claude/unhobble/**`), when the patch
+deletes a file whose head holds a region (a rename, read as a deletion and an addition, so leaves
+the file at its old path), when its markers do not pair in the head or the patched blob, or when
+the kept or rebuilt blob's regions would not be the head's byte for byte; a mode change to any
+other file is kept. Each dropped hunk or file prints a
 `::warning` naming the file and, for a hunk, the generator its region's BEGIN line names, so the
 fix goes to the generator's inputs. A patch left with no change pushes nothing, escalates nothing
 and skips `not-applicable`. The row otherwise matches `default`. No other row names those two refusals or that

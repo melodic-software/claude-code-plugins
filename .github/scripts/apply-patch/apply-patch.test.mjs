@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, FROZEN_TIERS, generatedRegions, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select, sharedCopiesFrom } from "./apply-patch.mjs";
+import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, FROZEN_TIERS, generatedRegions, protectedRegions, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select, sharedCopiesFrom } from "./apply-patch.mjs";
 import { PREDICATES } from "./predicates.mjs";
 import { CREDENTIAL_SHAPES as GATE_SHAPES, findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -945,6 +945,97 @@ test("a mode-only change to a changelog is dropped, and one to a file with regio
   ]);
   assert.equal(modeOf(fix, api, "plugins/p/CHANGELOG.md"), "100644");
   assert.equal(modeOf(fix, api, "docs/catalog.md"), "100755");
+});
+
+const REGION_FILE = "intro\n<!-- BEGIN GENERATED: g -->\nx\ny\n<!-- END GENERATED: g -->\noutro\n";
+const pushedTree = (api) => api.calls.find((call) => call.createCommit).createCommit.tree;
+const treePaths = (fix, api) => git(fix.repo, ["diff-tree", "-r", "--name-status", "--no-renames", fix.head, pushedTree(api)]).split("\n");
+
+test("a fix-docs patch that deletes a file holding a generated region leaves the file byte for byte, with one warning", async (t) => {
+  const fix = repoWithPatch(
+    t,
+    (repo) => {
+      rmSync(join(repo, "docs/x.md"));
+      writeFileSync(join(repo, "README.md"), "# fixed\n");
+    },
+    { head: (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/x.md"), REGION_FILE)) },
+  );
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+  assert.deepEqual(lines, ["::warning file=docs/x.md::apply-patch dropped the change to docs/x.md, which it deletes though it holds a generated region (g)", `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+  assert.deepEqual(treePaths(fix, api), ["M\tREADME.md"]);
+  assert.equal(git(fix.repo, ["rev-parse", `${pushedTree(api)}:docs/x.md`]), git(fix.repo, ["rev-parse", `${fix.head}:docs/x.md`]));
+});
+
+// Under --no-renames a rename is a deletion and an addition: the deletion is
+// dropped, and the addition, whose hunk writes marker lines, is dropped too,
+// so the file stays at its old path alone.
+test("a fix-docs patch that renames a file holding a generated region leaves it at its old path, byte for byte, and adds nothing", async (t) => {
+  const fix = repoWithPatch(
+    t,
+    (repo) => {
+      renameSync(join(repo, "docs/x.md"), join(repo, "docs/y.md"));
+      writeFileSync(join(repo, "README.md"), "# fixed\n");
+    },
+    { head: (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/x.md"), REGION_FILE)) },
+  );
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+  assert.deepEqual(treePaths(fix, api), ["M\tREADME.md"]);
+  assert.equal(git(fix.repo, ["rev-parse", `${pushedTree(api)}:docs/x.md`]), git(fix.repo, ["rev-parse", `${fix.head}:docs/x.md`]));
+  assert.deepEqual(lines.filter((line) => line.startsWith("::warning")).map((line) => line.split("::")[1]), ["warning file=docs/x.md", "warning file=docs/y.md,line=1"]);
+});
+
+test("a fix-docs patch that deletes a file with no region still deletes it, and one that deletes a changelog does not", async (t) => {
+  const fix = repoWithPatch(
+    t,
+    (repo) => {
+      rmSync(join(repo, "notes.md"));
+      rmSync(join(repo, "plugins/p/CHANGELOG.md"));
+    },
+    { head: (repo) => (mkdirSync(join(repo, "plugins/p"), { recursive: true }), writeFileSync(join(repo, "plugins/p/CHANGELOG.md"), "## [1.0.0]\n")) },
+  );
+  const api = fakeApi(fix.repo, fix.head);
+  assert.equal((await docsPush(fix, api)).outcome, "pushed");
+  assert.deepEqual(treePaths(fix, api), ["D\tnotes.md"]);
+});
+
+test("a hunk header forged after a CR inside a changed line neither drops the prose edit nor touches the region", async (t) => {
+  const head = "a\nq\n<!-- BEGIN GENERATED: g -->\nx\n<!-- END GENERATED: g -->\n";
+  const patched = head.replace("q\n", "q\r@@ -4,1 +4,1 @@\n");
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/f.md"), patched), {
+    head: (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/f.md"), head)),
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+  assert.deepEqual(lines, [`pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+  assert.equal(execFileSync("git", ["cat-file", "blob", `${pushedTree(api)}:docs/f.md`], { cwd: fix.repo, encoding: "latin1" }), patched);
+});
+
+for (const [what, hunks] of [
+  ["no hunk at all", []],
+  ["only the prose hunk", [{ oldStart: 0, oldCount: 1, newStart: 0, newCount: 1 }]],
+]) {
+  test(`protectedRegions keeps the head's blob when the hunk list misses a region change (${what})`, (t) => {
+    const repo = scratch(t);
+    git(repo, ["init", "-q"]);
+    const run = (args, options = {}) => execFileSync("git", args, { cwd: repo, ...options });
+    const store = (text) => git(repo, ["hash-object", "-w", "--stdin"], text);
+    const entry = { path: "docs/x.md", oldMode: "100644", newMode: "100644", oldSha: store(REGION_FILE), newSha: store(REGION_FILE.replace("intro", "INTRO").replace("x\n", "X\n")) };
+    assert.deepEqual(protectedRegions(run, entry, () => hunks), {
+      sha: entry.oldSha,
+      mode: "100644",
+      warnings: ["::warning file=docs/x.md::apply-patch dropped the change to docs/x.md, whose generated regions the patch would change"],
+    });
+  });
+}
+
+test("checkRow refuses a drop rule on a row with two parents in either order", () => {
+  const merge = row("merge-base");
+  assert.throws(() => checkRow({ ...merge, commit: { ...merge.commit, parents: ["base", "head"] }, "content-rule": "protected-content" }), /drop rule protected-content on a merge row/);
 });
 
 test("checkRow refuses a drop rule on a merge row, whose push would not run it", () => {
