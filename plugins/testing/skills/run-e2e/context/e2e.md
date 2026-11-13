@@ -115,7 +115,7 @@ For UI changes, capture verifiable evidence rather than asserting "looks right":
 
 When the project has committed E2E user-flow tests (a `@playwright/test`, Cypress or similar suite, found through its documented test command or config), run the specs that cover the changed flows first, through the project's own command, against the running app, with traces kept for failed tests. Their pass or fail is the verdict for the scenarios they cover.
 
-Ad-hoc driving and screenshots are evidence, not an oracle: they show what the app did, not whether that was right. They still run for the changed screens and the render checks below. A screenshot never overrides a failing spec, and a clean ad-hoc drive never stands in for a spec that was not run. A scenario no spec covers is reported as uncovered; its verdict rests on the expected outcome stated from the requirement before driving (workflow step 1), and the rubric's committed-spec row is the follow-up.
+Ad-hoc driving and screenshots are evidence, not an oracle: they show what the app did, not whether that was right. They still run for the changed screens and the render checks below. A screenshot never overrides a failing spec, and a clean ad-hoc drive never stands in for a spec that was not run. A scenario no spec covers is reported as uncovered; its verdict rests on the expected outcome written before driving (workflow step 1), and the rubric's committed-spec row is the follow-up.
 
 Basis: LLM test generators, measured on benchmark repositories, mostly write oracles that assert what the code does rather than what it should do (arXiv [2410.21136](https://arxiv.org/abs/2410.21136), [2412.14137](https://arxiv.org/abs/2412.14137), [2607.22883](https://arxiv.org/abs/2607.22883)); that the same holds for an agent judging its own drive is inferred, not measured. Trace retention for a test run is the `trace` option on Playwright's [test use options](https://playwright.dev/docs/test-use-options) page.
 
@@ -210,7 +210,7 @@ Use the test plan from `/testing:plan` or generate scenarios from changes:
 
 - Which endpoints changed?
 - Which UI flows are affected?
-- What does "working correctly" look like? Write each scenario's expected outcome from the requirement or acceptance criterion, before driving, never from what the app shows
+- What does "working correctly" look like? Write each scenario's expected outcome before driving, never from what the app shows: start from the touched feature's stated results and proof step in its control skill, then add the requirement or acceptance criterion on top (SKILL.md, Expected outcome)
 
 ### 2. Verify health
 
@@ -274,7 +274,7 @@ A failed scenario (a failed spec from step 3 or a failed drive from step 5) gets
 
 ```text
 Scenario: <name>
-Expected: <outcome from the requirement or acceptance criterion, with its source>
+Expected: <outcome from the requirement or acceptance criterion, plus the feature's stated result for a failed drive, with each source>
 Failing step: <spec file:line, or the drive step and its command>
 Trace: <path>
 Screenshot: <path>
