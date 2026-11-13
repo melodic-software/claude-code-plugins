@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.45] - 2026-11-13
+
+### Fixed
+
+- `behavior-probes`: the outside-working-directory write cases use `hard_deny` (user intent clears `soft_deny`), the Bash deny cases expect reason type `subcommandResults`, and record 23 holds the first live run of the 15 auto-mode and deny-rule cases, all passing on 2.1.323.
+
 ## [8.12.44] - 2026-11-13
 
 ### Added
