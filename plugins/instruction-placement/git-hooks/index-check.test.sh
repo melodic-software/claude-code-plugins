@@ -71,7 +71,11 @@ check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
 }
 
 rc_of() { printf '%s' "${1%%|*}"; }
-err_of() { printf '%s' "${1##*|}"; }
+# stderr holds table rows, which carry `|`: strip the two leading fields instead.
+err_of() {
+  local rest="${1#*|}"
+  printf '%s' "${rest#*|}"
+}
 
 new_repo
 add_rule "$REPO"
@@ -82,6 +86,11 @@ expect "the failure names the index file and line" yes \
   "$(grep -qF 'AGENTS.md:1: the rules index no longer matches .claude/rules/.' < <(err_of "$got") && echo yes)"
 expect "the failure carries the regenerate command for this repository" yes \
   "$(grep -qF "write --file \"$REPO/AGENTS.md\" --root \"$REPO\"" < <(err_of "$got") && echo yes)"
+# shellcheck disable=SC2016 # backticks are the row's markdown code spans
+expect "the failure names the row to add" yes \
+  "$(grep -qF 'ADD	| `.claude/rules/csharp.md` | `**/*.cs` | C# rule |' "$WORK/stderr" && echo yes)"
+expect "and not the renderer's own fix line, which names the scratch tree" no \
+  "$(grep -q '^FIX' "$WORK/stderr" && echo yes || echo no)"
 
 bash "$RENDER" write --file "$REPO/AGENTS.md" --root "$REPO" >/dev/null
 git -C "$REPO" add AGENTS.md

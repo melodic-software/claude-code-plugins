@@ -354,6 +354,9 @@ let rounds = 0
 let stall = 0
 let stoppedBecause = null
 let weakening = []
+// On a no-progress stop: the root causes the fixers acted on in the two stalled
+// rounds, the premise the run kept building on and never tested.
+let stalledRootCauses = []
 
 while (true) {
   if (current.passed) { stoppedBecause = 'green'; break }
@@ -464,7 +467,14 @@ while (true) {
   stall = next.failures.length >= current.failures.length && !next.passed ? stall + 1 : 0
   current = next
   if (current.passed) { stoppedBecause = 'green'; break }
-  if (stall >= 2) { stoppedBecause = 'no-progress'; break }
+  if (stall >= 2) {
+    stoppedBecause = 'no-progress'
+    // Only a round that re-ran the command can stall, so the last two such rounds are the stalled pair.
+    const stalled = changes.filter(r => r.failuresAfter != null).slice(-2)
+    stalledRootCauses = [...new Set(stalled.flatMap(r => r.fixers.map(f => f.rootCause))
+      .filter(x => typeof x === 'string' && x.trim() !== ''))]
+    break
+  }
 }
 
 let green = stoppedBecause === 'green'
@@ -516,6 +526,7 @@ return {
   remaining: green ? [] : current.failures,
   changes,
   stoppedBecause,
+  stalledRootCauses,
   weakening,
   outsideEdits,
   finalCheck,

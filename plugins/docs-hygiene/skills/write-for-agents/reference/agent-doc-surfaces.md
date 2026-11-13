@@ -64,6 +64,11 @@ Load-semantics facts that change how you write:
   unavailable): <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md>,
   <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load> and
   <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
+- **Pointer** (a session started above or beside a repository, such as a hub, that works in it:
+  which of that repository's instruction files load and which of its `.claude/` configuration
+  does not): <https://code.claude.com/docs/en/memory#how-claude-md-files-load>,
+  <https://code.claude.com/docs/en/permissions#additional-directories-grant-file-access-not-configuration>
+  and <https://code.claude.com/docs/en/permissions#move-the-session-to-another-directory>.
 - **Pointer** (auto-memory location, head limit, CLAUDE.md size handling):
   <https://code.claude.com/docs/en/memory#storage-location> and
   <https://code.claude.com/docs/en/memory#how-it-works>; CLAUDE.md size target:

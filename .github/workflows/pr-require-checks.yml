@@ -1487,6 +1487,17 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh adr-numbers {0}
         run: scripts/check-adr-numbers.sh --check
 
+      # The AGENTS.md "Conventions that load on demand" table is generated from
+      # .claude/rules/ and the nested instruction files. Ungated: a change that
+      # adds, removes or renames only a rule is docs-only, and that is the edit
+      # that leaves the table stale. On drift it names each row to add, change
+      # or remove, then the command that rewrites the table.
+      - name: Check the AGENTS.md rules index matches .claude/rules/
+        id: rules_index
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh rules-index {0}
+        run: bash plugins/instruction-placement/scripts/render-index.sh check --file AGENTS.md
+
       # Each tracked docs/conventions/<concern>.yaml against its JSON Schema
       # (ADR 0064 Decisions 6 and 7). Ungated: a change that edits only a
       # convention YAML is docs-only, and that is the edit this gate reads.
@@ -2075,6 +2086,7 @@ jobs:
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
+            rules-index=${{ steps.rules_index.outcome }}
             convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}

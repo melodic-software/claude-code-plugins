@@ -359,6 +359,81 @@ for lease_case in "--force-with-lease=main:origin/main" "--force-with-lease"; do
     "$lease_msg" '<full-sha>'
 done
 
+# --- unpinned lease: allowed by default, blocked when either layer says block ---
+# A lease that pins no full commit id (no expected value plus --force-if-includes,
+# or the empty expect) passes by default. block_dangerous_git_unpinned_lease=block,
+# or unpinned_lease: block in docs/conventions/guardrails.yaml at the session
+# repository's origin/HEAD, blocks it; a lease pinned to a full sha passes under both.
+UNPIN=CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_UNPINNED_LEASE
+run "unpinned_lease unset: --force-with-lease --force-if-includes (allowed)" "git push --force-with-lease --force-if-includes origin main" 0
+run "unpinned_lease=allow: --force-with-lease --force-if-includes (allowed)" "git push --force-with-lease --force-if-includes origin main" 0 "$UNPIN=allow"
+run "unpinned_lease=allow: empty expect (allowed)" "git push --force-with-lease=main: origin main" 0 "$UNPIN=allow"
+run "unpinned_lease=deny (unknown value acts as allow): unpinned lease (allowed)" "git push --force-with-lease --force-if-includes origin main" 0 "$UNPIN=deny"
+run "unpinned_lease=BLOCK (case differs, acts as allow): unpinned lease (allowed)" "git push --force-with-lease --force-if-includes origin main" 0 "$UNPIN=BLOCK"
+run "unpinned_lease=allow: pinned full sha (allowed)" "git push --force-with-lease=main:$SHA1_OID origin main" 0 "$UNPIN=allow"
+run "unpinned_lease=block: --force-with-lease --force-if-includes (blocked)" "git push --force-with-lease --force-if-includes origin main" 2 "$UNPIN=block"
+run "unpinned_lease=block: --force-with-lease=main --force-if-includes (blocked)" "git push --force-with-lease=main --force-if-includes origin main" 2 "$UNPIN=block"
+run "unpinned_lease=block: --force-w --force-i (abbreviated, blocked)" "git push --force-w --force-i origin main" 2 "$UNPIN=block"
+run "unpinned_lease=block: empty expect (blocked)" "git push --force-with-lease=main: origin main" 2 "$UNPIN=block"
+run "unpinned_lease=block: bare + pinned + --force-if-includes (bare fallback, blocked)" "git push --force-with-lease --force-with-lease=refs/heads/main:$SHA1_OID --force-if-includes origin main other" 2 "$UNPIN=block"
+run "unpinned_lease=block: pinned full sha (allowed)" "git push --force-with-lease=main:$SHA1_OID origin main" 0 "$UNPIN=block"
+run "unpinned_lease=block: pinned full sha + --force-if-includes (allowed)" "git push --force-with-lease=main:$SHA1_OID --force-if-includes origin main" 0 "$UNPIN=block"
+run "unpinned_lease=block: --force-if-includes alone, no lease (allowed)" "git push --force-if-includes origin main" 0 "$UNPIN=block"
+run "unpinned_lease=block: lease negated (allowed)" "git push --force-with-lease=main: --no-force-with-lease origin main" 0 "$UNPIN=block"
+run "unpinned_lease=block: unpinned lease under a dry run (allowed)" "git push --force-with-lease --force-if-includes --dry-run origin main" 0 "$UNPIN=block"
+run "unpinned_lease=block + allow-list push-lease-unsafe (allowed)" "git push --force-with-lease --force-if-includes origin main" 0 "$UNPIN=block" CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-lease-unsafe
+
+# Every force-push block message names the pinned form and no other, under
+# either value: the pinned form is the one that passes under both.
+for unpin_value in allow block; do
+  for strict_case in "--force-with-lease --force-if-includes" "--force-with-lease=main:" "--force-with-lease" "--force" "-f" "+HEAD:main"; do
+    [[ "$unpin_value" == allow && ("$strict_case" == *force-if-includes || "$strict_case" == *main:) ]] && continue
+    guard_invoke --command "git push $strict_case origin main" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- "$UNPIN=$unpin_value"
+    assert_exit "unpinned_lease=$unpin_value: '$strict_case' blocks" 2 "$GUARD_RC"
+    assert_contains "unpinned_lease=$unpin_value: '$strict_case' message names the pinned form" "$GUARD_ERR" "--force-with-lease=<ref>:<full-sha>"
+    assert_absent "unpinned_lease=$unpin_value: '$strict_case' message names no unpinned form" "$GUARD_ERR" "force-if-includes"
+  done
+done
+guard_invoke --command "git push --force-with-lease --force-if-includes origin main" --cwd "$REPO_SHA1" --chdir "$REPO_SHA1" -- "$UNPIN=block"
+assert_contains "unpinned_lease=block: message names the option that set it" "$GUARD_ERR" "block_dangerous_git_unpinned_lease"
+
+# The repository layer: read at origin/HEAD, never the working tree.
+# bdg_team_repo <dir> <yaml body>: a SHA-1 repository whose origin/HEAD commit
+# carries docs/conventions/guardrails.yaml with that body.
+bdg_team_repo() {
+  git init -q --object-format=sha1 "$1" || bad "fixture: could not create $1"
+  mkdir -p "$1/docs/conventions"
+  printf '%s\n' "$2" >"$1/docs/conventions/guardrails.yaml"
+  git -C "$1" add docs/conventions/guardrails.yaml
+  git -C "$1" -c user.name=t -c user.email=t@example.invalid commit -q -m team ||
+    bad "fixture: could not commit in $1"
+  git -C "$1" update-ref refs/remotes/origin/main HEAD
+  git -C "$1" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+}
+REPO_TEAM_BLOCK="$TEST_TMPDIR/repo-team-block"
+REPO_TEAM_ALLOW="$TEST_TMPDIR/repo-team-allow"
+REPO_TEAM_BAD="$TEST_TMPDIR/repo-team-bad"
+REPO_TEAM_WT="$TEST_TMPDIR/repo-team-worktree-only"
+bdg_team_repo "$REPO_TEAM_BLOCK" "unpinned_lease: block"
+bdg_team_repo "$REPO_TEAM_ALLOW" "unpinned_lease: allow"
+bdg_team_repo "$REPO_TEAM_BAD" "unpinned_lease: deny"
+git init -q --object-format=sha1 "$REPO_TEAM_WT"
+mkdir -p "$REPO_TEAM_WT/docs/conventions"
+printf 'unpinned_lease: block\n' >"$REPO_TEAM_WT/docs/conventions/guardrails.yaml"
+run_in "$REPO_TEAM_BLOCK" "team unpinned_lease: block: --force-with-lease --force-if-includes (blocked)" "git push --force-with-lease --force-if-includes origin main" 2
+run_in "$REPO_TEAM_BLOCK" "team unpinned_lease: block: empty expect (blocked)" "git push --force-with-lease=main: origin main" 2
+run_in "$REPO_TEAM_BLOCK" "team unpinned_lease: block: pinned full sha (allowed)" "git push --force-with-lease=main:$SHA1_OID origin main" 0
+run_in "$REPO_TEAM_BLOCK" "team unpinned_lease: block: plain push (allowed)" "git push origin main" 0
+guard_invoke --command "git push --force-with-lease --force-if-includes origin main" --cwd "$REPO_TEAM_BLOCK" --chdir "$REPO_TEAM_BLOCK"
+assert_contains "team unpinned_lease: block: message names the pinned form" "$GUARD_ERR" "--force-with-lease=<ref>:<full-sha>"
+assert_contains "team unpinned_lease: block: message names the file that set it" "$GUARD_ERR" "docs/conventions/guardrails.yaml"
+run_in "$REPO_TEAM_ALLOW" "team unpinned_lease: allow: unpinned lease (allowed)" "git push --force-with-lease --force-if-includes origin main" 0
+run_in "$REPO_TEAM_ALLOW" "team unpinned_lease: allow + option block: either layer blocks (blocked)" "git push --force-with-lease --force-if-includes origin main" 2 "$UNPIN=block"
+run_in "$REPO_TEAM_WT" "team file only in the working tree does not count (allowed)" "git push --force-with-lease --force-if-includes origin main" 0
+guard_invoke --command "git push --force-with-lease --force-if-includes origin main" --cwd "$REPO_TEAM_BAD" --chdir "$REPO_TEAM_BAD"
+assert_exit "team unpinned_lease: an unknown value keeps the default (allowed)" 0 "$GUARD_RC"
+assert_contains "team unpinned_lease: an unknown value says so" "$GUARD_ERR" "not allow or block"
+
 run "git push (plain, allowed)" "git push" 0
 run "git push -u origin main (allowed)" "git push -u origin main" 0
 run "git push -o f (option value f, allowed)" "git push -o f origin main" 0

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { STATUS_CONFIG, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
-import { statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { statusLabels, statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { admissionSettled } from "./admit.mjs";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -2014,6 +2015,38 @@ describe("run", () => {
     const [written] = fake.calls.filter(({ method }) => method === "STATUS");
     assert.equal(written.body, "needs-owner-decision");
     assert.ok(written.fields[String(STATUS_CONFIG["field-id"])], "the person's value is handed over, so the writer skips it");
+  });
+
+  // A born-triaged issue filed with the agent-ready label and no Work status:
+  // the label starts no run, so the ready verdict writes ready and admission
+  // decides it. An issue whose field already holds agent-ready gets no write.
+  const labelOnly = (fields) => {
+    const fake = fakeGitHub({ issue: { labels: [{ name: "agent-ready" }] }, comments: [laneComment()] });
+    const github = withFields(fake.github, fields);
+    const trustedActors = { version: 1, actors: [{ id: HUMAN, login: "kyle-sexton", kind: "human" }] };
+    const statusOf = statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors, log: () => {} });
+    return { fake, run: () => run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, setStatus: fake.setStatus, statusConfig: STATUS_CONFIG, statusOf, log: () => {} }) };
+  };
+
+  test("a ready verdict on an issue with only the agent-ready label and an unset Work status writes ready", async () => {
+    const { fake, run: apply } = labelOnly({});
+    assert.equal((await apply()).outcome, "ready");
+    assert.deepEqual(states(fake.calls), ["ready"]);
+    assert.ok(!writes(fake.calls).some(({ method, path }) => method === "DELETE" && path.endsWith("/labels/agent-ready")), "the label is left as it is");
+  });
+
+  test("a ready verdict on an issue whose Work status already holds agent-ready writes no status", async () => {
+    const { fake, run: apply } = labelOnly({ 7: { state: "agent-ready", setter: HUMAN } });
+    assert.equal((await apply()).outcome, "ready");
+    assert.deepEqual(states(fake.calls), []);
+  });
+
+  // Admission reads the issue fresh after that write (admit.mjs
+  // admissionFacts), so the agent-ready label left on it no longer settles it.
+  test("once ready is written, admission does not read the leftover agent-ready label as already agent-ready", () => {
+    const anyone = () => true;
+    assert.equal(admissionSettled(["agent-ready"], [], anyone, null), "already agent-ready");
+    assert.equal(admissionSettled(statusLabels("ready", ["agent-ready"], STATUS_CONFIG), [], anyone, "ready"), null);
   });
 
   // A Work status read that fails could hide a person's hold, so the App's

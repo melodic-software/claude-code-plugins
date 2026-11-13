@@ -187,3 +187,5 @@ already in context, read the file directly.
 | `plugins/playbooks/reference/model-adaptation/AGENTS.md` | `plugins/playbooks/reference/model-adaptation/**` | model-adaptation chapters: contributor conventions |
 
 <!-- END GENERATED: instruction-placement rules index -->
+
+The table is generated; CI's `rules-index` hygiene check fails a pull request that leaves it stale.

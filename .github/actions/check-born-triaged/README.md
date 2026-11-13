@@ -31,7 +31,9 @@ these hold on the issue:
   anyone else is ignored.
 - It has an Issue Type and a status: a Work status field a trusted account set to anything but
   `needs-triage`, or the label `agent-ready`, `needs-human`, `needs-spec`, `admission-deferred`, or
-  any `status:` label.
+  any `status:` label. While `models.issue-status` is set and the field holds no trusted state,
+  `agent-ready` alone is no status: the label starts no lane run and admission writes the field, so
+  the gate returns `skip=false` with reason `label-only` at once, and intake triages the issue.
 
 The publisher sets the type and status in calls after the issue is created, so while only those are
 missing the gate re-reads the issue every 5 seconds, 6 reads in all, before it gives up. A publisher
@@ -55,7 +57,7 @@ With `born-triaged` false the gate reads the issue once and, with no routing lab
 | Output | Values |
 |---|---|
 | `skip` | `true` to skip intake, otherwise `false` |
-| `reason` | `routing-label`, `born-triaged`, `born-triaged-off`, `no-marker`, `untrusted-author`, `no-type`, `no-status`, `list-unreadable` or `issue-unreadable` |
+| `reason` | `routing-label`, `born-triaged`, `born-triaged-off`, `no-marker`, `untrusted-author`, `no-type`, `no-status`, `label-only`, `list-unreadable` or `issue-unreadable` |
 | `label` | The routing label that skipped the issue; empty otherwise |
 | `human-ids` | The list's `kind: human` ids, comma-joined, for the intake lane's `allowed-author-ids`; empty when the list is unreadable |
 | `rate-limited` | `true` when the rate guard holds a stop on the issue read's pool, from this read or an earlier step of the job; the callers then skip their jobs that call GitHub with the same token. Otherwise `false` |

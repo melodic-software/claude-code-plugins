@@ -103,7 +103,9 @@ render     print the generated block to stdout. With nothing to index it still
            prints a well-formed block saying so, which is the answer to "what
            WOULD the index hold"; `write` is the surface that decides whether
            one is worth writing, and writes none in that case
-check      compare the block inside <path> against a fresh render
+check      compare the block inside <path> against a fresh render; on drift,
+           print an ADD, CHANGE or REMOVE line per differing row, then the
+           FIX command that rewrites the block
 write      replace the block inside <path> in place, appending it if absent
 reachable  report whether anything in this repository stops Claude Code loading
            <path>: LOADED (a root memory file reaches it), UNREACHABLE (a root
@@ -283,6 +285,38 @@ PREAMBLE
     fi
   fi
   printf '%s\n' "$END_MARKER"
+}
+
+# print_row_diff <current block> <fresh block>: one line per row that differs,
+# keyed by the surface path in the row's first cell (a grouped-tail line by its
+# directory): `ADD`, `CHANGE` (the fresh row) or `REMOVE`, each with the row.
+# When every row matches, one `NOTE` line says only the surrounding text differs.
+# The blocks travel through ENVIRON for the reason the write branch gives.
+print_row_diff() {
+  IP_CUR="$1" IP_NEW="$2" awk '
+    function key(r) { sub(/^([|]|-) `/, "", r); sub(/`.*$/, "", r); return r }
+    function row(l) { return l ~ /^([|]|-) `/ }
+    BEGIN {
+      n = split(ENVIRON["IP_CUR"], a, "\n")
+      for (i = 1; i <= n; i++) if (row(a[i])) cur[key(a[i])] = a[i]
+      m = split(ENVIRON["IP_NEW"], b, "\n")
+      for (i = 1; i <= m; i++) {
+        if (!row(b[i])) continue
+        k = key(b[i]); seen[k] = 1
+        if (!(k in cur)) { printf "ADD\t%s\n", b[i]; out++ }
+        else if (cur[k] != b[i]) { printf "CHANGE\t%s\n", b[i]; out++ }
+      }
+      for (i = 1; i <= n; i++)
+        if (row(a[i]) && !(key(a[i]) in seen)) { printf "REMOVE\t%s\n", a[i]; out++ }
+      if (!out) print "NOTE\tevery row matches; the text around the table differs"
+    }'
+}
+
+# print_fix: the `write` command that clears the drift. It names the root
+# discovery read ($PWD, after the `cd` into --root), since `write` without
+# --root would render the caller's directory into the target.
+print_fix() {
+  printf 'FIX\tbash "%s/render-index.sh" write --file "%s" --root "%s"\n' "$SCRIPT_DIR" "$TARGET" "$PWD"
 }
 
 # A drive-letter path may arrive with backslashes (`C:\repo\AGENTS.md`), the
@@ -534,6 +568,7 @@ check)
   # it is stale text that outlived what it indexed, and `write` clears it.
   if block_is_empty "$BLOCK"; then
     printf 'DRIFTED\t%s\tnothing to index; the block should be removed\n' "$TARGET"
+    print_fix
     exit 1
   fi
   current="$(awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
@@ -546,6 +581,8 @@ check)
     exit 0
   fi
   printf 'DRIFTED\t%s\n' "$TARGET"
+  print_row_diff "$current" "$BLOCK"
+  print_fix
   exit 1
   ;;
 
