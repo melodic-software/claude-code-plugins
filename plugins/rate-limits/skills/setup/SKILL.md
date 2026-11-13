@@ -234,11 +234,24 @@ finishes it.
 
    Exit 3: the old directory's lock stayed held for 2 seconds; exit 4: the new directory's did;
    stop either way. Any other non-zero exit: stop and say the merge failed.
-5. **Remove the old directory.** First check that no `stop-events.jsonl` exists in
-   `~/.claude/rate-limit-guard/`: a session on the earlier name may have written one since
-   step 4. If one does, stop and say a later `apply` merges it. Otherwise delete the known
-   entries step 3 listed, then the emptied `bin/`, `spool/` and the directory itself. Report what
-   moved or merged, with the line counts, and what was removed.
+5. **Remove the old directory.** Run this block, which holds the old directory's lock while it
+   checks that no `stop-events.jsonl` is there again (a session on the earlier name may have
+   written one since step 4) and removes the directory, so no record lands between the check
+   and the delete. It removes the whole directory only because step 3 already proved every entry
+   in it known:
+
+   ```bash
+   dir="$HOME/.claude/rate-limit-guard"
+   (
+     if command -v flock >/dev/null 2>&1; then flock -w 2 8 || exit 3; fi
+     if [ -e "$dir/stop-events.jsonl" ] || [ -L "$dir/stop-events.jsonl" ]; then exit 4; fi
+     rm -rf -- "$dir" && [ ! -e "$dir" ]
+   ) 8>>"$HOME/.claude/rate-limit-guard/stop-events.jsonl.lock"
+   ```
+
+   Exit 3: the lock stayed held for 2 seconds; stop. Exit 4: a session wrote a stop record there;
+   stop and say a later `apply` merges it. Any other non-zero exit: stop and say the removal
+   failed. Report what moved or merged, with the line counts, and what was removed.
 
 A second `apply` finds nothing to move and changes nothing; say so.
 
