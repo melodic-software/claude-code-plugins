@@ -8,4 +8,5 @@ bump: minor
 
 ### Fixed
 
+- `fetch-annotations.sh` reads the PR head with `-R` naming the repository it resolved, so with `FETCH_ANNOT_REPO` set the head comes from that repository, not the shell's, as every other read in the script already did.
 - `/source-control:pull-request monitor` and `merge`: the log, annotation and comment fetches, the fix-commit check and the linked-worktree branch delete pass `--dir "<checkout>"` and run git with `-C "<checkout>"`, so a session whose shell is outside the target checkout reads and pushes to the right repository. The GitHub readiness reference names `<owner>/<repo>` on every `gh pr checks`, `gh run view` and `gh api` call instead of relying on the shell's directory or gh's `{owner}/{repo}` placeholders, and reads the head from `<checkout>`.

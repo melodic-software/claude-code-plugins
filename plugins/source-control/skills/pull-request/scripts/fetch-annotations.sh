@@ -85,10 +85,7 @@ fi
 
 # --- Resolve PR head SHA -----------------------------------------------------
 
-# With --dir the shell's directory names no repository, so the read names it.
-REPO_ARGS=()
-[[ -z "$CHECKOUT" ]] || REPO_ARGS=(-R "$REPO")
-HEAD_SHA=$(gh pr view "$PR_NUMBER" ${REPO_ARGS[@]+"${REPO_ARGS[@]}"} --json headRefOid -q .headRefOid 2>/dev/null | tr -d '\r\n')
+HEAD_SHA=$(gh pr view "$PR_NUMBER" -R "$REPO" --json headRefOid -q .headRefOid 2>/dev/null | tr -d '\r\n')
 [[ -n "$HEAD_SHA" ]] || die 2 "gh pr view $PR_NUMBER failed (no head SHA)"
 
 # --- Fetch check-runs for head SHA ------------------------------------------

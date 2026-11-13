@@ -322,6 +322,8 @@ run_outside 1 >/dev/null
 assert_exit "without --dir, a shell outside every checkout still resolves with gh repo view" 2 "$?"
 out=$(cd "$OUTSIDE" && PATH="$DIR_STUB_DIR:$PATH" FETCH_ANNOT_REPO=acme/app bash "$SCRIPT" 1 --dir "$FORK" 2>&1)
 assert_eq "FETCH_ANNOT_REPO wins over --dir" 3 "$(printf '%s\n' "$out" | grep -c '^{')"
+out=$(cd "$OUTSIDE" && PATH="$DIR_STUB_DIR:$PATH" FETCH_ANNOT_REPO=acme/app bash "$SCRIPT" 1 2>&1)
+assert_eq "FETCH_ANNOT_REPO without --dir names the repository on the PR head read too" 3 "$(printf '%s\n' "$out" | grep -c '^{')"
 out=$(cd "$OUTSIDE" && PATH="$DIR_STUB_DIR:$PATH" GH_REPO=acme/app bash "$SCRIPT" 1 --dir "$FORK" 2>&1)
 assert_eq "GH_REPO names the base repository for a fork checkout" 3 "$(printf '%s\n' "$out" | grep -c '^{')"
 run_outside 1 --dir "$NOREMOTE" >/dev/null
