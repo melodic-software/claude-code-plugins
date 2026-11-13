@@ -2562,7 +2562,10 @@ test("ciSnapshot reads a head whose lanes show their job ids, and takes a lane's
   assert.ok(mixed.runs.some((run) => run.name === "Test Bash (1)"));
 });
 
-test("every test job's display name is its id in Title Case, the name ciSnapshot matches", () => {
+// A repository that syncs this file without the test lanes has no test job to
+// name; the two tests below skip likewise without the files they read.
+const TEST_LANES = new URL("../../workflows/pr-test-platforms.yml", import.meta.url);
+test("every test job's display name is its id in Title Case, the name ciSnapshot matches", { skip: !existsSync(TEST_LANES) && "no pr-test-platforms.yml in this repository" }, () => {
   for (const file of ["pr-require-checks.yml", "pr-test-platforms.yml"]) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
     const jobs = [...text.matchAll(/^ {2}(test-[a-z0-9-]+):\n {4}name: (.+)$/gm)];
@@ -2587,7 +2590,8 @@ test("ciSnapshot plans from every changed path, rename sources included", async 
   assert.deepEqual(seen, [".github/workflows/x.yml", "docs/new.md", "docs/old.md"]);
 });
 
-test("planLanes runs the repository's scripts/plan-test-lanes.sh over the paths", () => {
+const PLAN_SCRIPT = new URL("../../../scripts/plan-test-lanes.sh", import.meta.url);
+test("planLanes runs the repository's scripts/plan-test-lanes.sh over the paths", { skip: !existsSync(PLAN_SCRIPT) && "no scripts/plan-test-lanes.sh in this repository" }, () => {
   const plan = planLanes(["scripts/plan-test-lanes.sh"]);
   assert.equal(plan.bash, "true");
   assert.ok(coveringLanes(plan).includes("test-bash (0)"));
@@ -2620,7 +2624,8 @@ test("select records the ci snapshot for run.json; with no snapshot function it 
 
 // #12346: the fix to lib/hook-utils.sh had to regenerate its copies; the
 // select job reads them from the base copy's scripts/shared-copies.txt.
-test("copyPathsFor lists the registered copies of the canonicals a PR changes", () => {
+const HOOK_UTILS = new URL("../../../lib/hook-utils.sh", import.meta.url);
+test("copyPathsFor lists the registered copies of the canonicals a PR changes", { skip: !existsSync(HOOK_UTILS) && "no lib/hook-utils.sh canonical in this repository" }, () => {
   const copies = copyPathsFor([{ filename: "lib/hook-utils.sh" }, { filename: "README.md" }]);
   assert.ok(copies.includes("plugins/source-control/hooks/hook-utils.sh"), copies.join(" "));
   assert.ok(copies.length >= 20 && copies.every((path) => /^plugins\/[^/]+\/.+\/hook-utils\.sh$/.test(path)), copies.join(" "));
