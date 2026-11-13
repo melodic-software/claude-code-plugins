@@ -76,6 +76,15 @@ LANES: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 
 
+# Lane id -> the caller job that calls the lane's reusable workflow, the part
+# of each status job name in LANES before ` / `: its display name, and its id
+# for a head tested before the rename.
+CALLER_JOBS: dict[str, frozenset[str]] = {
+    "claude-review": frozenset({"PR Review", "pr-review"}),
+    "claude-security-review": frozenset({"PR Review Security", "pr-review-security"}),
+}
+
+
 def lane_of_job(name: Any) -> str:
     """The lane whose status job `name` is, else ''."""
     return next((lane for lane, (_, jobs) in LANES.items() if name in jobs), "")
@@ -1478,6 +1487,23 @@ def _lost_before_lane_job(lane: str, attempt: Mapping[str, Any]) -> bool:
     )
 
 
+def _caller_skipped(lane: str, attempt: Mapping[str, Any]) -> bool:
+    """Whether this attempt succeeded with the lane's caller job skipped and
+    no lane job: Wait Refine saw the head move while it waited."""
+    jobs = attempt.get("jobs")
+    return (
+        attempt.get("conclusion") == "success"
+        and isinstance(jobs, list | tuple)
+        and not _has_lane_job(lane, jobs)
+        and any(
+            isinstance(job, Mapping)
+            and job.get("name") in CALLER_JOBS[lane]
+            and job.get("conclusion") == "skipped"
+            for job in jobs
+        )
+    )
+
+
 def _poster(comments: Any, threads: Any) -> Poster:
     """`lane_posted` over this pull request's comments and threads."""
     return lambda lane, head, since, until: lane_posted(
@@ -1797,7 +1823,10 @@ def _open_findings(
     for item in lane_runs:
         for attempt in _attempts(item).values():
             # A draft-skipped, kill-switched or upstream-stopped run reviewed
-            # nothing, nor did a lost one that never reached its lane job.
+            # nothing, nor did a lost one that never reached its lane job, nor
+            # one whose caller job was skipped because the head moved while
+            # Wait Refine waited. At the pinned head such a run still unbinds
+            # (`_bound_record`).
             if (
                 attempt.get("status") != "completed"
                 or attempt.get("conclusion") == "skipped"
@@ -1807,6 +1836,7 @@ def _open_findings(
                     and _upstream_stopped(lane, item["id"], attempt)
                 )
                 or _lost_before_lane_job(lane, attempt)
+                or _caller_skipped(lane, attempt)
             ):
                 continue
             job = _lane_job(lane, item["id"], attempt)
