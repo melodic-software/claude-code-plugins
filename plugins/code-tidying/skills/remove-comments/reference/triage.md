@@ -111,9 +111,8 @@ so under `explanatory` a rationale that fails criterion 2 is still deleted; the 
 route to class A and never keeps a comment the criteria would remove.
 
 Under `necessary` and `none` the keeps listed in `SKILL.md` that state a fact about the code take
-the same re-check; a contradicted keep is obsolete, and under `necessary` an outside-constraint
-keep stays only when verified: the adjacent code depends on the named party and nothing in this
-repository could remove the reason. The outside fact itself need not be provable from here.
+the same re-check; a contradicted keep is obsolete, and under `necessary` a keep stays only when it
+meets every condition its entry in the resolved keep list sets.
 The mode still decides what is applied: `safe` applies the class-A deletion, and
 `report` proposes it.
 
@@ -126,10 +125,9 @@ Criterion 3 has its own treatment, the rewrite above; only criterion 2 sends a c
 Under `safe` this deletion is **proposed, never applied**. That mode applies class-A deletions only, and a comment that reached this branch is class C whatever its
 test returned. What the run may apply is set by the mode, never by a verdict reached inside it.
 
-Under `necessary` and `none` the criteria are not what decides. The keep list in `SKILL.md`
-does: the floor, public-API doc comments, and (under `necessary`) a verified outside-constraint
-comment stay,
-and every other comment here is staged and deleted behind the same token proof, recoverable
+Under `necessary` and `none` the criteria are not what decides. The posture's keep list does
+(`SKILL.md`, Postures): the floor stays, and above it public-API doc comments under `none` and the
+resolved keep list under `necessary`; every other comment here is staged and deleted behind the same token proof, recoverable
 rationale or not. Criterion 2 is not evaluated for them, since its answer changes nothing.
 
 **Whole-file verdict.** Where the majority of a file's class-C comments carry contract, negative, or
