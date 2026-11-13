@@ -77,8 +77,8 @@ Two guarantees hold across every step:
 | The chosen way for a repeated task | the file the index's `paved-path` row routes to | [`standards`](../standards/README.md#paved-paths) | `/discipline:reuse-or-replace`, after a yes |
 | The order of enforcement mechanisms | the project instructions | [`enforcement-ladder`](../enforcement-ladder/README.md#reordering) | the person |
 
-The generic text carries the first two columns of this table in its own words, with the default
-paths spelled out, so a carrier's copy works offline. A new row changes both files in the same pull
+The generic text carries the Choice, Record and Writer columns of this table in its own words,
+with the default paths spelled out, so a carrier's copy works offline. A new row changes both files in the same pull
 request.
 
 ## Carrier rule

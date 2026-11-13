@@ -25,12 +25,12 @@ written with.
    when you cannot tell. A run you are unsure of is unattended.
 2. **Read the record.** Look for the choice where the repository writes that kind of choice down:
 
-   | Choice | Record |
-   |---|---|
-   | A build, test, lint or format command for one ecosystem | `.claude/ecosystems/<ecosystem>.yaml` |
-   | A language, framework or library convention, or a review criterion | the standards index (`docs/standards/README.md` unless `.claude/standards.yaml` moves it) and the files its rows route to |
-   | The repository's chosen way for a task it repeats | the file the `paved-path` row of that index routes to |
-   | The order of enforcement mechanisms | the project instructions: `CLAUDE.md`, an `AGENTS.md` the session reads, or a rules file |
+   | Choice | Record | Writer |
+   |---|---|---|
+   | A build, test, lint or format command for one ecosystem | `.claude/ecosystems/<ecosystem>.yaml` | the owning plugin's re-runnable `setup`; a lane's record pull request, once merged |
+   | A language, framework or library convention, or a review criterion | the standards index (`docs/standards/README.md` unless `.claude/standards.yaml` moves it) and the files its rows route to | the standards setup, on acceptance |
+   | The repository's chosen way for a task it repeats | the file the `paved-path` row of that index routes to | `/discipline:reuse-or-replace`, after a yes |
+   | The order of enforcement mechanisms | the project instructions: `CLAUDE.md`, an `AGENTS.md` the session reads, or a rules file | the person |
 
    A recorded choice is used as recorded, with the record named as its source. It is read before
    any inference, so two runs on the same repository make the same choice.
@@ -45,7 +45,9 @@ written with.
 5. **Ask, attended only.** When nothing resolved, or the files left a tie, ask the person once and
    offer the candidates you found. An unattended run does not ask.
 6. **Record, attended only.** Offer to write a stated, inferred or answered choice to its record
-   in step 2's table, and write it only after the person says yes. An unattended run writes no
+   in step 2's table, and write it only after the person says yes, through the writer that table
+   names, never into a file you pick yourself. Where the writer is the person (the order of
+   enforcement mechanisms), offer the text and let the person write it. An unattended run writes no
    record. It logs each command it runs as assumed, with its source: the record, the file that
    states it, or the file that implies it. When its lane proposes records, it may propose an
    ecosystem record (`.claude/ecosystems/<ecosystem>.yaml`) in a pull request instead, holding only
