@@ -23,7 +23,7 @@
     "ratchet_offer": {
       "type": "boolean",
       "default": true,
-      "description": "When true, a /corrections:codify proposal on a rung that counts violations offers /toolchain:ratchet for a non-zero count once the rule exists. Resolved over the user option of the same name."
+      "description": "When true, a /corrections:codify proposal on a rung that counts violations offers /toolchain:ratchet once the rule exists, for existing violations too many to clean up in the same change. Resolved over the user option of the same name."
     },
     "review_mining_prs": {
       "type": "integer",
