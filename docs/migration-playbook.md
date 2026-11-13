@@ -236,6 +236,13 @@ The **adopted** rule for how a plugin settles a value at runtime, applied to eve
 3. Cannot infer → ask the user, and offer to persist the answer.
 4. Otherwise → a safe generic default.
 
+A consumer-tool seam (a language, framework, tool, library or command choice) resolves through the
+[ecosystem-resolution contract](contracts/ecosystem-resolution/README.md) instead, where two rules
+differ: step 4 is an unresolved report that names the choice and skips the step, never a generic
+default; and for an ecosystem record (`.claude/ecosystems/<ecosystem>.yaml`) only, "a merged pull
+request counts as acceptance" of a lane's proposed record, in place of the operator's confirmation
+in step 2.
+
 No baked repo assumptions, ever. A plugin never hardcodes a consumer's layout; it reads a declared
 value, infers-and-records (gated), or asks. It never guesses silently. Nothing hardcodes
 `docs/conventions/`: the home is whatever the pointer line names.
@@ -1105,3 +1112,5 @@ playbook:
   medley's servers (2026-07-12).
 - [ADR 0093](adr/0093-record-plugin-acceptance-security-reviews.md), the plugin-acceptance
   security review records (2026-07-12 onward).
+- [ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md), ecosystem
+  specifics resolved from the consumer repository (2026-11-13).

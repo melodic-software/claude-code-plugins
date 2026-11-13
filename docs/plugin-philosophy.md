@@ -414,6 +414,17 @@ as defaults. This governs every plugin and every convention, not one class. Two 
    table assuming them. A convention a consumer could reasonably do differently belongs in lane 2, as
    a discovered-and-externalized extensibility point, never as a lane-1 default.
 
+**Consumer-tool port exception.** A consumer-tool port is a step where a skill runs, recommends or
+builds on one of the consumer's languages, frameworks, tools, libraries or commands. It takes no
+lane-1 default, however safe one looks: when the consumer's choice does not resolve, the skill
+reports it unresolved and skips the step. The named exceptions (executed adapters, security and
+safety floors, declared-ecosystem surfaces, source citations) are in
+[ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md).
+
+Lane 2's discovery for a consumer-tool port is the
+[ecosystem-resolution contract](contracts/ecosystem-resolution/README.md): read the record, then
+what the repository states, then what its files imply, then ask when a person is present.
+
 A bare lane-1 hardcode in a skill declared agnostic is a defect, mechanically caught rather than
 asserted only in prose: a fixed default branch, forge, ecosystem, or tracker where the consuming
 repo could reasonably differ. A detection-first or presence-gated use is compliant. A capability
@@ -898,6 +909,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Commit-convention enforcement boundary | [`docs/contracts/commit-convention/`](contracts/commit-convention/README.md) |
 | PR-body required-sections convention | [`docs/contracts/pr-body-convention/`](contracts/pr-body-convention/README.md) |
 | Ecosystem command resolution | [`docs/contracts/ecosystem-commands/`](contracts/ecosystem-commands/README.md) |
+| Ecosystem resolution: how a skill finds the consumer's language, framework, tool and library choices, run kinds, the record table and carriers | [`docs/contracts/ecosystem-resolution/`](contracts/ecosystem-resolution/README.md); carrier plugins hold generated copies of its generic text |
 | Hook telemetry | [`docs/contracts/hook-telemetry/`](contracts/hook-telemetry/README.md) |
 | Hook observability (status/failure surfaces) | [`docs/contracts/hook-observability/`](contracts/hook-observability/README.md) |
 | Hook precision (false-positive discipline) | [`docs/contracts/hook-precision/`](contracts/hook-precision/README.md) |
