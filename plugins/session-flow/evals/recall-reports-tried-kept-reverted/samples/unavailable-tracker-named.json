@@ -41,6 +41,26 @@
     {
       "answer": "The tracker was searched, but closed PRs weren't checked.",
       "why": "tracker searched, the negation belongs to the pull requests"
+    },
+    {
+      "answer": "The tracker returned 2 items and closed PRs weren't searched.",
+      "why": "tracker returned items, the negation belongs to the pull requests"
+    },
+    {
+      "answer": "Tracker: 2 open items, and gh isn't authenticated.",
+      "why": "tracker listed items, the negation belongs to gh"
+    },
+    {
+      "answer": "Searched the tracker: 2 open items, and PRs aren't available.",
+      "why": "tracker searched, the negation belongs to the pull requests"
+    },
+    {
+      "answer": "Tracker: one open item, and closed PRs weren't searched.",
+      "why": "tracker listed an item, the negation belongs to the pull requests"
+    },
+    {
+      "answer": "Tracker has items and PRs weren't searched.",
+      "why": "tracker has items, the negation belongs to the pull requests"
     }
   ]
 }

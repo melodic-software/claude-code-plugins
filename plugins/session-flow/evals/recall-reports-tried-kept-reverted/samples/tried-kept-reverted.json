@@ -49,6 +49,46 @@
     {
       "answer": "The sliding window was reverted in 4c5d6e7 after bursts, and the token bucket is still current (a1b2c3d).",
       "why": "token bucket named after the sliding window and called current"
+    },
+    {
+      "answer": "**Tried**\n- token-bucket rate limiter (a1b2c3d)\n- sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: it dropped legitimate requests during bursts.\n\n**Answer:** the token bucket replaced the sliding window and is current.",
+      "why": "closing line: the token bucket replaced the sliding window and is current"
+    },
+    {
+      "answer": "**Tried**\n- token-bucket rate limiter (a1b2c3d)\n- sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: it dropped legitimate requests during bursts.\n\n**Answer:** the token bucket, not the sliding window, is current.",
+      "why": "closing line: appositive calls the token bucket current"
+    },
+    {
+      "answer": "The token bucket was reverted in 39620d8 after bursts, then re-applied; the token bucket replaced the sliding window and is current.",
+      "why": "token bucket re-applied and called current"
+    },
+    {
+      "answer": "**Tried**\n- token-bucket rate limiter (a1b2c3d)\n- sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: it dropped legitimate requests during bursts.\n\n**Answer:** the token bucket rather than the sliding window is still in place.",
+      "why": "closing line: token bucket rather than the sliding window is in place"
+    },
+    {
+      "answer": "**Tried**\n- token-bucket rate limiter (a1b2c3d)\n- sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: it dropped legitimate requests during bursts.\n\n**Answer:** the token bucket instead of the sliding window is current.",
+      "why": "closing line: token bucket instead of the sliding window is current"
+    },
+    {
+      "answer": "**Tried**\n- token-bucket rate limiter (a1b2c3d)\n- sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: it dropped legitimate requests during bursts.\n\n**Answer:** the token bucket superseded the sliding window and is current.",
+      "why": "closing line: token bucket superseded the sliding window and is current"
+    },
+    {
+      "answer": "**Tried**\n- token-bucket rate limiter (a1b2c3d)\n- sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: it dropped legitimate requests during bursts.\n\n**Answer:** the token bucket took over from the sliding window and is current.",
+      "why": "closing line: token bucket took over from the sliding window and is current"
+    },
+    {
+      "answer": "**Tried**\n- token-bucket rate limiter (a1b2c3d)\n- sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: it dropped legitimate requests during bursts.\n\n**Answer:** the token bucket unlike the sliding window is current.",
+      "why": "closing line: token bucket unlike the sliding window is current"
+    },
+    {
+      "answer": "**Tried**\n- token-bucket rate limiter (a1b2c3d)\n- sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: it dropped legitimate requests during bursts.\n\n**Answer:** the token bucket succeeded the sliding window and is current.",
+      "why": "closing line: token bucket succeeded the sliding window and is current"
+    },
+    {
+      "answer": "**Tried**\n- token-bucket rate limiter (a1b2c3d)\n- sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: it dropped legitimate requests during bursts.\n\n**Answer:** the token bucket came after the sliding window and is current.",
+      "why": "closing line: token bucket came after the sliding window and is current"
     }
   ]
 }
