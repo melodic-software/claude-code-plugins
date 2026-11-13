@@ -32,7 +32,7 @@ gracefully when absent, no hard dependencies:
 - **`testing`**. `/testing:plan`, `/testing:write`, `/testing:diagnose` for coverage,
   authoring, and failure diagnosis.
 - **`verification`**. `/verification:confirm` for outcome verification at the pre-PR
-  handoff; when absent, self-verify the outcome against the plan/intent directly.
+  handoff; when absent, the run says outcome verification did not run.
 
 ## Works in any repo
 
@@ -72,8 +72,8 @@ plugins. Install the plugins you relied on:
 ```
 
 `/implementation:implement` and `/implementation:implement-dispatch` still run without them.
-Build/test falls back to the project's own command and outcome verification falls back to
-self-verification, but installing the companion plugins restores the full former surface.
+Build/test falls back to the project's own command and outcome verification is reported as not
+run, but installing the companion plugins restores the full former surface.
 
 ## Configuration
 

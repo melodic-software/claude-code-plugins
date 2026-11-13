@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: script-the-deterministic-work-standard-dispatches-subagent
+context:
+  scaffold_script: scaffold.sh

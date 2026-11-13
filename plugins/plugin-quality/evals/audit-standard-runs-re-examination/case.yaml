@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: audit-standard-runs-re-examination
+description: 'SKILL.md step 5 role seams at high effort with the stated reader line verification: standard: the adversarial re-examination seam runs, through the role-matched skill or its fresh-subagent fallback, and no skip token is written.'
+tags: [audit, verification-level, read-only]
+plugins: ["../.."]
+expected_outcome: 'Lists adversarial re-examination among the seams that run at high effort, with its fresh-subagent fallback, and writes no verification: skipped line.'
+execution:
+  prompt: 'At high effort, which review seams does /plugin-quality:audit step 5 run, and what happens to the findings? Answer from the skill; do not start an audit. [The level reader has already been run for this case and printed `verification: standard (docs/conventions/plugin-quality.yaml verification at origin/main)`; this run uses that line and does not run the reader again.]'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: no-skip-token
+    type: regex
+    pattern: 'verification[*_`\\]*:[*_`\s\\]*skipped'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+    arm: both
+  - name: re-examination-runs
+    type: llm
+    arm: both
+    criteria: 'PASS only if the reply says the adversarial re-examination seam runs at high effort, through a matching skill or a fresh subagent that re-derives each finding from its cited artifact. FAIL if it says the seam is skipped or omits it.'

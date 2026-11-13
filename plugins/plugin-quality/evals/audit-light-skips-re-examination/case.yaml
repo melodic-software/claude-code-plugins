@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: audit-light-skips-re-examination
+description: 'SKILL.md step 5 role seams at high effort with the stated reader line verification: light: the adversarial re-examination seam does not run at any effort, nothing re-derives the findings in its place, and the write-up names the skip and labels the findings unverified.'
+tags: [audit, verification-level, read-only]
+plugins: ["../.."]
+expected_outcome: 'Says adversarial re-examination is skipped even at high effort, writes verification: skipped (light), and says the findings are labeled unverified; the other three seams still follow the effort gate.'
+execution:
+  prompt: 'At high effort, which review seams does /plugin-quality:audit step 5 run, and what happens to the findings? Answer from the skill; do not start an audit. [The level reader has already been run for this case and printed `verification: light (docs/conventions/plugin-quality.yaml verification at origin/main)`; this run uses that line and does not run the reader again.]'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: writes-skip-token
+    type: regex
+    pattern: 'verification[*_`\\]*:[*_`\s\\]*skipped \(light\)'
+    flags: 'i'
+    target: 'last_message'
+    arm: both
+  - name: findings-unverified
+    type: regex
+    pattern: '\bunverified\b'
+    flags: 'i'
+    target: 'last_message'
+    arm: both
+  - name: re-examination-skipped
+    type: llm
+    arm: both
+    criteria: 'PASS only if the reply says the adversarial re-examination seam does not run at high effort under this level, that no fresh subagent or self-check re-derives the findings in its place, and that the other seams still run at high effort. FAIL if it says the re-examination runs.'

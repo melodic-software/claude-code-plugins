@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Skeptic refutation returned | run: a fresh subagent builds the case against each candidate |",
+      "why": "the row runs"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Skeptic refutation returned | verification: skipped (standard) |",
+      "why": "a skip token at standard"
+    },
+    {
+      "answer": "- **verification:** skipped (light)",
+      "why": "bold skip label"
+    }
+  ]
+}

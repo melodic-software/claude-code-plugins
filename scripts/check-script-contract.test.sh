@@ -70,6 +70,7 @@ f=""
 REGISTRY=(
   "check-adr-numbers.sh|-|-|adr_numbers"
   "check-affected.sh|-|-|-"
+  "check-as-of-recheck.sh|-|-|as_of_recheck"
   "check-app-key-references.sh|-|-|-"
   "check-artifact-retention.sh|node|-|-"
   "check-all-skills-verb-contract.sh|-|-|-"
@@ -377,6 +378,16 @@ recipe::spoke_plugin_root() { # <clean|violation>
   capture run_in "$f" bash scripts/check-spoke-plugin-root.sh --check
 }
 
+recipe::as_of_recheck() { # <clean|violation>
+  local skill=plugins/demo/skills/audit/SKILL.md
+  fixture_tree::build f --sut "$SELF_DIR/check-as-of-recheck.sh" --label as-of-recheck || return 2
+  mkdir -p "$f/${skill%/*}"
+  printf 'Cap 3, as of 2026-01-01; recheck when the cap moves.\n' >"$f/$skill"
+  [[ "$1" == violation ]] && printf 'Cap 3, as of 2026-01-01.\n' >"$f/$skill"
+  printf '# none\n' >"$f/scripts/as-of-recheck-baseline.txt"
+  capture run_in "$f" bash scripts/check-as-of-recheck.sh --check
+}
+
 recipe::queue_front_matter() { # <clean|violation>
   local status=unclaimed
   [[ "$1" == violation ]] && status=open
@@ -479,6 +490,7 @@ declare -A VIOLATION_NEEDLE=(
   [convention_yaml]='docs/conventions/alpha.yaml: no schema'
   [adr_numbers]='0001: docs/adr/0001-first.md, docs/adr/0001-second.md'
   [spoke_plugin_root]='plugins/demo/skills/audit/context/step.md: contains'
+  [as_of_recheck]='plugins/demo/skills/audit/SKILL.md:1: FIX: add a recheck trigger'
   [pipefail_grep_q]='PIPED EARLY-EXIT GREP:'
   [upstream_drift]='docs/upstream/widgets.md:3: acme/widgets M a.md'
 )

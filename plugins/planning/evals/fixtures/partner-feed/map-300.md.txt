@@ -1,6 +1,6 @@
 # #300 Map: partner shipment feed
 
-State: open. Labels: work-map. Assignee: none.
+State: open. Labels: wayfind: map. Assignee: none.
 
 ## Destination
 

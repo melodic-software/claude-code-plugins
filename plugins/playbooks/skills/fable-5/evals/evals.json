@@ -295,7 +295,7 @@
       "id": 24,
       "name": "delegate-isolation-fresh-verifier-small-batch",
       "narration": true,
-      "prompt": "/playbooks:fable-5. You just finished a multi-file edit: you renamed `handle_refund` to `process_refund` across four files and changed how it retries a failed refund. It took four tool calls. Before you tell me it is done, say what you will do first, then stop.",
+      "prompt": "/playbooks:fable-5. You just finished a multi-file edit: you renamed `handle_refund` to `process_refund` across four files and changed how it retries a failed refund. It took four tool calls. Before you tell me it is done, say what you will do first, then stop. [The level reader has already been run for this case and printed `verification: standard (docs/conventions/playbooks.yaml verification at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "Plans a fresh-context verifier in addition to its own self-review before declaring the task done, because the batch spans several files and changed behavior. It plans to hand the verifier the changed files and yes/no criteria checkable by reading or searching (zero hits for handle_refund, every caller uses process_refund, the retry path matches the new rule) and to withhold its own rationale. The small size of the change does not excuse the verifier.",
       "files": [],
       "expectations": [

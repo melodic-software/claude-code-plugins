@@ -97,7 +97,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 - Never claim "done", "fixed", or "works" without a tool result observed this session after your last change; a check that cannot run downgrades the claim to exactly "implemented, not verified because Y".
 - A failing check is evidence about the code. Never edit, weaken, skip, or special-case a test to force green without a stated, sourced reason the test itself is wrong.
 - Green mechanical gates prove you did not break the machine, not that you did what was asked, run one outcome check keyed to the change type.
-- Before the final claim, attack your own change: one out-of-design input, one forced error path, the unmodified callers. For multi-file or multi-part work this self-review is a floor. A fresh-context verifier with binary criteria is required in addition, unless every batch the trigger covers is mechanical, wholly behavior-preserving, narrow in blast radius, and free of any subjective verdict (orchestration, "Fresh-context verification").
+- Before the final claim, attack your own change: one out-of-design input, one forced error path, the unmodified callers. For multi-file or multi-part work this self-review is a floor. At the `standard` and `strict` verification levels (resolved below), a fresh-context verifier with binary criteria is required in addition, unless every batch the trigger covers is mechanical, wholly behavior-preserving, narrow in blast radius, and free of any subjective verdict; `strict` drops that exception. Under `light` and `off`, dispatch none, add no self-check in its place, and state `verification: skipped (<level>)` with the claim (orchestration, "Fresh-context verification").
 
 ### Talking to the user. Communication
 
@@ -109,6 +109,8 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 - Lead with the outcome; end no turn on unexecuted intent, at any effort level: work through an ordinary obstacle and report a deliberate block; write the closing message for a reader who wasn't watching.
 
 **Resolving `described_problem`** (at arm time), lowest layer first: the default `report`; the user config value `${user_config.described_problem}`, where a literal unexpanded placeholder means unset; then the `described_problem` key of `docs/conventions/playbooks.yaml` in the repository the session works in, which wins when set (schema: [`${CLAUDE_PLUGIN_ROOT}/schemas/playbooks.schema.json`](${CLAUDE_PLUGIN_ROOT}/schemas/playbooks.schema.json)). Read that file only when the working directory's git root is neither `$HOME` nor an ancestor of it; otherwise skip the repository layer and say so. A value other than `report` or `fix` in either layer is named, with its file or layer, as invalid and resolves `report`. State one line naming the value and its layer, e.g. `described_problem: fix (docs/conventions/playbooks.yaml)`: a flag this rule requires, so meta-rule 4 allows it. The plugin's settings page is [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
+
+**Resolving `verification`** (at arm time): run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin playbooks --skill fable-5 --file docs/conventions/playbooks.yaml` and state the line it prints, a flag meta-rule 4 allows ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). That level governs the fresh-context verifier gate in Proving it.
 
 ### Getting unstuck. Recovery
 

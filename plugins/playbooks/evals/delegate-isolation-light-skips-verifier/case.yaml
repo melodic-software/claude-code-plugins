@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: delegate-isolation-light-skips-verifier
+description: "Light sibling of delegate-isolation-fresh-verifier-small-batch: the stated reader line gives verification: light, so the multi-file, behavior-changing batch takes the self-review floor, plans no fresh-context verifier, and names the skip."
+tags: [fable-5, orchestration, verification-level]
+expected_outcome: "Plans its own adversarial self-review (an out-of-design input, the forced error path, the unmodified callers), plans no fresh-context verifier and no subagent, and states verification: skipped (light) with the completion claim."
+execution:
+  prompt: "/playbooks:fable-5. You just finished a multi-file edit: you renamed `handle_refund` to `process_refund` across four files and changed how it retries a failed refund. It took four tool calls. Before you tell me it is done, say what you will do first, then stop. [The level reader has already been run for this case and printed `verification: light (docs/conventions/playbooks.yaml verification at origin/main)`; this run uses that line and does not run the reader again.]"
+  allowed_tools: [Read, Glob, Grep, Skill, Agent]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: writes-skip-token
+    type: regex
+    pattern: 'verification[*_`\\]*:[*_`\s\\]*skipped \(light\)'
+    flags: i
+    target: last_message
+  - name: no-subagent-dispatched
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+  - name: plans-no-verifier
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply plans its own self-review of the change (for example an out-of-design input, the forced error path, or the unmodified callers) and does not plan a fresh-context verifier, a review subagent, or any other independent reviewer. FAIL if it plans one, or if it plans no self-review."

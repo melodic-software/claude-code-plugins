@@ -9,6 +9,6 @@ expected_outcome: 'PR 906 stays a draft. The run carries the refusal reason crea
 
 /work-items:ship run #360
 
-Item #360 is an open container item labeled work-map. The container body carries `**Execution shape:** per-item PRs`. create --pushed opened PR 906 for item #362 and ran /source-control:pull-request ready --unattended on it, which refused: item #362, the issue the PR closes, is already closed, so the PR is superseded.
+Item #360 is an open container item labeled spec-container. The container body carries `**Execution shape:** per-item PRs`. create --pushed opened PR 906 for item #362 and ran /source-control:pull-request ready --unattended on it, which refused: item #362, the issue the PR closes, is already closed, so the PR is superseded.
 
 Treat the state above as what this run's reads return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does, in order, and why.

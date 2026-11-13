@@ -61,7 +61,9 @@ No action → route on completion stage (partway draft → `demo`; near-complete
   candidate, not choice points offered to him. Run the countable passes as commands, per the rubric
   row of `/songwriting:co-write`'s hard gate (syllables from `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh syllables <word>`, repeats from a
   word-frequency count), and let that gate's skeptic row test the judgment passes from a fresh
-  context. Rewrites and variation sets are line emission: cycle
+  context, at the level
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin songwriting --skill diagnose`
+  prints, under that row's rules for each level. Rewrites and variation sets are line emission: cycle
   [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) in full on every
   candidate, pass 1 clean, and DROP any candidate a pass flagged rather than presenting it flagged.
   Two rejected executions in one slot ends generation for that slot: hand the concept back per

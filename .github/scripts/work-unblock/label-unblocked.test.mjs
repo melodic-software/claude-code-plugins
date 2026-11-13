@@ -6317,6 +6317,29 @@ test("a stranded agent-ready issue with no lane run is re-fired once with the re
   assert.ok(refireComment(KEY, NO_RUN_CAUSE).startsWith(`<!-- work-unblock refired ${KEY} -->\n${NO_RUN_CAUSE}`));
 });
 
+// The field listing names an issue agent-ready by its label alone when its
+// Work status is unset; a restart there only finds the field unset and writes
+// nothing (write-status.mjs restart `from`), so the sweep reads nothing for it
+// and posts no re-fire record. One whose field holds agent-ready is re-fired.
+test("a stranded issue that carries the agent-ready label with no Work status gets no re-fire record and no restart", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const listingAt = (state) => async (states) => {
+    const item = { number: 30, created_at: "2026-10-10T00:00:00Z", labels: ["agent-ready"], state };
+    return !states || states.includes("agent-ready") ? [item] : [];
+  };
+  const stranded = () => {
+    const fake = world({ openReady: [ready(30)], openIssues: [ready(30)], comments: { 30: [note()] }, events: { 30: [added("2026-10-16T08:00:00Z", OWNER)] }, blobs: BLOBS });
+    return { ...fake, actions: fake.github };
+  };
+  const unset = stranded();
+  assert.equal(await sweep({ github: unset.github, actions: unset.actions, byStatus: listingAt(null) }), 0);
+  assert.deepEqual(writes(unset.calls), []);
+  assert.ok(!unset.calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/30/comments`) || call.startsWith(`GET /repos/${REPO}/issues/30/events`)), "nothing is read for it");
+  const set = stranded();
+  assert.equal(await sweep({ github: set.github, actions: set.actions, byStatus: listingAt("agent-ready") }), 0);
+  assert.deepEqual(writes(set.calls), refiredFor(30, NO_RUN_CAUSE));
+});
+
 // Owner 2026-10-24: nothing stops an item but intent or security, so a
 // stranded issue already re-fired on these workflow files is re-fired again on
 // a backoff (3 hours doubling per re-fire, at most 24), with one comment
@@ -7818,9 +7841,9 @@ test("a carried wait only holds: a malformed or overlong one is read fresh, and 
   assert.deepEqual(writes(fresh.calls), [30, 31].flatMap(restarted));
 });
 
-// A map issue (the tracker binding's container label, `work-map` by default)
-// and each of its items (a label starting with its wayfind prefix, `wayfind:`
-// by default) belong to the skill that filed them, which routes them: the run
+// A spec container (the tracker binding's container label, `spec-container` by
+// default) and a map or map item (a label starting with its wayfind prefix,
+// `wayfind:` by default) belong to the skill that filed them, which routes them: the run
 // reads and writes nothing for one past the listing that named it, and names
 // it in one notice. Each case pairs with the same issue without the label,
 // which the run decides as before, so a map item that loses its label is
@@ -7838,12 +7861,12 @@ test("a map item closing leaves its map's admission comment unread and unwritten
   assert.ok(!logs.some((line) => line.includes("map issue(s)")), "no map notice without a map");
 
   logs.length = 0;
-  const map = splitWaitWorld({ labels: ["status: ready", "work-map"] });
+  const map = splitWaitWorld({ labels: ["status: ready", "spec-container"] });
   assert.equal(await sweep({ github: map.github }), 0);
   assert.deepEqual(writes(map.calls), [], "the map's comment is not rewritten");
   assert.deepEqual(touches(map.calls, 30), [], "the map is never read past its parent lookup");
   assert.ok(map.calls.includes(`GET /repos/${REPO}/issues/31/parent`), "the closed item's parent is looked up once");
-  assert.ok(logs.includes(mapNotice([[30, "work-map"]])), logs.join("\n"));
+  assert.ok(logs.includes(mapNotice([[30, "spec-container"]])), logs.join("\n"));
   for (const read of [`GET /repos/${REPO}/issues/30/comments`, `GET /repos/${REPO}/issues/30/sub_issues`]) {
     assert.ok(control.calls.some((call) => call.startsWith(read)), `without the label the run makes ${read}`);
   }
@@ -7887,11 +7910,11 @@ test("a deferred map is not revisited; without the label it is admitted", async 
   assert.deepEqual(writes(control.calls), [labeled(25)]);
 
   logs.length = 0;
-  const map = deferredWorld({ labels: ["admission-deferred", "status: ready", "work-map"] });
+  const map = deferredWorld({ labels: ["admission-deferred", "status: ready", "spec-container"] });
   assert.equal(await sweep({ github: map.github }, PAUSING), 0);
   assert.deepEqual(writes(map.calls), []);
   assert.deepEqual(touches(map.calls, 25), [], "no read of its events, labels or blockers");
-  assert.ok(logs.includes(mapNotice([[25, "work-map"]])), logs.join("\n"));
+  assert.ok(logs.includes(mapNotice([[25, "spec-container"]])), logs.join("\n"));
 });
 
 test("a blocker's close leaves a map item it blocked unread and unlabeled; without the label it is labeled", async (t) => {
@@ -7930,7 +7953,7 @@ test("the labels come from the binding at BASE_PATH: a remapped container and pr
   const base = tempDir("work-unblock-binding-");
   mkdirSync(join(base, "docs/conventions"), { recursive: true });
   writeFileSync(join(base, "docs/conventions/work-items.yaml"), 'tracker:\n  config:\n    container_label: epic\n    wayfind_label_prefix: "chart:"\n');
-  const items = [readyIssue(26, { labels: [...READY_LABELS, "epic"] }), readyIssue(27, { labels: [...READY_LABELS, "chart: open"] }), readyIssue(28, { labels: [...READY_LABELS, "work-map"] })];
+  const items = [readyIssue(26, { labels: [...READY_LABELS, "epic"] }), readyIssue(27, { labels: [...READY_LABELS, "chart: open"] }), readyIssue(28, { labels: [...READY_LABELS, "spec-container"] })];
   const { github, calls } = readyWorld({ items });
   assert.equal(await sweep({ github, admission: admissionFor() }, { ...PAUSING, BASE_PATH: base }), 0);
   assert.deepEqual(writes(calls), [labeled(28)]);

@@ -116,13 +116,13 @@ test("a born-triaged issue in status: ready with no agent-ready, deferral, hold 
 });
 
 // /planning:wayfind and /work-items:decompose route an issue with a routing
-// label (the binding's container label, default `work-map`, or a label
+// label (the binding's container label, default `spec-container`, or a label
 // starting with its wayfind prefix, default `wayfind:`); intake skips it, so
 // a dispatch would only count toward a needless hand-off.
 test("an issue whose own labels hold a routing label is no candidate, as the binding names it", () => {
   const issues = [
     issue(1, { labels: [{ name: "wayfind: design" }] }),
-    issue(2, { labels: [{ name: "work-map" }] }),
+    issue(2, { labels: [{ name: "spec-container" }] }),
     issue(3, { labels: [{ name: "epic" }] }),
     issue(4, { labels: [{ name: "fog: storage" }] }),
     issue(5),
@@ -276,9 +276,22 @@ test("a hold github-actions[bot] set on the field drops the issue, and its agent
   assert.deepEqual(await fieldSelect(issues, fields), [2]);
 });
 
-test("an issue whose Work status field is unset, or set by another account, is chosen by its labels", async () => {
-  const issues = [issue(1), issue(2, { labels: [{ name: "agent-ready" }] })];
-  assert.deepEqual(await fieldSelect(issues, { 1: { state: "agent-ready", setter: STRANGER_ID } }), [1]);
+test("an issue whose Work status field is unset, or set by another account, is chosen by its labels, the agent-ready label aside", async () => {
+  const issues = [issue(1), issue(2, { labels: [{ name: "agent-ready" }] }), issue(3, { labels: [{ name: "needs-human" }] })];
+  assert.deepEqual(await fieldSelect(issues, { 1: { state: "agent-ready", setter: STRANGER_ID } }), [1, 2]);
+});
+
+test("the agent-ready label with the Work status unset is no status: the listing drops it and the issue is dispatched", async () => {
+  const issues = [issue(1, { labels: [{ name: "Agent-Ready" }, { name: "bug" }] }), issue(2, { labels: [{ name: "agent-ready" }] })];
+  const map = await listing(issues, { 2: { state: "agent-ready" } });
+  assert.deepEqual(map.get(1), ["bug"]);
+  assert.deepEqual(map.get(2), ["agent-ready"]);
+  assert.deepEqual(selectCandidates({ issues, now: NOW, authorIds: authors, statusLabels: map }).map((i) => i.number), [1]);
+});
+
+test("with no models.issue-status the agent-ready label alone still keeps an issue out", () => {
+  const issues = [issue(1, { labels: [{ name: "agent-ready" }] }), issue(2)];
+  assert.deepEqual(selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number), [2]);
 });
 
 test("the pass selects from the field listing: a field hold costs no read, a field floor under a stale label is dispatched", async () => {
@@ -479,7 +492,7 @@ test("an issue with a status label is left alone, whatever its comments", async 
 });
 
 test("a pass writes and dispatches nothing for a routing-labeled issue, as the pass's binding names it", async () => {
-  const issues = [issue(1, { labels: [{ name: "wayfind: design" }] }), issue(2, { labels: [{ name: "work-map" }] })];
+  const issues = [issue(1, { labels: [{ name: "wayfind: design" }] }), issue(2, { labels: [{ name: "spec-container" }] })];
   const gh = fakeGitHub({ issues });
   assert.equal((await sweep(gh)).candidates, 0);
   assert.deepEqual(gh.writes, []);

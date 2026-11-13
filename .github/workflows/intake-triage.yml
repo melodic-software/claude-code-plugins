@@ -665,17 +665,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-        run: |
-          # The header goes through stdin so the token never appears in a
-          # process listing.
-          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
-            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
-              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
-          if [ "$status" = 204 ]; then
-            echo "the lane token is revoked"
-          else
-            echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
-          fi
+        run: bash .base/.github/scripts/lib/revoke-lane-token.sh
 
       - name: Log the API budget at the end
         if: always()
@@ -1051,8 +1041,6 @@ jobs:
           Each string is one line of plain text.
           PROMPT
           )
-          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-          prompt=${prompt//REPO_DIR/$REPO_DIR}
           prompt=${prompt//DOMAINS/${domains// /, }}
           schema='{"type":"object","properties":{"exact":{"type":"boolean"},"outcome":{"type":"string"},"criteria":{"type":"array","maxItems":12,"items":{"type":"string"}},"dependencies":{"type":"array","maxItems":10,"items":{"type":"string"}},"related":{"type":"array","maxItems":10,"items":{"type":"object","properties":{"number":{"type":"integer"},"relation":{"enum":["duplicate","fixed-by","related"]},"note":{"type":"string"}},"required":["number","relation","note"],"additionalProperties":false}},"questions":{"type":"array","maxItems":5,"items":{"type":"object","properties":{"question":{"type":"string"},"recommended":{"type":"string"},"basis":{"type":"string"}},"required":["question","recommended","basis"],"additionalProperties":false}},"sources":{"type":"array","maxItems":15,"items":{"type":"string"}},"split":{"type":"array","maxItems":12,"items":{"type":"integer"}},"external":{"type":"object","properties":{"state":{"enum":["none","iac","manual"]},"repo":{"type":"string"},"class":{"type":"string"},"what":{"type":"string"}},"required":["state","repo","class","what"],"additionalProperties":false}},"required":["exact","outcome","criteria","dependencies","related","questions","sources","split","external"],"additionalProperties":false}'
           # A Size Large issue admission parked (owner Q93): the output is
@@ -1091,10 +1079,10 @@ jobs:
              reason on the issue.
           PROMPT
             )
-            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-            prompt=${prompt//REPO_DIR/$REPO_DIR}
             schema='{"type":"object","properties":{"parts":{"type":"array","items":{"type":"array","minItems":1,"items":{"type":"integer"}}},"groups":{"type":"array","items":{"type":"array","minItems":1,"items":{"type":"string","minLength":2,"maxLength":100}}},"order":{"type":"array","items":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"integer"}}}},"required":["parts","groups","order"],"additionalProperties":false}'
           fi
+          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+          prompt=${prompt//REPO_DIR/$REPO_DIR}
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
           printf '%s\n' "$schema" >"$SCHEMA_FILE"
 
@@ -1197,7 +1185,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 1
         run: |
-          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
           mkdir -p "$RUNNER_TEMP/key-credit-stop"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
 
@@ -1481,8 +1468,6 @@ jobs:
           Each string is one line of plain text.
           PROMPT
           )
-          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-          prompt=${prompt//REPO_DIR/$REPO_DIR}
           prompt=${prompt//DOMAINS/${domains// /, }}
           schema='{"type":"object","properties":{"exact":{"type":"boolean"},"outcome":{"type":"string"},"criteria":{"type":"array","maxItems":12,"items":{"type":"string"}},"dependencies":{"type":"array","maxItems":10,"items":{"type":"string"}},"related":{"type":"array","maxItems":10,"items":{"type":"object","properties":{"number":{"type":"integer"},"relation":{"enum":["duplicate","fixed-by","related"]},"note":{"type":"string"}},"required":["number","relation","note"],"additionalProperties":false}},"questions":{"type":"array","maxItems":5,"items":{"type":"object","properties":{"question":{"type":"string"},"recommended":{"type":"string"},"basis":{"type":"string"}},"required":["question","recommended","basis"],"additionalProperties":false}},"sources":{"type":"array","maxItems":15,"items":{"type":"string"}},"split":{"type":"array","maxItems":12,"items":{"type":"integer"}},"external":{"type":"object","properties":{"state":{"enum":["none","iac","manual"]},"repo":{"type":"string"},"class":{"type":"string"},"what":{"type":"string"}},"required":["state","repo","class","what"],"additionalProperties":false}},"required":["exact","outcome","criteria","dependencies","related","questions","sources","split","external"],"additionalProperties":false}'
           # A Size Large issue admission parked (owner Q93): the output is
@@ -1521,10 +1506,10 @@ jobs:
              reason on the issue.
           PROMPT
             )
-            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-            prompt=${prompt//REPO_DIR/$REPO_DIR}
             schema='{"type":"object","properties":{"parts":{"type":"array","items":{"type":"array","minItems":1,"items":{"type":"integer"}}},"groups":{"type":"array","items":{"type":"array","minItems":1,"items":{"type":"string","minLength":2,"maxLength":100}}},"order":{"type":"array","items":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"integer"}}}},"required":["parts","groups","order"],"additionalProperties":false}'
           fi
+          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+          prompt=${prompt//REPO_DIR/$REPO_DIR}
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
           printf '%s\n' "$schema" >"$SCHEMA_FILE"
 
@@ -1860,8 +1845,6 @@ jobs:
           Each string is one line of plain text.
           PROMPT
           )
-          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-          prompt=${prompt//REPO_DIR/$REPO_DIR}
           prompt=${prompt//DOMAINS/${domains// /, }}
           schema='{"type":"object","properties":{"exact":{"type":"boolean"},"outcome":{"type":"string"},"criteria":{"type":"array","maxItems":12,"items":{"type":"string"}},"dependencies":{"type":"array","maxItems":10,"items":{"type":"string"}},"related":{"type":"array","maxItems":10,"items":{"type":"object","properties":{"number":{"type":"integer"},"relation":{"enum":["duplicate","fixed-by","related"]},"note":{"type":"string"}},"required":["number","relation","note"],"additionalProperties":false}},"questions":{"type":"array","maxItems":5,"items":{"type":"object","properties":{"question":{"type":"string"},"recommended":{"type":"string"},"basis":{"type":"string"}},"required":["question","recommended","basis"],"additionalProperties":false}},"sources":{"type":"array","maxItems":15,"items":{"type":"string"}},"split":{"type":"array","maxItems":12,"items":{"type":"integer"}},"external":{"type":"object","properties":{"state":{"enum":["none","iac","manual"]},"repo":{"type":"string"},"class":{"type":"string"},"what":{"type":"string"}},"required":["state","repo","class","what"],"additionalProperties":false}},"required":["exact","outcome","criteria","dependencies","related","questions","sources","split","external"],"additionalProperties":false}'
           # A Size Large issue admission parked (owner Q93): the output is
@@ -1900,10 +1883,10 @@ jobs:
              reason on the issue.
           PROMPT
             )
-            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-            prompt=${prompt//REPO_DIR/$REPO_DIR}
             schema='{"type":"object","properties":{"parts":{"type":"array","items":{"type":"array","minItems":1,"items":{"type":"integer"}}},"groups":{"type":"array","items":{"type":"array","minItems":1,"items":{"type":"string","minLength":2,"maxLength":100}}},"order":{"type":"array","items":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"integer"}}}},"required":["parts","groups","order"],"additionalProperties":false}'
           fi
+          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+          prompt=${prompt//REPO_DIR/$REPO_DIR}
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
           printf '%s\n' "$schema" >"$SCHEMA_FILE"
 
@@ -2192,17 +2175,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-        run: |
-          # The header goes through stdin so the token never appears in a
-          # process listing.
-          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
-            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
-              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
-          if [ "$status" = 204 ]; then
-            echo "the lane token is revoked"
-          else
-            echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
-          fi
+        run: bash .base/.github/scripts/lib/revoke-lane-token.sh
 
       - name: Log the API budget at the end
         if: always()

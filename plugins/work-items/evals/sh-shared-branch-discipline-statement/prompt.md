@@ -9,6 +9,6 @@ expected_outcome: 'States the shared-branch mode is in effect on integration/310
 
 /work-items:ship #310
 
-Item #310 is an open container item labeled work-map. The container body carries `**Execution shape:** integration branch → single PR` and `**Integration branch:** integration/310-billing-migration`. A cloud agent and a local machine are both working this journey. Two sub-items remain open and unblocked; one other sub-item is currently claimed by the local machine with a live lease.
+Item #310 is an open container item labeled spec-container. The container body carries `**Execution shape:** integration branch → single PR` and `**Integration branch:** integration/310-billing-migration`. A cloud agent and a local machine are both working this journey. Two sub-items remain open and unblocked; one other sub-item is currently claimed by the local machine with a live lease.
 
 Treat the state above as what this run's reads return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does, in order, and why.

@@ -734,6 +734,11 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // stands in for the status label adds; the field value read above skips a
   // match when a counted account set it.
   const off = new Set(labeled ? remove : unready);
+  // An agent-ready label with the Work status unset starts no lane run, so it
+  // keeps no ready verdict from writing ready for admission to decide.
+  if (statusConfig && labels.includes("agent-ready") && (await statusOf?.unset?.(number))) {
+    off.add("agent-ready");
+  }
   const state = statusConfig && (await verdictStatus([...new Set([...labels, ...lateHolds, ...(labeled ? add : [])])].filter((name) => !off.has(name)), statusConfig));
   const field = String(statusConfig?.["field-id"]);
   const counted = (setter) => humans.has(setter) || isApp(setter, appId) || (statusConfig?.["bot-setters"] ?? []).some((entry) => entry.id === setter);

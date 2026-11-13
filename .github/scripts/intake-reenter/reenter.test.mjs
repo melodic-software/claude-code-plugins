@@ -1129,7 +1129,7 @@ test("a field release changes nothing while a renamed hold label stays on the is
 });
 
 // /planning:wayfind and /work-items:decompose route an issue with a routing
-// label (the binding's container label, default `work-map`, or a label
+// label (the binding's container label, default `spec-container`, or a label
 // starting with its wayfind prefix, default `wayfind:`), and intake skips it
 // (check-born-triaged.mjs), so no answer, lift or release sends it to triage.
 const runRouted = (w, env, { log = () => {}, routing } = {}) =>
@@ -1141,7 +1141,7 @@ const runRouted = (w, env, { log = () => {}, routing } = {}) =>
   });
 
 test("an answer, a needs-human lift or a field release on a routing-labeled issue removes no label, writes no status and dispatches nothing", async () => {
-  for (const routed of ["wayfind: design", "work-map"]) {
+  for (const routed of ["wayfind: design", "spec-container"]) {
     const lines = [];
     const runs = [
       [world({ labels: ["needs-owner-decision", routed], comments: [{ id: 1, user: OWNER, body: DECISION }] }), { COMMENT_ID: "1" }],
@@ -1162,8 +1162,8 @@ test("a remapped routing label stops re-entry, and the default one then re-enter
   const remapped = answer("fog: storage");
   assert.equal(await runRouted(remapped, { COMMENT_ID: "1" }, { routing }), 0);
   assert.deepEqual(remapped.writes, []);
-  const plain = answer("work-map");
+  const plain = answer("spec-container");
   assert.equal(await runRouted(plain, { COMMENT_ID: "1" }, { routing }), 0);
-  expectTriage(plain, ["work-map"]);
+  expectTriage(plain, ["spec-container"]);
   expectDispatched(plain);
 });

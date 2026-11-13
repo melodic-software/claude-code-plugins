@@ -32,9 +32,11 @@ there would load from the PR head.
 jobs:
   claude:
     permissions:
+      actions: read
       contents: read
-      pull-requests: read
+      pull-requests: write
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-review-${{ github.event.pull_request.number || inputs.pr-number }}
@@ -149,10 +151,12 @@ Node 24.
 
 The caller must:
 
-- Grant the calling job `contents: read`, `pull-requests: read`, `checks: write` and
-  `id-token: write`. The `run` job narrows this to the two reads, plus `id-token: write` in the
+- Grant the calling job `actions: read`, `contents: read`, `pull-requests: write`,
+  `checks: write`, `issues: write` and `id-token: write`. The `run` job narrows this to
+  `contents: read` and `pull-requests: read`, plus `actions: read` and `id-token: write` in the
   write file; in the read file only the `broker-check` job uses `id-token: write`, and only the
-  `report` job uses `checks: write`.
+  `report` job uses `checks: write` and `pull-requests: write` (the lane run report comment,
+  which GitHub refuses with `issues: write` alone).
 - Put the calling job in a per-PR concurrency group with `queue: max`, or an equivalent that never
   cancels a pending run. A group that drops a pending run leaves that activity with no check, and
   silence is not a skip.
@@ -1792,7 +1796,7 @@ runs with `!cancelled()`, so it opens the PR whether this job succeeded, failed 
 ## The report job
 
 Runs after the run job (and, in the read file, the scan job) whatever its result, with `checks: write`, `contents: read`,
-`issues: write` (for `check-signed-commits`' label and comment) and `pull-requests: read`, no model step, and a 10-minute timeout. It checks out the default branch
+`issues: write` (for `check-signed-commits`' label and comment) and `pull-requests: write` (for the lane run report comment), no model step, and a 10-minute timeout. It checks out the default branch
 tip, with full history, to `.base`, then checks out the run job's `base-sha` output only when that
 SHA is an ancestor of the tip; otherwise it stays on the tip. It never checks out the event's base
 SHA, so a PR into another branch cannot choose the actions that write its check. It then downloads

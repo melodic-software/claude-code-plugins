@@ -77,8 +77,7 @@ no automated review, by design.
 Workflow, job and step names follow the org naming lint
 ([github-actions-conventions](https://github.com/melodic-software/standards/blob/main/components/github-actions-conventions/README.md)),
 which `lint-repo` runs. The gate job `ci-status` shows as
-`CI Status`, and its alias job `report-ci-status` reports that conclusion as
-`ci-status` until the ci-gate ruleset requires `CI Status`. `lint-repo` lints the repository as a whole (text
+`CI Status`, the check the ci-gate ruleset requires. `lint-repo` lints the repository as a whole (text
 hygiene, the CI configuration, the docs conventions); `lint-shell` runs
 ShellCheck and the gates that read shell source; `check-plugins` holds the
 plugin manifests, changelogs, hook declarations, the counter ceilings and the

@@ -241,13 +241,13 @@ test("run skips a wayfind decision item on its routing label alone, in one read"
   assert.equal(calls, 1);
 });
 
-test("run skips a map on the default container label", async () => {
-  const { result } = await once({ body: "## Destination", labels: ["work-map"] });
-  assert.deepEqual(result, { skip: "true", reason: "routing-label", label: "work-map" });
+test("run skips a spec container on the default container label", async () => {
+  const { result } = await once({ body: "## Destination", labels: ["spec-container"] });
+  assert.deepEqual(result, { skip: "true", reason: "routing-label", label: "spec-container" });
 });
 
 test("run matches the wayfind prefix only at the start of a label", async () => {
-  for (const labels of [["not-wayfind: x"], ["wayfinding"], ["work-map-old"]]) {
+  for (const labels of [["not-wayfind: x"], ["wayfinding"], ["spec-container-old"], ["work-map"]]) {
     assert.deepEqual((await once({ body: "x", labels })).result, { skip: "false", reason: "no-marker" }, labels[0]);
   }
 });
@@ -256,7 +256,7 @@ test("run uses the binding's remapped routing labels instead of the defaults", a
   const routing = { container: "decision-map", prefix: "route: " };
   assert.deepEqual((await once({ body: "x", labels: ["decision-map"] }, { routing })).result, { skip: "true", reason: "routing-label", label: "decision-map" });
   assert.deepEqual((await once({ body: "x", labels: ["route: design"] }, { routing })).result, { skip: "true", reason: "routing-label", label: "route: design" });
-  for (const labels of [["work-map"], ["wayfind: task"]]) {
+  for (const labels of [["spec-container"], ["wayfind: task"]]) {
     assert.deepEqual((await once({ body: "x", labels }, { routing })).result, { skip: "false", reason: "no-marker" }, labels[0]);
   }
 });
@@ -270,9 +270,9 @@ test("run without the born-triaged rule skips only a routing label, in one read"
 });
 
 test("routingLabels reads the binding's keys and keeps each default when absent or empty", () => {
-  assert.deepEqual(routingLabels(null), { container: "work-map", prefix: "wayfind:" });
-  assert.deepEqual(routingLabels({ config: { lease_ttl_hours: 24 } }), { container: "work-map", prefix: "wayfind:" });
-  assert.deepEqual(routingLabels({ config: { container_label: "", wayfind_label_prefix: "" } }), { container: "work-map", prefix: "wayfind:" });
+  assert.deepEqual(routingLabels(null), { container: "spec-container", prefix: "wayfind:" });
+  assert.deepEqual(routingLabels({ config: { lease_ttl_hours: 24 } }), { container: "spec-container", prefix: "wayfind:" });
+  assert.deepEqual(routingLabels({ config: { container_label: "", wayfind_label_prefix: "" } }), { container: "spec-container", prefix: "wayfind:" });
   assert.deepEqual(routingLabels({ config: { container_label: "epic", wayfind_label_prefix: "wf/" } }), { container: "epic", prefix: "wf/" });
   assert.throws(() => routingLabels({ config: { container_label: ["a"] } }), /container_label is not a string/);
   assert.throws(() => routingLabels({ config: { wayfind_label_prefix: 3 } }), /wayfind_label_prefix is not a string/);
@@ -417,6 +417,46 @@ test("CLI with BORN_TRIAGED=false triages a born-triaged issue and prints no not
   const { outputs, stdout } = await runCliServed(issue({}), "tracker:\n  provider: github\n", { BORN_TRIAGED: "false" });
   assert.deepEqual(outputs, { skip: "false", reason: "born-triaged-off", label: "", "human-ids": "153232337", "rate-limited": "false" });
   assert.doesNotMatch(stdout, /::notice::/);
+});
+
+// The agent-ready label starts no lane run and admission writes the Work
+// status, so a born-triaged issue whose only status is that label, with the
+// field configured and unset, has no status: intake triages it, in one read.
+const labelOnlyRun = (labels, fields, { author, config = STATUS_CONFIG, attempts = 3 } = {}) => {
+  let reads = 0;
+  const result = run({
+    fetchIssue: async () => {
+      reads += 1;
+      return issue({ labels, ...(author && { author }) });
+    },
+    list: LIST,
+    lanesAppId: LANES_APP_ID,
+    statusOf: statusReader({ github: withFields(async () => [], fields), repository: "o/r", config, trustedActors: TRUSTED_ACTORS, log: () => {} }),
+    sleep: noSleep,
+    attempts,
+  });
+  return result.then((answer) => ({ ...answer, reads }));
+};
+
+test("run triages a born-triaged issue whose only status is the agent-ready label while its Work status is unset", async () => {
+  assert.deepEqual(await labelOnlyRun(["agent-ready"], {}), { skip: "false", reason: "label-only", reads: 1 });
+  assert.deepEqual(await labelOnlyRun(["agent-ready", "area: x"], { 7: { state: "agent-ready", setter: STRANGER_ID } }), { skip: "false", reason: "label-only", reads: 1 });
+});
+
+test("run still skips an agent-ready label beside a set Work status or another status label", async () => {
+  assert.deepEqual(await labelOnlyRun(["agent-ready"], { 7: { state: "agent-ready" } }), { skip: "true", reason: "born-triaged", reads: 1 });
+  assert.deepEqual(await labelOnlyRun(["agent-ready"], { 7: { state: "ready" } }), { skip: "true", reason: "born-triaged", reads: 1 });
+  assert.deepEqual(await labelOnlyRun(["agent-ready", "status: ready"], {}), { skip: "true", reason: "born-triaged", reads: 1 });
+  assert.deepEqual(await labelOnlyRun(["agent-ready", "needs-human"], {}), { skip: "true", reason: "born-triaged", reads: 1 });
+});
+
+test("with no Work status configured the agent-ready label is still the status", async () => {
+  assert.deepEqual(await labelOnlyRun(["agent-ready"], {}, { config: null }), { skip: "true", reason: "born-triaged", reads: 1 });
+});
+
+test("a label-only issue keeps the author check: a stranger's is untrusted-author, not label-only", async () => {
+  assert.deepEqual(await labelOnlyRun(["agent-ready"], {}, { author: { id: 1, login: "stranger" } }), { skip: "false", reason: "untrusted-author", reads: 1 });
+  assert.deepEqual(await labelOnlyRun(["agent-ready"], {}, { author: LISTED_BOT }), { skip: "false", reason: "untrusted-author", reads: 1 });
 });
 
 test("humanIds lists only the human actors' ids", () => {

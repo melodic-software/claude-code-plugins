@@ -240,11 +240,7 @@ jobs:
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
-        run: |
-          if [ "$GATE_PR" != "$PR_NUMBER" ] || [ "$GATE_HEAD" != "$HEAD_SHA" ]; then
-            echo "::error::the trigger gate and the resolver name different pull requests or heads"
-            exit 1
-          fi
+        run: bash .base/.github/scripts/pr-verify/assert-gate-agrees.sh
 
       # Whether the key is still out of credit (select-model-credential's
       # start call: check-key-credit's artifact-list read for the `marker`

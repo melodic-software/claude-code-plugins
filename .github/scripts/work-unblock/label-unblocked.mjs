@@ -2593,13 +2593,21 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
   // sweep's open-issue listing (`openIssues`), or the label listing with no field
   // listing given. An issue the field listing holds (`held`, mid-write) is not
   // among them, so it is not restarted this sweep: safe, the next sweep retries.
+  // Nor is one it lists by its agent-ready label with the Work status unset:
+  // the label starts no run, a restart from agent-ready finds the field unset
+  // and writes nothing (write-status.mjs restart); intake triages it when it
+  // is opened (check-born-triaged.mjs `label-only`).
   let open;
   try {
     const found = byStatus ? await byStatus([LABEL]) : null;
     if (found && !openIssues) {
       throw new Error("the open-issue listing was not read");
     }
-    const numbers = found && new Set(found.map((item) => Number(item.number)));
+    const labelOnly = (found ?? []).filter((item) => item.state === null);
+    if (labelOnly.length > 0) {
+      console.log(`label-unblocked: not restarted, agent-ready label with no Work status: ${labelOnly.map((item) => `#${item.number}`).join(", ")}`);
+    }
+    const numbers = found && new Set(found.filter((item) => item.state !== null).map((item) => Number(item.number)));
     open = (found ? openIssues.filter((item) => numbers.has(Number(item.number))) : await paginate(github, `/repos/${repo}/issues?state=open&labels=${LABEL}`)).filter(
       (item) => !item.pull_request && NUMBER.test(String(item.number)) && !maps.skip(item),
     );

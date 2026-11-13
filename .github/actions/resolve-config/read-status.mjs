@@ -9,7 +9,7 @@
 // For the scripts that build on it:
 // - statusLabels(state, names, config) -> label names (pure)
 // - statusEvents({github, repository, number, config, since, fieldEvents}) -> REST-shaped events
-// - statusReader({...}) -> labels(number, names), with labels.events(number), labels.state(number) and labels.fieldRows(number); each throws StatusReadError
+// - statusReader({...}) -> labels(number, names), with labels.events(number), labels.state(number), labels.unset(number) and labels.fieldRows(number); each throws StatusReadError
 // - resolve-config.mjs issuesByStatus(github, repository, states, {since, config, trustedActors})
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -248,6 +248,10 @@ export function statusReader({ env = {}, github, repository, log = console.log, 
     }
     return states.get(issue) ?? null;
   };
+  // Whether a Work status config is set and the issue's field holds no
+  // trusted state, so its labels alone stand for its status; reuses the
+  // newest `labels` read. False with no config, where the labels are the state.
+  labels.unset = async (number) => (await ready()) !== null && (await labels.state(number)) === null;
   labels.events = async (number) => {
     const issue = Number(number);
     if ((await ready()) === null) {

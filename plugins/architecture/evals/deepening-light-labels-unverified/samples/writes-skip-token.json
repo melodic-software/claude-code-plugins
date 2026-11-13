@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "phase-1.5: verification: skipped (light)",
+      "why": "the artifact line"
+    },
+    {
+      "answer": "- **verification:** skipped (light)",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "phase-1.5: downgraded=0 dropped=0 corrected=0",
+      "why": "the counts, no skip token"
+    },
+    {
+      "answer": "verification: skipped (cost)",
+      "why": "a different skip reason"
+    }
+  ]
+}

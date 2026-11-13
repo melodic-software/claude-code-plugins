@@ -531,10 +531,14 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
 // `held` is the set of issues the listing left out mid-write (issuesByStatus
 // `held`): selectCandidates skips them this pass rather than judge them by
 // labels that could miss a field hold; the next pass lists them again.
+// With the field unset, the agent-ready label is dropped: it starts no lane
+// run, and admission writes the Work status, so the issue is triaged.
 export async function statusListing({ github, repository, config, trustedActors, issuesByStatus }) {
   if (!config) return new Map();
   const listed = await issuesByStatus(github, repository, config.order, { config, trustedActors });
-  const map = new Map(listed.map((i) => [i.number, labelsByField(i.state, i.labels, config)]));
+  const agentReady = new Set((config.labels["agent-ready"] ?? []).map((name) => name.toLowerCase()));
+  const byField = (i) => ((i.state ?? null) === null ? i.labels.filter((name) => !agentReady.has(name.toLowerCase())) : labelsByField(i.state, i.labels, config));
+  const map = new Map(listed.map((i) => [i.number, byField(i)]));
   map.held = new Set((listed.held ?? []).map((i) => i.number));
   return map;
 }

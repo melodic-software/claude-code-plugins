@@ -49,6 +49,11 @@
 # plain reset --hard or clean -f in a repository under the system temp
 # directory (repo_is_temp_scratch states the exact shape).
 #
+# Unpinned lease (a no-expected-value lease with --force-if-includes, or the
+# empty expect): allowed above by default, blocked when the
+# `block_dangerous_git_unpinned_lease` userConfig option or the repository's
+# `unpinned_lease` team key says block (unpinned_lease_blocked states the rule).
+#
 # Per-repo/per-user allow-list: the guardrails `block_dangerous_git_allow`
 # userConfig option is a comma-separated list of the form tokens and sink-shape
 # tokens above (e.g. "push-force,reset-hard" or "ps-unparsable-dynamic-invocation").
@@ -240,9 +245,56 @@ block_clean_force() {
     "Preview with git clean -n"
 }
 
-# The force-push fix, for every push-force shape. Both lease forms it names
-# pass this guard; a bare --force-with-lease does not.
-PUSH_FORCE_FIX="--force-with-lease=<ref>:<full-sha>, or --force-with-lease --force-if-includes"
+# Unpinned lease: a --force-with-lease that pins no full commit id but passes
+# the checks below, that is no expected value with --force-if-includes, or the
+# empty expect. Allowed by default: git documents --force-if-includes as the
+# mitigation for the first and the empty expect as "must not exist". Blocked
+# when either layer says block: the block_dangerous_git_unpinned_lease
+# userConfig option, or `unpinned_lease: block` in docs/conventions/guardrails.yaml
+# (schema schemas/guardrails.schema.json) of the session's repository (the
+# payload's cwd), read at its local origin/HEAD, never the working tree or
+# index, so an edit and `git add` do not set it. A missing ref, file or key
+# keeps allow; a file that does not parse or another value keeps allow and says
+# so. Read only on a push that carries a lease or a force flag, once per call.
+_BDG_TEAM_REL="docs/conventions/guardrails.yaml"
+_unpinned_lease_state=""
+_unpinned_lease_source=""
+# unpinned_lease_blocked: 0 when either layer blocks the unpinned lease; sets
+# $_unpinned_lease_source to the layer that did.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+unpinned_lease_blocked() {
+  [[ -n "$_unpinned_lease_state" ]] && return "$_unpinned_lease_state"
+  _unpinned_lease_state=1
+  if [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_UNPINNED_LEASE:-allow}" == block ]]; then
+    _unpinned_lease_source="block_dangerous_git_unpinned_lease"
+    _unpinned_lease_state=0
+    return 0
+  fi
+  local root text recs val key=$'\nunpinned_lease\t'
+  hook::repo_root_to root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" || return 1
+  text=$(git -C "$root" show "refs/remotes/origin/HEAD:$_BDG_TEAM_REL" 2>/dev/null) || return 1
+  if ! recs=$(LC_ALL=C awk -v STRICT=1 -f "$_HOOK_SELF/yaml-subset.awk" <<<"$text" 2>/dev/null); then
+    printf 'guardrails: %s does not parse; unpinned_lease stays allow.\n' "$_BDG_TEAM_REL" >&2
+    return 1
+  fi
+  recs=$'\n'"$recs"
+  [[ "$recs" == *"$key"* ]] || return 1
+  val="${recs#*"$key"}"
+  val="${val%%$'\n'*}"
+  if [[ "$val" == block ]]; then
+    _unpinned_lease_source="$_BDG_TEAM_REL"
+    _unpinned_lease_state=0
+    return 0
+  fi
+  [[ "$val" == allow ]] ||
+    printf "guardrails: %s sets unpinned_lease: '%s', not allow or block; it stays allow.\n" "$_BDG_TEAM_REL" "$val" >&2
+  return 1
+}
+
+# The force-push fix, for every force-push block: the one form that passes
+# whatever unpinned_lease says, so naming it costs the block path no read of
+# the team file.
+PUSH_FORCE_FIX="--force-with-lease=<ref>:<full-sha>"
 
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 block_push_refspec_plus() {
@@ -784,7 +836,7 @@ alias_reexpand_admit() {
 check_segment() {
   local -a w=()
   local nseg gi k x rest ch sub sub_idx staged worktree dry forced excl pos opseen
-  local if_includes lease_tracking lease_movable lease_width_unknown lease_seen lease_ref lease_expect
+  local if_includes lease_tracking lease_movable lease_width_unknown lease_empty lease_seen lease_ref lease_expect
   # Read by lease_expect_is_immutable further down the call chain; per-frame, so
   # a recursive re-check of an alias expansion collects its own.
   local -a git_locating_opts=()
@@ -963,6 +1015,7 @@ check_segment() {
     lease_tracking=0
     lease_movable=0
     lease_width_unknown=0
+    lease_empty=0
     _lease_oid_width_unknown=0
     lease_seen=""
     k=$((sub_idx + 1))
@@ -985,6 +1038,7 @@ check_segment() {
           lease_tracking=0
           lease_movable=0
           lease_width_unknown=0
+          lease_empty=0
           _lease_oid_width_unknown=0
           lease_seen=""
         fi
@@ -1028,6 +1082,7 @@ check_segment() {
               else
                 lease_expect="${x#*=}"
                 lease_expect="${lease_expect#*:}"
+                [[ -z "$lease_expect" ]] && lease_empty=1
                 if ! lease_expect_is_immutable "$lease_expect"; then
                   if ((_lease_oid_width_unknown)); then
                     lease_width_unknown=1
@@ -1059,7 +1114,12 @@ check_segment() {
     if ((lease_tracking)) && ((!if_includes)); then
       block "push-lease-unsafe" \
         "BLOCKED: --force-with-lease without an expected value can still clobber work a background fetch pulled in." \
-        "Pass =<ref>:<full-sha> (resolved in a separate step) or add --force-if-includes"
+        "Use $PUSH_FORCE_FIX, resolving <full-sha> in a separate step"
+    fi
+    if ((lease_tracking || lease_empty)) && unpinned_lease_blocked; then
+      block "push-lease-unsafe" \
+        "BLOCKED: $_unpinned_lease_source allows only a lease pinned to a full commit id; this --force-with-lease pins none." \
+        "Use --force-with-lease=<ref>:<full-sha>, resolving <full-sha> in a separate step"
     fi
     k=$((sub_idx + 1))
     while ((k < nseg)); do

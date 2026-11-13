@@ -666,7 +666,7 @@ def build_argv(claude: str, case: dict, settings_file: Path, model: str) -> list
         "--permission-mode",
         case.get("permission_mode", "auto"),
         "--setting-sources",
-        "project,local",
+        "user,project,local" if case.get("real_setup") else "project,local",
         "--settings",
         str(settings_file),
         "--model",
@@ -880,6 +880,21 @@ def plant(case: dict, workdir: Path) -> dict:
     return {name: value}
 
 
+def real_setup_settings(settings: dict) -> dict:
+    """A --real-setup run's case settings: the fixture's directory grants and hooks.
+
+    The operator's own settings judge the call; the case's stand-in autoMode and
+    any other key would add rules the operator does not have. Hooks are kept
+    because some cases take their measurement through them."""
+    kept = {}
+    dirs = (settings.get("permissions") or {}).get("additionalDirectories")
+    if dirs:
+        kept["permissions"] = {"additionalDirectories": dirs}
+    if settings.get("hooks"):
+        kept["hooks"] = settings["hooks"]
+    return kept
+
+
 def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
     row = base_row(case)
     # A dry run checks the case's wiring, which no platform rules out.
@@ -927,12 +942,16 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
             return with_verdict(
                 row, "error", f"cwd {case.get('cwd')} does not exist after the scaffold"
             )
-        settings_text = (case_dir / "settings.json").read_text(encoding="utf-8")
-        settings_file = workdir / ".probe-settings.json"
-        settings_file.write_text(
-            substitute(settings_text, workdir, case_dir, json_escape=True),
-            encoding="utf-8",
+        settings_text = substitute(
+            (case_dir / "settings.json").read_text(encoding="utf-8"),
+            workdir,
+            case_dir,
+            json_escape=True,
         )
+        if case.get("real_setup"):
+            settings_text = json.dumps(real_setup_settings(json.loads(settings_text)))
+        settings_file = workdir / ".probe-settings.json"
+        settings_file.write_text(settings_text, encoding="utf-8")
         prompt = substitute(
             (case_dir / "prompt.md").read_text(encoding="utf-8"),
             workdir,
@@ -991,7 +1010,12 @@ def run_suite(cases: list[dict], runner, args) -> list[dict]:
             # The model the run uses, so a scaffold's PROBE_MODEL names the same one.
             model = case.get("model", getattr(args, "model", DEFAULT_MODEL))
             row = run_case(
-                {**case, "max_budget_usd": budget, "model": model},
+                {
+                    **case,
+                    "max_budget_usd": budget,
+                    "model": model,
+                    "real_setup": getattr(args, "real_setup", False),
+                },
                 runner,
                 args.keep,
                 args.live,
@@ -1148,6 +1172,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     p_run.add_argument("--out", type=Path)
     p_run.add_argument("--keep", action="store_true")
+    p_run.add_argument("--real-setup", action="store_true")
 
     p_table = sub.add_parser("table")
     p_table.add_argument("results", type=Path)

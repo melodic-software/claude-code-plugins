@@ -389,7 +389,7 @@ ceiling stays truncated after the filter, because a labeled item may sit past th
 `list-frontier` is a CORE-side derivation (no provider has a native counterpart): it calls
 the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` (so a
 blocker closed as won't-do keeps its dependent off the frontier) AND no
-assignee AND not a container (a `work-map` item is never its own frontier item, see
+assignee AND not a container (a container item is never its own frontier item, see
 "Containers and state") AND no label starting with the wayfind prefix (`config.wayfind_label_prefix`,
 default `wayfind:`; a wayfind map item belongs to
 `/planning:wayfind`, never to `/work-items:work`). With `--autonomous`, items labeled
@@ -775,24 +775,24 @@ claim's `lease_comment_id`) rather than relying on push activity (`/work-items:w
 ## Containers and state
 
 Two axes, one item model: a **container** is an ordinary item carrying the container
-label (default `work-map`; a navigable graph root such as wayfind maps and decompose breakdowns);
+label (default `spec-container`; a spec container, the graph root of a decompose breakdown);
 **state** is the
 provider's native open/closed. Containers are never claimable by workers (no
 `agent-ready`), so **a container is never its own frontier item**: `list-frontier` excludes
 any item carrying the container label, unconditionally (global and `--parent`-scoped alike).
 The container label resolves from the binding key `config.container_label`, a sibling of
 `config.role_labels` (the marker names a graph root, not a worker role, so it is not a
-role entry), with the shipped default `work-map` when the key is absent or empty
+role entry), with the shipped default `spec-container` when the key is absent or empty
 (resolution in `lib/binding.sh`, exported as `WIT_CONTAINER_LABEL`; default defined once
 in `lib/labels.sh`). The remapped label must exist in the consuming repo, and remapping a
 repo that already holds containers requires relabeling them: the frontier exclusion is an
 exact match against the resolved string, so items still carrying the old marker would
-surface as frontier items. `planning:wayfind` maps share this contract and resolve the
-same binding key (its `tracker-mechanics` doc carries the read), so one remap governs both
-container producers. Read one container's children with
+surface as frontier items. A `planning:wayfind` map is known by its wayfind-prefixed label, not
+the container label ([`label-taxonomy.md`](../../reference/label-taxonomy.md#maps-and-containers) "Maps and containers"). Read
+one container's children with
 `list-sub-items <container>`; read the workable frontier within one container with
 `list-frontier --parent <container>`. The frontier also excludes, unconditionally, any item
-carrying a label that starts `wayfind:`: those are a wayfind map's own items, which
+carrying a label that starts `wayfind:`: those are a wayfind map and its own items, which
 `/planning:wayfind` drives, so a `--parent` frontier over a wayfind map holds only its
 children without such a label. Aside from those exclusions the frontier is label-agnostic
 and simply never surfaces items that are assigned or blocked.
@@ -1025,7 +1025,7 @@ expiry, `list-items` reports empty `assignees` (effective post-expiry
 assignment) while `get-item` still shows the stored assignee.
 
 This confinement is why multi-session / multi-machine work needs a
-tracker-published spec on a coordination provider, a `work-map` container lane
+tracker-published spec on a coordination provider, a spec container lane
 (see "Containers and state"). local-markdown is never that surface.
 
 ## jira adapter

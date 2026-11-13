@@ -6,13 +6,13 @@ untrusted, so the marker alone never skips intake.
 
 ## Routing labels
 
-`skip=true` with reason `routing-label` when the issue carries the container label (a
-`/planning:wayfind` map or a decompose container) or a label starting with the wayfind prefix (a
-map's decision item). Those labels are the work-items seam's own routing state
+`skip=true` with reason `routing-label` when the issue carries the container label (a decompose
+spec container) or a label starting with the wayfind prefix (a `/planning:wayfind` map or one of
+its decision items). Those labels are the work-items seam's own routing state
 ([label taxonomy](../../../plugins/work-items/reference/label-taxonomy.md), "Container label" and
 "Hold lists and the wayfind prefix"), so intake's priority, verdict and floor label would only
 compete with it. Both come from the binding at `tracker-config` (`tracker.config.container_label`,
-default `work-map`; `tracker.config.wayfind_label_prefix`, default `wayfind:`), read the way the
+default `spec-container`; `tracker.config.wayfind_label_prefix`, default `wayfind:`), read the way the
 merge lanes read it (`trackerBindingText` in `.github/scripts/pr-merge/merge-holds.mjs`). A missing
 file keeps both defaults; a value that is not a string keeps them with a warning. The step prints a
 notice naming the label. Only an account with triage access can label an issue as it is opened, so
@@ -31,7 +31,9 @@ these hold on the issue:
   anyone else is ignored.
 - It has an Issue Type and a status: a Work status field a trusted account set to anything but
   `needs-triage`, or the label `agent-ready`, `needs-human`, `needs-spec`, `admission-deferred`, or
-  any `status:` label.
+  any `status:` label. While `models.issue-status` is set and the field holds no trusted state,
+  `agent-ready` alone is no status: the label starts no lane run and admission writes the field, so
+  the gate returns `skip=false` with reason `label-only` at once, and intake triages the issue.
 
 The publisher sets the type and status in calls after the issue is created, so while only those are
 missing the gate re-reads the issue every 5 seconds, 6 reads in all, before it gives up. A publisher
@@ -55,7 +57,7 @@ With `born-triaged` false the gate reads the issue once and, with no routing lab
 | Output | Values |
 |---|---|
 | `skip` | `true` to skip intake, otherwise `false` |
-| `reason` | `routing-label`, `born-triaged`, `born-triaged-off`, `no-marker`, `untrusted-author`, `no-type`, `no-status`, `list-unreadable` or `issue-unreadable` |
+| `reason` | `routing-label`, `born-triaged`, `born-triaged-off`, `no-marker`, `untrusted-author`, `no-type`, `no-status`, `label-only`, `list-unreadable` or `issue-unreadable` |
 | `label` | The routing label that skipped the issue; empty otherwise |
 | `human-ids` | The list's `kind: human` ids, comma-joined, for the intake lane's `allowed-author-ids`; empty when the list is unreadable |
 | `rate-limited` | `true` when the rate guard holds a stop on the issue read's pool, from this read or an earlier step of the job; the callers then skip their jobs that call GitHub with the same token. Otherwise `false` |

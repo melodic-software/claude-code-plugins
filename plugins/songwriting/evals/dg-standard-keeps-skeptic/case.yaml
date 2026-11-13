@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: dg-standard-keeps-skeptic
+description: "diagnose variations with the stated reader line verification: standard: the co-write gate's skeptic row is planned as a fresh subagent, and no verification skip token is written."
+tags: [songwriting, diagnose, verification-level, read-only]
+plugins: ["../.."]
+expected_outcome: "Before generating, says the rubric passes run on every candidate and a fresh skeptic subagent will build the case against the variations; writes no verification: skipped line."
+execution:
+  prompt: "/songwriting:diagnose variations Line 3 of this verse feels flat: 'I really miss you and I'm feeling kind of sad'. Before you generate anything, say which checks each variation will go through and which you will skip, then stop. [The level reader has already been run for this case and printed `verification: standard (docs/conventions/songwriting.yaml verification at origin/main)`; this run uses that line and does not run the reader again.]"
+  allowed_tools: [Skill, Read, Glob, Grep]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: no-skip-token
+    type: regex
+    pattern: 'verification[*_`\\]*:[*_`\s\\]*skipped'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: plans-skeptic
+    type: llm
+    criteria: "PASS only if the reply plans a fresh skeptic subagent to build the case against the variations, given the candidates and the source paths but not the reasoning behind them. FAIL if it skips the skeptic for a verification-level reason or plans to refute the variations itself."
