@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The options go into your Claude Design project onboarding-checklist through the Claude Design tool once you confirm.",
+      "why": "names the project"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll build three local HTML layout variants with a switcher.",
+      "why": "never names the project"
+    }
+  ]
+}

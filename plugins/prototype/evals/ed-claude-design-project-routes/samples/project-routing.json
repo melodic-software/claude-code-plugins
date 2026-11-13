@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "You named an existing Claude Design project, so the layout options belong in that project, not in a new mockup. I'll use the Claude Design tool to open onboarding-checklist, draft the options there, and write them only once you confirm this plan. Nothing has been changed yet.",
+      "why": "routes to the tool for the named project and waits"
+    },
+    {
+      "answer": "This asks for work in your team's Claude Design project, but the Claude Design tool is not available in this session, so I can't reach that project from here. Instead I can build three throwaway local layout variants of the onboarding checklist that you can compare and then carry into the project yourself. I haven't touched the project.",
+      "why": "tool unavailable, states the fallback and why"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Plan: I'll write a self-contained HTML mockup with three onboarding checklist layouts and a floating switcher, then hand it over for you to pick one.",
+      "why": "ignores the named project"
+    },
+    {
+      "answer": "Done: I've added three layout options to your onboarding-checklist project in Claude Design. Open it to compare them.",
+      "why": "claims the project was changed"
+    }
+  ]
+}
