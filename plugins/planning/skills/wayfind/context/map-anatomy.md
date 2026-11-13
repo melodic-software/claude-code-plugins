@@ -17,14 +17,13 @@ record, or a general summary. This is the map's success condition.>
 
 ## Notes
 
+- Standing constraints every session on this map must obey, one line each.
 - Skills every session on this map consults, one per line (work step 5 invokes each).
-- Durable pointers only: PRs, committed docs, prior items, the map's dossier branch, external
-  links.
-- Memory-tier `<memory_dir>/<slug>/` artifacts are checkout-local. Distill what matters into a
-  line here instead of pointing at a path other readers cannot resolve.
-- Links, not recaps, for anything durably linkable. The memory-tier distillation above is the
-  one sanctioned exception: no other reader can follow such a link, so the distilled line IS the
-  preserved context.
+- The map's dossier branch, once it exists.
+
+<Nothing else. Background, interview facts and other pointers go in the seed item's resolution
+comment or the item they concern. Never a memory-tier `<memory_dir>/<slug>/` path: it is
+checkout-local, so no other reader can resolve it.>
 
 ## Decisions-so-far
 
@@ -38,9 +37,12 @@ resolution comment lists the interview's settled answers.>
 
 ## Not-yet-specified (fog)
 
-<Prose. The uncertainties you cannot yet phrase as sharp questions. These graduate to typed
-decision items only once working the map makes them sharp. Fog is expected. An empty fog
-section on a young map usually means you haven't looked hard enough.>
+<One bullet per uncertainty you cannot yet phrase as a sharp question, each opening with a short
+bold label. A bullet graduates to a typed decision item only once working the map makes it
+sharp. Fog is expected. An empty fog section on a young map usually means you haven't looked
+hard enough.>
+
+- **<label>**: <what is uncertain, in a line or two>
 
 ## Out-of-scope
 
@@ -53,8 +55,10 @@ index is for resolved-in-scope decisions.>
 
 ## Typed decision items
 
-Each sub-issue is one **sharp** question, sized to one session's work. The `wayfind: <type>`
-label sets the routing target (which skill resolves it); the body never states the type:
+Each sub-issue is one topic a single session can work, holding its related **sharp** questions;
+never one item per question. Its body is the question and the criteria an answer must meet,
+nothing else. The `wayfind: <type>` label sets the routing target (which skill resolves it); the
+body never states the type:
 
 | Type | Meaning |
 |---|---|
@@ -89,8 +93,8 @@ the user's intent or vision, whatever its type (SKILL.md "Readiness"). Extension
    committed; slug spec shared with the pipeline skills) for files one session reads; the map's
    dossier branch (SKILL.md "Shared files") holds files several sessions read. The map never
    cites a concrete `<memory_dir>/<slug>/` path; neither surface holds map state.
-5. **No fog prose that an item already charts.** Charting fog is create-then-delete; an
-   interrupted run can leave the prose behind. Delete it, and chart nothing new from it.
+5. **No fog bullet that an item already charts.** Charting fog is create-then-delete; an
+   interrupted run can leave the bullet behind. Delete it, and chart nothing new from it.
 
 ## Graduation and closure
 

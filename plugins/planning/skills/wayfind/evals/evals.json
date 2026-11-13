@@ -5,11 +5,11 @@
       "id": 1,
       "name": "chart-triggers-on-too-big-and-foggy-effort",
       "prompt": "/planning:wayfind chart We started interviewing the overhaul of our entire notification system earlier in this session, but every round opened more branches than it closed. It's way too big to hold in my head, and honestly I don't even know all the questions yet, let alone the answers. Turn this into a map.",
-      "expected_output": "Chart was asked for by name, so it proceeds without proposing first. The effort was already interviewed, so chart does not offer the interview again. The skill surveys the effort and runs every uncertainty through the fog test — sharp (phraseable, even if unanswered) becomes a candidate decision item; foggy (can't yet be phrased) stays Not-yet-specified prose — rather than answering everything itself or refusing outright.",
+      "expected_output": "Chart was asked for by name, so it proceeds without proposing first. The effort was already interviewed, so chart does not offer the interview again. The skill surveys the effort and runs every uncertainty through the fog test — sharp (phraseable, even if unanswered) becomes a candidate decision item; foggy (can't yet be phrased) becomes a labelled Not-yet-specified bullet — rather than answering everything itself or refusing outright.",
       "files": [],
       "expectations": [
         "Output recognizes the effort as too-big-and-foggy and enters chart mode rather than work mode",
-        "Output applies the fog test to sort uncertainties into sharp candidate decision items versus foggy Not-yet-specified prose, instead of trying to answer every uncertainty itself",
+        "Output applies the fog test to sort uncertainties into sharp candidate decision items versus foggy Not-yet-specified bullets, instead of trying to answer every uncertainty itself",
         "Output does not skip straight to /planning:interview or /planning:plan without first charting the fog"
       ]
     },
@@ -27,16 +27,17 @@
     },
     {
       "id": 3,
-      "name": "chart-happy-path-creates-map-with-five-sections-and-typed-items",
+      "name": "chart-happy-path-proposes-map-with-five-sections-and-typed-items",
       "prompt": "/planning:wayfind chart migrating our monolith to a modular architecture. We interviewed this earlier in the session and it outgrew one sitting. I confirm the destination: a set of build items for the first module extraction. I know some pieces: we've agreed the database can't be split yet (that's out of scope for now), and we need to decide whether to go strangler-fig or big-bang (that's answerable, if painful). But I genuinely don't know yet how we'd handle cross-module transactions — I can't even phrase that as a real question.",
-      "expected_output": "Chart mode surveys the effort and creates or extends a work-map issue whose body carries the five sections (Destination, Notes, Decisions-so-far, Not-yet-specified, Out-of-scope). The strangler-fig-vs-big-bang question becomes a typed decision sub-issue (sharp); the cross-module-transactions unknown stays fog prose under Not-yet-specified; the database-split exclusion is recorded under Out-of-scope. The session ends by handing off to /planning:wayfind work on the frontier rather than resolving decisions itself.",
+      "expected_output": "Chart mode surveys the effort and proposes the whole map before creating anything on the tracker: a body with the five sections (Destination, Notes, Decisions-so-far, Not-yet-specified, Out-of-scope) and the items to create. The strangler-fig-vs-big-bang question is a typed decision item (sharp); the cross-module-transactions unknown is a labelled bullet under Not-yet-specified; the database-split exclusion is under Out-of-scope. It waits for the user's yes on that proposal, and says /planning:wayfind work follows once the map exists, rather than resolving decisions itself.",
       "files": [],
       "expectations": [
-        "Output creates or extends a work-map issue containing the five body sections: Destination, Notes, Decisions-so-far, Not-yet-specified, Out-of-scope",
-        "The strangler-fig-vs-big-bang question becomes a typed decision sub-issue (sharp) rather than being answered directly by the skill",
-        "The cross-module-transactions unknown is recorded as fog prose under Not-yet-specified, not forced into a premature ticket",
+        "Output proposes a map with the five body sections: Destination, Notes, Decisions-so-far, Not-yet-specified, Out-of-scope",
+        "Output waits for the user's yes on the proposed map before creating the map issue or any decision item",
+        "The strangler-fig-vs-big-bang question is a typed decision item (sharp) rather than being answered directly by the skill",
+        "The cross-module-transactions unknown is a labelled bullet under Not-yet-specified, not forced into a premature ticket",
         "The database-split exclusion is recorded under Out-of-scope, distinct from the fog section",
-        "Output hands off by recommending /planning:wayfind work rather than beginning to resolve decisions itself"
+        "Output names /planning:wayfind work as the next step rather than beginning to resolve decisions itself"
       ]
     },
     {
@@ -104,10 +105,10 @@
       "id": 9,
       "name": "resolution-sweeps-invalidated-items-and-supersedes-wrong-decision",
       "prompt": "/planning:wayfind work #200 'Map: billing overhaul'. We just resolved #44 'Decide invoice numbering': invoices are numbered per tenant, not globally. That makes open item #47 'Pick the global invoice sequence store' pointless. It also shows closed decision #39 'Share one invoice table across tenants' was wrong. The map's Not-yet-specified section says 'something feels off about how tenants share invoice data'; the resolution makes that sharp enough to chart as 'Choose per-tenant invoice storage'. Finish the close-out.",
-      "expected_output": "Work mode graduates #44 (resolution comment, Decisions-so-far pointer, close), charts 'Choose per-tenant invoice storage' as a typed item and deletes the matching fog prose from Not-yet-specified, then sweeps the map: #47 is closed as moot with a comment linking #44's resolution and gets no index line; #39 is not reopened or edited, a new decision item linking #39 is opened to revisit the table design, and #39's Decisions-so-far line is rewritten to point at the decision that supersedes it once that resolves.",
+      "expected_output": "Work mode graduates #44 (resolution comment, Decisions-so-far pointer, close), charts 'Choose per-tenant invoice storage' as a typed item and deletes the matching fog bullet from Not-yet-specified, then sweeps the map: #47 is closed as moot with a comment linking #44's resolution and gets no index line; #39 is not reopened or edited, a new decision item linking #39 is opened to revisit the table design, and #39's Decisions-so-far line is rewritten to point at the decision that supersedes it once that resolves.",
       "files": [],
       "expectations": [
-        "Output charts the newly sharp question as a typed item and deletes the tenant-sharing fog prose from Not-yet-specified rather than leaving it in both places",
+        "Output charts the newly sharp question as a typed item and deletes the tenant-sharing fog bullet from Not-yet-specified rather than leaving it in both places",
         "Output closes or rewrites #47 because its premise no longer holds, and a close carries a comment linking the #44 resolution",
         "Output does not add a Decisions-so-far line for the moot #47",
         "Output opens a new decision item that links #39 rather than reopening #39 or editing its resolution comment",
@@ -130,13 +131,13 @@
       "id": 11,
       "name": "chart-seeds-from-interview-ledger",
       "prompt": "/planning:wayfind chart the data-retention program. Our interview ledger is at .work/data-retention/interview-checklist.md: it settled 'retain audit logs 7 years' and 'EU data stays in the EU region', and left open 'Which stores hold personal data?' and 'Do backups count as retained copies?'. We also still can't say what 'deletion' should mean for derived analytics. I confirm the destination: a PRD for the retention program.",
-      "expected_output": "Chart mode seeds the map from the ledger: the two settled answers go into one seed decision item whose resolution comment lists them, closed at once with one Decisions-so-far pointer; the two open questions become decision items; the derived-analytics deletion worry stays Not-yet-specified prose. It does not open one closed issue per settled answer and does not cite the .work path in Notes.",
+      "expected_output": "Chart's proposed map seeds from the ledger: the two settled answers go into one seed decision item whose resolution comment lists them, closed at once with one Decisions-so-far pointer; the two open questions become decision items; the derived-analytics deletion worry is a labelled Not-yet-specified bullet. It does not open one closed issue per settled answer and does not cite the .work path in Notes.",
       "files": [],
       "narration": true,
       "expectations": [
         "Output puts both settled answers in one seed item with a single Decisions-so-far pointer, not one closed issue per answer",
         "Output charts the two open questions as decision items",
-        "Output keeps the derived-analytics deletion worry as Not-yet-specified prose",
+        "Output keeps the derived-analytics deletion worry as a Not-yet-specified bullet",
         "Output does not point Notes at the .work path"
       ]
     },
@@ -156,7 +157,7 @@
       "id": 13,
       "name": "destination-confirmed-before-any-item",
       "prompt": "/planning:wayfind chart the partner-API v2 effort. We interviewed it earlier in this session and it outgrew one sitting. The open questions are auth scheme, rate-limit model and versioning policy, and nobody can yet say what 'partner tiers' should mean.",
-      "expected_output": "Before any map issue or decision item exists, chart states the destination in one or two lines (what finishing the map produces, one bounded outcome of a named kind such as a PRD or a set of build items) and asks the user to confirm it. Only after that does it create the map and the three decision items, leaving partner tiers as Not-yet-specified prose.",
+      "expected_output": "Before any map issue or decision item exists, chart asks what done looks like: it states the destination in one or two lines (what finishing the map produces, one bounded outcome of a named kind, recommending a PRD for this coding effort) and asks the user to confirm it. Only after that does it propose the map, with auth scheme, rate-limit model and versioning policy as decision items and partner tiers as a Not-yet-specified bullet, and it creates nothing before the user's yes on that proposal.",
       "files": [],
       "expectations": [
         "Output names a destination and asks the user to confirm it before creating the map issue or any decision item",
@@ -167,7 +168,7 @@
     {
       "id": 14,
       "name": "cross-references-written-in-second-pass-with-real-ids",
-      "prompt": "/planning:wayfind chart — we interviewed the billing-export feature earlier in this session and it outgrew one sitting; destination confirmed: a PRD for it. Create the decision items: 'Pick the export format' and 'Choose the delivery channel', where the delivery-channel item depends on the format decision and its body should point at it. Neither item exists on the tracker yet.",
+      "prompt": "/planning:wayfind chart — we interviewed the billing-export feature earlier in this session and it outgrew one sitting; destination confirmed: a PRD for it. I said yes to the proposed map. Create the decision items: 'Pick the export format' and 'Choose the delivery channel', where the delivery-channel item depends on the format decision and its body should point at it. Neither item exists on the tracker yet.",
       "expected_output": "Chart creates both items first with no reference to each other in their bodies, then in a second pass, once both have real ids, wires 'Choose the delivery channel' as blocked by 'Pick the export format' and edits its body to link the format item by absolute URL. It never writes a guessed or placeholder issue number.",
       "files": [],
       "expectations": [
@@ -191,7 +192,7 @@
     {
       "id": 16,
       "name": "needs-human-only-for-intent-or-vision",
-      "prompt": "/planning:wayfind chart — we interviewed the search rewrite earlier in this session and it outgrew one sitting; destination confirmed: a set of build items for it. Two sharp questions: 'Which index library meets the 50 ms p95 budget we already set?' (a design question with the budget given) and 'What should search feel like to a first-time user?'. Create the items.",
+      "prompt": "/planning:wayfind chart — we interviewed the search rewrite earlier in this session and it outgrew one sitting; destination confirmed: a set of build items for it. Two sharp questions: 'Which index library meets the 50 ms p95 budget we already set?' (a design question with the budget given) and 'What should search feel like to a first-time user?'. I said yes to the proposed map. Create the items.",
       "expected_output": "The index-library question is a design item whose answer needs no user intent or vision (the budget is set), so it gets no needs-human label. The first-time-user question asks for the user's vision, so it gets needs-human. Type alone does not set the mode.",
       "files": [],
       "expectations": [
@@ -210,6 +211,54 @@
         "Output does not implement the Stripe adapter or write feature code",
         "Output says the Notes preference does not override plan, don't do",
         "Output graduates #43 with a resolution comment and a Decisions-so-far pointer"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "item-link-routes-to-work-on-that-item",
+      "prompt": "/planning:wayfind https://github.com/acme/shop/issues/43",
+      "expected_output": "The argument is an item reference, so the run is work mode on that item: it loads the item's map, checks the item is on the frontier, claims it and routes by its type label. It does not propose charting a new map and does not pick a different item.",
+      "files": [],
+      "expectations": [
+        "Output treats the link as the item to work, on that item's map",
+        "Output does not propose charting a new map",
+        "Output claims the linked item before routing it by its type label, or reports why it is off the frontier"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "bare-run-with-open-map-lists-frontier-and-waits",
+      "prompt": "/planning:wayfind (interactive session; one open map exists, 'Map: billing overhaul' (#200), with frontier items 'Choose the billing aggregate' (#42), 'Pick the payment-provider adapter' (#43) and 'Decide invoice numbering' (#44))",
+      "expected_output": "A bare run with an open map lists the frontier by title, recommends one item with a reason and waits for the user's pick. It claims nothing and resolves nothing in this turn.",
+      "files": [],
+      "expectations": [
+        "Output lists the three frontier items by title",
+        "Output recommends one item to work next",
+        "Output waits for the user's pick and claims no item in this turn"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "dont-know-becomes-research-not-a-guess",
+      "prompt": "/planning:wayfind chart the push-notification effort. We interviewed it earlier in this session and it outgrew one sitting; destination confirmed: a PRD. One thing I can't answer: I don't know whether our mobile framework can deliver push while the app is closed.",
+      "expected_output": "Chart accepts 'I don't know' as a full answer. Whether the framework can deliver push while the app is closed is a fact evidence can settle, so the proposed map carries it as a research item; chart does not guess an answer or recommend one before the research, and does not press the user to answer.",
+      "files": [],
+      "expectations": [
+        "Output charts the closed-app push question as a research item",
+        "Output does not state or recommend an answer to that question",
+        "Output does not press the user to answer it"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "ready-questions-asked-in-one-round-and-items-are-topics",
+      "prompt": "/planning:wayfind chart the notification-preferences effort. We interviewed it earlier in this session and it outgrew one sitting; destination confirmed: a PRD. Open: three yes/no questions you already recommended an answer for and that wait on nothing (email digests on by default? keep the legacy SMS toggle? show a per-channel mute?), plus two topics nobody has a recommendation for yet: the notification catalogue (which events exist, their names, who receives each) and the delivery-retry policy.",
+      "expected_output": "Chart asks the three ready yes/no questions in one interview round before proposing any map, rather than charting an item for each. The proposed map then has one item per topic (the notification catalogue with its related questions inside it, the delivery-retry policy), not one item per question.",
+      "files": [],
+      "expectations": [
+        "Output asks the three ready questions together in one round instead of creating a decision item for each",
+        "Output charts the notification catalogue as one item holding its related questions, not one item per question",
+        "Output creates nothing on the tracker in this turn"
       ]
     }
   ]

@@ -1,6 +1,6 @@
 ---
 description: "Chart a too-big, still-foggy effort as a map of decision items on the work-item tracker and work its frontier one decision at a time until it closes to a PRD, decomposed work items or one work item. Use when an interview outgrew one session: 'turn this into a map', 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'plan-the-plan'. Not the first step: a new effort starts at /planning:interview. Already sharp tickets: /work-items."
-argument-hint: "[chart|work] [topic|map] [item]"
+argument-hint: "[chart|work|<item link>] [topic|map] [item]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -9,7 +9,7 @@ metadata:
   summary: Chart a too-big, foggy effort as a decision map worked one decision at a time
 ---
 
-**Arguments.** `[chart|work] [topic|map] [item]`. e.g., /planning:wayfind chart <topic>, /planning:wayfind work, /planning:wayfind work <map> <item>
+**Arguments.** `[chart|work|<item link>] [topic|map] [item]`. e.g., /planning:wayfind chart <topic>, /planning:wayfind work, /planning:wayfind work <map> <item>, /planning:wayfind <item link>
 
 ## Pre-computed context
 
@@ -87,11 +87,15 @@ For every uncertainty, ask: **can I phrase it as a sharp question?**
 
 - **Sharp** (you can state the question, even if you can't answer it yet, even if it's blocked) →
   a **decision item** on the map (a typed sub-issue).
-- **Foggy** (you can't yet put words to what's uncertain) → **prose** in the map's
+- **Foggy** (you can't yet put words to what's uncertain) → one **labelled bullet** in the map's
   *Not-yet-specified* section, until working the map makes it sharp enough to phrase.
 
 Sharpness, not blockedness, is the line: a blocked-but-phrasable question is a ticket; an
 unblocked-but-unphrasable worry is fog.
+
+"I don't know" is a full answer, from the user or from you. Sort each unknown by who can settle
+it: evidence can → a `research` item, researched before anyone recommends an answer; only the
+user can → an `interview` item; nobody can phrase it yet → fog.
 
 ## Readiness: one engine, human only for intent and vision
 
@@ -128,9 +132,11 @@ Parse the first token of `$ARGUMENTS`.
 
 | Argument | Action | When |
 |----------|--------|------|
-| *(empty)* | **auto** | Open map for the topic exists → `work`. Else propose `chart` with the topic and wait for the user's yes |
+| *(empty)* | **auto** | Open map exists → list its frontier by title, recommend one item and wait for the user's pick (several open maps: name them and ask which); an unattended session goes straight to `work`. No open map → propose `chart` and wait for the user's yes |
 | `chart [topic]` | **Chart** | Build or extend a map, without asking first. **Interactive only**. Refuses non-interactive sessions (charting burns assumptions that need a human) |
 | `work [map] [item]` | **Work** | Work one frontier item: the named one, else the first in creation order |
+| An item reference (URL, `#<n>` or tracker key) | **Work** | Work that item on its map |
+| Any other text | **auto** | The text is the topic: an open map for it → as *(empty)*. Else propose `chart` with the topic and wait for the user's yes |
 
 ## Chart mode
 
@@ -139,17 +145,25 @@ declares it (the same rule `/planning:interview` applies): when the invocation s
 unattended (a loop, a spawned worker, a `claude -p` run, another skill's chain), STOP and report
 that charting needs an interactive session. Do not fabricate a map.
 
-1. **Survey, interview, fog test.** Ground in the effort (any existing `<memory_dir>/<slug>/`,
-   recent commits, the topic).
+1. **Survey, interview, fog test.** Read the repository's glossary and work-item conventions
+   first, when it has them, so questions use its terms and items follow its tracker rules (the
+   glossary is found the way `/planning:interview`'s survey finds it). Then ground in the effort
+   (any existing `<memory_dir>/<slug>/`, recent commits, the topic).
    - **Seed from the interview:** when the slice holds an interview ledger
      (`interview-checklist.md`), its settled answers become one seed decision item, created with
      the others in step 4, whose resolution comment lists them; close it at once with one
      *Decisions-so-far* pointer (the work-mode step 6 sequence). Its open, deferred and blocked questions become candidate
-     decision items. Its self-answered facts, constraint ledger, `## Starting point` line, and
-     session-shorthand glossary are distilled into *Notes* as text, never as a path, so nothing
-     the interview already asked is asked again.
+     decision items. The constraints every later session must obey go into *Notes*, one line
+     each; its self-answered facts, `## Starting point` line and session-shorthand glossary go
+     in the seed item's resolution comment, as text, never as a path, so nothing the interview
+     already asked is asked again.
    - Sort every remaining uncertainty through the fog test: sharp → candidate decision item;
-     foggy → *Not-yet-specified* prose.
+     foggy → a *Not-yet-specified* bullet. Tell the user once that "I don't know" is a full
+     answer.
+   - **Ask ready questions now.** A sharp question that already has a recommendation and waits
+     on no other decision is not map material: ask all of them in one `/planning:interview`
+     round before any map exists, and add the answers to the seed item's settled answers. Only
+     what stays open becomes an item.
    - **No-fog bail-out:** if the survey leaves *both* halves of the trigger unmet (every
      uncertainty is already sharp, or the whole effort fits one session), the effort skips the
      map. STOP and route out instead of fabricating one: a single contract to lock → invoke
@@ -163,10 +177,17 @@ that charting needs an interactive session. Do not fabricate a map.
      user has said (the topic, stated constraints, any starting point). On yes, invoke
      `/planning:interview` via the Skill tool with that preload and continue from its ledger once
      it hands off. On no, chart only if the user still asks for a map.
-2. **Name the destination and confirm it** with the user before any item exists: one or two lines
-   saying what finishing the map produces. Its kind sets the closure target (work step 8): a PRD,
-   a set of build items to decompose, one change, a decision record, or a general summary. Narrow
-   it to one bounded destination when it reads like a whole product.
+2. **Ask what done looks like, then propose the whole map.** Nothing is created on the tracker
+   before the second yes.
+   - **Destination.** Chart's first question to the user is what finishing the map produces,
+     confirmed as one or two lines. Its kind sets the closure target (work step 8): a PRD, a
+     set of build items to decompose, one change, a decision record, or a general summary.
+     Recommend a PRD for a coding effort, and a decision record or summary for one that is not.
+     Narrow it to one bounded destination when it reads like a whole product.
+   - **Proposed map.** Show the map as it would be created and wait for one yes: the
+     Destination; each item to create with its title, type, mode and what it waits on; the
+     Not-yet-specified bullets; the Out-of-scope list. Apply the changes the user asks for and
+     show it again. Extending an existing map, show only what would be added.
 3. **Create or extend the map issue.** On first use in a repo, resolve the container label (the
    seam's `config.container_label` key, default `work-map`; snippet in
    `context/tracker-mechanics.md`), then **verify** the wayfind label taxonomy (the container
@@ -177,18 +198,21 @@ that charting needs an interactive session. Do not fabricate a map.
    one issue labeled with the bare container label (+ any repo program labels). Its body carries
    five sections:
    - **Destination**: the confirmed destination from step 2.
-   - **Notes**: durable pointers only (PRs, committed docs, prior items, the dossier branch,
-     external links), plus the skills every session on this map should consult. Memory-tier
-     `<memory_dir>/` artifacts are checkout-local, so distill their relevant content inline
-     instead of pointing at paths other readers cannot resolve.
+   - **Notes**: only what every session on this map must obey or consult: standing
+     constraints, one line each; the skills to consult; the dossier branch link. Background and
+     interview facts go in the seed item's resolution comment or the item they concern. Never a
+     memory-tier `<memory_dir>/` path, which other readers cannot resolve.
    - **Decisions-so-far**: a *pointer index* of resolved-in-scope decisions. Each home is its own
      item's resolution comment, never recopied here; wrongly scoped closures get no pointer.
-   - **Not-yet-specified**: fog, as prose. Fog never graduates into Out-of-scope.
+   - **Not-yet-specified**: fog, one bullet per uncertainty, each opening with a short bold
+     label. Fog never graduates into Out-of-scope.
    - **Out-of-scope**: scope exclusions, not unphraseable fog.
 
    Template and tracker actions: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
-4. **Create typed decision items, then wire them.** Create one sub-issue of the map per sharp
-   question, each sized to one session's work (state no token figure). The type label sets the
+4. **Create typed decision items, then wire them.** Create one sub-issue of the map per topic
+   one session can work (state no token figure), its related sharp questions grouped inside it,
+   never one item per question. An item body holds the question and the criteria an answer must
+   meet, nothing else. The type label sets the
    routing target (the type table in work step 5). Then, in a second pass once every item has
    its real id, wire `blocked-by` edges and write any cross-reference between items. Wire an edge
    only where one decision genuinely gates another; never invent edges to impose order.
@@ -207,7 +231,7 @@ that charting needs an interactive session. Do not fabricate a map.
    (idempotent). Check the map's invariants: every closed **in-scope** decision has a
    *Decisions-so-far* pointer line (closed-as-out-of-scope items have an Out-of-scope line
    instead; closed-as-moot items have only their closing comment); no item resolved-in-comment
-   but still open; no Not-yet-specified prose that an item already charts (delete it). Fix
+   but still open; no Not-yet-specified bullet that an item already charts (delete it). Fix
    violations before proceeding.
 2. **Load the map at low resolution.** Read the map body and its child list; open an item's body
    only when the step at hand needs it (the picked item, a blocker, a decision the sweep checks).
@@ -250,7 +274,7 @@ that charting needs an interactive session. Do not fabricate a map.
    but not this effort): add one Out-of-scope line linking it, then close it, with no
    Decisions-so-far pointer. Fog stays in Not-yet-specified and never graduates into
    Out-of-scope. If the resolution sharpened previously-foggy uncertainty, chart the new sharp
-   items now (create, then wire, as chart step 4) and delete that prose from Not-yet-specified.
+   items now (create, then wire, as chart step 4) and delete that bullet from Not-yet-specified.
 7. **Sweep the map after every resolution.** Reread the open items and closed decisions against
    what was just decided:
    - An open item whose premise the resolution invalidated: rewrite its question if one still

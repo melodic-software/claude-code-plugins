@@ -79,10 +79,10 @@ A map is never assigned and never carries a claim label: it is a container, not 
 
 ## Create a typed decision item (a child of the map)
 
-`/work-items:track add --parent <map-id> --label 'wayfind: <research|interview|design|prototype|task>' --body-file <item-body.md> "<sharp question>"`
+`/work-items:track add --parent <map-id> --label 'wayfind: <research|interview|design|prototype|task>' --body-file <item-body.md> "<topic>"`
 
-The body says what must be decided, the options if known, and for a `prototype` item whether it is
-logic or UI; it never states the type, which the label carries. Materialize the mode at creation:
+The body holds the question and the criteria an answer must meet, and for a `prototype` item
+whether it is logic or UI; it never states the type, which the label carries. Materialize the mode at creation:
 add `--label needs-human` only when the item needs the user's intent or vision, whatever its type
 (SKILL.md "Readiness"). Create every item first, with no reference to another item in its body.
 
