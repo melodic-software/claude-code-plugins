@@ -1,0 +1,9 @@
+# .NET in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
+# Off: the repository builds no .NET project. Its only C# files are the
+# mutation-testing plugin's fixture corpus, which no CI job builds.
+enabled: false
+globs: ["*.cs", "*.csproj", "*.sln", "*.slnx", "*.props", "*.targets"]
+build-cmd: null
+test-cmd: null
+check-cmd: null
+fix-cmd: null

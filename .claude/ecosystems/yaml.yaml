@@ -1,0 +1,14 @@
+# GitHub Actions workflows in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
+# Lint-only: /toolchain:lint runs it, /toolchain:check does not.
+globs: [".github/**/*.yml", ".github/**/*.yaml"]
+build-cmd: null
+test-cmd: null
+check-cmd: |
+  actionlint
+  zizmor --offline <files>
+fix-cmd: null
+opt-in: "GitHub Actions workflows present"
+install-hint: |
+  actionlint: winget install rhysd.actionlint | brew install actionlint
+  zizmor: pip install zizmor
+notes: "Lint-only: owned by /toolchain:lint. actionlint runs from the repository root with no arguments and finds every workflow itself; a zizmor finding is advisory."

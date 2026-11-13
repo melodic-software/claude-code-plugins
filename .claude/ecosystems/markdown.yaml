@@ -1,0 +1,10 @@
+# Markdown in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
+# The markdownlint-cli2 on PATH reads the root .markdownlint-cli2.jsonc, as
+# scripts/check-affected.sh runs it; npx would fetch an unpinned release.
+globs: ["*.md"]
+build-cmd: null
+test-cmd: null
+check-cmd: "markdownlint-cli2 --config .markdownlint-cli2.jsonc <files>"
+fix-cmd: "markdownlint-cli2 --config .markdownlint-cli2.jsonc --fix <files>"
+opt-in: ".markdownlint-cli2.jsonc at the repository root"
+install-hint: "npm ci --ignore-scripts at the repository root installs the pinned markdownlint-cli2 into node_modules/.bin"

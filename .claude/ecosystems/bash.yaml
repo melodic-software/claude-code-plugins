@@ -1,0 +1,11 @@
+# Shell in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
+# shellcheck reads the root .shellcheckrc, as scripts/check-affected.sh and CI's
+# lint-shell job run it. Shell suites (*.test.sh) are selected and run by
+# scripts/affected-tests.sh --run, not by a per-ecosystem test command.
+globs: ["*.sh", "*.bash"]
+build-cmd: null
+test-cmd: null
+check-cmd: "shellcheck --rcfile .shellcheckrc <files>"
+fix-cmd: "shfmt -w <files>"
+opt-in: "shellcheck always applies to shell files"
+install-hint: "winget install ShellCheck.ShellCheck mvdan.shfmt | brew install shellcheck shfmt"

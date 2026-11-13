@@ -1,0 +1,13 @@
+# Python in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
+# Lint goes through the pinned ruff wrapper (.claude/rules/ruff-pin.md), as
+# scripts/check-affected.sh runs it; the repository has no pyproject.toml, so
+# every command runs from the repository root, where ruff.toml lives.
+globs: ["*.py", "*.pyi"]
+build-cmd: null
+test-cmd: null
+check-cmd: "scripts/run-ruff.sh check --force-exclude <files>"
+fix-cmd: "scripts/run-ruff.sh format --force-exclude <files>"
+code-fix-cmd: "scripts/run-ruff.sh check --force-exclude <files> --fix --no-unsafe-fixes --unfixable F401"
+opt-in: "ruff.toml at the repository root"
+install-hint: "uv (https://docs.astral.sh/uv/): scripts/run-ruff.sh runs the CI-pinned ruff through it"
+notes: "Python suites are selected and run by scripts/affected-tests.sh --run, not by a per-ecosystem test command."

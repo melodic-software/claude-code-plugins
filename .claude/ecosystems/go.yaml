@@ -1,0 +1,8 @@
+# Go in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
+# Off: the repository has no go.mod and no Go source.
+enabled: false
+globs: ["*.go", "go.mod", "go.sum"]
+build-cmd: null
+test-cmd: null
+check-cmd: null
+fix-cmd: null
