@@ -25,7 +25,8 @@ map. It defines the stages, detects the current position, and suggests what come
 
 **Three roles:**
 
-1. **Reference**, stage definitions and how stages compose (`context/steps.md`)
+1. **Reference**, stage definitions, how stages compose, and which stages each kind of task runs
+   (`context/steps.md`)
 2. **Navigator**, session-aware guidance on which stage comes next based on what's been done
 3. **Checklist**. Pre-PR sequence and end-of-session wrap-up as structured checklists
 
@@ -133,11 +134,17 @@ satisfies, then continue from there.
 
 ### 3. Suggest next stage
 
-Based on what's been done, recommend the next stage with rationale. For new work whose diff fails
-either quick-change test, with nothing done, suggest stage 1, the interview; explore, research
-and a PRD then run as detours the interview calls. A change that passes both tests takes the quick-change on-ramp below
-instead. If the consuming repo has a
+Based on what's been done, recommend the next stage with rationale. Read the `## Task kinds` table
+in `context/steps.md`, match the task to its kind, and give that row's stage list: the stages it
+runs in order, the ones it calls on their trigger, and the ones it skips; the row decides where the
+work enters. For new work whose row runs the interview, with nothing done, suggest stage 1, the
+interview; explore, research and a PRD then run as detours the interview calls. A change that
+passes both quick-change tests takes the quick-change on-ramp below instead. If the consuming repo has a
 skill for that stage, name it; otherwise describe the inline work. Add that stage's effort advice per "Effort per stage" in `context/steps.md`.
+
+To look up the commands to type for each kind of task, in order and with their arguments, point
+the user at the "By kind of task" table of `docs/skill-cheat-sheet.md` in the marketplace
+repository.
 
 ### 4. Route the continuation mechanism at a phase boundary
 
@@ -183,7 +190,9 @@ two files.
 
 The stage sequence is the main line, not the only entrance. Work also arrives from the side and
 merges in at a later stage. Recognize the CLASS of arrival and merge at the right point instead of
-forcing every session through stage 1. Common classes:
+forcing every session through stage 1. The stages each kind of task runs and skips are the
+`## Task kinds` table in `context/steps.md`; the classes below say where an arrival merges in.
+Common classes:
 
 - **A quick change**, one whose diff will be quick to review and cheap to retry. Those two tests
   decide, not size; a diff that adds types, public contracts, or module boundaries is not cheap

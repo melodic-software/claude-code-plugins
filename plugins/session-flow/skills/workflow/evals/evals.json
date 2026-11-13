@@ -458,6 +458,19 @@
         "It cites the compaction marker, not the zone word, as what triggered the handoff",
         "It reports the zone as light rather than heavy"
       ]
+    },
+    {
+      "id": 39,
+      "name": "fix-bug-task-kind-stage-list",
+      "prompt": "Fix bug X: the CSV export drops the last row when the table has more than 100 rows. Nothing is done yet. Which stages does this run?",
+      "expected_output": "The skill reads the Task kinds table in context/steps.md and matches the task to its Bug row: it runs 8. Implement (starting with the diagnosis and a failing regression test), 9. Test, 10. Review, 11. Verify outcome, then Ship; it calls 2. Explore, 3. Research and 12. Retrospective only on their trigger; and it skips 1. Interview, 4. PRD, 5. Design, 6. Plan and 7. Decompose.",
+      "files": [],
+      "expectations": [
+        "The stage list it gives runs 8. Implement, 9. Test, 10. Review, 11. Verify outcome and Ship, in that order",
+        "It says the interview, PRD, design, plan and decompose stages are skipped for this bug",
+        "It names Explore and Research as stages called only when their trigger holds, not as stages that run before implement",
+        "It starts implement with reproducing the bug and finding its root cause"
+      ]
     }
   ]
 }

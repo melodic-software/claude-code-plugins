@@ -224,3 +224,29 @@ across sessions are `/session-flow:audit-sessions trends`.
 
 Prep (review + verify evidence) → create → monitor CI → address review findings → merge. Standalone
 sequence, not a numbered stage. See `context/pre-pr.md` for the ordered gate checklist.
+
+## Task kinds
+
+Which stages each kind of task runs, in order, which it calls only when that stage's trigger holds,
+and which it skips. This table is the one statement of that mapping: the default mode reads it to
+suggest a task's stage list, and the marketplace's generated skill cheat sheet joins it with the
+command for each stage. A stage is named by its heading above, up to the first colon or
+parenthesis. It names no skills: which skill runs a stage is the consuming repository's choice.
+
+| Kind | Runs, in order | On trigger | Skips |
+| --- | --- | --- | --- |
+| Small fix | 8. Implement, 9. Test, 10. Review, 11. Verify outcome, Ship | 3. Research, 12. Retrospective | 1. Interview, 2. Explore, 4. PRD, 5. Design, 6. Plan, 7. Decompose |
+| Bug | 8. Implement, 9. Test, 10. Review, 11. Verify outcome, Ship | 2. Explore, 3. Research, 12. Retrospective | 1. Interview, 4. PRD, 5. Design, 6. Plan, 7. Decompose |
+| Feature | 1. Interview, 5. Design, 6. Plan, 8. Implement, 9. Test, 10. Review, 11. Verify outcome, Ship | 2. Explore, 3. Research, 4. PRD, 7. Decompose, 12. Retrospective | none |
+| Refactor | 1. Interview, 5. Design, 6. Plan, 8. Implement, 9. Test, 10. Review, 11. Verify outcome, Ship | 2. Explore, 3. Research, 7. Decompose, 12. Retrospective | 4. PRD |
+| UI change | 1. Interview, 5. Design, 6. Plan, 8. Implement, 9. Test, 10. Review, 11. Verify outcome, Ship | 2. Explore, 3. Research, 4. PRD, 7. Decompose, 12. Retrospective | none |
+| Release | 8. Implement, 10. Review, 11. Verify outcome, Ship | 3. Research, 12. Retrospective | 1. Interview, 2. Explore, 4. PRD, 5. Design, 6. Plan, 7. Decompose, 9. Test |
+
+- **Small fix** is the quick-change on-ramp: a diff quick to review and cheap to retry. One that
+  turns out not to be quick to review returns to 1. Interview.
+- **Bug** starts implement with the diagnosis: reproduce, find the root cause, write the failing
+  regression test, then fix.
+- **Release** ships work already merged: the version and release-record change, with no new
+  behavior to test; 11. Verify outcome still runs the build and tests.
+- A task whose diff adds types, public contracts or module boundaries takes the Feature row,
+  whatever its kind.

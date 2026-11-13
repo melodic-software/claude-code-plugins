@@ -4,8 +4,10 @@
 # mktemp and drives the generator through --root: the green generate/--check
 # path, every enforcement failure mode (missing stage, excluded-but-mapped
 # conflict, unknown stage/cadence enums, summary cap, charset guard, cadence
-# coupling, orphaned exclusion), drift detection, and the spine-drift
-# assertion. The fixture config re-exports the REAL summaryError so the guard
+# coupling, orphaned exclusion), drift detection, the spine-drift
+# assertion, and the "By kind of task" view with its Task kinds, stage-command
+# and cited runs-for-you failures, the Arguments column and the Upstream
+# column. The fixture config re-exports the REAL summaryError so the guard
 # the generator enforces in tests is the shipped one, not a copy.
 set -uo pipefail
 
@@ -67,6 +69,9 @@ export const STAGES = [
 export const EXCLUDED_PLUGINS = new Map();
 export const EXCLUDED_SKILL_NAME = { name: "setup", reason: "infra setup" };
 export const EXCLUDED_SKILLS = new Map();
+export const STAGE_COMMANDS = new Map([["plan", { skills: ["alpha/mapped"] }]]);
+export const RUNS_FOR_YOU = new Map();
+export const UPSTREAM_RECORDS = [];
 EOF
   cat >"$dir/.claude-plugin/marketplace.json" <<'EOF'
 {
@@ -76,7 +81,9 @@ EOF
   ]
 }
 EOF
-  printf '## 3. Plan (fixture spine)\n' \
+  printf '%s\n' '## 3. Plan (fixture spine)' '' '## Task kinds' '' \
+    '| Kind | Runs, in order | On trigger | Skips |' '| --- | --- | --- | --- |' \
+    '| Fix | 3. Plan | none | none |' \
     >"$dir/plugins/session-flow/skills/workflow/context/steps.md"
   printf '# Skill cheat sheet (fixture)\n\n<!-- cheatsheet:start -->\n<!-- cheatsheet:end -->\n' \
     >"$dir/docs/skill-cheat-sheet.md"
@@ -269,6 +276,107 @@ else
   fail "blank line truncated metadata keys (exit=$CODE: $OUT)"
 fi
 rm -rf "$tree"
+
+# --- by kind of task, Arguments and Upstream columns -----------------------------
+mk_tree tree
+cat >"$tree/plugins/alpha/skills/mapped/SKILL.md" <<'EOF'
+---
+name: mapped
+description: fixture skill for cheat-sheet generator tests
+argument-hint: "[run|check] <target>"
+metadata:
+  workflow-stage: plan
+  summary: Fixture skill mapped to the plan stage
+---
+
+# mapped
+EOF
+mkdir -p "$tree/docs/upstream"
+cat >"$tree/docs/upstream/rec.md" <<'EOF'
+# Fixture upstream record
+
+## Attribution table
+
+| Upstream | Ours | Relation |
+|---|---|---|
+| [`up-skill`](https://github.com/o/r/tree/abc/skills/up-skill) | `alpha:mapped` | Derived |
+| [Upstream PR #1](https://github.com/o/r/pull/1) | `alpha:mapped` | Pointer |
+| [`abc1234`](https://github.com/o/r/commit/abc1234) | `alpha:mapped` | Pointer |
+| [`NOTES.md`](https://github.com/o/r/blob/abc/skills/up-skill/NOTES.md) | `alpha:mapped` | Pointer |
+EOF
+sed -i.bak \
+  -e 's|RUNS_FOR_YOU = new Map()|RUNS_FOR_YOU = new Map([["alpha/mapped", [{ does: "Runs the fixture call", cite: "fixture skill for cheat-sheet generator tests" }]]])|' \
+  -e 's|UPSTREAM_RECORDS = \[\]|UPSTREAM_RECORDS = [{ label: "Rec", path: "docs/upstream/rec.md", heading: "Attribution table" }]|' \
+  "$tree/scripts/cheatsheet-config.mjs" &&
+  rm -f "$tree/scripts/cheatsheet-config.mjs.bak"
+run_gen "$tree"
+sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
+if [[ "$CODE" -eq 0 && "$sheet" == *"- [By kind of task](#by-kind-of-task)"* ]]; then
+  ok "by-kind section is listed first in the TOC"
+else
+  fail "by-kind TOC entry missing (exit=$CODE: $OUT)"
+fi
+if [[ "$sheet" == *"| Fix | \`/alpha:mapped\` | none | none |"* ]]; then
+  ok "Task kinds row renders the stage's command in order"
+else
+  fail "by-kind row missing: $sheet"
+fi
+if [[ "$sheet" == *"| \`[run\\|check] <target>\` |"* ]]; then
+  ok "argument-hint renders as a code span with its pipe escaped"
+else
+  fail "argument-hint cell missing: $sheet"
+fi
+if [[ "$sheet" == *'Runs the fixture call ([SKILL.md](../plugins/alpha/skills/mapped/SKILL.md): "fixture skill for cheat-sheet generator tests")'* ]]; then
+  ok "runs-for-you claim quotes its cited line"
+else
+  fail "runs-for-you claim missing: $sheet"
+fi
+if [[ "$sheet" == *"[Rec \`up-skill\`](upstream/rec.md#attribution-table)"* && "$sheet" != *"PR #1"* &&
+  "$sheet" != *"abc1234"* && "$sheet" != *"NOTES.md"* ]]; then
+  ok "upstream record row links its table; pull request, commit and file links are not units"
+else
+  fail "upstream column wrong: $sheet"
+fi
+rm -rf "$tree"
+
+mk_tree tree
+sed -i.bak 's/| Fix | 3. Plan |/| Fix | 4. Build |/' \
+  "$tree/plugins/session-flow/skills/workflow/context/steps.md" &&
+  rm -f "$tree/plugins/session-flow/skills/workflow/context/steps.md.bak"
+assert_fails "Task kinds row naming a stage that does not exist fails naming it" "$tree" \
+  'Task kinds row "Fix": unknown stage "4. Build"'
+
+mk_tree tree
+sed -i.bak 's/| none | none |/| 3. Plan | none |/' \
+  "$tree/plugins/session-flow/skills/workflow/context/steps.md" &&
+  rm -f "$tree/plugins/session-flow/skills/workflow/context/steps.md.bak"
+assert_fails "Task kinds row listing a stage twice fails" "$tree" \
+  'Task kinds row "Fix": stage "3. Plan" listed twice'
+
+mk_tree tree
+printf '## 3. Plan (fixture spine)\n' \
+  >"$tree/plugins/session-flow/skills/workflow/context/steps.md"
+assert_fails "steps.md with no Task kinds table fails" "$tree" 'has no "## Task kinds" table'
+
+mk_tree tree
+sed -i.bak 's/STAGE_COMMANDS = new Map(.*);/STAGE_COMMANDS = new Map();/' \
+  "$tree/scripts/cheatsheet-config.mjs" &&
+  rm -f "$tree/scripts/cheatsheet-config.mjs.bak"
+assert_fails "a stage a kind runs with no command fails" "$tree" \
+  'Task kinds row "Fix": stage "3. Plan" has no STAGE_COMMANDS entry'
+
+mk_tree tree
+sed -i.bak 's|"alpha/mapped"|"alpha/ghost"|' "$tree/scripts/cheatsheet-config.mjs" &&
+  rm -f "$tree/scripts/cheatsheet-config.mjs.bak"
+assert_fails "a stage command naming a skill not on the sheet fails" "$tree" \
+  'stage command "plan": "alpha/ghost" is not a skill on the sheet'
+
+mk_tree tree
+sed -i.bak 's|RUNS_FOR_YOU = new Map()|RUNS_FOR_YOU = new Map([["alpha/mapped", [{ does: "x", cite: "no such line" }]]])|' \
+  "$tree/scripts/cheatsheet-config.mjs" &&
+  rm -f "$tree/scripts/cheatsheet-config.mjs.bak"
+assert_fails "a runs-for-you cite on no line fails" "$tree" \
+  'cite "no such line" is on 0 lines of SKILL.md, not exactly one'
 
 # --- spine drift ----------------------------------------------------------------
 mk_tree tree

@@ -1,8 +1,11 @@
 // Hand-curated grouping layer for the generated skill cheat sheet
-// (docs/skill-cheat-sheet.md). Owns exactly three things: the stage/group
-// vocabulary and order, the exclusion entries, and the shared summary guard.
-// Per-skill detail (stage, summary, cadence) lives in each SKILL.md's
-// `metadata:` frontmatter, never here.
+// (docs/skill-cheat-sheet.md). Owns the stage/group vocabulary and order, the
+// exclusion entries, the shared summary guard, the command a person types for
+// each workflow stage, the cited "runs for you" claims, and the upstream
+// records the Upstream column reads. Per-skill detail (stage, summary,
+// cadence, arguments) lives in each SKILL.md's frontmatter, never here, and
+// which stages a kind of task runs lives in the Task kinds table of
+// plugins/session-flow/skills/workflow/context/steps.md, never here.
 
 // Workflow-stage headings mirror the H2 headings in
 // plugins/session-flow/skills/workflow/context/steps.md (the generator's
@@ -77,6 +80,80 @@ export const EXCLUDED_SKILLS = new Map([
   ["firecrawl/update", "maintainer-only upstream sync"],
   ["playbooks/update", "maintainer-only upstream sync"],
 ]);
+
+// The command a person types for each workflow stage, keyed by stage slug:
+// `skills` in the order to type them, and `byKind` replacing them for a kind
+// named in the Task kinds table. The generator joins this with that table to
+// build the "By kind of task" view, and fails on a stage the table uses with
+// no entry here, a skill not on the sheet, or a byKind key that is not a kind.
+export const STAGE_COMMANDS = new Map([
+  ["interview", { skills: ["planning/interview"] }],
+  ["explore", { skills: ["discovery/explore"] }],
+  ["research", { skills: ["discovery/research"] }],
+  ["prd", { skills: ["planning/prd"] }],
+  [
+    "design",
+    {
+      skills: ["planning/design"],
+      byKind: { "UI change": ["user-experience/structure", "user-interface/design", "planning/design"] },
+    },
+  ],
+  ["plan", { skills: ["planning/plan"] }],
+  ["decompose", { skills: ["work-items/decompose"] }],
+  ["implement", { skills: ["implementation/implement"], byKind: { Bug: ["debugging/debug"] } }],
+  ["test", { skills: ["testing/write"] }],
+  [
+    "review",
+    { skills: ["review/quality-gate"], byKind: { "UI change": ["review/quality-gate", "user-interface/audit"] } },
+  ],
+  ["verify", { skills: ["verification/confirm"] }],
+  ["retro", { skills: ["session-flow/retro"] }],
+  ["pr", { skills: ["source-control/pull-request"] }],
+]);
+
+// What a stage command runs for the person, keyed `plugin/skill`. Each claim's
+// `cite` is plain text (no backtick, asterisk or pipe) that must appear on
+// exactly one line of the skill's SKILL.md, or of `file` in the skill
+// directory: the line that makes the call. The sheet quotes it.
+export const RUNS_FOR_YOU = new Map([
+  ["planning/interview", [
+    { does: "Sends unfamiliar territory to `/discovery:blindspot` first", cite: "Route to a blindspot-surfacing exploration FIRST" },
+  ]],
+  ["planning/plan", [
+    { does: "Sends you to `/discovery:explore` first when the area has not been explored", cite: "suggest the exploration capability first" },
+    { does: "Sends you to `/discovery:research` first when a claim the plan relies on is unresearched", cite: "suggest the research capability first" },
+  ]],
+  ["implementation/implement", [
+    { does: "Runs `/toolchain:check` as the final build check", cite: "via the Skill tool for all affected ecosystems" },
+    { does: "Hands the outcome verdict to `/verification:confirm`", cite: "which renders it from outside the producing loop" },
+  ]],
+  ["debugging/debug", [
+    { does: "Reads a profile or trace with `/debugging:analyze-profile` when nothing reproduces", cite: "heap snapshot or performance trace and nothing reproduces, hand it to" },
+  ]],
+  ["testing/write", [
+    { does: "Runs the new tests through `/toolchain:check`", cite: "Run the new tests by invoking" },
+  ]],
+  ["review/quality-gate", [
+    { does: "Hands the diff to a fresh-context reviewer for the lens you name, against the pull request's base", cite: "dispatched reviewers diff" },
+  ]],
+  ["verification/confirm", [
+    { does: "Runs `/toolchain:check` and `/toolchain:lint` for the build, test and lint checks, and stops on a failure", cite: "cross-cutting via the Skill tool, then the architecture-test gate" },
+    { does: "Finds the touched features with `/app-control:drive affected`", cite: "Touched features come from" },
+    { does: "Drives the changed flows through `/testing:run-e2e`", cite: "Apply the proof level, then auto-trigger" },
+  ]],
+  ["source-control/pull-request", [
+    { does: "`prep` runs a review, checks each finding, simplifies and re-runs the build", cite: "Review (skipped when the CI code-review lane covers it" },
+    { does: "`ready` updates the branch, runs the code and security reviews and the verify gate, then flips the draft", cite: "run the code and security reviews over the PR diff in fresh-context subagents" },
+  ]],
+]);
+
+// Upstream records whose attribution table maps an upstream unit to ours. The
+// Upstream column links the record's table for each skill a row names as
+// `plugin:skill` in its second cell.
+export const UPSTREAM_RECORDS = [
+  { label: "pstack", path: "docs/upstream/cursor-pstack.md", heading: "Attribution table" },
+  { label: "Pocock", path: "docs/upstream/mattpocock-skills.md", heading: "Attribution table" },
+];
 
 // Characters that make a plain YAML scalar unsafe at value start (flow/block
 // indicators, anchors, tags, comments, quotes, list dash, flow entry separator,
