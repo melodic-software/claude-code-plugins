@@ -77,7 +77,7 @@ powershell-format
 pr-pipeline
 prototype
 python-format
-rate-limit-guard
+rate-limits
 repo-fleet-hygiene
 repo-hygiene
 retro-audio

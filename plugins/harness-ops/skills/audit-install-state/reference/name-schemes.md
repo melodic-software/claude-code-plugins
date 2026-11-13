@@ -30,7 +30,7 @@ property rather than a convention someone has to remember.
 | `plugins/cache/<marketplace>/<plugin>/<version>/.in_use/<n>` | PID of the Claude Code process that loaded that plugin version | **yes** |
 | `.in_use/<n>.tmp.<hash>` | A staging temp beside the marker, reported by one community source and never observed on an audited tree | no: stays `unknown` until observed |
 | `ide/<n>.lock` | Listening **TCP port**; real PID is in the body | no, and the body is not opened |
-| `rate-limit-guard/*.tmp.<n>` | Git Bash / MSYS2 `$$`, a shell PID in its own namespace | no, judge by age and zero length |
+| `rate-limits/*.tmp.<n>` | Git Bash / MSYS2 `$$`, a shell PID in its own namespace | no, judge by age and zero length |
 | `shell-snapshots/snapshot-<shell>-<n>-<rand>` | Epoch milliseconds | no, no PID in the name at all |
 | `backups/.claude.json.backup.<n>` | Epoch milliseconds | no |
 | `paste-cache/<hex>` | Content hash | no |

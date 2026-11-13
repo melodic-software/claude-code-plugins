@@ -8,7 +8,7 @@
   `used_percentage` or `resets_at` makes only **that window** unknown: keep applying the floor to
   every still-plausible window, and drop to reactive-only only when no window is plausible. Never
   throttle proactively on untrusted data and never fabricate a pause. In reactive-only mode,
-  additionally read `~/.claude/rate-limit-guard/stop-events.jsonl` (reader contract, "Detection
+  additionally read `~/.claude/rate-limits/stop-events.jsonl` (reader contract, "Detection
   records") on mode entry and again before each new work claim; the recency baseline is the lane's
   own start time, advanced by each resume attempt. Records newer than it are live signal, older
   ones history that never justifies a new pause on its own.

@@ -9,6 +9,6 @@ expected_outcome: 'The cycle clamps item_cap 5 to the ceiling 3 and reports it, 
 
 /work-items:work-loop
 
-Durable state: item_cap=5, clean_streak=2, rate_limit_latch=false. work_loop_item_cap_ceiling is unset (manifest default 3). This cycle one item completes clean and a second returns a failed verdict after a seam exit 8 backoff. Mid-cycle the snapshot file at ~/.claude/rate-limit-guard/rate-limits.json shows five_hour used_percentage 98 with a fresh captured_at. One admitted item carries the capability-tier: frontier label. The lane's session environment sets LOOP_LANE_RATE_LIMIT_PAUSE=1 (the operator opted in to pausing).
+Durable state: item_cap=5, clean_streak=2, rate_limit_latch=false. work_loop_item_cap_ceiling is unset (manifest default 3). This cycle one item completes clean and a second returns a failed verdict after a seam exit 8 backoff. Mid-cycle the snapshot file at ~/.claude/rate-limits/rate-limits.json shows five_hour used_percentage 98 with a fresh captured_at. One admitted item carries the capability-tier: frontier label. The lane's session environment sets LOOP_LANE_RATE_LIMIT_PAUSE=1 (the operator opted in to pausing).
 
 Treat the state above as what this cycle's reads return. No tracker, forge or telemetry store is reachable in this session, so make no such call: say what the cycle does, in order, and give its cycle report.

@@ -300,15 +300,15 @@ and what to do when the bound provider is not `github`. That file writes this pl
 `<plugin-data>`: it is `${CLAUDE_PLUGIN_DATA}`, substituted here and not there. Compose the body in
 it, pass it as `--body-dir`, and invoke the script; do not write the comment by hand.
 
-## Rate-limit guard floor (inlined)
+## Rate-limits floor (inlined)
 
 This lane consumes the shared subscription rate-limit windows. The operable floor below is inlined
 **verbatim** per the convention's inline-floor rule (byte-identical across lanes and to the
-`rate-limit-guard` plugin's reader contract floor,
-`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository). Cited for
+`rate-limits` plugin's reader contract floor,
+`plugins/rate-limits/reference/reader-contract.md` in the marketplace repository). Cited for
 provenance only, since an installed plugin cannot read a sibling plugin's files at runtime.
 
-- **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+- **Snapshot file (fixed path):** `~/.claude/rate-limits/rate-limits.json`
 - **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose session environment sets
   `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read it at lane start with
   `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it pauses when **either** window reports
@@ -353,7 +353,7 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   `used_percentage` or `resets_at` makes only **that window** unknown: keep applying the floor to
   every still-plausible window, and drop to reactive-only only when no window is plausible. Never
   throttle proactively on untrusted data and never fabricate a pause. In reactive-only mode,
-  additionally read `~/.claude/rate-limit-guard/stop-events.jsonl` (reader contract, "Detection
+  additionally read `~/.claude/rate-limits/stop-events.jsonl` (reader contract, "Detection
   records") on mode entry and again before each new row claim; the recency baseline is the lane's
   own start time, advanced by each resume attempt. Records newer than it are live signal, older
   ones history that never justifies a new pause on its own.
@@ -369,8 +369,8 @@ latched account is held in the session only: apply the **Account switch** bullet
 tick and when the operator returns, and report a resume or a re-latch in the next reply.
 
 `.oauthAccount.emailAddress` is internal Claude Code state, not a documented surface; its
-verification record and recheck trigger are in the `rate-limit-guard` reader contract
-(`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository, cited for
+verification record and recheck trigger are in the `rate-limits` reader contract
+(`plugins/rate-limits/reference/reader-contract.md` in the marketplace repository, cited for
 provenance only).
 
 ## Spoke paths

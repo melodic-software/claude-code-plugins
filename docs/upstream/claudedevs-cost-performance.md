@@ -189,7 +189,7 @@ tooling.
 ## Lane T4: API cost optimization and profiling
 
 Thin: local Claude Code cost telemetry (`harness-ops:observability`), startup-prefix
-measurement (`context-budget`), and the adjacent `rate-limit-guard` (subscription windows, not
+measurement (`context-budget`), and the adjacent `rate-limits` (subscription windows, not
 cost). Batch API, output bounding as a cost lever, and the usage/cost Admin API are uncovered.
 `cost-optimize` and `hillclimb` have zero in-repo references.
 

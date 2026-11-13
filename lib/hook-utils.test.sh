@@ -3721,8 +3721,8 @@ ce_probe() {
   got=$(
     # shellcheck disable=SC2016  # $0 must NOT expand here: it is the child bash's
     # own positional, bound to the library path passed after the -c string.
-    env -u CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED \
-      "$@" bash -c 'source "$0"; hook::check_enabled "RATE_LIMIT_GUARD"; printf RUN' \
+    env -u CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED \
+      "$@" bash -c 'source "$0"; hook::check_enabled "RATE_LIMITS"; printf RUN' \
       "$HOOK_DIR/hook-utils.sh" 2>/dev/null
   )
   got="${got:-SKIP}"
@@ -3736,10 +3736,10 @@ ce_probe() {
 # The default must not move: every existing installation leaves this unset, so a
 # regression here silently changes behavior for every user of the marketplace.
 ce_probe RUN "unset stays enabled (backward compatibility)"
-ce_probe RUN "explicit true" CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=true
-ce_probe SKIP "explicit false" CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=false
+ce_probe RUN "explicit true" CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED=true
+ce_probe SKIP "explicit false" CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED=false
 # Anything that is not exactly "true" is off — a typo must not read as enabled.
-ce_probe SKIP "a non-boolean value is not 'true'" CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=yes
+ce_probe SKIP "a non-boolean value is not 'true'" CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED=yes
 # An EMPTY value is treated as unset, not as false: `${var:-true}` falls back to
 # the default. This is long-standing behavior, asserted here so a future change
 # to the parameter expansion (`:-` to `-`) can't flip it silently. It matters
@@ -3747,7 +3747,7 @@ ce_probe SKIP "a non-boolean value is not 'true'" CLAUDE_PLUGIN_OPTION_RATE_LIMI
 # environment, so an option the user never answered arrives as an empty string —
 # and that must mean "default", not "disabled".
 ce_probe RUN "empty value falls back to the default (treated as unset)" \
-  CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=
+  CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED=
 
 # hook::is_enabled is the predicate form: same answer, but it RETURNS instead of
 # exiting, so a caller can skip its own side effect and keep running.
@@ -3758,9 +3758,9 @@ ie_probe() {
   got=$(
     # shellcheck disable=SC2016  # $0 must NOT expand here: it is the child bash's
     # own positional, bound to the library path passed after the -c string.
-    env -u CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED \
+    env -u CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED \
       "$@" bash -c 'source "$0"
-        if hook::is_enabled "RATE_LIMIT_GUARD"; then printf ENABLED; else printf DISABLED; fi
+        if hook::is_enabled "RATE_LIMITS"; then printf ENABLED; else printf DISABLED; fi
         printf "+SURVIVED"' "$HOOK_DIR/hook-utils.sh" 2>/dev/null
   )
   if [[ "$got" == "$want" ]]; then
@@ -3771,10 +3771,10 @@ ie_probe() {
 }
 ie_probe "ENABLED+SURVIVED" "unset returns true and does not exit"
 ie_probe "ENABLED+SURVIVED" "explicit true returns true" \
-  CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=true
+  CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED=true
 # The critical one: a disabled answer must NOT terminate the caller.
 ie_probe "DISABLED+SURVIVED" "explicit false returns false WITHOUT exiting" \
-  CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=false
+  CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED=false
 
 # --- hook::physical_path / hook::repo_root: unresolved is distinguishable -------
 # Both helpers answer on THREE channels — return code, an UNRESOLVED global, and
