@@ -289,8 +289,8 @@ that charting needs an interactive session. Do not fabricate a map.
    |---|---|---|
    | `<prefix> research` | agent-capable | `/discovery:research` (falls back to inline research if not enabled) |
    | `<prefix> interview` | `<human-gated>` (intent) | `/planning:interview` |
-   | `<prefix> design` | agent-capable unless it asks for vision | `/planning:design`, or, when enabled, `/event-storming:methodology` / `/event-storming:simulation` when the item is domain/event-model work |
-   | `<prefix> prototype` | `<human-gated>` when the user judges it | `/prototype:pressure-test` (behaviour/feasibility) or `/prototype:explore-directions` (design/UX), falling back to an inline prototype if not enabled. The item body says which. Its files go in the item's folder on the dossier branch ("Shared files"); its verdict goes in the resolution comment |
+   | `<prefix> design` | agent-capable unless it asks for vision | `/planning:design`, or `/event-storming:methodology` / `/event-storming:simulation` when the item is domain/event-model work |
+   | `<prefix> prototype` | `<human-gated>` when the user judges it | `/prototype:pressure-test` (behaviour/feasibility) or `/prototype:explore-directions` (design/UX). The item body says which. Its files go in the item's folder on the dossier branch ("Shared files"); its verdict goes in the resolution comment |
    | `<prefix> task` | per item | Direct decision-unblocking work. No feature code, no PR tie. Its resolution records what was done and the facts later items need. Work only a human can do (a vendor sign-up, credentials, a dashboard) routes to `/wizard:generate`; its resolution records the names and locations of what was set up, never the values |
 
 6. **Graduate on every resolution.** Every edit to the map body, here or anywhere in this skill,
