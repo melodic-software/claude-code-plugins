@@ -324,8 +324,8 @@ one summary line. When the prompt defines no classes, hold only for `cost` (a ch
 start a real charge: a paid plan or billing setting, or a billed resource) or `critical-security`.
 
 A hold is not a finding. A `cost` hold belongs to the change, so return it with zero findings too,
-and no hold adds to the findings count. Every other flag, a `manifest <field>: flag` line and
-every blocking or advisory finding included, is a normal finding and never sets `hold`. With no
+and no hold adds to the findings count. An IMPORTANT or SUGGESTION finding, a `manifest <field>: flag` line
+and every other finding short of CRITICAL is a normal finding and never sets `hold`. With no
 `hold` field in the schema, return none. Pointer: the classes are the compose step's prompt in
 [ci-workflows `pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/v0.65.8/.github/workflows/pr-review-cli.yml#L1088-L1098),
 and the field's shape is its output schema at
