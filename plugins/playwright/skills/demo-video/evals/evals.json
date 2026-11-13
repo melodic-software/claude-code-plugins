@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "demo-request-explores-before-recording",
-      "prompt": "Make a demo video of the new signup flow at http://localhost:3000 for PR 42. [The verification reader prints `verification: standard (docs/conventions/playwright.yaml verification at origin/main, commit 9c2e4f1)`.]",
+      "prompt": "Make a demo video of the new signup flow at http://localhost:3000 for PR 42. [The verification reader prints `verification: standard (the plugin team file's verification key at origin/main)`.]",
       "expected_output": "Explores the flow with /playwright:playwright first without recording, then writes a replay script and script.json, records with record.mjs, builds the EDL, renders, runs quality_control.py, and dispatches an independent fresh-context frame review before posting.",
       "files": [],
       "expectations": [

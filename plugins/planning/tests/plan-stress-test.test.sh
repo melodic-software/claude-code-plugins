@@ -85,7 +85,8 @@ for needle in 'plan_stress_test' 'reference/config.md' '"Convention-home keys"';
   fi
 done
 
-# Each arm's copy gives every mode that arm's value, and the copy's file passes the schema.
+# Each arm's copy runs at verification standard, so the plan-reviewer can be dispatched, and gives
+# every mode that arm's value; the copy's file passes the schema.
 for value in reviewer devils-advocate both auto; do
   dest="$WORKROOT/copy-$value"
   if ! bash "$ARM/prepare-arm.sh" "$value" "$dest" >/dev/null; then
@@ -93,11 +94,12 @@ for value in reviewer devils-advocate both auto; do
     continue
   fi
   got="$(cat "$dest/evals/fixtures/stress-arm/planning.yaml")"
-  want="plan_stress_test:
+  want="verification: standard
+plan_stress_test:
   plan: $value
   proposal: $value
   incumbent: $value"
-  if [[ "$got" == "$want" ]]; then ok "arm $value sets all three modes"; else fail "arm $value sets all three modes"; fi
+  if [[ "$got" == "$want" ]]; then ok "arm $value sets verification standard and all three modes"; else fail "arm $value sets verification standard and all three modes"; fi
   check_file "arm $value's file passes the schema" 0 "$got"
 done
 

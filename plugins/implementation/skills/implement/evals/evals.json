@@ -119,7 +119,7 @@
       "id": 10,
       "name": "inline-mechanical-phase-gets-verifier-when-setting-true",
       "narration": true,
-      "prompt": "/implementation:implement: interactive inline run inside a git repository. The repository's docs/conventions/implementation.yaml holds `verify_mechanical_phases: true`; the user's option is unset. Phase 1 renames the parse_sku helper to parse_stock_code with no behavior change, and build, tests and lint pass. Mark the phase DONE. [The verification reader prints `verification: standard (docs/conventions/implementation.yaml verification at origin/main, commit 9c2e4f1)`.]",
+      "prompt": "/implementation:implement: interactive inline run inside a git repository. The repository's docs/conventions/implementation.yaml holds `verify_mechanical_phases: true`; the user's option is unset. Phase 1 renames the parse_sku helper to parse_stock_code with no behavior change, and build, tests and lint pass. Mark the phase DONE. [The verification reader prints `verification: standard (the plugin team file's verification key at origin/main)`.]",
       "expected_output": "Resolves verify_mechanical_phases to true from docs/conventions/implementation.yaml and reports that layer in one line. Because the setting is true, the passing build/test/lint run is not enough for this mechanical phase: a fresh-context verifier that did not produce the rename checks the acceptance criteria against the diff before the phase is marked [DONE].",
       "files": [],
       "expectations": [

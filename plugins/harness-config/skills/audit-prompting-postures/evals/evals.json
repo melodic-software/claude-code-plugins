@@ -89,7 +89,7 @@
     {
       "id": 8,
       "name": "clean-audit-still-verifies-verdicts",
-      "prompt": "/harness-config:audit-prompting-postures project: every component came back PRESENT or NOT-APPLICABLE and there is nothing to propose. Does Phase D still run, and what does the report say about it? [The verification reader prints `verification: standard (docs/conventions/harness-config.yaml verification at origin/main, commit 9c2e4f1)`.]",
+      "prompt": "/harness-config:audit-prompting-postures project: every component came back PRESENT or NOT-APPLICABLE and there is nothing to propose. Does Phase D still run, and what does the report say about it? [The verification reader prints `verification: standard (the plugin team file's verification key at origin/main)`.]",
       "expected_output": "Yes. With no proposed addition there is nothing to refute, so the Phase D verifier checks the verdicts instead: it argues that a component needs a posture it was judged not to need, that a purpose classification is wrong, or that a PRESENT citation does not carry the posture. Any reversal becomes a row with its corrected verdict and the verifier's argument, and the audit is reported clean only after that check. The report ends with a verifier attestation line naming the surface batches and stating that the verifier ran the verdicts check.",
       "files": [],
       "expectations": [
@@ -102,7 +102,7 @@
     {
       "id": 9,
       "name": "p12-binds-only-a-component-pinned-at-xhigh-or-max",
-      "prompt": "/harness-config:audit-prompting-postures agents. I have two coding agents. One sets effort: max in its frontmatter and says nothing about when to stop once its checks pass. The other pins no effort level at all. Which of them is missing P12? [The verification reader prints `verification: standard (docs/conventions/harness-config.yaml verification at origin/main, commit 9c2e4f1)`.]",
+      "prompt": "/harness-config:audit-prompting-postures agents. I have two coding agents. One sets effort: max in its frontmatter and says nothing about when to stop once its checks pass. The other pins no effort level at all. Which of them is missing P12? [The verification reader prints `verification: standard (the plugin team file's verification key at origin/main)`.]",
       "expected_output": "P12 is MISSING on the max-effort agent: it is code-changing, it pins max, and it does not state where its run ends or rule out steps of its own after that point. The proposed addition carries the Sonnet 5.5 model condition, because the behavior P12 guards against is documented for that model only, and wording comes from a live fetch of the Sonnet 5.5 guide. P12 is NOT-APPLICABLE on the agent that pins no effort level, with the failed predicate named. A review the repository requires, such as a mandated fresh-context verifier, is not something the proposal tells the agent to drop.",
       "files": [],
       "expectations": [

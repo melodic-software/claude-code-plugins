@@ -52,7 +52,7 @@
     {
       "id": 5,
       "name": "verify-pass-demotion",
-      "prompt": "/harness-config:audit-instructions you proposed removing a prior-model instruction, but the verify pass argued it is still load-bearing — how does that show up in the report? [The verification reader prints `verification: standard (docs/conventions/harness-config.yaml verification at origin/main, commit 9c2e4f1)`.]",
+      "prompt": "/harness-config:audit-instructions you proposed removing a prior-model instruction, but the verify pass argued it is still load-bearing — how does that show up in the report? [The verification reader prints `verification: standard (the plugin team file's verification key at origin/main)`.]",
       "expected_output": "Every removal or rewrite proposal passes a fresh-context, non-fork verify pass before it reaches the report. A proposal the verifier successfully defends is demoted to info or dropped, not surfaced as a confident removal, and a refuted or behavioral-tier removal is never presented as an error or an applied change.",
       "files": [],
       "expectations": [
@@ -349,7 +349,7 @@
     {
       "id": 28,
       "name": "i33-per-spoke-finding-rolls-up-per-plugin",
-      "prompt": "/harness-config:audit-instructions evals/fixtures/i33-hub.md, evals/fixtures/i33-scope-note-spoke.md, evals/fixtures/i33-index-pointer-spoke.md, and evals/fixtures/i33-self-describing-spoke.md relative to the skill directory, treated as one plugin named release-notes: the hub is its SKILL.md and the three spokes sit in its reference/ directory. [The verification reader prints `verification: standard (docs/conventions/harness-config.yaml verification at origin/main, commit 9c2e4f1)`.]",
+      "prompt": "/harness-config:audit-instructions evals/fixtures/i33-hub.md, evals/fixtures/i33-scope-note-spoke.md, evals/fixtures/i33-index-pointer-spoke.md, and evals/fixtures/i33-self-describing-spoke.md relative to the skill directory, treated as one plugin named release-notes: the hub is its SKILL.md and the three spokes sit in its reference/ directory. [The verification reader prints `verification: standard (the plugin team file's verification key at origin/main)`.]",
       "expected_output": "Reports exactly one I33 finding, on i33-self-describing-spoke.md, whose opener describes its own loading (\"This file is loaded by the hub when...\") instead of stating its content. The finding is anchored on the opener sentence, never on the whole surface, and one class-batched Phase C verifier judges it, outside every per-lane verifier batch and counted as one dispatch. In Phase D it sits in an I33 by plugin section as a collapsed release-notes block, and its row keeps Surface:Line and a fenced diff that deletes the self-description while the hub's index row keeps the loading condition. The scope-note and index-pointer spokes yield no I33 finding.",
       "files": [
         "evals/fixtures/i33-hub.md",
