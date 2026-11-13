@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select, sharedCopiesFrom } from "./apply-patch.mjs";
+import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, FROZEN_TIERS, generatedRegions, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select, sharedCopiesFrom } from "./apply-patch.mjs";
 import { PREDICATES } from "./predicates.mjs";
 import { CREDENTIAL_SHAPES as GATE_SHAPES, findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -593,6 +593,208 @@ test("a fix-docs patch of 300 files pushes, and one of 301 escalates patch-inval
   const refused = fakeApi(over.repo, over.head);
   assert.deepEqual(await docsPush(over, refused), { outcome: "escalate", escalationReason: "patch-invalid" });
   assert.deepEqual(refused.calls, []);
+});
+
+// --- the docs row's protected-content rule ---
+
+test("the docs row alone names the protected-content content rule, which checkRow knows", () => {
+  for (const name of Object.keys(RULES)) {
+    assert.equal(RULES[name]["content-rule"] === "protected-content", name === "docs", name);
+  }
+  assert.doesNotThrow(() => checkRow(row("default", { "content-rule": "protected-content" })));
+});
+
+test("FROZEN_TIERS holds the paths of the released and historical tiers in docs/conventions/docs-naming.yaml", () => {
+  const tiers = {};
+  let current = null;
+  for (const line of readFileSync(join(REPO_ROOT, "docs/conventions/docs-naming.yaml"), "utf8").split("\n")) {
+    const name = /^ {2}- name: "([^"]+)"$/.exec(line);
+    const path = /^ {6}- "([^"]+)"$/.exec(line);
+    if (name) {
+      current = tiers[name[1]] = [];
+    } else if (path && current) {
+      current.push(path[1]);
+    } else if (!line.startsWith("    ")) {
+      current = null;
+    }
+  }
+  assert.deepEqual(FROZEN_TIERS, tiers);
+});
+
+test("generatedRegions pairs standalone BEGIN and END GENERATED lines in order and names the generator the BEGIN line gives", () => {
+  const text = "a\n<!-- BEGIN GENERATED: g -->\nb\n<!-- END GENERATED: g -->\nc\n  <!-- BEGIN GENERATED: slice index — regenerated -->\r\n<!-- END GENERATED: slice index -->\n";
+  assert.deepEqual(generatedRegions(Buffer.from(text)), {
+    regions: [
+      { begin: 1, end: 3, generator: "g" },
+      { begin: 5, end: 6, generator: "slice index — regenerated" },
+    ],
+  });
+  assert.deepEqual(generatedRegions(Buffer.from("The `<!-- BEGIN GENERATED: g -->` marker opens a region.\n")), { regions: [] });
+});
+
+for (const [what, text] of [
+  ["a BEGIN line with no END", "<!-- BEGIN GENERATED: g -->\nb\n"],
+  ["an END line with no BEGIN", "b\n<!-- END GENERATED: g -->\n"],
+  ["a BEGIN inside a region", "<!-- BEGIN GENERATED: g -->\n<!-- BEGIN GENERATED: h -->\n<!-- END GENERATED: h -->\n<!-- END GENERATED: g -->\n"],
+]) {
+  test(`generatedRegions refuses ${what}`, () => {
+    assert.match(generatedRegions(Buffer.from(text)).error, /do not pair/);
+  });
+}
+
+const GENERATOR = "catalog, by scripts/generate-catalog.mjs";
+const AUTONOMY = (word) =>
+  `- [\`autonomy\`](../plugins/autonomy): Contracts for governed autonomous agent operation: role topology, binding ${word}, telemetry, return accounting, trigger dispatch, a per-work-class guardrail matrix, a standing-routine catalog, and a runner charter.`;
+const catalog = ({ never = "Never", autonomy = AUTONOMY("seam") } = {}) =>
+  ["# Plugin catalog", "", `The block between the markers is generated. ${never} hand-edit it.`, "", `<!-- BEGIN GENERATED: ${GENERATOR} -->`, "", "## Autonomy", "", autonomy, "<!-- END GENERATED: catalog -->", ""].join("\n");
+const CLOUD = (joint) => `The owner keeps cloud sessions off for work and state${joint} accounts rotate, and a cloud environment\nand its sessions belong to one claude.ai account.\n`;
+const regionWarning = (path, line, generator = GENERATOR) =>
+  `::warning file=${path},line=${line}::apply-patch dropped a change to the generated region of ${path} (${generator}); change the generator's inputs and regenerate`;
+const seedCatalog = (repo) => {
+  mkdirSync(join(repo, "docs"));
+  writeFileSync(join(repo, "docs/catalog.md"), catalog());
+  writeFileSync(join(repo, "docs/cloud-sessions.md"), CLOUD(":"));
+};
+const pushedBlob = (fix, api, path) => git(fix.repo, ["cat-file", "blob", `${api.calls.find((call) => call.createCommit).createCommit.tree}:${path}`]);
+
+// fe5c2b8809 on #15783 rewrote the autonomy line inside docs/catalog.md's
+// generated block; 7f3c22f5f7 on #15807 made the cloud-sessions edit.
+test("a fix-docs patch drops its hunk inside a generated region with one warning naming the file and generator, and pushes its other hunks", async (t) => {
+  const fix = repoWithPatch(
+    t,
+    (repo) => {
+      writeFileSync(join(repo, "docs/catalog.md"), catalog({ never: "Do not", autonomy: AUTONOMY("interface") }));
+      writeFileSync(join(repo, "docs/cloud-sessions.md"), CLOUD(" because"));
+    },
+    { head: seedCatalog },
+  );
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.deepEqual(await docsPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
+  assert.deepEqual(lines, [regionWarning("docs/catalog.md", 9), `pushed ${"c".repeat(40)} (2 path(s)) onto feat/x`]);
+  assert.equal(pushedBlob(fix, api, "docs/catalog.md"), catalog({ never: "Do not" }).trim());
+  assert.equal(pushedBlob(fix, api, "docs/cloud-sessions.md"), CLOUD(" because").trim());
+  assert.equal(api.calls.filter((call) => call === "createBlob").length, 2);
+});
+
+test("a fix-docs patch that edits only outside a generated region pushes whole with no warning", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/catalog.md"), catalog({ never: "Do not" })), { head: seedCatalog });
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+  assert.deepEqual(lines, [`pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+  assert.equal(pushedBlob(fix, api, "docs/catalog.md"), catalog({ never: "Do not" }).trim());
+});
+
+for (const [what, markers, why] of [
+  ["deletes the BEGIN marker", [`<!-- BEGIN GENERATED: ${GENERATOR} -->\n`], "whose generated-region markers do not pair"],
+  ["deletes both markers", [`<!-- BEGIN GENERATED: ${GENERATOR} -->\n`, "<!-- END GENERATED: catalog -->\n"], `whose generated-region markers it adds, removes or alters (${GENERATOR})`],
+]) {
+  test(`a fix-docs patch that ${what} to edit the region drops the file's change, and with nothing left escalates patch-empty before any API call`, async (t) => {
+    const unmarked = markers.reduce((text, marker) => text.replace(marker, ""), catalog({ autonomy: AUTONOMY("interface") }));
+    const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/catalog.md"), unmarked), { head: seedCatalog });
+    const api = fakeApi(fix.repo, fix.head);
+    const lines = [];
+    assert.deepEqual(await docsPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-empty" });
+    assert.deepEqual(lines, [`::warning file=docs/catalog.md::apply-patch dropped the change to docs/catalog.md, ${why}`, "the patch changes nothing outside protected content"]);
+    assert.deepEqual(api.calls, []);
+  });
+}
+
+test("a fix-docs patch that moves an END marker up keeps the head's region whole and only the lines it put after the region", async (t) => {
+  const moved = catalog({ autonomy: AUTONOMY("interface") }).replace("## Autonomy\n", "## Autonomy\n<!-- END GENERATED: catalog -->\n").replace(/\n<!-- END GENERATED: catalog -->\n$/, "\n");
+  const fix = repoWithPatch(
+    t,
+    (repo) => {
+      writeFileSync(join(repo, "docs/catalog.md"), moved);
+      writeFileSync(join(repo, "README.md"), "# fixed\n");
+    },
+    { head: seedCatalog },
+  );
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+  assert.deepEqual(lines, [regionWarning("docs/catalog.md", 8), `pushed ${"c".repeat(40)} (2 path(s)) onto feat/x`]);
+  assert.equal(pushedBlob(fix, api, "docs/catalog.md"), `${catalog()}\n${AUTONOMY("interface")}`);
+  assert.equal(pushedBlob(fix, api, "README.md"), "# fixed");
+});
+
+for (const [what, head, patched] of [
+  ["the head's markers do not pair", "intro\n<!-- BEGIN GENERATED: half -->\nbody\n", "intro fixed\n<!-- BEGIN GENERATED: half -->\nbody\n"],
+  ["the patch leaves a BEGIN marker with no END", "intro\nbody\n", "intro\n<!-- BEGIN GENERATED: half -->\nbody\n"],
+]) {
+  test(`a fix-docs patch whose file fails closed because ${what} drops that file's change with one warning and pushes the rest`, async (t) => {
+    const fix = repoWithPatch(
+      t,
+      (repo) => {
+        writeFileSync(join(repo, "docs/half.md"), patched);
+        writeFileSync(join(repo, "README.md"), "# fixed\n");
+      },
+      { head: (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/half.md"), head)) },
+    );
+    const api = fakeApi(fix.repo, fix.head);
+    const lines = [];
+    assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+    assert.deepEqual(lines, ["::warning file=docs/half.md::apply-patch dropped the change to docs/half.md, whose generated-region markers do not pair", `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+    assert.equal(pushedBlob(fix, api, "docs/half.md"), head.trim());
+  });
+}
+
+// 7f3c22f5f7 on #15807 edited released entries in two plugin changelogs and a
+// dated research record under docs/upstream/.
+for (const [path, tier] of [
+  ["plugins/p/CHANGELOG.md", "a released changelog (docs/conventions/docs-naming.yaml tier released) the release tooling writes"],
+  ["docs/contracts/c/CHANGELOG.md", "a released changelog (docs/conventions/docs-naming.yaml tier released) the release tooling writes"],
+  ["docs/upstream/u/research-2026-09-19/research-repo-fit.md", "a historical record (docs/conventions/docs-naming.yaml tier historical) whose narrative stays as written"],
+  ["docs/adr/0028-x.md", "a historical record (docs/conventions/docs-naming.yaml tier historical) whose narrative stays as written"],
+  ["docs/ADR/0029-y.md", "a historical record (docs/conventions/docs-naming.yaml tier historical) whose narrative stays as written"],
+]) {
+  test(`a fix-docs patch drops its change to ${path} with one warning and pushes the rest`, async (t) => {
+    const before = "# p\n\n## [1.0.0] - 2026-11-03\n\n- a check fails: it names the host\n";
+    const fix = repoWithPatch(
+      t,
+      (repo) => {
+        writeFileSync(join(repo, path), before.replace(": it", ". It"));
+        writeFileSync(join(repo, "README.md"), "# fixed\n");
+      },
+      { head: (repo) => (mkdirSync(dirname(join(repo, path)), { recursive: true }), writeFileSync(join(repo, path), before)) },
+    );
+    const api = fakeApi(fix.repo, fix.head);
+    const lines = [];
+    assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+    assert.deepEqual(lines, [`::warning file=${path}::apply-patch dropped the change to ${path}, ${tier}`, `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+    assert.equal(pushedBlob(fix, api, path), before.trim());
+  });
+}
+
+test("a fix-docs patch drops both the changelog it adds and the changelog it deletes", async (t) => {
+  const fix = repoWithPatch(
+    t,
+    (repo) => {
+      mkdirSync(join(repo, "plugins/q"), { recursive: true });
+      writeFileSync(join(repo, "plugins/q/CHANGELOG.md"), "## [0.1.0]\n");
+      rmSync(join(repo, "plugins/p/CHANGELOG.md"));
+      writeFileSync(join(repo, "README.md"), "# fixed\n");
+    },
+    { head: (repo) => (mkdirSync(join(repo, "plugins/p"), { recursive: true }), writeFileSync(join(repo, "plugins/p/CHANGELOG.md"), "## [1.0.0]\n")) },
+  );
+  const api = fakeApi(fix.repo, fix.head);
+  assert.equal((await docsPush(fix, api)).outcome, "pushed");
+  const tree = api.calls.find((call) => call.createCommit).createCommit.tree;
+  assert.deepEqual(git(fix.repo, ["diff-tree", "-r", "--name-only", fix.head, tree]).split("\n"), ["README.md"]);
+});
+
+test("the warning escapes what a workflow command reads in its file property and its message", async (t) => {
+  const path = "docs/r,1.md";
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, path), "a\n<!-- BEGIN GENERATED: run x at 100% -->\nB\n<!-- END GENERATED: run x -->\n"), {
+    head: (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, path), "a\n<!-- BEGIN GENERATED: run x at 100% -->\nb\n<!-- END GENERATED: run x -->\n")),
+  });
+  const lines = [];
+  assert.deepEqual(await docsPush(fix, fakeApi(fix.repo, fix.head), { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-empty" });
+  assert.equal(
+    lines[0],
+    "::warning file=docs/r%2C1.md,line=3::apply-patch dropped a change to the generated region of docs/r,1.md (run x at 100%25); change the generator's inputs and regenerate",
+  );
 });
 
 test("a fix-ci patch that edits CLAUDE.md pushes", async (t) => {
