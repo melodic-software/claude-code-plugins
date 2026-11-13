@@ -111,9 +111,8 @@ so under `explanatory` a rationale that fails criterion 2 is still deleted; the 
 route to class A and never keeps a comment the criteria would remove.
 
 Under `necessary` and `none` the keeps listed in `SKILL.md` that state a fact about the code take
-the same re-check; a contradicted keep is obsolete, and under `necessary` an outside-constraint
-keep stays only when verified: the adjacent code depends on the named party and nothing in this
-repository could remove the reason. The outside fact itself need not be provable from here.
+the same re-check; a contradicted keep is obsolete, and under `necessary` a keep stays only when it
+meets every condition its entry in the resolved keep list sets.
 The mode still decides what is applied: `safe` applies the class-A deletion, and
 `report` proposes it.
 

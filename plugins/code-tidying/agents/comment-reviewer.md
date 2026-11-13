@@ -16,9 +16,9 @@ your context, read the skill's `SKILL.md` from the plugin before anything else, 
 report that you did.
 
 Your dispatch prompt carries the scope (files, and the lines under `diff`), the posture, the
-settings, the resolved keep list's path, the discovered markers and the tooling layer. Use them as
-given and do not re-resolve them. Under `necessary`, read the keep list before triage: it decides
-what stays above the floor. When the prompt lacks the scope or the posture, or under `necessary`
+settings, under `necessary` the resolved keep list's path, the discovered markers and the tooling
+layer. Use them as given and do not re-resolve them. Under `necessary`, read the keep list before
+triage: it decides what stays above the floor. Under the other postures it plays no part. When the prompt lacks the scope or the posture, or under `necessary`
 the keep list cannot be read, stop and report what is missing.
 
 Run the workflow's steps 3 to 7 over that scope, with these limits:

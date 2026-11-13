@@ -56,10 +56,12 @@ its overrides file. An unexpanded or empty `userConfig` value is unset. Old post
 
 `comment_keep_list` replaces what `necessary` keeps above the floor; it never changes the floor.
 A path holds the repository's own criteria in the shape of the shipped file; an absolute path, a
-`..` segment or a path naming no regular file is invalid, in `userConfig` too. The resolved list's
-path is absolute: `${CLAUDE_SKILL_DIR}/reference/keep-list.md` for `default`, else the repository
-root joined with the value. Read it before triage, and when it is not the shipped one, name its
-path in the report's first lines.
+`..` segment, a symlink anywhere on the path or a path naming no regular file is invalid. The
+settings line checks the file layers; check a `userConfig` path with
+`${CLAUDE_SKILL_DIR}/scripts/settings.sh --keep-list <value>` and drop it when the line says
+`invalid`. The resolved list's path is absolute: `${CLAUDE_SKILL_DIR}/reference/keep-list.md` for
+`default`, else the repository root joined with the value. Under `necessary`, read it before
+triage, and when it is not the shipped one, name its path in the report's first lines.
 
 `--pipeline` marks a run the pull-request pipeline starts. It changes no setting, and
 whether a run may ask is still decided by the `AskUserQuestion` tool, in the workflow's step 1.
@@ -101,14 +103,15 @@ reader other than the author, and a small diff gets that reader too. This skill 
 orchestrator: it runs workflow steps 1 and 2, dispatches, checks what comes back, applies the
 class-B moves, and reports.
 
-1. **Dispatch** with the resolved scope (files, and lines under `diff`), posture, settings, the
-   resolved keep list's path, the discovered markers and the tooling layer. Model and effort: the
+1. **Dispatch** with the resolved scope (files, and lines under `diff`), posture, settings, under
+   `necessary` the resolved keep list's path, the discovered markers and the tooling layer. Model and effort: the
    agent's own definition, unless
    `/multi-agent:route worker code` resolves in this session and a config layer (basis `config`)
    sets the `worker` role, in which case pass that role's `single` variant model and effort.
 2. **Check its report and its diff.** Re-run `change-shape.sh` on every file it touched, before
    against after: anything but COMMENT-ONLY is reverted. Check each deletion against the floor and
-   the resolved keep list, and each keep against the rule it names. Reject a report that edits code,
+   the posture's keeps ([Postures](#postures)), the resolved keep list under `necessary` only, and
+   each keep against the rule it names. Reject a report that edits code,
    reaches outside the scope, deletes a kept comment or misstates a reason.
 3. **On a rejection**, revert that report's edits and dispatch once more, naming the failure. A
    second rejection is reverted, reported as open, and the run fails.

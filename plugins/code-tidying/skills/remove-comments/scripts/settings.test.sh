@@ -8,7 +8,7 @@
 # winning key by key, <home> the bound convention home (reference/config.md, default
 # docs/conventions), comment_posture in
 # auto|none|necessary|explanatory, comment_keep_list default or a repository-relative
-# path naming a file, comment_edit_scope in diff|files,
+# path naming a regular file and no symlink, in userConfig too, comment_edit_scope in diff|files,
 # class_c_max_lines from 1 to 40, and an invalid layer named and dropped.
 # test-scope: plugins/code-tidying/skills/remove-comments/scripts/settings.sh
 set -uo pipefail
@@ -103,6 +103,37 @@ for escape in /etc/passwd ../outside.md docs/../../outside.md; do
     "comment_keep_list${TAB}invalid${TAB}$TEAM: $escape"$'\n'"comment_keep_list${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" \
     "$(lines_for "$repo" comment_keep_list)"
 done
+
+repo="$(repo_with $'comment_keep_list: docs/keeps.md\n' -)"
+printf 'x\n' >"$TMP/outside.md"
+ln -s "$TMP/outside.md" "$repo/docs/keeps.md"
+check 'a keep-list path that is a symlink is invalid' \
+  "comment_keep_list${TAB}invalid${TAB}$TEAM: docs/keeps.md"$'\n'"comment_keep_list${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" \
+  "$(lines_for "$repo" comment_keep_list)"
+
+repo="$(repo_with $'comment_keep_list: linked/keeps.md\n' -)"
+mkdir -p "$TMP/outside-dir"
+printf 'x\n' >"$TMP/outside-dir/keeps.md"
+ln -s "$TMP/outside-dir" "$repo/linked"
+check 'a keep-list path through a symlinked directory is invalid' \
+  "comment_keep_list${TAB}invalid${TAB}$TEAM: linked/keeps.md"$'\n'"comment_keep_list${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" \
+  "$(lines_for "$repo" comment_keep_list)"
+
+keep_list_in() { (cd "$1" && bash "$SUT" --keep-list "$2" 2>/dev/null); }
+repo="$(repo_with - -)"
+printf -- '- a unit annotation\n' >"$repo/docs/comment-keeps.md"
+check 'a userConfig keep-list path naming a repository file is read' \
+  "comment_keep_list${TAB}docs/comment-keeps.md${TAB}userConfig" "$(keep_list_in "$repo/docs" docs/comment-keeps.md)"
+check 'a userConfig keep-list path outside the repository is invalid' \
+  "comment_keep_list${TAB}invalid${TAB}userConfig: ../outside.md" "$(keep_list_in "$repo" ../outside.md)"
+ln -s "$TMP/outside.md" "$repo/docs/linked.md"
+check 'a userConfig keep-list path that is a symlink is invalid' \
+  "comment_keep_list${TAB}invalid${TAB}userConfig: docs/linked.md" "$(keep_list_in "$repo" docs/linked.md)"
+check 'a userConfig keep-list check outside a git working tree is invalid' \
+  "comment_keep_list${TAB}invalid${TAB}userConfig: docs/comment-keeps.md (not in a git working tree)" \
+  "$(keep_list_in "$(mktemp -d "$TMP/plain.XXXXXX")" docs/comment-keeps.md)"
+bash "$SUT" --keep-list >/dev/null 2>&1
+check '--keep-list without a value is a usage error' '2' "$?"
 
 bound_repo() { # bound_repo <pointer line>: a repository whose root file binds a convention home
   local d

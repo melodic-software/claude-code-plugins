@@ -127,12 +127,13 @@ open the apply path, because they cannot attest behavior preservation.
 
 ## Exempt surfaces
 
-The floor in `SKILL.md` is untouched under every posture. Public-API doc comments stay under every
-posture too, except that `none` proposes deleting one that only restates its signature, and under
-`necessary` they stay because the shipped keep list keeps them: a `comment_keep_list` path that
-leaves them out replaces that. Unit,
-sentinel and ordering annotations are exempt under `explanatory` only: `none` deletes them with a
-reshape flag to a type, and so does `necessary` unless the resolved keep list keeps them. The list:
+The floor in `SKILL.md`, most of the list below, is untouched under every posture. Above it, under
+`necessary` the resolved keep list alone decides: the shipped list keeps public-API doc comments,
+and a `comment_keep_list` path that leaves them out deletes them.
+Public-API doc comments stay under `explanatory` and `none`, except that `none` proposes deleting
+one that only restates its signature. Unit, sentinel and ordering annotations are exempt under
+`explanatory` only: `none` deletes them with a reshape flag to a type, and so does `necessary`
+unless the resolved keep list keeps them. The list:
 
 - Public-API doc comments, in the language's structured doc-comment form: docstrings, C# XML docs,
   JSDoc/TSDoc, GoDoc sentences, on exported/public surfaces. PowerShell comment-based help (a
@@ -172,8 +173,8 @@ reshape flag to a type, and so does `necessary` unless the resolved keep list ke
 Under the shipped keep list ([keep-list.md](keep-list.md)), two kinds of class-C comment stay
 under `necessary`; a `comment_keep_list` path replaces that list, and its criteria decide instead.
 They are not exempt surfaces: `explanatory` triages them like any class-C comment, `none` deletes
-them, and they are held to `class_c_max_lines`. Each stays only when verified: the adjacent code depends on the named party
-and nothing in this repository could remove the reason. The outside fact itself need not be provable
+them, and they are held to `class_c_max_lines`. Each stays only when verified: the adjacent code
+depends on the named party and nothing in this repository could remove the reason. The outside fact itself need not be provable
 from here; a comment the code contradicts is class A.
 
 - **Behavior an outside party forces.** The adjacent code does something only because a

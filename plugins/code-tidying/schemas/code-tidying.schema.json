@@ -16,7 +16,7 @@
       "type": "string",
       "minLength": 1,
       "default": "default",
-      "description": "What the necessary posture keeps above the floor. default: the shipped list, skills/remove-comments/reference/keep-list.md. Otherwise a repository-relative path to a file whose criteria replace the shipped list; the floor always stays. An absolute path, a .. segment or a path naming no regular file is invalid."
+      "description": "What the necessary posture keeps above the floor. default: the shipped list, skills/remove-comments/reference/keep-list.md. Otherwise a repository-relative path to a file whose criteria replace the shipped list; the floor always stays. An absolute path, a .. segment, a symlink on the path or a path naming no regular file is invalid."
     },
     "comment_edit_scope": {
       "enum": ["diff", "files"],
