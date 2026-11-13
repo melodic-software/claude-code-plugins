@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "The reply gives the outcome-verification step as /verification:confirm with .work/late-fee/PLAN.md as its argument."
 ---
 
-/implementation:implement All three phases of the approved plan at .work/late-fee/PLAN.md are marked [DONE] on branch `feat/late-fee`, the final build and every affected test are green, and the self-review found nothing. In this run do not edit files, run commands or invoke any other skill: go straight to Step 5's hand-off, end with a reply that lists each pre-PR step in order with the exact invocation you would make for it, and stop.
+/implementation:implement All three phases of the approved plan at .work/late-fee/PLAN.md are marked [DONE] on branch `feat/late-fee`, and the final build and every affected test are green. In this run do not edit files, run commands or invoke any other skill: go straight to Step 5's hand-off, end with a reply that lists each pre-PR step in order with the exact invocation you would make for it, and stop.

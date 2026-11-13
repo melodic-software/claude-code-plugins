@@ -224,6 +224,14 @@ checks each one runs, the verdict set and the rule that sets it, the disagreemen
 does to the artifact. A
 digest presented without it is unverified, which is the state this phase exists to rule out.
 
+**The verification level** decides whether the two verifier arms run. Resolve it once before the
+pin with `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin knowledge --skill docpage-digest`
+and copy its line into the checklist ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+`standard` and `strict` run both arms. Under `light`, and `off`, which acts as `light` here,
+dispatch neither arm and never verify the digests inline in their place: the pin and the standing
+gates still run, Phase 4 is ticked with `verification: skipped (<level>)`, and the slice goes out
+labeled unverified. The Batch path below runs both arms whatever the level.
+
 From the pin until every verifier arm has returned, nothing edits the slice, and that includes
 the orchestrating session itself. Hold corrections until the arms are back, apply them, re-pin,
 and re-verify what changed. A parent edit during a run leaves the arm auditing bytes that no
@@ -232,7 +240,8 @@ longer exist, and its verdict comes back BLOCKED. The freeze covers only the pin
 verification.
 
 Record the outcome on the checklist's `Verification status` line: `verified` once both arms pass,
-`unverified: <reason>` when an arm or digest agent could not run, `failed: <reason>` when an
+`unverified: <reason>` when an arm or digest agent could not run (`unverified: verification:
+skipped (<level>)` when the level skipped the arms), `failed: <reason>` when an
 open `high` finding goes to the operator.
 
 ## Phase 5. Interview handoff

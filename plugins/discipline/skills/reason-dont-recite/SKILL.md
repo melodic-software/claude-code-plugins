@@ -62,6 +62,11 @@ purpose, and either confirm it with a live rationale or challenge it with
 the first-principles alternative. Do not stop at restating what the
 inherited source says. Reason about whether it should still hold.
 
+Resolve the verification level once with
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill reason-dont-recite --file docs/conventions/discipline.yaml`
+and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):
+`light` and `off` skip the method doc's step 2 and step 3 subagents, as it says.
+
 ## Reciprocal boundaries
 
 Conformance to an EXTERNAL vendor's current docs is

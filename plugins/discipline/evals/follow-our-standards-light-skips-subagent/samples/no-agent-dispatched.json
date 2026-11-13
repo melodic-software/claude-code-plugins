@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff main"
+          }
+        }
+      ],
+      "why": "a Bash call only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "verify",
+            "prompt": "Audit this independently."
+          }
+        }
+      ],
+      "why": "a subagent was dispatched"
+    }
+  ]
+}

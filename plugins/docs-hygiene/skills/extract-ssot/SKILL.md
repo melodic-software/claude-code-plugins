@@ -202,6 +202,8 @@ An **active candidate roster** is a persisted roster with at least one candidate
 
 Per-phase checklist: `context/execution-checklist.md`.
 
+**The verification level** governs the adversarial-review round a `WARN-borderline` cluster gets (`actions/verify.md`). Resolve it once before the first `plan` with `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin docs-hygiene --skill extract-ssot --file docs/conventions/docs-hygiene.yaml` and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). `standard` and `strict` run the round as a fresh-context diff review before commit. Under `light`, and `off`, which acts as `light` here, dispatch no review and never review the diff inline in its place: the working notes record `verification: skipped (<level>)` for that cluster.
+
 ## Sanity checks
 
 | When | Check | Evidence |
