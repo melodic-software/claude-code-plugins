@@ -16,7 +16,7 @@
     {
       "id": 2,
       "name": "proposes-class-b-without-test-net",
-      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a code file where a comment narrates what a 6-line block does — a class-B extract-function candidate. The repository has no discoverable test command: no test script in the package manifest, no Makefile target, no ecosystem default that resolves.)",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is explanatory. The uncommitted diff contains a code file where a comment narrates what a 6-line block does — a class-B extract-function candidate. The repository has no discoverable test command: no test script in the package manifest, no Makefile target, no ecosystem default that resolves.)",
       "narration": true,
       "expectations": [
         "Classifies the block comment as class B with Extract Function as the named move",
@@ -40,7 +40,7 @@
     {
       "id": 4,
       "name": "never-touches-exempt-surfaces",
-      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains: a public exported function with a JSDoc block, a file-top license header, a line with '// eslint-disable-next-line', a 'TODO(#412): remove after migration' marker, a terse '// items must stay sorted; binary search depends on it' constraint comment, and a change inside .github/workflows/ci.yml.)",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is explanatory. The uncommitted diff contains: a public exported function with a JSDoc block, a file-top license header, a line with '// eslint-disable-next-line', a 'TODO(#412): remove after migration' marker, a terse '// items must stay sorted; binary search depends on it' constraint comment, and a change inside .github/workflows/ci.yml.)",
       "narration": true,
       "expectations": [
         "Leaves the public-API JSDoc, license header, lint directive, and TODO(#412) marker untouched",
@@ -52,7 +52,7 @@
     {
       "id": 5,
       "name": "stages-narrative-before-deletion",
-      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a file with a 10-line comment justifying why one caching strategy was chosen over another; one line of it states a durable constraint — the cache must be invalidated before writes.)",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is explanatory. The uncommitted diff contains a file with a 10-line comment justifying why one caching strategy was chosen over another; one line of it states a durable constraint — the cache must be invalidated before writes.)",
       "narration": true,
       "expectations": [
         "Extracts the durable constraint into a terse one-line class-C comment",
@@ -76,7 +76,7 @@
     {
       "id": 7,
       "name": "reverts-when-ast-proof-fails",
-      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a class-B Rename Variable candidate: '// retry budget in attempts' above 'let n = 3;' where n is function-local. When the rename is applied, the change-shape check reports CODE-CHANGED with kinds=['number'] because the edit also altered a neighboring numeric literal from 3 to 5 instead of returning RENAME-ONLY.)",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is explanatory. The uncommitted diff contains a class-B Rename Variable candidate: '// retry budget in attempts' above 'let n = 3;' where n is function-local. When the rename is applied, the change-shape check reports CODE-CHANGED with kinds=['number'] because the edit also altered a neighboring numeric literal from 3 to 5 instead of returning RENAME-ONLY.)",
       "narration": true,
       "expectations": [
         "Runs the change-shape check after applying the move, before deleting the comment",
@@ -124,7 +124,7 @@
     {
       "id": 11,
       "name": "keeps-rejected-alternative-rationale",
-      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a guard script whose header says 'git branch -D is deliberately NOT blocked: a deleted branch is reflog-recoverable' and 'the helper is deliberately not named dirname, which would shadow the real command for every sourced guard'. Neither sentence has a referent in the adjacent code. The same file has '# increment counter' above 'count=$((count + 1))'.)",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is explanatory. The uncommitted diff contains a guard script whose header says 'git branch -D is deliberately NOT blocked: a deleted branch is reflog-recoverable' and 'the helper is deliberately not named dirname, which would shadow the real command for every sourced guard'. Neither sentence has a referent in the adjacent code. The same file has '# increment counter' above 'count=$((count + 1))'.)",
       "narration": true,
       "expectations": [
         "Classifies both header sentences as class C negative information (what the code deliberately does not do, and why an alternative was rejected) and keeps them",
@@ -279,7 +279,7 @@
     {
       "id": 24,
       "name": "kept-constraint-refuted-by-code-is-obsolete",
-      "prompt": "/code-tidying:remove-comments src/ledger.py\n\n(src/ledger.py is committed and tree-sitter is present for python. Above post_entry() it has '# Not safe to call from two threads: post_entry mutates the module-level _BALANCES dict'. The module no longer has a _BALANCES global: post_entry() now takes a Ledger instance and takes self._lock before writing self._balances. A second comment, '# Amounts are integer cents, never floats', sits above the amount parameter, and the function still accepts any number.)",
+      "prompt": "/code-tidying:remove-comments src/ledger.py\n\n(comment_posture is explanatory. src/ledger.py is committed and tree-sitter is present for python. Above post_entry() it has '# Not safe to call from two threads: post_entry mutates the module-level _BALANCES dict'. The module no longer has a _BALANCES global: post_entry() now takes a Ledger instance and takes self._lock before writing self._balances. A second comment, '# Amounts are integer cents, never floats', sits above the amount parameter, and the function still accepts any number.)",
       "narration": true,
       "expectations": [
         "Re-checks the thread-safety claim against the current code before keeping it and finds it false, citing the lock and the missing _BALANCES global by line",

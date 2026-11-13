@@ -56,8 +56,10 @@ its overrides file. An unexpanded or empty `userConfig` value is unset. Old post
 
 `comment_keep_list` replaces what `necessary` keeps above the floor; it never changes the floor.
 A path holds the repository's own criteria in the shape of the shipped file; an absolute path, a
-`..` segment or a path naming no regular file is invalid, in `userConfig` too. Read the resolved
-list before triage, and when it is not the shipped one, name its path in the report's first lines.
+`..` segment or a path naming no regular file is invalid, in `userConfig` too. The resolved list's
+path is absolute: `${CLAUDE_SKILL_DIR}/reference/keep-list.md` for `default`, else the repository
+root joined with the value. Read it before triage, and when it is not the shipped one, name its
+path in the report's first lines.
 
 `--pipeline` marks a run the pull-request pipeline starts. It changes no setting, and
 whether a run may ask is still decided by the `AskUserQuestion` tool, in the workflow's step 1.
