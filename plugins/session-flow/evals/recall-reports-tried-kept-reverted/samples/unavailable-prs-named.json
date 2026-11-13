@@ -9,8 +9,52 @@
       "why": "gh and tracker"
     },
     {
+      "answer": "Ran `/source-control:pull-request list --state closed --search rate`; it exited 1 (no git remotes found), so closed pull requests were skipped.",
+      "why": "the read was attempted and failed, which is could not be searched"
+    },
+    {
+      "answer": "gh pr list --state closed failed: no git remotes found.",
+      "why": "a failed read, no pull request reported"
+    },
+    {
       "answer": "Closed pull requests: /source-control:pull-request is not available, so they were skipped.",
       "why": "skill name with dots and colon before the outcome"
+    },
+    {
+      "answer": "**Other sources:** I searched git. The `/source-control:pull-request` and `/work-items:track` skills aren't available here, so I searched neither closed PRs nor the tracker.",
+      "why": "real eval answer: contracted negation after the hyphenated skill name"
+    },
+    {
+      "answer": "- **Pull requests and tracker:** `/source-control:pull-request` and `/work-items:track` aren't available here, so closed PRs and tracker items weren't searched.",
+      "why": "real eval answer: aren't available, weren't searched"
+    },
+    {
+      "answer": "- **Pull requests and tracker:** I did not search closed pull requests or tracker items. Neither `/source-control:pull-request` nor `/work-items:track` is in the available skills.",
+      "why": "real eval answer: did not search closed pull requests"
+    },
+    {
+      "answer": "gh and the tracker aren't available.",
+      "why": "gh and the tracker named together as unavailable"
+    },
+    {
+      "answer": "gh isn't authenticated here, so closed PRs weren't searched.",
+      "why": "gh unauthenticated, PRs not searched"
+    },
+    {
+      "answer": "Pull requests: the pull-request skill isn't installed.",
+      "why": "pull-request skill not installed"
+    },
+    {
+      "answer": "Closed pull requests weren't searched: /source-control:pull-request isn't among the available skills.",
+      "why": "PRs not searched, skill not available"
+    },
+    {
+      "answer": "gh 2.x isn't authenticated.",
+      "why": "gh with a version, unauthenticated"
+    },
+    {
+      "answer": "I searched git only; the tracker and gh aren't available.",
+      "why": "gh named after the tracker as unavailable"
     }
   ],
   "fail": [
@@ -33,6 +77,126 @@
     {
       "answer": "Tracker: skipped. Pull requests: 2 closed unmerged, listed below.",
       "why": "the outcome belongs to the tracker sentence"
+    },
+    {
+      "answer": "Closed PRs were searched with gh, but I didn't search the tracker.",
+      "why": "pull requests searched, the negation belongs to the tracker"
+    },
+    {
+      "answer": "Searched closed pull requests with gh and found 2 unmerged ones.",
+      "why": "claims the pull requests were searched"
+    },
+    {
+      "answer": "Closed PRs: 1 unmerged (#4) and the tracker isn't configured.",
+      "why": "PRs listed, the negation belongs to the tracker"
+    },
+    {
+      "answer": "gh returned 2 closed PRs and the tracker isn't available.",
+      "why": "gh returned PRs, the negation belongs to the tracker"
+    },
+    {
+      "answer": "gh listed PRs and the tracker isn't available.",
+      "why": "gh listed PRs, the negation belongs to the tracker"
+    },
+    {
+      "answer": "Closed PRs came back with one hit, and the tracker isn't configured.",
+      "why": "PRs had a hit, the negation belongs to the tracker"
+    },
+    {
+      "answer": "Searched closed PRs with gh (2 unmerged) since the tracker isn't installed.",
+      "why": "PRs searched, the negation belongs to the tracker"
+    },
+    {
+      "answer": "PRs and work items: PRs had 2 hits and work items weren't searched.",
+      "why": "PRs had hits, the negation belongs to work items"
+    },
+    {
+      "answer": "gh pr list: I didn't need to check further, 2 closed PRs above.",
+      "why": "negation of needing to check, PRs listed"
+    },
+    {
+      "answer": "Closed PRs with changes not yet checked into main: #4 (token bucket).",
+      "why": "checked into is about code, a PR is listed"
+    },
+    {
+      "answer": "gh listed 2 closed PRs and tracker items weren't searched.",
+      "why": "PRs listed, the negation belongs to tracker items"
+    },
+    {
+      "answer": "Found 2 closed PRs and the tracker items weren't checked.",
+      "why": "PRs found, the negation belongs to tracker items"
+    },
+    {
+      "answer": "gh pr list returned PRs and `/work-items:track` skills aren't available.",
+      "why": "PRs returned, the negation belongs to the tracker skill"
+    },
+    {
+      "answer": "Listed PRs and `/work-items:track` isn't available.",
+      "why": "PRs listed, the negation belongs to the tracker skill"
+    },
+    {
+      "answer": "Listed 2 PRs and /work-items:track isn't installed.",
+      "why": "PRs listed, the negation belongs to the tracker skill"
+    },
+    {
+      "answer": "I could not check open PRs for conflicts but listed 2 closed ones.",
+      "why": "a narrower check left undone while closed PRs are listed"
+    },
+    {
+      "answer": "I didn't check the PRs in detail; gh pr list returned 3.",
+      "why": "PR search returned results"
+    },
+    {
+      "answer": "I didn't search merged PRs, only closed ones: 2 found.",
+      "why": "closed PRs searched and found"
+    },
+    {
+      "answer": "Closed PRs not yet checked in to main: #4 (token bucket).",
+      "why": "about code not yet in main, a PR is listed"
+    },
+    {
+      "answer": "Closed PRs not yet checked against main: #4 (token bucket).",
+      "why": "a narrower check left undone, a PR is listed"
+    },
+    {
+      "answer": "Closed PRs not yet available on main: #4 (token bucket).",
+      "why": "about code not yet in main, a PR is listed"
+    },
+    {
+      "answer": "PRs whose code isn't yet available in main: #4.",
+      "why": "about code not yet in main, a PR is listed"
+    },
+    {
+      "answer": "PRs were searched, though gh isn't authenticated.",
+      "why": "claims PRs were searched"
+    },
+    {
+      "answer": "PRs were searched, though gh is not authenticated.",
+      "why": "claims PRs were searched, uncontracted form"
+    },
+    {
+      "answer": "Read 2 closed PRs, and the tracker items weren't queried.",
+      "why": "pull requests counted, the negation belongs to the tracker"
+    },
+    {
+      "answer": "PRs and the tracker: tracker items weren't searched.",
+      "why": "the negation belongs to the tracker only"
+    },
+    {
+      "answer": "PRs and tracker: the tracker items weren't searched, PRs listed below.",
+      "why": "pull requests listed, the negation belongs to the tracker"
+    },
+    {
+      "answer": "I did not search the tracker; closed PRs returned 2.",
+      "why": "a pull-request search returned a count"
+    },
+    {
+      "answer": "Searched closed PRs: none found.",
+      "why": "a search that ran and returned a zero count"
+    },
+    {
+      "answer": "",
+      "why": "empty answer"
     }
   ]
 }
