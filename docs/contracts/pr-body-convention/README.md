@@ -41,7 +41,7 @@ records why the preset is the default. It is a deliberate **lane-1 default**
 ([`docs/plugin-philosophy.md`](../../plugin-philosophy.md) "Two-lane convention posture"): it
 presumes nothing about the consumer, so it cannot conflict in any repo the plugin drops into.
 
-Why this shape. **What and why the change does, plus evidence it was verified**, is the
+Why this shape. **What the change does and why, plus evidence it was verified**, is the
 near-universal core of a reviewable PR description (GitHub's own PR-description guidance, Google's
 engineering-practices CL-description doc, GitLab's dogfooded default merge-request template, and a
 cross-section of OSS project PR templates, weighed against anti-heavy-template falsification cases).
