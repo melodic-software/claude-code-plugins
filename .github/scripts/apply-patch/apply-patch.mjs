@@ -415,13 +415,45 @@ const fileWarning = (path, why) => `::warning file=${commandText(path, true)}::$
 const regionWarning = (path, line, generator) =>
   `::warning file=${commandText(path, true)},line=${line}::${commandText(`apply-patch dropped a change to the generated region of ${path} (${generator}); change the generator's inputs and regenerate`)}`;
 
-// One entry's change with its protected content left out: the blob to keep
-// (`sha`, the head's when nothing else changes) and a warning per region the
-// patch changed, or one for the file when the file is frozen or the patch
-// adds, removes or alters a marker line. Outside the regions every byte is
-// the patch's; inside them, every byte is the head's.
+// The byte offset each line of a blob starts at.
+function lineStarts(bytes) {
+  const starts = [];
+  for (let at = 0; at < bytes.length; at = bytes.indexOf(10, at) + 1 || bytes.length) {
+    starts.push(at);
+  }
+  return starts;
+}
+
+// git's own -U0 hunks of one blob against another, as 0-based { oldStart,
+// oldCount, newStart, newCount }; a pure insertion's oldStart is the index of
+// the line it goes before. An added or deleted file is one hunk.
+function hunksOf(git, entry, oldCount, newCount) {
+  if (ZERO.test(entry.oldSha) || ZERO.test(entry.newSha)) {
+    return [{ oldStart: 0, oldCount, newStart: 0, newCount }];
+  }
+  const diff = git(["diff", "-U0", "-a", "--no-color", "--no-ext-diff", "--no-textconv", entry.oldSha, entry.newSha]).toString("latin1");
+  const at = (start, count) => (count === 0 ? start : start - 1);
+  return Array.from(diff.matchAll(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/gm), ([, a, b = "1", c, d = "1"]) => ({
+    oldStart: at(Number(a), Number(b)),
+    oldCount: Number(b),
+    newStart: at(Number(c), Number(d)),
+    newCount: Number(d),
+  }));
+}
+
+const regionBytes = (lines, regions) => JSON.stringify(regions.map((region) => lines.slice(region.begin, region.end + 1).join("")));
+
+// One entry's change with its protected content left out: the blob and mode
+// to keep and a warning per dropped hunk, or one for the file. A hunk is
+// dropped when its head lines meet a head region, BEGIN through END lines
+// included, when it inserts lines strictly between a BEGIN and its END, or
+// when the lines it writes hold a marker line; an insertion right before a
+// BEGIN line or right after an END line is outside and kept. The whole change
+// is left out for a frozen tier's file, for markers that do not pair in
+// either blob, and whenever the rebuilt blob's regions are not byte for byte
+// the head's. A mode change is kept unless the whole change is left out.
 function protectedRegions(git, entry) {
-  const restore = (why) => ({ sha: entry.oldSha, warnings: [fileWarning(entry.path, why)] });
+  const restore = (why) => ({ sha: entry.oldSha, mode: entry.oldMode, warnings: [fileWarning(entry.path, why)] });
   const tier = frozenTier(entry.path);
   if (tier) {
     return restore(FROZEN_WHY[tier]);
@@ -432,62 +464,67 @@ function protectedRegions(git, entry) {
   if (head.error || patched.error) {
     return restore("whose generated-region markers do not pair");
   }
+  const keep = { sha: entry.newSha, mode: entry.newMode, warnings: [] };
   if (head.regions.length === 0 && patched.regions.length === 0) {
-    return { sha: entry.newSha, warnings: [] };
+    return keep;
   }
-  const [oldLines, newLines] = [linesOf(before), linesOf(after)];
-  const markers = (lines, regions) => JSON.stringify(regions.map((region) => [lines[region.begin], lines[region.end]]));
-  if (markers(oldLines, head.regions) !== markers(newLines, patched.regions)) {
-    const generators = [...new Set([...head.regions, ...patched.regions].map((region) => region.generator))].join("; ");
-    return restore(`whose generated-region markers it adds, removes or alters (${generators})`);
-  }
-  // A region whose line count, or that of the text on either side of it,
-  // changes may have had a marker moved, which would drop or duplicate lines
-  // outside it, so only an in-place change splices.
-  const sizes = (lines, regions) => regions.flatMap((region, i) => [region.begin - (i === 0 ? 0 : regions[i - 1].end + 1), region.end - region.begin]).concat(lines.length - (regions.at(-1)?.end ?? -1) - 1);
-  const [oldSizes, newSizes] = [sizes(oldLines, head.regions), sizes(newLines, patched.regions)];
+  const [oldStarts, newStarts] = [lineStarts(before), lineStarts(after)];
+  const slice = (bytes, starts, from, count) => bytes.subarray(starts[from] ?? bytes.length, starts[from + count] ?? bytes.length);
+  const isMarker = (line) => BEGIN_GENERATED.test(markerText(line)) || END_GENERATED.test(markerText(line));
   const warnings = [];
-  const kept = [];
+  const parts = [];
   let cursor = 0;
-  for (const [i, region] of head.regions.entries()) {
-    const ours = oldLines.slice(region.begin, region.end + 1);
-    const theirs = newLines.slice(patched.regions[i].begin, patched.regions[i].end + 1);
-    if (ours.join("") !== theirs.join("")) {
-      if ([2 * i, 2 * i + 1, 2 * i + 2].some((k) => oldSizes[k] !== newSizes[k])) {
-        return restore(`whose generated region it resizes or moves a marker of (${region.generator})`);
+  for (const hunk of hunksOf(git, entry, oldStarts.length, newStarts.length)) {
+    const last = hunk.oldStart + hunk.oldCount - 1;
+    let region = hunk.oldCount > 0 ? head.regions.find((r) => r.begin <= last && hunk.oldStart <= r.end) : head.regions.find((r) => r.begin < hunk.oldStart && hunk.oldStart <= r.end);
+    if (!region) {
+      for (let j = hunk.newStart; j < hunk.newStart + hunk.newCount && !region; j += 1) {
+        const line = slice(after, newStarts, j, 1).toString("latin1");
+        if (isMarker(line)) {
+          region = patched.regions.find((r) => r.begin === j || r.end === j) ?? { generator: "a generated-region marker" };
+        }
       }
-      const differs = ours.findIndex((line, j) => line !== theirs[j]);
-      warnings.push(regionWarning(entry.path, region.begin + (differs === -1 ? ours.length : differs) + 1, region.generator));
     }
-    kept.push(...newLines.slice(cursor, patched.regions[i].begin), ...ours);
-    cursor = patched.regions[i].end + 1;
+    parts.push(slice(before, oldStarts, cursor, hunk.oldStart - cursor));
+    if (region) {
+      warnings.push(regionWarning(entry.path, Math.max(1, hunk.oldCount > 0 ? hunk.oldStart + 1 : hunk.oldStart), region.generator));
+      parts.push(slice(before, oldStarts, hunk.oldStart, hunk.oldCount));
+    } else {
+      parts.push(slice(after, newStarts, hunk.newStart, hunk.newCount));
+    }
+    cursor = hunk.oldStart + hunk.oldCount;
   }
-  kept.push(...newLines.slice(cursor));
   if (warnings.length === 0) {
-    return { sha: entry.newSha, warnings };
+    return keep;
   }
-  const rebuilt = Buffer.from(kept.join(""), "latin1");
+  parts.push(slice(before, oldStarts, cursor, oldStarts.length - cursor));
+  const rebuilt = Buffer.concat(parts);
+  const check = generatedRegions(rebuilt);
+  if (check.error || regionBytes(linesOf(rebuilt), check.regions) !== regionBytes(linesOf(before), head.regions)) {
+    return restore("whose generated regions its kept hunks would change");
+  }
   if (rebuilt.equals(before)) {
-    return { sha: entry.oldSha, warnings };
+    return { sha: entry.oldSha, mode: entry.newMode, warnings };
   }
-  return { sha: git(["hash-object", "-w", "--no-filters", "--stdin"], { input: rebuilt, stdio: ["pipe", "pipe", "pipe"] }).toString("utf8").trim(), warnings };
+  return { sha: git(["hash-object", "-w", "--no-filters", "--stdin"], { input: rebuilt, stdio: ["pipe", "pipe", "pipe"] }).toString("utf8").trim(), mode: entry.newMode, warnings };
 }
 
 // Content rules that leave content out rather than refuse the patch. Each
 // returns the index entries to set, as `git update-index -z --index-info`
 // reads them, and a warning line per dropped part.
 export const CONTENT_DROPS = {
-  // A generated region's lines, its marker lines included, and the whole of a
-  // frozen tier's file.
+  // A generated region's lines, its marker lines included, and the whole
+  // change to a frozen tier's file (protectedRegions).
   "protected-content": ({ entries, git }) => {
     const updates = [];
     const warnings = [];
     for (const entry of entries) {
       const outcome = protectedRegions(git, entry);
-      warnings.push(...outcome.warnings);
-      if (outcome.sha !== entry.newSha) {
-        const mode = outcome.sha === entry.oldSha ? entry.oldMode : entry.newMode;
-        updates.push(ZERO.test(outcome.sha) ? `0 ${"0".repeat(40)}\t${entry.path}` : `${mode} ${outcome.sha}\t${entry.path}`);
+      for (const warning of outcome.warnings) {
+        warnings.push(warning);
+      }
+      if (outcome.sha !== entry.newSha || outcome.mode !== entry.newMode) {
+        updates.push(ZERO.test(outcome.sha) ? `0 ${"0".repeat(40)}\t${entry.path}` : `${outcome.mode} ${outcome.sha}\t${entry.path}`);
       }
     }
     return { updates, warnings };
@@ -631,6 +668,10 @@ export function checkRow(row) {
   }
   if (row["content-rule"] !== undefined && !Object.hasOwn(CONTENT_RULES, String(row["content-rule"])) && !Object.hasOwn(CONTENT_DROPS, String(row["content-rule"]))) {
     fail(`names an unknown content rule: ${row["content-rule"]}`);
+  }
+  // pushMerge runs no drop rule, so a merge row naming one would push what it should drop.
+  if (JSON.stringify(row.commit?.parents) === '["head","base"]' && Object.hasOwn(CONTENT_DROPS, String(row["content-rule"]))) {
+    fail(`names the drop rule ${row["content-rule"]} on a merge row`);
   }
   if (row["reads-report"] !== null && !Object.hasOwn(REPORTS, row["reads-report"])) {
     fail(`reads an unknown report: ${row["reads-report"]}`);
@@ -1297,8 +1338,10 @@ export async function push({
       git(["update-index", "-z", "--index-info"], { input: updates.map((update) => `${update}\0`).join(""), stdio: ["pipe", "pipe", "pipe"] });
       tree = git(["write-tree"]).toString("utf8").trim();
       entries = diffEntries(git, headSha, tree);
+      // Nothing is left to push and nobody is asked for anything.
       if (entries.length === 0) {
-        return escalate("empty", "the patch changes nothing outside protected content");
+        log("the patch changes nothing outside protected content; nothing is pushed");
+        return { outcome: "not-applicable" };
       }
       const rebuiltLeak = leakedBlob(git, entries);
       if (rebuiltLeak) {
@@ -1654,7 +1697,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     appendFileSync(env.GITHUB_OUTPUT, `commit=${result.commit}\nbranch=${result.branch}\n`);
   }
   if (result.outcome !== "pushed") {
-    const skip = result.outcome === "superseded" ? "superseded-sha" : result.outcome === "escalate" ? stopSkip(result.escalationReason) : "awaiting-human";
+    const skip = { superseded: "superseded-sha", "not-applicable": "not-applicable" }[result.outcome] ?? (result.outcome === "escalate" ? stopSkip(result.escalationReason) : "awaiting-human");
     writeFileSync(env.SKIP_REASON_FILE, `${skip}\n`);
   }
   log(`apply-patch (${row.name}): ${result.outcome}${result.escalationReason ? ` (${result.escalationReason})` : ""}`);

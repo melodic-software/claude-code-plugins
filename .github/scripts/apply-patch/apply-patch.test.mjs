@@ -604,22 +604,48 @@ test("the docs row alone names the protected-content content rule, which checkRo
   assert.doesNotThrow(() => checkRow(row("default", { "content-rule": "protected-content" })));
 });
 
-test("FROZEN_TIERS holds the paths of the released and historical tiers in docs/conventions/docs-naming.yaml", () => {
+// The `tiers:` block of a docs-naming.yaml, read as this repository writes it;
+// any other non-blank line inside the block throws, so a path written another
+// way cannot slip past the comparison below.
+function tierPaths(text) {
   const tiers = {};
+  let inside = false;
   let current = null;
-  for (const line of readFileSync(join(REPO_ROOT, "docs/conventions/docs-naming.yaml"), "utf8").split("\n")) {
+  for (const line of text.split("\n")) {
+    if (line === "tiers:") {
+      inside = true;
+      continue;
+    }
+    if (!inside || line.trim() === "") {
+      continue;
+    }
+    if (!line.startsWith(" ")) {
+      break;
+    }
     const name = /^ {2}- name: "([^"]+)"$/.exec(line);
     const path = /^ {6}- "([^"]+)"$/.exec(line);
     if (name) {
       current = tiers[name[1]] = [];
     } else if (path && current) {
       current.push(path[1]);
-    } else if (!line.startsWith("    ")) {
-      current = null;
+    } else if (!/^ {4}(paths:|forms: "[a-z-]+")$/.test(line)) {
+      throw new Error(`tiers: holds a line this reader does not know: ${JSON.stringify(line)}`);
     }
   }
-  assert.deepEqual(FROZEN_TIERS, tiers);
+  return tiers;
+}
+
+test("FROZEN_TIERS holds the paths of the released and historical tiers in docs/conventions/docs-naming.yaml", () => {
+  assert.deepEqual(FROZEN_TIERS, tierPaths(readFileSync(join(REPO_ROOT, "docs/conventions/docs-naming.yaml"), "utf8")));
 });
+
+for (const line of ["      - docs/x/**", "      - 'docs/x/**'", "    - \"docs/x/**\"", "      - \"docs/x/**\" # note"]) {
+  test(`the tier reader refuses the path line ${JSON.stringify(line)} instead of skipping it`, () => {
+    const text = `roots: []\ntiers:\n  - name: "historical"\n    paths:\n      - "docs/adr/**"\n${line}\n    forms: "links-and-paths"\nsweep_exclude: []\n`;
+    assert.throws(() => tierPaths(text), /does not know/);
+    assert.deepEqual(tierPaths(text.replace(`${line}\n`, "")), { historical: ["docs/adr/**"] });
+  });
+}
 
 test("generatedRegions pairs standalone BEGIN and END GENERATED lines in order and names the generator the BEGIN line gives", () => {
   const text = "a\n<!-- BEGIN GENERATED: g -->\nb\n<!-- END GENERATED: g -->\nc\n  <!-- BEGIN GENERATED: slice index — regenerated -->\r\n<!-- END GENERATED: slice index -->\n";
@@ -686,29 +712,36 @@ test("a fix-docs patch that edits only outside a generated region pushes whole w
   assert.equal(pushedBlob(fix, api, "docs/catalog.md"), catalog({ never: "Do not" }).trim());
 });
 
-for (const [what, markers, why] of [
-  ["deletes the BEGIN marker", [`<!-- BEGIN GENERATED: ${GENERATOR} -->\n`], "whose generated-region markers do not pair"],
-  ["deletes both markers", [`<!-- BEGIN GENERATED: ${GENERATOR} -->\n`, "<!-- END GENERATED: catalog -->\n"], `whose generated-region markers it adds, removes or alters (${GENERATOR})`],
-]) {
-  test(`a fix-docs patch that ${what} to edit the region drops the file's change, and with nothing left escalates patch-empty before any API call`, async (t) => {
-    const unmarked = markers.reduce((text, marker) => text.replace(marker, ""), catalog({ autonomy: AUTONOMY("interface") }));
-    const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/catalog.md"), unmarked), { head: seedCatalog });
-    const api = fakeApi(fix.repo, fix.head);
-    const lines = [];
-    assert.deepEqual(await docsPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-empty" });
-    assert.deepEqual(lines, [`::warning file=docs/catalog.md::apply-patch dropped the change to docs/catalog.md, ${why}`, "the patch changes nothing outside protected content"]);
-    assert.deepEqual(api.calls, []);
-  });
-}
+const NOTHING_LEFT = "the patch changes nothing outside protected content; nothing is pushed";
+
+test("a fix-docs patch that deletes the BEGIN marker to edit the region drops the file's change, and with nothing left pushes nothing and escalates nothing", async (t) => {
+  const unmarked = catalog({ autonomy: AUTONOMY("interface") }).replace(`<!-- BEGIN GENERATED: ${GENERATOR} -->\n`, "");
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/catalog.md"), unmarked), { head: seedCatalog });
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.deepEqual(await docsPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "not-applicable" });
+  assert.deepEqual(lines, ["::warning file=docs/catalog.md::apply-patch dropped the change to docs/catalog.md, whose generated-region markers do not pair", NOTHING_LEFT]);
+  assert.deepEqual(api.calls, []);
+});
+
+// The BEGIN deletion is one hunk on a marker line; the autonomy edit and the
+// END deletion are one hunk on lines 9 and 10.
+test("a fix-docs patch that deletes both markers to edit the region drops each hunk that touches the region, one warning per hunk", async (t) => {
+  const unmarked = catalog({ autonomy: AUTONOMY("interface") }).replace(`<!-- BEGIN GENERATED: ${GENERATOR} -->\n`, "").replace("<!-- END GENERATED: catalog -->\n", "");
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/catalog.md"), unmarked), { head: seedCatalog });
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.deepEqual(await docsPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "not-applicable" });
+  assert.deepEqual(lines, [regionWarning("docs/catalog.md", 5), regionWarning("docs/catalog.md", 9), NOTHING_LEFT]);
+});
 
 const BEGIN_LINE = `<!-- BEGIN GENERATED: ${GENERATOR} -->\n`;
+const regionOf = (text) => text.slice(text.indexOf("<!-- BEGIN GENERATED:"), text.indexOf("<!-- END GENERATED: catalog -->") + "<!-- END GENERATED: catalog -->".length);
 for (const [what, moved] of [
-  // The edited autonomy line would land outside the region.
   ["moves the END marker up", catalog({ autonomy: AUTONOMY("interface") }).replace("## Autonomy\n", "## Autonomy\n<!-- END GENERATED: catalog -->\n").replace(/\n<!-- END GENERATED: catalog -->\n$/, "\n")],
-  // The preamble line would fall inside the region and be lost.
   ["moves the BEGIN marker up", catalog({ autonomy: AUTONOMY("interface") }).replace(BEGIN_LINE, "").replace("# Plugin catalog\n\n", `# Plugin catalog\n\n${BEGIN_LINE}`)],
 ]) {
-  test(`a fix-docs patch that ${what} while editing the region drops the file's change and pushes the rest`, async (t) => {
+  test(`a fix-docs patch that ${what} while editing the region pushes the head's region byte for byte, and the rest`, async (t) => {
     const fix = repoWithPatch(
       t,
       (repo) => {
@@ -720,14 +753,186 @@ for (const [what, moved] of [
     const api = fakeApi(fix.repo, fix.head);
     const lines = [];
     assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
-    assert.deepEqual(lines, [
-      `::warning file=docs/catalog.md::apply-patch dropped the change to docs/catalog.md, whose generated region it resizes or moves a marker of (${GENERATOR})`,
-      `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`,
-    ]);
-    assert.equal(pushedBlob(fix, api, "docs/catalog.md"), catalog().trim());
+    const pushed = api.calls.some((call) => call.createCommit) && git(fix.repo, ["diff-tree", "-r", "--name-only", fix.head, api.calls.find((call) => call.createCommit).createCommit.tree]).split("\n");
+    if (pushed.includes("docs/catalog.md")) {
+      const text = pushedBlob(fix, api, "docs/catalog.md");
+      assert.equal(regionOf(text), regionOf(catalog()));
+      assert.equal(text.split("<!-- BEGIN GENERATED:").length, 2, "one BEGIN line");
+    }
     assert.equal(pushedBlob(fix, api, "README.md"), "# fixed");
+    assert.ok(lines.some((line) => line.startsWith("::warning file=docs/catalog.md")), lines.join("\n"));
   });
 }
+
+test("a hunk that adds a prose line before a region's BEGIN line is kept while the region edit is dropped", async (t) => {
+  const head = "intro\n<!-- BEGIN GENERATED: g -->\nx\n<!-- END GENERATED: g -->\n";
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/p.md"), "intro\nnew prose line\n<!-- BEGIN GENERATED: g -->\ny\n<!-- END GENERATED: g -->\n"), {
+    head: (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/p.md"), head)),
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+  assert.deepEqual(lines, [regionWarning("docs/p.md", 3, "g"), `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+  assert.equal(pushedBlob(fix, api, "docs/p.md"), "intro\nnew prose line\n<!-- BEGIN GENERATED: g -->\nx\n<!-- END GENERATED: g -->");
+});
+
+test("a row the patch adds inside a generated table is dropped while a prose fix in the same file is kept", async (t) => {
+  const head = "# t\n\nprose bad\n\n<!-- BEGIN GENERATED: tbl -->\n| a |\n| b |\n<!-- END GENERATED: tbl -->\n";
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/t.md"), head.replace("bad", "good").replace("| b |\n", "| b |\n| c |\n")), {
+    head: (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/t.md"), head)),
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+  assert.deepEqual(lines, [regionWarning("docs/t.md", 7, "tbl"), `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+  assert.equal(pushedBlob(fix, api, "docs/t.md"), head.replace("bad", "good").trim());
+});
+
+test("a line the patch adds right after a region's END line is kept, in a file whose BEGIN is its first line", async (t) => {
+  const head = "<!-- BEGIN GENERATED: g -->\nx\n<!-- END GENERATED: g -->\ntail\n";
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/e.md"), "<!-- BEGIN GENERATED: g -->\ny\n<!-- END GENERATED: g -->\nafter end\ntail\n"), {
+    head: (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/e.md"), head)),
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+  assert.deepEqual(lines, [regionWarning("docs/e.md", 2, "g"), `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+  assert.equal(pushedBlob(fix, api, "docs/e.md"), "<!-- BEGIN GENERATED: g -->\nx\n<!-- END GENERATED: g -->\nafter end\ntail");
+});
+
+test("a hunk that adds a new marker line outside every region is dropped", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "notes.md"), "notes\n<!-- BEGIN GENERATED: new -->\nz\n<!-- END GENERATED: new -->\n"));
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.deepEqual(await docsPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "not-applicable" });
+  assert.deepEqual(lines, [regionWarning("notes.md", 1, "new"), NOTHING_LEFT]);
+});
+
+const TWO = (first, second) => `top\n<!-- BEGIN GENERATED: one -->\n${first}\n<!-- END GENERATED: one -->\nmid\n<!-- BEGIN GENERATED: two -->\n${second}\n<!-- END GENERATED: two -->\nend\n`;
+for (const [what, patched, warnings] of [
+  ["only the second region", TWO("a", "B").replace("mid", "MID"), [regionWarning("docs/two.md", 7, "two")]],
+  ["both regions", TWO("A", "B").replace("mid", "MID"), [regionWarning("docs/two.md", 3, "one"), regionWarning("docs/two.md", 7, "two")]],
+]) {
+  test(`a patch that edits ${what} of two keeps the prose between them and warns once per dropped hunk`, async (t) => {
+    const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/two.md"), patched), {
+      head: (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/two.md"), TWO("a", "b"))),
+    });
+    const api = fakeApi(fix.repo, fix.head);
+    const lines = [];
+    assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+    assert.deepEqual(lines, [...warnings, `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+    assert.equal(pushedBlob(fix, api, "docs/two.md"), TWO("a", "b").replace("mid", "MID").trim());
+  });
+}
+
+for (const [what, head, patched, kept] of [
+  ["a final END line with no line end", "p\n<!-- BEGIN GENERATED: g -->\nx\n<!-- END GENERATED: g -->", "P\n<!-- BEGIN GENERATED: g -->\ny\n<!-- END GENERATED: g -->", "P\n<!-- BEGIN GENERATED: g -->\nx\n<!-- END GENERATED: g -->"],
+  ["CRLF lines", "p\r\n<!-- BEGIN GENERATED: g -->\r\nx\r\n<!-- END GENERATED: g -->\r\n", "P\r\n<!-- BEGIN GENERATED: g -->\r\ny\r\n<!-- END GENERATED: g -->\r\n", "P\r\n<!-- BEGIN GENERATED: g -->\r\nx\r\n<!-- END GENERATED: g -->\r\n"],
+]) {
+  test(`a region edit in a file of ${what} is dropped and the prose edit kept, byte for byte`, async (t) => {
+    const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/b.md"), patched), {
+      head: (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/b.md"), head)),
+    });
+    const api = fakeApi(fix.repo, fix.head);
+    const lines = [];
+    assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+    assert.deepEqual(lines, [regionWarning("docs/b.md", 3, "g"), `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+    const tree = api.calls.find((call) => call.createCommit).createCommit.tree;
+    assert.equal(execFileSync("git", ["cat-file", "blob", `${tree}:docs/b.md`], { cwd: fix.repo, encoding: "latin1" }), kept);
+  });
+}
+
+test("a file whose only change is inside a region goes back to the head's blob while another file pushes", async (t) => {
+  const fix = repoWithPatch(
+    t,
+    (repo) => {
+      writeFileSync(join(repo, "docs/catalog.md"), catalog({ autonomy: AUTONOMY("interface") }));
+      writeFileSync(join(repo, "README.md"), "# fixed\n");
+    },
+    { head: seedCatalog },
+  );
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+  assert.deepEqual(lines, [regionWarning("docs/catalog.md", 9), `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+  assert.deepEqual(git(fix.repo, ["diff-tree", "-r", "--name-only", fix.head, api.calls.find((call) => call.createCommit).createCommit.tree]).split("\n"), ["README.md"]);
+});
+
+test("a 300,000-line file with one region drops only the region edit", async (t) => {
+  const many = (inside, outside) => {
+    const lines = Array.from({ length: 300000 }, (_, i) => `l${i}`);
+    lines[150000] = "<!-- BEGIN GENERATED: big -->";
+    lines[150001] = inside;
+    lines[150002] = "<!-- END GENERATED: big -->";
+    lines[10] = outside;
+    return `${lines.join("\n")}\n`;
+  };
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/big.md"), many("changed", "fixed")), {
+    head: (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/big.md"), many("generated", "l10"))),
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+  assert.deepEqual(lines, [regionWarning("docs/big.md", 150002, "big"), `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`]);
+  const tree = api.calls.find((call) => call.createCommit).createCommit.tree;
+  assert.equal(execFileSync("git", ["cat-file", "blob", `${tree}:docs/big.md`], { cwd: fix.repo, encoding: "utf8", maxBuffer: 1 << 26 }), many("generated", "fixed"));
+});
+
+const modeOf = (fix, api, path) => git(fix.repo, ["ls-tree", api.calls.find((call) => call.createCommit).createCommit.tree, "--", path]).split(" ")[0];
+test("a mode-only change to a changelog is dropped, and one to a file with regions is kept", async (t) => {
+  const fix = repoWithPatch(
+    t,
+    (repo) => {
+      chmodSync(join(repo, "plugins/p/CHANGELOG.md"), 0o755);
+      chmodSync(join(repo, "docs/catalog.md"), 0o755);
+      writeFileSync(join(repo, "README.md"), "# fixed\n");
+    },
+    { head: (repo) => (seedCatalog(repo), mkdirSync(join(repo, "plugins/p"), { recursive: true }), writeFileSync(join(repo, "plugins/p/CHANGELOG.md"), "## [1.0.0]\n")) },
+  );
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+  assert.deepEqual(lines, [
+    "::warning file=plugins/p/CHANGELOG.md::apply-patch dropped the change to plugins/p/CHANGELOG.md, a released changelog (docs/conventions/docs-naming.yaml tier released) the release tooling writes",
+    `pushed ${"c".repeat(40)} (2 path(s)) onto feat/x`,
+  ]);
+  assert.equal(modeOf(fix, api, "plugins/p/CHANGELOG.md"), "100644");
+  assert.equal(modeOf(fix, api, "docs/catalog.md"), "100755");
+});
+
+test("checkRow refuses a drop rule on a merge row, whose push would not run it", () => {
+  assert.throws(() => checkRow(row("merge-base", { "content-rule": "protected-content" })), /drop rule protected-content on a merge row/);
+});
+
+test("main writes not-applicable and no escalation when every change is protected content", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/catalog.md"), catalog({ autonomy: AUTONOMY("interface") })), { head: seedCatalog });
+  const base = scratch(t);
+  mkdirSync(join(base, dirname(RULES_PATH)), { recursive: true });
+  cpSync(join(REPO_ROOT, RULES_PATH), join(base, RULES_PATH));
+  const out = scratch(t);
+  const env = {
+    BASE_DIR: base,
+    PATCH_PREPARE: "docs",
+    GH_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    PR_NUMBER: "42",
+    HEAD_SHA: fix.head,
+    PATCH_HEAD_SHA: fix.head,
+    HEAD_REF: "feat/x",
+    LANE: "pr-refine",
+    PATCH_ACTIVITY: "fix-docs",
+    PATCH_FILE: fix.patchFile,
+    PATCH_SHA256: fix.sum,
+    HOLD_LABELS: "[]",
+    SKIP_REASON_FILE: join(out, "skip"),
+    ESCALATION_REASON_FILE: join(out, "escalation"),
+  };
+  const api = fakeApi(fix.repo, fix.head);
+  assert.equal(await main([], env, { api, cwd: fix.repo, gitBin: "git", log: () => {} }), 0);
+  assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "not-applicable\n");
+  assert.throws(() => readFileSync(env.ESCALATION_REASON_FILE), /ENOENT/);
+  assert.deepEqual(api.calls, []);
+});
 
 for (const [what, head, patched] of [
   ["the head's markers do not pair", "intro\n<!-- BEGIN GENERATED: half -->\nbody\n", "intro fixed\n<!-- BEGIN GENERATED: half -->\nbody\n"],
@@ -800,7 +1005,7 @@ test("the warning escapes what a workflow command reads in its file property and
     head: (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, path), "a\n<!-- BEGIN GENERATED: run x at 100% -->\nb\n<!-- END GENERATED: run x -->\n")),
   });
   const lines = [];
-  assert.deepEqual(await docsPush(fix, fakeApi(fix.repo, fix.head), { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-empty" });
+  assert.deepEqual(await docsPush(fix, fakeApi(fix.repo, fix.head), { log: (line) => lines.push(line) }), { outcome: "not-applicable" });
   assert.equal(
     lines[0],
     "::warning file=docs/r%2C1.md,line=3::apply-patch dropped a change to the generated region of docs/r,1.md (run x at 100%25); change the generator's inputs and regenerate",
