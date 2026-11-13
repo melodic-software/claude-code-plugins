@@ -3,7 +3,7 @@ name: codify-existing-violations-offered-for-cleanup
 description: 'Three files already import the banned module: the proposal states the three and offers their cleanup through /implementation:implement.'
 tags: [codify]
 plugins: ["../.."]
-expected_outcome: 'The proposal states three existing violations, offers their cleanup in the same change through /implementation:implement.'
+expected_outcome: 'The proposal states three existing violations, offers their cleanup in the same change through /implementation:implement, and offers no ratchet.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -21,4 +21,10 @@ graders:
     type: 'regex'
     pattern: '/implementation:implement'
     flags: 'i'
+    arm: 'both'
+  - name: no-ratchet-offer
+    type: 'regex'
+    pattern: '/toolchain:ratchet'
+    flags: 'i'
+    match: 'not_contains'
     arm: 'both'

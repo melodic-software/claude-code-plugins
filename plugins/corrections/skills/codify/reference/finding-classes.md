@@ -130,8 +130,9 @@ inherit it.
 What the proposal's install step says, for every input.
 
 Every proposed check or rule states its **existing violations**: how many places in the current
-tree already break it, and how they were counted (the check run over the tree, or a search for an
-instruction or other rung with no check). When no count can be taken, say so. Existing violations
+tree already break it, and how they were counted (the check run over the tree, or a search for the
+same pattern when the check cannot run or for an instruction or other rung with no check, saying
+which). When neither can be taken, say so. Existing violations
 teach the old way to whoever copies them, so the proposal offers their cleanup in the same change,
 carried out by `/implementation:implement`. One rule chooses between cleanup and ratchet: offer the
 cleanup when every existing violation can be fixed in the change that lands the rule, as one

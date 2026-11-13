@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Clean up the three imports in the same change through /implementation:implement."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Three files import legacy/http. Once the rule exists, the count goes to /toolchain:ratchet and the cleanup follows through /implementation:implement."
+    }
+  ]
+}
