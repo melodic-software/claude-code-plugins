@@ -580,7 +580,7 @@ both `roto.js` and `measure.py`.
 A plugin requires a `setup` skill iff it has (a) a consumer-project configuration surface, (b) an
 external prerequisite such as a CLI, service, or credential, or (c) non-trivial `userConfig`. Apply the
 criteria through the modular, configurable, repo-, machine-, and user-agnostic lens; zero-config
-zero-prerequisite plugins are exempt, because setup is never blanket ceremony. For formatter and linter
+zero-prerequisite plugins are exempt, because a setup skill there would have nothing to verify and nothing to advise. For formatter and linter
 plugins the requirement is a thin check-centric setup; where one is not yet shipped, the fleet
 conformance audit tracks the gap.
 
