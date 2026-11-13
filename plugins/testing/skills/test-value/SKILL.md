@@ -184,6 +184,11 @@ Also judgment only:
 - a hand-copied inventory (an export list, a manifest, declared capability flags) compared to the
   source: a change detector, unless the list is an external contract (`cant-fail-ok: <why>`), and a
   capability flag is tested by exercising what it promises;
+- an exact error message asserted where no caller or user reads it (`toThrow('name is required')`,
+  `pytest.raises(ParseError, match="empty")`, `Assert.That(ex.Message, Is.EqualTo(...))`): a
+  change detector that fails on rewording, since the error type callers branch on is the contract.
+  Fix: assert the type. When the message is user-facing text or a published error string, it is
+  the contract: keep the assertion and mark it `cant-fail-ok: <why>`;
 - a test kept alive only to preserve an export, global or wrapper that no production caller uses;
 - an absence check with no paired presence case: every assertion checks that a value the subject
   returns or changes is empty or missing (`toEqual([])`, `toBeUndefined`, `is None`,
@@ -191,7 +196,8 @@ Also judgment only:
   another input, so a do-nothing implementation passes. Fix: add the paired case, where a different
   input produces the value and the test asserts it exactly, such as
   `expect(validateOrder(valid).errors).toEqual([])` beside
-  `expect(validateOrder(noSku).errors).toEqual(['sku required'])`. When the absence is the contract
+  `expect(validateOrder(noSku).errors).toEqual(['sku required'])`, where the error text is what
+  the order form shows the user, so the message is the contract. When the absence is the contract
   and a paired presence case already exists, keep the test; do not delete or rewrite an absence
   assertion for its shape alone. A mock-interaction absence stays under `rule-mock-only-oracle` and
   §2;

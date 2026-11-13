@@ -4,7 +4,8 @@
 // good-for: rule-weak-oracle
 // The repaired twins: the loop runs after a length check, the expected total
 // is a literal, the snapshot sits beside a literal assertion, and toBeDefined
-// sits beside the value the test exists for.
+// sits beside the value the test exists for. The bad-password message is
+// shown on the login form, so the message is the contract.
 import { expect, it } from 'vitest';
 import { activeUsers } from '../src/users';
 import { calculateTotal } from './cart';

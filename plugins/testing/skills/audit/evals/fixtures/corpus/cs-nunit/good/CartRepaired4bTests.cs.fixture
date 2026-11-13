@@ -4,7 +4,8 @@
 // good-for: rule-weak-oracle
 // The repaired twins: the throw is asserted with its type and message, the
 // total is a literal, the receipt snapshot sits beside a literal, and the
-// null check sits beside the restored contents.
+// null check sits beside the restored contents. The empty-cart message is
+// shown to the shopper, so the message is the contract.
 using System;
 using System.Threading.Tasks;
 using NUnit.Framework;

@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: tv-exact-error-message-detector
+description: 'A test that asserts an exact error message (`toThrow(''name is required'')`) pins wording no caller reads, so it is a change detector: the error type callers branch on is the contract. The fix asserts the type, and the exemption keeps the message when it is user-facing text or a published error string. The prompt names the skill (test-value is not user-invocable), since natural phrasing alone did not load it. skill-fired reads the Skill calls, type-is-contract the reply; meets-expectations (llm) checks the rule and its exemption. Read-only tools, graded on the reply.'
+tags: [testing, test-value, change-detector, no-network]
+expected_outcome: 'Says the exact message is a change detector unless a caller or user reads it, recommends asserting the error type, and names the exemption for a user-facing or published message.'
+execution:
+  prompt: 'My test is `expect(() => parseConfig(''{}'')).toThrow(''name is required'')`. Is pinning that exact message worth keeping? Use the `testing:test-value` skill if you have it.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:testing:)?test-value"'
+  - name: type-is-contract
+    type: regex
+    pattern: '\b(?:[Ee]rror|[Ee]xception)\s+(?:type|class)\b|\btoThrow(?:Error)?\(\s*[A-Z]\w*\s*\)|\binstanceof\s+[A-Z]\w*|\btoBeInstanceOf\(\s*[A-Z]\w*|\btype\s+of\s+(?:the\s+)?(?:error|exception)\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The user asked whether `expect(() => parseConfig(''{}'')).toThrow(''name is required'')`, a test pinning an exact error message, is worth keeping. PASS only if the reply does every one of these: says the exact message is a change detector (it fails on rewording without any behavior change) unless a caller or user reads the message; recommends asserting the error type or class callers branch on instead; names the exemption that a user-facing or published error message is the contract and stays asserted. FAIL if any point is missing, or if the reply calls the exact message assertion good practice without that exemption.'

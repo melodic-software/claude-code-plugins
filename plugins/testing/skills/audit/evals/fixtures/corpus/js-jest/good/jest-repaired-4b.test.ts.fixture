@@ -4,7 +4,8 @@
 // good-for: rule-weak-oracle
 // The repaired twins: the error is asserted with toThrow and its message, the
 // total is a literal, the snapshot sits beside a literal assertion, and the
-// row is checked through the module's own read.
+// row is checked through the module's own read. The config error's message is
+// shown to the user, so the message is the contract.
 import { parseConfig } from '../src/config';
 import { cartTotal } from '../src/cart';
 import { renderReceipt } from '../src/receipt';
