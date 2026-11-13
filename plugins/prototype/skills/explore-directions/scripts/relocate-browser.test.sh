@@ -123,6 +123,7 @@ while IFS= read -r line; do
 done < <(code "$tmp/take.js" | result | tr -d '\r')
 
 status=$(bash "$bridge/notes-bridge.sh" --dir "$d" status)
+# shellcheck disable=SC2016  # ${1} is the note's literal text, not a shell expansion
 if python3 -c '
 import json, sys
 [e] = json.loads(sys.argv[1])["events"]
@@ -130,8 +131,9 @@ a = e["anchor"]
 assert (e["variant"], e["state"], e["content"]) == ({"key": "B"}, {"key": "empty"}, "worst"), e
 assert a["testid"] == "shipments-empty-cta" and a["testidIndex"] == 1, a
 assert set(e["rect"]) == {"x", "y", "w", "h"}, e
+assert "throw 1; //${1}$&" in e["text"] and "</script>" in e["text"], e
 ' "$status"; then
-  ok "the note carries B / empty / worst, the call to action #2 and its box"
+  ok "the note carries B / empty / worst, the call to action #2, its box and the literal-breaking text"
 else
   bad "the note is not the expected one: $status"
 fi

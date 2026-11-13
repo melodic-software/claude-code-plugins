@@ -23,7 +23,8 @@ async page => {
     await page.waitForSelector("#composer:not([hidden])", { timeout: 5000 });
     const picked = await page.textContent("#picked");
     ok("the pick is the worst set's call to action, the second with its test id", /shipments-empty-cta #2/.test(picked), picked);
-    await page.keyboard.type("Make this call to action shorter.");
+    // Text shaped to break out of a script literal: the relocation script must still carry it as data.
+    await page.keyboard.insertText("Shorter. x\"); throw 1; //${1}$&$' ` </script>");
     await page.click("#send");
     await page.waitForFunction(() => /sent/.test(document.getElementById("status").textContent), null, { timeout: 5000 });
     ok("the note is sent", (await page.$$("#notes li")).length === 1);

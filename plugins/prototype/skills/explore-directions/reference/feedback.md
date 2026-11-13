@@ -73,8 +73,9 @@ whose `anchor.testid` is on no element of its variant is not found, and its `rec
 3. Put the shot's path in the note's row in step 5.
 4. Act only on a note whose `matched` is set and `confirmed` is true, and only as step 5 allows.
    When the match is not confirmed (a stronger anchor found nothing and a weaker one found an
-   element), a part of `restored` is false, or the result says `hidden`, show the shot, say which
-   rung matched, and ask.
+   element, or the result says `container`: the shot is an ancestor of the noted element), a part
+   of `restored` is false, or the result says `hidden`, show the shot, say which rung matched, and
+   ask.
 5. **Not found** (`matched` is null): say which anchors the note carried and that each found
    nothing, label the shot or the stored position "position only, element not found", and ask one
    question. Never edit on a guess.

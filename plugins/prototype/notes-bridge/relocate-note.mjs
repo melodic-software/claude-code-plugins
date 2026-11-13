@@ -89,6 +89,8 @@ export async function relocate(page, input, decide) {
     found.cssPath = pathCount === 1 ? path : null;
     out.rungs.push({ rung: "cssPath", candidates: pathCount, hit: pathCount === 1, broken: pathCount === 0 });
     Object.assign(out, decide(out.rungs));
+    // An ancestor standing in for an element the ladder never found is a guess, never a confirmed match.
+    if (out.matched === "testid" && out.container) out.confirmed = false;
 
     let target = out.matched ? found[out.matched] : null;
     if (!target && note.rect) {
