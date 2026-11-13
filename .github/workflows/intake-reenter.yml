@@ -51,10 +51,7 @@ name: Intake Reenter
 # allowlisted labels, posts with mentions broken, and never adds
 # `agent-ready`.
 on:
-  # Runs from the default branch; the job's `if` drops PR, bot and App
-  # comments, and only the issue and comment numbers, the removed label's
-  # name, and a field change's action and sender id, through env, reach the
-  # script.
+  # Runs from the default branch only; the header says what reaches the script.
   issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created]
   issues: # zizmor: ignore[dangerous-triggers]
@@ -105,9 +102,8 @@ jobs:
                       && github.event.issue_field.id == 48484079
                       && github.event.sender.type == 'User'))))
     runs-on: ubuntu-24.04
-    # The resolve-config install can take its full 3 minutes on a slow registry;
-    # the 5 minutes the job had before stay for the rest, so a slow install
-    # cannot cut the re-entry off between its label removal and add.
+    # 3 minutes for a slow resolve-config install plus 5 for the rest, so a slow
+    # install cannot cut the re-entry off between its label removal and add.
     timeout-minutes: 9
     permissions:
       contents: read # check out main
@@ -177,7 +173,7 @@ jobs:
         timeout-minutes: 3
         # A failed install fails the run: the Work status read fails closed.
         if: steps.kill.outputs.proceed == 'true'
-        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       - name: Send the answered issue back to triage
         if: steps.kill.outputs.proceed == 'true'
