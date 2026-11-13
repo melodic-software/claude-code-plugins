@@ -1388,8 +1388,8 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060), as on the model legs, so the probe checks the
-          # scrub where their Bash runs.
+          # Sandbox off (melodic-software/ci-workflows#1060), as on the model
+          # legs, so the probe checks the scrub where their Bash runs.
           sandbox: "false"
           cli-version: ${{ needs.gate.outputs.release }}
           tools: |
@@ -1597,8 +1597,8 @@ jobs:
             echo 'Then answer with the last line the command printed. Do nothing else.'
           } >"$PROMPT_FILE"
 
-      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the key goes
-      # only to the api-key input.
+      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the token goes
+      # only to the subscription-token input.
       # continue-on-error lets a handoff end the job green; "Check the probe"
       # fails it on any other probe failure.
       - name: Probe what a Bash child can reach
@@ -1620,8 +1620,8 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060), as on the model legs, so the probe checks the
-          # scrub where their Bash runs.
+          # Sandbox off (melodic-software/ci-workflows#1060), as on the model
+          # legs, so the probe checks the scrub where their Bash runs.
           sandbox: "false"
           cli-version: ${{ needs.gate.outputs.release }}
           tools: |
@@ -1825,10 +1825,10 @@ jobs:
             echo 'Then answer with the last line the command printed. Do nothing else.'
           } >"$PROMPT_FILE"
 
-      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the key goes
-      # only to the api-key input.
-      # continue-on-error lets a handoff end the job green; "Check the probe"
-      # fails it on any other probe failure.
+      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the token goes
+      # only to the fallback-token input.
+      # continue-on-error leaves the verdict to "Check the probe", which
+      # fails the job on any probe failure; this last leg never hands off.
       - name: Probe what a Bash child can reach
         id: probe
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
@@ -1847,8 +1847,8 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060), as on the model legs, so the probe checks the
-          # scrub where their Bash runs.
+          # Sandbox off (melodic-software/ci-workflows#1060), as on the model
+          # legs, so the probe checks the scrub where their Bash runs.
           sandbox: "false"
           cli-version: ${{ needs.gate.outputs.release }}
           tools: |
@@ -1962,8 +1962,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
-    # The scan-carrier key's second holder (owner decision, 2026-11-02): main only, no id-token, no
-    # write token, read-only cache; the environment admits main only.
+    # The scan-carrier key's second holder (owner decision, 2026-11-02):
+    # main only, no id-token, no write token, read-only cache; the
+    # environment admits main only.
     environment:
       name: pr-pipeline-scan-carrier
       deployment: false
@@ -2295,12 +2296,13 @@ jobs:
           tokens: lanes-app github-token
 
   # publish-artifact: pull-requests and issues write, contents read. Opens a
-  # pull request for each branch at the head push-branches left that has none, and files
-  # the release's handoffs as one issue, appending keys an open one lacks; then
-  # records the release done. A cap-exceeded or hold-path plan files its issue, naming its
-  # stop_reason, and is recorded done once that issue holds every handoff key;
-  # a range-not-computed plan files nothing and is not recorded done, so the
-  # next run takes the release again.
+  # pull request for each branch at the head push-branches left that has
+  # none, and files the release's handoffs as one issue, appending keys an
+  # open one lacks; then records the release done. A cap-exceeded or
+  # hold-path plan files its issue, naming its stop_reason, and is recorded
+  # done once that issue holds every handoff key; a range-not-computed plan
+  # files nothing and is not recorded done, so the next run takes the
+  # release again.
   publish:
     name: Publish
     needs: [gate, scan, push-branches]
