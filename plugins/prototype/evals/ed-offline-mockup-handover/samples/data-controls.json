@@ -7,6 +7,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > \\\"$RUN/explore-directions.html\\\" <<'HTML'\\n<script>bar.append(btn('Seed 10'), btn('Clear'), btn('Reset'));</script>\\nHTML\",\"description\":\"x\"}}]}}",
       "why": "page written with Bash, labels as script strings"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/explore-directions.html\",\"content\":\"<div class=\\\"data-bar\\\">\\n  <button>\\n    Seed 10\\n  </button>\\n  <button>\\n\\tClear\\n  </button>\\n  <button>\\n    Reset\\n  </button>\\n</div>\\n\"}}]}}",
+      "why": "labels on their own lines after the tag"
     }
   ],
   "fail": [

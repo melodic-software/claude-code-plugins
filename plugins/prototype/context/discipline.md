@@ -71,9 +71,10 @@ order.
 
 1. **Start clean.** Start the prototype the way the person will: the one command, a fresh process
    or a fresh page load. Nothing from building it or from an earlier run is left behind: no
-   leftover records, no test entry typed while building, no state carried in a scratch store or a
-   dev database. When storage is the question (rule 3), wipe the store first. When the prototype
-   has a reset control, the clean state is what reset gives.
+   leftover records, no test entry typed while building, no state carried in the prototype's own
+   scratch store. When storage is the question (rule 3), wipe that store, the one whose name says
+   it may be wiped, and never a project or dev database the prototype did not create. When the
+   prototype has a reset control, the clean state is what reset gives.
 2. **Write the check list.** Number the steps in the order the person should take them, each one
    action and the result to expect: "3. Press `w` to renew. Expect: refused, the copy is reserved."
    Cover the question the prototype exists to answer, at least one case the rules or the screen
