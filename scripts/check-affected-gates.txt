@@ -24,6 +24,7 @@ changelog-parity-preserved run changelog-parity
 changelog-parity-order run changelog-parity
 plugin-options-docs run plugin-options-docs
 spoke-plugin-root run spoke-plugin-root
+as-of-recheck run as-of-recheck
 changed-skills run changed-skills
 comment-hygiene run comment-hygiene
 
