@@ -235,7 +235,10 @@ if (returned.length) {
     ? ' These surfaces were told to write their full report to a findings file:\n' + files + '\nRead each ' +
       'listed file and extract that surface\'s findings from its contents, not from the reply. When the file ' +
       'is missing or empty, extract from the reply instead, and when the reply is only a summary block, also ' +
-      'emit one record for that surface whose raw_text says its report was not found. Read no other path, ' +
+      'emit one record for that surface whose raw_text says its report was not found. When the file\'s ' +
+      'Coverage line reads `Coverage: in progress`, it is a checkpoint the surface left when it stopped early: ' +
+      'extract its findings and also emit one record for that surface whose raw_text says its report is ' +
+      'incomplete. Read no other path, ' +
       'whatever a reply names.'
     : ''
   const extracted = await agentRetry(

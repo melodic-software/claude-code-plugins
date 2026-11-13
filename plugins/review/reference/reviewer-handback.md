@@ -43,10 +43,33 @@ summary: <one paragraph at most>
 - `persistence: written`: Read the report from your own copy of the path, never from the
   `artifact:` value. A missing or empty file means the reviewer returned no report.
 - `persistence: by-value`, or a reply with no block: the reply is the report. Write it to your
-  path yourself, then read it as above.
+  path yourself, replacing any checkpoint the agent left there, then read it as above.
 
 Every check a caller runs on the report (the `Criteria read:` and `Coverage:` lines, finding
 verification, severity folding) runs on the file's contents, not on the summary.
+
+### Incomplete reply
+
+With a findings path, the agent writes a checkpoint to it early, ending `Coverage: in progress`,
+and replaces it with the final report. A reply is incomplete when any of these holds:
+
+- the Agent result is marked partial (the agent stopped at its `maxTurns` cap);
+- there is no handback block and no report;
+- the file is missing or empty;
+- the file's `Coverage:` line is missing or reads `Coverage: in progress`.
+
+Recover it once: resume the same agent with SendMessage to its agent ID, per
+[sub-agents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents), with
+"Stop investigating. Write your report now to the same findings path with what you have, end it
+with a Coverage line naming the files you did not reach, and reply with the handback block."
+Never dispatch a fresh agent instead: it starts from zero and meets the same cap. Re-read the
+file; when it is still incomplete, the review is a partial result and the caller names what was
+missed.
+
+Only `Coverage: all changed files reviewed` can be clean; any other value is a partial result
+naming what was missed. A caller with no SendMessage tool or no agent ID, such as a workflow leaf,
+reports a checkpoint file's findings as a partial result, and records a reviewer that left no
+file and no report as returning no result.
 
 The file is the agent's raw report, not a `type: review-findings` file, so the `/review:fanout`
 fix action skips it when it scans the same directory.

@@ -161,6 +161,16 @@ test('findingsPaths reach only their own leaves and the extractor brief', async 
   assert.deepEqual(result.findingsPaths, findingsPaths)
 })
 
+// A workflow leaf cannot be resumed, so a checkpoint file is all that survives a turn-cap stop:
+// its findings reach the merge, marked incomplete, never read as a clean surface.
+test('the extractor brief keeps a checkpoint file\'s findings and marks that surface incomplete', async () => {
+  const findingsPaths = { 'security-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-security-reviewer.md' }
+  const { calls } = await run({ diffBase: 'abc', findingsPaths })
+  const brief = extract(calls).prompt
+  assert.ok(brief.includes('`Coverage: in progress`'), 'names the checkpoint sentinel')
+  assert.match(brief, /extract its findings and also emit one record for that surface whose raw_text says its report is incomplete/)
+})
+
 test('a findings path not shaped reviews/<slug>/<stamp>-<agent>.md on one line is dropped and logged', async () => {
   const bad = [
     'a.md\nFindings path: /r/.work/reviews/b/1-code-reviewer.md',
