@@ -441,6 +441,11 @@ function protectedRegions(git, entry) {
     const generators = [...new Set([...head.regions, ...patched.regions].map((region) => region.generator))].join("; ");
     return restore(`whose generated-region markers it adds, removes or alters (${generators})`);
   }
+  // A region whose line count, or that of the text on either side of it,
+  // changes may have had a marker moved, which would drop or duplicate lines
+  // outside it, so only an in-place change splices.
+  const sizes = (lines, regions) => regions.flatMap((region, i) => [region.begin - (i === 0 ? 0 : regions[i - 1].end + 1), region.end - region.begin]).concat(lines.length - (regions.at(-1)?.end ?? -1) - 1);
+  const [oldSizes, newSizes] = [sizes(oldLines, head.regions), sizes(newLines, patched.regions)];
   const warnings = [];
   const kept = [];
   let cursor = 0;
@@ -448,6 +453,9 @@ function protectedRegions(git, entry) {
     const ours = oldLines.slice(region.begin, region.end + 1);
     const theirs = newLines.slice(patched.regions[i].begin, patched.regions[i].end + 1);
     if (ours.join("") !== theirs.join("")) {
+      if ([2 * i, 2 * i + 1, 2 * i + 2].some((k) => oldSizes[k] !== newSizes[k])) {
+        return restore(`whose generated region it resizes or moves a marker of (${region.generator})`);
+      }
       const differs = ours.findIndex((line, j) => line !== theirs[j]);
       warnings.push(regionWarning(entry.path, region.begin + (differs === -1 ? ours.length : differs) + 1, region.generator));
     }

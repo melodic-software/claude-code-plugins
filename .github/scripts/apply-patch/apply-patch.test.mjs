@@ -701,23 +701,33 @@ for (const [what, markers, why] of [
   });
 }
 
-test("a fix-docs patch that moves an END marker up keeps the head's region whole and only the lines it put after the region", async (t) => {
-  const moved = catalog({ autonomy: AUTONOMY("interface") }).replace("## Autonomy\n", "## Autonomy\n<!-- END GENERATED: catalog -->\n").replace(/\n<!-- END GENERATED: catalog -->\n$/, "\n");
-  const fix = repoWithPatch(
-    t,
-    (repo) => {
-      writeFileSync(join(repo, "docs/catalog.md"), moved);
-      writeFileSync(join(repo, "README.md"), "# fixed\n");
-    },
-    { head: seedCatalog },
-  );
-  const api = fakeApi(fix.repo, fix.head);
-  const lines = [];
-  assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
-  assert.deepEqual(lines, [regionWarning("docs/catalog.md", 8), `pushed ${"c".repeat(40)} (2 path(s)) onto feat/x`]);
-  assert.equal(pushedBlob(fix, api, "docs/catalog.md"), `${catalog()}\n${AUTONOMY("interface")}`);
-  assert.equal(pushedBlob(fix, api, "README.md"), "# fixed");
-});
+const BEGIN_LINE = `<!-- BEGIN GENERATED: ${GENERATOR} -->\n`;
+for (const [what, moved] of [
+  // The edited autonomy line would land outside the region.
+  ["moves the END marker up", catalog({ autonomy: AUTONOMY("interface") }).replace("## Autonomy\n", "## Autonomy\n<!-- END GENERATED: catalog -->\n").replace(/\n<!-- END GENERATED: catalog -->\n$/, "\n")],
+  // The preamble line would fall inside the region and be lost.
+  ["moves the BEGIN marker up", catalog({ autonomy: AUTONOMY("interface") }).replace(BEGIN_LINE, "").replace("# Plugin catalog\n\n", `# Plugin catalog\n\n${BEGIN_LINE}`)],
+]) {
+  test(`a fix-docs patch that ${what} while editing the region drops the file's change and pushes the rest`, async (t) => {
+    const fix = repoWithPatch(
+      t,
+      (repo) => {
+        writeFileSync(join(repo, "docs/catalog.md"), moved);
+        writeFileSync(join(repo, "README.md"), "# fixed\n");
+      },
+      { head: seedCatalog },
+    );
+    const api = fakeApi(fix.repo, fix.head);
+    const lines = [];
+    assert.equal((await docsPush(fix, api, { log: (line) => lines.push(line) })).outcome, "pushed");
+    assert.deepEqual(lines, [
+      `::warning file=docs/catalog.md::apply-patch dropped the change to docs/catalog.md, whose generated region it resizes or moves a marker of (${GENERATOR})`,
+      `pushed ${"c".repeat(40)} (1 path(s)) onto feat/x`,
+    ]);
+    assert.equal(pushedBlob(fix, api, "docs/catalog.md"), catalog().trim());
+    assert.equal(pushedBlob(fix, api, "README.md"), "# fixed");
+  });
+}
 
 for (const [what, head, patched] of [
   ["the head's markers do not pair", "intro\n<!-- BEGIN GENERATED: half -->\nbody\n", "intro fixed\n<!-- BEGIN GENERATED: half -->\nbody\n"],

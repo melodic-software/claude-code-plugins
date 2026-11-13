@@ -1023,8 +1023,8 @@ that content rather than refusing the patch: inside a generated region (a standa
 stays the head's while the patch's edits outside the regions apply, and the whole change to a file
 is left out when the file sits in the `released` or `historical` tier of
 [`docs-naming.yaml`](../docs-naming.yaml) (`**/CHANGELOG.md`; `docs/adr/**`, `docs/upstream/**`,
-`.claude/unhobble/**`) or when the patch leaves its markers unpaired or adds, removes or alters a
-marker line. Each drop prints a `::warning` naming the file and, for a region, the generator its
+`.claude/unhobble/**`) or when the patch leaves its markers unpaired, adds, removes or alters a
+marker line, or changes a region it edits in line count or position. Each drop prints a `::warning` naming the file and, for a region, the generator its
 BEGIN line names, so the fix goes to the generator's inputs; a patch left with no change escalates
 `patch-empty`. The row otherwise matches `default`. No other row names those two refusals or that
 rule, and none has to. The `review-threads` row alone also refuses a new file at mode `100755` or a
