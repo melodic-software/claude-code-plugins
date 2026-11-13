@@ -306,6 +306,15 @@
 // closed outside the sweep window still closes, and one that stays open logs
 // why.
 //
+// Every pass leaves out a map issue and each of its items: an issue whose own
+// labels hold the tracker binding's container label or a label starting with
+// its wayfind prefix (check-born-triaged.mjs routingLabel, read from BASE_PATH's
+// docs/conventions/work-items.yaml). The skill that filed it routes it, so no
+// pass reads, judges, admits, re-fires or comments on it past the listing or
+// parent lookup that named it, and the queued cap does not count it
+// (check-wip-cap.mjs). One notice per run names each one left out; one that
+// loses the label is decided on the next pass.
+//
 // Environment:
 //   GH_TOKEN              the lane App token (issues: write)
 //   GITHUB_REPOSITORY      owner/repo
@@ -342,12 +351,14 @@
 //   RESOLVED_CONFIG        resolve-config's output (default
 //                          $RUNNER_TEMP/resolved-config.json), for the limits
 //   BASE_PATH              the default branch checkout (default .base), for
-//                          the admission rules and models.issue-dimensions
+//                          the admission rules, models.issue-dimensions and
+//                          the tracker binding's routing labels
 import { appendFileSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { notBornTriaged } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { notBornTriaged, readRouting, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { createGitHub, graphqlQuery, isFault, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
@@ -1105,10 +1116,10 @@ async function deferredIssues(github, repo, byStatus) {
 
 // Revisits the open deferred issues, oldest first. Returns how many reads or
 // writes failed.
-async function admitDeferred({ github, repo, humans, bot, gate, appId, admission, writer = NO_WRITER, statusOf, byStatus }) {
+async function admitDeferred({ github, repo, humans, bot, gate, appId, admission, writer = NO_WRITER, statusOf, byStatus, maps = NO_MAPS }) {
   let waiting;
   try {
-    waiting = await deferredIssues(github, repo, byStatus);
+    waiting = (await deferredIssues(github, repo, byStatus)).filter((item) => !maps.skip(item));
   } catch (error) {
     reportHold(DEFERRED_LABEL, error);
     return 0;
@@ -1177,6 +1188,30 @@ async function dropDeferral({ number, events, bot, humans, notReady = false, wri
 }
 
 const labelNames = (issue) => (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name));
+
+// The run's record of the map issues it leaves out: `skip(item)` answers
+// whether `item`'s own labels hold a routing label of `routing`
+// (check-born-triaged.mjs routingLabel) and records it, and `notice()` names
+// each one recorded, or is null when none was.
+function mapSkipper(routing) {
+  const skipped = new Map();
+  return {
+    skip(item) {
+      const label = routingLabel(labelNames(item), routing);
+      if (label !== null && !skipped.has(Number(item.number))) {
+        skipped.set(Number(item.number), label);
+      }
+      return label !== null;
+    },
+    notice() {
+      const named = [...skipped].map(([number, label]) => `#${number} ('${escapeCommand(label)}')`);
+      return named.length === 0
+        ? null
+        : `::notice title=label-unblocked::left out ${named.length} map issue(s), each carrying a container or wayfind label, so the skill that filed it routes it: ${named.join(", ")}`;
+    },
+  };
+}
+const NO_MAPS = { skip: () => false };
 
 // What a helper called with no writer writes to the Work status field: nothing.
 const NO_WRITER = { set: async () => {}, leaveAgentReady: async () => {}, restart: async () => {} };
@@ -1416,9 +1451,9 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
 // sub-issue goes to the rules: the summary leaves a duplicate close out of
 // `completed`, so it can show a wait with nothing open. Returns how many reads
 // or writes failed.
-async function readmitReady({ github, repo, listed: open, names = labelNames, humans, bot, gate, appId, admission, cap, now, writer = NO_WRITER, statusOf }) {
+async function readmitReady({ github, repo, listed: open, names = labelNames, humans, bot, gate, appId, admission, cap, now, writer = NO_WRITER, statusOf, maps = NO_MAPS }) {
   const lower = (item) => names(item).map((name) => name.toLowerCase());
-  const listed = open.filter((item) => lower(item).includes(READY));
+  const listed = open.filter((item) => lower(item).includes(READY) && !maps.skip(item));
   const queued = (labels) => labels.includes(LABEL) || labels.includes(DEFERRED_LABEL) || labels.some((label) => HOLDS.has(label));
   const waiting = (item) => item.issue_dependencies_summary?.blocked_by > 0 || (item.sub_issues_summary?.total ?? 0) > (item.sub_issues_summary?.completed ?? 0);
   let failed = 0;
@@ -1526,7 +1561,7 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
 // Labels each issue `closed` blocked that is ready, each at most once per run,
 // within the gate's room, oldest opened first (owner Q95). Returns how many
 // reads or writes failed.
-async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, writer = NO_WRITER, closes = new Map(), statusOf }) {
+async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, writer = NO_WRITER, closes = new Map(), statusOf, maps = NO_MAPS }) {
   const seen = new Map();
   let failed = 0;
   for (const source of closed) {
@@ -1552,6 +1587,9 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
       // A label write here can land only in this repository.
       if (!String(item.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo}`.toLowerCase()) || item.pull_request) {
         console.log(`label-unblocked: skipped a blocked item outside this repository's issues`);
+        continue;
+      }
+      if (maps.skip(item)) {
         continue;
       }
       if (!seen.has(number)) {
@@ -2512,7 +2550,7 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
 // Restarts, re-fires or hands off up to `cap` issues, longest-waiting first,
 // of those it decides before `clock()` reaches `deadline`. Returns how many
 // reads or writes failed.
-async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows, slots = laneSlots, clock = Date.now, deadline = Number.POSITIVE_INFINITY, upstream = checkUpstreamStatus }) {
+async function restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, cap = limits["restarts-per-run"], writer = NO_WRITER, statusOf, openIssues, byStatus, field, fieldRows, slots = laneSlots, clock = Date.now, deadline = Number.POSITIVE_INFINITY, upstream = checkUpstreamStatus, maps = NO_MAPS }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -2563,7 +2601,7 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     }
     const numbers = found && new Set(found.map((item) => Number(item.number)));
     open = (found ? openIssues.filter((item) => numbers.has(Number(item.number))) : await paginate(github, `/repos/${repo}/issues?state=open&labels=${LABEL}`)).filter(
-      (item) => !item.pull_request && NUMBER.test(String(item.number)),
+      (item) => !item.pull_request && NUMBER.test(String(item.number)) && !maps.skip(item),
     );
   } catch (error) {
     reportHold(LABEL, error);
@@ -2796,11 +2834,11 @@ async function isTrustedClose(github, repo, issue, humans, bot) {
 // For each issue in `closed` (on the sweep, only one a listed human or a
 // merge closed), closes its split parent when it is done (closeSplitParent).
 // Returns how many reads or writes failed.
-async function closeSplitParents({ github, repo, closed, sweep, humans, bot, closes = new Map(), writer = NO_WRITER, statusOf }) {
+async function closeSplitParents({ github, repo, closed, sweep, humans, bot, closes = new Map(), writer = NO_WRITER, statusOf, maps = NO_MAPS }) {
   let failed = 0;
   for (const number of closed) {
     try {
-      await closeSplitParent({ github, repo, number, humans, closes, bot, sweep, writer, statusOf });
+      await closeSplitParent({ github, repo, number, humans, closes, bot, sweep, writer, statusOf, maps });
     } catch (error) {
       failed += failedFor(github, number, error);
     }
@@ -2809,14 +2847,17 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot, clo
 }
 
 // Closes the open parent of issue `number` once its split is finished
-// (closeDoneParent).
-async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep, writer, statusOf }) {
+// (closeDoneParent). A map parent goes no further.
+async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep, writer, statusOf, maps }) {
   // The sweep's close check already read the issue (readClose, cached in `closes`).
   const { issue, trusted } = sweep ? await readClose({ github, repo, number, humans, closes, bot }) : { issue: await github("GET", `/repos/${repo}/issues/${number}`), trusted: true };
   if (!issue?.parent_issue_url || !trusted) {
     return;
   }
-  await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${number}/parent`), humans, closes, bot, writer, statusOf });
+  const parent = await github("GET", `/repos/${repo}/issues/${number}/parent`);
+  if (!maps.skip(parent)) {
+    await closeDoneParent({ github, repo, parent, humans, closes, bot, writer, statusOf });
+  }
 }
 
 // On the sweep, the open issues (`listed`) whose sub_issues_summary shows
@@ -2825,10 +2866,10 @@ async function closeSplitParent({ github, repo, number, humans, closes, bot, swe
 // split is finished (closeDoneParent): a parent whose last sub-issue closed
 // outside the sweep window, or one admission parked that now re-enters
 // (reenterFinished). Returns how many reads or writes failed.
-async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now, writer = NO_WRITER, statusOf }) {
+async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now, writer = NO_WRITER, statusOf, maps = NO_MAPS }) {
   const hour = new Date(now).getUTCHours();
   const done = (item) => (item.sub_issues_summary?.total ?? 0) > 0 && item.sub_issues_summary.completed === item.sub_issues_summary.total;
-  const due = listed.filter((item) => done(item) && Number(item.number) % 24 === hour);
+  const due = listed.filter((item) => done(item) && Number(item.number) % 24 === hour && !maps.skip(item));
   if (due.length === 0) {
     return 0;
   }
@@ -3082,6 +3123,8 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     }
     const repo = env.GITHUB_REPOSITORY;
     const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+    const routing = readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "label-unblocked" });
+    const maps = mapSkipper(routing);
     // The Work status field is the state: each status write sets it
     // (write-status.mjs statusWriter), and holds, readiness, event history and
     // the deferred listing read it (read-status.mjs). A caller that hands its
@@ -3124,15 +3167,15 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const wip = readWip(resolved);
     // The issue lane's status, read once per run and only when asked.
     let read;
-    const status = () => (read ??= checkWip(github, { repo, bot, now, limits, wip, remaining: rate.remaining, statusOf: queuedStatus }));
+    const status = () => (read ??= checkWip(github, { repo, bot, now, limits, wip, remaining: rate.remaining, statusOf: queuedStatus, routing }));
     const gate = admissionGate(status);
-    let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId, admission, writer: writeTo, statusOf: statusTo, byStatus: listing }) : 0;
+    let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId, admission, writer: writeTo, statusOf: statusTo, byStatus: listing, maps }) : 0;
     // One close check per issue this run, shared by both passes below.
     const closes = new Map();
-    failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, writer: writeTo, closes, statusOf: statusTo });
+    failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, appId, admission, writer: writeTo, closes, statusOf: statusTo, maps });
     // Before readmitReady, so a split parent whose last sub-issue closed is
     // closed, not decided, on the sweep that sees that close.
-    failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot, closes, writer: writeTo, statusOf: statusTo });
+    failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot, closes, writer: writeTo, statusOf: statusTo, maps });
     if (!sweep) {
       failed += await stripClosed({ github, repo, number: Number(event.issue.number), writer: writeTo });
     } else {
@@ -3145,7 +3188,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
         reportHold("open", error);
       }
       if (listed) {
-        failed += await rescanSplitParents({ github, repo, listed, humans, bot, cap: limits["parent-rescan-per-run"], now, writer: writeTo, statusOf: statusTo });
+        failed += await rescanSplitParents({ github, repo, listed, humans, bot, cap: limits["parent-rescan-per-run"], now, writer: writeTo, statusOf: statusTo, maps });
         // Readiness and queues read the Work status field: one field listing
         // over the open issues, and none read when it fails.
         let names;
@@ -3155,10 +3198,10 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
           reportHold("Work status", error);
         }
         if (names) {
-          failed += await readmitReady({ github, repo, listed, names, humans, bot, gate, appId, admission, cap: limits["readmit-per-run"], now, writer: writeTo, statusOf: statusTo });
+          failed += await readmitReady({ github, repo, listed, names, humans, bot, gate, appId, admission, cap: limits["readmit-per-run"], now, writer: writeTo, statusOf: statusTo, maps });
         }
       }
-      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, slots: slots ?? (() => laneSlots({ laneLevel: resolvedLaneLevel(resolved), env })), writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, clock, deadline, upstream, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
+      failed += await restartLimited({ github, actions, jobLog, carry, repo, bot, humans, appId, now, limits, status, slots: slots ?? (() => laneSlots({ laneLevel: resolvedLaneLevel(resolved), env })), writer: writeTo, statusOf: statusTo, openIssues: listed, byStatus: listing, clock, deadline, upstream, maps, ...(statusField ?? (own ? {} : await workStatusField(env, github, repo))) });
       if (carry) {
         const { jobsHit, jobsRead, refusalsHit, refusalsRead } = carry.counts;
         console.log(`::notice title=label-unblocked::carried verdicts: ${jobsHit} job listing(s) and ${refusalsHit} log verdict(s) reused, ${jobsRead} and ${refusalsRead} read`);
@@ -3166,6 +3209,10 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
           markSaved(env);
         }
       }
+    }
+    const left = maps.notice();
+    if (left) {
+      console.log(left);
     }
     if (github.held > 0) {
       console.log(HELD_LINE);

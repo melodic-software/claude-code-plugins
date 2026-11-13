@@ -1068,3 +1068,40 @@ test("pick-slot reads only what the pause needs; admitting jobs read everything"
   // Only capped leaves pick-slot; nothing downstream reads admission-open or wip from it.
   assert.deepEqual(Object.keys(pickSlot.outputs).filter((key) => /wip|admission/.test(pickSlot.outputs[key])), ["capped"]);
 });
+
+// A map (the tracker binding's container label, `work-map` by default) or one
+// of its items (a label starting with its wayfind prefix, `wayfind:` by
+// default) is never built, re-fired or handed off by the lanes: its filing
+// skill routes it. Carrying agent-ready, it is no queued work, so it takes no
+// admission room; an ordinary agent-ready issue still does.
+test("a routed agent-ready issue takes no queued room on the label listing; an ordinary one still does", async () => {
+  const room = async (queued) => status(await read({ merged: 24, queued }), { "pause-from": "2026-10-01" });
+  const none = await room([]);
+  const routed = await room([{ number: 2, labels: [{ name: "work-map" }] }, { number: 3, labels: [{ name: "wayfind: decision" }] }]);
+  const ordinary = await room([{ number: 1 }]);
+  assert.equal(routed.queued_issues, 0);
+  assert.equal(routed.admission_room, none.admission_room, "the routed issues leave the room as it is with none queued");
+  assert.equal(ordinary.queued_issues, 1);
+  assert.equal(ordinary.admission_room, none.admission_room - 1, "an ordinary agent-ready issue takes one");
+  const near = await read({ merged: 24, queued: [{ number: 4, labels: [{ name: "not wayfind: x" }] }, { number: 5, labels: [{ name: "work-map-old" }] }] });
+  assert.deepEqual(near.queued, [4, 5], "a routing label counts only as the container label or at the start of a label");
+});
+
+test("a routed agent-ready issue takes no queued room on the Work status listing", async () => {
+  const { reads } = fieldListing([
+    { number: 1, createdAt: "2026-10-01T00:00:00Z", field: { state: "agent-ready" } },
+    { number: 2, createdAt: "2026-10-02T00:00:00Z", labels: ["work-map"], field: { state: "agent-ready" } },
+    { number: 3, createdAt: "2026-10-03T00:00:00Z", labels: ["agent-ready", "wayfind: interview"] },
+  ]);
+  assert.deepEqual((await reads()).queued, [1]);
+});
+
+test("the routing labels a caller passes replace the defaults", async () => {
+  const queued = [{ number: 1, labels: [{ name: "epic" }] }, { number: 2, labels: [{ name: "chart: open" }] }, { number: 3, labels: [{ name: "work-map" }] }];
+  assert.deepEqual((await read({ merged: 24, queued }, { routing: { container: "epic", prefix: "chart:" } })).queued, [3]);
+});
+
+test("main leaves a routed agent-ready issue out of the queued count", async () => {
+  const { wip } = await runMain({ open: [], merged: 24, admitted: 0, queued: [{ number: 1 }, { number: 2, labels: [{ name: "wayfind: decision" }] }] }, {}, pastConfig());
+  assert.equal(wip.queued_issues, 1);
+});

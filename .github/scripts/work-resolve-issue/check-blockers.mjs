@@ -17,6 +17,12 @@
 //   carrying one of UNTRUSTED_LABELS, or whose newest removal of one
 //   was by neither a listed human nor the lanes App, does not run, for good:
 //   `untrusted` is true, and work-unblock's sweep never re-fires the run.
+// - Then the map labels: a map or one of its items (its own labels hold the
+//   tracker binding's container label or a label starting with its wayfind
+//   prefix, check-born-triaged.mjs routingLabel, read from BASE_PATH's
+//   docs/conventions/work-items.yaml) is the filing skill's to route, not the
+//   lane's: it does not run, and work-unblock never re-fires it while the
+//   label stays.
 // - Then blockers (owner decision Q95): an issue a blocker still blocks, as
 //   admission judges it (admit.mjs blockerDone: a pull request merged here, or
 //   an issue closed, for any reason, by a listed human or, here only, a merge
@@ -46,7 +52,8 @@
 //   ISSUE_NUMBER         the issue agent-ready was added to
 //   TRUSTED_ACTORS_PATH  the default branch's trusted-actor list
 //   BASE_PATH            the default branch's checkout (default `.base`),
-//                        whose models.issue-status the field read reads
+//                        whose models.issue-status the field read reads and
+//                        whose tracker binding names the map labels
 //   LANES_APP_ID         the lanes App bot's numeric user id
 //   RECHECK              `true` for the in-slot re-check above
 //   GITHUB_OUTPUT        receives proceed=true|false and untrusted=true|false,
@@ -59,9 +66,11 @@
 //                        a finished parent's sub-issue numbers, comma-joined
 //                        (else empty), report-outcome's VERIFY_CLOSE
 //   GITHUB_API_URL
+import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { readRouting, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
@@ -81,6 +90,7 @@ export async function main({ env = process.env, github, log = console.log, write
   const number = env.ISSUE_NUMBER ?? "";
   let outsider;
   let held;
+  let routed = null;
   let pending;
   let subs;
   let splitChild;
@@ -108,11 +118,13 @@ export async function main({ env = process.env, github, log = console.log, write
     }
     if (!rechecked) {
       const issue = await client("GET", base);
+      const routing = readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "check-blockers", log });
       outsider = !authorAdmitted(issue, humans, appId);
       const events = outsider ? [] : await statusReader({ env, github: client, repository, log }).events(Number(number));
       const isApp = (actor) => actor?.id === appId;
       held = !outsider && untrustedHold({ labels: issue?.labels, events, humans, isApp });
-      if (!outsider && !held) {
+      routed = outsider || held ? null : routingLabel((issue?.labels ?? []).map((label) => String(label?.name ?? label)), routing);
+      if (!outsider && !held && !routed) {
         // The same close admission counts (admit.mjs closedByTrusted), so a split
         // parent the lanes App closed does not hold an issue admission let through.
         // A blocker the App closed report-delivered no longer holds once a
@@ -137,6 +149,9 @@ export async function main({ env = process.env, github, log = console.log, write
   }
   if (held) {
     return skip(`::notice title=untrusted provenance::the run is stopped: \`${UNTRUSTED}\` holds the issue (on it, or last removed by neither a listed human nor the lanes App), so a person decides it; work-unblock never re-fires this run`, { proceed: "false", untrusted: "true" });
+  }
+  if (routed) {
+    return skip(`::notice title=map issue::the run is skipped: the issue carries '${routed.replace(/[\r\n%]/g, " ")}', a container or wayfind label, so the skill that filed it routes it; work-unblock never re-fires it while the label stays`);
   }
   if (pending.length > 0) {
     return skip(`::notice title=blocked::the run is skipped and agent-ready kept while ${pending.map((blocker) => named(blocker, repository)).join(", ")} still blocks it (not a pull request merged here or an issue closed by a listed human or a merge); work-unblock's sweep re-fires it once none does`);

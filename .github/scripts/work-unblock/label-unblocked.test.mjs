@@ -5,7 +5,7 @@
 // read from the API when the run starts, never from the event payload. The
 // kill switch and a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -7816,4 +7816,123 @@ test("a carried wait only holds: a malformed or overlong one is read fresh, and 
   const fresh = waitWorld({ resets: "2026-10-16T11:00:00Z" });
   assert.equal(await sweep({ github: fresh.github }), 0);
   assert.deepEqual(writes(fresh.calls), [30, 31].flatMap(restarted));
+});
+
+// A map issue (the tracker binding's container label, `work-map` by default)
+// and each of its items (a label starting with its wayfind prefix, `wayfind:`
+// by default) belong to the skill that filed them, which routes them: the run
+// reads and writes nothing for one past the listing that named it, and names
+// it in one notice. Each case pairs with the same issue without the label,
+// which the run decides as before, so a map item that loses its label is
+// decided on the next pass.
+const mapNotice = (entries) =>
+  `::notice title=label-unblocked::left out ${entries.length} map issue(s), each carrying a container or wayfind label, so the skill that filed it routes it: ${entries.map(([n, label]) => `#${n} ('${label}')`).join(", ")}`;
+const touches = (calls, n) => calls.filter((call) => new RegExp(`^\\S+ /repos/${REPO}/issues/${n}(/|$| )`).test(call));
+
+test("a map item closing leaves its map's admission comment unread and unwritten, and the notice names the map", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (line) => logs.push(line));
+  const control = splitWaitWorld();
+  assert.equal(await sweep({ github: control.github }), 0);
+  assert.deepEqual(writes(control.calls), [refreshed("sub-issue #32 is open")], "without the label the comment is rewritten");
+  assert.ok(!logs.some((line) => line.includes("map issue(s)")), "no map notice without a map");
+
+  logs.length = 0;
+  const map = splitWaitWorld({ labels: ["status: ready", "work-map"] });
+  assert.equal(await sweep({ github: map.github }), 0);
+  assert.deepEqual(writes(map.calls), [], "the map's comment is not rewritten");
+  assert.deepEqual(touches(map.calls, 30), [], "the map is never read past its parent lookup");
+  assert.ok(map.calls.includes(`GET /repos/${REPO}/issues/31/parent`), "the closed item's parent is looked up once");
+  assert.ok(logs.includes(mapNotice([[30, "work-map"]])), logs.join("\n"));
+  for (const read of [`GET /repos/${REPO}/issues/30/comments`, `GET /repos/${REPO}/issues/30/sub_issues`]) {
+    assert.ok(control.calls.some((call) => call.startsWith(read)), `without the label the run makes ${read}`);
+  }
+});
+
+test("an ordinary split parent closes when its last sub-issue, carrying a wayfind label, closes", async () => {
+  const first = subIssue(31, { closed_at: "2026-10-16T11:30:00Z", labels: [{ name: "wayfind: decision" }] });
+  const second = mergedSecond();
+  const { github, calls } = world({
+    closedList: [first],
+    issues: { 30: issue(30), 31: first, 32: second },
+    parents: { 31: issue(30) },
+    subIssues: { 30: [first, second] },
+    comments: { 30: [splitRecordComment()] },
+  });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writtenPaths(calls), closeParentWrites, "only the parent's own labels decide");
+});
+
+test("a status: ready map item in no queue is left out of admission unread; without the label it is admitted", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (line) => logs.push(line));
+  const control = readyWorld();
+  assert.equal(await sweep({ github: control.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(control.calls), [labeled(26)]);
+
+  logs.length = 0;
+  const item = readyWorld({ items: [readyIssue(26, { labels: [...READY_LABELS, "wayfind: decision"] })] });
+  assert.equal(await sweep({ github: item.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(item.calls), []);
+  assert.deepEqual(touches(item.calls, 26), [], "no read of the issue, its events or its fields");
+  assert.ok(logs.includes(mapNotice([[26, "wayfind: decision"]])), logs.join("\n"));
+  assert.ok(!logs.some((line) => line.includes("in no queue; deciding")), "the map item is not counted among the candidates");
+});
+
+test("a deferred map is not revisited; without the label it is admitted", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (line) => logs.push(line));
+  const control = deferredWorld();
+  assert.equal(await sweep({ github: control.github }, PAUSING), 0);
+  assert.deepEqual(writes(control.calls), [labeled(25)]);
+
+  logs.length = 0;
+  const map = deferredWorld({ labels: ["admission-deferred", "status: ready", "work-map"] });
+  assert.equal(await sweep({ github: map.github }, PAUSING), 0);
+  assert.deepEqual(writes(map.calls), []);
+  assert.deepEqual(touches(map.calls, 25), [], "no read of its events, labels or blockers");
+  assert.ok(logs.includes(mapNotice([[25, "work-map"]])), logs.join("\n"));
+});
+
+test("a blocker's close leaves a map item it blocked unread and unlabeled; without the label it is labeled", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (line) => logs.push(line));
+  const control = oneDependent();
+  assert.equal(await main({ env: envFor(), github: control.github }), 0);
+  assert.deepEqual(writes(control.calls), [labeled(20)]);
+
+  logs.length = 0;
+  const item = oneDependent({ labels: ["wayfind: interview"] });
+  assert.equal(await main({ env: envFor(), github: item.github }), 0);
+  assert.deepEqual(writes(item.calls), []);
+  assert.deepEqual(touches(item.calls, 20), []);
+  assert.ok(logs.includes(mapNotice([[20, "wayfind: interview"]])), logs.join("\n"));
+});
+
+test("an agent-ready map item whose run failed is not re-fired; without the label it is", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (line) => logs.push(line));
+  const control = failedRun();
+  assert.equal(await sweep({ github: control.github, actions: control.actions }), 0);
+  assert.deepEqual(writes(control.calls), refired(30));
+
+  logs.length = 0;
+  const item = failedRun({ labels: ["wayfind: decision"] });
+  assert.equal(await sweep({ github: item.github, actions: item.actions }), 0);
+  assert.deepEqual(writes(item.calls), []);
+  assert.deepEqual(touches(item.calls, 30), [], "no read of its comments or events");
+  assert.ok(logs.includes(mapNotice([[30, "wayfind: decision"]])), logs.join("\n"));
+});
+
+test("the labels come from the binding at BASE_PATH: a remapped container and prefix are left out, the defaults no longer are", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (line) => logs.push(line));
+  const base = tempDir("work-unblock-binding-");
+  mkdirSync(join(base, "docs/conventions"), { recursive: true });
+  writeFileSync(join(base, "docs/conventions/work-items.yaml"), 'tracker:\n  config:\n    container_label: epic\n    wayfind_label_prefix: "chart:"\n');
+  const items = [readyIssue(26, { labels: [...READY_LABELS, "epic"] }), readyIssue(27, { labels: [...READY_LABELS, "chart: open"] }), readyIssue(28, { labels: [...READY_LABELS, "work-map"] })];
+  const { github, calls } = readyWorld({ items });
+  assert.equal(await sweep({ github, admission: admissionFor() }, { ...PAUSING, BASE_PATH: base }), 0);
+  assert.deepEqual(writes(calls), [labeled(28)]);
+  assert.ok(logs.includes(mapNotice([[26, "epic"], [27, "chart: open"]])), logs.join("\n"));
 });
