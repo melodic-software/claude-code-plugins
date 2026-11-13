@@ -287,9 +287,7 @@ jobs:
           prompt=${prompt//OPEN_ITEMS_FILE/$DATA/open-items.json}
           prompt=${prompt//BASE_DIR/$BASE}
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
-          claim='{"type":"object","properties":{"path":{"type":"string"},"line":{"type":"integer"},"quote":{"type":"string"}},"required":["path","line","quote"],"additionalProperties":false}'
-          finding='{"type":"object","properties":{"slice":{"enum":["A","C","D"]},"title":{"type":"string"},"problem":{"type":"string"},"root_cause":{"type":"string"},"proposed_fix":{"type":"string"},"workflow":{"type":"string"},"job":{"type":"string"},"signature":{"type":"string"},"evidence":{"type":"array","items":'"$claim"'},"covered_by":{"type":["integer","null"]}},"required":["slice","title","problem","root_cause","proposed_fix","workflow","job","signature","evidence","covered_by"],"additionalProperties":false}'
-          printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":'"$finding"'}},"required":["findings"],"additionalProperties":false}' >"$SCHEMA_FILE"
+          jq -c . .base/.github/scripts/maintenance-audit-lane-runs/lane-sweep.schema.json >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       # continue-on-error keeps a launcher failure, which run-claude-cli
@@ -689,9 +687,7 @@ jobs:
           prompt=${prompt//OPEN_ITEMS_FILE/$DATA/open-items.json}
           prompt=${prompt//BASE_DIR/$BASE}
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
-          claim='{"type":"object","properties":{"path":{"type":"string"},"line":{"type":"integer"},"quote":{"type":"string"}},"required":["path","line","quote"],"additionalProperties":false}'
-          finding='{"type":"object","properties":{"slice":{"enum":["A","C","D"]},"title":{"type":"string"},"problem":{"type":"string"},"root_cause":{"type":"string"},"proposed_fix":{"type":"string"},"workflow":{"type":"string"},"job":{"type":"string"},"signature":{"type":"string"},"evidence":{"type":"array","items":'"$claim"'},"covered_by":{"type":["integer","null"]}},"required":["slice","title","problem","root_cause","proposed_fix","workflow","job","signature","evidence","covered_by"],"additionalProperties":false}'
-          printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":'"$finding"'}},"required":["findings"],"additionalProperties":false}' >"$SCHEMA_FILE"
+          jq -c . .base/.github/scripts/maintenance-audit-lane-runs/lane-sweep.schema.json >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       # continue-on-error keeps a launcher failure, which run-claude-cli
@@ -1053,9 +1049,7 @@ jobs:
           prompt=${prompt//OPEN_ITEMS_FILE/$DATA/open-items.json}
           prompt=${prompt//BASE_DIR/$BASE}
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
-          claim='{"type":"object","properties":{"path":{"type":"string"},"line":{"type":"integer"},"quote":{"type":"string"}},"required":["path","line","quote"],"additionalProperties":false}'
-          finding='{"type":"object","properties":{"slice":{"enum":["A","C","D"]},"title":{"type":"string"},"problem":{"type":"string"},"root_cause":{"type":"string"},"proposed_fix":{"type":"string"},"workflow":{"type":"string"},"job":{"type":"string"},"signature":{"type":"string"},"evidence":{"type":"array","items":'"$claim"'},"covered_by":{"type":["integer","null"]}},"required":["slice","title","problem","root_cause","proposed_fix","workflow","job","signature","evidence","covered_by"],"additionalProperties":false}'
-          printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":'"$finding"'}},"required":["findings"],"additionalProperties":false}' >"$SCHEMA_FILE"
+          jq -c . .base/.github/scripts/maintenance-audit-lane-runs/lane-sweep.schema.json >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       # continue-on-error keeps a launcher failure, which run-claude-cli

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "OrderHandler reaches the report as Strong, labeled unverified.",
+      "why": "the label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "OrderHandler is reproduced and keeps Strong.",
+      "why": "no label"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}

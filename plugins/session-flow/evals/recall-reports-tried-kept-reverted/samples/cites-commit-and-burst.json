@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Searched: terms rate limiter, token bucket; transcript_scope: worktree (default); 1 directory, 0 transcripts.\n\n**Tried**\n- 2026-10-01 token-bucket rate limiter replacing the in-memory map (a1b2c3d)\n- 2026-10-01 sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter, still in place in src/limiter.ts (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: the bucket dropped legitimate requests during traffic bursts.\n\nPull requests: not searched, no GitHub remote. Tracker: not searched, /work-items:track not available.",
+      "why": "full report"
+    },
+    {
+      "answer": "Reverted: token bucket (4c5d6e7), because it dropped requests in bursts.\nKept: sliding window (9f8e7d6).",
+      "why": "terse sections"
+    },
+    {
+      "answer": "**Tried**\n- token-bucket rate limiter (a1b2c3d)\n- sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: it dropped legitimate requests during bursts.",
+      "why": "section headers on their own lines"
+    },
+    {
+      "answer": "Kept:\n- sliding window (9f8e7d6)\nReverted:\n- token bucket (4c5d6e7), dropped requests during bursts",
+      "why": "kept header, bare item"
+    },
+    {
+      "answer": "## Tried\n- **Token-bucket limiter** (`b61c929`, 2026-11-13). It replaced the in-memory map with `bucket(key).take()`.\n- **Sliding-window limiter** (`603049c`, 2026-11-13).\n\n## Kept\n- **Sliding-window limiter** is what `HEAD` has in `src/limiter.ts` (`603049c`).\n\n## Dropped or reverted\n- **Token-bucket** was reverted in `39620d8` (2026-11-13). The recorded reason is \"The bucket dropped legitimate requests during traffic bursts.\"\n\n**Answer:** Yes. The in-memory limiter was already replaced once, with a token bucket, and that was reverted because it dropped legitimate requests during bursts. A sliding-window limiter then replaced the in-memory one and is current.",
+      "why": "real eval answer with backticked short SHAs"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The token bucket was reverted after bursts; the sliding window is still in place.",
+      "why": "no SHA cited"
+    },
+    {
+      "answer": "Token bucket reverted in 4c5d6e7. Sliding window kept (9f8e7d6).",
+      "why": "no burst reason"
+    },
+    {
+      "answer": "The token bucket was reverted in commit deadbeef after bursts; the sliding window is still in place.",
+      "why": "a hex word with no digit is not read as a commit id"
+    },
+    {
+      "answer": "The sliding-window limiter lives in src/limiter.ts and uses a 60-second window.",
+      "why": "an answer to a different question"
+    },
+    {
+      "answer": "",
+      "why": "empty answer"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: deepening-light-labels-unverified
+description: "deepening.md Phase 1.5 with the stated reader line verification: light: nothing is reproduced, the phase-1.5 line is the skip token, and the strong candidate and the runtime-claim reach the report labeled unverified."
+tags: [architecture, improve, verification-level, read-only]
+expected_outcome: "Says Phase 1.5 reproduces nothing under light, that OrderHandler and the LegacyExporter dead-code claim reach the report labeled unverified, and that the artifact's line is phase-1.5: verification: skipped (light)."
+execution:
+  prompt: "/architecture:improve deepening. Phase 1 already ran; do not scan or open files. The scan returned two candidates: OrderHandler (confidence: strong, shallow-signal: OrderHandler, OrderValidator and OrderRepo each forward their one argument unmodified) and LegacyExporter (confidence: worth-exploring, runtime-claim: dead code, nothing registers it). Say exactly what happens to each before the report, which badge each can carry, and what the candidate artifact's phase-1.5 line will say, then stop. [The level reader has already been run for this case and printed `verification: light (docs/conventions/architecture.yaml verification at origin/main)`; this run uses that line and does not run the reader again.]"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: writes-skip-token
+    type: regex
+    pattern: 'verification[*_`\\]*:[*_`\s\\]*skipped \(light\)'
+    flags: 'i'
+    target: 'last_message'
+  - name: labels-unverified
+    type: regex
+    pattern: '\bunverified\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-inline-reproduction
+    type: llm
+    criteria: "PASS only if the reply says neither claim is reproduced, by subagent or inline, and that both reach the report labeled unverified. FAIL if it plans to reproduce or check either claim."

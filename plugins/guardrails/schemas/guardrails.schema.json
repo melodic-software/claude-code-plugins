@@ -10,6 +10,11 @@
       "enum": ["block", "allow"],
       "default": "block",
       "description": "Whether hooks/block-fix-request-post.sh blocks an agent from posting the PR-fix lane fix request. block (default) blocks it; allow lets it through. Any other value keeps block."
+    },
+    "unpinned_lease": {
+      "enum": ["allow", "block"],
+      "default": "allow",
+      "description": "Whether hooks/block-dangerous-git.sh passes a force-with-lease push that pins no full commit id (--force-with-lease plus --force-if-includes, or an empty expect). allow (default) passes it; block allows only --force-with-lease=<ref>:<full-sha>. The block_dangerous_git_unpinned_lease option set to block also blocks it. Any other value keeps allow."
     }
   }
 }

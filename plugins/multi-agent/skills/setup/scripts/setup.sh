@@ -221,6 +221,14 @@ apply() {
     key="${pair%%=*}" value="${pair#*=}"
     [[ "$key" =~ ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ && "$key" != schema ]] || die "invalid key '$key'"
     [[ "$value" != *[$'\t\n\r#']* ]] || die "invalid value for $key"
+    if [[ "$key" =~ ^verification(_skills\.[^.]+)?$ ]]; then
+      [[ "$LAYER" == team ]] || die "$key is read from the team layer only"
+      # resolve-roles.sh does not read these keys, so its validation below never sees them.
+      [[ -z "$value" || "$value" =~ ^(off|light|standard|strict)$ ]] ||
+        die "$key: '$value' is not off, light, standard or strict"
+    elif [[ "$key" =~ ^verification ]]; then
+      die "invalid key '$key'"
+    fi
     existing="$(awk -F '\t' -v k="$key" '$1!=k' <<<"$existing")"
     [[ -n "$value" ]] && existing+=$'\n'"$key"$'\t'"$value"
   done

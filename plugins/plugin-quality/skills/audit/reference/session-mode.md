@@ -124,4 +124,5 @@ fills it.
 | Scope challenge | Each suggested change is asked whether it needs to exist and whether a smaller one covers it (the overengineering audit) | One line per change in the item answering those two questions |
 
 These seams follow the effort rows: they run at `high` and above and are skipped below it, with the
-write-up saying so. The zone table decides where they run.
+write-up saying so. Adversarial re-examination also follows the verification level (SKILL.md step
+5). The zone table decides where they run.

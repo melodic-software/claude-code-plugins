@@ -262,7 +262,7 @@
     {
       "id": 20,
       "name": "review-step-names-seams-by-role",
-      "prompt": "At high effort, which review seams does step 5 run, and how do you pick the skills for them?",
+      "prompt": "At high effort, which review seams does step 5 run, and how do you pick the skills for them? [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "Step 5 names four seams by role, presence-gated and resolved at run time against the skills this session lists: adversarial re-examination, upstream conformance, the running model's adaptation chapter, and scope challenge through the overengineering audit. Each has an absent-fallback, and the write-up reports the resolved skill or the fallback. Below high effort they are skipped and the write-up says so.",
       "files": [],
       "expectations": [

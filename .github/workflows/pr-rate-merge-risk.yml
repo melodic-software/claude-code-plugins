@@ -217,11 +217,7 @@ jobs:
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
-        run: |
-          if [ "$GATE_PR" != "$PR_NUMBER" ] || [ "$GATE_HEAD" != "$HEAD_SHA" ]; then
-            echo "::error::the trigger gate and the resolver name different pull requests or heads"
-            exit 1
-          fi
+        run: bash .base/.github/scripts/pr-verify/assert-gate-agrees.sh
 
       - name: Select the trusted PR text
         if: steps.agree.outcome == 'success'
@@ -280,18 +276,7 @@ jobs:
         env:
           SETTINGS: ${{ steps.models.outputs.settings-json }}
           MODEL: ${{ steps.models.outputs.model }}
-        run: |
-          if [ -z "$MODEL" ]; then
-            echo "::error::the merge-risk profile's model is default, which run-claude-cli cannot pass; name an alias"
-            exit 1
-          fi
-          model=$(jq -r '.env.CLAUDE_CODE_SUBAGENT_MODEL // ""' <<<"$SETTINGS")
-          if [ -n "$model" ] && ! [[ $model =~ ^(haiku|sonnet|opus)$ ]]; then
-            echo "::error::the merge-risk profile's subagent-model is not an alias"
-            exit 1
-          fi
-          echo "model=$model" >>"$GITHUB_OUTPUT"
-          echo "force=$([ -n "$model" ] && echo 1)" >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/pr-merge-risk/read-checker-model.sh
 
       # The review plugin, read-only in the workspace: --restricted reads
       # nothing outside it, and Read(./.base/**) stays denied.
@@ -451,7 +436,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 1
         run: |
-          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
           mkdir -p "$RUNNER_TEMP/key-credit-stop"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
 
@@ -644,11 +628,7 @@ jobs:
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
-        run: |
-          if [ "$GATE_PR" != "$PR_NUMBER" ] || [ "$GATE_HEAD" != "$HEAD_SHA" ]; then
-            echo "::error::the trigger gate and the resolver name different pull requests or heads"
-            exit 1
-          fi
+        run: bash .base/.github/scripts/pr-verify/assert-gate-agrees.sh
 
       - name: Select the trusted PR text
         if: steps.agree.outcome == 'success'
@@ -700,18 +680,7 @@ jobs:
         env:
           SETTINGS: ${{ steps.models.outputs.settings-json }}
           MODEL: ${{ steps.models.outputs.model }}
-        run: |
-          if [ -z "$MODEL" ]; then
-            echo "::error::the merge-risk profile's model is default, which run-claude-cli cannot pass; name an alias"
-            exit 1
-          fi
-          model=$(jq -r '.env.CLAUDE_CODE_SUBAGENT_MODEL // ""' <<<"$SETTINGS")
-          if [ -n "$model" ] && ! [[ $model =~ ^(haiku|sonnet|opus)$ ]]; then
-            echo "::error::the merge-risk profile's subagent-model is not an alias"
-            exit 1
-          fi
-          echo "model=$model" >>"$GITHUB_OUTPUT"
-          echo "force=$([ -n "$model" ] && echo 1)" >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/pr-merge-risk/read-checker-model.sh
 
       # Only whether each secret is set reaches this step, never its value.
       # `present` is whether this leg runs the model.
@@ -999,11 +968,7 @@ jobs:
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
-        run: |
-          if [ "$GATE_PR" != "$PR_NUMBER" ] || [ "$GATE_HEAD" != "$HEAD_SHA" ]; then
-            echo "::error::the trigger gate and the resolver name different pull requests or heads"
-            exit 1
-          fi
+        run: bash .base/.github/scripts/pr-verify/assert-gate-agrees.sh
 
       - name: Select the trusted PR text
         if: steps.agree.outcome == 'success'
@@ -1055,18 +1020,7 @@ jobs:
         env:
           SETTINGS: ${{ steps.models.outputs.settings-json }}
           MODEL: ${{ steps.models.outputs.model }}
-        run: |
-          if [ -z "$MODEL" ]; then
-            echo "::error::the merge-risk profile's model is default, which run-claude-cli cannot pass; name an alias"
-            exit 1
-          fi
-          model=$(jq -r '.env.CLAUDE_CODE_SUBAGENT_MODEL // ""' <<<"$SETTINGS")
-          if [ -n "$model" ] && ! [[ $model =~ ^(haiku|sonnet|opus)$ ]]; then
-            echo "::error::the merge-risk profile's subagent-model is not an alias"
-            exit 1
-          fi
-          echo "model=$model" >>"$GITHUB_OUTPUT"
-          echo "force=$([ -n "$model" ] && echo 1)" >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/pr-merge-risk/read-checker-model.sh
 
       # Only whether the secret is set reaches this step, never its value.
       # `present` is whether this leg runs the model.

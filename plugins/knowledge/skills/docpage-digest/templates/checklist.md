@@ -36,7 +36,9 @@ collision check reads them to tell a resume from a slug collision.
       quoted from `source.html`) PASS; Verifier A (same-vendor) +
       Verifier B (cross-vendor) verdicts in `verification/` (append-only; each arm states the
       hashes it audited and one verdict, PASS / PASS-WITH-FINDINGS / FAIL / BLOCKED, done only on
-      PASS or PASS-WITH-FINDINGS from both arms; degraded fallback / death-ladder recorded, never silent)
+      PASS or PASS-WITH-FINDINGS from both arms; degraded fallback / death-ladder recorded, never silent;
+      under verification `light` or `off`, ticked after the pin and gates with
+      `verification: skipped (<level>)`, and the slice stays unverified)
   - Verifier A effort (level and source; `requested <level>, unconfirmed` when the arm never
     confirmed it):
   - Verifier B effort (level and source; `requested <level>, unconfirmed` when the arm never

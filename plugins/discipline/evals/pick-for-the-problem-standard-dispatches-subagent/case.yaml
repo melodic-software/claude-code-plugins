@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: pick-for-the-problem-standard-dispatches-subagent
+context:
+  scaffold_script: scaffold.sh

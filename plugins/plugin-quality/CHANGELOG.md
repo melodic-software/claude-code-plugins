@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0] - 2026-11-13
+
+### Changed
+
+- **Breaking:** `/plugin-quality:audit`'s adversarial re-examination seam now reads the `verification` level (`lib/read-verification.sh`, new team file `<home>/plugin-quality.yaml`, schema `schemas/plugin-quality.schema.json`). `standard` keeps its `high`-effort gate and `strict` runs it at every effort. At the default `light`, and at `off`, it runs at no effort, and the emitted item says `verification: skipped (<level>)` and labels each finding `unverified`. Set `verification: standard` to restore the seam.
+
 ## [0.20.10] - 2026-11-13
 
 ### Changed

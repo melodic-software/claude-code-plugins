@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.0] - 2026-11-13
+
+### Changed
+
+- **Breaking:** `/architecture:improve` now reads the `verification` level (`lib/read-verification.sh`, team file `<home>/architecture.yaml` at the default branch). At the default `light`, and at `off`, the deepening lens's Phase 1.5 reproduces nothing: `confidence: strong` candidates, promotions to `Strong` and runtime claims reach the report labeled `unverified`, and the artifact's `phase-1.5` line is the skip token. The conventions lens still reproduces every derived item. Set `verification: standard` to restore the reproduction.
+
 ## [2.3.12] - 2026-11-13
 
 ### Changed

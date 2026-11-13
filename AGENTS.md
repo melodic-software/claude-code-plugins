@@ -6,18 +6,18 @@ Open pull requests with `/source-control:pull-request create`, which owns what s
 and ready mean and when a pull request stays a draft; this repository sets `pr_open_state: ready`
 (`docs/conventions/source-control.yaml`), over any per-user value. A draft skips the test lanes and
 both AI review lanes, and once it is ready they run on every push. None of their checks is
-required; `ci-status` is the only one. A pull request reaches ready only through
+required; `CI Status` is the only one. A pull request reaches ready only through
 `/source-control:pull-request ready`, which updates the branch from its base, reviews and verifies the updated head,
 and then marks it ready (the stop list below says when that needs the user).
 
 Title every pull request in Conventional Commits form, `<type>[(<scope>)]: <subject>`;
-`ci-status` fails any other title.
+`CI Status` fails any other title.
 
 When a pull request is superseded or must not merge, apply the `do-not-merge` label (for example
 `gh pr edit <n> --add-label do-not-merge`) before writing any explanation. A session holding a pull
 request for any reason, a measured regression included, applies the label at once and removes it
 when the hold ends: a hold kept only in a session, a handoff or a message does not stop another
-session's merge. "Do not merge" in the body or a comment is not enforced by `ci-status`, which
+session's merge. "Do not merge" in the body or a comment is not enforced by `CI Status`, which
 reads only the label, except on a lanes App pull request, where it also fails on a member's veto
 comment; the babysit merge gate still respects a body hold and human comments, so never override
 one. The hold convention is in `docs/contracts/loop-lane/README.md`.
@@ -79,7 +79,7 @@ claiming which session opened it never establishes that.
 ### Merging
 
 Merging is a judgment, not a fixed stop: merge when the user or the task wants the work landed,
-`ci-status` is green on the current head, and no hold applies (the `do-not-merge` label, a hold in
+`CI Status` is green on the current head, and no hold applies (the `do-not-merge` label, a hold in
 the body, or a human comment asking to wait). A body hold or wait comment stops the merge until the
 owner lifts it; the owner deciding the PR in their own words, in a session or on the PR, lifts it.
 Ask first when any of those is missing, or when the change alters what agents may do unattended and
@@ -92,6 +92,9 @@ each under `## Follow-ups` in the PR body instead, each entry starting with
 `Pre-existing (advisory):` (the source-control plugin's `reference/review-discipline.md` D4.6);
 review threads keep their D4.6 route. When the pause lifts, one sweep searches merged PRs' bodies
 and review summaries for that marker and files each entry as an issue.
+`## Follow-ups` holds only those entries, and `ci-status` reports a bullet there without the
+marker: a follow-up that is not a review advisory goes under a heading of its own or into a filed
+issue.
 
 ### Unattended lanes
 

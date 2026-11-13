@@ -252,11 +252,7 @@ jobs:
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
-        run: |
-          if [ "$GATE_PR" != "$PR_NUMBER" ] || [ "$GATE_HEAD" != "$HEAD_SHA" ]; then
-            echo "::error::the trigger gate and the resolver name different pull requests or heads"
-            exit 1
-          fi
+        run: bash .base/.github/scripts/pr-verify/assert-gate-agrees.sh
 
       - name: Select the trusted PR text
         if: steps.agree.outcome == 'success'
@@ -2320,11 +2316,7 @@ jobs:
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
-        run: |
-          if [ "$GATE_PR" != "$PR_NUMBER" ] || [ "$GATE_HEAD" != "$HEAD_SHA" ]; then
-            echo "::error::the trigger gate and the resolver name different pull requests or heads"
-            exit 1
-          fi
+        run: bash .base/.github/scripts/pr-verify/assert-gate-agrees.sh
 
       # Carried from check-intent when the resolver took its reads.
       - name: Select the trusted PR text
@@ -4170,11 +4162,7 @@ jobs:
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
-        run: |
-          if [ "$GATE_PR" != "$PR_NUMBER" ] || [ "$GATE_HEAD" != "$HEAD_SHA" ]; then
-            echo "::error::the trigger gate and the resolver name different pull requests or heads"
-            exit 1
-          fi
+        run: bash .base/.github/scripts/pr-verify/assert-gate-agrees.sh
 
       - name: Select the trusted PR text
         if: steps.agree.outcome == 'success'

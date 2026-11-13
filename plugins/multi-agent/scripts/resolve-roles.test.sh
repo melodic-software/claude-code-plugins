@@ -234,6 +234,15 @@ out="$(run reject all --session-model opus)"
 assert_contains "full model id rejected" "$out" "roles.worker.model rejected: 'claude-opus-5-5'"
 assert_contains "unknown effort rejected" "$out" "roles.worker.effort rejected: 'turbo'"
 assert_contains "unknown role in a layer ignored" "$out" "unknown role 'judge'"
+
+# The verification level is not a role-map key, so the resolver passes over it.
+fixture level
+printf 'schema: 1\nverification: standard\nverification_skills:\n  audit-defaults: strict\nmode: fast\nfrontier: bogus\n' >"$T/level/repo/docs/conventions/multi-agent.yaml"
+out="$(run level all --session-model opus)"
+assert_lacks "verification is not an unknown key" "$out" "verification ignored"
+assert_lacks "verification_skills is not an unknown key" "$out" "verification_skills.audit-defaults ignored"
+assert_contains "another key in the same layer is still unknown" "$out" "team: mode ignored: unknown key"
+assert_contains "the team layer is still read" "$out" "frontier rejected: 'bogus'"
 fixture ctrl
 printf 'schema: 1\nroles:\n  worker:\n    effort: \033[31mred\n' >"$T/ctrl/repo/docs/conventions/multi-agent.yaml"
 out="$(run ctrl all --session-model opus)"

@@ -80,6 +80,10 @@ mid-session corrector can score.
 - **Dual moment.** Valid as posture-setting at any time (the method doc's
   conversation-start case: acknowledge the discipline as active and stop,
   nothing to audit yet), AND as an audit once output exists.
+- **Verification level.** Resolve it once with
+  `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill mind-your-maxims --file docs/conventions/discipline.yaml`
+  and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):
+  `light` and `off` skip the method doc's step 2 and step 3 subagents, as it says.
 
 ## Gotchas
 

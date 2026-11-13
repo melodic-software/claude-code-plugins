@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The findings go into the item labeled unverified.",
+      "why": "the label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The findings are verified by the re-examination.",
+      "why": "no unverified label"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}

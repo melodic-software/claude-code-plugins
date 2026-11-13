@@ -95,6 +95,11 @@ Correct each forward now: re-derive the choice from the stated problem, run
 evaluation is load-bearing, route it to research rather than self-checking
 from the same recall that produced the reflex.
 
+Resolve the verification level once with
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill pick-for-the-problem --file docs/conventions/discipline.yaml`
+and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):
+`light` and `off` skip the method doc's step 2 and step 3 subagents, as it says.
+
 ## Distinct axis, the incumbency overlap
 
 The incumbency sin here is selection-specific. "the repo uses X, so this

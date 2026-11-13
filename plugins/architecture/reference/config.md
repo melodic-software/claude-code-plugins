@@ -99,6 +99,12 @@ reported with its file, key and value, and that layer is dropped: a valid higher
 otherwise the default; a lower layer's value is never used. There is no folder-level layer: the
 cascade keeps one convention home per git root (ADR 0075, fix 13).
 
+## Verification level
+
+| Key | Values | Default | Meaning |
+|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/architecture:improve`'s deepening lens reproduces scan claims before it presents them (the Phase 1.5 gate). `light` and `off` skip it and present those claims labeled `unverified`. The conventions lens does not read the level: it reproduces every derived item on every run. Read from the team file `<home>/architecture.yaml` at the default branch only, through `lib/read-verification.sh`; the personal file cannot set it, and a skill entry beats the plugin value ([verification level](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). |
+
 ## C4 dialect surfaces
 
 This plugin owns one dialect key, `landscape_dialect`, for one artifact. Every other `map-*`
