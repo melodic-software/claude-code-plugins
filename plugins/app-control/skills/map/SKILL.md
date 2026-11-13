@@ -88,7 +88,8 @@ Write in this order, each path checked by the real-path rules first; the hub goe
 drive finds a control skill by its hub.
 
 - **Feature folders** for the seeded features, named by the slug rule, written from the user's side
-  with the contract's six sections, every entry point marked `driven` or `not driven: <reason>`.
+  with the contract's title, one-paragraph opening and six sections, every entry point marked
+  `driven` or `not driven: <reason>`.
   Drive may add one line naming the harness command that selects the feature; class names and
   internal endpoints stay out. Each Drive step states its action, its exact command or handle,
   and a `Result:`, and the steps end in a `**Proof.**` step with the end state and its
@@ -107,11 +108,13 @@ drive finds a control skill by its hub.
 - **Driver CLI**, per the contract's "Writing the driver CLI", and required when a seeded feature
   has a send, sign-in or write step. The CLI enforces the safety floors and refuses a loosening
   from the local, environment or flag layers with exit 4, and writes nothing inside its
-  control-skill folder (the contract's "Writing the driver CLI" says why). When `/developer-experience:build-cli` is
+  control-skill folder (the contract's "Writing the driver CLI" says why). It has that section's
+  traits for agents: `--help` on every command and `--dry-run` on each one that writes or sends,
+  beside the floors, never in place of them. When `/developer-experience:build-cli` is
   available in this session, invoke it through the Skill tool to write the CLI; otherwise write a
   documented script.
-- **Hub**, per the contract's Hub section, with the app's name, the driving tool, and
-  `Attended runs only.` when that tool drives the person's own signed-in browser, and a `## Mask`
+- **Hub**, per the contract's Hub section, with the app's name, the driving tool, the driving
+  conventions, and `Attended runs only.` when that tool drives the person's own signed-in browser, and a `## Mask`
   when Capture records a `screenshot` or `video` (the contract's "The Mask section"). Launch names the
   recipe, first found: a `run-<name>` project skill; a recorded `.claude/skills/verify/SKILL.md`;
   else the documented start command, and offer the person `/run-skill-generator` to type. Our rule:
