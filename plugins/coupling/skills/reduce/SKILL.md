@@ -171,7 +171,9 @@ Under `light`, and `off`, which acts as `light` here, reproduce nothing and do n
 its place: write `verification: skipped (<level>)`, ledger every finding with
 `evidence-verified: false`, and present each to the user labeled `unverified`.
 
-**D. Partition and rank.** Every finding phase C passes on gets a lane. Apply lane requires ALL of:
+**D. Partition and rank.** Every finding phase C passes on gets a lane. A finding with
+`evidence-verified: false` never enters the apply lane: it goes to the route lane, report-only,
+so phase E edits only findings a `standard` or `strict` run reproduced. Apply lane requires ALL of:
 mechanical, contained in scope, behavior-preserving, and reversible by revert. Anything
 cross-file in remediation or architectural in judgment is route lane. When in doubt, route.
 Rank by `strength × degree × distance × volatility`; a weak-but-everywhere coupling on a hot

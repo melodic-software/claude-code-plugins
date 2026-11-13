@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work/coupling/coupling-ledger.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "a ledger edit only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/src/orders/list.ts",
+            "old_string": "\"archived\"",
+            "new_string": "ARCHIVED"
+          }
+        }
+      ],
+      "why": "an unverified finding was applied"
+    }
+  ]
+}

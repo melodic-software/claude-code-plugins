@@ -76,7 +76,7 @@ these keys, checked against [`schemas/coupling.schema.json`](schemas/coupling.sc
 
 | Key | Values | Default | What it controls |
 |---|---|---|---|
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/coupling:reduce` phase C reproduces each scan finding before it reaches the ledger. `light` and `off` skip it and ledger every finding with `evidence-verified: false`; phase F's build, test and lint run at every level. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/coupling:reduce` phase C reproduces each scan finding before it reaches the ledger. `light` and `off` skip it and ledger every finding with `evidence-verified: false`, report-only, so no reduction is applied; phase F's build, test and lint run at every level. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 ## Install
 

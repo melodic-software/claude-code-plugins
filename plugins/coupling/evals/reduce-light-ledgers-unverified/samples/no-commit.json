@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain"
+          }
+        }
+      ],
+      "why": "a read-only git call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit -m \"refactor: name the archived status\""
+          }
+        }
+      ],
+      "why": "a reduction commit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w commit -F msg.txt"
+          }
+        }
+      ],
+      "why": "a commit with -C"
+    }
+  ]
+}

@@ -105,8 +105,8 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/explainer-video:produce` | the step 7 fresh-context frame judge on the delivery render: `light` reports the frames as not independently judged |
 | `/knowledge:video-digest` | the 9.4 vision fidelity spot-check: `light` reports the slice structural complete only |
 | `/event-storming:simulation` | the fresh-context rubric scorer ("How to Run an Evaluation", step 3), the product: `light` leaves every criterion `unscored` |
-| `/architecture:improve` | the deepening lens's Phase 1.5 reproduction and the conventions lens's "Verify before presenting", the product: `light` presents those claims `unverified` |
-| `/coupling:reduce` | phase C's reproduction of scan findings, the product: `light` ledgers them `evidence-verified: false` and labels them `unverified`; phase F's build, test and lint run at every level |
+| `/architecture:improve` | the deepening lens's Phase 1.5 reproduction and the conventions lens's "Verify before presenting", the product: `light` presents those claims `unverified`, and the conventions lens proposes none of them for recording |
+| `/coupling:reduce` | phase C's reproduction of scan findings, the product: `light` ledgers them `evidence-verified: false`, labels them `unverified` and keeps them out of the apply lane; phase F's build, test and lint run at every level |
 | `/multi-agent:audit-defaults` | the `drift-audit` workflow's skeptic panel, the product: `light` reports every finding `unverified` and proposes no diff |
 | `/playbooks:fable-5` | the fresh-context verifier gate (orchestration chapter, "Fresh-context verification"); the self-review floor runs at every level, and `strict` drops the mechanical-batch exemption |
 | `/plugin-quality:audit` | the adversarial re-examination seam, the product: `light` labels the findings `unverified`; `standard` keeps its `high`-effort gate and `strict` runs it at every effort |

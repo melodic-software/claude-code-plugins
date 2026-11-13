@@ -57,7 +57,9 @@ has the shape the item claims. Drop an item whose instances do not reproduce, or
 the research file's evidence floor once the non-reproducing ones are removed. Count what was
 dropped and say the count. Copy the level line SKILL.md's Variables section resolved into the
 report. Under `light`, and `off`, which acts as `light` here, reproduce nothing, write
-`verification: skipped (<level>)`, and present every derived item labeled `unverified`.
+`verification: skipped (<level>)`, and present every derived item labeled `unverified`. An
+`unverified` item is reported, never proposed, so Phase 4 records or routes only items a
+`standard` or `strict` run reproduced.
 
 **Gate.** Every derived item cites its instances as `path:line` or commit hashes and meets the
 evidence floor. An item already recorded in Phase 1 is listed as `already recorded` with its source
