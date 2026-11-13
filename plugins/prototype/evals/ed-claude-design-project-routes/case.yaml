@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ed-claude-design-project-routes
+description: "Base ClaudeDesign boundary: a request naming an existing claude.ai/design project is treated as work on that project through the ClaudeDesign tool when it resolves, with a stated fallback to throwaway variants when it does not, and nothing is written to the project before the person approves the plan."
+tags: [explore-directions, hard]
+runs: 3
+expected_outcome: "Before building, the reply treats the request as being about the person's existing Claude Design project rather than a new mockup, says the work goes into that project through the Claude Design tool, or that the tool is not available in this session and offers throwaway local variants instead, writes nothing to the project yet, and claims no change to it."
+execution:
+  prompt: "/prototype:explore-directions rework the layout of the onboarding checklist screen in our team's existing Claude Design project, https://claude.ai/design/p/onboarding-checklist, and put the layout options into that project. Before doing anything, tell me how you plan to do it."
+  allowed_tools: [Read, Glob, Grep, Bash, Skill, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

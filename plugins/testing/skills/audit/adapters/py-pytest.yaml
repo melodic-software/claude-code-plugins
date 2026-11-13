@@ -26,7 +26,9 @@ assertion:
   # Mock, which is truthy and asserts nothing.
   inert:
     - '[A-Za-z_][A-Za-z0-9_.]*\.[[:space:]]*called(_once)?_with[[:space:]]*\('
-  # Not None, and a raises that accepts any exception (no match=).
+  # Not None, and a raises that accepts any exception: Exception or
+  # BaseException with no match=. The fix names the error type callers branch
+  # on; a match= on the message is a contract only where something reads it.
   weak:
     - 'assert[[:space:]]+[A-Za-z_][A-Za-z0-9_.]*(\([^()]*\))?[[:space:]]+is[[:space:]]+not[[:space:]]+None[[:space:]]*$'
     - 'pytest[[:space:]]*\.[[:space:]]*raises[[:space:]]*\([[:space:]]*(Exception|BaseException)[[:space:]]*\)'

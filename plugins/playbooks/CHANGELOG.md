@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.33.9] - 2026-11-13
+
+### Changed
+
+- `/playbooks:fable-5`: the outcome restatement, in the problem-framing chapter and the core-doctrine line in `SKILL.md`, also names the smallest change expected to reach done. When the diff touches a file or behavior that clause did not name, the restatement is re-derived before work continues. The paraphrase test now covers only the outcome and because-clause.
+
 ## [0.33.8] - 2026-11-13
 
 ### Changed

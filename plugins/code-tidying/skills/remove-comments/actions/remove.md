@@ -15,6 +15,7 @@ in `SKILL.md`), even when a missing tool means the run can only propose.
 - [The three-way triage](#the-three-way-triage)
 - [Workflow](#workflow)
 - [Encode a constraint](#encode-a-constraint)
+- [Findings file](#findings-file)
 - [Report mode](#report-mode)
 
 ## The three-way triage
@@ -148,13 +149,16 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
      recorded it, skipped it, or was not invoked (unattended, `report` mode, or no `architecture`
      plugin), per SKILL.md "ADR candidates". Running as `comment-reviewer`, list each candidate
      only; the orchestrator invokes `record-decision` and fills in the outcome.
-   - **Open root-cause work**: each workaround comment removed or proposed for removal, and each
-     correctness or safety suppression kept, by file and line with the comment's text. Deleting the
+   - **Open root-cause work**: each workaround comment removed, proposed for removal or kept,
+     other than a `TODO(#issue)` marker, and each correctness or safety suppression kept, by file
+     and line with the comment's text. Deleting the
      comment leaves the workaround in the code. When `/corrections:codify` is among the available
      skills and nothing ran in `report`, record each workaround with `/corrections:codify note`.
    - **Encodings**: constraints encoded, offered, or left unenforced (the encode step below).
    - **Agent reruns**: each comment-reviewer report rejected, with its failure.
-   The user reviews the diff; this skill does not commit.
+   Then write each reshape flag, each open root-cause item and each lint-rule proposal to the
+   [findings file](#findings-file), in every mode, and name the file in the report. The user
+   reviews the diff; this skill does not commit.
 
 ## Encode a constraint
 
@@ -167,11 +171,61 @@ match it across files.
 - **Interactive** (`AskUserQuestion` available): ask before encoding. Unattended: encode only when
   `encode_constraints_unattended` is `true`, else offer it in the report.
 - An encoding is an edit behind its tier's gate: a test or assertion needs the discovered test net,
-  a lint rule goes to the findings file in [Report mode](#report-mode), and a type is tier 3,
+  a lint rule goes to the [findings file](#findings-file), and a type is tier 3,
   proposal-first.
 - **`necessary` and `none`**: once the encoding lands, delete the comment; without one, delete it
   and list the constraint as unenforced. **`explanatory`**: keep the comment and propose the
   encoding.
+
+## Findings file
+
+Every remove run, `safe` and `report` included, writes its reshape flags, open root-cause work and
+lint-rule proposals as rows of one findings file, so `/review:fanout fix` and the skills after it
+can act on them once the chat is gone. A run with none of the three writes no file. Running as
+`comment-reviewer`, list the rows in the report and write nothing; the orchestrator writes the file
+from them.
+
+- **Where.** The review findings location, `<memory_dir>/reviews/<branch-slug>/`, resolved as
+  review's
+  [Findings location](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/reference/change-set.md)
+  section states it, `<memory_dir>` and the branch slug included; it is the one directory the fix
+  action scans. Name the file `<YYYYMMDDTHHMMSSZ>-remove-comments.md`. With no branch, write no
+  file and list the rows in the report. Announce the path before writing. On the first write, check
+  that the memory root holds a `.gitignore` containing `*`, and create it with the Write tool,
+  announced, when absent; never edit the repository's own `.gitignore`, and write nothing when the
+  memory root is the repository root. Never overwrite: an existing name takes `-2`, then `-3`.
+- **Shape.** Review's
+  [findings-file shape](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/reference/findings-file-shape.md),
+  under the producer rules of the
+  [detector-findings contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md):
+  frontmatter `type: review-findings`, `date:` the write instant in ISO-8601 UTC with `Z`,
+  `branch:` the raw branch name; one `## Findings` row per item, Rank numbered from 1 with
+  IMPORTANT rows first, then in report order; Confidence left empty; Location the
+  repository-relative `path:line` in the file as the run leaves it (for a deleted comment, the line
+  it sat above); Surface(s) `code-tidying:remove-comments`; `|` escaped as `\|` and newlines
+  replaced by spaces. Then a `## Surfaces` line naming `code-tidying:remove-comments` as ran, with
+  each rule's count of declined candidates: `TODO(#issue)` markers for open root-cause work,
+  applied moves for reshape flags, cheaper encodings proposed for lint-rule proposals.
+- **Rows.** Each `Finding` cell opens with the item's rule id, then names the symbol, quotes the
+  comment and says what the run did with it (deleted, kept or proposed, and under which posture).
+  The rule fixes the Tier, in review's baseline names, mapped to the project's own severity names
+  when it defines them:
+
+  | Item | Rule id | Tier | Action |
+  |---|---|---|---|
+  | Open root-cause work | `code-tidying/remove-comments/rule-open-root-cause` | IMPORTANT | The fix to make: the cause the workaround covers or the waived rule's finding, with the file it lies in when the run read that file, else `cause not located`; then `/implementation:implement`, or `/debugging:debug` when the cause is not located |
+  | Reshape flag | `code-tidying/remove-comments/rule-reshape-flag` | SUGGESTION | The move that would make the comment unnecessary (rename, extract, a type, an assertion, a redesign) on that symbol, and every other file a cross-file move reaches; `/architecture:improve` for a redesign |
+  | Lint-rule proposal | `code-tidying/remove-comments/rule-lint-proposal` | SUGGESTION | The rule to add and the lint config file it goes in |
+
+- **Proposals, never fixes.** No `Action` says the run made the fix or the move, and none is a
+  reason to edit code here: a fix that changes behavior is never made by this skill (`SKILL.md`
+  "Hard rules"). The fix action surfaces these rows rather than applying them, because each rule's
+  remediation can lie outside its `Location`.
+- **Refused write.** A write the session's permissions refuse is not a stop: list the rows in the
+  report and say the file was not written.
+- **The report names the file** and its next steps: `/review:fanout fix`, and, when
+  `/corrections:codify` is among the available skills and the file holds a lint-rule proposal,
+  `/corrections:codify findings <file>`. It runs neither.
 
 ## Report mode
 
@@ -190,21 +244,6 @@ start unattended:
   apply, and the gate that treatment would need.
 - **A constraint comment gets an encoding proposal** per [Encode a constraint](#encode-a-constraint),
   never applied.
-- **Lint-rule proposals go to a findings file** at
-  `<memory_dir>/comment-pass/<branch-slug>/<YYYYMMDDTHHMMSSZ>-lint-proposals.md`. `<memory_dir>` is
-  `.work/` unless the project's instructions declare another working-docs root. `<branch-slug>` is
-  the current branch lowercased, with `/` and every character outside `[a-z0-9._-]` replaced by `-`;
-  with no branch, write no file and list the rows in the report. Announce the path before writing.
-  On the first write, check that the memory root holds a `.gitignore` containing `*`, and create it
-  with the Write tool, announced, when absent; never edit the repository's own `.gitignore`, and
-  write nothing when the memory root is the repository root. Never overwrite: an existing name takes
-  `-2`, then `-3`. The file follows review's findings-file shape
-  (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/reference/findings-file-shape.md>): frontmatter
-  `type: review-findings`, `date:` the write instant, `branch:` the raw branch name, and one
-  `## Findings` row per proposal with Tier `SUGGESTION`, Confidence left empty, Location the
-  comment's repository-relative `path:line`, Surface(s) `code-tidying:remove-comments`, Finding the
-  constraint, and Action the rule to add, with `|` escaped as `\|` and newlines replaced by spaces.
-  A write the session's permissions refuse is not a stop: list the rows in the report and say the
-  file was not written.
-- **The report names that file** and, when `/corrections:codify` is among the available skills,
-  offers `/corrections:codify findings <file>` as the next step. It never runs it.
+- **The [findings file](#findings-file) is still written.** It sits in the memory root, outside
+  the repository's tracked files, and carries the run's reshape flags, open root-cause work and
+  lint-rule proposals.

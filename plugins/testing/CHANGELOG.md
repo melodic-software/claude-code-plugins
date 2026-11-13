@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.3] - 2026-11-13
+
+### Changed
+
+- `test-value` treats a test that asserts an exact error message as a change detector unless a caller or user reads the message. The fix asserts the error type callers branch on; a user-facing or published message stays asserted, marked `cant-fail-ok: <why>`. `audit`'s weak-oracle fix text now says to assert the exception type callers branch on, not the exact message.
+
 ## [3.8.2] - 2026-11-13
 
 ### Changed
