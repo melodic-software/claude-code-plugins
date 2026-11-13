@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.0] - 2026-11-13
+
+### Changed
+
+- **Breaking:** `/testing:write` now reads the `verification` level for its HIGH/CRITICAL advisor checkpoint. Under the default `light` (and `off`) it calls no advisor and reports `verification: skipped (<level>)`; `strict` calls it for every suite. Set `verification: standard` (or `verification_skills.write`) in `docs/conventions/testing.yaml` on the default branch to keep the checkpoint.
+
 ## [4.1.0] - 2026-11-13
 
 ### Added
