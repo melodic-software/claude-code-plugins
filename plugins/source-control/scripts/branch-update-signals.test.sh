@@ -5,7 +5,7 @@
 # reference/providers/github/branch-update-signals.md. Every run's output is
 # also fed to branch-update-method.sh, which must accept it.
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SIGNALS="$SCRIPT_DIR/branch-update-signals.sh"
@@ -43,6 +43,8 @@ fi
 slurp() { [[ -f "$FAKE/$1" ]] && printf '[%s]\n' "$(cat "$FAKE/$1")" || echo '[[]]'; }
 case "$*" in
   "api repos/{owner}/{repo} --jq .full_name") echo "${GH_REPO:-upstream-org/app}" ;;
+  "repo set-default --view") echo "No default remote repository has been set." >&2 ;;
+  "api repos/"*"/app --jq "*) ;; # target-repo.sh's fork read: no repository here is a fork
   "repo view "*) cat "$FAKE/repo" ;;
   "pr list "*) cat "$FAKE/dependents" ;;
   *"/protection/required_status_checks")
@@ -491,6 +493,51 @@ reset_fake "$SHA"
 GH_REPO=example-org/app LABEL="GH_REPO" run "$WC" --pr 7
 assert_contains "GH_REPO: the pull request is read from GH_REPO's repository" "$(cat "$FAKE/calls")" "api repos/example-org/app/pulls/7"
 expect "GH_REPO: head_sha read" head_sha "$SHA"
+
+########################################################################
+# --dir: a shell outside the checkout reads the checkout and its repository
+########################################################################
+# The fake records no gh default, and its {owner}/{repo} placeholder names
+# upstream-org/app, which serves no pull request, so example-org/app can come
+# only from the checkout's one GitHub remote.
+reset_fake "$SHA"
+LABEL="--dir" run "$WORKDIR" --pr 7 --dir "$WC"
+assert_contains "--dir: the pull request is read from the checkout's repository" "$(cat "$FAKE/calls")" "api repos/example-org/app/pulls/7"
+expect "--dir: head_sha read" head_sha "$SHA"
+expect "--dir: overlap read in the checkout" base_change_needed no
+
+reset_fake "$SHA"
+LABEL="no --dir" run "$WORKDIR" --pr 7
+assert_contains "no --dir: the repository comes from gh's placeholders" "$(cat "$FAKE/calls")" "api repos/{owner}/{repo} --jq .full_name"
+expect "no --dir: a shell outside the checkout reads no pull request" head_sha unknown
+
+reset_fake "$SHA"
+LABEL="--dir and --repo" run "$WORKDIR" --pr 7 --dir "$WC" --repo example-org/app
+assert_not_contains "--dir and --repo: --repo wins, nothing resolved" "$(cat "$FAKE/calls")" "repo set-default"
+expect "--dir and --repo: head_sha read" head_sha "$SHA"
+
+reset_fake "$SHA"
+GH_REPO=example-org/app LABEL="--dir and GH_REPO" run "$WORKDIR" --pr 7 --dir "$WORKDIR"
+assert_contains "--dir and GH_REPO: GH_REPO names the repository" "$(cat "$FAKE/calls")" "api repos/example-org/app/pulls/7"
+
+TWO="$WORKDIR/two-remotes"
+git init -q "$TWO"
+git -C "$TWO" remote add origin https://github.com/example-org/app.git
+git -C "$TWO" remote add other https://github.com/other-org/app.git
+reset_fake "$SHA"
+LABEL="--dir refused" run "$WORKDIR" --pr 7 --dir "$TWO"
+assert_contains "--dir refused: target-repo.sh says why" "$ERR" "target-repo: the remotes name 2 GitHub repositories"
+expect "--dir refused: head_sha unknown" head_sha unknown
+assert_not_contains "--dir refused: no repository's pull request read" "$(cat "$FAKE/calls")" "-org/app/pulls/7"
+
+(cd "$WORKDIR" && bash "$SIGNALS" --pr 7 --dir >/dev/null 2>&1)
+assert_exit "usage: --dir without a value" 2 "$?"
+(cd "$WORKDIR" && bash "$SIGNALS" --pr 7 --dir '' >/dev/null 2>&1)
+assert_exit "usage: an empty --dir" 2 "$?"
+(cd "$WORKDIR" && bash "$SIGNALS" --pr 7 --dir "$WORKDIR/missing" >/dev/null 2>&1)
+assert_exit "usage: --dir naming no directory" 2 "$?"
+(cd "$WORKDIR" && bash "$SIGNALS" --pr 7 --dir "$WC" --dir "$WC" >/dev/null 2>&1)
+assert_exit "usage: --dir given twice" 2 "$?"
 
 ########################################################################
 # Refused reads: every field unknown, nothing fails

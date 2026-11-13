@@ -89,7 +89,9 @@ Never on a Dependabot head: `delegate` requests its rebase instead, as
 The update names the decision's `head_sha` as `expected_head_sha`, pinning it to that decision. We
 wait up to 60 seconds for the head to leave `head_sha` before fetching it; `UPDATED=0` after the
 block is a failed update. `DECISION` is the decision the phase read; a run that lost it reads it
-again.
+again. `<branch-checkout>` is the checkout holding the branch, as the phase's
+[update sequence](../../../../skills/pull-request/reference/ready-for-review.md#decide-and-carry-out-the-update)
+defines it.
 
 ```bash
 DECISION_HEAD=$(jq -r .head_sha <<<"$DECISION") || exit 1
@@ -104,7 +106,8 @@ if gh api --method PUT "repos/$REPO/pulls/$PR_NUMBER/update-branch" \
     sleep 5
   done
 fi
-[ "$UPDATED" = 1 ] && git fetch "$REMOTE" "$BRANCH" && git merge --ff-only FETCH_HEAD
+[ "$UPDATED" = 1 ] && git -C "<branch-checkout>" fetch "$REMOTE" "$BRANCH" &&
+  git -C "<branch-checkout>" merge --ff-only FETCH_HEAD
 ```
 
 - **Pointer**: when checking the update's parameter and responses, fetch
@@ -137,7 +140,7 @@ jq -nr --argjson r "$RULES" --argjson c "$CLASSIC" 'any($r[]; .type == "required
 Whether the head commit is signed, for the same choice:
 
 ```bash
-git cat-file commit HEAD | grep -q '^gpgsig' && echo signed
+git -C "<branch-checkout>" cat-file commit HEAD | grep -q '^gpgsig' && echo signed
 ```
 
 - **Pointer**: when checking the rule names, fetch
