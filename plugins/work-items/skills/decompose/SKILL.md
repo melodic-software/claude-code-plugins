@@ -224,8 +224,8 @@ Every item body uses the one structure below. It is the agent-brief template ([`
 ## Parent
 
 Refs #<parent-item>: [<parent title>](<parent URL>) (if source was an existing item)
-<!-- or: Source: PLAN Phase N, topic <slug> — cite the PR carrying the plan (#<pr>) when it
-     exists. Before that PR exists, slug + phase alone is correct (it is a label, not a path);
+<!-- or: Source: PLAN Phase N, topic <slug> — cite the PR carrying the plan as
+     `[<PR title>](<PR URL>)` when it exists. Before that PR exists, slug + phase alone is correct (it is a label, not a path);
      when the PR opens, backfill it as a comment on each published item so the provenance
      survives. Never write the memory-slice path: it is never committed, so the pointer would
      dangle. -->
@@ -341,9 +341,10 @@ close-on-ship drift doctrine. A run that publishes plain items needs none of it.
 
 After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, each criterion id left out at Step 3 (one left out as met at base says so), each id sharpened at Step 3, each id kept though it passes at base with its reason, and the suggested execution order. **work the frontier** (unblocked items first).
 
-Close the report with how the items run: at the keyboard, run them with
-`/work-items:ship run #<container-id>` (it runs a published spec container's items); otherwise
-leave the agent-ready items for the lanes, which pick them up from the frontier.
+Close the report with how the items run: when a spec container was published, at the keyboard run
+them with `/work-items:ship run #<container-id>` (it runs a published spec container's items);
+otherwise, or away from the keyboard, leave the agent-ready items for the lanes, which pick them
+up from the frontier.
 
 ## Spoke paths
 

@@ -5,7 +5,7 @@
       "why": "names the live item"
     },
     {
-      "answer": "Read https://github.com/o/r/issues/645 with --comments for the delivery decision.",
+      "answer": "Read https://example.com/o/r/issues/645 with --comments for the delivery decision.",
       "why": "item URL"
     }
   ],
