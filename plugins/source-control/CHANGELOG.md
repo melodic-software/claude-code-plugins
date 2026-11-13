@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.7.1] - 2026-11-13
+
+### Fixed
+
+- The unattended merge gate no longer refuses a pull request with `no-lane-job` because an earlier head's review run was superseded: when the head moved while Wait Refine waited, the caller job was skipped and the run reviewed nothing, so the open-findings scan now passes over it. At the pinned head such a run still binds nothing. Such a run also no longer drops the blocking security count carried from an earlier head's review.
+
 ## [11.7.0] - 2026-11-13
 
 ### Added
