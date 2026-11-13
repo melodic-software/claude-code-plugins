@@ -1359,11 +1359,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-        run: |
-          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
-            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
-              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
-          [ "$status" = 204 ] || echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
+        run: bash .base/.github/scripts/lib/revoke-lane-token.sh
 
       - name: Log the API budget at the end
         if: always()
@@ -1480,11 +1476,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-        run: |
-          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
-            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
-              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
-          [ "$status" = 204 ] || echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
+        run: bash .base/.github/scripts/lib/revoke-lane-token.sh
 
       - name: Log the API budget at the end
         if: always()
