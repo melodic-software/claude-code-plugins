@@ -401,9 +401,15 @@ Read [`context/session-config.md`](context/session-config.md) at that boundary, 
 
 ## Routing by size and fog
 
-Read [`context/routing.md`](context/routing.md) at entry and at every round boundary. It owns why the entry gate is diff size and retry cost, the bigger-than-you-thought check that recommends `/planning:wayfind chart` on fog or `/session-flow:workflow` on context size alone and suggests wayfind once the register passes `wayfind_suggest_questions`, what the wayfind handoff carries, and the "this is small, ship it" exit with the gates it still runs.
+Read [`context/routing.md`](context/routing.md) at entry and at every round boundary. It owns the entry gate's diff-size and retry-cost thresholds with the one-line quick-change skip, the round-1 question recommending `/planning:wayfind chart` when the request itself names unknowns in several areas, the bigger-than-you-thought check that recommends `/planning:wayfind chart` on fog or `/session-flow:workflow` on context size alone and suggests wayfind once the register passes `wayfind_suggest_questions`, what the wayfind handoff carries, and the "this is small, ship it" exit with the gates it still runs.
 
 Failure patterns from real sessions: `context/gotchas.md`.
+
+## Clashing terms, prototypes and fact lookups
+
+- **A term that clashes with an existing concept.** When a term the interview asks about clashes with a concept the code or the glossary already names, the recommendation is a qualified name the interview proposes itself, so the user never has to add the qualifier; once agreed, it is written through the inline vocabulary update ("Domain-aware behaviors"), under `domain_docs`. Read [`context/term-clash.md`](context/term-clash.md) when a clash is found.
+- **An outcome that feeds a prototype.** Ask what the prototype must prove, and split it into one small piece per question that can be built at once in separate worktrees. Read [`context/prototype-questions.md`](context/prototype-questions.md) once the quality bar is a throwaway prototype or the next step builds one.
+- **A question that turns on a fact.** Look it up yourself; never send the user to find it. When a quick lookup does not settle it, run `/discovery:explore` (what the code does) or `/discovery:research` (an external fact) as an in-flight lookup, each if enabled, otherwise the same work inline; this dispatch is how the exploration recommendation in "What this skill does NOT do" is carried out, never a request that the user run it. Do not stall the round proving the fact beyond what the recommendation needs: in an engineering session, the Brief's `### Captured assumptions` lists each fact from such a lookup that a recommendation rests on, with its source and the tag `verify during build`. A fact only the user's environment or an unconnected system holds still takes the self-answer step's offer, and a decision is still the user's.
 
 ## What this skill does NOT do
 

@@ -98,8 +98,9 @@ contracts, and plan decides files and symbols.
 
 For unfamiliar territory, stages 1-7 sit inside a longer pre-implementation order (blindspot →
 brainstorm/prototype → interview, escalating to wayfind when it outgrows one session, and calling
-a PRD when product intent is unsettled → reference port → design → plan → decompose); the workflow
-section of `docs/finding-your-unknowns.md` in the marketplace repository states it with rationale.
+a PRD when product intent is unsettled → reference port → design → plan → decompose);
+`context/steps.md` "Pre-implementation order" states it with rationale and is its one home: other
+skills and docs point there for route choice.
 
 ### 2. Detect current position
 
@@ -187,7 +188,8 @@ forcing every session through stage 1. Common classes:
   decide, not size; a diff that adds types, public contracts, or module boundaries is not cheap
   to retry and takes the full path. It enters at stage 8 (reading the code it needs is part of
   implement), then the diff is reviewed and aligned on there, with test and verify at full
-  rigor. If the diff turns out not to be quick to review, stop and route to the interview. Basis for adopting this rule:
+  rigor. When the diff is tiny, a wrong build costs almost nothing, so aligning on the diff after
+  it exists beats aligning before it. If the diff turns out not to be quick to review, stop and route to the interview. Basis for adopting this rule:
   the "Session-start flow and main flow" section of `docs/upstream/mattpocock-skills.md` (under Map)
   in the marketplace repository.
 - **Incoming bug or issue intake**, a report or request that arrived raw from outside. An
@@ -198,8 +200,10 @@ forcing every session through stage 1. Common classes:
   single plan can hold it yet. Start at the interview anyway; when that interview
   outgrows one session, escalate to a wayfinding or route-charting capability (if installed, e.g.
   from a planning plugin), which converts the remaining unknowns into decisions BEFORE the plan
-  stage. Never start there. Without one, run explore/research cycles until a plan becomes
-  writable.
+  stage. Never start there: work that fails either quick-change test is interview-first, and an
+  effort too big and too foggy for one session is reached from the interview (the planning
+  plugin's wayfind sends a cold start back to the interview). Without a wayfinding capability, run explore/research
+  cycles until a plan becomes writable.
 - **Codebase-upkeep findings**. Audits, tidy sweeps, and architecture surveys surface candidate
   improvements rather than mid-flight work. Each finding the user picks up is a NEW idea entering a
   fresh cycle at the interview; it never merges into an in-progress cycle's later stages.

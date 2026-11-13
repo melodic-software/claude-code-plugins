@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Item 42 holds every finding, so this is the tracker short form.\n\n/clear, then run:\n/planning:wayfind https://example.com/acme/booking/issues/43",
+      "why": "the two lines"
+    },
+    {
+      "answer": "/clear, then run:\n`/planning:wayfind https://example.com/acme/booking/issues/43`",
+      "why": "command in backticks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "/clear, then run:\n/planning:wayfind #43",
+      "why": "bare number instead of the URL"
+    },
+    {
+      "answer": "`/clear`, then copy everything between the dashed lines:\n──────────\nRead @/repo/.work/handoffs/20261112T120000Z-handoff-booking.md and continue.\n──────────",
+      "why": "full handoff prompt"
+    }
+  ]
+}

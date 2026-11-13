@@ -80,9 +80,10 @@ response, the save-point does not exist and STOP has not been reached.
 
 **Mandatory STOP gate (walk every box):**
 
-- [ ] Path chosen (full vs prompt-only) per the engine doc
+- [ ] Path chosen (full, prompt-only, or the tracker short form) per the engine doc
 - [ ] Copy/paste resume prompt emitted between two dashed rails (engine doc, "Emit the copy/paste
-  resume prompt"), the box that is never satisfied by having written the file
+  resume prompt"), the box that is never satisfied by having written the file; on the tracker
+  short form, its two lines stand in for the railed prompt
 - [ ] `/clear`-then-paste instruction surfaced to the user (a forked side task: new session instead)
 - [ ] **STOP.** No further work items, no next phase, no follow-on skill, no commit/push. The
   session ends as far as the task is concerned. Reachable only once the box above is genuinely
@@ -139,6 +140,7 @@ anywhere but a handoff, recommend that route and write no save-point. A user's e
 | Situation | Route |
 |---|---|
 | Deep-window escape with session-chain value | Full handoff file, the default |
+| A tracker item already holds the state (a wayfind map item, say) | Tracker short form: two lines, `/clear, then run:` and the command with the item's URL, no session state; the full file when findings are not yet on the tracker ([reference/tracker-short-form.md](reference/tracker-short-form.md)) |
 | Small follow-ups, no chain value | Prompt-only, accepting its documented retro-gap cost (no file, no chain pointer for `/session-flow:retro` to walk) |
 | The next session's focus differs from this one's | Either form, plus the purpose argument (emphasis tailoring only, per the engine doc) |
 | Going AFK but the work should keep moving | The sibling `/session-flow:continue-in-background` skill, only on the user's explicit request |
@@ -460,6 +462,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
 | File | Load when |
 |------|-----------|
 | [reference/settle-in-flight.md](reference/settle-in-flight.md) | Off-thread work is still running before `save_point.py new` or the prompt-only rails prompt. |
+| [reference/tracker-short-form.md](reference/tracker-short-form.md) | A tracker item may already hold the session's state: eligibility, the two lines, and which checks still apply. |
 | [reference/wip-commit.md](reference/wip-commit.md) | `wip_commit` resolved `true` for a qualifying pause: the refusal checks, staging, the hook-rejection path and what the save-point records. |
 | [reference/pending-ci-caveat.md](reference/pending-ci-caveat.md) | Applying claim provenance to a fix still in CI, merge or another unreturned check. |
 | [reference/export-verification.md](reference/export-verification.md) | Deciding whether to suggest `/export`, or rechecking the probes behind that gate. |

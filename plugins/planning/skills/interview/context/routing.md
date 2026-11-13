@@ -1,19 +1,47 @@
 # Routing by size and fog
 
 Reference detail for the `## Routing by size and fog` section of `SKILL.md`. Read it at entry
-and at every round boundary: it owns the entry gate's reason, the bigger-than-you-thought check,
-what the handoff to `/planning:wayfind` carries, and the "this is small, ship it" exit.
+and at every round boundary: it owns the entry gate's thresholds, the round-1 wayfind question,
+the bigger-than-you-thought check, what the handoff to `/planning:wayfind` carries, and the "this
+is small, ship it" exit.
 
 ## Entry: diff size and retry cost, not behavior change
 
 A change whose diff is quick to review and cheap to retry skips the interview (SKILL.md "What
-this skill does NOT do"): when the diff is tiny, a wrong build costs almost nothing, so aligning on
-the diff after it exists beats aligning before it. Work that fails either test is interview-first,
-and an effort too big and too foggy for one session is reached from here, never first
-(`/planning:wayfind` sends a cold start back to this skill).
+this skill does NOT do"). When the interview is invoked on one, say so in one line and recommend
+just doing it: build it, then review the diff and align on it there. The user can still ask for the
+interview, and then it runs as usual.
+
+Which stage or skill the work goes to next, and why, is route choice, and its one home is
+`/session-flow:workflow`: its quick-change and foggy-effort on-ramps, and its pre-implementation
+order (`/session-flow:workflow steps`). This file keeps only the interview's own triggers and
+thresholds.
 
 An effort plainly over its budget: run the scope cut in [`composition.md`](composition.md) "Scope
 cut before wayfind" first, in round 1 when the request already shows it.
+
+## Round 1: the request already names unknowns in several areas
+
+When the opening request itself states unknowns across several separate areas (three or more, each
+with something the user says is not yet known or decided, such as "not sure how billing, sign-in,
+or the data migration should work"), round 1 carries one question recommending
+`/planning:wayfind chart`, which charts those unknowns as a map of decision items. The interview
+stays the entry either way:
+
+- Ask it as a registered round-1 question in the full layout, worded so yes accepts ("Should this
+  effort move to `/planning:wayfind chart` now?"), its Context naming each unknown area in the
+  user's words. Round 1's other questions go out in the same message; never hold them for this
+  answer, and never switch on your own.
+- Accepted: write the ledger as "The handoff to wayfind" below says, and name
+  `/planning:wayfind chart` with the ledger path for the user to run.
+- Declined: record the decline as the row's resolution and carry on with the rounds. Raise wayfind
+  again only on the fog trigger or the question-count pointer below; a declined round-1 question
+  does not count as a wayfind recommendation already made for the question-count pointer.
+- When the scope cut above also applies, it goes first and this question moves to round 2, after
+  the cut's answer, counting only the areas the cut keeps.
+
+Unknowns in two areas or fewer, or unknowns the request does not state, are not this trigger: fog
+that surfaces during the rounds is the fog trigger's.
 
 ## Bigger than you thought? Check at every round boundary
 

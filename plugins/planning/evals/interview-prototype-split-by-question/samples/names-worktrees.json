@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "My recommendation: **three prototypes, one per question**, each built in its own worktree so they run at once.",
+      "why": "names separate worktrees"
+    },
+    {
+      "answer": "Commits you to:\n- Q3: split-payment probe, own Worktree\n- Q4: phone layout mockup, own Worktree",
+      "why": "capitalized"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Q2: **What should the checkout prototype include?**\n\nMy recommendation: **one prototype covering payments, layout and the big cart**.",
+      "why": "one prototype, no worktrees"
+    }
+  ]
+}
