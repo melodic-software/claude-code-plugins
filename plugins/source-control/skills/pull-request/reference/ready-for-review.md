@@ -402,10 +402,10 @@ with the forge's PR checkout and run the gate again.
 **CI's test lanes.** After the commit and before the gate, read the venue's `tests` line for the
 PR worktree's HEAD ([review-venue.md](review-venue.md)), unless the run was invoked as
 `ready --verify-local` or `review_venue` resolved to `local`, either of which runs the gate in
-full:
+full. `$REPO` is the repository 2.5.1 resolved:
 
 ```bash
-PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<checkout>") || exit 1; bash "<skill-dir>/scripts/review-venue.sh" --head "$(git -C "$PR_TREE" rev-parse HEAD)"
+PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<checkout>") || exit 1; bash "<skill-dir>/scripts/review-venue.sh" --head "$(git -C "$PR_TREE" rev-parse HEAD)" --repo "$REPO"
 ```
 
 When it reads `tests ci healthy`, CI already ran the test suites on the commit 2.5.4 flips. Skip

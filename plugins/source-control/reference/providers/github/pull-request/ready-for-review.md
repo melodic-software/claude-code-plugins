@@ -11,12 +11,14 @@ The repository is resolved once, before the PR, and every read and write below t
 ([target repository](../README.md#target-repository)): the writes name it, and the exported
 `GH_REPO` carries it to every other `gh` call, the scripts' included. A shell that runs a later
 block runs this block's first two lines first. A non-zero exit from `target-repo.sh` ends the phase with its stderr
-reported.
+reported. `<checkout>` is the checkout of the PR's repository the session works on, as
+[2.5.3](../../../../skills/pull-request/reference/ready-for-review.md#253-review-and-verify-the-updated-head)
+defines it, so neither the repository nor the branch depends on the shell's directory.
 
 ```bash
-REPO=$(bash "<skill-dir>/scripts/target-repo.sh") || exit 1
+REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
 export GH_REPO="$REPO"
-BRANCH=$(git branch --show-current)
+BRANCH=$(git -C "<checkout>" branch --show-current)
 PR_NUMBER=$(gh pr view "$BRANCH" -R "$REPO" --json number -q '.number' 2>/dev/null)
 ```
 
@@ -121,8 +123,8 @@ Both answers come from the base's rulesets and, where one exists, its classic br
 protection read that fails counts as no rule.
 
 ```bash
-RULES=$(gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/$BASE" | jq -c 'add // []')
-CLASSIC=$(gh api "repos/{owner}/{repo}/branches/$BASE/protection" 2>/dev/null) || CLASSIC='{}'
+RULES=$(gh api --paginate --slurp "repos/$REPO/rules/branches/$BASE" | jq -c 'add // []')
+CLASSIC=$(gh api "repos/$REPO/branches/$BASE/protection" 2>/dev/null) || CLASSIC='{}'
 # true: an update dismisses approvals
 jq -nr --argjson r "$RULES" --argjson c "$CLASSIC" 'any($r[]; .type == "pull_request"
   and .parameters.dismiss_stale_reviews_on_push == true)
@@ -150,7 +152,7 @@ Exit 0 means the pull request has a reviewer: a person's review, or a review req
 comparison after the push, in one conversation comment.
 
 ```bash
-PEOPLE=$(gh api --paginate --slurp "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" |
+PEOPLE=$(gh api --paginate --slurp "repos/$REPO/pulls/$PR_NUMBER/reviews" |
   jq 'add // [] | map(select(.user.type != "Bot")) | length')
 REQUESTED=$(gh pr view "$PR_NUMBER" --json reviewRequests -q '.reviewRequests | length')
 [ "${PEOPLE:-0}" -gt 0 ] || [ "${REQUESTED:-0}" -gt 0 ]
