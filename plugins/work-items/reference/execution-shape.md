@@ -160,7 +160,7 @@ boundary), *sub-issue* as a distinct concept (it is an item that happens to have
   container publish is approved) and lives in the container body: per-container, team-visible,
   editable later by an ordinary body edit. No repo-level or plugin-level topology setting exists.
 - The container label a reader uses to discover containers resolves from the binding
-  (`config.container_label`, default `work-map`, per CONTRACT.md "Containers and state"); nothing in
+  (`config.container_label`, default `spec-container`, per CONTRACT.md "Containers and state"); nothing in
   this document introduces a new fixed label, path, or filename.
 - Phase machinery is composed presence-gated: planning close-out, review machinery, and
   session-flow skills are routed to when installed, with documented manual fallbacks when not.

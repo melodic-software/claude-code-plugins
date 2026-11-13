@@ -19,6 +19,7 @@ hand: change the table, then run this script. test_merge_holds_sync.py runs `--c
   (`**/X` is `X` and `*/X`; a trailing `/**` is `/*`). While pr-pipeline.yaml's
   `merge.diff-check.path-holds` is absent or false, a guard line after the list empties it for
   every author but Dependabot (owner decisions Q21 and Q24, 2026-10-29).
+- pr-require-checks.yml's `API_BUDGET_SH` blocks (`api-budget <job>`): api-budget.bash, verbatim.
 """
 
 from __future__ import annotations
@@ -143,13 +144,38 @@ def hold_patterns(indent: str, holds: bool | None = None) -> list[str]:
     return lines
 
 
+API_BUDGET = ".github/actions/log-api-budget/api-budget.bash"
+
+
+def api_budget_sh(indent: str) -> list[str]:
+    """The `API_BUDGET_SH: |` env key with api-budget.bash as its value: each
+    line two spaces past the key, an empty line left empty, the final newline
+    dropped."""
+    text = (ROOT / API_BUDGET).read_text(encoding="utf-8").removesuffix("\n")
+    return [
+        f"{indent}API_BUDGET_SH: |",
+        *(f"{indent}  {line}" if line else "" for line in text.split("\n")),
+    ]
+
+
 MERGE_HOLDS = ".github/scripts/pr-merge/merge-holds.mjs"
+# Each block's full marker label: its lines sit between `BEGIN <label>` and
+# `END <label>`.
 BLOCKS = {
-    PIPELINE: {"GATE_WORKFLOWS": gate_workflow_rows},
-    MERGE_HOLDS: {"COST_PATHS": cost_rows, "HOLD_PATH_CLASSES": class_rows},
-    ".github/workflows/pr-review-hosted.yml": {"hold-paths": hold_paths},
-    ".github/workflows/pr-review-security-hosted.yml": {"hold-paths": hold_paths},
-    ".github/workflows/pr-require-checks.yml": {"hold_patterns": hold_patterns},
+    PIPELINE: {"hold-floor GATE_WORKFLOWS": gate_workflow_rows},
+    MERGE_HOLDS: {
+        "hold-floor COST_PATHS": cost_rows,
+        "hold-floor HOLD_PATH_CLASSES": class_rows,
+    },
+    ".github/workflows/pr-review-hosted.yml": {"hold-floor hold-paths": hold_paths},
+    ".github/workflows/pr-review-security-hosted.yml": {
+        "hold-floor hold-paths": hold_paths
+    },
+    ".github/workflows/pr-require-checks.yml": {
+        "hold-floor hold_patterns": hold_patterns,
+        "api-budget mark-lanes": api_budget_sh,
+        "api-budget ci-status": api_budget_sh,
+    },
 }
 
 
@@ -164,11 +190,11 @@ def marker(lines: list[str], text: str, path: str) -> int:
 
 def generate(path: str, text: str) -> str:
     lines = text.split("\n")
-    for name, render in BLOCKS[path].items():
-        begin = marker(lines, f"BEGIN hold-floor {name}", path)
-        end = marker(lines, f"END hold-floor {name}", path)
+    for label, render in BLOCKS[path].items():
+        begin = marker(lines, f"BEGIN {label}", path)
+        end = marker(lines, f"END {label}", path)
         if end < begin:
-            raise SystemExit(f"sync-hold-floor: {path} ends {name} before it begins")
+            raise SystemExit(f"sync-hold-floor: {path} ends {label} before it begins")
         indent = lines[begin][: len(lines[begin]) - len(lines[begin].lstrip())]
         lines[begin + 1 : end] = render(indent)
     return "\n".join(lines)

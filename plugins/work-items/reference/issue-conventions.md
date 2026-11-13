@@ -81,7 +81,9 @@ work still to come:
 This ritual owns the close of an item `/work-items:decompose` split into plain items with no spec
 container. No other skill closes such a parent. A parent that carries the binding-resolved container
 label ([`label-taxonomy.md`](label-taxonomy.md) "Container label") is out of scope: the container
-ship ritual closes it. `/work-items:track done` runs this ritual for the parent of each item it closes,
+ship ritual closes it. A wayfind map, an item carrying a label that starts with the wayfind prefix,
+is out of scope the same way: `/planning:wayfind` closes it ([`label-taxonomy.md`](label-taxonomy.md)
+"Maps and containers"). `/work-items:track done` runs this ritual for the parent of each item it closes,
 and `/work-items:track audit` runs it for every parent, which catches children a merged PR closed.
 
 A **child** is an item, open or closed, whose body has a `## Parent` section reading

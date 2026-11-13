@@ -481,12 +481,12 @@ describe("the in-slot re-check", () => {
   });
 });
 
-// A map (the tracker binding's container label, `work-map` by default) or one
-// of its items (a label starting with its wayfind prefix, `wayfind:` by
-// default) that somehow carries agent-ready is the filing skill's to route:
+// A spec container (the tracker binding's container label, `spec-container` by
+// default), or a map or map item (a label starting with its wayfind prefix,
+// `wayfind:` by default) that somehow carries agent-ready is the filing skill's to route:
 // the run is skipped with a notice, agent-ready stays, and no blocker is read.
 // The outside-author and untrusted-provenance stops keep their precedence.
-for (const label of ["work-map", "wayfind: decision"]) {
+for (const label of ["spec-container", "wayfind: decision"]) {
   test(`a ${label} label skips the run with a notice naming it, before any blocker read`, async () => {
     const { code, calls, lines, outputs } = await run([], { subject: { labels: ["agent-ready", label] } });
     assert.equal(code, 0);
@@ -497,12 +497,12 @@ for (const label of ["work-map", "wayfind: decision"]) {
 }
 
 test("a routing label only at the start of a label counts, and without one the run proceeds", async () => {
-  assert.deepEqual((await run([], { subject: { labels: ["agent-ready", "not wayfind: x", "work-map-old"] } })).outputs, RUN);
+  assert.deepEqual((await run([], { subject: { labels: ["agent-ready", "not wayfind: x", "spec-container-old"] } })).outputs, RUN);
 });
 
 test("an outside author or untrusted provenance still stops a map item for good", async () => {
-  assert.deepEqual((await run([], { subject: { author: STRANGER, labels: ["work-map"] } })).outputs, OUTSIDER);
-  assert.deepEqual((await run([], { subject: { labels: ["work-map", UNTRUSTED] } })).outputs, FINAL);
+  assert.deepEqual((await run([], { subject: { author: STRANGER, labels: ["spec-container"] } })).outputs, OUTSIDER);
+  assert.deepEqual((await run([], { subject: { labels: ["spec-container", UNTRUSTED] } })).outputs, FINAL);
 });
 
 test("the labels are read from the binding at BASE_PATH: an unreadable value there is named in a warning", async () => {
@@ -510,6 +510,6 @@ test("the labels are read from the binding at BASE_PATH: an unreadable value the
   mkdirSync(join(base, "docs/conventions"), { recursive: true });
   const binding = join(base, "docs/conventions/work-items.yaml");
   writeFileSync(binding, "tracker:\n  config:\n    container_label: 7\n");
-  const { lines } = await run([], { env: { ...ENV, BASE_PATH: base }, subject: { labels: ["work-map"] } });
-  assert.equal(lines.filter((line) => line === `::warning::check-blockers: cannot read the routing labels from ${binding} (tracker.config.container_label is not a string); using 'work-map' and 'wayfind:'`).length, 1, lines.join("\n"));
+  const { lines } = await run([], { env: { ...ENV, BASE_PATH: base }, subject: { labels: ["spec-container"] } });
+  assert.equal(lines.filter((line) => line === `::warning::check-blockers: cannot read the routing labels from ${binding} (tracker.config.container_label is not a string); using 'spec-container' and 'wayfind:'`).length, 1, lines.join("\n"));
 });

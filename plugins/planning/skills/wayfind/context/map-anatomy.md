@@ -1,7 +1,6 @@
 # Map anatomy: the five sections + invariants
 
-A map is one tracker issue (bare container-label marker, default `work-map`,
-resolved per `tracker-mechanics.md`) whose sub-issues are typed
+A map is one tracker issue (labeled `wayfind: map`) whose sub-issues are typed
 decision items. Every link in the body is an absolute URL. The issue **body** carries five sections. Everything volatile (each decision's
 actual resolution, current frontier, claim state) lives on the items, not recopied into the
 body. The body is a stable index, not a mirror.

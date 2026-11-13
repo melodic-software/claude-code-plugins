@@ -221,7 +221,7 @@ On user confirmation ("yes"):
    **Pass-by-reference. Read the parent spec container first.** When the claimed item is a
    native sub-item of a spec container (its `## Parent` section carries `Refs #<container>`, or
    the provider reports a native parent; a container is an item carrying the binding-resolved
-   container label, default `work-map`; `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`
+   container label, default `spec-container`; `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`
    "Containers and state"), resolve the container's identity via the seam
    (`"$TRACKER" get-item <container-id>`, authoritative for `parent_id` but with **no `body`
    field**) and read its Brief through the bound adapter's provider-mechanic read

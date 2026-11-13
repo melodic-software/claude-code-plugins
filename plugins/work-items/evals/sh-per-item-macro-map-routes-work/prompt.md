@@ -9,6 +9,6 @@ expected_outcome: 'Resolves the container''s identity and rollup through seam ve
 
 /work-items:ship #300
 
-Item #300 is an open container item (labeled work-map) whose body carries the Brief and the line `**Execution shape:** per-item PRs`. Four of seven sub-items are closed; two are open and unblocked; one is open but blocked.
+Item #300 is an open container item (labeled spec-container) whose body carries the Brief and the line `**Execution shape:** per-item PRs`. Four of seven sub-items are closed; two are open and unblocked; one is open but blocked.
 
 Treat the state above as what this run's reads return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does, in order, and why.
