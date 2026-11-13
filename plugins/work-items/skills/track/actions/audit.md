@@ -59,7 +59,7 @@ Items missing their **type** classification (org repos: no native Issue Type set
 
 ### 4. Decomposed parents
 
-List open and closed items with their bodies (adapter: "List items", `body` added to the fields, `--state all`), keep those whose body carries the `<!-- work-items:born-triaged -->` marker and a `## Parent` section reading `Refs #<parent>`, and collect each open parent they name. Run "Decomposed parent close" in [`reference/issue-conventions.md`](../../../reference/issue-conventions.md) for each one; it owns the close or the comment. A child a merged PR closed reaches its parent only through this pass. Present each parent it closed or left open, with the reason.
+List open and closed items with their bodies (adapter: "List items", `body` added to the fields, `--state all`), keep those whose body carries the `<!-- work-items:born-triaged -->` marker and a `## Parent` section opening `Refs #<parent>`, and collect each open parent they name. Run "Decomposed parent close" in [`reference/issue-conventions.md`](../../../reference/issue-conventions.md) for each one; it owns the close or the comment. A child a merged PR closed reaches its parent only through this pass. Present each parent it closed or left open, with the reason.
 
 ## Output
 

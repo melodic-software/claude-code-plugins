@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "work-item-tracker.sh create-item --title \"Generate the invoice CSV\" --parent \"github:o/r#300\" --labels \"agent-ready\"",
+      "why": "qualified id"
+    },
+    {
+      "answer": "Each create-item call adds --parent 300 so both items sit under the map.",
+      "why": "bare number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "create-item --title \"Generate the invoice CSV\" --blocked-by \"github:o/r#300\"",
+      "why": "near miss: the source as a blocker, not a parent"
+    },
+    {
+      "answer": "create-item --parent \"github:o/r#3001\"",
+      "why": "wrong item"
+    },
+    {
+      "answer": "",
+      "why": "empty run"
+    }
+  ]
+}

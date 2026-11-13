@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Delivery: the live decision is #645, a download button on the reports page; #642 is superseded.",
+      "why": "names the live item"
+    },
+    {
+      "answer": "Read https://github.com/o/r/issues/645 with --comments for the delivery decision.",
+      "why": "item URL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Delivery: email the CSV to finance (#642).",
+      "why": "near miss: the superseded decision"
+    },
+    {
+      "answer": "Item #6450 holds the delivery decision.",
+      "why": "wrong item"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}
