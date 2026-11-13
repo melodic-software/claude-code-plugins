@@ -2,7 +2,8 @@
 
 The terminal verification phase of [`../SKILL.md`](../SKILL.md), run once Phase 3's digest exists
 and before anything is presented. A digest presented without it is unverified, which is the state
-this phase exists to rule out.
+this phase exists to rule out. The verification level ([`../SKILL.md`](../SKILL.md) Phase 4)
+decides whether the two arms run; under `light` and `off` only the pin and the standing gates run.
 
 Two independent verifiers over the full digest set, fresh context, production rationale withheld:
 

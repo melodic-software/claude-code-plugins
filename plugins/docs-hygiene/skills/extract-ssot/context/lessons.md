@@ -174,7 +174,7 @@ semantic dupes; a pure semantic-similarity test over-counts coincidental similar
 - **Stability test:** changing the canonical truth would force updates in 3+ places in lockstep (maintenance burden), OR
 - **Reader-burden test:** a reader trying to understand the rule cannot tell which instance is canonical (ambiguity)
 
-If only ONE passes, extraction is borderline: run an adversarial-review round. If NEITHER passes, REFUSE-low-roi (coincidental similarity).
+If only ONE passes, extraction is borderline (WARN): it gets the adversarial-review round. If NEITHER passes, REFUSE-low-roi (coincidental similarity).
 
 **Counter-test (when NOT to extract despite semantic equivalence):**
 
@@ -192,7 +192,7 @@ If only ONE passes, extraction is borderline: run an adversarial-review round. I
 
 **Trigger.** Any extraction whose cluster asserts an empirical mechanism (what triggers a refusal, what a tool actually does) rather than a policy.
 
-**Mitigation.** Before canonicalizing an empirical claim, grep the owning plugin's CHANGELOG for the newest entry touching that claim and treat a recorded refutation or dispute as binding: record the dispute in the SSOT or refuse, never silently resolve it. For WARN-borderline clusters, the adversarial-review round is mandatory and runs as a fresh-context diff review before commit.
+**Mitigation.** Before canonicalizing an empirical claim, grep the owning plugin's CHANGELOG for the newest entry touching that claim and treat a recorded refutation or dispute as binding: record the dispute in the SSOT or refuse, never silently resolve it. For WARN-borderline clusters, the adversarial-review round runs as a fresh-context diff review before commit, unless the verification level skips it (SKILL.md "Phases per invocation").
 
 **Source.** A whole-repo batch. One cluster (a context-gather preamble) drew 4 blocking review findings, its edits were reverted, and it was deferred pending a fresh probe of the disputed mechanism.
 

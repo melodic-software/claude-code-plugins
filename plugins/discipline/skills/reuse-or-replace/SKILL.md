@@ -162,6 +162,11 @@ where replacement is warranted, record the rationale at the blast-radius-
 appropriate level AND, if the established way is genuinely superseded, migrate the existing uses and retire it rather than leaving both. Never settle
 for the silent second way.
 
+Resolve the verification level once with
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill reuse-or-replace --file docs/conventions/discipline.yaml`
+and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):
+`light` and `off` skip the method doc's step 2 and step 3 subagents, as it says.
+
 ## Gotchas
 
 - The tell is **two ways where one would do**, not divergence itself. A

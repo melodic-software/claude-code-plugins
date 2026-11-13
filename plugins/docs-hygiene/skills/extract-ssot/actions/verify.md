@@ -67,7 +67,7 @@ Status values:
 | `REFUSE-source-of-truth-bifurcation` | **Intentional** bifurcation: top-tier instruction file ↔ rule-file pair both canonical at different tiers for different audiences; forcing a single citation = cycle (Gate 4). Accidental bifurcation does NOT refuse here; it is the N=2 bucket |
 | `REFUSE-off-by-one-different-concern` | Surface-similar but different step counts / variant shapes signal distinct concerns (Gate 5) |
 | `REFUSE-low-roi` | Single short stable claim; inline beats abstraction maintenance (Gate 6) |
-| `WARN-borderline` | Gates pass but evidence is marginal (e.g. 3 instances exactly, or one gate flagged). `plan` should include an adversarial-review round |
+| `WARN-borderline` | Gates pass but evidence is marginal (e.g. 3 instances exactly, or one gate flagged). `plan` includes an adversarial-review round, which the verification level governs (SKILL.md "Phases per invocation") |
 | `REFUSE-not-found` | Cluster name doesn't resolve to any matching content: neither the literal grep nor the semantic reading found an instance (Gate 0) |
 
 ## The 6 gates (ordered checks)

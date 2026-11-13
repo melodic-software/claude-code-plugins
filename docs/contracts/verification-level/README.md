@@ -38,8 +38,9 @@ emits the results labeled unverified instead of skipping them.
 - To raise the level, set `verification: standard` (or `strict`) in the team file on the default
   branch, or `verification_skills.<skill>` for one skill.
 - A plugin whose team file sits at a fixed path whatever the convention home passes it with
-  `--file <path>`, and the convention home is not read: `bugs`, `testing`, `mutation-testing` and
-  `work-items` pass `--file docs/conventions/<plugin>.yaml`. Without `--file` the file is `<home>/<plugin>.yaml`.
+  `--file <path>`, and the convention home is not read: `bugs`, `discipline`, `discovery`,
+  `docs-hygiene`, `education`, `implementation`, `mutation-testing`, `planning`, `session-flow`,
+  `testing`, `verification` and `work-items` pass `--file docs/conventions/<plugin>.yaml`. Without `--file` the file is `<home>/<plugin>.yaml`.
 - **Team layer only, read from the default branch.** Floor direction `team-only`
   ([config-cascade](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion)):
   the file is read at `origin/<default>` after a fetch, never the working tree, so a branch cannot
@@ -71,10 +72,13 @@ emits the results labeled unverified instead of skipping them.
 
 ## Exempt skills
 
-A skill that is itself the independent check when invoked does not read the level:
-`/planning:audit-answers`, `/performance:verify`, `/discipline:scrutinize-dont-coast`,
-`/review:quality-gate`, `/review:fanout`, `/planning:devils-advocate` and
-`/review:security-review`.
+The level governs a pass that checks the skill's own output; a pass that produces the skill's
+deliverable is not governed. These skills do not read the level: `/planning:audit-answers`,
+`/performance:verify`, `/discipline:scrutinize-dont-coast`, `/review:quality-gate`,
+`/review:fanout`, `/planning:devils-advocate`, `/review:security-review` and
+`/planning:interview`. Each is itself the independent check when invoked, except
+`/planning:interview`, whose contradiction pass, assumption sweep and quote check produce the
+questions it exists to ask.
 
 ## Adopters
 
@@ -83,7 +87,7 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/verification:confirm` | the fresh-context verifier for the Stage 2 verdict ("Independence of the verdict") |
 | `/implementation:implement-dispatch` | the phase verifier and the post-phase source commit verifier (Gates, Phase boundaries) |
 | `/discovery:research`, `/discovery:explore`, `/discovery:trace-intent` | the sibling verifier (parent contract, "The sibling verifier, stated once"); `strict` widens research's grading to every row and claim |
-| `/discipline:do-your-research`, `/discipline:recheck-against-upstream`, `/discipline:sweep-all` | the fresh-context confirmation of a clean audit on load-bearing work (shared method, step 2), the fresh-context re-derivation (step 3) and the fan-out tiers' dispatch; `strict` takes do-your-research's fan-out tier at `full` depth |
+| every `/discipline` corrector on the shared method but `/discipline:scrutinize-dont-coast`, and `/discipline:sweep-all` | the fresh-context confirmation of a clean audit on load-bearing work (shared method, step 2), the fresh-context re-derivation (step 3) and the fan-out tiers' dispatch; `strict` takes do-your-research's fan-out tier at `full` depth |
 | `/education:quiz-me` | the fresh-context answer-key pass |
 | `/planning:plan` | the plan-reviewer dispatch in Step 3; `strict` dispatches it for every plan, which `plan_stress_test`'s `auto` otherwise skips on LOW plans |
 | `/session-flow:orchestrate`, `/session-flow:workflow`, `/session-flow:retro` | imperative 3's verifier in a primed session; the fresh-context reviewer in pre-PR step 2, without which Stage 10 is not done; retro's single-pass analysis and scoring under `retro_lenses: 1` |
@@ -94,16 +98,19 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/bugs:scan` | the Step 4 gate, the product: `light` reports candidates as `unverified` |
 | `/mutation-testing:audit` | the Phase 4 triage, the product: `light` reports survivors as unclassified |
 | `/testing:cleanup` | the Cannot-fail-only mode's step 2 skeptic: `light` clears no row, so that mode deletes nothing |
+| `/testing:write` | the Handoff advisor checkpoint for a HIGH or CRITICAL suite; `strict` calls it for every suite |
 | `/debugging:debug` | the fresh-context outcome verifier when no outcome-verification capability is used |
-| `/implementation:implement` | the fresh-context verifier at each phase boundary (item 1 of the ritual) |
+| `/implementation:implement` | the fresh-context verifier at each phase boundary (item 1 of the ritual) and the Step 5 advisor checkpoint; `strict` calls the advisor for every change |
 | `/docs-hygiene:compress` | the semantic-diff subagent and its revert pass (Hard rules); `compare` is not governed |
 | `/docs-hygiene:audit-derivability` | the empirical spot-test and the keep-sample (Classification method) |
 | `/docs-hygiene:audit-noise` | the fresh-context verification pass over the merged verdicts |
+| `/docs-hygiene:extract-ssot` | the adversarial-review round for a `WARN-borderline` cluster |
 | `/code-tidying:batch-simplify` | the per-group refutation verifier (Phase 6, "The verification level") |
 | `/ai-slop:audit` | the fix flow's semantic-diff subagent |
 | `/attribution:audit` | the review pass, the refutation pass, and the fix flow's semantic-diff subagent; not the judges |
 | `/explainer-video:produce` | the step 7 fresh-context frame judge on the delivery render: `light` reports the frames as not independently judged |
 | `/knowledge:video-digest` | the 9.4 vision fidelity spot-check: `light` reports the slice structural complete only |
+| `/knowledge:docpage-digest` | the Phase 4 verifier arms on the single-page path, the product: `light` labels the slice unverified; the batch workflow runs both arms at every level |
 | `/event-storming:simulation` | the fresh-context rubric scorer ("How to Run an Evaluation", step 3), the product: `light` leaves every criterion `unscored` |
 | `/work-items:work` | the bug path's step 2 capture check, a fresh-context subagent per reproduction capture; `light` leaves the runs unconfirmed |
 | `/codebase-health:audit` | the Phase 2 separate false-positive validator; `strict` dispatches it after an inline Phase 1 too, and `light` reports the findings `unverified` |
