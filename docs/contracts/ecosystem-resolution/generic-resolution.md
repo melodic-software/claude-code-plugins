@@ -10,8 +10,7 @@ follows the seven steps below and ships no choice of its own for it.
 
 This file is copied into plugins, its text unchanged under a generated header, so it contains no
 relative markdown links; neighboring files are named in backticks instead. The contract that owns
-it is
-<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-resolution/README.md>.
+it is `docs/contracts/ecosystem-resolution/README.md` in the marketplace repository.
 
 A choice here is one language, framework, tool, library or command a step depends on: the test
 runner, the linter, the formatter, the command that builds the code, the library a new check is
