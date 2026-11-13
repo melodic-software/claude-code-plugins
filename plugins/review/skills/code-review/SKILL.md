@@ -73,7 +73,11 @@ The wrapper names its files on prompt lines; take each path from its line.
   (`That change is in <path>`), review that file's change and use the full
   diff, else `gh pr diff`, only for context. With no diff line, use
   `gh pr diff`. With neither a named file nor a working `gh`, review nothing:
-  say in the summary that the diff could not be read.
+  say in the summary that the diff could not be read. Read the diff file to
+  its end: page Read with `offset` and `limit` until a Read returns its last
+  line. The same holds for the incremental file when the scope is
+  incremental. Grep and Glob look up surrounding code; they never stand in for
+  reading a section of the diff.
 - **PR context.** The file on the line that starts `PR CONTEXT:` ("Closing
   issue" under Criteria).
 - **Settled threads.** The file on the line that starts `SETTLED THREADS:`
@@ -291,6 +295,19 @@ Follow the reporting mechanics the workflow wrapper appended to the prompt
 (inline MCP tool, `gh`, or the output schema it supplies). Keep the summary comment for overview and
 cross-file / whole-PR findings; use commit-blob permalinks with the supplied
 HEAD SHA for locations no changed line can carry.
+
+The merge gate reads severity from two plain-text lines, never HTML comments:
+
+- Each inline comment carries exactly one line `severity: IMPORTANT` (a
+  blocking finding) or `severity: SUGGESTION` (an advisory one), above the
+  lane footer line, which stays the comment's last line. `severity: CRITICAL`
+  is only for a finding behind a `critical-security` hold ("Hold for a
+  person").
+- The summary carries exactly one line `critical-findings: <n>`: the number of
+  CRITICAL findings it reports that have no inline comment (0 when none).
+
+A comment or summary without its one readable line counts every finding it
+holds as CRITICAL.
 
 **Hold for a person.** When the wrapper's output schema has a `hold` field, fill it only for the
 classes the wrapper's prompt defines, each named by its criterion, with a reason naming the files

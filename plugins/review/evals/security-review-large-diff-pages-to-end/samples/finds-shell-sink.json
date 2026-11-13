@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "CRITICAL: src/utils/reports.js:15 - sendExport builds `gzip -kf \"${source}\"` from req.query.file and runs it through execSync. Double quotes do not stop $(...) expansion, so GET /exports?file=$(id>/tmp/x).csv runs a command on the server. Pass the path as an argument with execFile, and resolve it under EXPORT_DIR before use.",
+      "why": "names the file, function, sink and exploit request"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No security findings. The models, routes and services are plain CRUD over an in-memory store and validate their input.",
+      "why": "reviewed only the first part of the diff"
+    },
+    {
+      "answer": "SUGGESTION: src/utils/reports.js - sendExport could use async fs calls instead of readFileSync.",
+      "why": "names the file only as a quality note"
+    }
+  ]
+}

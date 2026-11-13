@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "src/cart.js:9\n\nThe discount applies below the threshold.\n\nseverity: IMPORTANT\n\ncritical-findings: 0",
+      "why": "IMPORTANT, no CRITICAL line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "src/cart.js:9\n\nThe discount applies below the threshold.\n\nseverity: CRITICAL\n\ncritical-findings: 0",
+      "why": "CRITICAL for a finding with no hold class"
+    },
+    {
+      "answer": "src/cart.js:9\n\n`severity: CRITICAL`\n\nThe discount applies below the threshold.",
+      "why": "backtick-wrapped CRITICAL line"
+    }
+  ]
+}

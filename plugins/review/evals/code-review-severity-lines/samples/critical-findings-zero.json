@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Summary: one blocking finding.\n\ncritical-findings: 0",
+      "why": "zero, matching a review with no CRITICAL finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Summary: one blocking finding.\n\ncritical-findings: 1",
+      "why": "counts a CRITICAL the review should not have"
+    },
+    {
+      "answer": "Summary: one blocking finding. There are 0 critical findings.",
+      "why": "count only in prose"
+    }
+  ]
+}

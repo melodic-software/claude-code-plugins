@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "src/cart.js:9\n\nThe condition is inverted: lines below BULK_THRESHOLD get the discount and bulk lines pay full price.\n\nseverity: IMPORTANT\n\nSummary: one blocking finding.\n\ncritical-findings: 0",
+      "why": "plain severity line on its own"
+    },
+    {
+      "answer": "src/cart.js:4\n\nBULK_PERCENT_OFF could live in config.\n\n`severity: SUGGESTION`\n\ncritical-findings: 0",
+      "why": "backtick-wrapped line, which the publisher accepts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "src/cart.js:9 (blocking): the discount applies below the threshold instead of at or above it.\n\nSummary: one blocking finding.",
+      "why": "no severity line at all"
+    },
+    {
+      "answer": "src/cart.js:9\n\n**Severity:** Important\n\nThe discount applies below the threshold.",
+      "why": "bold label and mixed case, which the publisher counts as CRITICAL"
+    },
+    {
+      "answer": "src/cart.js:9\n\n- severity: IMPORTANT\n\nThe discount applies below the threshold.",
+      "why": "bulleted line"
+    },
+    {
+      "answer": "src/cart.js:9\n\nSeverity: High. The discount applies below the threshold.",
+      "why": "another vocabulary inside a sentence"
+    },
+    {
+      "answer": "src/cart.js:9\n\nseverity: important\n\nThe discount applies below the threshold.",
+      "why": "lowercase value"
+    }
+  ]
+}

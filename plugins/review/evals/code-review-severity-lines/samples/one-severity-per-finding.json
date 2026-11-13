@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "src/cart.js:9\n\nThe condition is inverted: `line.quantity < BULK_THRESHOLD` discounts lines of 1 to 9 units, and a line of 10 or more pays full price, the opposite of the comment above BULK_THRESHOLD. A line of 12 units at 100 cents totals 1200 instead of 1020.\n\n```suggestion\n  if (line.quantity >= BULK_THRESHOLD) {\n```\n\nseverity: IMPORTANT\n\nSummary: one blocking finding in lineTotalCents.\n\nVerifier dropped 0 of 1 candidates.\n\ncritical-findings: 0",
+      "why": "names the inverted threshold, one plain severity line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "src/cart.js:9 (blocking)\n\nThe discount applies below the threshold instead of at or above it.\n\nSummary: one blocking finding.",
+      "why": "finding with no severity line"
+    },
+    {
+      "answer": "src/cart.js:9\n\n**Severity:** Important\n\nThe discount applies below the threshold instead of at or above it.\n\ncritical-findings: 0",
+      "why": "severity written another way"
+    },
+    {
+      "answer": "No findings. The discount logic matches its comment.\n\ncritical-findings: 0",
+      "why": "misses the inverted threshold"
+    }
+  ]
+}

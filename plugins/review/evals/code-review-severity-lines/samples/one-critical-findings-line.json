@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "src/cart.js:9\n\nseverity: IMPORTANT\n\nSummary: one blocking finding in lineTotalCents.\n\ncritical-findings: 0",
+      "why": "one plain line"
+    },
+    {
+      "answer": "Summary: one blocking finding.\n\n`critical-findings: 0`",
+      "why": "one backtick-wrapped line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "src/cart.js:9\n\nseverity: IMPORTANT\n\nSummary: one blocking finding, no critical findings.",
+      "why": "no summary count line; the publisher counts every summary finding as CRITICAL"
+    },
+    {
+      "answer": "Summary: one blocking finding.\n\ncritical-findings: 0\n\nVerifier dropped 0 of 1 candidates.\n\ncritical-findings: 0",
+      "why": "two count lines"
+    },
+    {
+      "answer": "Summary: one blocking finding.\n\n- critical-findings: 0",
+      "why": "bulleted count line"
+    },
+    {
+      "answer": "Summary: one blocking finding.\n\n**critical-findings:** 0",
+      "why": "bold label"
+    }
+  ]
+}

