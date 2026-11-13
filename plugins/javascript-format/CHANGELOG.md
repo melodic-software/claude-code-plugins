@@ -3,6 +3,18 @@
 All notable changes to the `javascript-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-11-13
+
+### Changed
+
+- Corrected in place: released entries now use the plugin's current name and options, and entries that named a skill, telemetry schema path or environment variable removed earlier describe it instead: [0.11.11], [0.10.5], [0.9.0], [0.8.8], [0.8.0], [0.7.19], [0.7.15], [0.7.14], [0.7.10], [0.7.6], [0.7.0], [0.6.53], [0.6.52], [0.6.35], [0.6.34], [0.6.31], [0.6.22], [0.5.4], [0.4.0], [0.2.0].
+
+- The plugin is now `javascript-format`: install it as `javascript-format@<marketplace>`, and its setup skill runs as `/javascript-format:setup`.
+- The options are `javascript_format_enabled`, `javascript_format_lint_gitignored` and `javascript_format_end_of_turn`, with kill-switch variables `CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_ENABLED`, `CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_LINT_GITIGNORED` and `CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_END_OF_TURN`. Saved values move to the new keys through the dotfiles rename map on the next converge; a machine not managed by that dotfiles repository sets them again, and repeats any opt-out it had: `javascript_format_enabled` set to `false`, or the plugin disabled, now under `javascript-format@<marketplace>`.
+- The git pre-commit entry installs under `.githooks/javascript-format/`, its decline key is `checks.javascript-format.biome-check.declined`, and its findings start with `javascript-format:`. In a repository that had the entry, `/javascript-format:setup check` reports what the earlier install left as `superseded`, and `/javascript-format:setup apply install-git-hooks` installs the entry, removes those artifacts on your yes and keeps an earlier decline under the new key.
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [1.1.1] - 2026-11-12
 
 ### Changed
