@@ -17,7 +17,7 @@
 // Env: LANE, ACTIVITY, RUN_ID, GITHUB_RUN_ATTEMPT, MODEL_RUNG, LEG (the read
 // runner's fallback input; empty for the write runner), PULL, REPOSITORY, GITHUB_SERVER_URL,
 // RUN_RESULT, ACT_OUTCOME, PUSHED_COMMIT, READ_LANE, API_FAILURES (the run
-// job's api-failures output), GITHUB_TOKEN (issues: write), GITHUB_STEP_SUMMARY.
+// job's api-failures output), GITHUB_TOKEN (pull-requests: write), GITHUB_STEP_SUMMARY.
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";

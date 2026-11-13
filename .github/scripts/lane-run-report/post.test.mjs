@@ -2,7 +2,7 @@
 // the run job that carried them shared RUNNER_TEMP with the model.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 import { test } from "node:test";
@@ -498,6 +498,46 @@ test("both run jobs carry the failed API calls with one script", () => {
     carryScript("pr-run-activity-read.yml"),
     carryScript("pr-run-activity-write.yml"),
   );
+});
+
+// Each top-level job of a workflow: its name, text, and permissions map.
+function jobsOf(name) {
+  const text = readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
+  const body = text.slice(text.search(/^jobs:\n/m));
+  return body.split(/^(?= {2}[A-Za-z0-9_-]+:\s*$)/m).slice(1).map((block) => {
+    const perms = /\n {4}permissions:\s*\n((?: {6}.*\n)+)/.exec(block);
+    const permissions = Object.fromEntries(
+      [...(perms?.[1] ?? "").matchAll(/^ {6}([a-z-]+):\s*([a-z]+)/gm)].map((m) => [m[1], m[2]]),
+    );
+    return { name: /^ {2}([A-Za-z0-9_-]+):/.exec(block)[1], block, permissions };
+  });
+}
+
+// GitHub refused the comment POST with issues: write alone (403 "Resource
+// not accessible by integration"), so the posting job holds pull-requests:
+// write, and no other runner job does: the run jobs hold the model.
+for (const runner of ["pr-run-activity-read.yml", "pr-run-activity-write.yml"]) {
+  test(`${runner}: only the job posting the lane run report holds pull-requests: write`, () => {
+    const jobs = jobsOf(runner);
+    const posting = jobs.filter((job) => job.block.includes("lane-run-report/post.mjs")).map((job) => job.name);
+    assert.deepEqual(posting, ["report"]);
+    const writers = jobs.filter((job) => job.permissions["pull-requests"] === "write").map((job) => job.name);
+    assert.deepEqual(writers, ["report"]);
+  });
+}
+
+// A called job holds no more than its caller grants, and a caller granting
+// less fails the workflow at load.
+test("every job calling a runner grants pull-requests: write", () => {
+  const callers = [];
+  for (const file of readdirSync(new URL("../../workflows/", import.meta.url)).filter((f) => /\.ya?ml$/.test(f))) {
+    for (const job of jobsOf(file)) {
+      if (!/^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-(read|write)\.yml/m.test(job.block)) continue;
+      callers.push(job.name);
+      assert.equal(job.permissions["pull-requests"], "write", `${file} job ${job.name}`);
+    }
+  }
+  assert.ok(callers.length > 0, "no job calls either runner");
 });
 
 // Many failures on distinct ids fold into one template in post.mjs, so the
