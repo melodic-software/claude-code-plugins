@@ -229,7 +229,7 @@ const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 export const UNTRUSTED = UNTRUSTED_LABEL;
 // Marks a standing item linked to a .github/recurring-schedule.json row.
 const RECURRING = "recurring";
-// A parent's labels that hold its children, but on a spec container, which
+// A parent's labels that hold its children, except on a spec container, which
 // /work-items:decompose always marks human-gated (bindingContainerLabel).
 const PARENT_HOLDS = new Set(["needs-human"]);
 let bindingContainer;
