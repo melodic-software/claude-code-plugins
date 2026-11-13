@@ -14,6 +14,8 @@ import { STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../ac
 import { statusEvents, statusReader, syntheticFrom } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, confirmedOnly, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionSettled, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
+import { readRouting } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { TRACKER_BINDING_PATH } from "../pr-merge/merge-holds.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -614,11 +616,32 @@ describe("decide", () => {
       }
     });
 
-    test("knows the container by the binding's container label", () => {
+    test("knows the container by the rules' parent-container-labels", () => {
       const remapped = parent(["epic", "needs-human"]);
-      assert.equal(decide(facts({ issue: feature, parent: remapped, containerLabel: "epic" })).verdict, "admit");
+      const rules = { ...RULES, "parent-container-labels": ["epic"] };
+      assert.equal(decide(facts({ issue: feature, parent: remapped, rules })).verdict, "admit");
       assert.equal(decide(facts({ issue: feature, parent: remapped })).verdict, "refuse");
-      assert.equal(decide(facts({ issue: feature, parent: parent(["spec-container", "needs-human"]), containerLabel: "epic" })).verdict, "refuse");
+      assert.equal(decide(facts({ issue: feature, parent: parent(["spec-container", "needs-human"]), rules })).verdict, "refuse");
+    });
+
+    test("rules with no parent-container-labels hold every parent on needs-human", () => {
+      const { "parent-container-labels": _, ...rest } = RULES;
+      const path = join(tempDir("admit-rules-"), "rules.json");
+      writeFileSync(path, JSON.stringify(rest));
+      const loaded = loadRules(path);
+      assert.deepEqual(loaded["parent-container-labels"], []);
+      for (const rules of [loaded, rest]) {
+        assert.equal(decide(facts({ issue: feature, parent: parent(["spec-container", "needs-human"]), rules })).verdict, "refuse");
+      }
+      writeFileSync(path, JSON.stringify({ ...rest, "parent-container-labels": "spec-container" }));
+      assert.throws(() => loadRules(path), /`parent-container-labels` must be a list of strings/);
+    });
+
+    // The rules list and the tracker binding name the container label apart;
+    // this keeps them in step.
+    test("the rules' parent-container-labels hold the tracker binding's container label", () => {
+      const binding = fileURLToPath(new URL(`../../../${TRACKER_BINDING_PATH}`, import.meta.url));
+      assert.ok(RULES["parent-container-labels"].includes(readRouting(binding).container), `${readRouting(binding).container} is not in ${RULES["parent-container-labels"]}`);
     });
   });
 
