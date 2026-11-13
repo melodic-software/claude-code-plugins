@@ -69,6 +69,13 @@ The last two are the sharpest: a short, straightforward remainder is the shape t
 other test, and "the migration is already applied, do not re-run" is the fact a prompt-only
 bullet list drops. A single one of them forces the full path.
 
+**Tracker short form (`/session-flow:handoff` only).** When a tracker item already holds every
+finding, decision and remaining action, and no session state is left to carry, the handoff skill
+emits a two-line resume naming the item's URL instead of either path, even when a plan artifact
+backs the work; eligibility and shape are in that skill's `reference/tracker-short-form.md`. It is
+still the resume prompt, so the rule above holds. Findings not yet on the tracker take the full
+path.
+
 ANY doubt → full save-point. A wrongly-skipped file loses state the fresh session must rediscover;
 a wrongly-written one costs nothing. An explicit method argument overrides auto-detect, but
 `prompt` leaves a gap in the session-id chain that `/session-flow:retro` walks (no file, no chain

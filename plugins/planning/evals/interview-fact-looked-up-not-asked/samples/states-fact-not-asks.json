@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Fact (answered-from-codebase): the sender makes 5 attempts, the first plus 4 retries. Basis: verified, config/webhooks.json:2\n\nQ1: **Should the alert fire after the fifth failed attempt?**\nMy recommendation: **yes**, that is when a delivery is final today.",
+      "why": "states the fact and builds on it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: **How many retries does the sender make today?** If you're not sure, could you look it up?",
+      "why": "sends the user to find the fact"
+    }
+  ]
+}
