@@ -38,7 +38,7 @@ so ask for it only for the items that need it.
    print `comments` as `null`, never as an empty list.
 
 1. **With `--history`, read the state history** through the seam: `"$TRACKER" get-item '<qualified
-   id>' --history` ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
+   id>' --history` ([`tracker-seam.md`](../../../reference/tracker-seam.md) "Provider-neutral over the seam"
    resolves `$TRACKER`; a bare number is qualified with the repository first). Take its
    `state_history` object as it is. When the provider cannot read history it says so with
    `available: false` and a `reason`. Exit `3` (no binding, or a missing prerequisite) also means

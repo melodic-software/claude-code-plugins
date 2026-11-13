@@ -2,6 +2,8 @@
 bump: minor
 ---
 
+### Added
+
 - `/work-items:track view --history` and the seam's `get-item <id> --history` report when an item
   was closed and reopened: `state_history` with its `closed` and `reopened` events and a
   `reopen_count`. The GitHub adapter reads them from the issue timeline over REST, one paginated
