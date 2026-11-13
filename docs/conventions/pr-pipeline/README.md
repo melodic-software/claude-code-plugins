@@ -1018,15 +1018,19 @@ any `..` segment, a path under a `skills/` directory at any depth (`skills`) and
 anywhere (`skill-md`), and allows only `markdown`, so a non-markdown path escalates
 `patch-protected-path`. Its `protected-content` content rule keeps fix-docs out of content a
 generator or the release tooling owns, and because fix-docs runs once per pull request it drops
-that content rather than refusing the patch: inside a generated region (a standalone
-`<!-- BEGIN GENERATED: ... -->` line through its `<!-- END GENERATED: ... -->` line) every byte
-stays the head's while the patch's edits outside the regions apply, and the whole change to a file
-is left out when the file sits in the `released` or `historical` tier of
-[`docs-naming.yaml`](../docs-naming.yaml) (`**/CHANGELOG.md`; `docs/adr/**`, `docs/upstream/**`,
-`.claude/unhobble/**`) or when the patch leaves its markers unpaired, adds, removes or alters a
-marker line, or changes a region it edits in line count or position. Each drop prints a `::warning` naming the file and, for a region, the generator its
-BEGIN line names, so the fix goes to the generator's inputs; a patch left with no change escalates
-`patch-empty`. The row otherwise matches `default`. No other row names those two refusals or that
+that content rather than refusing the patch. It reads git's own `-U0` hunks of each file and
+leaves out every hunk whose head lines meet a generated region (a standalone
+`<!-- BEGIN GENERATED: ... -->` line through its `<!-- END GENERATED: ... -->` line, the marker
+lines included), that inserts lines between a BEGIN and its END, or that writes a marker line; an
+insertion right before a BEGIN line or right after an END line is outside the region and kept, as
+is every other hunk. The whole change to a file, its mode included, is left out when the file sits
+in the `released` or `historical` tier of [`docs-naming.yaml`](../docs-naming.yaml)
+(`**/CHANGELOG.md`; `docs/adr/**`, `docs/upstream/**`, `.claude/unhobble/**`), when its markers do
+not pair in the head or the patched blob, or when the rebuilt blob's regions would not be the
+head's byte for byte; a mode change to any other file is kept. Each dropped hunk or file prints a
+`::warning` naming the file and, for a hunk, the generator its region's BEGIN line names, so the
+fix goes to the generator's inputs. A patch left with no change pushes nothing, escalates nothing
+and skips `not-applicable`. The row otherwise matches `default`. No other row names those two refusals or that
 rule, and none has to. The `review-threads` row alone also refuses a new file at mode `100755` or a
 change to that mode (`new-exec-bit`), so address-feedback can drop an executable bit but never
 add one; `ci-context` and `issue` keep setting script bits. The `ci-context` and `review-threads`
