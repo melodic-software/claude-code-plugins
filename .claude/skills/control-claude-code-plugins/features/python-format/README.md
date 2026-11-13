@@ -4,7 +4,6 @@ The skills of `plugins/python-format`. Each one is driven with `<plugin-dir>` se
 
 ## Parts
 
-- `check`: Report whether ruff and node are installed. Never installs.
 - `setup`: Verify python-format's prerequisites and configuration here, and register its git pre-commit entry. No plain-words entry.
 
 ## Sub-features
