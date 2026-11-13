@@ -13,7 +13,9 @@
 #   - a section (heading to next heading) of a file under plugins/*/skills/ that
 #     says "list-price estimate" and carries a YYYY-MM-DD date, an x.y.z version
 #     and "recheck": a skill's own dated, measured run costs. The setup measured
-#     is the one requirement the check cannot read.
+#     is the one requirement the check cannot read. A rate (a per-token or
+#     per-million amount, or a rate multiple) still fails there: the exception
+#     "states no rate".
 #
 # What is read: every *.md under the rule's paths, plugins/*/skills/,
 # plugins/*/agents/, plugins/*/reference/, docs/ and prompts/, minus fixtures/
@@ -125,11 +127,19 @@ if ((${#files[@]} > 0)); then
       gsub(/`[^`]*`/, "", t)
       return t ~ money || t ~ amount || t ~ multiple || t ~ pct1 || t ~ pct2 || t ~ pct3 || t ~ pct4 || t ~ cheaper
     }
+    function rate(t) {
+      gsub(/`[^`]*`/, "", t)
+      return t ~ multiple || t ~ rate1 || t ~ rate2 || t ~ rate3
+    }
+    # A rate prints at once: the measured-run exception covers run costs only.
     function flush(   t) {
       if (buf == "") return
       t = tolower(buf)
       sect = sect " " t
-      if (figure(t) && !(upstream && t ~ /vendor-reported/)) held = held file "\t" start "\n"
+      if (figure(t) && !(upstream && t ~ /vendor-reported/)) {
+        if (rate(t)) print file "\t" start
+        else held = held file "\t" start "\n"
+      }
       buf = ""
     }
     # A section ends at the next heading. Its held paragraphs print unless it
@@ -151,6 +161,10 @@ if ((${#files[@]} > 0)); then
       pct3 = "(costs?|prices?|spend(ing)?|bills?) (fall|falls|fell|drop|drops|dropped|goes down|went down|shrinks?) (by )?" about n " ?(%|percent)"
       pct4 = "((save|saves|saved|saving|savings) " about n " ?(%|percent) (of|on|in) (the |your )?(costs?|spend(ing)?|bills?|prices?)|costs? " about n " ?(%|percent) less)"
       cheaper = n " ?(x|×|times) cheaper"
+      per = " ?(/|per) ?(1m|m|mtok|million|1k|k|thousand)([^a-z]|$)"
+      rate1 = "(\\$|€|£)" n per
+      rate2 = n " ?(usd|eur|gbp|dollars?|cents?)" per
+      rate3 = "(\\$|€|£)" n "[a-z ]* per (1m |1k |million |thousand )?((input|output|cached?|cache[- ]read|cache[- ]write) )?tokens?"
     }
     FNR == 1 {
       close_file(); file = FILENAME
@@ -168,7 +182,9 @@ if ((${#files[@]} > 0)); then
     }
     fence { next }
     /^[ \t]*$/ { flush(); next }
-    /^[ \t]*#/ { close_section(); buf = $0; start = FNR; flush(); next }
+    # A heading needs a space or the line end after its #s, so a wrapped line
+    # opening with an issue reference (#123) stays prose.
+    /^[ \t]*#+([ \t]|$)/ { close_section(); buf = $0; start = FNR; flush(); next }
     /^[ \t]*[|]/ { flush(); buf = $0; start = FNR; flush(); next }
     /^[ \t]*([-*+]|[0-9]+[.)])[ \t]/ { flush() }
     { if (buf == "") start = FNR; buf = buf " " $0 }

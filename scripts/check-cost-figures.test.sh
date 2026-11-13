@@ -133,10 +133,24 @@ run_case "a list-price label in another section does not cover a figure" 1 \
   "$(add '## Later' "$SKILL/SKILL.md"); $(add 'A pass costs 2 USD.' "$SKILL/SKILL.md")" "$SKILL/SKILL.md:27: FIX:"
 run_case "a list-price section outside a skill does not exempt" 1 \
   "cp $SKILL/SKILL.md docs/anchors.md" "docs/anchors.md:21: FIX:"
+run_case "a per-million rate inside a list-price section still fails" 1 \
+  "$(add 'Opus is $5 per million input tokens.' "$SKILL/SKILL.md")" "$SKILL/SKILL.md:25: FIX:"
+run_case "a \$<n>/M rate inside a list-price section still fails" 1 \
+  "$(add 'The judge is priced at $10/M in.' "$SKILL/SKILL.md")" "$SKILL/SKILL.md:25: FIX:"
+run_case "a rate multiple inside a list-price section still fails" 1 \
+  "$(add 'Fast mode runs at 2x the standard price.' "$SKILL/SKILL.md")" "$SKILL/SKILL.md:25: FIX:"
+run_case "a run cost inside a list-price section still passes" 0 \
+  "$(add 'A second pass cost 1.98 USD, about 0.12 USD per run.' "$SKILL/SKILL.md")"
+run_case "a labeled section whose prose wraps onto a #<issue> line passes" 0 \
+  "printf 'A pass cost 0.9 USD (see\n#15939). List-price estimate, 2026-10-02, Claude Code 2.1.287; recheck when the runner changes.\n' >$SKILL/reference/anchors.md"
+run_case "an upstream paragraph that wraps onto a #<issue> line keeps its vendor-reported label" 0 \
+  "printf 'The post prices Opus at \$4 input (see\n#12), vendor-reported.\n' >docs/upstream/wrap.md"
 
+# The canonical source sits outside the scanned roots, so only the mapping can
+# put it in the output.
 run_case "a generated copy is reported at its canonical source" 1 \
-  "mkdir -p docs/c && printf 'A run costs \$1.20.\n' >docs/c/README.md && cp docs/c/README.md $SKILL/reference/copy.md && printf 'docs/c/README.md %s/reference/copy.md\n' $SKILL >scripts/shared-copies.txt" \
-  "docs/c/README.md:1: FIX:"
+  "mkdir -p shared/c && printf 'A run costs \$1.20.\n' >shared/c/README.md && cp shared/c/README.md $SKILL/reference/copy.md && printf 'shared/c/README.md %s/reference/copy.md\n' $SKILL >scripts/shared-copies.txt" \
+  "shared/c/README.md:1: FIX:"
 
 run_case "a second offender in a baselined file fails and names the counts" 1 \
   "printf '\nAnd \$0.40 more.\n' >>$SKILL/reference/old.md" \
