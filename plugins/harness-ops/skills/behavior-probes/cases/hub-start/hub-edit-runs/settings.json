@@ -1,4 +1,7 @@
 {
+  "permissions": {
+    "additionalDirectories": ["${PROBE_WORKDIR}/repos/github.com/acme/target"]
+  },
   "autoMode": {
     "environment": [
       "$defaults",
