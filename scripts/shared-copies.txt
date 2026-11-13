@@ -838,3 +838,15 @@ lib/hook-test-sink.sh plugins/context-usage/hooks/hook-test-sink.sh
 lib/hook-test-sink.sh plugins/desktop-notification/hooks/hook-test-sink.sh
 lib/plugin_cache_versions.py plugins/harness-ops/lib/plugin_cache_versions.py
 lib/plugin_cache_versions.py plugins/disk-hygiene/lib/plugin_cache_versions.py
+lib/media-render/media_capture.py plugins/explainer-video/scripts/media_capture.py
+lib/media-render/media_captions.py plugins/explainer-video/scripts/media_captions.py
+lib/media-render/media_encode.py plugins/explainer-video/scripts/media_encode.py
+lib/media-render/media_loudness.py plugins/explainer-video/scripts/media_loudness.py
+lib/media-render/media_scan.py plugins/explainer-video/scripts/media_scan.py
+lib/media-render/media_sheet.py plugins/explainer-video/scripts/media_sheet.py
+lib/media-render/media_size.py plugins/explainer-video/scripts/media_size.py
+lib/media-render/media_timeline.py plugins/explainer-video/scripts/media_timeline.py
+lib/media-render/media_verify.py plugins/explainer-video/scripts/media_verify.py
+lib/media-render/media_templates/__init__.py plugins/explainer-video/scripts/media_templates/__init__.py
+lib/media-render/media_templates/frames.css plugins/explainer-video/scripts/media_templates/frames.css
+lib/redact.py plugins/explainer-video/scripts/redact.py
