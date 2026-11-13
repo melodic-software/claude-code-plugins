@@ -5,7 +5,8 @@ name: Intake Triage
 # only allowlisted labels that exist here, or `needs-human` when the run
 # escalates. Advisory: never blocks a merge. See ci-workflows'
 # intake-triage.yml for the security model and inputs. The apply-verdict job
-# then writes the run's verdict as the lanes App (no model): the Size, Complexity and Uncertainty fields, and `status: ready` or
+# then writes the run's verdict as the lanes App (no model): the Size,
+# Complexity and Uncertainty fields, and `status: ready` or
 # `needs-owner-decision` (.github/scripts/intake-triage/apply-verdict.mjs),
 # and on `status: ready` adds `agent-ready` when the admission rules
 # (.github/actions/resolve-config/admission-rules.json) and the issue lane's
@@ -803,8 +804,7 @@ jobs:
 
       - name: Scan the upload for credentials
         id: scan-upload
-        if: >-
-          steps.select.outputs.refine == 'true'
+        if: steps.select.outputs.refine == 'true'
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/refine-context/context.json
