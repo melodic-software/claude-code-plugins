@@ -775,7 +775,7 @@ run_wizard() {
     local token=""
     IFS= read -r token || [[ -n "$token" ]]
     printf 'Authorization: Bearer %s\n' "$token" |
-      curl -fsS -o /dev/null -H @- https://api.mail.example.com/v1/domains
+      curl -fsS -o /dev/null -H @- https://api.mail.example.com/v1/domains # prereq-ok: example stage the author deletes
   }
   prove_credential MAIL_API_TOKEN \
     "Create a new token with only the Send scope and save it as MAIL_API_TOKEN in $ENV_FILE and in the repository's CI secrets" \
