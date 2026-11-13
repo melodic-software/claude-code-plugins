@@ -3,6 +3,12 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.1.0] now name the Python formatting plugin `python-format`, its current name.
+
 ## [2.0.0] - 2026-11-12
 
 ### Changed

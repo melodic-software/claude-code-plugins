@@ -388,10 +388,13 @@ prose cannot stop the flip, a script in the flip's own shell command can.
 
 **The PR worktree** is the checkout that has the PR's head branch checked out, which need not be
 the one the shell sits in: a session in the main checkout can run `ready <pr>` for a PR built in
-another worktree. `scripts/pr-worktree.sh --pr "$PR_NUMBER"` prints its path: the worktree
-`git worktree list` shows on the PR's head branch, whose HEAD contains the PR's head commit. A
-shell already in the PR's worktree gets its own top level back, so the gate runs as it would from
-there. When no worktree has the head branch checked out, or the one that has it lacks the head
+another worktree. `scripts/pr-worktree.sh --pr "$PR_NUMBER" --dir "<checkout>"` prints its path:
+the worktree `git worktree list` shows on the PR's head branch, whose HEAD contains the PR's head
+commit. `<checkout>` is the path of the checkout of the PR's repository the session works on
+(absolute, or `.` when the shell sits in it), so the script never depends on the shell's directory. A
+`<checkout>` inside the PR's worktree gets that worktree's top level back, so the
+gate runs as it would from there. Each `verify-gate.sh` call names `--dir "$PR_TREE"` for the same
+reason. When no worktree has the head branch checked out, or the one that has it lacks the head
 commit (another branch of that name, such as a fork's `main` beside this repository's), the script
 exits 2 and each record command below records nothing, so 2.5.4 refuses the flip: check the PR out
 with the forge's PR checkout and run the gate again.
@@ -402,7 +405,7 @@ PR worktree's HEAD ([review-venue.md](review-venue.md)), unless the run was invo
 full:
 
 ```bash
-PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; bash "<skill-dir>/scripts/review-venue.sh" --head "$(git -C "$PR_TREE" rev-parse HEAD)"
+PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<checkout>") || exit 1; bash "<skill-dir>/scripts/review-venue.sh" --head "$(git -C "$PR_TREE" rev-parse HEAD)"
 ```
 
 When it reads `tests ci healthy`, CI already ran the test suites on the commit 2.5.4 flips. Skip
@@ -425,7 +428,7 @@ it was ready. `ci-status` gates the merge either way.
   depends on the shell's directory, and the record names that tree's HEAD:
 
   ```bash
-  PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; if CHECK_DATA_ROOT="$PR_TREE" bash "$PR_TREE/scripts/check-affected.sh" --tests; then R=pass; else R=fail; fi; bash "<skill-dir>/scripts/verify-gate.sh" record --head "$(git -C "$PR_TREE" rev-parse HEAD)" --result "$R"
+  PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<checkout>") || exit 1; if CHECK_DATA_ROOT="$PR_TREE" bash "$PR_TREE/scripts/check-affected.sh" --tests; then R=pass; else R=fail; fi; bash "<skill-dir>/scripts/verify-gate.sh" record --dir "$PR_TREE" --head "$(git -C "$PR_TREE" rev-parse HEAD)" --result "$R"
   ```
 
   When the venue's `tests` line read `ci` (above), drop `--tests` from the command, so the suites
@@ -440,7 +443,7 @@ it was ready. `ci-status` gates the merge either way.
   still names the skip or the disabling (2.5.6).
 
   ```bash
-  PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; bash "<skill-dir>/scripts/verify-gate.sh" record --head "$(git -C "$PR_TREE" rev-parse HEAD)" --result skipped   # or --result fail
+  PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<checkout>") || exit 1; bash "<skill-dir>/scripts/verify-gate.sh" record --dir "$PR_TREE" --head "$(git -C "$PR_TREE" rev-parse HEAD)" --result skipped   # or --result fail
   ```
 
 Completion criterion, for each step that ran: any review evidence the plan asks for is linked,
@@ -578,5 +581,5 @@ PR in draft, and the `verify` gate's record for the head is a separate file this
 reads or writes.
 
 ```bash
-PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; PR_HEAD=$(git -C "$PR_TREE" rev-parse HEAD) || exit 1; bash "<skill-dir>/scripts/confirm-verdict.sh" show --head "$PR_HEAD"; bash "<skill-dir>/scripts/confirm-verdict.sh" show --of measure --head "$PR_HEAD"
+PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<checkout>") || exit 1; PR_HEAD=$(git -C "$PR_TREE" rev-parse HEAD) || exit 1; bash "<skill-dir>/scripts/confirm-verdict.sh" show --head "$PR_HEAD"; bash "<skill-dir>/scripts/confirm-verdict.sh" show --of measure --head "$PR_HEAD"
 ```

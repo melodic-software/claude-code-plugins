@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.2.6] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.55.48] now name the Python formatting plugin `python-format`, its current name.
+
 ## [11.2.5] - 2026-11-13
 
 ### Changed

@@ -9,16 +9,17 @@
 # A result recorded for another head never counts, so a commit after the gate voids it.
 #
 # Usage:
-#   verify-gate.sh record --head <sha> --result pass|fail|skipped
-#   verify-gate.sh check  --head <sha>
+#   verify-gate.sh record --head <sha> --result pass|fail|skipped [--dir <checkout>]
+#   verify-gate.sh check  --head <sha> [--dir <checkout>]
 #
 # The result lives under the repository's common git directory (`ready-verify/<sha>`), shared by
 # every worktree, so a record and a check agree whichever checkout the shell sits in; or under
-# $READY_VERIFY_DIR when set.
+# $READY_VERIFY_DIR when set. --dir names any checkout of the repository to read that directory
+# from (default: the current directory); $READY_VERIFY_DIR still wins over it.
 #
 # Exit codes:
 #   0  record: stored; check: `pass` or `skipped` recorded for the head
-#   1  invalid argument
+#   1  invalid argument, or --dir names no directory
 #   2  check: no result recorded for the head, or the state cannot be read
 #   3  check: the recorded result for the head is `fail`
 
@@ -43,7 +44,7 @@ record | check) CMD="$1" ;;
 esac
 shift
 
-HEAD_SHA="" RESULT=""
+HEAD_SHA="" RESULT="" CHECKOUT=""
 while (($# > 0)); do
   case "$1" in
   --head | --result)
@@ -51,14 +52,21 @@ while (($# > 0)); do
     if [[ "$1" == --head ]]; then HEAD_SHA="$2"; else RESULT="$2"; fi
     shift 2
     ;;
+  --dir)
+    (($# >= 2)) && [[ -n "$2" && -z "$CHECKOUT" ]] || die 1 "--dir needs one value and is given once"
+    CHECKOUT="$2"
+    shift 2
+    ;;
   *) die 1 "unknown argument $(printf '%q' "$1") (use --help)" ;;
   esac
 done
 [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || die 1 "--head must be a full 40-character commit sha"
+CHECKOUT="${CHECKOUT:-.}"
+[[ -d "$CHECKOUT" ]] || die 1 "--dir $(printf '%q' "$CHECKOUT") is not a directory"
 
 dir="${READY_VERIFY_DIR:-}"
 if [[ -z "$dir" ]]; then
-  dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || die 2 "not in a git repository, and READY_VERIFY_DIR is unset"
+  dir=$(git -C "$CHECKOUT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || die 2 "$(printf '%q' "$CHECKOUT") is not in a git repository, and READY_VERIFY_DIR is unset"
   dir+=/ready-verify
 fi
 file="$dir/$HEAD_SHA"

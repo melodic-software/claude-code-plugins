@@ -3,6 +3,14 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.7] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.13.0], [0.6.0] now name the Python formatting plugin `python-format`, its current name.
+
+- References to the Python formatting plugin use its new name, `python-format`.
+
 ## [1.2.6] - 2026-11-12
 
 ### Changed
