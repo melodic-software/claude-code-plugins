@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.28] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.20.29] now name the Python formatting plugin `python-format`, its current name.
+
 ## [1.0.27] - 2026-11-13
 
 ### Changed
