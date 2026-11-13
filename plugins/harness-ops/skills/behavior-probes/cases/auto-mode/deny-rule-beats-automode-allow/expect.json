@@ -13,6 +13,6 @@
     "example": {"command": "python3 -c \"print('PROBEMARK')\""}
   },
   "outcome": "deny",
-  "reason_type": "rule",
+  "reason_type": "subcommandResults",
   "control": "auto-mode/automode-allow-entry-probemark-runs"
 }
