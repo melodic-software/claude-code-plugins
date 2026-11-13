@@ -5,7 +5,7 @@
 globs: ["*.sh", "*.bash"]
 build-cmd: null
 test-cmd: null
-check-cmd: "shellcheck --rcfile .shellcheckrc <files>"
+check-cmd: 'shellcheck --rcfile "$REPO_ROOT/.shellcheckrc" <files>'
 fix-cmd: "shfmt -w <files>"
 opt-in: "shellcheck always applies to shell files"
 install-hint: "winget install ShellCheck.ShellCheck mvdan.shfmt | brew install shellcheck shfmt"
