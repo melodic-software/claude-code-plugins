@@ -1,5 +1,12 @@
 # Changelog for the standards convention
 
+## 1.1.5 - 2026-11-13
+
+Resolution ladder. Planning and implementing skills also read the repository's review-criteria
+index, `docs/review/README.md` when present, and load only the files its rows match to the change.
+The rungs, the schema, the index shape and the migration rules are unchanged. An index at 1.1.4 is
+older than the bundled contract, so setup offers the guided migration.
+
 ## 1.1.4 - 2026-11-12
 
 Wording only. The memory-rules pointer in the `.claude/rules` seam no longer carries an as-of date

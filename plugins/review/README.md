@@ -11,7 +11,7 @@ severity-ranked, deduplicated findings report, and the other review skills liste
 
 | Agent | Concern |
 |---|---|
-| `code-reviewer` | Quality, convention adherence, and design judgment automated tooling misses; carries a named Fowler design-smell baseline (advisory, project standards override) |
+| `code-reviewer` | Quality, convention adherence, and design judgment automated tooling misses; checks a Fowler design-smell list chosen by `smell_baseline` (advisory, project standards override) |
 | `security-reviewer` | Cross-ecosystem security audit. OWASP Top 10, injection, secrets, auth (P1–P5 severity) |
 | `architecture-guardian` | Dependency direction, boundary integrity, pattern compliance |
 | `doc-drift-detector` | Documentation that no longer matches the code. Stale, missing, aspirational |
@@ -257,7 +257,10 @@ whether `/review:fanout run-everything` runs one reviewer agent per concern (`le
 or sends one review prompt to each model tier the role map names (`model`), or runs the lens roster
 with the Codex reviewer as its model-diversity panel (`codex`). `fanout_act_on_cap` decides how
 many rows under each `### Spec` and `### Standards` heading of a `/review:fanout` report are marked
-act on (default `2`); every other row stays in the report. The `council_*` keys configure
+act on (default `2`); every other row stays in the report. `smell_baseline` decides which
+design-smell list the `code-reviewer` agent checks: the shipped baseline (`default`), none (`off`),
+or a path to the repository's own list, which `/review:setup apply` can write from the catalog in
+[`reference/design-smells.md`](reference/design-smells.md). The `council_*` keys configure
 `/review:council`: its member catalog, fallback panel, selection rules, round count, score table and
 the repository-only lane switch, read from the base branch when a change edits the file. Keys,
 values and resolution:
@@ -276,6 +279,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `downstream_probe` | string | `"run"` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
 | `fanout_diversity` | string | `"lens"` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: one review prompt per fan-out model tier. codex: the lens roster plus the Codex reviewer as the model panel. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
 | `fanout_act_on_cap` | number<br>*min 1* | `2` | How many rows under each By axis heading (Spec, Standards) of a /review:fanout report are marked act on; default 2, a whole number of at least 1. The other rows stay in the report, marked no. A repository's docs/conventions/review.yaml fanout_act_on_cap wins over this option. |
+| `smell_baseline` | string | `"default"` | default (default): the code-reviewer agent checks the shipped design-smell baseline. off: no smell check. A repository-relative .md path: that list, or the shipped one when the file is missing. A repository's docs/conventions/review.yaml smell_baseline wins over this option. |
 | `council_max_rounds` | number<br>*min 1* | `1` | How many review rounds /review:council runs at most; default 1, a whole number of at least 1. Above 1, /review:fanout fix runs between rounds. A repository's docs/conventions/review.yaml council_max_rounds wins over this option. |
 | `council_scores` | string | `"off"` | on: the /review:council report carries a mark table by member and round; off (default): none. A repository's docs/conventions/review.yaml council_scores wins over this option. |
 | `council_members` | string | *(none)* | Your /review:council member catalog as JSON, the shape of council_members in docs/conventions/review.yaml, e.g. {"codex-adv":{"provider":"codex","brief":"adversarial"}}. Empty (default): the repository's value or three Opus members. The repository's value wins; invalid JSON is reported and ignored. |
