@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.2] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.18.0] now name the context-usage plugin by its current name.
+
 ## [3.1.1] - 2026-11-12
 
 ### Changed
