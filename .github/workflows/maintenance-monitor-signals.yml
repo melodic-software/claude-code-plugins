@@ -92,7 +92,7 @@ jobs:
       - name: Install resolve-config's packages
         timeout-minutes: 5
         if: steps.kill.outputs.proceed == 'true'
-        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       - name: Read the signals and file their issues
         if: steps.kill.outputs.proceed == 'true'
