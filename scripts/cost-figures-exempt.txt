@@ -1,0 +1,7 @@
+# Files whose matches are not cost figures at all, which
+# scripts/check-cost-figures.sh skips. One repository-relative markdown path per
+# line with its reason after a `#`. A cost claim never goes here: it is fixed,
+# or held in scripts/cost-figures-baseline.txt until it is.
+#
+# Stale-guarded: an entry whose file holds no match fails the gate.
+plugins/user-interface/skills/glossary/reference/copywriting.md  # "$1.00 vs $1" is a number-formatting example, not a price

@@ -47,7 +47,7 @@ Usage: work-item-tracker.sh <verb> [args]
 Verbs:
   create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b]
               [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <owner>/<repo>]
-  get-item <id>
+  get-item <id> [--history]
   claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only]
         [--phase triage|discovery|implementation]
         --ttl-minutes (0-59) ADDS to --ttl-hours; for a sub-hour lease pass
@@ -473,6 +473,26 @@ main() {
       ci_args+=(--body "$(<"$body_file")")
     fi
     set -- "${ci_args[@]+"${ci_args[@]}"}"
+  fi
+
+  if [[ "$verb" == "get-item" ]] && [[ " $* " == *" --history "* ]]; then
+    # --history is core-gated (CONTRACT.md "Verbs", state history): only an adapter that
+    # declares features.state_history receives it; for any other, core says the history is
+    # not available, which a caller tells apart from an empty one.
+    [[ $# -eq 2 && "$2" == "--history" ]] || fail_usage
+    if [[ "$(jq -r '.features.state_history // false' "$manifest")" == "true" ]]; then
+      out="$(bash "$adapter_dir/get-item.sh" "$1" --history)"
+      rc=$?
+    else
+      out="$(bash "$adapter_dir/get-item.sh" "$1")"
+      rc=$?
+      if ((rc == 0)); then
+        out="$(printf '%s\n' "$out" | wit_strip_cr | jq -c --arg reason "state history not available for provider '$WIT_PROVIDER'" \
+          '.state_history = {available: false, events: null, reopen_count: null, reason: $reason}')" || exit 1
+      fi
+    fi
+    [[ -z "$out" ]] || printf '%s\n' "$out" | wit_strip_cr
+    exit "$rc"
   fi
 
   out="$(bash "$adapter_dir/$adapter_verb.sh" "$@")"

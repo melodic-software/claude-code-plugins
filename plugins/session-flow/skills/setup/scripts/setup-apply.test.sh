@@ -331,6 +331,36 @@ run "$repo" --check
 assert_true '--check flags retro_lenses: 2' code_is 1
 assert_true '--check names retro_lenses' out_has 'retro_lenses'
 
+# recall_doc_paths and recall_report_kinds are comma-separated strings. A value
+# YAML would not read back as plain (a leading *, a colon) is written
+# double-quoted. recall_doc_paths entries go inside single quotes in recall's
+# git grep, so no entry holds a quote, starts with / or holds ..; neither key
+# takes an empty entry.
+for pair in 'recall_doc_paths=*.md|recall_doc_paths: "*.md"' \
+  'recall_report_kinds=type: bug|recall_report_kinds: "type: bug"'; do
+  arg="${pair%%|*}" line="${pair#*|}" key="${arg%%=*}" value="${arg#*=}"
+  repo="$(new_repo)"
+  run "$repo" "$arg"
+  assert_true "$arg writes" code_is 0
+  assert_true "$arg is written as $line" [ "$(settings "$repo/$REL" | grep -cxF "$line")" -eq 1 ]
+  assert_true "$key reads back as $value" [ "$(bash "$READER" "$repo/$REL" "$key")" = "$value" ]
+  run "$repo" --check
+  assert_true "--check accepts $line" code_is 0
+done
+for doc in 'recall_doc_paths: "../x"\n' \
+  'recall_doc_paths: "/abs"\n' \
+  "recall_doc_paths: \"a'b\"\n" \
+  'recall_doc_paths: "*.md,"\n' \
+  'recall_report_kinds: "Bug,"\n'; do
+  key="${doc%%:*}"
+  repo="$(new_repo)"
+  seed "$repo" "$doc"
+  run "$repo" --check
+  assert_true "--check flags $(printf '%b' "$doc" | tr '\n' ' ')" code_is 1
+  assert_true "--check names $key as not matching for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(grep -c "^WARN .*: $key=.* is not a string of matching " <<<"$OUT")" -eq 1 ]
+  assert_true "--check gives no PASS line for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(grep -c "^PASS $key" <<<"$OUT")" -eq 0 ]
+done
+
 # --check: absent and valid.
 repo="$(new_repo)"
 run "$repo" --check

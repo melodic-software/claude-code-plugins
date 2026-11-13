@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "- docs/postmortems/2026-09-csv-export-crash.md (2026-09-18): every export with a double quote crashed; follow-up #42.",
+      "why": "full path"
+    },
+    {
+      "answer": "Postmortem: 2026-09-csv-export-crash.md",
+      "why": "file name only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Postmortems: none found in the tracked markdown.",
+      "why": "postmortem missed"
+    },
+    {
+      "answer": "A postmortem from September covers the crash.",
+      "why": "no path"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+# Files that still state a price, rate, cost or percentage saving outside the
+# two exceptions in .claude/rules/cost-claims.md, as
+# scripts/check-cost-figures.sh reads them. One
+# `<repository-relative markdown path> <paragraph count>` per line; a `#` starts
+# a comment. A generated copy is listed by its canonical source.
+#
+# The fix: delete the figure and link the costs or pricing page; a docs/upstream/
+# record labels a post's figure vendor-reported; a skill's own measured run cost
+# sits in a section labeled list-price estimate with its date, Claude Code
+# version and recheck trigger. Then lower the file's count or delete its line.
+#
+# Stale-guarded: an entry whose file is gone, is clean, or holds a different
+# count fails the gate. Never add an entry for new text: link the page instead.
+docs/contracts/loop-lane/README.md 1  # the owner's verbatim direction names the accounts' API credit amount
+docs/upstream/opus-5-5-task-cost.md 1  # Q33 names the plugin-eval 0.8 USD anchor, our own figure, not vendor-reported
+plugins/evals/skills/plugin-eval/SKILL.md 3  # Cost: the 0.2 USD headroom, 0.8 USD anchor and 5 USD ceiling examples carry no date, version or trigger in place
+plugins/playbooks/skills/boris/vendor/upstream-skill.md 5  # vendored upstream skill text: Fable 5 and Opus 4.8 fast mode prices
+plugins/testing/skills/audit/evals/judge-calibration/calibration.md 9  # Reference labels, Model sweep and Chosen default carry no list-price label, version or trigger; the Haiku section passes

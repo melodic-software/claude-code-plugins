@@ -271,6 +271,19 @@ if verb_supported get-item && [[ -n "$ITEM_A_ID" ]]; then
   wit_case "get-item A" 0 get-item "$ITEM_A_ID"
   assert_schema_version "get-item A"
   assert_eq "get-item A unblocked" "0" "$(wit_out '.blocked_by_count')"
+  assert_eq "get-item A carries no state_history unasked" "false" "$(wit_out 'has("state_history")')"
+  # A new item was never closed: a provider that reads history reports no events, and one
+  # that cannot says so, never an empty history.
+  wit_case "get-item A --history" 0 get-item "$ITEM_A_ID" --history
+  assert_schema_version "get-item A --history"
+  if [[ "$(jq -r '.features.state_history // false' <<<"$CAPS")" == "true" ]]; then
+    assert_eq "get-item A --history: read, no events, no reopens" "true|[]|0" \
+      "$(wit_out '"\(.state_history.available)|\(.state_history.events | tojson)|\(.state_history.reopen_count)"')"
+  else
+    assert_eq "get-item A --history: not available, no events" "false|null|null" \
+      "$(wit_out '"\(.state_history.available)|\(.state_history.events)|\(.state_history.reopen_count)"')"
+    assert_eq "get-item A --history: reason given" "true" "$(wit_out '.state_history.reason | type == "string" and length > 0')"
+  fi
 fi
 
 # --- change-link (offline: no provider call) ---

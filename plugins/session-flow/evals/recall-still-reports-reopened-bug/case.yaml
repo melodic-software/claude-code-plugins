@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: recall-still-reports-reopened-bug
+description: Recall on a topic whose bug item was closed by a fix and later reopened, with no comment or commit saying so, reads the item's state history through /work-items:track view --history and lists it under Still reported. A stand-in work-items plugin in the case directory serves the tracker. A run needs --allow-tools Bash Skill.
+tags: [recall, tracker, state-history, still-reported]
+plugins: ["../..", "work-items-stub"]
+expected_outcome: The git history holds a fix whose message says Fixes #57 for the SSO login redirect loop. The tracker returns open bug github:acme/web#57, whose body and comments never mention a reopen, open bug github:acme/web#61, which reports the same redirect loop between /login and /callback under another title and was never closed, and closed task github:acme/web#12. The answer searches the tracker, reads the state history of #57 with /work-items:track view --history, and lists #57 under Still reported because it was closed on 2026-09-02 and reopened on 2026-09-10, so the fix did not hold. It also lists #61 under Still reported, with a line naming #57 and #61 as the same symptom. It does not list the task #12 as still reported.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/session-flow:recall login redirect loop after SSO sign-in. We shipped a fix for it; did it hold?"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: history-read
+    type: tool_used
+    tool: Skill
+    input_match: 'work-items:track[^\n]*--history'
+    min: 1
+    arm: with-only
+  - name: still-reported-names-reopened
+    type: regex
+    pattern: 'still[ -]reported\b(?:[^\n]*#57\b[^\n]*\breopen|[^\n]*\breopen[^\n]*#57\b|[^\n]*\n(?:(?![ \t#*_>-]*(?:tried|kept|dropped or reverted|still open)\b)[^\n]*\n){0,8}?(?![ \t#*_>-]*(?:tried|kept|dropped or reverted|still open)\b)(?:[^\n]*#57\b[^\n]*\breopen|[^\n]*\breopen[^\n]*#57\b))'
+    flags: 'i'
+    arm: with-only
+  - name: still-reported-same-symptom
+    type: regex
+    pattern: 'still[ -]reported\b(?:(?=[^\n]*#57\b)(?=[^\n]*#61\b)[^\n]*\bsame[ -]symptom|[^\n]*\n(?:(?![ \t#*_>-]*(?:tried|kept|dropped or reverted|still open)\b)[^\n]*\n){0,8}?(?![ \t#*_>-]*(?:tried|kept|dropped or reverted|still open)\b)(?=[^\n]*#57\b)(?=[^\n]*#61\b)[^\n]*\bsame[ -]symptom)'
+    flags: 'i'
+    arm: with-only

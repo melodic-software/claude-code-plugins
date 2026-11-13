@@ -248,6 +248,60 @@ assert_eq "core still filters exactly after a provider label filter" "fake:o/r#1
 cp "$TEST_TMPDIR/fake-capabilities.json" "$FAKE_DIR/capabilities.json"
 unset FAKE_ARGS_LOG
 
+# --- get-item --history (CONTRACT.md "Verbs", state history) ---
+# An adapter that does not declare features.state_history never receives --history, and
+# core answers available: false, so a caller can tell "not available" from "never reopened".
+HIST_DIR="$TEST_TMPDIR/adapters/histfake"
+mkdir -p "$HIST_DIR"
+jq '.provider = "histfake"' "$FAKE_DIR/capabilities.json" >"$HIST_DIR/capabilities.json"
+cat >"$HIST_DIR/get-item.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$HIST_ARGS_LOG"
+if [[ "${2:-}" == "--history" ]]; then
+  [[ -n "${HIST_FAIL:-}" ]] && { echo "events read failed" >&2; exit 8; }
+  printf '%s\n' '{"schema_version":"1.0","id":"histfake:o/r#1","state":"open","state_history":{"available":true,"events":[{"state":"closed","at":"2026-01-01T00:00:00Z","actor":"a"},{"state":"reopened","at":"2026-01-02T00:00:00Z","actor":"b"}],"reopen_count":1,"reason":null}}'
+else
+  printf '%s\n' '{"schema_version":"1.0","id":"histfake:o/r#1","state":"open"}'
+fi
+EOF
+HIST_BINDING="$TEST_TMPDIR/histfake-binding.json"
+printf '%s\n' '{"schema_version":"1.0","provider":"histfake","config":{"lease_ttl_hours":24}}' >"$HIST_BINDING"
+export HIST_ARGS_LOG="$TEST_TMPDIR/hist-args.log"
+run_hist() {
+  WORK_ITEM_TRACKER_BINDING="$HIST_BINDING" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" bash "$DISPATCHER" "$@"
+}
+
+: >"$HIST_ARGS_LOG"
+OUT="$(run_hist get-item "histfake:o/r#1" --history)"
+assert_eq "get-item --history without the feature → exit 0" "0" "$?"
+assert_eq "an adapter without state_history gets no --history" "histfake:o/r#1" "$(cat "$HIST_ARGS_LOG")"
+assert_eq "core marks the history not available" "false|null|null" \
+  "$(jq -r '"\(.state_history.available)|\(.state_history.events)|\(.state_history.reopen_count)"' <<<"$OUT")"
+assert_contains "the reason names the provider" "$(jq -r '.state_history.reason' <<<"$OUT")" \
+  "state history not available for provider 'histfake'"
+assert_eq "the item fields pass through" "open" "$(jq -r '.state' <<<"$OUT")"
+
+: >"$HIST_ARGS_LOG"
+OUT="$(run_hist get-item "histfake:o/r#1")"
+assert_eq "plain get-item carries no state_history" "false" "$(jq 'has("state_history")' <<<"$OUT")"
+
+jq '.features = {state_history: true}' "$FAKE_DIR/capabilities.json" | jq '.provider = "histfake"' >"$HIST_DIR/capabilities.json"
+: >"$HIST_ARGS_LOG"
+OUT="$(run_hist get-item "histfake:o/r#1" --history)"
+assert_eq "an adapter that declares state_history gets --history" "histfake:o/r#1 --history" "$(cat "$HIST_ARGS_LOG")"
+assert_eq "the adapter's history passes through" "true|1" \
+  "$(jq -r '"\(.state_history.available)|\(.state_history.reopen_count)"' <<<"$OUT")"
+
+OUT="$(HIST_FAIL=1 run_hist get-item "histfake:o/r#1" --history 2>/dev/null)"
+assert_eq "a failed history read keeps the adapter's exit code" "8" "$?"
+assert_eq "a failed history read prints nothing" "" "$OUT"
+
+run_hist get-item --history >/dev/null 2>&1
+assert_eq "get-item --history without an id → exit 2" "2" "$?"
+run_hist get-item "histfake:o/r#1" --history --history >/dev/null 2>&1
+assert_eq "get-item --history twice → exit 2" "2" "$?"
+unset HIST_ARGS_LOG
+
 run_dispatcher list-items --autonomous >/dev/null 2>&1
 assert_eq "list-items --autonomous → exit 2" "2" "$?"
 run_dispatcher list-frontier --state all >/dev/null 2>&1

@@ -1507,6 +1507,16 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh as-of-recheck {0}
         run: scripts/check-as-of-recheck.sh --check
 
+      # No price, rate, per-task cost or percentage saving in a skill, agent,
+      # reference, doc or prompt (.claude/rules/cost-claims.md). Ungated: the
+      # edit that adds one is docs-only. Existing debt sits in
+      # scripts/cost-figures-baseline.txt, which fails when it could shrink.
+      - name: Check no skill, doc or prompt states a cost figure
+        id: cost_figures
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh cost-figures {0}
+        run: scripts/check-cost-figures.sh --check
+
       # Each tracked docs/conventions/<concern>.yaml against its JSON Schema
       # (ADR 0064 Decisions 6 and 7). Ungated: a change that edits only a
       # convention YAML is docs-only, and that is the edit this gate reads.
@@ -2097,6 +2107,7 @@ jobs:
             adr-numbers=${{ steps.adr_numbers.outcome }}
             rules-index=${{ steps.rules_index.outcome }}
             as-of-recheck=${{ steps.as_of_recheck.outcome }}
+            cost-figures=${{ steps.cost_figures.outcome }}
             convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
@@ -3593,9 +3604,8 @@ jobs:
         with:
           cache-dir: ~/.cache/ci-tools
       # demo-video renders and probes its fixture with ffmpeg and ffprobe, which the
-      # hosted image does not carry. Both come from BtbN's static GPL build (the
-      # Linux static build ffmpeg.org links; GPL for libx264), a month-end tag BtbN
-      # keeps, checked against its published SHA-256 on every run. The archive is
+      # hosted image does not carry. install-pinned-ffmpeg.sh installs both from its
+      # pinned BtbN build, checked against the SHA-256 on every run. The archive is
       # about 154 MB, so it has its own cache entry that only the demovideo leg
       # restores and saves. The step timeout makes a stalled download fail here
       # instead of spending the leg.
@@ -3608,29 +3618,11 @@ jobs:
           key: ci-tools-ffmpeg-${{ runner.os }}-n8.1.3-9-g29e619e767
       - name: Install ffmpeg for demo-video
         timeout-minutes: 2
-        env:
-          FFMPEG_RELEASE: autobuild-2026-09-30-13-08
-          FFMPEG_BUILD: n8.1.3-9-g29e619e767
-          FFMPEG_SHA256: 97ce978979194b5cf7e06a5e68020dbdaa7a4f3294c5452b6a1bc347100dbb79
         run: |
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           [[ "$leg_needs" == *demovideo* ]] || exit 0
-          asset="ffmpeg-$FFMPEG_BUILD-linux64-gpl-8.1.tar.xz"
-          mkdir -p "$HOME/.local/bin" "$HOME/.cache/ci-tools-ffmpeg"
-          cached="$HOME/.cache/ci-tools-ffmpeg/$asset"
-          [ -f "$cached" ] || curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$cached" \
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/$FFMPEG_RELEASE/$asset"
-          echo "$FFMPEG_SHA256  $cached" | sha256sum -c - ||
-            { echo "::error::$asset does not match FFMPEG_SHA256"; exit 1; }
-          tar -xJf "$cached" -C "$HOME/.local/bin" --strip-components=2 --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          for tool in ffmpeg ffprobe; do
-            [ -x "$HOME/.local/bin/$tool" ] || { echo "::error::$asset holds no bin/$tool"; exit 1; }
-            line=$("$HOME/.local/bin/$tool" -version | sed -n 1p)
-            echo "$line"
-            [[ "$line" == *"$FFMPEG_BUILD"* ]] || { echo "::error::$tool reports '$line', not $FFMPEG_BUILD"; exit 1; }
-          done
+          bash .github/scripts/lib/install-pinned-ffmpeg.sh "$HOME/.local/bin" "$HOME/.cache/ci-tools-ffmpeg"
       - name: Save the pinned ffmpeg download
         if: github.ref == 'refs/heads/main' && contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo') && steps.ffmpeg_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

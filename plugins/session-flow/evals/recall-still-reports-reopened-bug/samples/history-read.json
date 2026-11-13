@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:track",
+            "args": "view 'github:acme/web#57' --history"
+          }
+        }
+      ],
+      "why": "history asked for on the matched bug"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:track",
+            "args": "view 'github:acme/web#57' --comments --history"
+          }
+        }
+      ],
+      "why": "history asked for beside comments"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:track",
+            "args": "view 'github:acme/web#57' --comments"
+          }
+        }
+      ],
+      "why": "view without --history"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:track",
+            "args": "search 'redirect loop'"
+          }
+        }
+      ],
+      "why": "search only"
+    }
+  ]
+}

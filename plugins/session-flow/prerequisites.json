@@ -100,7 +100,7 @@
           "git"
         ]
       },
-      "degrade": "Without git, /session-flow:recall cannot search commit history for reverted attempts and says so; its transcript, pull request and tracker sources still work.",
+      "degrade": "Without git, /session-flow:recall cannot search commit history for reverted attempts or the tracked markdown for postmortems and says so; its transcript, pull request and tracker sources still work.",
       "install": {
         "docs": "https://git-scm.com/downloads",
         "brew": "git",
