@@ -20,7 +20,7 @@ name: PR Run Activity Read
 # in pr-run-activity-write.yml.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
 #
-# Every action runs from the base-SHA checkout at ./.base. zizmor's
+# Every local action runs from the base-SHA checkout at ./.base. zizmor's
 # self-repository advice (`$/...`) is ignored on those lines: `$/` loads the
 # action from this workflow's own commit, which on pull_request is the PR's
 # merge commit, not the base.
