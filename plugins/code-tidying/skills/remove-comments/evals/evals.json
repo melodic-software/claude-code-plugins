@@ -248,7 +248,7 @@
       "expectations": [
         "Proposes a lint rule for the forbidden direct fetch call and a regression test for the open-before-push order",
         "Announces the findings file path under .work/reviews/feat-retry-fix/ before writing it, and creates .work/.gitignore containing * with an announcement",
-        "The findings file declares type: review-findings, and its row for the lint proposal opens its Finding cell with code-tidying/remove-comments/rule-lint-proposal and carries Tier SUGGESTION, the comment's path:line as Location, code-tidying:remove-comments as the surface, and an Action naming the rule to add and the lint config file it goes in",
+        "The findings file declares type: review-findings, and its row for the lint proposal opens its Finding cell with code-tidying/remove-comments/rule-lint-proposal and carries Tier SUGGESTION, the comment's path:line as Location, the skill code-tidying:remove-comments in its Surface(s) cell, and an Action naming the rule to add and the lint config file it goes in",
         "Names the file and offers /corrections:codify findings with that path without running it",
         "Edits no file in src/"
       ]
