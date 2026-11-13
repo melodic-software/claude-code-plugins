@@ -122,7 +122,7 @@ The poll keeps its 60-90s cadence: readiness needs every check terminal, the cur
 
 **Every monitor invocation ensures a live event watch exists, and every watch is re-armed at its deadline.** Runs right after 3.0.0, before terminal state checks, CI polling, and comment processing.
 
-1. Resolve PR identity into `PR_NUMBER`, `OWNER` and `REPO` from `<checkout>`, the checkout of the PR's repository the session works on ([ready-for-review.md](ready-for-review.md) 2.5.3), never from the shell's directory; on a triangular flow the PR's base repository, named explicitly, takes `target-repo.sh`'s place ([GitHub](../../../reference/providers/github/pull-request/monitor.md#resolve-pr-identity))
+1. Resolve PR identity into `PR_NUMBER`, `OWNER` and `REPO` from `<checkout>`, the checkout of the PR's repository the session works on ([ready-for-review.md](ready-for-review.md) 2.5.3), never from the shell's directory; on a triangular flow the PR's base repository, named explicitly, takes `target-repo.sh`'s place and the PR is looked up by its `<fork-owner>:<branch>` head ([GitHub](../../../reference/providers/github/pull-request/monitor.md#resolve-pr-identity))
 2. Check whether this session already holds a live watch for this PR: a task id from its own step-4 arming call for `PR #$PR_NUMBER CI + comments`, with no exit line, deadline notice, stop, or `--resume` since. Do not look the watch up with `TaskList`: it is not offered in every session (record below), and a watch armed before a `--resume` is gone though the transcript still shows its id.
 3. **If this session holds a live watch for the PR** → skip (watch already active). Proceed to 3.0.5
 4. **Otherwise** → arm the watch:

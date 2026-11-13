@@ -63,6 +63,12 @@ if [[ "$1 $2" == "api repos/me/app" ]]; then
   echo acme/app
   exit 0
 fi
+# The PR on acme/app has the cross-repository head me:feature; a bare branch finds nothing.
+if [[ "$1 $2" == "pr view" ]]; then
+  [[ "$3" == me:feature && " $* " == *" -R acme/app "* ]] && { echo 17; exit 0; }
+  echo "no pull requests found for branch \"$3\"" >&2
+  exit 1
+fi
 [[ "$1" == api && " $* " == *" repos/acme/app/"* ]] || exit 1
 case "$*" in
 */check-runs*)
@@ -148,16 +154,35 @@ assert_eq "snapshot run with a failed checks read writes no file" "no" "$snap_wr
 
 # A triangular flow: the checkout pushes to the fork me/app and its upstream is acme/app, where
 # the PR is open. target-repo.sh resolves the checkout to the fork, so the reference names the base
-# repository in its place; the watch built with that line reads acme/app only.
+# repository in its place and looks the PR up by its me:feature head; the watch built with that
+# line reads acme/app only.
 TRI="$TEST_TMPDIR/triangular"
-git init -q "$TRI"
+git init -q -b feature "$TRI"
 git -C "$TRI" remote add origin https://github.com/me/app.git
 git -C "$TRI" remote add upstream https://github.com/acme/app.git
 fork=$(PATH="$STUB_DIR:$PATH" bash "$SCRIPT_DIR/target-repo.sh" --dir "$TRI" 2>/dev/null)
 assert_eq "triangular flow: target-repo.sh resolves the checkout to the fork" "me/app" "$fork"
-BASE_LINE=$(awk '/^## Resolve PR identity/ { on = 1; next } on && /^## / { exit }
-  on && /^```bash/ { if (++i == 2) f = 1; next } f && /^```/ { exit } f' "$REF" |
-  sed -e 's#<base-owner>/<repo>#acme/app#')
+
+# identity_block <n>: the nth fenced block under "Resolve PR identity", placeholders filled, that
+# prints the resolved identity.
+identity_block() {
+  awk -v n="$1" '/^## Resolve PR identity/ { on = 1; next } on && /^## / { exit }
+    on && /^```bash/ { if (++i == n) f = 1; next } f && /^```/ { exit } f' "$REF" |
+    sed -e "s#<skill-dir>#$SCRIPT_DIR/..#" -e "s#<checkout>#$TRI#" -e 's#<base-owner>/<repo>#acme/app#'
+  # shellcheck disable=SC2016 # expands in the generated script
+  echo 'echo "PR_NUMBER=$PR_NUMBER OWNER=$OWNER REPO=$REPO"'
+}
+identity_block 2 >"$TEST_TMPDIR/identity-triangular.sh"
+out=$(cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" bash "$TEST_TMPDIR/identity-triangular.sh" 2>&1)
+assert_exit "triangular identity block: exits 0" 0 "$?"
+assert_contains "triangular identity block: finds the PR by its fork-namespaced head on the base" "$out" \
+  "PR_NUMBER=17 OWNER=acme REPO=app"
+identity_block 1 >"$TEST_TMPDIR/identity-plain.sh"
+out=$(cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" bash "$TEST_TMPDIR/identity-plain.sh" 2>&1)
+assert_exit "plain identity block on a triangular checkout: an empty PR_NUMBER stops it" 1 "$?"
+assert_not_contains "plain identity block on a triangular checkout: no identity is printed" "$out" "PR_NUMBER="
+
+BASE_LINE=$(identity_block 2 | grep '^OWNER_REPO=')
 assert_eq "triangular flow: the reference names the base repository explicitly" \
   'OWNER_REPO="acme/app"   # the PR'"'"'s target, not the push destination' "$BASE_LINE"
 TRI_POLL="$TEST_TMPDIR/poll-triangular.sh"

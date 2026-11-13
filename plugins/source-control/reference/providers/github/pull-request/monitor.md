@@ -16,15 +16,20 @@ depends on the shell's directory:
 OWNER_REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
 OWNER=${OWNER_REPO%%/*} REPO=${OWNER_REPO#*/}
 PR_NUMBER=$(gh pr view "$(git -C "<checkout>" branch --show-current)" -R "$OWNER_REPO" --json number -q '.number' | tr -d '\r')
+[ -n "$PR_NUMBER" ] || exit 1
 ```
 
 On a triangular flow (the branch pushed to a fork, the PR opened on its upstream base), the base
 repository takes `target-repo.sh`'s place, named explicitly, since the script resolves the
-checkout to the fork, as in
+checkout to the fork, and the head is namespaced `<fork-owner>:<branch>`, as in
 [create's triangular flow](create.md#open-the-pr-from-an-out-of-tree-orchestrator):
 
 ```bash
+FORK=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
 OWNER_REPO="<base-owner>/<repo>"   # the PR's target, not the push destination
+OWNER=${OWNER_REPO%%/*} REPO=${OWNER_REPO#*/}
+PR_NUMBER=$(gh pr view "${FORK%%/*}:$(git -C "<checkout>" branch --show-current)" -R "$OWNER_REPO" --json number -q '.number' | tr -d '\r')
+[ -n "$PR_NUMBER" ] || exit 1
 ```
 
 The commands below write that repository as `<owner>/<repo>`: put the resolved value in its place.
