@@ -282,7 +282,8 @@ ambiguous.
 
 **Output order is fixed: position panel first, ticked checklist next, rails prompt last.** The panel
 is what the operator actually reads (engine doc, "Emit the position panel"), so it leads; the
-checklist is this skill's own audit trail and follows it; and the rails prompt closes the response.
+checklist is this skill's own audit trail and follows it; and the rails prompt closes the response
+(on the tracker short form, its two lines stand in for the rails prompt and close it instead).
 The rails resume prompt, the copy instruction, each region's dashed rails, and every below-the-rails
 `/loop` re-arm note, is the FINAL text of the response, with nothing after it. This order exists
 because the rails prompt is the deliverable the operator copies, and under heavy context a turn
