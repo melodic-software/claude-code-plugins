@@ -707,7 +707,7 @@ No behavior change.
 
 ### Changed
 
-- **The shared `hooks/hook-utils.sh` gained the optional `prerequisite` notice class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).** A `prerequisite` notice latches once per session and keeps its install route on renewal. `spelling` adopts it for the missing-`typos` notice only, in the next release. It ships no session-start probe, no `prerequisites.json` and no model-invocable check: its hook fires on every Write, Edit and NotebookEdit of any file, so the missing-binary branch is reached on the first edit. `biome-format` and `go-format` are gated by config or extension, and were the silent ones in #4240.
+- **The shared `hooks/hook-utils.sh` gained the optional `prerequisite` notice class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).** A `prerequisite` notice latches once per session and keeps its install route on renewal. `spelling` adopts it for the missing-`typos` notice only, in the next release. It ships no session-start probe, no `prerequisites.json` and no model-invocable check: its hook fires on every Write, Edit and NotebookEdit of any file, so the missing-binary branch is reached on the first edit. `javascript-format` and `go-format` are gated by config or extension, and were the silent ones in #4240.
 
 ## [0.7.4] - 2026-09-28
 
@@ -1065,7 +1065,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 
 - **`build_data_json` states why its fallback exists, matching its three sibling
   formatter hooks.** The sentence is taken from `bash-format.sh`, where it is
-  byte-identical to the `actionlint-check.sh` and `biome-format.sh` copies, with
+  byte-identical to the `actionlint-check.sh` and `javascript-format.sh` copies, with
   one deliberate word changed: the siblings say the fallback fires only if
   `jq -n` fails, while this hook's `build_data_json` uses `printf | jq -c`, so
   the sentence names `jq -c`. Copying it verbatim would have stated something

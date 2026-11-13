@@ -1719,7 +1719,7 @@ No behavior change.
 ### Changed
 
 - **Breaking:** renamed the plugin `bash-lint` → `bash-format`, aligning with the hook-plugin
-  `<tool>-format` verb family (`biome-format`, `python-format`, `powershell-format`). The hook
+  `<tool>-format` verb family (`javascript-format`, `python-format`, `powershell-format`). The hook
   mutates files via shfmt, which "lint" undersold. This is a hard break with no marketplace
   `renames` entry: uninstall `bash-lint` and run `/plugin install bash-format@<marketplace>`.
   Renamed with it: the hook script (`hooks/bash-format.sh`), the telemetry `hook` value

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "`claude plugin configure javascript-format@<marketplace> --values-stdin < values.json`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude plugin install javascript-format@m --config javascript_format_enabled=false",
+      "why": "an install rerun, not the configure flow"
+    },
+    {
+      "answer": "claude plugin configure javascript-format --values-stdin",
+      "why": "near miss: no marketplace"
+    },
+    {
+      "answer": "Run `/plugin configure javascript-format@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
+    }
+  ]
+}
