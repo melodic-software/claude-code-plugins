@@ -239,6 +239,11 @@ The tests retired with the statusline tee, and what holds their property now:
 The module and the StopFailure hook need no wiring. `/rate-limits:setup check` verifies the
 result.
 
+On a machine upgraded by hand from the plugin's earlier name, `check` reports the runtime
+directory left under that name as drift. Run `/rate-limits:setup apply` once no session runs the
+old plugin: it merges that directory's stop record into `~/.claude/rate-limits/stop-events.jsonl`,
+older records first, and removes the directory.
+
 - **Pointer**: for when an installed plugin loads into a session, read
   [plugin commands: /reload-plugins](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins).
 

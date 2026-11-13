@@ -521,7 +521,7 @@ All notable changes to the `rate-limits` plugin are documented here. Format foll
 
 ### Removed
 
-- **The statusline tee, the shim, the compose script, the bench and their tests.** The module does their job, so no status line wrapping, spool, unchanged-reading floor variable or async switch variable remains. `setup apply`, which installed the shim, is gone with it.
+- **The statusline tee, the shim, the compose script, the bench and their tests.** The module does their job, so no status line wrapping, spool, unchanged-reading floor variable or async switch variable remains. The setup action that installed the shim is gone with it.
 
 ### Upgrading
 
@@ -727,7 +727,7 @@ Run `/rate-limits:setup` after updating and follow the unwire steps it prints, s
   symlinked development checkout. The record is read with one builtin `read`, on a miss that finds
   a second live candidate only; a cache hit is unchanged (four stat tests, no fork), and a record the match cannot read ranks every
   candidate the same. With two marketplaces shipping this plugin, the one the record names now wins
-  a miss. Shim revision 5; re-run `/rate-limits:setup apply` to refresh the installed copy
+  a miss. Shim revision 5; re-run the setup skill's shim install to refresh the installed copy
   (#4676).
 
 ## [0.8.29] - 2026-09-27
@@ -801,7 +801,7 @@ Run `/rate-limits:setup` after updating and follow the unwire steps it prints, s
 - `statusline-shim.sh` rejects a cached path carrying a `.` or `..` segment. Without `dotglob` the resolving glob's `*` matches no leading dot, so such a path is one the glob could not have produced; a pair of them reaches above the cache root, and `..` also disarms the symlink check structurally, since a version directory spelled `<something>/..` is never itself a link. The write also skips a cache file that is already a symlink, rather than truncating through it.
 - Behavior the cache makes worse, accepted deliberately: installing this plugin from a second marketplace while an un-orphaned copy from the first is cached leaves the first resolved, because nothing orphans it and a cache hit never runs the cross-marketplace mtime comparison. The second takes over once the first is orphaned or pruned, or once the cache file is deleted, which the reader contract already says is safe. Re-globbing often enough to notice a second marketplace is the whole cost the cache exists to avoid, and no cheap invalidator distinguishes the case.
 - The setup skill's uninstall procedure names the cache file for an operator running a relocated `CLAUDE_CONFIG_DIR`, where it sits beside the relocated plugin cache rather than under `~/.claude/rate-limits/`.
-- **Operators should re-run `/rate-limits:setup apply`.** The installed copy at `bin/statusline-shim.sh` in the plugin's runtime directory is byte-identical to the shipped source by contract, so `setup check` reports it as drifted until it is refreshed. The stale copy keeps working; it just keeps globbing. The shim revision marker moves 3 to 4, and the `>= 3` capability ladder `setup check` reads is unchanged, because this revision adds cost savings rather than behavior.
+- **Operators should re-run the setup skill's shim install.** The installed copy at `bin/statusline-shim.sh` in the plugin's runtime directory is byte-identical to the shipped source by contract, so `setup check` reports it as drifted until it is refreshed. The stale copy keeps working; it just keeps globbing. The shim revision marker moves 3 to 4, and the `>= 3` capability ladder `setup check` reads is unchanged, because this revision adds cost savings rather than behavior.
 
 ## [0.8.21] - 2026-09-21
 
@@ -2225,7 +2225,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   wired-standalone shim prints one diagnostic line instead of leaving a blank bar.
   Pure Bash builtins, with no subprocess on the statusline path. Black-box test harness with 31
   assertions, including the two-shim chaining case and a relocated `CLAUDE_CONFIG_DIR`.
-- **`setup apply`**: the skill is no longer check-only. `apply` installs the shim (byte-identical
+- **A setup action that installs the shim**: the skill is no longer check-only. It installs the shim (byte-identical
   copy to `bin/statusline-shim.sh` in the plugin's runtime directory, idempotent, inert until the operator
   wires it) and writes nothing else; `settings.json` stays the operator's to edit.
 

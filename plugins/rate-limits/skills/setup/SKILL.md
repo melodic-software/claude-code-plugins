@@ -1,5 +1,5 @@
 ---
-description: "Verify the rate-limits plugin on this machine: node, whether its mod runs in this session, the snapshot file's freshness, the StopFailure hook, every option's effective value, and a directory left by the plugin's earlier name. Use when: 'set up rate-limits', 'is rate-limits working', the snapshot file is stale, a consuming loop lane reports guard mode unknown, or after a plugin update. Actions: check (read-only, default; prints every remediation and never edits settings, scripts or files), apply (on explicit request, moves only the directory left by the earlier plugin name into ~/.claude/rate-limits/)."
+description: "Verify the rate-limits plugin on this machine: node, whether its mod runs in this session, the snapshot file's freshness, the StopFailure hook, every option's effective value, and a directory left by the plugin's earlier name. Use when: 'set up rate-limits', 'is rate-limits working', the snapshot file is stale, a consuming loop lane reports guard mode unknown, or after a plugin update. Actions: check (read-only, default; prints every remediation and never edits settings, scripts or files), apply (on explicit request, migrates only the directory left by the earlier plugin name: merges its stop record into ~/.claude/rate-limits/stop-events.jsonl, old records first, and removes the directory)."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -31,8 +31,8 @@ row's probe via Bash instead.
 Narrow-write setup (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the
 marketplace repository): `check` inspects and reports PASS/FAIL/INFO with one remediation line per
 FAIL. The plugin owns its machine-scope runtime directory, `~/.claude/rate-limits/`; `apply` writes
-there only to finish the move of the directory the plugin kept under its earlier name, and writes
-nothing else. Every other surface is unwritable and handled the check-only way:
+there only to finish the migration of the directory the plugin kept under its earlier name, and
+writes nothing else. Every other surface is unwritable and handled the check-only way:
 
 - **Native `userConfig`**: eight options whose only stored home is the `pluginConfigs` setup must
   never write. Reconfigure through Claude Code's native flow, interactively with
@@ -175,27 +175,61 @@ line.
 6. **Directory left by the earlier name** (migration). Read the pre-computed leftover row.
    `(absent)` → PASS. Otherwise FAIL "drift: `~/.claude/rate-limit-guard/` is left from the
    plugin's earlier name" and list its entries. Lanes read the snapshot only at
-   `~/.claude/rate-limits/`, so a snapshot there is read by nothing. Remediation: `apply`, which
-   moves it (see "`apply`" below). A session still running the plugin under its earlier name
-   recreates the directory until it ends; a later `apply` finishes it.
+   `~/.claude/rate-limits/`, so a snapshot there is read by nothing. Change nothing here.
+   Remediation: `apply`, which merges its stop record and removes it (see "`apply`" below). A
+   session still running the plugin under its earlier name recreates the directory until it ends;
+   a later `apply` finishes it.
 
 ## `apply` (earlier-name directory only, on explicit request)
 
 Runs when `~/.claude/rate-limit-guard/` exists; otherwise report that there is nothing to move.
 Refuse, and change nothing, when either directory, or either `stop-events.jsonl`, is a symbolic
-link.
+link. Each step that stops keeps the old directory as it is and says why; a later `apply`
+finishes it.
 
-1. Create `~/.claude/rate-limits/` with mode 700 when it is absent.
-2. `stop-events.jsonl`, the record of past rate-limit stops: when
-   `~/.claude/rate-limits/stop-events.jsonl` is absent, move the old file there. When both exist,
-   append the old file's bytes to the end of the new one, keeping their line order (add a newline
-   first when the new file is non-empty and does not end in one), and never rewrite the new file:
-   the hook may be appending to it.
-3. Remove `~/.claude/rate-limit-guard/` once step 2 succeeded. Everything else in it is
-   regenerated: `rate-limits.json` is rewritten from the next API response, and the lock and
-   `*.tmp.*` files belong to writes that have ended. When step 2 failed, keep the directory and
-   say why.
-4. Report what moved or was appended, with the line counts, and what was removed.
+1. **A session still running the earlier name.** When any file in `~/.claude/rate-limit-guard/`
+   changed within the staleness window the reader contract's operable floor fixes (read it from
+   `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`), stop: that session's module rewrites
+   the snapshot there and would recreate the directory.
+2. **The status line.** When the `statusLine` command in effect (user, project and local
+   `settings.json`, the most specific scope that sets it) names a path under
+   `~/.claude/rate-limit-guard/`, stop and print that command for the operator; never edit a
+   settings file.
+3. **Known entries only.** List every entry of the old directory, recursively. These are known:
+   the snapshot `rate-limits.json`, `stop-events.jsonl`, any `*.lock` and any `*.tmp.*` file
+   (rewritten by the module and the hook), and what releases before the module left and nothing
+   reads now: `bin/statusline-shim.sh`, `spool/` and its files, `.statusline-tee-path`,
+   `.tee-disabled` and `.last-write`. When anything else is there, list it and stop: the
+   operator decides what it is.
+4. **The stop record.** No old `stop-events.jsonl` (a machine that never hit a rate-limit stop):
+   skip to step 5. Otherwise create `~/.claude/rate-limits/` with mode 700 when absent and run this
+   block, which holds the hook's own lock for the whole merge: the same `flock -w 2` on fd 9 over
+   `stop-events.jsonl.lock` that `hooks/record-rate-limit-stop.sh` and `hook::append_jsonl` in
+   `hooks/hook-utils.sh` take, and no lock where `flock` is missing, as the hook runs there. The
+   old records go first and the new file's after them, because the hook appends newest last and
+   its rotation keeps the last lines. The old file is renamed aside before the merged file
+   replaces the new one, so no later `apply` can merge it twice:
+
+   ```bash
+   old="$HOME/.claude/rate-limit-guard/stop-events.jsonl"
+   new="$HOME/.claude/rate-limits/stop-events.jsonl"
+   (
+     if command -v flock >/dev/null 2>&1; then flock -w 2 9 || exit 3; fi
+     umask 077
+     if [ ! -e "$new" ]; then mv -- "$old" "$new" || exit 1; exit 0; fi
+     tmp="$new.tmp.$BASHPID" aside="$old.merged.$BASHPID"
+     { cat -- "$old" && if [ -s "$old" ] && [ -n "$(tail -c 1 -- "$old")" ]; then printf '\n'; fi &&
+       cat -- "$new"; } >"$tmp" && mv -- "$old" "$aside" || { rm -f -- "$tmp"; exit 1; }
+     mv -f -- "$tmp" "$new" || { mv -- "$aside" "$old"; rm -f -- "$tmp"; exit 1; }
+     rm -f -- "$aside"
+   ) 9>"$HOME/.claude/rate-limits/stop-events.jsonl.lock"
+   ```
+
+   Exit 3: the lock stayed held for 2 seconds; stop. Any other non-zero exit: stop and say the
+   merge failed.
+5. **Remove the old directory.** Delete the known entries step 3 listed (the aside copy step 4
+   left included), then the emptied `bin/`, `spool/` and the directory itself. Report what moved
+   or merged, with the line counts, and what was removed.
 
 A second `apply` finds nothing to move and changes nothing; say so.
 
@@ -214,6 +248,6 @@ uninstall.
   Claude Code settings file.
 - Install `node`, update Claude Code, or install any system package.
 - Write or delete anything under `~/.claude/rate-limits/` beyond the `apply` migration's
-  `stop-events.jsonl` move or append. The module and the hook own `rate-limits.json` and
-  `stop-events.jsonl`. The migration's one removal is the earlier-name directory.
+  `stop-events.jsonl` move or merge. The module and the hook own `rate-limits.json` and
+  `stop-events.jsonl`. The migration removes only the earlier-name directory's known entries.
 - Edit the sibling `context-usage` plugin's files.
