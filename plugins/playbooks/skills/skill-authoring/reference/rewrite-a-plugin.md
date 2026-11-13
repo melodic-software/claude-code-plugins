@@ -66,8 +66,10 @@ passed.
    same on a broken copy as on the before version would pass any cut. For each changed part, copy
    the before plugin and degrade only that part: for a body cut, delete the skill's procedure steps
    and keep its frontmatter; for a description cut, give it a generic description and keep its
-   body. Run the degraded copy on one target model, compared against a before run launched together
-   with it. The suite detects a loss when the noise report calls a `case drop` or the mean case
+   body. A whole-page deletion is proven with a sensitivity control instead: replace the page with
+   a plausible but wrong version and keep every other file; every other cut keeps the negative
+   control. Run the degraded copy on one target model, compared against a before run launched
+   together with it. The suite detects a loss when the noise report calls a `case drop` or the mean case
    score falls by 0.15 or more (scores run 0 to 1). When it does neither, the part is unmeasurable.
    Merge each version's per-case result files into one file before the compare: the noise report
    calls no `case drop` when fewer than 3 cases are scored in both results. A guard that denies

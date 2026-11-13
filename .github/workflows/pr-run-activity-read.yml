@@ -152,13 +152,13 @@ on:
         default: pr-base
       head-sha:
         description: >-
-          The PR head the caller gated in a job that ran no head code (pr-unblock's
-          fix-ci-context, fix-docs-head, address-feedback-select,
-          review-dependency-select or resolve-conflicts-select). The run job fails before the head
-          checkout when the head its trigger gate read is another. The report
-          job posts the check on it or the event's PR head; a run job head-sha
-          that is neither, or any run head when neither is set, posts failure
-          on the trusted head instead.
+          The PR head the caller gated in a job that ran no head code
+          (pr-unblock's fix-ci-context, fix-docs-head, address-feedback-select,
+          review-dependency-select or resolve-conflicts-select). The run job fails
+          before the head checkout when the head its trigger gate read is another.
+          The report job posts the check on it or the event's PR head; a run job
+          head-sha that is neither, or any run head when neither is set, posts
+          failure on the trusted head instead.
         required: false
         type: string
         default: ""
@@ -454,9 +454,10 @@ jobs:
   # skips the run job and every job after it but report, which posts the
   # check neutral on a pull_request run. A start-gate stop on a low
   # GITHUB_TOKEN budget ends green the same way, with skip-reason budget, and
-  # report posts the same neutral kill-switch check. Any other broker answer but an allow, or none, fails this
-  # job, which skips the run job and fails the check. issues: write is for the issue
-  # lease alone, posted before any model turn (CONTRACT.md "Lease protocol").
+  # report posts the same neutral kill-switch check. Any other broker answer
+  # but an allow, or none, fails this job, which skips the run job and fails
+  # the check. issues: write is for the issue lease alone, posted before any
+  # model turn (CONTRACT.md "Lease protocol").
   broker-check:
     name: Broker Check
     if: >-
@@ -536,7 +537,7 @@ jobs:
       - name: Install resolve-config's packages
         if: inputs.issue-number != '' && (inputs.fallback == '' || inputs.fallback == 'credit-stop')
         timeout-minutes: 5
-        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       - name: Check the kill switch
         id: kill
@@ -848,8 +849,8 @@ jobs:
         run: |
           # Issue mode runs only on the issues event that names that issue,
           # trusting the default branch tip, with none of the PR inputs and
-          # a fallback only as handoff, credit-stop or fallback; the config step below holds it to
-          # patch mode.
+          # a fallback only as handoff, credit-stop or fallback; a later
+          # assert step holds it to patch mode.
           if [ -n "$ISSUE_NUMBER" ] || [ "$EVENT_NAME" = issues ]; then
             if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || [ "$EVENT_NAME" != issues ] ||
               [ "$ISSUE_NUMBER" != "$EVENT_ISSUE" ] || [ "$TRUSTED_BASE" != default-tip ] ||
@@ -962,7 +963,8 @@ jobs:
           run-dispatcher-upstreams: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}
           # Or a listed human's review comment, relayed (ADR 0088).
           run-dispatcher-relay: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-comment-relay.yml' || '' }}
-          # A dispatcher sends pr-refine.yml for the pr-refine lane, pr-unblock.yml otherwise.
+          # A dispatcher sends pr-refine.yml for the pr-refine lane,
+          # pr-unblock.yml otherwise.
           dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
           # Issue mode reads no PR: the account that set the field, and any
           # re-runner, must be listed as a human; the lanes App passes only by
@@ -1245,11 +1247,11 @@ jobs:
           LEASE: ${{ needs.broker-check.outputs.lease }}
           BLOCKED: ${{ needs.broker-check.outputs.blocked }}
         run: |
+          run=true
           if [ "$PRIOR" = false ] || [ "$STALE" = true ] || [ "$LEASE" = already-leased ] || [ "$BLOCKED" = true ]; then
-            echo "run=false" >>"$GITHUB_OUTPUT"
-          else
-            echo "run=true" >>"$GITHUB_OUTPUT"
+            run=false
           fi
+          echo "run=$run" >>"$GITHUB_OUTPUT"
 
       # ci-context, before the head checkout: the context file a base job of
       # this workflow run wrote, downloaded by its attempt. A missing artifact
@@ -1439,7 +1441,8 @@ jobs:
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
           CONFIG_PATH: ${{ inputs.config-path }}
         run: |
-          # The issue lane's web hosts as admission reads them (resolve-config issueLaneWebHostsFromBase).
+          # The issue lane's web hosts as admission reads them
+          # (resolve-config issueLaneWebHostsFromBase).
           ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' ".base/$CONFIG_PATH")
           export ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/work-resolve-issue/write-issue.mjs
@@ -1492,14 +1495,13 @@ jobs:
           SEAL_DIR: ${{ runner.temp }}/seal-lane-output
         run: |
           mkdir -p "$DEST" "$SEAL_DIR"
-          cp .base/.github/scripts/read-patch/collect-patch.sh .base/.github/scripts/read-patch/check-permission-mode.sh "$DEST/"
-          cp .base/lib/publish-gate.mjs "$DEST/"
+          cp .base/.github/scripts/read-patch/collect-patch.sh .base/.github/scripts/read-patch/check-permission-mode.sh .base/lib/publish-gate.mjs "$DEST/"
           cp .base/.github/actions/seal-lane-output/action.yml .base/.github/actions/seal-lane-output/seal.mjs \
             .base/.github/lane-keys/scan-carrier.pub "$SEAL_DIR/"
 
       # The act-turns step's script, copied before the head checkout replaces
       # .base, with its SHA-256, which that step checks its copy against
-      # before it loads it. The same step runs in pr-run-activity-write.yml.
+      # before it loads it.
       - name: Copy the act-turns script from the base
         id: act-turns-bin
         if: always() && steps.go.outputs.run == 'true'
@@ -1805,9 +1807,9 @@ jobs:
           max-turns: ${{ steps.config.outputs.max-turns }}
           # dontAsk unless the activity sets permission-mode: auto.
           permission-mode: ${{ steps.config.outputs.permission-mode }}
-          # Sandbox off (melodic-software/ci-workflows#1060): a ci-context skill gets bare Bash
-          # (collect-base-activity) and may run npm ci or a test suite that
-          # reaches hosts beyond GitHub.
+          # Sandbox off (melodic-software/ci-workflows#1060): a ci-context
+          # skill gets bare Bash (collect-base-activity) and may run npm ci or
+          # a test suite that reaches hosts beyond GitHub.
           sandbox: "false"
           tools: ${{ steps.stage.outputs.tools }}
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
@@ -1865,9 +1867,9 @@ jobs:
           effort: ${{ steps.config.outputs.effort }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           permission-mode: ${{ steps.config.outputs.permission-mode }}
-          # Sandbox off (melodic-software/ci-workflows#1060): a ci-context skill gets bare Bash
-          # (collect-base-activity) and may run npm ci or a test suite that
-          # reaches hosts beyond GitHub.
+          # Sandbox off (melodic-software/ci-workflows#1060): a ci-context
+          # skill gets bare Bash (collect-base-activity) and may run npm ci or
+          # a test suite that reaches hosts beyond GitHub.
           sandbox: "false"
           tools: ${{ steps.stage.outputs.tools }}
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
@@ -1915,9 +1917,9 @@ jobs:
           effort: ${{ steps.config.outputs.effort }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           permission-mode: ${{ steps.config.outputs.permission-mode }}
-          # Sandbox off (melodic-software/ci-workflows#1060): a ci-context skill gets bare Bash
-          # (collect-base-activity) and may run npm ci or a test suite that
-          # reaches hosts beyond GitHub.
+          # Sandbox off (melodic-software/ci-workflows#1060): a ci-context
+          # skill gets bare Bash (collect-base-activity) and may run npm ci or
+          # a test suite that reaches hosts beyond GitHub.
           sandbox: "false"
           tools: ${{ steps.stage.outputs.tools }}
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
@@ -1995,9 +1997,7 @@ jobs:
 
       # A slash command whose expansion fails, such as a skill pre-compute line
       # the permission mode denies, ends with a `success` result and no model
-      # turn, so the act did nothing. This fails it and records why. The same
-      # step runs in pr-run-activity-write.yml, which also cuts its lane token
-      # out of the recorded text.
+      # turn, so the act did nothing. This fails it and records why.
       - name: Check the skill took a model turn
         id: act-turns
         if: >-
@@ -2100,8 +2100,7 @@ jobs:
           step-timeout-minutes: ${{ steps.launch.outputs.step-minutes }}
           # run-claude-cli names its credential only once its leg runs, so a
           # leg that failed before it (a CLI install, class install-failed)
-          # names the secret the call was given, as the write workflow's
-          # credential step does; without a name no record is written.
+          # names the secret the call was given; without a name no record is written.
           credential: >-
             ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential || steps.act-fallback.outputs.credential
             || steps.act-key.outcome == 'failure' && steps.launch.outputs.key-name
