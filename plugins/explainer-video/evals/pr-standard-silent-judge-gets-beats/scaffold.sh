@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# A finished silent delivery render with its beat plan, in a repository that sets no verification
-# level for the explainer-video plugin, so the level is standard.
+# A finished silent delivery render with its beat plan, in a repository whose default branch sets
+# verification: standard for the explainer-video plugin.
 set -euo pipefail
 
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-mkdir -p video/final/frames
+mkdir -p video/final/frames docs/conventions
 printf '.work/\n' >.gitignore
+printf 'verification: standard\n' >docs/conventions/explainer-video.yaml
 printf '%s\n' 'One white square.' 'A two-by-two grid of four squares.' 'A three-by-three grid of nine squares.' >video/beats.txt
 cat >video/scene.py <<'PY'
 from manim import WHITE, FadeIn, Scene, Square, VGroup

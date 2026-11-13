@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Charting the notification overhaul. Survey first, then the fog test on each uncertainty.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Working the first frontier item of the open notifications map: claiming it now.",
+      "why": "breaks the rule"
+    }
+  ]
+}

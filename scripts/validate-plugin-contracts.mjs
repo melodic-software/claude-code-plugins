@@ -1603,7 +1603,74 @@ for (const path of pluginFiles) {
   }
 }
 
+// A docs-page pointer in a skill or agent file links the section it rests on;
+// an upstream issue or a probe needs no anchor (DOCS_ANCHOR_RULE). A docs page
+// is a docs.* host, or a host whose path opens with /docs/. A Google Docs
+// document or a PDF has no section to link, a URL that opens a code span is a
+// command or fetch target, not a pointer, and files under evals/, fixtures/ or
+// vendor/ are test data or upstream text, so none of them counts. Trailing
+// sentence punctuation is not part of the URL. Advisory: a hit prints an
+// `advisory:` line, which
+// scripts/validate-plugins.sh does not fail on as it does a warning. The
+// baseline holds each file's count of lines with such a link; a file over its
+// row prints every link it has, and a row above the file's count fails as
+// stale, so the baseline only shrinks.
+const DOCS_ANCHOR_RULE = ".claude/rules/skill-bodies-state-current-rules.md";
+const DOCS_ANCHOR_BASELINE = "scripts/docs-anchor-baseline.txt";
+const DOCS_ANCHOR_SKIPPED_DIRS = new Set(["evals", "fixtures", "vendor"]);
+const ANCHORLESS_DOCS_LINK =
+  /(?<!`)https?:\/\/(?:docs\.(?!google\.com\/)[A-Za-z0-9.-]+|[A-Za-z0-9.-]+\/docs)\/[^\s<>()[\]{}"'`#|*]*[^\s<>()[\]{}"'`#|*.,;:!?](?=[.,;:!?]*(?:[\s)>\]"'`|*]|$))/g;
+const advisories = [];
+
+const docsAnchorBaseline = new Map();
+const docsAnchorBaselinePath = join(root, DOCS_ANCHOR_BASELINE);
+if (existsSync(docsAnchorBaselinePath)) {
+  for (const raw of read(docsAnchorBaselinePath).split(/\r?\n/)) {
+    const row = raw.replace(/(?:^|\s+)#.*$/, "").trim();
+    if (!row) continue;
+    const match = /^(\S+)\s+([1-9][0-9]*)$/.exec(row);
+    if (!match) failures.push(`${DOCS_ANCHOR_BASELINE}: malformed row, want \`<path> <count>\`: ${raw}`);
+    else docsAnchorBaseline.set(match[1], Number(match[2]));
+  }
+}
+
+const docsAnchorCounts = new Map();
+for (const path of pluginFiles) {
+  const parts = pluginPathParts(path);
+  if (parts.length < 3 || (parts[1] !== "skills" && parts[1] !== "agents") || !path.endsWith(".md")) continue;
+  if (parts.slice(2, -1).some((part) => DOCS_ANCHOR_SKIPPED_DIRS.has(part))) continue;
+  const rel = relative(root, path).split(sep).join("/");
+  const hits = [];
+  read(path)
+    .split(/\r?\n/)
+    .forEach((line, index) => {
+      for (const [url] of line.matchAll(ANCHORLESS_DOCS_LINK)) {
+        if (!/\.pdf$/i.test(url)) hits.push({ line: index + 1, url });
+      }
+    });
+  const count = new Set(hits.map((hit) => hit.line)).size;
+  if (count === 0) continue;
+  docsAnchorCounts.set(rel, count);
+  if (count <= (docsAnchorBaseline.get(rel) ?? 0)) continue;
+  for (const { line, url } of hits) {
+    advisories.push(
+      `${rel}:${line}: docs-page link ${url} has no section anchor; link the section the pointer rests on (${url}#<section>), per ${DOCS_ANCHOR_RULE}`,
+    );
+  }
+}
+for (const [rel, allowed] of docsAnchorBaseline) {
+  const count = docsAnchorCounts.get(rel) ?? 0;
+  if (count === 0) {
+    failures.push(`${DOCS_ANCHOR_BASELINE}: stale row for ${rel}: it has no anchorless docs-page link now; remove the row`);
+  } else if (count < allowed) {
+    failures.push(
+      `${DOCS_ANCHOR_BASELINE}: stale row for ${rel}: ${count} line(s) carry an anchorless docs-page link, not ${allowed}; lower the row to ${count}`,
+    );
+  }
+}
+
 for (const warning of warnings) console.error(`warning: ${warning}`);
+for (const advisory of advisories) console.error(`advisory: ${advisory}`);
 
 if (failures.length > 0) {
   console.error("Plugin contract validation failed:");

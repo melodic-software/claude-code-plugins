@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Resolution: Knock sandbox account 'acme-sandbox'; API key 'knock-sandbox-key' stored in the team vault.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolution: done.",
+      "why": "breaks the rule"
+    }
+  ]
+}

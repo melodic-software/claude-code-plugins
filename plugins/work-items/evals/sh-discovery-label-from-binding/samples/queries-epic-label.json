@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Fallback discovery queries open items with the label `epic` (from `config.container_label`), not work-map.",
+      "answer": "Fallback discovery queries open items with the label `epic` (from `config.container_label`), not spec-container.",
       "why": "label named with markdown"
     },
     {
@@ -11,7 +11,7 @@
   ],
   "fail": [
     {
-      "answer": "Fallback discovery queries open items with the label `work-map`.",
+      "answer": "Fallback discovery queries open items with the label `spec-container`.",
       "why": "near miss: hard-coded default label"
     },
     {

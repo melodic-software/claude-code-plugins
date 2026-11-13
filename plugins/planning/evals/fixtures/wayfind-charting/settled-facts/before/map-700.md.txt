@@ -1,0 +1,26 @@
+# #700 Map: invoice export
+
+URL: https://example.com/acme/shop/issues/700. State: open. Labels: wayfind: map.
+
+## Destination
+
+A PRD for invoice export.
+
+## Notes
+
+- Export files are CSV with a header row: the downstream ERP requires it.
+- The largest customer has about 4 million invoice lines a month.
+- Glossary: "statement" means one monthly export for one customer.
+
+## Decisions-so-far
+
+- [Settled in the interview](https://example.com/acme/shop/issues/701): exports run nightly at
+  02:00 UTC (resolved 2026-11-10)
+
+## Not-yet-specified
+
+Something about very large customers' exports feels unsettled.
+
+## Out-of-scope
+
+- Real-time export.

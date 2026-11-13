@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.47] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.2.3] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [0.6.46] - 2026-11-13
 
 ### Changed
@@ -764,7 +770,7 @@ No behavior change.
   rationale attached to it. `-y` skips only `uninstall`'s `--prune` confirmation; the recipe never
   passes `--prune`, so the flag changed nothing and the claimed CI hang could not occur. Completes
   the same correction 0.21.2/0.17.2/0.3.1 landed for `claude-ops`, `session-flow`, and
-  `rate-limit-guard`.
+  `rate-limits`.
 
 ## [0.2.2]
 

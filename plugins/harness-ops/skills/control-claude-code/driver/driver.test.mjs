@@ -80,10 +80,95 @@ test('a ttl that is not a whole number of seconds is refused before any install'
   });
 });
 
-test('an unknown verb is a usage error naming the verbs', async () => {
+test('an unknown verb is a usage error naming the verbs and where to read what each does', async () => {
   await assert.rejects(main(['dance']), {
     code: 2,
-    message: 'verbs: launch, wait-for, type, screenshot, record, stop, doctor, ready, log, plugins',
+    message: 'verbs: launch, wait-for, type, screenshot, record, stop, doctor, ready, log, plugins; node driver.mjs --help says what each does',
+  });
+});
+
+test('an unknown flag is a usage error that points to --help', async () => {
+  await assert.rejects(main(['stop', '--force']), { code: 2, message: /; node driver\.mjs --help lists the verbs and their flags$/ });
+});
+
+/** Runs main with console.log captured, resolving with its status and the lines it printed. */
+async function printed(args) {
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(String(line));
+  try {
+    return { status: await main(args), text: lines.join('\n') };
+  } finally {
+    console.log = log;
+  }
+}
+
+test('--help lists every verb in one line each and exits 0', async () => {
+  const { status, text } = await printed(['--help']);
+  assert.equal(status, 0);
+  for (const verb of Object.keys(driver.HELP)) assert.match(text, new RegExp(`^  ${verb} +\\S`, 'm'), `${verb} is listed`);
+  assert.ok(!text.includes('--plugin-dir'), 'the verb list leaves each verb\'s flags to <verb> --help');
+  assert.match(text, /<verb> --help/);
+});
+
+test('--help on a verb the driver does not have is the unknown-verb usage error', async () => {
+  for (const verb of ['dance', 'constructor']) await assert.rejects(main([verb, '--help']), { code: 2, message: /^verbs: launch, / });
+});
+
+test('<verb> --help prints that verb\'s flags, with --dry-run only on a verb that writes or sends', async () => {
+  const launch = await printed(['launch', '--help']);
+  assert.equal(launch.status, 0);
+  assert.match(launch.text, /^node driver\.mjs launch --plugin-dir <dir> .*\[--dry-run\]$/m);
+  const doctor = await printed(['doctor', '--help']);
+  assert.match(doctor.text, /^node driver\.mjs doctor \[--deps-dir <dir>\]$/m);
+  for (const [verb, { writes }] of Object.entries(driver.HELP)) {
+    assert.equal((await printed([verb, '--help'])).text.includes('[--dry-run]'), Boolean(writes), verb);
+  }
+});
+
+test('--dry-run on a session verb prints the request and sends nothing, with no session running', async () => {
+  const s = session();
+  const type = await printed(['type', 'hi', '--key', 'Enter', '--session', s, '--dry-run']);
+  assert.equal(type.status, 0);
+  assert.equal(type.text, `dry run: would send 'type' to session '${s}' with {"text":"hi","keys":["Enter"]}; sent nothing`);
+  const shot = await printed(['screenshot', 'shot.png', '--session', s, '--dry-run']);
+  assert.match(shot.text, new RegExp(`would send 'screenshot' to session '${s}' with \\{"path":".*shot\\.png"\\}; sent nothing$`));
+  assert.equal((await printed(['record', 'stop', '--session', s, '--dry-run'])).text, `dry run: would send 'record-stop' to session '${s}'; sent nothing`);
+  assert.equal((await printed(['stop', '--session', s, '--dry-run'])).text, `dry run: would send 'stop' to session '${s}'; sent nothing`);
+  await assert.rejects(main(['type', '--session', s, '--dry-run']), { code: 2, message: 'type needs <text> or --key <Name>' });
+});
+
+test('launch --dry-run prints the claude command line and reserves no session', async () => {
+  const s = session();
+  const plugin = mkdtempSync(join(tmpdir(), 'ccd-dry-'));
+  try {
+    const { status, text } = await printed(['launch', '--plugin-dir', plugin, '--session', s, '--dry-run']);
+    assert.equal(status, 0);
+    assert.equal(text, `dry run: would launch session '${s}' running claude --restricted --strict-mcp-config --plugin-dir ${plugin}; started nothing`);
+    assert.ok(!existsSync(join(RUNTIME, 'ccd', `${s}.lock`)), 'no lock file');
+    await assert.rejects(main(['launch', '--plugin-dir', plugin, '--ttl', 'soon', '--dry-run']), { code: 2 });
+  } finally {
+    rmSync(plugin, { recursive: true, force: true });
+  }
+});
+
+test('log --dry-run prints the print-mode command line and writes no --out file', async () => {
+  const plugin = mkdtempSync(join(tmpdir(), 'ccd-dry-'));
+  const out = join(plugin, 'run.jsonl');
+  try {
+    const { status, text } = await printed(['log', 'say ok', '--plugin-dir', plugin, '--out', out, '--dry-run']);
+    assert.equal(status, 0);
+    assert.match(text, /^dry run: would run claude --restricted --strict-mcp-config --plugin-dir \S+ -p .* say ok and write its stream-json to \S+run\.jsonl; ran nothing$/);
+    assert.ok(!existsSync(out));
+  } finally {
+    rmSync(plugin, { recursive: true, force: true });
+  }
+});
+
+test('--dry-run on a verb that only reads is refused with what to do instead', async () => {
+  await assert.rejects(main(['doctor', '--dry-run']), {
+    code: 2,
+    message: 'doctor writes and sends nothing, so it takes no --dry-run; run it without that flag',
   });
 });
 

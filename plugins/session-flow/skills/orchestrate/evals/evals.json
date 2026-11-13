@@ -52,7 +52,7 @@
     {
       "id": 5,
       "name": "does-not-orchestrate-itself",
-      "prompt": "orchestration brief for refactoring the payment module, and go ahead and spawn the workers and start the verification pass for me.",
+      "prompt": "orchestration brief for refactoring the payment module, and go ahead and spawn the workers and start the verification pass for me. [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "The skill arms the session (or emits the brief) but does NOT itself delegate, spawn subagents, run a verification pass, or nest agents — it loads standing instructions / emits instruction text only. The actual orchestration happens later as the primed session evaluates the triggers.",
       "files": [],
       "expectations": [
@@ -91,7 +91,7 @@
     {
       "id": 8,
       "name": "verification-scoped-to-shipped-artifacts-not-process-records",
-      "prompt": "We're already primed with the orchestration imperatives. This session just finished two batches: (a) edits to three skill files that ship to plugin consumers, and (b) updates to our campaign ledger, status checklist, and adoption log in the working notes. I also have the verifier's verdict written up as a verification record. What verification does each get?",
+      "prompt": "We're already primed with the orchestration imperatives. This session just finished two batches: (a) edits to three skill files that ship to plugin consumers, and (b) updates to our campaign ledger, status checklist, and adoption log in the working notes. I also have the verifier's verdict written up as a verification record. What verification does each get? [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "This is a follow-up to an ALREADY-primed session, so a substantive answer is in contract. Imperative 3's scope clause governs: the shipped skill-file batch is what a consumer receives, so it gets the fresh-context verifier with binary criteria (different-vendor advisor when set up and able, fresh same-vendor verifier as fallback). The ledger/checklist/adoption-log batch is process records about the work — it gets no verifier regardless of touching three files, and no independent verifier is spawned for it. The verification record itself is never verified: a record OF a verification is downstream of an already-verified artifact, and verifying it starts the self-feeding loop the clause exists to prevent — re-verify the artifact or verify nothing.",
       "files": [],
       "expectations": [
@@ -190,7 +190,7 @@
     {
       "id": 16,
       "name": "orchestrate-liveness-read-only-exempt",
-      "prompt": "We're primed with the orchestration imperatives. A fresh-context verifier has been checking the warehouse migration for 40 minutes. It has written no files and made no commits. Is it stuck?",
+      "prompt": "We're primed with the orchestration imperatives. A fresh-context verifier has been checking the warehouse migration for 40 minutes. It has written no files and made no commits. Is it stuck? [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "The liveness rule covers workers that write, never read-only workers such as a verifier, so the absence of commits or written files is not evidence that the verifier is stuck. The orchestrator does not stop or respawn it on that basis.",
       "files": [],
       "expectations": [

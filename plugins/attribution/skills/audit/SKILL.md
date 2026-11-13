@@ -154,7 +154,7 @@ external source owns, is model work against [`reference/rubric.md`](reference/ru
    **The verification level** governs the review pass, the refutation pass and fix mode's
    semantic-diff check, not the judges. Resolve it once before step 8 with
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin attribution --skill audit` and
-   report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). This skill's `allowed-tools` does not grant the reader, so the call may prompt; a refused or denied call resolves `standard`.
+   report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)). This skill's `allowed-tools` does not grant the reader, so the call may prompt; a refused or denied call resolves `light`.
    `strict` runs the review pass even when `accuracy.review_agents` is 0, with one agent. Under
    `light`, and `off`, which acts as `light` here, dispatch neither pass and never grade a
    verdict yourself in its place: each finding that would have taken one carries

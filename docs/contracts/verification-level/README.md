@@ -21,8 +21,8 @@ verification_skills:
 | Level | What an adopting skill does |
 |---|---|
 | `off` | everything `light` does, and also skips the skill's own real-check steps that its text names as `off`-skippable |
-| `light` | skips the verifier dispatch and writes `verification: skipped (light)` where the verdict would go; it never checks inline in its place |
-| `standard` | the default: today's behavior |
+| `light` | the default: skips the verifier dispatch and writes `verification: skipped (light)` where the verdict would go; it never checks inline in its place |
+| `standard` | runs the verifier dispatches the skill's text describes, its optional passes left optional |
 | `strict` | always runs the verifier passes that are optional today, such as a carve-out for mechanical, behavior-preserving changes |
 
 Where the verifier is the product (a scan whose findings are the verifier's output), `light`
@@ -34,7 +34,9 @@ emits the results labeled unverified instead of skipping them.
 (source `lib/read-verification.sh`), resolves the level and always prints one line, for example
 `verification: light (docs/conventions/implementation.yaml verification at origin/main, commit <sha>)`.
 
-- `verification_skills.<skill>` wins; otherwise `verification`; otherwise `standard`.
+- `verification_skills.<skill>` wins; otherwise `verification`; otherwise `light`.
+- To raise the level, set `verification: standard` (or `strict`) in the team file on the default
+  branch, or `verification_skills.<skill>` for one skill.
 - A plugin whose team file sits at a fixed path whatever the convention home passes it with
   `--file <path>`, and the convention home is not read: `bugs`, `testing`, `mutation-testing` and
   `work-items` pass `--file docs/conventions/<plugin>.yaml`. Without `--file` the file is `<home>/<plugin>.yaml`.
@@ -45,10 +47,12 @@ emits the results labeled unverified instead of skipping them.
   copy gives another level, a second line names both copies.
 - The root rule of `lib/config-root.sh classify` comes first: a `$HOME` or non-repository root
   skips the layer. So do no `origin`, a default branch name outside letters, digits, `.`, `_`, `/`
-  and `-` (or one with a leading `-` or `..`), and an unfetched default branch. Each skip resolves
-  `standard` with its reason.
-- An invalid value, at either key, is named and resolves `standard`, as does a file that does not
-  parse. A failed fetch reads the last fetched copy and says it may be stale.
+  and `-` (or one with a leading `-` or `..`), an unfetched default branch, and a broken
+  convention-home pointer. Each skip resolves `light` with its reason, as do no file and a file
+  that sets no level.
+- An invalid value at either key (not `off`, `light`, `standard` or `strict`, or a list or map),
+  and a file that does not parse, are named and resolve `standard`: a team that set a level keeps
+  a floor through a typo. A failed fetch reads the last fetched copy and says it may be stale.
 
 ## Interactions with other settings
 
@@ -59,9 +63,9 @@ emits the results labeled unverified instead of skipping them.
 - **`pre_ready`** (source-control) decides whether the ready flow's verify step runs;
   `verification` decides only what happens inside it.
 - **The PR-prep gate.** When PR prep calls `/verification:confirm`, a `NOT VERIFIED` whose only
-  cause is `verification: skipped (<level>)`, from a level the default branch set, does not block
-  PR creation: the report names it and the PR body carries the skipped line. A level that turns
-  verification down never becomes a new blocker. Any other `NOT VERIFIED` cause still blocks, and
+  cause is `verification: skipped (<level>)`, from the level resolved at the default branch (a set
+  key or the default), does not block PR creation: the report names it and the PR body carries the
+  skipped line. A level that turns verification down never becomes a new blocker. Any other `NOT VERIFIED` cause still blocks, and
   Stage 1's mechanical checks still run and gate under `light` and, in `/verification:confirm`,
   under `off`.
 

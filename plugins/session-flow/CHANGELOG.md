@@ -1,5 +1,18 @@
 # Changelog: session-flow plugin
 
+## [8.0.0] - 2026-11-13
+
+### Changed
+
+- **Breaking:** the `verification` level now defaults to `light` when the default branch sets no `verification` key or cannot be read: verifier dispatches are skipped and the skip line is written. An invalid value or a team file that does not parse still resolves `standard`, naming the error. Set `verification: standard` (or `strict`), or `verification_skills.<skill>`, in the team file on the default branch to raise it.
+
+## [7.11.1] - 2026-11-13
+
+### Changed
+
+- References to the rate-limit windows plugin use its new name, rate-limits: the `rate-limits@melodic-software` id, the `/rate-limits:setup` command, the `mcp__rate-limits__status` tool and the `~/.claude/rate-limits/` directory.
+- Corrected in place: the released entries [0.48.7], [0.34.14], [0.23.7] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [7.11.0] - 2026-11-13
 
 ### Added
@@ -1380,7 +1393,7 @@
 
 ### Changed
 
-- **Rate-limit and zone lookups name the guards' pull tools.** `/session-flow:orchestrate` names rate-limit-guard's mod as the snapshot writer and `mcp__rate-limit-guard__status` as a source; headroom counts as unobservable whenever no live reading is obtainable (mods off, the guard not installed, the tool's registration refused by policy, or a tool answer with no windows), no longer in every cloud or headless session. `/session-flow:workflow` and `/session-flow:keep-going` look up the zone word with `mcp__context-usage__status` or the snapshot, and `/session-flow:keep-going` reads live `rate_limits` through `mcp__rate-limit-guard__status`.
+- **Rate-limit and zone lookups name the guards' pull tools.** `/session-flow:orchestrate` names rate-limits's mod as the snapshot writer and `mcp__rate-limits__status` as a source; headroom counts as unobservable whenever no live reading is obtainable (mods off, the guard not installed, the tool's registration refused by policy, or a tool answer with no windows), no longer in every cloud or headless session. `/session-flow:workflow` and `/session-flow:keep-going` look up the zone word with `mcp__context-usage__status` or the snapshot, and `/session-flow:keep-going` reads live `rate_limits` through `mcp__rate-limits__status`.
 
 ## [0.48.6] - 2026-10-04
 
@@ -2445,7 +2458,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   The directive had fractured under the same per-plugin de-slop campaign;
   `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
   sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
-  two, `context-usage` and `rate-limit-guard`, state it about their own scripts in their own words
+  two, `context-usage` and `rate-limits`, state it about their own scripts in their own words
   and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
   extract-ssot sweep.
 
@@ -3126,7 +3139,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
 ### Changed
 
 - **`orchestrate`: cloud / unobservable rate-limit headroom fallback.** Imperative 7 now treats a
-  missing/stale/`rate_limits`-less `rate-limit-guard` tee (the expected cloud / remote state) as
+  missing/stale/`rate_limits`-less `rate-limits` tee (the expected cloud / remote state) as
   thin headroom by default: small concurrent-worker cap, short waves, scale only on own-session
   rate-limit errors or live sibling-automation 429s. Never invent window percentages. Gotchas and
   sources cite the reader contract's degraded-mode section; the live cloud statusline producer

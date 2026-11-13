@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.30] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.20.33], [0.9.4] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [1.0.29] - 2026-11-13
 
 ### Changed
@@ -1876,7 +1882,7 @@ This version was never released on its own: its change shipped in 0.28.6, togeth
   The directive had fractured under the same per-plugin de-slop campaign;
   `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
   sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
-  two, `context-usage` and `rate-limit-guard`, state it about their own scripts in their own words
+  two, `context-usage` and `rate-limits`, state it about their own scripts in their own words
   and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
   extract-ssot sweep.
 
@@ -3192,7 +3198,7 @@ mechanical completion of the byte-qualification vertical slice. Findings 1 and 5
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
   `-s <scope>`, sourced from what `claude plugin list` reports for this plugin, the same fix
-  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  already applied to `session-flow` and `rate-limits` in #1393.
 
 ## [0.9.3]
 

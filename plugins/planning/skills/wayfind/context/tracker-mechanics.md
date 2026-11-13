@@ -20,46 +20,19 @@ that this tracker cannot hold a map.
 Every link written into a map body, item body or comment is an absolute URL (an item's web URL,
 not a qualified ID or a bare `#<n>`).
 
-## Resolve the container label (once per session, before any map read or write)
-
-The map marker is the **container label** the work-item tracker seam defines, the same
-`config.container_label` binding key, same shipped default (`work-items` CONTRACT.md,
-"Containers and state"). Resolving it here instead of hardcoding `work-map` keeps wayfind
-maps and decompose containers on ONE marker: a repo that remaps the label would otherwise
-strand wayfind maps on the old string, where the seam's frontier exclusion no longer
-matches them and `/work-items:work-loop` would surface a map as a claimable item.
-
-SKILL.md's pre-computed context already holds the result. To re-run it, from the repository root:
-
-```shell
-bash "<plugin-root>/skills/wayfind/scripts/container-label.sh"
-```
-
-`<plugin-root>` is this plugin's root directory. The script reads
-`tracker.config.container_label` from `<home>/work-items.yaml`, `<home>` being the convention home
-the pointer region binds (`docs/conventions` when the repository binds none). It reads the file the
-way the seam's binding reader does, with this plugin's copies of the convention-home resolver and
-the YAML subset parser. An absent or empty key prints the shipped default `work-map`. It prints one
-`ERROR:` line and exits 1 for a broken pointer, a file the parser rejects, a non-string value (a
-mapping or a sequence) or a label holding a quote or control character, since the label is copied
-into single-quoted action arguments.
-
-`<container-label>` below is that value; prose that says `work-map` means the shipped default.
-On an `ERROR:` line, stop and report instead of creating anything.
-
 ## Find open maps
 
-`/work-items:track list --label '<container-label>' --state open`. Name each map by title, ID as a
+`/work-items:track list --label 'wayfind: map' --state open`. Name each map by title, ID as a
 suffix.
 
 ## Check labels (first use in a repo)
 
-`/planning:wayfind` uses its own taxonomy: the container label (default `work-map`), `wayfind: research|interview|design|prototype|task`
+`/planning:wayfind` uses its own taxonomy: `wayfind: map`, `wayfind: research|interview|design|prototype|task`
 (axis labels follow the colon-space grammar so label-as-code owners with a `prefix: value` convention
 can declare them verbatim), `needs-human`. At chart-mode entry, **verify** the taxonomy is present,
 because creating an item with an unknown label fails:
 
-`/work-items:track labels '<container-label>' 'wayfind: research' 'wayfind: interview' 'wayfind: design' 'wayfind: prototype' 'wayfind: task' needs-human`
+`/work-items:track labels 'wayfind: map' 'wayfind: research' 'wayfind: interview' 'wayfind: design' 'wayfind: prototype' 'wayfind: task' needs-human`
 
 It prints one `MISSING: <name>` line per absent label. Read the consuming repository's instructions
 and configuration for label ownership. If they declare a label-as-code source of truth, treat that
@@ -70,7 +43,9 @@ hoc.
 
 ## Create / extend the map
 
-`/work-items:track add --label '<container-label>' --body-file <map-body.md> "Map: <effort>"`, adding
+`/work-items:track add --label 'wayfind: map' --body-file <map-body.md> "Map: <effort>"`
+(the `wayfind: map` label is what keeps the map out of triage and claimable work; a map never
+carries the work-items container label, which marks a spec container), adding
 `--label` for any repo program labels. Body per [`map-anatomy.md`](map-anatomy.md). Extending an
 existing map edits its body: read it with `/work-items:track view <map-id>`, change the section, and
 write the whole body back with `/work-items:track edit <map-id> --body-file <path>`.
@@ -79,10 +54,10 @@ A map is never assigned and never carries a claim label: it is a container, not 
 
 ## Create a typed decision item (a child of the map)
 
-`/work-items:track add --parent <map-id> --label 'wayfind: <research|interview|design|prototype|task>' --body-file <item-body.md> "<sharp question>"`
+`/work-items:track add --parent <map-id> --label 'wayfind: <research|interview|design|prototype|task>' --body-file <item-body.md> "<topic>"`
 
-The body says what must be decided, the options if known, and for a `prototype` item whether it is
-logic or UI; it never states the type, which the label carries. Materialize the mode at creation:
+The body holds the question and the criteria an answer must meet, and for a `prototype` item
+whether it is logic or UI, laid out as [`map-anatomy.md`](map-anatomy.md) "Prototype item body"; it never states the type, which the label carries. Materialize the mode at creation:
 add `--label needs-human` only when the item needs the user's intent or vision, whatever its type
 (SKILL.md "Readiness"). Create every item first, with no reference to another item in its body.
 
@@ -113,7 +88,8 @@ listing, closed items included, serves the map hygiene checks.
 ## Claim a frontier item (the `work-items` claim model, one model across both)
 
 Before claiming a `needs-human` item, count the map's open children that carry `needs-human`, do
-not carry `wayfind: research`, and have an assignee, from the same listing; at `wayfind_hitl_concurrency` or more, do not claim it.
+not carry `wayfind: research`, and are assigned to the session identity (the person the claim
+would assign), from the same listing; other assignees' items do not count. At `wayfind_hitl_concurrency` or more, do not claim it.
 Two sessions can both pass that count before either claims, so once a `needs-human` claim
 succeeds, list the children again and recount. Over the limit, rank the counted claims by claim
 order: read each one's active lease comment id (a counted item with no lease comment yet ranks
@@ -152,6 +128,17 @@ Decisions-so-far pointer: see the Decisions-so-far / Out-of-scope sections in
 - **Moot** (another resolution invalidated its premise), no line in either index:
   `/work-items:track done <item-id> --not-planned --summary "Moot: <link to the resolution comment>"`.
 
-## Close the map (frontier empty ∧ all items closed)
+## Graduate a research item
 
-`/work-items:track done <map-id> --summary "Destination coherent, handed to </planning:prd | /work-items:decompose | /work-items:work | a decision record | the closing summary>."`
+After `/discovery:research` returns for a research item:
+
+1. Copy the findings file and its sidecars into the item's folder on the map's dossier branch,
+   creating the branch on first use and linking it from the map's Notes (SKILL.md "Shared files").
+2. Commit and push with the push sequence in SKILL.md "Shared files".
+3. Post the resolution comment in the research shape ([`map-anatomy.md`](map-anatomy.md)
+   "Resolution comments"), linking the findings file on the branch.
+4. Add the Decisions-so-far pointer and close the item, steps 2 and 3 of "In scope" above.
+
+## Close the map (frontier empty ∧ all items closed ∧ Not-yet-specified empty)
+
+`/work-items:track done <map-id> --summary "Destination coherent, handed to </planning:prd | /planning:plan | /work-items:decompose | /work-items:work | a decision record | the closing summary>."`

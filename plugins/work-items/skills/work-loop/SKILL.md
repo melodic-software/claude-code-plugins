@@ -124,7 +124,7 @@ id, so write nothing, escalate, and stop. Write `paused_until` before entering a
 a paused lane is never adopted as a dead one. That reference also owns the `instance:` cycle-report
 line.
 
-`usage_sample` copies the **same** two window percentages the rate-limit guard step below already
+`usage_sample` copies the **same** two window percentages the rate-limits floor step below already
 read at this cycle's **start**, never a second reading, so `at` is when the lane read the snapshot
 file, not the snapshot's own `captured_at` (which the staleness rule lets lag it) and never the
 report time. `at` is always written, so a cycle that could not observe stays distinguishable from
@@ -134,20 +134,20 @@ rejected as unknown, never the rejected value, a stale reading carried forward, 
 `five_hour_delta_pct` and `seven_day_delta_pct` are per window, since an account may report only
 some windows: `null` when that window's reading is unavailable on either side, on a first cycle, and
 when the current reading is **lower** than the previous one (a rollover). Pointer: for which windows
-exist, the `windows` keys `mcp__rate-limit-guard__status` returns.
+exist, the `windows` keys `mcp__rate-limits__status` returns.
 Everything else, the single permitted readback,
 each delta covering the interval *preceding* its reporting cycle, and the three properties bounding
 what the data supports, is the convention's (§4, "Per-cycle usage sample"), held by citation.
 
-## Rate-limit guard floor (inlined)
+## Rate-limits floor (inlined)
 
 This lane consumes the shared subscription rate-limit windows. The operable floor below is inlined
 **verbatim** per the convention's inline-floor rule (byte-identical across lanes and to the reader
-contract's floor); provenance is the `rate-limit-guard` plugin's reader contract
-(`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository). Cited for
+contract's floor); provenance is the `rate-limits` plugin's reader contract
+(`plugins/rate-limits/reference/reader-contract.md` in the marketplace repository). Cited for
 provenance only, since an installed plugin cannot read a sibling plugin's files at runtime.
 
-- **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+- **Snapshot file (fixed path):** `~/.claude/rate-limits/rate-limits.json`
 - **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose session environment sets
   `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read it at lane start with
   `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it pauses when **either** window reports
@@ -466,8 +466,11 @@ Stop-mode semantics are **not** inlined here. Load exactly one mode reference pe
 Lane-infrastructure items never gate any exit shape: the per-lane telemetry tracking issues, this
 lane's and any sibling lane's, identified as `/work-items:triage` ("Scope: raw intake only")
 defines them, by pinned config identity or sentinel comment and never by title alone, **and open
-`work-map` container items** (the tracker seam's `WIT_CONTAINER_LABEL`, default `work-map`: never
-claimable, never closed by this lane, openness means the map exists), are excluded from the
+container and map items** (the tracker seam's `WIT_CONTAINER_LABEL`, default `spec-container`, or
+any label starting with `WIT_WAYFIND_PREFIX`, default `wayfind:`, a map's decision items included:
+never claimable, never closed by this lane, openness means the container or map exists;
+[`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
+"Maps and containers"), are excluded from the
 cycle-start snapshot, the intake sweep, the exit evaluation, and the post-snapshot intake report.
 The loop never works, closes, or waits on them; an open telemetry issue is the lane operating, not
 backlog, and an open container is lane infrastructure for the same reason, not unresolved backlog

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "'What should search feel like to a first-time user?': wayfind: interview, needs-human.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "'What should search feel like to a first-time user?': wayfind: design.",
+      "why": "breaks the rule"
+    }
+  ]
+}

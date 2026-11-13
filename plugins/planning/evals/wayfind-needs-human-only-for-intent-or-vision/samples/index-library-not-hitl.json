@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "'Which index library meets the 50 ms p95 budget?': wayfind: design, no needs-human.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "'Which index library meets the 50 ms p95 budget?': wayfind: design, needs-human.",
+      "why": "breaks the rule"
+    }
+  ]
+}

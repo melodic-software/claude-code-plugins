@@ -258,7 +258,7 @@ text and for a genuine user message that arrives beside it.
 
 This section moves no hook to a different event. The guard mods' context and rate-limit lines are a
 [recorded exception](#recorded-exception-the-guard-mods-lines-and-telemetry-owner-approved-2026-10-03)
-to the Frequency rule, and `rate-limit-guard`'s threshold line to the Phrasing rule.
+to the Frequency rule, and `rate-limits`'s threshold line to the Phrasing rule.
 
 - **Pointer**: for each channel's reader and phrasing, see
   <https://code.claude.com/docs/en/hooks#add-context-for-claude>,
@@ -386,33 +386,33 @@ quiet skip needs a sanctioned helper call or an explicit `# silent-skip-ok:` ann
 
 ### Recorded exception: the guard mods' lines and telemetry (owner-approved, 2026-10-03)
 
-`context-usage`'s and `rate-limit-guard`'s mods add lines to tool results and prompts about the
+`context-usage`'s and `rate-limits`'s mods add lines to tool results and prompts about the
 session's context and rate-limit windows, which the Frequency rule's "no countdown or budget line
 after tool results" would otherwise bar. They are admitted on this shape, and only on it (the owner
 amended the What bullet twice on 2026-10-04: dropping the standing-rule sentence, then admitting
-`rate-limit-guard`'s one directive). Since 2026-10-11 (#7135) both mods send these lines only when the
+`rate-limits`'s one directive). Since 2026-10-11 (#7135) both mods send these lines only when the
 operator turns on the plugin's `model_notices` option, off by default; with it off, Claude's context
 gets nothing from either mod and the shape below does not arise:
 
 - **When.** One line per boundary crossing, one per approach margin (a set number of points before
   a boundary), and one restatement after a compaction, a resume, a `/branch`, a reload of the mod
   mid-session, or a `/clear`, only when the verdict is past the quiet one. Nothing on a call where
-  no boundary moved. `rate-limit-guard` also sends one line when the signed-in account changes or
+  no boundary moved. `rate-limits` also sends one line when the signed-in account changes or
   a window's reset time moves earlier while a window is past quiet or a line is due, saying earlier lines no longer apply,
   with the current reading (owner decision on #6445, 2026-10-18).
 - **What.** Each line names its plugin and a verdict worded as a fact. The verdict names no action,
   claims no authority and gives no order. `context-usage`'s boundary lines add that continuing is
   the user's call, and may be followed by the heavy-zone save note or an operator-configured
-  `zones.json` action. `rate-limit-guard`'s lines carry the verdict only. Since 2026-10-11 (#7118)
+  `zones.json` action. `rate-limits`'s lines carry the verdict only. Since 2026-10-11 (#7118)
   each mod may also follow its verdict lines with one constant options line per carrier, the only
-  text this exception admits that names actions on a context channel: `rate-limit-guard`'s at an
+  text this exception admits that names actions on a context channel: `rate-limits`'s at an
   approach or threshold line (continue at the same model, effort and review depth, the user can
   switch accounts, or schedule after the reset; usage never calls for lowering any of the three),
   `context-usage`'s past `light` (record decisions in a durable file, then continue, compact or hand
   off as Claude and the user choose; a zone never calls for terser output, fewer agents or lower
   quality). The owner decided this after sessions moved subagents to a smaller model, stopped
   launching agents and steered toward handoffs on the verdict alone. An earlier `Keep working.`
-  directive (2026-10-04) has since left `rate-limit-guard`. The owner decided that on 2026-10-04: they rotate accounts by hand on the alerts,
+  directive (2026-10-04) has since left `rate-limits`. The owner decided that on 2026-10-04: they rotate accounts by hand on the alerts,
   and an interactive session waits out a usage limit on its own
   (<https://code.claude.com/docs/en/interactive-mode#wait-for-a-usage-limit-to-reset>), so a line
   read as a cue to stop would end work the session can finish. The observed stumble: on

@@ -9,6 +9,6 @@ expected_outcome: 'Recognizes that in the shared-branch shape closed checkpoints
 
 /work-items:ship #330
 
-Item #330 is an open container item labeled work-map. The container body carries `**Execution shape:** integration branch → single PR` and `**Integration branch:** integration/330-schema-swap`. The last sub-item was just closed; every sub-item is now closed. No PR exists from the integration branch. Wrap it up.
+Item #330 is an open container item labeled spec-container. The container body carries `**Execution shape:** integration branch → single PR` and `**Integration branch:** integration/330-schema-swap`. The last sub-item was just closed; every sub-item is now closed. No PR exists from the integration branch. Wrap it up.
 
 Treat the state above as what this run's reads return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does, in order, and why.

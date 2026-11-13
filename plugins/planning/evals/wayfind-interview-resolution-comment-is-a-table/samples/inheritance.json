@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Inherited by the rate-limit item: the per-client identity.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolved: OAuth for partners.",
+      "why": "breaks the rule"
+    }
+  ]
+}

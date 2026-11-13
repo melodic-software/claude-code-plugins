@@ -304,7 +304,7 @@ bug_path:
 ```
 
 `verification` and `verification_skills.<skill>` (`off`, `light`, `standard`
-or `strict`, default `standard`) also live only in the repository file, and are
+or `strict`, default `light`) also live only in the repository file, and are
 read from the default branch through `lib/read-verification.sh`, so a branch
 cannot lower them. `/work-items:work` reads them for the bug path's capture
 check: at `standard` and `strict` a fresh-context subagent confirms each
@@ -339,7 +339,7 @@ gracefully when any of these are absent.
 ### Option details
 
 **`decompose_container_publish`.** The pre-selected offer publishes the Brief as a container item
-carrying the binding-resolved container label (default `work-map`), with items as native
+carrying the binding-resolved container label (default `spec-container`), with items as native
 sub-items. This key changes the offered default answer and never bypasses approval. It declares no
 default so an unset value stays distinguishable from a configured one.
 

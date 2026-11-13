@@ -3,6 +3,12 @@
 All notable changes to the `javascript-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.5.2] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [2.0.0] - 2026-11-13
 
 ### Changed
@@ -1526,7 +1532,7 @@ No behavior change.
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
   `-s <scope>`, sourced from what `claude plugin list` reports for this plugin, the same fix
-  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  already applied to `session-flow` and `rate-limits` in #1393.
 
 ## [0.5.1]
 

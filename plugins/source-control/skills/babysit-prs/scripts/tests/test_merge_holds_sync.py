@@ -13,7 +13,8 @@ workflow change after auto-merge is armed.
 - The copies: `scripts/sync-hold-floor.py --check` finds `HOLD_PATH_CLASSES`,
   `COST_PATHS`, the review callers' `hold-paths` and ci-status's
   `hold_patterns` as it writes them from the effective floor and
-  `COST_PATHS`.
+  `COST_PATHS`, and the required-checks workflow's two `API_BUDGET_SH`
+  blocks as it writes them from api-budget.bash.
 - The floor (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B):
   `pathHold` holds, with no configured glob, exactly the paths `glob_match`
   matches over `babysit_risk.Floor.high` (its `trust` and `gate` globs), case

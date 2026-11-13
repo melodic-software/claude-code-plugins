@@ -10,7 +10,7 @@ repository file after validating it; `/verification:setup check` validates it.
 |---|---|---|---|---|
 | `proof_level` | `path`, `live`, `strict` | `path` | `/verification:confirm` (Stage 2 step 1) | stricter wins (`path` < `live` < `strict`); the repository value is read from the default branch |
 | `live_workers` | a whole number, at least `1` | `1` | `/verification:confirm` (Stage 2 step 1) | per user (`userConfig.live_workers`) and per repository (`docs/conventions/verification.yaml`); the later layer wins: repository file over user option over default; the repository value is read from the default branch ([Resolving `live_workers`](#resolving-live_workers)) |
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | `/verification:confirm` (Independence of the verdict), through `lib/read-verification.sh` | repository file only, read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)) |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | `/verification:confirm` (Independence of the verdict), through `lib/read-verification.sh` | repository file only, read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)) |
 
 ## What each level requires
 

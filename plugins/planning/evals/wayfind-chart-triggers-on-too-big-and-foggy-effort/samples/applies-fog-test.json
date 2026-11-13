@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Sharp, so candidate items: 'Choose the delivery channels per event'. Foggy, so Not-yet-specified bullets: **Escalation feel**: something about urgent alerts seems off.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here are the answers: use one queue per channel, retry three times, and send digests daily.",
+      "why": "breaks the rule"
+    }
+  ]
+}

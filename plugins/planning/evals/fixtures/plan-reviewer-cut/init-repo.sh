@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run by each plan-reviewer-cut-* scaffold after it writes the project files and the draft plan:
-# commits the project on main, pushes it to a local bare origin, and moves to a feature branch.
+# commits the project on main with verification: standard, pushes it to a local bare origin, and
+# moves to a feature branch.
 #
 #   init-repo.sh <branch>
 #
@@ -10,6 +11,8 @@ set -euo pipefail
 
 branch="$1"
 printf '.work/\n__pycache__/\n' >.gitignore
+mkdir -p docs/conventions
+printf 'verification: standard\n' >docs/conventions/planning.yaml
 for plan in .work/*/PLAN.md; do
   text="$(cat "$plan")"
   printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"

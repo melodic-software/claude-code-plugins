@@ -3,6 +3,12 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.13] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.5.5] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [0.8.12] - 2026-11-13
 
 ### Changed
@@ -417,7 +423,7 @@ The update flow now runs `--apply`, which records only the CLI version and rollb
   The directive had fractured under the same per-plugin de-slop campaign;
   `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
   sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
-  two, `context-usage` and `rate-limit-guard`, state it about their own scripts in their own words
+  two, `context-usage` and `rate-limits`, state it about their own scripts in their own words
   and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
   extract-ssot sweep.
 

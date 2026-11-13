@@ -189,7 +189,7 @@ the new version.
 `numeric_names` carries counts by `(meaning, liveness)`, every PID-typed group, and the unknown
 sample grouped by name shape with a per-directory histogram. Everything that is not `pid` reads
 `not_applicable` **by construction**, not because a lookup missed: `ide/<n>.lock` is a TCP port,
-`rate-limit-guard/*.tmp.<n>` a shell `$$`, snapshot and backup numbers are epoch milliseconds, and
+`rate-limits/*.tmp.<n>` a shell `$$`, snapshot and backup numbers are epoch milliseconds, and
 an unrecognized scheme fails closed as `unknown`. A `pid_typed` group marked `self_held` belongs to
 the session running the audit: evidence about the auditor, not the tree; `self_pids_walk:
 parent-only` means that ancestry could not be walked, so an `alive` group may still be this session.

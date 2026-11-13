@@ -2195,6 +2195,51 @@ else
 fi
 rm -rf "$TMP/.changes" "$TMP/scripts/org-agnosticism-tokens.txt"
 
+# --- 8h. A docs-page pointer in a skill or agent file carries a section anchor:
+#     advisory, with a shrink-only baseline. ----------------------------------
+ANCHOR_FIX='link the section the pointer rests on'
+# write_anchor_file <path under plugins/anchorfix> <content>
+write_anchor_file() {
+  mkdir -p "$(dirname "$TMP/plugins/anchorfix/$1")"
+  printf '%s\n' "$2" >"$TMP/plugins/anchorfix/$1"
+}
+reset_fixture
+write_plugin_manifest anchorfix ''
+write_anchor_file skills/pointer/SKILL.md $'---\ndescription: "Fixture."\n---\nSee [hooks](https://code.claude.com/docs/en/hooks).\nRead https://git-scm.com/docs/git-config.'
+write_anchor_file agents/helper.md $'---\nmodel: sonnet\n---\nRead <https://docs.github.com/en/actions/reference/limits>.'
+write_anchor_file skills/clean/SKILL.md $'---\ndescription: "Fixture."\n---\nSee [hooks](https://code.claude.com/docs/en/hooks#hook-events), [#1](https://github.com/anthropics/claude-code/issues/1) and `https://code.claude.com/docs/en/changelog.md`.\nAlso <https://docs.google.com/document/d/x> and (<https://tech.ebu.ch/docs/r/r128.pdf>).'
+write_anchor_file skills/clean/evals/fixtures/case.md 'Planted https://code.claude.com/docs/en/hooks link.'
+out="$(run_fixture)"
+if grep -qF "advisory: plugins/anchorfix/skills/pointer/SKILL.md:4: docs-page link https://code.claude.com/docs/en/hooks has no section anchor; $ANCHOR_FIX (https://code.claude.com/docs/en/hooks#<section>)" <<<"$out" &&
+  grep -qF "advisory: plugins/anchorfix/skills/pointer/SKILL.md:5: docs-page link https://git-scm.com/docs/git-config has no section anchor; $ANCHOR_FIX (https://git-scm.com/docs/git-config#<section>)" <<<"$out" &&
+  grep -qF "advisory: plugins/anchorfix/agents/helper.md:4: docs-page link https://docs.github.com/en/actions/reference/limits has no section anchor; $ANCHOR_FIX" <<<"$out" &&
+  ! grep -qE '^- .*(docs-anchor-baseline|anchorfix/(skills|agents)/)' <<<"$out"; then
+  ok "an anchorless docs-page link in a skill or agent file prints an advisory naming the fix, without trailing punctuation, and fails nothing"
+else
+  fail "an anchorless docs-page link should print an advisory naming the fix, without a failure: $out"
+fi
+if grep -q 'advisory: plugins/anchorfix/skills/clean/' <<<"$out"; then
+  fail "an anchored docs link, an issue link, a code-span URL, a Google Docs document, a PDF and a fixture file should draw no advisory: $out"
+else
+  ok "an anchored docs link, an issue link, a code-span URL, a Google Docs document, a PDF and a fixture file draw no advisory"
+fi
+
+mkdir -p "$TMP/scripts"
+printf '%s\n' '# fixture baseline' 'plugins/anchorfix/skills/pointer/SKILL.md 2' \
+  'plugins/anchorfix/agents/helper.md 2 # one link anchored since' 'plugins/anchorfix/skills/clean/SKILL.md 1' \
+  'not-a-row' >"$TMP/scripts/docs-anchor-baseline.txt"
+out="$(run_fixture)"
+if ! grep -q 'advisory: plugins/anchorfix/' <<<"$out" &&
+  has_fail_line 'stale row for plugins/anchorfix/agents/helper.md: 1 line\(s\) carry an anchorless docs-page link, not 2; lower the row to 1' &&
+  has_fail_line 'stale row for plugins/anchorfix/skills/clean/SKILL.md: it has no anchorless docs-page link now; remove the row' &&
+  has_fail_line 'malformed row, want `<path> <count>`: not-a-row' &&
+  ! grep -q 'stale row for plugins/anchorfix/skills/pointer/' <<<"$out"; then
+  ok "a baseline row holding a file's count silences it, and a row above the count or a malformed row fails"
+else
+  fail "the docs-anchor baseline should silence held counts and fail stale or malformed rows: $out"
+fi
+rm -f "$TMP/scripts/docs-anchor-baseline.txt"
+
 # The shipping tree itself, clean and with zero warnings, is the job of
 # scripts/validate-plugins.sh in check-catalog, which runs this validator over
 # the whole tree on every pull request; run here, it read every plugin file.

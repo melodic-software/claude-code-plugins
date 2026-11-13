@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Proposed map (nothing created yet):\n## Destination\nBuild items for the first module extraction.\n## Items\n- 'Choose the extraction approach: strangler-fig or big-bang' (wayfind: design)\n## Not-yet-specified\n- **Cross-module transactions**: can't phrase it yet.\n## Out-of-scope\n- Splitting the database.\n\nReply yes and I will create the map issue and its items.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Created the map issue and the item 'Strangler-fig or big-bang?'. Next: /planning:wayfind work.",
+      "why": "breaks the rule"
+    }
+  ]
+}

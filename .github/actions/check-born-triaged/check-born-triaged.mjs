@@ -51,7 +51,7 @@ export function humanIds(list) {
 
 const labelNames = (issue) => (issue.labels ?? []).map((label) => label.name ?? "");
 
-export const ROUTING_DEFAULTS = Object.freeze({ container: "work-map", prefix: "wayfind:" });
+export const ROUTING_DEFAULTS = Object.freeze({ container: "spec-container", prefix: "wayfind:" });
 
 // The routing labels of a tracker binding (the `tracker` mapping of
 // work-items.yaml): `config.container_label` and `config.wayfind_label_prefix`,

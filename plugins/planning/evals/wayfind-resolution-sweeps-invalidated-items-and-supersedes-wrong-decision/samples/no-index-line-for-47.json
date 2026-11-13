@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#47 closes as moot with no index line.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Decisions-so-far: '- [Pick the global invoice sequence store](URL): moot'.",
+      "why": "breaks the rule"
+    }
+  ]
+}

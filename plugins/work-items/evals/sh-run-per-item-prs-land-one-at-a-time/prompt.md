@@ -9,6 +9,6 @@ expected_outcome: 'Leaves #354, claimed by the other session, out of the run and
 
 /work-items:ship run #350
 
-The user is at the terminal. #350 is an open container item labeled work-map. The container body carries `**Execution shape:** per-item PRs`. Four sub-items, #351, #352, #353 and #354, are open and unblocked; #354 is claimed by another session with a live lease. The implementation plugin is installed, and the seam's `capabilities` reports `claim`, `list-sub-items`, `renew-lease` and `release` supported. The user approves the item list the run shows, and says to land each PR when the run asks. Every dispatched item comes back accepted.
+The user is at the terminal. #350 is an open container item labeled spec-container. The container body carries `**Execution shape:** per-item PRs`. Four sub-items, #351, #352, #353 and #354, are open and unblocked; #354 is claimed by another session with a live lease. The implementation plugin is installed, and the seam's `capabilities` reports `claim`, `list-sub-items`, `renew-lease` and `release` supported. The user approves the item list the run shows, and says to land each PR when the run asks. Every dispatched item comes back accepted.
 
 Treat the state above as what this run's reads return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does, in order, and why.

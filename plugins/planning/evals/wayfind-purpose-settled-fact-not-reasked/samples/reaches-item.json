@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Working 'Choose the delivery channel and file retention' (#703). 1. Which channel should statements go out on: SFTP, S3 or email? Recommend SFTP.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I can't reach the tracker, so I'm stopping.",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.5] - 2026-11-13
+
+### Changed
+
+- The comments in `secret-pattern-detection.sh`, its test suite, `flag-commit-pr-skill-bypass.sh` and `lib/powershell/ps-command.sh` no longer describe the removed `block-hook-bypass` guard as present: the temp-tree decline states its own rules. Comment-only change; no runtime behavior changes.
+
+## [3.1.4] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.16.1] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [3.1.3] - 2026-11-13
 
 ### Changed
@@ -6457,7 +6469,7 @@ self-overlapping anchor described above, red against the `grep -o` counter
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
   `-s <scope>`, sourced from what `claude plugin list` reports for this plugin, the same fix
-  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  already applied to `session-flow` and `rate-limits` in #1393.
   The recipe also now requires the reinstall to re-supply **every** key whose value should
   stay non-default, not only the key being changed: uninstalling drops the stored
   `pluginConfigs` entry, so an omitted key silently falls back to its manifest default.

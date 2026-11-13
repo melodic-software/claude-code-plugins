@@ -3,6 +3,21 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.0] - 2026-11-13
+
+### Changed
+
+- **Breaking:** the `verification` level now defaults to `light` when the default branch sets no `verification` key or cannot be read: verifier dispatches are skipped and the skip line is written. An invalid value or a team file that does not parse still resolves `standard`, naming the error. Set `verification: standard` (or `strict`), or `verification_skills.<skill>`, in the team file on the default branch to raise it.
+
+- `/testing:run-e2e` starts each entry point's expected outcome from the touched feature's stated
+  results: each `## Drive` step's `Result:`, then the `**Proof.**` step's end state and the
+  captures that show it. It then adds the change's requirement on top. Where the change alters
+  what a step should produce, the requirement wins and the report names the stated result it
+  replaced. On the drive route each step is judged against its stated result, the proof step's
+  captures against its end state, and the whole run against the requirement. An entry point with
+  no stated results is reported `no stated results` and is judged against the requirement alone.
+  A failed drive's failure packet names both sources on its `Expected:` line.
+
 ## [3.8.3] - 2026-11-13
 
 ### Changed

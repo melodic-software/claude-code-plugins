@@ -179,7 +179,7 @@ lib/exec-bash.mjs plugins/javascript-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/markdown-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/powershell-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/python-format/hooks/exec-bash.mjs
-lib/exec-bash.mjs plugins/rate-limit-guard/hooks/exec-bash.mjs
+lib/exec-bash.mjs plugins/rate-limits/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/repo-hygiene/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/session-flow/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/source-control/hooks/exec-bash.mjs
@@ -425,9 +425,9 @@ lib/prerequisites.ps1 plugins/powershell-format/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/python-format/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/python-format/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/python-format/lib/prerequisites.ps1
-lib/prerequisites.mjs plugins/rate-limit-guard/lib/prerequisites.mjs
-lib/prerequisites.sh plugins/rate-limit-guard/lib/prerequisites.sh
-lib/prerequisites.ps1 plugins/rate-limit-guard/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/rate-limits/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/rate-limits/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/rate-limits/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/session-flow/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/session-flow/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/session-flow/lib/prerequisites.ps1
@@ -465,7 +465,7 @@ lib/hook-utils.sh plugins/harness-ops/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/javascript-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/markdown-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/python-format/hooks/hook-utils.sh
-lib/hook-utils.sh plugins/rate-limit-guard/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/rate-limits/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/repo-hygiene/skills/clean/scripts/hook-utils.sh
 lib/hook-utils.sh plugins/source-control/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/speech/hooks/hook-utils.sh
@@ -480,7 +480,7 @@ lib/view-builder.mjs plugins/machine-health/lib/view-builder.mjs
 lib/view-runtime.js plugins/machine-health/lib/view-runtime.js
 lib/mermaid-gate.mjs plugins/visualization/lib/mermaid-gate.mjs
 lib/mermaid-gate.mjs plugins/architecture/lib/mermaid-gate.mjs
-lib/write-snapshot.mjs plugins/rate-limit-guard/lib/write-snapshot.mjs
+lib/write-snapshot.mjs plugins/rate-limits/lib/write-snapshot.mjs
 lib/write-snapshot.mjs plugins/context-usage/lib/write-snapshot.mjs
 lib/publish-gate.mjs plugins/review/lib/publish-gate.mjs
 lib/publish-gate.mjs plugins/visualization/lib/publish-gate.mjs
@@ -804,7 +804,7 @@ docs/contracts/plugin-reconfiguration/README.md plugins/mutation-testing/referen
 docs/contracts/plugin-reconfiguration/README.md plugins/planning/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/powershell-format/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/python-format/reference/plugin-reconfiguration.md
-docs/contracts/plugin-reconfiguration/README.md plugins/rate-limit-guard/reference/plugin-reconfiguration.md
+docs/contracts/plugin-reconfiguration/README.md plugins/rate-limits/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/repo-hygiene/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/session-flow/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/skill-quality/reference/plugin-reconfiguration.md

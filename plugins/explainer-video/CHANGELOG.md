@@ -3,6 +3,18 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-11-13
+
+### Changed
+
+- **Breaking:** the `verification` level now defaults to `light` when the default branch sets no `verification` key or cannot be read: verifier dispatches are skipped and the skip line is written. An invalid value or a team file that does not parse still resolves `standard`, naming the error. Set `verification: standard` (or `strict`), or `verification_skills.<skill>`, in the team file on the default branch to raise it.
+
+## [1.1.13] - 2026-11-13
+
+### Security
+
+- The locked Python set pins `soupsieve` 4.0, up from 2.10, which fixes a polynomial-time denial of service in the descendant combinator (GHSA-mmhr-3c5m-f64f).
+
 ## [1.1.12] - 2026-11-13
 
 ### Changed

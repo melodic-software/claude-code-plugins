@@ -36,7 +36,7 @@
 # legitimate inline fallback when skill discovery is broken, so blocking here
 # would be wrong.
 #
-# SCOPE (documented residual, same posture as block-hook-bypass's stripper):
+# SCOPE (documented residual):
 # detection is a literal-stripped top-level regex match, not a full argv-
 # grammar parser (contrast block-no-verify.sh) — proportionate to an advisory
 # that never blocks. It does not evaluate shell variable / command
@@ -213,7 +213,7 @@ source_control_enabled || exit 0
 # Strip single- and double-quoted literal spans, and drop heredoc bodies
 # wholesale, so the top-level invocation scan below sees shell syntax, not
 # payload text (a commit body mentioning "git commit -m" in prose is not a
-# false positive). Same posture as block-hook-bypass.sh's stripper.
+# false positive).
 strip_literals() {
   local cmd="$1" line result="" in_heredoc=0 delim="" trimmed
   local heredoc_start_re='(^|[^<])<<-?[[:space:]]*([^[:space:]<>]+)'

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "## Out-of-scope\n- Splitting the database (agreed not yet).",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Not-yet-specified\n- **Database split**: can't split it yet.",
+      "why": "breaks the rule"
+    }
+  ]
+}

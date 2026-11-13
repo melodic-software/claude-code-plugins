@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [14.0.0] - 2026-11-13
+
+### Changed
+
+- **Breaking:** the `verification` level now defaults to `light` when the default branch sets no `verification` key or cannot be read: verifier dispatches are skipped and the skip line is written. An invalid value or a team file that does not parse still resolves `standard`, naming the error. Set `verification: standard` (or `strict`), or `verification_skills.<skill>`, in the team file on the default branch to raise it.
+
+## [13.1.2] - 2026-11-13
+
+### Changed
+
+- References to the rate-limit windows plugin use its new name, rate-limits: the `rate-limits@melodic-software` id, the `/rate-limits:setup` command, the `mcp__rate-limits__status` tool and the `~/.claude/rate-limits/` directory.
+- Corrected in place: the released entries [0.49.4], [0.49.3], [0.48.7], [0.48.3], [0.39.64], [0.39.38], [0.34.1], [0.29.0], [0.22.0], [0.28.0], [0.25.4] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [13.1.1] - 2026-11-13
 
 ### Changed
@@ -1893,13 +1906,13 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- **work-loop and attend-queue inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
+- **work-loop and attend-queue inline rate-limits's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
 
 ## [0.49.3] - 2026-10-04
 
 ### Changed
 
-- **`work-loop` and `attend-queue` call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+- **`work-loop` and `attend-queue` call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limits's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
 
 ## [0.49.2] - 2026-10-04
 
@@ -1957,7 +1970,7 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The work loop and the attend-queue skill now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The work loop and the attend-queue skill now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limits 0.14.0's reader contract.
 
 ## [0.48.6] - 2026-10-04
 
@@ -1981,7 +1994,7 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- **`/work-items:work-loop`'s paused wait reflects the mod writer.** rate-limit-guard's mod writes
+- **`/work-items:work-loop`'s paused wait reflects the mod writer.** rate-limits's mod writes
   the snapshot in headless sessions too, so the Monitor armed on it wakes on the mod's writes under
   its machine-wide write floor; the scheduled wake still bounds how late an account switch is seen.
 
@@ -2707,7 +2720,7 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- work-loop, attend-queue: the inlined rate-limit-guard "Operable floor" block states that the tee file carries an `account.email` field when the writer could attribute the observation, replacing the claim that it carries no account-identifier field; synced from the reader contract that owns the block, with `scripts/check-loop-lane-floor-drift.sh` holding all six copies equal
+- work-loop, attend-queue: the inlined rate-limits "Operable floor" block states that the tee file carries an `account.email` field when the writer could attribute the observation, replacing the claim that it carries no account-identifier field; synced from the reader contract that owns the block, with `scripts/check-loop-lane-floor-drift.sh` holding all six copies equal
 
 ## [0.39.63]
 
@@ -3337,7 +3350,7 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+- **Rate-limits inline floor restored to byte-identity.** The loop-lane convention requires the
   floor's values identical across the three consuming lanes; hashing those three plus the reader
   contract they cite and `extract-ssot`'s orchestrated-mode consumer found two distinct texts. The
   drift traces to two de-slop shards, which made the same two substitutions and so produced one
@@ -4867,7 +4880,7 @@ verified to go red without it.
   detection records.** The fail-open bullet named reactive-only but gave the lane no
   `stop-events.jsonl` behavior; both skills now carry the reader contract's read cadence (read on
   mode entry and before each new work claim, recency baseline = lane start advanced by each resume
-  attempt). Mirrors rate-limit-guard 0.4.4's reader-contract addition.
+  attempt). Mirrors rate-limits 0.4.4's reader-contract addition.
 
 ## [0.34.0]
 
@@ -5182,7 +5195,7 @@ verified to go red without it.
 ### Added
 
 - **`work-loop` samples per-cycle usage into its durable state block (#1651).** A lane's spend was a
-  blind spot: the cycle budget counts cycles, the rate-limit guard's pause is a ceiling, and nothing
+  blind spot: the cycle budget counts cycles, the rate-limits floor's pause is a ceiling, and nothing
   recorded how much of the shared subscription windows a cycle actually consumed. The durable-state
   block now carries a `usage_sample`, the two window percentages the guard step **already reads**
   every cycle, plus the rise since the previous sample, so measuring adds a write, not an
@@ -5198,7 +5211,7 @@ verified to go red without it.
   rather than session totals as of Claude Code v2.1.132. A machine-readable cumulative cost field
   (`cost.total_cost_usd`) does exist and is session-scoped, so it is the deferred candidate for
   per-lane attribution, but the guard's tee does not forward it, and widening the tee is a
-  rate-limit-guard change this entry deliberately does not make
+  rate-limits change this entry deliberately does not make
   (<https://code.claude.com/docs/en/statusline>, re-verified 2026-07-28: `used_percentage` 0–100,
   `resets_at` epoch seconds, `rate_limits` subscriber-only and each window independently absent; no
   drift).
@@ -5213,7 +5226,7 @@ verified to go red without it.
   `no_progress_streak` counter beside `clean_streak` in its `#502` durable state block: a cycle
   with actionable work in the cycle-start snapshot (frontier candidates or untriaged intake) that
   ends with no qualifying progress, meaning no item advanced and no PR opened, increments it. An
-  idle cycle leaves it unchanged, as does one held under the rate-limit guard's pause, where the
+  idle cycle leaves it unchanged, as does one held under the rate-limits floor's pause, where the
   lane declines work by design. Any qualifying progress resets it. At the threshold (new
   `work_loop_no_progress_threshold` userConfig key, default 3) the lane raises a stall escalation
   through the existing escalation contract, a `Lane stall: work-loop` tracker item with the
@@ -5336,7 +5349,7 @@ verified to go red without it.
 
 ### Fixed
 
-- **`work-loop` and `attend-queue` no longer downgrade the whole rate-limit guard because one window
+- **`work-loop` and `attend-queue` no longer downgrade the whole rate-limits floor because one window
   is absurd (#1612).** Both lane bodies inlined the reader contract's mode table, "tee file absent,
   stale, missing `rate_limits`, or absurd values → mode unknown → reactive-only", which collapses the
   guard wholesale as soon as any single value is absurd. Against the floor's "pause when **either**
@@ -5628,7 +5641,7 @@ verified to go red without it.
   driving decisions via `/planning:interview` (presence-gated), writing answers back as issue
   comments, and flipping unblocked items to the autonomous-eligible role in a single edit. Both
   lanes hold shared loop-layer concerns by citation to the loop-lane convention, inline the
-  rate-limit guard's operable floor byte-identically per its inline-floor rule, and inline the
+  rate-limits operable floor byte-identically per its inline-floor rule, and inline the
   `claude-ops`-compatible sentinel telemetry upsert (an installed plugin cannot invoke a sibling
   plugin's scripts).
 - **`work` gains an autonomous invocation path.** When invoked by a loop lane or another

@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.18.10] - 2026-11-13
+
+### Changed
+
+- The `plugin-eval` converter and the `validate` case checker cite the pre-computed-line observation by its run number only.
+
 ## [0.18.9] - 2026-11-13
 
 ### Changed

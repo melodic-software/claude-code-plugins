@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Resolution: Pick <library>, because <why>. Costs: <costs>. Alternatives: <comparison>. Unverified: <gaps>.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolution: Pick <library>.",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -126,7 +126,7 @@ The driving tool's `## Mask`.
 - powershell-format | features/powershell-format/README.md | entry points: 4 | sources: plugins/powershell-format/skills/*/SKILL.md
 - prototype | features/prototype/README.md | entry points: 4 | sources: plugins/prototype/skills/*/SKILL.md
 - python-format | features/python-format/README.md | entry points: 4 | sources: plugins/python-format/skills/*/SKILL.md
-- rate-limit-guard | features/rate-limit-guard/README.md | entry points: 4 | sources: plugins/rate-limit-guard/skills/*/SKILL.md
+- rate-limits | features/rate-limits/README.md | entry points: 4 | sources: plugins/rate-limits/skills/*/SKILL.md
 - repo-fleet-hygiene | features/repo-fleet-hygiene/README.md | entry points: 4 | sources: plugins/repo-fleet-hygiene/skills/*/SKILL.md
 - repo-hygiene | features/repo-hygiene/README.md | entry points: 4 | sources: plugins/repo-hygiene/skills/*/SKILL.md
 - retro-audio | features/retro-audio/README.md | entry points: 4 | sources: plugins/retro-audio/skills/*/SKILL.md

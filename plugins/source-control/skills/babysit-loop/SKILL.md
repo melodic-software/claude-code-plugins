@@ -330,7 +330,7 @@ nothing. Pointer: for the `CLAUDE_EFFORT` variable, see the `effort` row of
 when the lane is not paused or the tripping snapshot could not attribute the account.
 [reference/paused-wait.md](reference/paused-wait.md) owns the format.
 
-`usage_sample` copies the **same** two window percentages the rate-limit guard step below already
+`usage_sample` copies the **same** two window percentages the rate-limits floor step below already
 read at this cycle's **start**, never a second reading, so `at` is when the lane read the snapshot
 file, not the snapshot's own `captured_at` (which the staleness rule lets lag it) and never the
 report time. `at` is always written, so a cycle that could not observe stays distinguishable from
@@ -340,20 +340,20 @@ rejected as unknown, never the rejected value, never a stale reading carried for
 fabricated one. `five_hour_delta_pct` and `seven_day_delta_pct` are per window, since an account may
 report only some windows: `null` when that window's reading is unavailable on either side, on a
 first cycle, and when the current reading is **lower** than the previous one (a rollover). Pointer:
-for which windows exist, the `windows` keys `mcp__rate-limit-guard__status` returns. Everything
+for which windows exist, the `windows` keys `mcp__rate-limits__status` returns. Everything
 else, the single permitted readback, each delta covering the interval *preceding* its reporting
 cycle, and the three properties bounding what the data supports, is the convention's (§4,
 "Per-cycle usage sample"), held by citation.
 
-## Rate-limit guard floor (inlined)
+## Rate-limits floor (inlined)
 
 This lane consumes the shared subscription rate-limit windows. The operable floor below is inlined
 **verbatim** per the convention's inline-floor rule (byte-identical across lanes and to the reader
-contract's floor); provenance is the `rate-limit-guard` plugin's reader contract
-(`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository). Cited for
+contract's floor); provenance is the `rate-limits` plugin's reader contract
+(`plugins/rate-limits/reference/reader-contract.md` in the marketplace repository). Cited for
 provenance only, since an installed plugin cannot read a sibling plugin's files at runtime.
 
-- **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+- **Snapshot file (fixed path):** `~/.claude/rate-limits/rate-limits.json`
 - **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose session environment sets
   `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read it at lane start with
   `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it pauses when **either** window reports
@@ -398,7 +398,7 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   `used_percentage` or `resets_at` makes only **that window** unknown: keep applying the floor to
   every still-plausible window, and drop to reactive-only only when no window is plausible. Never
   throttle proactively on untrusted data and never fabricate a pause. In reactive-only mode,
-  additionally read `~/.claude/rate-limit-guard/stop-events.jsonl` (reader contract, "Detection
+  additionally read `~/.claude/rate-limits/stop-events.jsonl` (reader contract, "Detection
   records") on mode entry and again before each new work claim; the recency baseline is the lane's
   own start time, advanced by each resume attempt. Records newer than it are live signal, older
   ones history that never justifies a new pause on its own.

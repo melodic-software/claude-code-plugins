@@ -3,6 +3,28 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-11-13
+
+### Added
+
+- The control-skill contract describes optional driving conventions for a hub (start from the baseline, name controls by role and accessible name, write literal commands), a feature file's opening title and paragraph with optional Parts ids, and five traits of a driver CLI agents use well, `--help` and a `--dry-run` that never replaces the safety floors among them. `/app-control:map create` writes them; `/app-control:map check` requires none of them.
+
+### Changed
+
+- `/app-control:map create` writes each feature's Drive steps with the action, the exact command
+  or handle, and the observable result after `Result:`, ending in a `**Proof.**` step with the end
+  state and its `Captures:`. It writes a result only from what discovery read or the app showed.
+- `/app-control:map refresh` treats a Drive step with no `Result:`, a stated result the step did
+  not show while the feature still worked, and a missing or stale proof step as doc drift, and
+  corrects each from what the live pass observed. The source wave asks about them, and a legacy
+  conversion adds the results and proof step with its `driven` marks.
+
+## [0.24.0] - 2026-11-13
+
+### Added
+
+- `/app-control:drive` records each step's stated result beside what it observed, in `report.md` and as `stated_result` in `report.json`, and never compares the two. The proof step gets an entry of its own, with its stated result and the capture kinds it names.
+
 ## [0.23.0] - 2026-11-13
 
 ### Changed

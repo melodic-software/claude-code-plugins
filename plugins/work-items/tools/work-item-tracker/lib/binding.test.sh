@@ -169,7 +169,7 @@ assert_eq "recurring-maintenance label honors configured remap" "maint" "$WIT_RE
 
 write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}'
 wit_read_binding "$BINDING"
-assert_eq "container label defaults to work-map when unset" "work-map" "$WIT_CONTAINER_LABEL"
+assert_eq "container label defaults to spec-container when unset" "spec-container" "$WIT_CONTAINER_LABEL"
 
 write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":"decision-map"}}'
 wit_read_binding "$BINDING"
@@ -177,7 +177,7 @@ assert_eq "container label honors configured remap" "decision-map" "$WIT_CONTAIN
 
 write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":""}}'
 wit_read_binding "$BINDING"
-assert_eq "configured-empty container label falls back to the default" "work-map" "$WIT_CONTAINER_LABEL"
+assert_eq "configured-empty container label falls back to the default" "spec-container" "$WIT_CONTAINER_LABEL"
 
 # A present non-string container_label is a configuration error, not a silent
 # stringification (jq -r would render 5 / true / {} as text no item carries).
