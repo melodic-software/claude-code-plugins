@@ -18,6 +18,7 @@ bump: minor
 
 - `/review:code-review`, `/review:security-review` and the `lane-verifier` hunter name a finding's
   class and each place it occurs when the diff holds several of the same kind, so one fix covers
-  every instance.
+  every instance. `/review:quality-gate`'s review-fix rule and `/review:fanout fix`'s scope fence
+  count every listed instance of a named class as part of the finding.
 - Standards contract 1.1.5: planning and implementing skills also read `docs/review/README.md` when
   present and load only the rows the change touches.
