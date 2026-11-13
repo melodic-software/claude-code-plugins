@@ -3,6 +3,12 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.3.2] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [2.0.2] - 2026-11-13
 
 ### Changed

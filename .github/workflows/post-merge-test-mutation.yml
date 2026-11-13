@@ -275,25 +275,7 @@ jobs:
         env:
           BEFORE: ${{ needs.prep.outputs.before }}
           AFTER: ${{ needs.prep.outputs.after }}
-        run: |
-          git merge-base --is-ancestor "$AFTER" refs/remotes/origin/main ||
-            { echo "::error::the pushed head $AFTER is not on main"; exit 1; }
-          if [[ -n $BEFORE ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            target=$BEFORE mode=range
-          else
-            target=$(git rev-parse "$AFTER^") || { echo "::error::the head has no parent to diff against"; exit 1; }
-            mode=commit
-            echo "::warning::no usable previous head; mutating only the head commit $AFTER"
-          fi
-          printf '.base/\n.lane/\nmutation-data/\n' >>.git/info/exclude
-          # shellcheck disable=SC2016 # the backticks are the markdown fence
-          printf '# Written by post-merge-test-mutation.yml.\n\n```yaml\ndiff-target: %s\n```\n' "$target" \
-            >.claude/mutation-testing.local.md
-          [ -z "$(git status --porcelain)" ] || { echo "::error::the checkout is not clean before the audit"; exit 1; }
-          {
-            echo "mode=$mode"
-            echo "target=$target"
-          } >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/post-merge-test-mutation/set-diff-target.sh
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -331,23 +313,7 @@ jobs:
           PROMPT_FILE: ${{ runner.temp }}/mutation-prompt.md
           SCHEMA_FILE: ${{ runner.temp }}/mutation-schema.json
           MODEL: ${{ steps.models.outputs.model }}
-        run: |
-          [ -n "$MODEL" ] || { echo "::error::the verify-pr route's model is default, which run-claude-cli cannot pass"; exit 1; }
-          mkdir -p .lane/plugins
-          cp -R .base/plugins/mutation-testing .lane/plugins/
-          [ -z "$(find .lane -type l -print -quit)" ] || { echo "::error::the staged plugin holds a symbolic link"; exit 1; }
-          chmod -R a-w .lane/plugins
-          prompt=$(<.base/.github/scripts/post-merge-test-mutation/generate.prompt.md)
-          prompt=${prompt//HEAD_SHA/$HEAD_SHA}
-          prompt=${prompt//DIFF_TARGET/$DIFF_TARGET}
-          prompt=${prompt//EXECUTED_FILE/mutation-data/executed.json}
-          printf '%s\n' "$prompt" >"$PROMPT_FILE"
-          # The model gets the shape without pattern, minimum and maximum, which
-          # no live lane schema has used with --json-schema; the next job
-          # checks the whole file.
-          jq -c 'walk(if type == "object" then del(.pattern, .minimum, .maximum) else . end)' \
-            .base/.github/scripts/post-merge-test-mutation/generate.schema.json >"$SCHEMA_FILE"
-          echo "lint=$GITHUB_WORKSPACE/.lane/plugins/mutation-testing/scripts/suppression-lint.sh" >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/post-merge-test-mutation/stage-plugin-prompt.sh generate
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
@@ -437,7 +403,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 1
         run: |
-          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
           mkdir -p "$RUNNER_TEMP/key-credit-stop"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
 
@@ -604,25 +569,7 @@ jobs:
         env:
           BEFORE: ${{ needs.prep.outputs.before }}
           AFTER: ${{ needs.prep.outputs.after }}
-        run: |
-          git merge-base --is-ancestor "$AFTER" refs/remotes/origin/main ||
-            { echo "::error::the pushed head $AFTER is not on main"; exit 1; }
-          if [[ -n $BEFORE ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            target=$BEFORE mode=range
-          else
-            target=$(git rev-parse "$AFTER^") || { echo "::error::the head has no parent to diff against"; exit 1; }
-            mode=commit
-            echo "::warning::no usable previous head; mutating only the head commit $AFTER"
-          fi
-          printf '.base/\n.lane/\nmutation-data/\n' >>.git/info/exclude
-          # shellcheck disable=SC2016 # the backticks are the markdown fence
-          printf '# Written by post-merge-test-mutation.yml.\n\n```yaml\ndiff-target: %s\n```\n' "$target" \
-            >.claude/mutation-testing.local.md
-          [ -z "$(git status --porcelain)" ] || { echo "::error::the checkout is not clean before the audit"; exit 1; }
-          {
-            echo "mode=$mode"
-            echo "target=$target"
-          } >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/post-merge-test-mutation/set-diff-target.sh
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -664,23 +611,7 @@ jobs:
           PROMPT_FILE: ${{ runner.temp }}/mutation-prompt.md
           SCHEMA_FILE: ${{ runner.temp }}/mutation-schema.json
           MODEL: ${{ steps.models.outputs.model }}
-        run: |
-          [ -n "$MODEL" ] || { echo "::error::the verify-pr route's model is default, which run-claude-cli cannot pass"; exit 1; }
-          mkdir -p .lane/plugins
-          cp -R .base/plugins/mutation-testing .lane/plugins/
-          [ -z "$(find .lane -type l -print -quit)" ] || { echo "::error::the staged plugin holds a symbolic link"; exit 1; }
-          chmod -R a-w .lane/plugins
-          prompt=$(<.base/.github/scripts/post-merge-test-mutation/generate.prompt.md)
-          prompt=${prompt//HEAD_SHA/$HEAD_SHA}
-          prompt=${prompt//DIFF_TARGET/$DIFF_TARGET}
-          prompt=${prompt//EXECUTED_FILE/mutation-data/executed.json}
-          printf '%s\n' "$prompt" >"$PROMPT_FILE"
-          # The model gets the shape without pattern, minimum and maximum, which
-          # no live lane schema has used with --json-schema; the next job
-          # checks the whole file.
-          jq -c 'walk(if type == "object" then del(.pattern, .minimum, .maximum) else . end)' \
-            .base/.github/scripts/post-merge-test-mutation/generate.schema.json >"$SCHEMA_FILE"
-          echo "lint=$GITHUB_WORKSPACE/.lane/plugins/mutation-testing/scripts/suppression-lint.sh" >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/post-merge-test-mutation/stage-plugin-prompt.sh generate
 
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
@@ -883,25 +814,7 @@ jobs:
         env:
           BEFORE: ${{ needs.prep.outputs.before }}
           AFTER: ${{ needs.prep.outputs.after }}
-        run: |
-          git merge-base --is-ancestor "$AFTER" refs/remotes/origin/main ||
-            { echo "::error::the pushed head $AFTER is not on main"; exit 1; }
-          if [[ -n $BEFORE ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            target=$BEFORE mode=range
-          else
-            target=$(git rev-parse "$AFTER^") || { echo "::error::the head has no parent to diff against"; exit 1; }
-            mode=commit
-            echo "::warning::no usable previous head; mutating only the head commit $AFTER"
-          fi
-          printf '.base/\n.lane/\nmutation-data/\n' >>.git/info/exclude
-          # shellcheck disable=SC2016 # the backticks are the markdown fence
-          printf '# Written by post-merge-test-mutation.yml.\n\n```yaml\ndiff-target: %s\n```\n' "$target" \
-            >.claude/mutation-testing.local.md
-          [ -z "$(git status --porcelain)" ] || { echo "::error::the checkout is not clean before the audit"; exit 1; }
-          {
-            echo "mode=$mode"
-            echo "target=$target"
-          } >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/post-merge-test-mutation/set-diff-target.sh
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -942,23 +855,7 @@ jobs:
           PROMPT_FILE: ${{ runner.temp }}/mutation-prompt.md
           SCHEMA_FILE: ${{ runner.temp }}/mutation-schema.json
           MODEL: ${{ steps.models.outputs.model }}
-        run: |
-          [ -n "$MODEL" ] || { echo "::error::the verify-pr route's model is default, which run-claude-cli cannot pass"; exit 1; }
-          mkdir -p .lane/plugins
-          cp -R .base/plugins/mutation-testing .lane/plugins/
-          [ -z "$(find .lane -type l -print -quit)" ] || { echo "::error::the staged plugin holds a symbolic link"; exit 1; }
-          chmod -R a-w .lane/plugins
-          prompt=$(<.base/.github/scripts/post-merge-test-mutation/generate.prompt.md)
-          prompt=${prompt//HEAD_SHA/$HEAD_SHA}
-          prompt=${prompt//DIFF_TARGET/$DIFF_TARGET}
-          prompt=${prompt//EXECUTED_FILE/mutation-data/executed.json}
-          printf '%s\n' "$prompt" >"$PROMPT_FILE"
-          # The model gets the shape without pattern, minimum and maximum, which
-          # no live lane schema has used with --json-schema; the next job
-          # checks the whole file.
-          jq -c 'walk(if type == "object" then del(.pattern, .minimum, .maximum) else . end)' \
-            .base/.github/scripts/post-merge-test-mutation/generate.schema.json >"$SCHEMA_FILE"
-          echo "lint=$GITHUB_WORKSPACE/.lane/plugins/mutation-testing/scripts/suppression-lint.sh" >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/post-merge-test-mutation/stage-plugin-prompt.sh generate
 
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
@@ -1315,25 +1212,7 @@ jobs:
         env:
           BEFORE: ${{ needs.prep.outputs.before }}
           AFTER: ${{ needs.prep.outputs.after }}
-        run: |
-          git merge-base --is-ancestor "$AFTER" refs/remotes/origin/main ||
-            { echo "::error::the pushed head $AFTER is not on main"; exit 1; }
-          if [[ -n $BEFORE ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            target=$BEFORE mode=range
-          else
-            target=$(git rev-parse "$AFTER^") || { echo "::error::the head has no parent to diff against"; exit 1; }
-            mode=commit
-            echo "::warning::no usable previous head; mutating only the head commit $AFTER"
-          fi
-          printf '.base/\n.lane/\nmutation-data/\n' >>.git/info/exclude
-          # shellcheck disable=SC2016 # the backticks are the markdown fence
-          printf '# Written by post-merge-test-mutation.yml.\n\n```yaml\ndiff-target: %s\n```\n' "$target" \
-            >.claude/mutation-testing.local.md
-          [ -z "$(git status --porcelain)" ] || { echo "::error::the checkout is not clean before the audit"; exit 1; }
-          {
-            echo "mode=$mode"
-            echo "target=$target"
-          } >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/post-merge-test-mutation/set-diff-target.sh
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -1398,23 +1277,7 @@ jobs:
           PROMPT_FILE: ${{ runner.temp }}/mutation-prompt.md
           SCHEMA_FILE: ${{ runner.temp }}/mutation-schema.json
           MODEL: ${{ steps.models.outputs.model }}
-        run: |
-          [ -n "$MODEL" ] || { echo "::error::the verify-pr route's model is default, which run-claude-cli cannot pass"; exit 1; }
-          mkdir -p .lane/plugins
-          cp -R .base/plugins/mutation-testing .lane/plugins/
-          [ -z "$(find .lane -type l -print -quit)" ] || { echo "::error::the staged plugin holds a symbolic link"; exit 1; }
-          chmod -R a-w .lane/plugins
-          prompt=$(<.base/.github/scripts/post-merge-test-mutation/triage.prompt.md)
-          prompt=${prompt//HEAD_SHA/$HEAD_SHA}
-          prompt=${prompt//DIFF_TARGET/$DIFF_TARGET}
-          prompt=${prompt//EXECUTED_FILE/mutation-data/executed.json}
-          printf '%s\n' "$prompt" >"$PROMPT_FILE"
-          # The model gets the shape without pattern, minimum and maximum, which
-          # no live lane schema has used with --json-schema; the next job
-          # checks the whole file.
-          jq -c 'walk(if type == "object" then del(.pattern, .minimum, .maximum) else . end)' \
-            .base/.github/scripts/post-merge-test-mutation/triage.schema.json >"$SCHEMA_FILE"
-          echo "lint=$GITHUB_WORKSPACE/.lane/plugins/mutation-testing/scripts/suppression-lint.sh" >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/post-merge-test-mutation/stage-plugin-prompt.sh triage
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
@@ -1506,7 +1369,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 1
         run: |
-          rm -rf "${RUNNER_TEMP:?}/key-credit-stop"
           mkdir -p "$RUNNER_TEMP/key-credit-stop"
           echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop/run-id"
 
@@ -1673,25 +1535,7 @@ jobs:
         env:
           BEFORE: ${{ needs.prep.outputs.before }}
           AFTER: ${{ needs.prep.outputs.after }}
-        run: |
-          git merge-base --is-ancestor "$AFTER" refs/remotes/origin/main ||
-            { echo "::error::the pushed head $AFTER is not on main"; exit 1; }
-          if [[ -n $BEFORE ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            target=$BEFORE mode=range
-          else
-            target=$(git rev-parse "$AFTER^") || { echo "::error::the head has no parent to diff against"; exit 1; }
-            mode=commit
-            echo "::warning::no usable previous head; mutating only the head commit $AFTER"
-          fi
-          printf '.base/\n.lane/\nmutation-data/\n' >>.git/info/exclude
-          # shellcheck disable=SC2016 # the backticks are the markdown fence
-          printf '# Written by post-merge-test-mutation.yml.\n\n```yaml\ndiff-target: %s\n```\n' "$target" \
-            >.claude/mutation-testing.local.md
-          [ -z "$(git status --porcelain)" ] || { echo "::error::the checkout is not clean before the audit"; exit 1; }
-          {
-            echo "mode=$mode"
-            echo "target=$target"
-          } >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/post-merge-test-mutation/set-diff-target.sh
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -1758,23 +1602,7 @@ jobs:
           PROMPT_FILE: ${{ runner.temp }}/mutation-prompt.md
           SCHEMA_FILE: ${{ runner.temp }}/mutation-schema.json
           MODEL: ${{ steps.models.outputs.model }}
-        run: |
-          [ -n "$MODEL" ] || { echo "::error::the verify-pr route's model is default, which run-claude-cli cannot pass"; exit 1; }
-          mkdir -p .lane/plugins
-          cp -R .base/plugins/mutation-testing .lane/plugins/
-          [ -z "$(find .lane -type l -print -quit)" ] || { echo "::error::the staged plugin holds a symbolic link"; exit 1; }
-          chmod -R a-w .lane/plugins
-          prompt=$(<.base/.github/scripts/post-merge-test-mutation/triage.prompt.md)
-          prompt=${prompt//HEAD_SHA/$HEAD_SHA}
-          prompt=${prompt//DIFF_TARGET/$DIFF_TARGET}
-          prompt=${prompt//EXECUTED_FILE/mutation-data/executed.json}
-          printf '%s\n' "$prompt" >"$PROMPT_FILE"
-          # The model gets the shape without pattern, minimum and maximum, which
-          # no live lane schema has used with --json-schema; the next job
-          # checks the whole file.
-          jq -c 'walk(if type == "object" then del(.pattern, .minimum, .maximum) else . end)' \
-            .base/.github/scripts/post-merge-test-mutation/triage.schema.json >"$SCHEMA_FILE"
-          echo "lint=$GITHUB_WORKSPACE/.lane/plugins/mutation-testing/scripts/suppression-lint.sh" >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/post-merge-test-mutation/stage-plugin-prompt.sh triage
 
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
@@ -1979,25 +1807,7 @@ jobs:
         env:
           BEFORE: ${{ needs.prep.outputs.before }}
           AFTER: ${{ needs.prep.outputs.after }}
-        run: |
-          git merge-base --is-ancestor "$AFTER" refs/remotes/origin/main ||
-            { echo "::error::the pushed head $AFTER is not on main"; exit 1; }
-          if [[ -n $BEFORE ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            target=$BEFORE mode=range
-          else
-            target=$(git rev-parse "$AFTER^") || { echo "::error::the head has no parent to diff against"; exit 1; }
-            mode=commit
-            echo "::warning::no usable previous head; mutating only the head commit $AFTER"
-          fi
-          printf '.base/\n.lane/\nmutation-data/\n' >>.git/info/exclude
-          # shellcheck disable=SC2016 # the backticks are the markdown fence
-          printf '# Written by post-merge-test-mutation.yml.\n\n```yaml\ndiff-target: %s\n```\n' "$target" \
-            >.claude/mutation-testing.local.md
-          [ -z "$(git status --porcelain)" ] || { echo "::error::the checkout is not clean before the audit"; exit 1; }
-          {
-            echo "mode=$mode"
-            echo "target=$target"
-          } >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/post-merge-test-mutation/set-diff-target.sh
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -2063,23 +1873,7 @@ jobs:
           PROMPT_FILE: ${{ runner.temp }}/mutation-prompt.md
           SCHEMA_FILE: ${{ runner.temp }}/mutation-schema.json
           MODEL: ${{ steps.models.outputs.model }}
-        run: |
-          [ -n "$MODEL" ] || { echo "::error::the verify-pr route's model is default, which run-claude-cli cannot pass"; exit 1; }
-          mkdir -p .lane/plugins
-          cp -R .base/plugins/mutation-testing .lane/plugins/
-          [ -z "$(find .lane -type l -print -quit)" ] || { echo "::error::the staged plugin holds a symbolic link"; exit 1; }
-          chmod -R a-w .lane/plugins
-          prompt=$(<.base/.github/scripts/post-merge-test-mutation/triage.prompt.md)
-          prompt=${prompt//HEAD_SHA/$HEAD_SHA}
-          prompt=${prompt//DIFF_TARGET/$DIFF_TARGET}
-          prompt=${prompt//EXECUTED_FILE/mutation-data/executed.json}
-          printf '%s\n' "$prompt" >"$PROMPT_FILE"
-          # The model gets the shape without pattern, minimum and maximum, which
-          # no live lane schema has used with --json-schema; the next job
-          # checks the whole file.
-          jq -c 'walk(if type == "object" then del(.pattern, .minimum, .maximum) else . end)' \
-            .base/.github/scripts/post-merge-test-mutation/triage.schema.json >"$SCHEMA_FILE"
-          echo "lint=$GITHUB_WORKSPACE/.lane/plugins/mutation-testing/scripts/suppression-lint.sh" >>"$GITHUB_OUTPUT"
+        run: bash .base/.github/scripts/post-merge-test-mutation/stage-plugin-prompt.sh triage
 
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'

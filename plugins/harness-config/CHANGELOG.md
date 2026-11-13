@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.6.2] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.40.17] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [3.6.1] - 2026-11-13
 
 ### Changed

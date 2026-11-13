@@ -63,7 +63,7 @@ to set these keys, checked against
 
 | Key | Values | Default | What it controls |
 |---|---|---|---|
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/writing:be-concise` runs its fresh-context semantic diff: `strict` runs it on every rewrite, `light` and `off` skip it and say the meaning was not independently checked. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/writing:be-concise` runs its fresh-context semantic diff: `strict` runs it on every rewrite, `light` and `off` skip it and say the meaning was not independently checked. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 ## Sources
 

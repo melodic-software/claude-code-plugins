@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.7] - 2026-11-13
+
+### Changed
+
+- References to the rate-limit windows plugin use its new name, rate-limits: the `/rate-limits:setup` command, the `mcp__rate-limits__status` tool and the `~/.claude/rate-limits/` directory.
+
 ## [5.0.6] - 2026-11-13
 
 ### Changed

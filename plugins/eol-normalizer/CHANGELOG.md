@@ -3,6 +3,12 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.25] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.5.2] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [1.0.24] - 2026-11-13
 
 ### Changed

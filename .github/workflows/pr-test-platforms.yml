@@ -202,20 +202,9 @@ jobs:
         with:
           python-version-file: .python-version
       # The guards read every Bash command through shfmt (lib/hook-utils.sh) and
-      # refuse the call without it. Same v3.14.1 pin as pr-require-checks.yml; the
-      # hash is GitHub's SHA-256 digest of the windows_amd64 asset, whose
-      # linux_amd64 sibling's digest matches the pin there.
+      # refuse the call without it; setup-pinned-shfmt holds the pin.
       - name: Install pinned shfmt
-        env:
-          SHFMT_VERSION: v3.14.1
-          SHFMT_SHA256: 13629ce28442ca80b6b5a819f7574ab39e1c28c6e26734ca816c9714e04851df
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
-            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_windows_amd64.exe"
-          echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt.exe" | sha256sum -c -
-          cygpath -w "$HOME/.local/bin" >> "$GITHUB_PATH"
-          test "$("$HOME/.local/bin/shfmt.exe" --version)" = "$SHFMT_VERSION"
+        uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
       # NTFS is case-insensitive, which is the whole point of running this one
       # here: the rename executor's case-only `git mv` path and its
       # index-not-filesystem existence test cannot be exercised on a
@@ -362,19 +351,10 @@ jobs:
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/hardcoded-path-check.test.sh')
         run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
       # block-root-delete-target-resolve runs the guard, which reads every Bash
-      # command through shfmt; same pin as the rename-1 job.
+      # command through shfmt, installed as in the rename-1 job.
       - name: Install pinned shfmt
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-root-delete-target-resolve.test.sh')
-        env:
-          SHFMT_VERSION: v3.14.1
-          SHFMT_SHA256: 13629ce28442ca80b6b5a819f7574ab39e1c28c6e26734ca816c9714e04851df
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
-            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_windows_amd64.exe"
-          echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt.exe" | sha256sum -c -
-          cygpath -w "$HOME/.local/bin" >> "$GITHUB_PATH"
-          test "$("$HOME/.local/bin/shfmt.exe" --version)" = "$SHFMT_VERSION"
+        uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
       # The guard's in-shell realpath and cygpath stand-ins against the processes,
       # on the Git Bash they replace them on.
       - name: Test block-root-delete-target-resolve on Windows
@@ -407,18 +387,9 @@ jobs:
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
-      # Same shfmt pin and reason as the rename-1 job.
+      # shfmt for the same reason as the rename-1 job.
       - name: Install pinned shfmt
-        env:
-          SHFMT_VERSION: v3.14.1
-          SHFMT_SHA256: 13629ce28442ca80b6b5a819f7574ab39e1c28c6e26734ca816c9714e04851df
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
-            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_windows_amd64.exe"
-          echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt.exe" | sha256sum -c -
-          cygpath -w "$HOME/.local/bin" >> "$GITHUB_PATH"
-          test "$("$HOME/.local/bin/shfmt.exe" --version)" = "$SHFMT_VERSION"
+        uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
       # The host-skip suites of #3683, named explicitly: each probes the host at
       # run time, so a green step is only evidence once its log shows whether
       # the probe fired or the cases ran.
@@ -503,18 +474,9 @@ jobs:
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
-      # Same shfmt pin and reason as the rename-1 job.
+      # shfmt for the same reason as the rename-1 job.
       - name: Install pinned shfmt
-        env:
-          SHFMT_VERSION: v3.14.1
-          SHFMT_SHA256: 13629ce28442ca80b6b5a819f7574ab39e1c28c6e26734ca816c9714e04851df
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$HOME/.local/bin/shfmt.exe" \
-            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_windows_amd64.exe"
-          echo "$SHFMT_SHA256  $HOME/.local/bin/shfmt.exe" | sha256sum -c -
-          cygpath -w "$HOME/.local/bin" >> "$GITHUB_PATH"
-          test "$("$HOME/.local/bin/shfmt.exe" --version)" = "$SHFMT_VERSION"
+        uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
       - name: Test block-windows-drive-tmp on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-windows-drive-tmp.test.sh')
         run: bash plugins/guardrails/hooks/block-windows-drive-tmp.test.sh

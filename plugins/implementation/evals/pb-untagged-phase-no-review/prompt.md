@@ -10,7 +10,7 @@ expected_outcome: "The ordered step list has no `/review:quality-gate` invocatio
 
 /implementation:implement-dispatch phase-3 Don't dispatch anything, don't read files and don't run commands. Phase 3's worker returns are verified and its build/test gate passed. Print, as a numbered list, every remaining step of this phase boundary in the order you would run it, each with its exact command or skill invocation, then stop.
 
-The plan (approved, autonomous run, commit authority `orchestrator`). Its Brief's captured assumptions include the line `Quality bar: internal`. Phase 3 adds a pricing rules module and is beyond a mechanical change; its header reads:
+The plan (approved, autonomous run, commit authority `orchestrator`). The verification reader already printed `verification: standard (docs/conventions/implementation.yaml verification at origin/main, commit 9c2e4f1)`. Its Brief's captured assumptions include the line `Quality bar: internal`. Phase 3 adds a pricing rules module and is beyond a mechanical change; its header reads:
 
 ```markdown
 ### Phase 3: Pricing rules module [TODO]
