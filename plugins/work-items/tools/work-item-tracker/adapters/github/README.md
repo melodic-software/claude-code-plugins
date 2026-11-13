@@ -212,6 +212,11 @@ Run `gh api` from the target clone, or prefix `GH_REPO=<owner>/<repo>`; where it
 `gh issue list --json` and carry no REST form here, so a cloud session does not use them, nor the
 seam verbs named at the end of "Edit labels / assignees".
 
+**State history.** When an item was closed and reopened is neither body nor comment text: GitHub
+records it as `closed` and `reopened` timeline events. Read it through the seam, `get-item <id>
+--history` (CONTRACT.md "Verbs"), which pages the REST timeline and so also runs in a cloud
+session.
+
 ## List item comments
 
 List an item's comments (bare `gh`):

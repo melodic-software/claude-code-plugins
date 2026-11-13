@@ -221,7 +221,7 @@ value (named by file, key and value; the personal override when it set the value
 
 ```text
 work-item-tracker.sh create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <o>/<r>]
-work-item-tracker.sh get-item <id>
+work-item-tracker.sh get-item <id> [--history]
 work-item-tracker.sh claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only] [--phase <kind>]
 work-item-tracker.sh renew-lease <id> --lease-comment-id <n>
 work-item-tracker.sh release <id> --lease-comment-id <n> [--holder <h>]
@@ -254,6 +254,23 @@ an existing marker only from the authors a lease comment counts from ("Lease pro
 anyone can comment on a public repository. local-markdown appends the marker line to the item
 file. The check and the write are two calls with no compare-and-set, so two concurrent calls
 with one link can both write. An adapter that declares no `add-recurrence` key exits `6`.
+
+`get-item <id> --history` adds `state_history` to the item object: when the item was closed and
+reopened. It costs one more provider read, so only a caller that asks pays it; `list-items`,
+`list-sub-items` and `list-frontier` never read it. The flag is core-gated like `--label`: core
+hands `--history` to an adapter only when its manifest declares `features.state_history: true`, and
+that adapter emits `{available: true, events: [{state, at, actor}], reopen_count, reason: null}`,
+`events` oldest first, each `state` `closed` or `reopened`, `at` a UTC timestamp, `actor` a login or
+`null`, `reopen_count` the number of `reopened` events. For any other adapter, core runs the plain
+`get-item` and adds `{available: false, events: null, reopen_count: null, reason: "state history not
+available for provider '<provider>'"}`, so a caller tells "cannot know" apart from `events: []`,
+which means the item was never closed. A failed history read exits with the mapped code and prints
+no item, never an empty history. GitHub reads the issue timeline's `closed` and `reopened` events
+over REST (`GET /repos/{owner}/{repo}/issues/{number}/timeline`, paginated), so the read also works
+in a session whose proxy refuses GraphQL (pointer:
+[issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types), recheck
+trigger: the timeline API drops either event). local-markdown and the jira, gitea and linear seeds
+declare no state history.
 
 `create-item --body-file <path>` is core-side: the dispatcher reads the file and hands the adapter
 `--body <content>`, so adapters implement only `--body`. It lets a caller pass a body with no
@@ -593,7 +610,7 @@ Per-verb result objects:
 | Verb | Result fields (beyond `schema_version`) |
 |---|---|
 | `create-item` | normalized item object |
-| `get-item` | normalized item object |
+| `get-item` | normalized item object; with `--history`, plus `state_history: {available, events, reopen_count, reason}` ("Verbs") |
 | `claim` | `id, holder, acquired_at, renewed_at, ttl_hours, lease_comment_id, session_id` |
 | `renew-lease` | same as `claim` (with bumped `renewed_at`) |
 | `release` | `id, lease_comment_id, released` (bool), `reason` |
@@ -813,7 +830,8 @@ Building `sources` is demand-gated: a consumer who needs it opens a new item cit
 ```
 
 `change_link` is the branch grammar "Change links" defines. `features.list_items_label_filter`
-is optional, and absent reads as `false` ("Adapter contract").
+and `features.state_history` are optional, and absent reads as `false` ("Adapter contract",
+"Verbs").
 
 Provider ceilings surface as exit `7` with the ceiling named on stderr when hit at
 runtime (e.g. GitHub: 100 sub-issues/parent, 8 nesting levels, 50 dependencies/type).
@@ -1201,7 +1219,9 @@ adapter through the core CLI only: every verb, valid + invalid input, exit-code 
 `schema_version` + JSON-shape assertions, claim-race back-off, CR-free stdout,
 capability-gated skips (declared-unsupported verbs asserted to exit `6`), and the list
 contract: `list-items` rows carry `created_at` as a UTC timestamp or `null` and `milestone` as a
-name or `null`, and `--label` with a label no item carries returns no items. Bindings live
+name or `null`, `--label` with a label no item carries returns no items, and `get-item --history`
+on a new item reports no events where `features.state_history` is declared and `available: false`
+with a reason where it is not. Bindings live
 at `conformance/bindings/<name>.sh` and provide setup (clean-at-start), target context,
 and teardown.
 
