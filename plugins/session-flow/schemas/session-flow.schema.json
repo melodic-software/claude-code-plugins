@@ -31,6 +31,18 @@
       "default": "worktree",
       "description": "How far /session-flow:find-handoff and /session-flow:recall read transcripts before asking: worktree scans this worktree's sessions, then the repository's other worktrees, and asks before any other project; repo starts with every worktree; all reaches every project without asking. Unlike the other keys, the narrower of this value and the user's option wins (worktree < repo < all), and an unset user option counts as worktree, so this file can narrow the scan but never widen it."
     },
+    "recall_report_kinds": {
+      "type": "string",
+      "default": "Bug",
+      "pattern": "^[^,'\"`]*[^,'\"`\\s][^,'\"`]*(,[^,'\"`]*[^,'\"`\\s][^,'\"`]*)*$",
+      "description": "Comma-separated issue types or labels that count as an incident or a user report in /session-flow:recall's Still reported section, read through the work-items label taxonomy: an entry matches an item of that native issue type, or one carrying a label of that name or its type: label. No empty entry and no quote."
+    },
+    "recall_doc_paths": {
+      "type": "string",
+      "default": "*.md",
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_*?.\\[\\]-][A-Za-z0-9_*?./\\[\\]-]*(,[A-Za-z0-9_*?.\\[\\]-][A-Za-z0-9_*?./\\[\\]-]*)*$",
+      "description": "Comma-separated git pathspecs /session-flow:recall searches for postmortems on the topic; the default *.md is every tracked markdown file. Each entry holds only letters, digits and _*?./[]-, does not start with /, and holds no ..; quote a value that starts with * or [."
+    },
     "retro_lenses": {
       "enum": ["1", "3"],
       "default": "1",

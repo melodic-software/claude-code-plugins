@@ -30,11 +30,11 @@
       "id": 3,
       "name": "reports-tried-kept-reverted",
       "prompt": "Have we attempted to replace the in-memory rate limiter before? Tell me how it went.",
-      "expected_output": "The skill combines the transcript scan with git reverts, closed unmerged pull requests through gh, and a /work-items:track search when that skill is available, and reports four sections, Tried, Kept, Dropped or reverted, and Still open, each item dated and cited by session id, commit SHA, pull request number or item id. It names any source it could not use.",
+      "expected_output": "The skill combines the transcript scan with git reverts, closed unmerged pull requests through gh, and a /work-items:track search when that skill is available, and reports five sections, Tried, Kept, Dropped or reverted, Still reported, and Still open, each item dated and cited by session id, commit SHA, pull request number or item id. It names any source it could not use.",
       "files": [],
       "expectations": [
         "Searches git history for reverts and gh for closed unmerged pull requests",
-        "Reports Tried, Kept, Dropped or reverted, and Still open sections",
+        "Reports Tried, Kept, Dropped or reverted, Still reported, and Still open sections",
         "Cites each item by session id, commit SHA, pull request number or item id",
         "Names any source that was unavailable instead of omitting it silently"
       ]
@@ -48,6 +48,19 @@
       "expectations": [
         "Does not run recall_scan.py for a current-state question",
         "Points to /session-flow:orient for where the work stands now"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "still-reports-reverted-fix",
+      "prompt": "Is the CSV export crash on quoted cells fixed, or are users still hitting it? I think we closed the bug a while ago.",
+      "expected_output": "The skill searches the tracker for open and closed items through /work-items:track search when that skill is available, finds in git a revert of a fix whose message closes the bug item, searches the recall_doc_paths pathspecs (default every tracked markdown file) for a postmortem on the topic, and lists the item under Still reported because its fix was reverted, citing the revert's commit SHA and the postmortem's path. It names any source it could not use and writes nothing.",
+      "files": [],
+      "expectations": [
+        "Resolves recall_report_kinds and recall_doc_paths and names the layer that supplied each",
+        "Lists the bug item whose fix was reverted under Still reported, citing the revert's commit SHA",
+        "Searches the recall_doc_paths pathspecs for a postmortem and cites it by path",
+        "Writes no file and makes no commit"
       ]
     }
   ]

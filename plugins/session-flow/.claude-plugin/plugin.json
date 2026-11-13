@@ -148,6 +148,18 @@
         "all"
       ]
     },
+    "recall_report_kinds": {
+      "type": "string",
+      "title": "Recall incident and report kinds",
+      "description": "Comma-separated issue types or labels /session-flow:recall counts as an incident or a user report when it lists what is still reported; default Bug, which also matches a type: bug label. docs/conventions/session-flow.yaml wins.",
+      "default": "Bug"
+    },
+    "recall_doc_paths": {
+      "type": "string",
+      "title": "Recall postmortem paths",
+      "description": "Comma-separated git pathspecs /session-flow:recall searches for postmortems on the topic; default *.md, every tracked markdown file. docs/conventions/session-flow.yaml wins.",
+      "default": "*.md"
+    },
     "retro_lenses": {
       "type": "string",
       "title": "Retro review lenses",
