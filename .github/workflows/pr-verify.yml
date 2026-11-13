@@ -3,13 +3,13 @@ name: PR Verify
 # The verifier: a model that did not write the pull request judges each head
 # that passes pr-require-checks, or fails it only on holds an approving review
 # of the head lifts (resolve-pr.mjs heldOnly, so the person approves a judged
-# head), against its linked issue, and the run uploads
-# its verdict as the artifact pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>, a
-# FAIL's followed by -i<issues> (write-verdict.mjs artifactName); its readers also
-# accept the -<ref-digest> before that (write-verdict.mjs headRefDigest). A
-# FAIL first uploads its index (upload-fail-index, write-verdict.mjs
-# failIndexNames), which the gate reads by exact name instead of the whole
-# artifact listing, and uploads only once every index did.
+# head), against its linked issue. The run uploads its verdict as the artifact
+# pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>, a FAIL's followed by
+# -i<issues> (write-verdict.mjs artifactName); its readers also accept the
+# -<ref-digest> before that (write-verdict.mjs headRefDigest). A FAIL first
+# uploads its index (upload-fail-index, write-verdict.mjs failIndexNames),
+# which the gate reads by exact name instead of the whole artifact listing,
+# and uploads the verdict only once every index did.
 # Only steps of a run of this file on main can upload that run's artifacts, so
 # the pr-merge lane counts a verdict only through its run record
 # (plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py).
@@ -25,10 +25,10 @@ name: PR Verify
 # at most 35 minutes for it, the later jobs take what it found) and downloads it
 # into pr-verify-data/capture as untrusted data. A missing, unfinished or
 # blocked capture never fails a verdict, and with the app set the verdict
-# records it blocked with find-capture's reason. The diff, the trusted PR text, the linked
-# issues and the upstream run's jobs (upstream-jobs.mjs) are data files in
-# pr-verify-data under the working directory too, and the
-# model reads them with the Read tool alone: its rules allow that directory
+# records it blocked with find-capture's reason. The diff, the trusted PR
+# text, the linked issues and the upstream run's jobs (upstream-jobs.mjs) are
+# data files in pr-verify-data under the working directory too, and the model
+# reads them with the Read tool alone: its rules allow that directory
 # and deny .base and every other tool. The judgment runs on ci-workflows'
 # run-claude-cli as the pr-verify role, on one credential per job. The
 # check-intent job holds only the API key. The check-intent-subscription job
@@ -37,51 +37,52 @@ name: PR Verify
 # a credit stop, or class auth with API status 401 or 402) with no permission
 # denial, or its key is empty; then check-intent writes no verdict and does
 # not fail. It also runs when check-intent's credit gate skipped the key leg
-# because the key's credit stop is recent. With the org secret FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, the
-# subscription leg hands off the same way (a limit stop, a credit stop, or a
-# 401 or 402) and the check-intent-fallback job judges once on that token, on
-# a third VM; with it empty, nothing hands off past the subscription job. So
-# one job per run judges. Each later job repeats every step from a fresh
-# checkout, but the subscription job takes check-intent's reads instead of
-# repeating them: four outputs, each compared to a fixed string in its `if` or
-# in the fallback-reason expression that picks one of three literals, and
-# `reads`, the resolved PR, spec and trusted text, which the "Hand the reads
-# on" step writes from base-side step files before the model runs and which
-# reaches resolve-pr.mjs only through env. It still runs the trigger gate
-# (2 reads), whose head the agree step compares with the carried one, and
-# reads everything again when the bundle is missing, malformed, too large or
-# from another run attempt (resolve-pr.mjs takeReads). None of them is written
-# into a `run:` script, and it takes no cache and no artifact but the capture,
-# which each job downloads for itself. run-claude-cli sets
-# handoff and lane-class after it restores the step files, so the model cannot
-# set them.
+# because the key's credit stop is recent. With the org secret
+# FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, the subscription leg hands off the
+# same way (a limit stop, a credit stop, or a 401 or 402) and the
+# check-intent-fallback job judges once on that token, on a third VM; with it
+# empty, nothing hands off past the subscription job. So one job per run
+# judges. Each later job repeats every step from a fresh checkout, but the
+# subscription job takes check-intent's reads instead of repeating them. Of
+# check-intent's outputs it reads next-leg, compared to a fixed string in its
+# `if`; next-reason, passed only as its credential call's `reason` input;
+# capture, a `<run id>:<artifact id>` or a miss code that cannot change
+# (find-capture.mjs); and `reads`, the resolved PR, spec and trusted text,
+# which the "Hand the reads on" step writes from base-side step files before
+# the model runs and which reaches resolve-pr.mjs only through env. It still
+# runs the trigger gate (2 reads), whose head the agree step compares with
+# the carried one, and reads everything again when the bundle is missing,
+# malformed, too large or from another run attempt
+# (resolve-pr.mjs takeReads). None of them is written into a `run:` script,
+# and it takes no cache and no artifact but the capture, which each job
+# downloads for itself. run-claude-cli sets handoff and lane-class after it
+# restores the step files, so the model cannot set them.
 # A diff over one judgment's read budget is judged in chunks, each its own
 # run-claude-cli step in the same job, on its own prompt, against the same
 # spec (chunk-diff.sh, write-verdict.mjs mergeChunks): any chunk's fail fails
 # the head, and a chunk that passes short of every part or leaves no output
 # leaves no verdict for the head, so size alone never writes a fail. A head of
-# two chunks or more also needs a final judge, with no diff, over the spec and every
-# chunk's result (spec-prompt.md): an item no chunk delivers fails the head,
-# and with no output from that judge there is no verdict.
-# The judging jobs' tokens can only read. Every script and local action comes from the
-# main checkout in .base; the Claude actions are ci-workflows', at main. After
-# them, wake-pr-merge, whose only write is actions: write, starts a PR-scoped
-# pr-merge run on a pass or pass-notes verdict that uploaded.
+# two chunks or more also needs a final judge, with no diff, over the spec
+# and every chunk's result (spec-prompt.md): an item no chunk delivers fails
+# the head, and with no output from that judge there is no verdict.
+# The judging jobs' tokens can only read. Every script and local action comes
+# from the main checkout in .base, and the Claude actions are ci-workflows',
+# pinned by commit SHA. After them, wake-pr-merge, whose only write is
+# actions: write, starts a PR-scoped pr-merge run on a pass or pass-notes
+# verdict that uploaded.
 #
-# Every local action runs from the main checkout at ./.base. zizmor's
-# self-repository advice (`$/...`) is ignored on those lines, as in
-# pr-run-activity-read.yml.
+# zizmor's self-repository advice (`$/...`) is ignored on the local action
+# lines, as in pr-run-activity-read.yml.
 
 # API_BUDGET_HOLD (outage posture element 2): only each job's resolver step
 # sets it. resolve-pr.mjs holds green with a notice on a GitHub fault, a rate
 # stop included, or on a 200 a re-read could return whole (closing,
 # incomplete), and the reconciler re-runs the held run once; it still ends
 # red on any other error, a list past what its query reads (shortList)
-# included. A step opts in only once its
-# script is shown to hold green with a notice on a refused call (rate-guard.mjs
-# createRateLimitLatch); a gate never does, since a hold would pass what it
-# could not read, so the rest still end red on a rate limit past the guard's
-# budget.
+# included. A step opts in only once its script is shown to hold green with
+# a notice on a refused call (rate-guard.mjs createRateLimitLatch); a gate
+# never does, since a hold would pass what it could not read, so the rest
+# still end red on a rate limit past the guard's budget.
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
@@ -96,8 +97,8 @@ permissions: {}
 # One judgment per PR and head at a time, never cancelled once running: a
 # later run for the same head (a label or body edit re-runs pr-require-checks)
 # queues behind it and then skips the judged head. GitHub still cancels an
-# older run while it is pending when a newer one queues; nothing uploads
-# before the judge step, so a run cancelled then leaves no verdict
+# older run while it is pending when a newer one queues; no verdict uploads
+# before the judge step, so a run cancelled then leaves none
 # (workflow.test.mjs). "none" stands in when the payload names no PR, so the
 # expression never fails.
 concurrency:
@@ -375,7 +376,7 @@ jobs:
           credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
           selected: ${{ steps.credit.outputs.next-leg }}
 
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # The skipped key leg's lane record: outcome skipped, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
         if: steps.credential.outputs.key-skipped == 'true'
@@ -646,10 +647,10 @@ jobs:
       # A fail the head can count ends the judgment here (write-verdict.mjs
       # checkChunk): the later chunks, the final judge and any handoff are
       # skipped, and "Write the verdict" runs on it, so no later step can lose
-      # it to a re-run. A step that fails before it does not stop the check,
-      # and a judge step run-claude-cli failed with no lane class, having left
-      # an execution file, stopped on its credential scan, so it counts as a fail
-      # with none of its text.
+      # it to a re-run. !cancelled() runs the check even after an earlier step
+      # failed. A judge step that run-claude-cli failed with no lane class but
+      # with an execution file stopped on its credential scan, so it counts as
+      # a fail with none of its text.
       - name: Read chunk 1's verdict
         id: chunk-fail
         if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
@@ -1982,7 +1983,7 @@ jobs:
         if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || steps.chunk-fail-5.outputs.fail == 'true' || steps.chunk-fail-6.outputs.fail == 'true' || steps.chunk-fail-7.outputs.fail == 'true' || steps.chunk-fail-8.outputs.fail == 'true' || steps.chunk-fail-9.outputs.fail == 'true' || steps.chunk-fail-10.outputs.fail == 'true' || steps.chunk-fail-11.outputs.fail == 'true' || steps.chunk-fail-12.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 5 || steps.judge-5.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 6 || steps.judge-6.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 7 || steps.judge-7.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 8 || steps.judge-8.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 9 || steps.judge-9.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 10 || steps.judge-10.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 11 || steps.judge-11.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 12 || steps.judge-12.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && steps.judge-spec.outputs.lane-class == '' && steps.judge-spec.outputs.execution-file != ''))))) }}
         env:
           # Each chunk's files in chunk order. A counted fail needs no others;
-          # anything else needs every chunk and the final judge.
+          # anything else needs every chunk and the whole-spec judgment.
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
             ${{ steps.judge-2.outputs.execution-file }}
@@ -2131,9 +2132,9 @@ jobs:
           retention-days: 1
 
       # The leg the next job runs, from this job's credential decision and
-      # a clean handoff of its last judge step (select-model-credential). It
-      # has no if:, so it names a leg only when every step before it passed,
-      # and the next job also needs this one's success, as before.
+      # a clean handoff of whichever judge step handed off
+      # (select-model-credential). It has no if:, so it names a leg only when
+      # every step before it passed; the next job also needs this job's success.
       - name: Pick the next leg
         id: next
         continue-on-error: true
@@ -2144,8 +2145,8 @@ jobs:
           handoff: ${{ (steps.judge.outputs.handoff == 'true' || steps.judge-2.outputs.handoff == 'true' || steps.judge-3.outputs.handoff == 'true' || steps.judge-4.outputs.handoff == 'true' || steps.judge-5.outputs.handoff == 'true' || steps.judge-6.outputs.handoff == 'true' || steps.judge-7.outputs.handoff == 'true' || steps.judge-8.outputs.handoff == 'true' || steps.judge-9.outputs.handoff == 'true' || steps.judge-10.outputs.handoff == 'true' || steps.judge-11.outputs.handoff == 'true' || steps.judge-12.outputs.handoff == 'true' || steps.judge-spec.outputs.handoff == 'true') && (steps.key-leg.outputs.clean || steps.key-leg-2.outputs.clean || steps.key-leg-3.outputs.clean || steps.key-leg-4.outputs.clean || steps.key-leg-5.outputs.clean || steps.key-leg-6.outputs.clean || steps.key-leg-7.outputs.clean || steps.key-leg-8.outputs.clean || steps.key-leg-9.outputs.clean || steps.key-leg-10.outputs.clean || steps.key-leg-11.outputs.clean || steps.key-leg-12.outputs.clean || steps.key-leg-spec.outputs.clean) == 'true' }}
           handoff-reason: ${{ steps.judge.outputs.handoff-reason || steps.judge-2.outputs.handoff-reason || steps.judge-3.outputs.handoff-reason || steps.judge-4.outputs.handoff-reason || steps.judge-5.outputs.handoff-reason || steps.judge-6.outputs.handoff-reason || steps.judge-7.outputs.handoff-reason || steps.judge-8.outputs.handoff-reason || steps.judge-9.outputs.handoff-reason || steps.judge-10.outputs.handoff-reason || steps.judge-11.outputs.handoff-reason || steps.judge-12.outputs.handoff-reason || steps.judge-spec.outputs.handoff-reason }}
 
-      # Note the hold's marker, on a green job only, as monitor signal 13
-      # reads holds.
+      # Keep the marker Note the hold wrote, for a day and on a green job
+      # only, for monitor signal 13 to read.
       - name: Keep the lane hold marker
         if: steps.note-hold.outcome == 'success'
         continue-on-error: true
@@ -2166,8 +2167,8 @@ jobs:
           tokens: github-token
 
       # A clean handoff, an empty key or a key the credit gate skipped hands
-      # the judgment on; any other
-      # run that passed the gates and left no verdict fails here.
+      # the judgment on; any other run that passed the gates and left no
+      # verdict fails here.
       - name: Fail without a verdict
         if: always() && steps.agree.outcome == 'success' && steps.credential.outputs.key-skipped != 'true' && steps.verdict.outcome != 'success' && steps.credential.outputs.present != 'false' && steps.key-leg.outcome != 'success' && steps.key-leg-2.outcome != 'success' && steps.key-leg-3.outcome != 'success' && steps.key-leg-4.outcome != 'success' && steps.key-leg-5.outcome != 'success' && steps.key-leg-6.outcome != 'success' && steps.key-leg-7.outcome != 'success' && steps.key-leg-8.outcome != 'success' && steps.key-leg-9.outcome != 'success' && steps.key-leg-10.outcome != 'success' && steps.key-leg-11.outcome != 'success' && steps.key-leg-12.outcome != 'success' && steps.key-leg-spec.outcome != 'success'
         run: |
