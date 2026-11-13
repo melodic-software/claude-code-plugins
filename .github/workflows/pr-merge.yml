@@ -2770,7 +2770,7 @@ jobs:
             identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
             fresh=0
             # Written now, so a check that times out or is cancelled still
-          # says it ran.
+            # says it ran.
             echo "fresh-started=true" >>"$GITHUB_OUTPUT"
             # --stop-uncovered ends the check with exit 6 once its run
             # listings show a judged merge no dispatch run covers: that report
