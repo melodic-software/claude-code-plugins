@@ -180,8 +180,8 @@
     {
       "id": 15,
       "name": "work-default-pick-and-hitl-slot",
-      "prompt": "/planning:wayfind work 'Map: billing overhaul' (#200). The frontier, in creation order: 'Choose the billing aggregate' (#42, wayfind: interview, needs-human), 'Measure current invoice volume' (#43, wayfind: task, no needs-human). Another session already holds 'Decide invoice numbering' (#41, needs-human, assigned). No setting is configured.",
-      "expected_output": "With no item named, work takes the first frontier item in creation order, #42. wayfind_hitl_concurrency resolves to 1 from the default and #41 already holds that slot, so #42 is skipped; the skill claims #43 instead and reports that the HITL slot is held by 'Decide invoice numbering' (#41).",
+      "prompt": "/planning:wayfind work 'Map: billing overhaul' (#200). The frontier, in creation order: 'Choose the billing aggregate' (#42, wayfind: interview, needs-human), 'Measure current invoice volume' (#43, wayfind: task, no needs-human). I already hold 'Decide invoice numbering' (#41, needs-human, assigned to me) from another session. No setting is configured.",
+      "expected_output": "With no item named, work takes the first frontier item in creation order, #42. wayfind_hitl_concurrency resolves to 1 from the default and counts per person; #41, assigned to this same person, already holds that slot, so #42 is skipped; the skill claims #43 instead and reports that the HITL slot is held by 'Decide invoice numbering' (#41).",
       "files": [],
       "expectations": [
         "Output reports wayfind_hitl_concurrency as 1 from the default",
@@ -259,6 +259,129 @@
         "Output asks the three ready questions together in one round instead of creating a decision item for each",
         "Output charts the notification catalogue as one item holding its related questions, not one item per question",
         "Output creates nothing on the tracker in this turn"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "research-findings-go-to-dossier-branch-and-comment-summarizes",
+      "prompt": "/planning:wayfind work 'Map: search rewrite' (#300). The claimed item 'Pick the index library' (#305, wayfind: research) is ready to run. The map has no dossier branch yet. Run the research and graduate the item.",
+      "expected_output": "Work dispatches /discovery:research for #305, asking for its lightest verification level (light) with no separate verifier pass. When it returns, it copies the findings file and its sidecars into #305's own folder on the map's dossier branch, creating that branch on first use and linking it from Notes, and pushes with fetch, rebase and a plain push. The resolution comment gives the pick and why, its costs, how the alternatives compare, what could not be verified, and a link to the full findings file; then the Decisions-so-far pointer is added and the item closed.",
+      "files": [],
+      "expectations": [
+        "Output asks /discovery:research for its light (lightest) verification level and runs no separate verifier pass",
+        "Output copies the findings file and its sidecars to the item's folder on the map's dossier branch, creating the branch because none exists",
+        "The resolution comment carries the pick and why, costs, how the alternatives compare, and what could not be verified",
+        "The resolution comment links the full findings file on the dossier branch rather than pasting all of it"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "hitl-slot-counts-per-person",
+      "prompt": "/planning:wayfind work 'Map: billing overhaul' (#200). The frontier, in creation order: 'Choose the billing aggregate' (#42, wayfind: interview, needs-human). My teammate Dana holds 'Decide invoice numbering' (#41, needs-human, assigned to Dana). I hold no item on this map. No setting is configured.",
+      "expected_output": "wayfind_hitl_concurrency resolves to 1 from the default and counts claims per person (assignee). Dana's claim on #41 does not count against this person, who holds no needs-human item, so the skill claims #42 and routes it to /planning:interview.",
+      "files": [],
+      "expectations": [
+        "Output reports wayfind_hitl_concurrency as 1 from the default",
+        "Output does not treat Dana's claim on #41 as filling this person's slot",
+        "Output claims #42 and routes it to /planning:interview"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "end-of-item-report-and-resume-line",
+      "prompt": "/planning:wayfind work 'Map: billing overhaul' (#200). The claimed item 'Choose the billing aggregate' (#42, https://github.com/acme/shop/issues/42) just resolved: one Invoice aggregate per tenant. That unblocks 'Decide invoice numbering' (#44, https://github.com/acme/shop/issues/44), which becomes the first frontier item; nothing new needs charting. Finish the item.",
+      "expected_output": "After graduating #42 and sweeping, work reports the closed item, its new Decisions-so-far line, that no new items were charted, and that #44 is now unblocked. It ends with one line: clear, then /planning:wayfind https://github.com/acme/shop/issues/44.",
+      "files": [],
+      "expectations": [
+        "Output reports the closed item 'Choose the billing aggregate' and its new Decisions-so-far line",
+        "Output says 'Decide invoice numbering' is now unblocked and that no new items were charted",
+        "Output ends with one line telling the user to clear, then run /planning:wayfind with the URL of 'Decide invoice numbering'"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "interview-resolution-comment-is-a-table",
+      "prompt": "/planning:wayfind work 'Map: partner API v2' (#400). The claimed interview item 'Choose the auth scheme' (#402) is settled with the user: OAuth client credentials for partners, API keys only for the sandbox, mutual TLS deferred to a later phase, 'partner app' added to the glossary, and the rate-limit item will inherit the per-client identity. Post the resolution and close it.",
+      "expected_output": "The resolution comment states the agreed result as a table (OAuth client credentials for partners, API keys for the sandbox), then lists out of scope, deferred (mutual TLS), glossary changes ('partner app') and what later items inherit (per-client identity for the rate-limit item). Then the Decisions-so-far pointer is added and the item closed.",
+      "files": [],
+      "expectations": [
+        "The resolution comment gives the agreed result as a table",
+        "The resolution comment lists deferred items (mutual TLS) and glossary changes ('partner app')",
+        "The resolution comment says what later items inherit (the per-client identity for the rate-limit item)"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "prototype-item-body-template",
+      "prompt": "/planning:wayfind chart the notification-vendor effort. We interviewed it earlier in this session and it outgrew one sitting; destination confirmed: a PRD. I said yes to the proposed map. One item is a prototype: check that vendor Knock can send a templated email and an in-app message from one API call, falling back to Courier if it cannot. Create that item.",
+      "expected_output": "The prototype item's body follows the prototype template: what to prove (one API call sends both a templated email and an in-app message), numbered pass checks, the action on fail, and the fallback (Courier). It carries the wayfind: prototype label and says whether it is logic or UI; the body does not state the type.",
+      "files": [],
+      "expectations": [
+        "The prototype item body states what the prototype must prove",
+        "The body lists pass checks that can be judged passed or failed",
+        "The body names the action on fail and the fallback, Courier"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "human-only-task-routes-to-wizard-and-records-no-values",
+      "prompt": "/planning:wayfind work 'Map: notification vendor' (#500). The claimed item 'Set up the Knock sandbox account' (#507, wayfind: task) needs someone to sign up in Knock's dashboard and create an API key; I'll do it. Work it.",
+      "expected_output": "The task is work only a human can do, so it routes to /wizard:generate for a guided script the user runs. The resolution comment records the names and locations of what was set up (the Knock sandbox account, the API key's name and where it is stored) and never the key's value.",
+      "files": [],
+      "expectations": [
+        "Output routes the item to /wizard:generate rather than attempting the sign-up itself",
+        "The resolution records the names and locations of what was set up",
+        "Output does not ask for or record the API key's value"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "prototype-files-on-dossier-folder-and-safe-push",
+      "prompt": "/planning:wayfind work 'Map: notification vendor' (#500). The claimed prototype item 'Prove Knock sends email and in-app from one call' (#504) is done: the pressure-test passed all checks. Another session is writing research findings to the same map's dossier branch right now. Save the prototype files and close the item.",
+      "expected_output": "The prototype's files go in #504's own folder on the map's single dossier branch. The push is fetch, rebase, then a plain push without force, retried after a fresh fetch and rebase if rejected; it needs no force because the other session writes only its own item's folder. The verdict (each pass check passed) goes in the resolution comment with a link to the folder; then the pointer is added and the item closed.",
+      "files": [],
+      "expectations": [
+        "Output puts the prototype files in the item's own folder on the map's dossier branch, not a new branch per item",
+        "Output pushes with fetch, rebase and a plain non-force push, retrying on rejection",
+        "Output does not force-push",
+        "The resolution comment carries the prototype's verdict"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "map-does-not-close-with-fog-left",
+      "prompt": "/planning:wayfind work 'Map: billing overhaul' (#200). Every decision item is closed and the frontier is empty, but Not-yet-specified still has one bullet: '**Tax display**: something about how taxes show on invoices feels unsettled'. Close the map.",
+      "expected_output": "The map does not close while Not-yet-specified holds a bullet. The skill offers the ways out: chart it as an item if it can now be phrased, move it into a mop-up interview item, or have the user rule it out of scope, which moves it to Out-of-scope with the reason. It posts no closing comment and does not close the map in this turn.",
+      "files": [],
+      "expectations": [
+        "Output does not close the map while the Tax display bullet remains",
+        "Output offers a mop-up interview item for the bullet",
+        "Output offers an explicit out-of-scope ruling that would move the bullet to Out-of-scope with a reason",
+        "Output does not move the bullet to Out-of-scope on its own"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "build-set-closes-to-plan-and-keeps-dossier-branch",
+      "prompt": "/planning:wayfind work 'Map: module extraction' (#600). Destination: a set of build items for the first module extraction. Every item is closed, the frontier and Not-yet-specified are empty, and the map has a dossier branch, dossier/600-module-extraction. The decisions are architectural choices, not yet a list of slices. Close the map and hand it on.",
+      "expected_output": "The closing comment states every decision in full and names the dossier branch. The map closes to /planning:plan, with the decisions as its task description, then /work-items:decompose from that plan, not straight to decompose, since the decisions do not yet read as slices. The dossier branch is kept until the destination's container closes, not deleted at map close.",
+      "files": [],
+      "expectations": [
+        "Output hands the decisions to /planning:plan first, then /work-items:decompose from the plan",
+        "The closing comment names the dossier branch dossier/600-module-extraction",
+        "Output does not delete the dossier branch when the map closes"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "provisional-decision-reversed-by-failed-prototype",
+      "prompt": "/planning:wayfind work 'Map: notification vendor' (#500). Decisions-so-far has 'Pick the vendor' (#502): Knock, provisional until 'Prove Knock sends email and in-app from one call' (#504). The claimed prototype #504 just failed: in-app messages need a second call. The prototype's fallback is Courier. Graduate #504.",
+      "expected_output": "#504's resolution comment carries the failed verdict. Because the vendor decision rested on that prototype, the failure reverses it through the supersede sweep: a new decision item linking #502 opens, starting from the Courier fallback, #502 is not reopened or edited, and its Decisions-so-far line will point at the superseding decision once that resolves.",
+      "files": [],
+      "expectations": [
+        "Output treats the Knock decision as reversed by the failed prototype rather than left standing",
+        "Output opens a new decision item that links #502 instead of reopening #502 or editing its resolution comment",
+        "Output names Courier, the fallback, as the new item's starting point"
       ]
     }
   ]
