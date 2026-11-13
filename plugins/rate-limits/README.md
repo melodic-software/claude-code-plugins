@@ -1,0 +1,384 @@
+# rate-limits
+
+A Claude Code plugin that tells Claude, and every session on the machine that reads its file, where
+the account's shared subscription rate-limit windows stand, so Claude can plan around a limit
+before it hits one, and so autonomous loop lanes can report it and, where the operator opted in, pause **before** a limit and resume on their own
+after the reset. Three parts:
+
+- **Hooks module** (`hooks/register.tsx`), a mod that Claude Code runs in its own process. It shows
+  you a toast when a window approaches or reaches the line threshold and when it resets, tells
+  Claude the same at those boundaries when you turn on `model_notices` (off by default), can draw the figures in a band row (off by default), answers a
+  status tool, and writes the windows to the fixed machine-scope file
+  `~/.claude/rate-limits/rate-limits.json` in interactive and headless sessions alike. It needs
+  a Claude Code build that can run mods; older builds are unsupported. **Pointer**: when deciding
+  which build that is, fetch
+  [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+  live.
+- **StopFailure hook** (`hooks/record-rate-limit-stop.sh`), the reactive fallback. When a turn
+  ends on a rate-limit API error, it appends a detection record to
+  `~/.claude/rate-limits/stop-events.jsonl`. The hook is side-effect-only by design: the
+  record is its one output, and it returns no decision. **Pointer**: when deciding whether a
+  StopFailure hook's output can do anything, fetch
+  [hooks: StopFailure](https://code.claude.com/docs/en/hooks#stopfailure) live.
+- **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
+  fixed file path, the opt-in 95%-of-either-window pause threshold, the staleness rule, pause-end
+  semantics, capability-detect fail-open, and drain-then-pause.
+
+## The module
+
+The module tells Claude where the account stands against its rate limits, tells you when a window
+changes, can draw the figures in a band row, answers a status tool, and writes the contract file,
+in interactive, `-p`, `--bg` and `/loop` sessions alike. Tested with `claude plugin test` and live on Claude Code 2.1.288: interactive
+terminal sessions, `-p` runs, `--bg` and `/loop` lanes, side by side with the retired tee, a
+mods-off session, and native Windows. The Desktop app and VS Code were not run.
+
+### Lines to Claude
+
+Lines go to Claude only with `model_notices` set to `true`; it is off by default, and then nothing
+from this plugin enters Claude's context. Claude can still read the windows from the status tool.
+With it on, a line goes to Claude only at a boundary, appended to the context of a main-thread tool result or
+of a prompt; a crossing seen when a turn ends reaches Claude with the next prompt. Per window
+(5-hour and 7-day), with the default options:
+
+| When | Line |
+|---|---|
+| The window reaches the approach mark (90%) | once per window, "at or above 90%", with the reset time |
+| The window reaches the line threshold (95%) | once per window, "at or above 95%", with the reset time |
+| The window resets (its reset time passes, or it leaves the reading) after reaching the threshold | once; the approach and threshold lines can then fire again |
+| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict for each window at or above the approach mark, once; nothing when none is |
+| After `/clear`, and when the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict for each window at or above the threshold, once; nothing when none is |
+| The signed-in account changes while a window is past quiet or a line is still due | once, that earlier lines no longer apply, with each window's current reading, or "No reading yet for this account" before the new account's first response |
+| A window's reset time reads more than a minute earlier than the recorded one while that window is past quiet or a line about it is still due | once, that earlier lines for that window no longer apply, with its current reading |
+
+Use only rises within a window, so a reading that dips below a mark sends nothing and does not
+re-arm that mark's line. A restatement states the current reading, and none is made while that
+reading is below the restated mark. The account is the one in `.claude.json`, keyed on
+`.oauthAccount.accountUuid`, or on `.oauthAccount.emailAddress` when no UUID is there. When it
+changes, or a window's reset time moves earlier (which catches a switch the state file does not
+show, when the new account's window resets sooner), the module drops what it latched for the old account or window: levels, lines
+not yet sent, suggestions not yet handed to Claude, and toasts not yet shown. The reading held at
+an account change is the old account's, so it sets no level; the next reading that differs does.
+No other tool call or prompt carries a line. Each window gets its own
+line, for example `rate-limits: 5-hour window at or above 95% (96% used), resets at 2026-10-03 21:00 UTC`.
+A line states the window, the threshold crossed, and the use and reset time the line data selects.
+After the approach and threshold lines at a carrier comes one options line:
+
+```text
+rate-limits: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. /usage shows what is using the plan (https://code.claude.com/docs/en/costs#track-your-costs). Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor.
+```
+
+Facts alone led Claude to stop launching agents and to move work to a smaller model
+([#7118](https://github.com/melodic-software/claude-code-plugins/issues/7118)), so the line names the
+options and rules out trading quality for usage. A reset line carries no options line. Every line carries its verdict; `rate_limit_line_data` chooses what
+goes with it: the window's name (`window`), its use (`percent`) and its reset time (`reset`). Without `window` the line says "a
+rate-limit window". A line never carries the account email or the session name. Subagents get no
+line. Each line sent to Claude is also written as sent to the debug log (`claude --debug`). The
+line threshold is a line setting only: an opted-in loop lane's pause threshold stays 95% (see the
+[reader contract](reference/reader-contract.md)).
+
+### Window changes shown to you
+
+When a window rises from an earlier reading to the approach mark or the line threshold, or resets
+after reaching the threshold, the module shows a toast for 4 seconds, such as `5h at the 95% line
+threshold · resets 21:00 UTC`, and writes one transcript line Claude does not read, ending
+`· more: /rate-limits`. A window's first reading since the module loaded or the window reset is
+never toasted, and neither is a restatement after a compaction, a resume, `/clear` or a reload:
+those only restate the verdict to Claude. Windows belong to the account, so a rise across `/clear`
+or a resume is a change and is toasted. The toast does not depend on `model_notices`. `rate_limits_toast` set to
+`false` drops the toast and keeps the transcript line. Outside the terminal (the Desktop app, VS
+Code, mobile), where toast drawing is unverified, the change also shows as a single row above the
+prompt, covering every window that changed, until your next prompt.
+
+### Operator mode
+
+With `rate_limit_report_mode` set to `operator`, a turn a person started by typing (or through the
+Remote Control bridge) gets no line. When that turn ends, the line is offered as the prompt box's
+suggestion (Tab takes it) and shown as a notice row above the prompt, on every surface, wrapped
+rather than cut off. With text in the box, only the notice row shows, and the suggestion is offered
+again once the box is empty. Where nobody can take a suggestion, the line goes to Claude as in
+automatic mode: `-p` and SDK turns, `/loop` and scheduled turns, task notifications and other
+non-typed turns, a session with no drawing surface (such as the VS Code panel), and a suggestion
+the session reports it cannot show. The row and a shown suggestion are your channel for a held
+line, so it gets a toast and a transcript line only when you never had either: its first offer
+could not show, or a survey hid the row until the line went to Claude. A suggestion that showed
+but was not taken goes to Claude as the automatic line at the next turn no person started; a turn
+a person starts drops it unsent.
+
+Which apps draw the band's site, `AbovePrompt`, is upstream's render-sites table to say. No probe of this plugin ran in the Desktop app or VS Code, so the band, the
+notice rows, the toast and the suggestion there are untested.
+
+- **Pointer**: [mods reference: render sites](https://code.claude.com/docs/en/plugins/mods/reference#render-sites).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: the `AbovePrompt` row changes the apps it lists, or a Desktop run of this
+  plugin is made.
+
+In operator mode, a `--bg` lane gets no line from its first turn; that line reaches Claude at the
+lane's next turn no person started. A lane that wants the lines at once supplies its own
+options when it starts its session, for example through `--settings` with the plugin's
+`pluginConfigs` entry:
+`{"pluginConfigs": {"rate-limits@<marketplace>": {"options":
+{"rate_limit_report_mode": "automatic"}}}}` (a `--plugin-dir` copy is keyed `<name>@inline`).
+
+- **Pointer**: for which keys `--settings` can set, read
+  [settings: change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session),
+  the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry, and
+  the `pluginConfigs` row of
+  [mods reference: settings and environment variables](https://code.claude.com/docs/en/plugins/mods/reference#settings-and-environment-variables).
+
+### The /rate-limits command, band row and status tool
+
+`/rate-limits` with no argument prints each window's use, verdict and reset time, the line
+threshold and approach mark, whether the band row and the toast are on, the snapshot path and a
+link to this README.
+
+The band row above the prompt is off by default. When on, it shows `rate-limits: 5h <x>% | 7d <y>%`, with `-`
+for each window before the first reading. After it, a window the account does not report is left out: an account
+with no 5-hour limit shows only `7d <y>%`. Context use is context-usage's row, not this one.
+`rate_limits_band` set to `true` turns it on for every session; `/rate-limits band on`,
+`band off`, or a bare `band` (toggle) changes it for the current session. Claude can call
+`mcp__rate-limits__status` for the exact figures from the last API response: every window the
+response reported, with its verdict, and, behind a Claude gateway, the `spend_limit` window, which
+is never written to the contract file.
+
+### Snapshot writes
+
+The module writes `~/.claude/rate-limits/rate-limits.json` through `lib/write-snapshot.mjs`,
+run with `node`, so the file is replaced atomically on Linux, macOS and native Windows. It writes
+at once when a window moves a whole point, appears, leaves or resets, and otherwise at most once
+every 300 seconds across the machine, checked from main-thread tool results, each measurement after
+a turn, a 60-second timer that runs only while a turn runs, and the session's end. It never writes
+from a turn a task notification started (a paused lane's own Monitor tick), and it follows the
+plugin's on/off switch and `rate_limits_enabled`. The body carries `captured_at`,
+`session_id`, the windows, and `account.email` only when the account in the state file at the write
+is the one it held at the last API response (a startup quota check counts); it never carries
+`session_name` or `spend_limit`. A session with no windows writes a windowless body, which never
+replaces a file that has windows.
+
+Process cost: an event that writes nothing starts no process; each write starts one `node`
+process. Where the module cannot start that process, it writes nothing and logs that once to the
+debug log.
+
+- **Pointer**: for where a mod's hooks run, read
+  [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run).
+
+### Where mods are off
+
+Wherever mods are off for a session, whether the build is too old for mods or a setting, flag, policy or Claude Code itself turned them off, the
+module does not run: no lines, no band, no status tool, no module writes. The StopFailure hook
+still records, and readers fall back to reactive-only as the reader contract says.
+`/rate-limits:setup check` reports "mods off" in that case.
+`bash "<plugin root>/scripts/check-mod-load.sh"` reports it only for a build below the floor: a child
+process cannot see this session's flags or settings, so on a current build it prints PASS and tells
+the agent to look for the status tool in its own tool list. A hook that throws passes its event
+through unchanged.
+
+- **Pointer**: when deciding what turns mods off, fetch
+  [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+  and [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
+  live.
+
+## Behavior
+
+- **Atomic, last-writer-wins snapshot.** Concurrent sessions write one path; readers never see torn
+  JSON (temp file + rename, with a brief retry for the Windows rename-over-open-target case). The
+  helper takes a short lock, refuses an older `captured_at` over a newer one, and keeps a
+  windowless body from replacing windows. Last-writer-wins still applies between sessions: a
+  session whose last API response is minutes old can write its older reading over a newer one,
+  until the next write from a session with a fresher response.
+- **Fail-open capability detection.** Sessions whose auth exposes no subscription windows write a
+  snapshot without `rate_limits`; consumers treat that as unknown and
+  run reactive-only rather than throttling on fabricated data. Cloud / remote sessions typically
+  have no file a consumer can read. That is the same unknown → reactive-only classification,
+  documented as the expected degraded mode in
+  [`reference/reader-contract.md`](reference/reader-contract.md) ("Cloud / remote sessions"), with
+  a documented residual that a live cloud producer is out of scope until one exists.
+- **An unchanged reading costs no process.** The module compares each reading with the last one it
+  wrote and with the `captured_at` on disk, in process, so an unchanged reading inside the 300-second
+  floor starts nothing. That floor is half the reader contract's 10-minute staleness budget, so a
+  session whose windows sit still refreshes `captured_at` well before a reader could call it stale.
+- **Multi-account operation is a narrowed gap.** The snapshot names the account whose windows it
+  carries in an `account.email` field, so a machine switching accounts is visible to a reader that
+  checks it. Lanes drop a latched pause on an account change: while paused they read
+  `.oauthAccount.emailAddress` from `.claude.json` directly and re-evaluate against the new
+  account's windows. The gap that remains is attribution: the field is **absent** whenever the
+  module could not attribute the observation, which covers an unreadable state file, no
+  email-shaped value, and an account that changed between the last API response and the write. A
+  lane that cannot attribute keeps its latch. The loop-lane convention §6 owns that framing; the
+  reader contract states the absence cases and the untrusted-value rule
+  (`reference/reader-contract.md`, "Snapshot file shape").
+
+## Tests and their budgets
+
+`claude plugin test plugins/rate-limits` runs the module's suite
+(`hooks/rate-limits.test.ts`) with stubbed Claude Code calls; `lib/write-snapshot.test.mjs`
+covers the helper. The module's process budget, counted in the hook-budget convention's unit (one
+process start): **0**
+processes on a tool result, prompt, measurement or timer tick that writes nothing, and **1** (the
+`node` helper) per write, with writes at most once per changed reading and no more often than every
+300 seconds when unchanged. The `budget:` test pins it: 50 unchanged tool results start no process,
+and one change starts exactly one.
+
+The tests retired with the statusline tee, and what holds their property now:
+
+| Retired test | Replacement |
+|---|---|
+| The tee suite: snapshot shape, account, no-change floor, enablement | the `snapshot:`, `account:`, `floor:` and `switch:` tests in `hooks/rate-limits.test.ts` |
+| The tee suite: atomic write, windowless preservation, locks | `lib/write-snapshot.test.mjs` |
+| The tee suite: the zero-fork render trace | the `budget:` test, at the budget above |
+| The bench lanes and their recorded process counts | the `budget:` test, at the budget above |
+| The tee suite: transparency, spool and drain, async writes, the disabled marker | none: the plugin no longer wraps a status line or spools |
+| The shim and compose-script suites | none: no shim ships; the setup skill's evals cover removing an old one |
+
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install rate-limits@melodic-software
+```
+
+The module and the StopFailure hook need no wiring. `/rate-limits:setup check` verifies the
+result.
+
+- **Pointer**: for when an installed plugin loads into a session, read
+  [plugin commands: /reload-plugins](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins).
+
+## Requirements
+
+- A Claude Code build at or above the terminal version mods need, with mods on, for the module.
+  Below that floor, or with mods off, only the StopFailure hook runs. `prerequisites.json` holds
+  the floor as data, in `detect.version.min` of the entry with `"id": "claude"`, which the check
+  skill compares against; the pointer below is where to re-derive it.
+- [Node.js](https://nodejs.org/en/download) on `PATH`, installed on its own: the `StopFailure` hook
+  launches through `node hooks/exec-bash.mjs`, and the module writes the file by running `node`,
+  and we never count on Claude Code's install to provide it. Without it the hook records nothing
+  and the module writes nothing, while its lines and band row still work.
+- Bash for the StopFailure hook: on native Windows,
+  [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows), which
+  `hooks/exec-bash.mjs` finds.
+- Auth that exposes subscription windows, for proactive window data. On other auth the guard is
+  reactive-only.
+
+- **Pointer**: when deciding which Claude Code version mods need, fetch
+  [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+  live; when deciding whether a Claude Code install brings a Node.js the plugin could use, fetch
+  [advanced setup: install with npm](https://code.claude.com/docs/en/setup#install-with-npm)
+  live; when deciding which auth exposes subscription windows, fetch
+  [status line: rate limit usage](https://code.claude.com/docs/en/statusline#rate-limit-usage)
+  live.
+
+`node "<plugin root>/lib/prerequisites.mjs" check "<plugin root>"` reports whether `node`
+resolves, and `bash "<plugin root>/scripts/check-mod-load.sh"` whether the module can load. Both
+are read-only and install nothing.
+
+## Configuration
+
+The `userConfig` options:
+
+| Option | What it controls |
+|---|---|
+| `rate_limits_enabled` | Kill switch for the StopFailure detection hook **and** the module's snapshot writes (default `true`). It does not stop the module's lines. |
+| `model_notices` | The module's lines to Claude, and the operator-mode suggestions (default `false`). Off, nothing from this plugin enters Claude's context; the toast, transcript line, band row, status tool and snapshot are unchanged. |
+| `rate_limit_report_mode` | `automatic` (default) or `operator`, only with `model_notices` on; see [Operator mode](#operator-mode). |
+| `rate_limit_line_threshold` | Window use for the threshold line (default `95`). |
+| `rate_limit_approach_pct` | Window use for the one approach line (default `90`). |
+| `rate_limit_line_data` | What a line carries beside its verdict: `percent`, `window`, `reset` (default `verdict,percent,window,reset`). |
+| `rate_limits_band` | The band row (default `false`). |
+| `rate_limits_toast` | The toast when a window nears or reaches the threshold or resets (default `true`); the transcript line stays either way. |
+
+Two settings live outside `userConfig`:
+
+| Setting | Where | Default | What it controls |
+|---|---|---|---|
+| Snapshot file a status line can read | `~/.claude/rate-limits/rate-limits.json`, written under `rate_limits_enabled` | on | A status-line command that reads this file keeps working with every other option at its default. |
+| `LOOP_LANE_RATE_LIMIT_PAUSE` | the loop lane session's environment | unset (off) | `1` makes an unattended loop lane pause at 95% of either window; see the [reader contract](reference/reader-contract.md). |
+
+A threshold or approach mark outside 1 to 100, or line data with an unknown item, reads as that
+option's default with one transcript line naming it. The thresholds declare no range in
+`userConfig`; the module judges a value outside 1 to 100 itself. A value of the wrong type (text
+for a number, a number for a switch) is Claude Code's to handle before the module sees it.
+
+- **Pointer**: when deciding what Claude Code does with an option value that does not fit
+  `userConfig`, fetch
+  [troubleshoot: options do not fit plugin.json userConfig](https://code.claude.com/docs/en/plugins/mods/troubleshoot#options-do-not-fit-plugin-json-userconfig)
+  live.
+
+The module reads its options when it loads. Claude Code reloads a module when its options change,
+so a switch turned off takes effect from the next event, with no restart. The StopFailure hook
+receives `rate_limits_enabled` as `CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED` at session
+start.
+
+- **Pointer**: the doc comment on `Register` in the `claude-code/index.d.ts` types Claude Code
+  writes for its build (see
+  [create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build)).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: that doc comment stops saying an options change reloads the plugin.
+
+Set it with `/plugin configure rate-limits@<marketplace>`, or headless via `claude plugin install
+rate-limits@<marketplace> -s <scope> --config rate_limits_enabled=false`, run against
+the installed plugin. Never uninstall to reconfigure. The convention below records what that
+command prints and writes for an installed plugin; its verified-version record lives in the
+[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
+
+- **Pointer**: for what `--config` does, read
+  [plugin commands: plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install);
+  for what an uninstall removes, read
+  [what an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+
+The file path and the 95% pause threshold an opted-in lane applies are deliberately **not** configurable: they are contract
+constants that cross-plugin consumers inline from the
+[reader contract](reference/reader-contract.md); a per-user override would silently split the
+writer from its readers. The kill switch stops this plugin's writes and records; turning the
+plugin off for a project is `enabledPlugins`, and removing it is uninstall.
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `rate_limits_enabled` | boolean | `true` | Turns on the StopFailure detection hook and the module's snapshot writes to the machine-scope rate-limit file. Lines to Claude have their own option. On by default. Read from managed settings first, then user settings. |
+| `model_notices` | boolean | `false` | Sends Claude one line when a rate-limit window approaches or reaches the line threshold, when it resets, and after a compaction, a resume or a /clear at the threshold. Off by default; the toast, transcript line, band row, status tool and snapshot work either way. |
+| `rate_limit_report_mode` | string | `"automatic"` | Acts only with model_notices on. automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row above the prompt when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
+| `rate_limit_line_threshold` | number | `95` | Window use at which Claude gets the threshold line, 1 to 100; any other value reads as the default. Default 95, the pause threshold of a loop lane that opted in to pausing, which stays 95 whatever this is set to. |
+| `rate_limit_approach_pct` | number | `90` | Window use at which Claude gets one approach line before the threshold, 1 to 100; any other value reads as the default. Default 90; at or above the threshold, no approach line is sent. |
+| `rate_limit_line_data` | string | `"verdict,percent,window,reset"` | Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,percent,window,reset; a list with an unknown item reads as the default. Never the account email or the session name. |
+| `rate_limits_band` | boolean | `false` | Draws the 5-hour and 7-day window figures in a row above the prompt. Off by default. Turn it on in /config, or for one session with /rate-limits band on. |
+| `rate_limits_toast` | boolean | `true` | Shows a toast and writes one transcript line when a rate-limit window nears or reaches the line threshold, or resets from it. Off keeps the transcript line. On by default. |
+
+### How to set these
+
+Set the options above for `rate-limits@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
+
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
+
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+<!-- END GENERATED: plugin options -->
+
+## Consumers
+
+Written for Claude in every session that loads the plugin and for the loop-lane convention's three
+lanes (work-items `work-loop` and `attend-queue`, source-control `babysit-loop`), which inline the
+reader contract's operable floor. Any session or tool on the machine may read the same files under
+the same contract.
+
+## License
+
+MIT (SPDX-License-Identifier: MIT).

@@ -21,7 +21,7 @@
 # returns no decision. Pointer: when deciding whether PostCompact output can
 # do anything, fetch https://code.claude.com/docs/en/hooks#postcompact live.
 # jq-FREE by design, mirroring the
-# rate-limit-guard StopFailure recorder: the fields are regex-extracted so a
+# rate-limits StopFailure recorder: the fields are regex-extracted so a
 # degraded environment still records.
 #
 # Kill switch: context_usage_hooks_enabled userConfig boolean, read via the

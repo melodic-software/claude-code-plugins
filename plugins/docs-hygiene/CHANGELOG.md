@@ -644,7 +644,7 @@
 
 ### Changed
 
-- **extract-ssot's orchestrated mode inlines rate-limit-guard's updated operable floor and drops a stale snapshot claim.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The reactive-only note no longer says the snapshot carries no account identifier: it carries one when the writer could attribute the reading.
+- **extract-ssot's orchestrated mode inlines rate-limits's updated operable floor and drops a stale snapshot claim.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The reactive-only note no longer says the snapshot carries no account identifier: it carries one when the writer could attribute the reading.
 
 ## [0.26.8] - 2026-10-04
 
@@ -660,7 +660,7 @@
 
 ### Changed
 
-- **`extract-ssot`'s orchestrated mode calls `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+- **`extract-ssot`'s orchestrated mode calls `rate-limits.json` the snapshot file, not the tee file**, matching rate-limits's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
 
 ## [0.26.6] - 2026-10-04
 
@@ -672,7 +672,7 @@
 
 ### Changed
 
-- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** Orchestrated `extract-ssot` runs now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** Orchestrated `extract-ssot` runs now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limits 0.14.0's reader contract.
 
 ## [0.26.4] - 2026-10-03
 
@@ -1329,7 +1329,7 @@
 
 ### Changed
 
-- **`extract-ssot`:** the inlined rate-limit-guard "Operable floor" block in
+- **`extract-ssot`:** the inlined rate-limits "Operable floor" block in
   `context/orchestrated-mode.md` now states that the tee file carries an `account.email` field when
   the writer could attribute the observation, replacing the claim that it carries no
   account-identifier field. Synced from the reader contract that owns the block;
@@ -1613,7 +1613,7 @@
 ### Added
 
 - **`extract-ssot`'s orchestrated-mode floor copy is now gated, not just correct.** 0.21.22
-  reconciled this file's inlined `rate-limit-guard` operable floor by hand. It is now one of the six
+  reconciled this file's inlined `rate-limits` operable floor by hand. It is now one of the six
   registered copies the marketplace repo's `loop-lane-floor-drift-gate` lane holds against the
   reader contract that owns them, so the next floor change fails CI here rather than leaving this
   copy behind. The lane also scans every tracked file for the floor and fails on a carrier its
@@ -1699,7 +1699,7 @@
   rather than restating the number as a fact. No behavior changes. Found by the whole-repo
   extract-ssot sweep.
 
-- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+- **Rate-limits inline floor restored to byte-identity.** The loop-lane convention requires the
   floor's values identical across the three consuming lanes; hashing those three plus the reader
   contract they cite and this plugin's orchestrated-mode consumer found two distinct texts. The
   drift traces to two de-slop shards, which made the same two substitutions and so produced one
@@ -2723,7 +2723,7 @@ Four defects in the bucket design above, surfaced by automated review of the shi
 - **extract-ssot: orchestrated whole-repo mode (`context/orchestrated-mode.md`).** Defaults for
   multi-agent batches at whole-repo scale: single-survey inventory, worker tiering, a static
   conservative concurrency ceiling (default 2, because subscription rate-limit windows are
-  shared and usually unobservable), the verbatim-inlined rate-limit-guard operable floor with
+  shared and usually unobservable), the verbatim-inlined rate-limits operable floor with
   between-dispatch checks when the guard's snapshot is present, and wave-committed cadence.
   `actions/batch.md` Step 6 and the identify pre-flight now route through it.
 - **extract-ssot:** eval 7 covers the bare confirm-scope gate (no auto-dispatch; prescribed
@@ -2815,7 +2815,7 @@ Four defects in the bucket design above, surfaced by automated review of the shi
   scope, now asks ONE confirmation before the repo-wide run, presenting prescribed defaults (scope: entire
   tracked repo; mode: detect + classify only; worker fan-out: off, capped at 2–3 concurrent workers
   when the user opts in and no rate-limit telemetry is readable, with pacing resolved from the
-  `rate-limit-guard` plugin's reader contract when its snapshot is present). The new `sweep`
+  `rate-limits` plugin's reader contract when its snapshot is present). The new `sweep`
   argument is the explicit opt-in that skips the confirmation and runs the repo-wide detect
   immediately. Eval cases 7–8 pin both behaviors.
 

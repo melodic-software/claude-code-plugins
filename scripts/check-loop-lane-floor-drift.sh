@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gate: the rate-limit-guard "operable floor" block must stay identical across
+# Gate: the rate-limits "operable floor" block must stay identical across
 # every surface that inlines it.
 #
 #   scripts/check-loop-lane-floor-drift.sh            report drift, exit 1 if any
@@ -139,7 +139,7 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 # The one file that OWNS the floor. Everything below is a copy of this.
-SOURCE="plugins/rate-limit-guard/reference/reader-contract.md"
+SOURCE="plugins/rate-limits/reference/reader-contract.md"
 
 # The explicit consumer registry: "<mode> <path>".
 #

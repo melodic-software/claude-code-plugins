@@ -76,7 +76,7 @@ plugin-quality
 powershell-format
 pr-pipeline
 prototype
-rate-limit-guard
+rate-limits
 repo-fleet-hygiene
 repo-hygiene
 retro-audio

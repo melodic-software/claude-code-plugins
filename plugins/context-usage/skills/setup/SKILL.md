@@ -293,4 +293,4 @@ or drop the bare segment, first. Readers then read `unknown` and take their cons
   markers there in the earlier-name migration; the module owns those files.
 - Write anywhere outside `~/.claude/context-usage/zones.json` and, on `apply cache-line` or the
   earlier-name migration only, `~/.claude/context-usage/cache-line.mjs`, including the sibling
-  `rate-limit-guard` directory. The migration's one removal is the earlier-name directory.
+  `rate-limits` directory. The migration's one removal is the earlier-name directory.

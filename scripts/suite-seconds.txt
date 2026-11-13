@@ -515,7 +515,7 @@ plugins/prototype/scripts/allowed-tools-pairing.test.sh 1
 plugins/prototype/scripts/detect-ecosystems.test.sh 1
 plugins/prototype/skills/explore-directions/scripts/detect-ecosystems.test.sh 1
 plugins/prototype/skills/pressure-test/scripts/detect-ecosystems.test.sh 1
-plugins/rate-limit-guard/hooks/record-rate-limit-stop.test.sh 1
+plugins/rate-limits/hooks/record-rate-limit-stop.test.sh 1
 plugins/repo-fleet-hygiene/scripts/allowed-tools-pairing.test.sh 1
 plugins/repo-fleet-hygiene/scripts/scope-resolve.test.sh 1
 plugins/repo-fleet-hygiene/skills/apply/scripts/apply-plan.test.sh 6

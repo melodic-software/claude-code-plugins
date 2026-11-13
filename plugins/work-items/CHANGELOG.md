@@ -1875,13 +1875,13 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- **work-loop and attend-queue inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
+- **work-loop and attend-queue inline rate-limits's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
 
 ## [0.49.3] - 2026-10-04
 
 ### Changed
 
-- **`work-loop` and `attend-queue` call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+- **`work-loop` and `attend-queue` call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limits's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
 
 ## [0.49.2] - 2026-10-04
 
@@ -1939,7 +1939,7 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The work loop and the attend-queue skill now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The work loop and the attend-queue skill now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limits 0.14.0's reader contract.
 
 ## [0.48.6] - 2026-10-04
 
@@ -1963,7 +1963,7 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- **`/work-items:work-loop`'s paused wait reflects the mod writer.** rate-limit-guard's mod writes
+- **`/work-items:work-loop`'s paused wait reflects the mod writer.** rate-limits's mod writes
   the snapshot in headless sessions too, so the Monitor armed on it wakes on the mod's writes under
   its machine-wide write floor; the scheduled wake still bounds how late an account switch is seen.
 
@@ -2689,7 +2689,7 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- work-loop, attend-queue: the inlined rate-limit-guard "Operable floor" block states that the tee file carries an `account.email` field when the writer could attribute the observation, replacing the claim that it carries no account-identifier field; synced from the reader contract that owns the block, with `scripts/check-loop-lane-floor-drift.sh` holding all six copies equal
+- work-loop, attend-queue: the inlined rate-limits "Operable floor" block states that the tee file carries an `account.email` field when the writer could attribute the observation, replacing the claim that it carries no account-identifier field; synced from the reader contract that owns the block, with `scripts/check-loop-lane-floor-drift.sh` holding all six copies equal
 
 ## [0.39.63]
 
@@ -3319,7 +3319,7 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+- **Rate-limits inline floor restored to byte-identity.** The loop-lane convention requires the
   floor's values identical across the three consuming lanes; hashing those three plus the reader
   contract they cite and `extract-ssot`'s orchestrated-mode consumer found two distinct texts. The
   drift traces to two de-slop shards, which made the same two substitutions and so produced one
@@ -4849,7 +4849,7 @@ verified to go red without it.
   detection records.** The fail-open bullet named reactive-only but gave the lane no
   `stop-events.jsonl` behavior; both skills now carry the reader contract's read cadence (read on
   mode entry and before each new work claim, recency baseline = lane start advanced by each resume
-  attempt). Mirrors rate-limit-guard 0.4.4's reader-contract addition.
+  attempt). Mirrors rate-limits 0.4.4's reader-contract addition.
 
 ## [0.34.0]
 
@@ -5180,7 +5180,7 @@ verified to go red without it.
   rather than session totals as of Claude Code v2.1.132. A machine-readable cumulative cost field
   (`cost.total_cost_usd`) does exist and is session-scoped, so it is the deferred candidate for
   per-lane attribution, but the guard's tee does not forward it, and widening the tee is a
-  rate-limit-guard change this entry deliberately does not make
+  rate-limits change this entry deliberately does not make
   (<https://code.claude.com/docs/en/statusline>, re-verified 2026-07-28: `used_percentage` 0–100,
   `resets_at` epoch seconds, `rate_limits` subscriber-only and each window independently absent; no
   drift).

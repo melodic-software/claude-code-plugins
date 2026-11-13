@@ -429,14 +429,14 @@ Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 i
 Patch. Wording only; no value, topology or invariant changed.
 
 - **The rate-limit contract file is the snapshot file (§6).** The README, the lane prompts and every
-  inlined operable floor call `~/.claude/rate-limit-guard/rate-limits.json` the snapshot file
+  inlined operable floor call `~/.claude/rate-limits/rate-limits.json` the snapshot file
   instead of the tee file, and the floor's first bullet is `Snapshot file (fixed path)`.
 
 ## [10.1.0] - 2026-10-03
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
 
-- **Rate-limit snapshot writer (§4, §6).** rate-limit-guard's mod writes the snapshot file in
+- **Rate-limit snapshot writer (§4, §6).** rate-limits's mod writes the snapshot file in
   interactive and headless sessions, so an unattended lane samples it; the status-line tee that
   wrote it only where a status line rendered is gone. A paused lane wakes on the mod's writes under
   its machine-wide write floor. Setting the guard's report mode with `--settings` is optional.
@@ -533,7 +533,7 @@ rule itself is unchanged: what changes is that the rule is now enforced.
   basename, and it clusters copies by identical path-within-plugin, while the six surfaces inlining
   the floor sit at six unrelated paths.
 - **§6 names `scripts/check-loop-lane-floor-drift.sh`.** It extracts the floor block from
-  `plugins/rate-limit-guard/reference/reader-contract.md` and compares it against an explicit
+  `plugins/rate-limits/reference/reader-contract.md` and compares it against an explicit
   registry: the three lane bodies, the `docs-hygiene` `extract-ssot` orchestrated mode, and the two
   launch-prompt templates under `prompts/loops/`. Prose copies match byte for byte; the blockquoted
   prompt templates are re-wrapped to a narrower column, so their registration compares the block
@@ -836,7 +836,7 @@ no durable-state block.
   than this one: `cost.total_cost_usd` is documented as the estimated session cost accumulated
   client-side, resetting on `/clear`, machine-readable and session-scoped, and therefore the
   deferred candidate for per-lane attribution once a guard-side change forwards it. No drift found.
-  `rate-limit-guard`'s reader contract carries its own 2026-07-23 stamp on the same page; it is
+  `rate-limits`'s reader contract carries its own 2026-07-23 stamp on the same page; it is
   unchanged by this entry and its refresh belongs to that plugin's own bump.
 
 ## [5.0.0] - 2026-07-29
@@ -1023,7 +1023,7 @@ considered and not taken. Each entry below records both cases.
   is real operating practice, so the section now names the gap instead of asserting an assumption,
   and defers the account-identity design that resolves it to `TODO(#1218)`, which owns all three
   sides (writer-side identity field, reader-side invalidation of latched state, and the lane-floor
-  re-audit a floor change obliges). `rate-limit-guard` 0.2.0 drops its own duplicate copy and cites
+  re-audit a floor change obliges). `rate-limits` 0.2.0 drops its own duplicate copy and cites
   this section. **No lane obligation changes:** naming a gap removes false assurance without adding
   a requirement any lane body would have to inline, which is why the lane-floor fan-out belongs to
   the design issue and not here. **Bump ambiguity:** §6 is the rate-limit guard binding rather than

@@ -762,8 +762,8 @@
       ]
     },
     {
-      "name": "rate-limit-guard",
-      "source": "./plugins/rate-limit-guard",
+      "name": "rate-limits",
+      "source": "./plugins/rate-limits",
       "category": "claude-code",
       "defaultEnabled": false,
       "tags": [

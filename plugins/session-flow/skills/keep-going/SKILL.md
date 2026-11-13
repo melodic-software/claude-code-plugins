@@ -123,7 +123,7 @@ itself the thing this skill removes.
      lifts"; the operator's answer stands in for a missing reading, and
      with none the field is `unknown`.
    - **Windows**: the 5-hour and 7-day windows with reset times, from
-     `mcp__rate-limit-guard__status`.
+     `mcp__rate-limits__status`.
    - **Zone**: the word from `mcp__context-usage__status`, per "Zone
      input".
    - **Off-thread items**: each with its liveness verdict from this step,
@@ -330,7 +330,7 @@ For any "is it stuck / check the monitor / poke it":
   account that emitted it. Two live readings of the *current* account count:
   the `/usage` view, which the operator relays (what it shows and to whom:
   the record below), and the session's `rate_limits` windows, which this skill reads through
-  rate-limit-guard's `mcp__rate-limit-guard__status` pull tool when the guard
+  rate-limits's `mcp__rate-limits__status` pull tool when the guard
   is installed and mods are on. For which fields the statusline `rate_limits`
   object carries and who receives it, see
   [statusline: Available data](https://code.claude.com/docs/en/statusline#available-data);

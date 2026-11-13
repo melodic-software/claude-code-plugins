@@ -779,9 +779,9 @@ to the template re-renders here too.
 > matter how doc-shaped it looks.
 >
 > **Rate-limit floor** (inlined verbatim per the loop-lane convention;
-> provenance: the `rate-limit-guard` reader contract):
+> provenance: the `rate-limits` reader contract):
 >
-> - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+> - **Snapshot file (fixed path):** `~/.claude/rate-limits/rate-limits.json`
 > - **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose
 >   session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read
 >   it at lane start with `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it
@@ -852,7 +852,7 @@ to the template re-renders here too.
 >   fabricate a pause. Reactive-only means no proactive pause at all: react
 >   instead to
 >   the detection records in
->   `~/.claude/rate-limit-guard/stop-events.jsonl` and to the rate-limit
+>   `~/.claude/rate-limits/stop-events.jsonl` and to the rate-limit
 >   error text this session sees, taking resume timing from that error
 >   text where available and otherwise backing off and retrying. Read the
 >   detection records on entering reactive-only and again before each new

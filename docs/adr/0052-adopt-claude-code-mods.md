@@ -27,7 +27,7 @@ reproduce it on Linux). Criterion 5 fails as written: the early-access line is s
 Every fact about mods here rests on Anthropic as the single publisher (the docs pages, the per-build
 types, the changelog), plus this repository's own probes. None is independently confirmed.
 
-Two plugins in this marketplace, context-usage and rate-limit-guard, worked around missing native
+Two plugins in this marketplace, context-usage and rate-limits, worked around missing native
 surfaces: a status-line tee wrote files that settings hooks read and injected back as context.
 A mod does those jobs in-process (session events, context lines added to a tool result, a band in
 the interface, a tool Claude can call), which is the gap this record answers.
@@ -91,7 +91,7 @@ event they hook and every `$` call they make sits in a row the guard passes, wit
 | Hook or `$` call | Used by | The guard's row |
 | --- | --- | --- |
 | `session.start`, `session.end`, `session.compact`, `session.measure` | both | passes (`session.*`) |
-| `turn.start`, `turn.complete`; `turn.step` | both; rate-limit-guard | passes (`turn.*`) |
+| `turn.start`, `turn.complete`; `turn.step` | both; rate-limits | passes (`turn.*`) |
 | `prompt.submit`, `tool.call`, `command.run`, `ui.render` | both | passes |
 | `$.process.run`, `$.clock.*`, `$.fs.read`, `$.fs.stat`, `$.ui.log`, `$.ui.toast`, `$.ui.invalidate`, `$.ui.resolve`, `$.command.register` | both | passes (`process.run`, `clock.*`, `fs.*`, `ui.*`, `command.register`) |
 | `$.fs.exists` | context-usage | passes (`fs.*`) |
@@ -107,7 +107,7 @@ lines, band and contract file do not depend on it. Organization-admin features a
   for when it loads, see
   [admin: know what happens by default](https://code.claude.com/docs/en/plugins/mods/admin#know-what-happens-by-default).
   The hooks and calls in the table are those in `plugins/context-usage/hooks/register.tsx` and
-  `plugins/rate-limit-guard/hooks/register.tsx`.
+  `plugins/rate-limits/hooks/register.tsx`.
 - **As of**: 2026-10-03, Claude Code 2.1.288
 - **Recheck trigger**: "The rows" moves any hook or call in the table into a row the guard holds,
   or changes when it refuses `tool.register`; or either guard's module starts hooking an event or
@@ -144,7 +144,7 @@ lines, band and contract file do not depend on it. Organization-admin features a
 
 ## Consequences
 
-- context-usage and rate-limit-guard each run as a mod that replaced its status-line tee, shim,
+- context-usage and rate-limits each run as a mod that replaced its status-line tee, shim,
   status-line wiring and the hooks the mod does natively, each after its parity inventory passed.
   context-usage's zone gate moved into its mod; the post-compaction marker and the rate-limit stop
   recorder stay settings hooks.
