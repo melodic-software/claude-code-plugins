@@ -6,12 +6,12 @@ name: PR Run Activity Write
 # token the effect grants from the lanes token broker with its OIDC token
 # before any head checkout, runs a script, and revokes the token; the report
 # job writes the check from the run job's runner-computed outputs. It runs no
-# skill: every skill runs in pr-run-activity-read.yml with no write token.
-# Neither file references the App key. Read activities run in
-# pr-run-activity-read.yml, whose head-code job holds no OIDC token.
+# skill: skills and other read activities run in pr-run-activity-read.yml,
+# whose head-code job holds no write token and no OIDC token. Neither file
+# references the App key.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
 #
-# Every action runs from the base-SHA checkout at ./.base. zizmor's
+# Every local action runs from the base-SHA checkout at ./.base. zizmor's
 # self-repository advice (`$/...`) is ignored on those lines: `$/` loads the
 # action from this workflow's own commit, which on pull_request is the PR's
 # merge commit, not the base.
@@ -474,39 +474,40 @@ on:
         default: ""
       role:
         description: >-
-          The funding role whose secret the caller passes, as in
-          docs/conventions/pr-pipeline.yaml `funding:`.
+          The lane's funding role, as in docs/conventions/pr-pipeline.yaml
+          `funding:`. Callers pass it as they do to the read runner; this
+          file takes no secret and reads it nowhere.
         required: true
         type: string
     outputs:
       escalation-reason:
         description: >-
-          Why the activity stopped (report-escalation routes it to a person
-          or to a failing status, escalation-routes.json): for the
-          review-replies script feedback-uncertain, feedback-not-landed or
-          feedback-invalid, feedback-partial, feedback-incomplete,
-          (feedback-publish-failed is the caller's, for a reply job that failed),
-          feedback-disputed, feedback-stood-open, feedback-verifier-open,
-          feedback-unadjudicated, feedback-question-intent,
-          feedback-question-design or feedback-question-security; for the
-          dependency-verdict script
-          dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
-          dependency-files-truncated, dependency-control-uncited,
-          dependency-workflow-unpinned, dependency-fix-refused,
-          dependency-security-close or dependency-escalate-<owner reason>
-          (intent, design, security, cost or none); for apply-patch, before the mint,
-          ci-fix-empty, ci-fix-invalid, ci-fix-escalated, ci-fix-protected-path,
-          ci-fix-weaken-retry or ci-fix-weaken-required, and from its
-          script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
-          for issue-mode apply-patch, patch-empty, patch-invalid,
-          patch-credential, patch-not-applied or patch-protected-path; for apply-patch under
+          Why the activity stopped (report-escalation routes it to a person or
+          to a failing status, escalation-routes.json): for the review-replies
+          script feedback-uncertain, feedback-not-landed or feedback-invalid,
+          feedback-partial, feedback-incomplete, (feedback-publish-failed is the
+          caller's, for a reply job that failed), feedback-disputed,
+          feedback-stood-open, feedback-verifier-open, feedback-unadjudicated,
+          feedback-question-intent, feedback-question-design or
+          feedback-question-security; for the dependency-verdict script
+          dependency-invalid, dependency-fix-not-landed,
+          dependency-config-unreadable, dependency-files-truncated,
+          dependency-control-uncited, dependency-workflow-unpinned,
+          dependency-fix-refused, dependency-security-close or
+          dependency-escalate-<owner reason> (intent, design, security, cost or
+          none); for apply-patch, before the mint, ci-fix-empty, ci-fix-invalid,
+          ci-fix-escalated, ci-fix-protected-path, ci-fix-weaken-retry or
+          ci-fix-weaken-required, and from its script ci-fix-invalid,
+          ci-fix-protected-path or ci-fix-not-applied; for issue-mode
+          apply-patch, patch-empty, patch-invalid, patch-credential,
+          patch-not-applied or patch-protected-path; for apply-patch under
           patch-prepare merge-base, unresolved-conflict, workflow-staged,
           unexpected-path-staged, conflict-patch-invalid,
           conflict-patch-not-applied or conflict-patch-protected-path; for
           apply-patch under patch-prepare install-script-pin,
           dependency-pin-invalid, dependency-pin-not-applied or
-          dependency-pin-protected-path; empty otherwise.
-          Set only by runner steps and the base's reply and verdict scripts.
+          dependency-pin-protected-path; empty otherwise. Set only by runner
+          steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
       rung-up:
         description: >-
@@ -562,8 +563,9 @@ jobs:
       pull-requests: read
       id-token: write
     # The report job trusts only these, all computed by runner steps. Every
-    # one but act-outcome, escalation-reason and api-failures is a step
-    # outcome or an output of a step that ran before any PR head code.
+    # one but act-outcome, escalation-reason, pushed-commit, skip-reason and
+    # api-failures is a step outcome or an output of a step that ran before
+    # any PR head code.
     # act-outcome is the script step's outcome, and escalation-reason comes
     # from the base's reply, verdict and apply-patch scripts, which run no
     # model and no head code.
@@ -1505,8 +1507,8 @@ jobs:
           # commit forked from the default branch. Written as != so the 0 is
           # not read as false.
           fetch-depth: >-
-            ${{ !(inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch')
-            && !(steps.config.outputs.prepare == 'apply-patch' && (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies')) && 1 || 0 }}
+            ${{ !(steps.config.outputs.prepare == 'apply-patch'
+            && (inputs.issue-number != '' || inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies')) && 1 || 0 }}
 
       # The activity judges exactly the commit the check is posted on.
       - name: Assert the head is the gated SHA
@@ -1724,34 +1726,22 @@ jobs:
           escalation=""
           if [ -s "$ESCALATION_REASON_FILE" ]; then
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
-            # apply-patch under a merge row gives that row's merge reasons alone.
-            if [ "$PREPARE:$PATCH_PREPARE" = apply-patch:merge-base ]; then
-              case $escalation in
-                unresolved-conflict | workflow-staged | unexpected-path-staged) ;;
-                conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
-                *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
-              esac
-              echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
-              exit 0
-            fi
-            # apply-patch under the install-script-pin row gives its own reasons alone.
-            if [ "$PREPARE:$PATCH_PREPARE" = apply-patch:install-script-pin ]; then
-              case $escalation in
-                dependency-pin-invalid | dependency-pin-not-applied | dependency-pin-protected-path) ;;
-                *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
-              esac
-              echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
-              exit 0
-            fi
-            if [ "$PREPARE:$PATCH_PREPARE" = apply-patch:shared-copies ]; then
-              case $escalation in
-                shared-copy-workflow-staged | shared-copy-unexpected-path-staged) ;;
-                shared-copy-patch-invalid | shared-copy-patch-not-applied | shared-copy-patch-protected-path) ;;
-                *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
-              esac
-              echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
-              exit 0
-            fi
+            # apply-patch under the merge-base, install-script-pin and
+            # shared-copies rows gives that row's own reasons alone.
+            case "$PREPARE:$PATCH_PREPARE" in
+              apply-patch:merge-base | apply-patch:install-script-pin | apply-patch:shared-copies)
+                case "$PATCH_PREPARE:$escalation" in
+                  merge-base:unresolved-conflict | merge-base:workflow-staged | merge-base:unexpected-path-staged) ;;
+                  merge-base:conflict-patch-invalid | merge-base:conflict-patch-not-applied | merge-base:conflict-patch-protected-path) ;;
+                  install-script-pin:dependency-pin-invalid | install-script-pin:dependency-pin-not-applied | install-script-pin:dependency-pin-protected-path) ;;
+                  shared-copies:shared-copy-workflow-staged | shared-copies:shared-copy-unexpected-path-staged) ;;
+                  shared-copies:shared-copy-patch-invalid | shared-copies:shared-copy-patch-not-applied | shared-copies:shared-copy-patch-protected-path) ;;
+                  *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
+                esac
+                echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
+                exit 0
+                ;;
+            esac
             case "$FEEDBACK_REPLIES_DIR:$escalation" in
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
               ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
@@ -1956,7 +1946,7 @@ jobs:
 
       # The failed GitHub API calls this job's scripts recorded (recordFailure
       # in retry-fetch.mjs and rate-guard.mjs), for the report job's lane run
-      # report comment. The model shares RUNNER_TEMP and could plant or change
+      # report comment. The activity shares RUNNER_TEMP and could plant or change
       # the file, and PATH with it, so only rows of the recorded shape pass,
       # each distinct row once, with the rest counted as dropped. post.mjs checks
       # them again, folds each path into its template and only then caps the
