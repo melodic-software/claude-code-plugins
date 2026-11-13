@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "phase-1.5: downgraded=0 dropped=0 corrected=0",
+      "why": "the count line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "phase-1.5: verification: skipped (light)",
+      "why": "no counts"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}

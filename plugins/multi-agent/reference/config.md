@@ -41,6 +41,14 @@ and an explicit yes.
 | `frontier` | comma-separated aliases treated as frontier | `fable` |
 | `fanout.frontier_guard` | `true`, `false` | `true` |
 | `fanout.model` | an alias | `opus` |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` |
+
+`verification` is not part of the role map. It sets whether `/multi-agent:audit-defaults` runs
+its skeptic panel: `light` and `off` skip it and report every finding `unverified`, so no diff is
+proposed. It is read from the team file at the default branch only, through
+`lib/read-verification.sh`; the resolver ignores it in every layer, and the user-global and
+personal files cannot set it. A skill entry beats the plugin value
+([verification level](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
 
 Roles are `orchestrator`, `worker`, `verifier` and `retrieval`. A layer naming
 another role or key is reported and ignored, and so is a workload no layer

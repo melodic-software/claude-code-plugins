@@ -220,6 +220,8 @@ apply_layer() {
     role=""
     case "$key" in
     frontier) field=frontier ;;
+    # Not a role-map key: lib/read-verification.sh reads it from the team file at the default branch.
+    verification | verification_skills.*) continue ;;
     fanout.frontier_guard) field=frontier_guard ;;
     fanout.model) field=fanout_model ;;
     *)

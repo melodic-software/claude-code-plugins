@@ -92,7 +92,7 @@
     {
       "id": 7,
       "name": "report-bands-by-badge-and-artifact-records-verification",
-      "prompt": "/architecture:improve deepening — scope is the whole repository, which splits into four top-level packages. Run the scan through to the report.",
+      "prompt": "/architecture:improve deepening — scope is the whole repository, which splits into four top-level packages. Run the scan through to the report. [The level reader has already been run for this case and printed `verification: standard (the plugin team file's verification key at origin/main)`; this run uses that line and does not run the reader again.]",
       "expected_output": "Before scanning, checks the branch against its base with separate git calls and reports the behind count. It names four scan subagents, one per package, before dispatching, and notes that scan cost rises with the count; no fixed default width is asserted. The HTML report groups cards into Strong, Worth exploring, and Speculative bands in that order, with no cap, pagination, or collapsed card. The candidate artifact ends with a phase-1.5 line carrying downgraded, dropped, and corrected counts, then the top-recommendation line, and leaves agreed-shape and graft-record out of entries that have not reached Phase 3.",
       "files": [],
       "expectations": [

@@ -29,3 +29,10 @@ change. `report` assesses, reports and offers the fix. `fix` makes the change an
 result. Under either value, a question or thinking out loud gets an assessment only, and a
 destructive or outward-visible step waits for the user's consent. The model-adaptation chapters do
 not read this key.
+
+`verification` takes the other path: it has no user config option, and `lib/read-verification.sh`
+reads it from the committed copy of `docs/conventions/playbooks.yaml` on the default branch only.
+
+| Key | Values | Default | Reader | Level rule |
+|---|---|---|---|---|
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | `/playbooks:fable-5`: the fresh-context verifier gate (orchestration chapter, "Fresh-context verification"); `light` and `off` skip it, `strict` drops its mechanical-batch exemption | the repository file at the default branch, a skill entry over the plugin value ([verification level](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)) |

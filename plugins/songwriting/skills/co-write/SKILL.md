@@ -121,7 +121,13 @@ craft call: "There are no rules, only tools." (*Writing Better Lyrics* (2009), C
 in [response-filter](../../context/pat-pattison/research/response-filter.md)). The skeptic row is
 in that class deliberately: a refutation pass costs a subagent dispatch, and whether a batch is
 worth one is a judgment, not a rule the writer laid down. Skip it by name and reason, and expect
-to be asked why, because self-attestation is what failed.
+to be asked why, because self-attestation is what failed. The verification level also governs it:
+run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin songwriting --skill co-write`
+and copy its line into the output
+([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)).
+`standard` keeps the row as written; `strict` runs it on every batch, with no skip. Under `light`,
+and `off`, which acts as `light` here, dispatch no skeptic and do not refute the batch yourself in
+its place: the row's named skip is `verification: skipped (<level>)`.
 
 **The rubric row is never skipped**: it is the writer's standing rule for every candidate, not a
 craft box he may decline. Its record is not a verdict on the candidate: the countable passes run
