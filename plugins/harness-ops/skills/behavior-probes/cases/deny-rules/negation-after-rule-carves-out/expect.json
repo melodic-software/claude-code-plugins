@@ -1,0 +1,15 @@
+{
+  "claim": "Control: under dontAsk, a Read(!**/.env.example) deny entry listed after Read(**/.env*) carves .env.example out, so its Read runs.",
+  "tags": ["Read rule", "deny rule", "negation", "! pattern", "gitignore pattern", "dontAsk"],
+  "docs": [
+    "https://code.claude.com/docs/en/permissions#special-characters-and-negation"
+  ],
+  "permission_mode": "dontAsk",
+  "target": {
+    "tool": "Read",
+    "input_match": "\"file_path\": \"[^\"]*/\\.env\\.example\"",
+    "example": {"file_path": "/tmp/cc-probe-dry/.env.example"}
+  },
+  "outcome": "ran",
+  "match": "probe-env-example-marker"
+}

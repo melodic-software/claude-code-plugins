@@ -1,0 +1,15 @@
+{
+  "claim": "Under dontAsk, a Read(./.env) deny rule also denies `cat .env`, a file command Claude Code recognizes in Bash.",
+  "tags": ["Read rule", "deny rule", "permissions.deny", "Bash", "file commands", "dontAsk"],
+  "docs": [
+    "https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover"
+  ],
+  "permission_mode": "dontAsk",
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"cat \\.env\"",
+    "example": {"command": "cat .env"}
+  },
+  "outcome": "deny",
+  "control": "deny-rules/cat-env-runs"
+}

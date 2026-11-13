@@ -1,0 +1,18 @@
+{
+  "claim": "Under dontAsk, a Bash(git reset --hard *) deny rule denies `git reset --hard HEAD` that an exact allow rule also matches.",
+  "tags": ["deny rule", "permissions.deny", "Bash rule", "git reset", "git -C", "dontAsk"],
+  "docs": [
+    "https://code.claude.com/docs/en/permissions#manage-permissions",
+    "https://code.claude.com/docs/en/permissions#wildcard-patterns"
+  ],
+  "permission_mode": "dontAsk",
+  "cwd": "repo",
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"git reset --hard HEAD\"",
+    "example": {"command": "git reset --hard HEAD"}
+  },
+  "outcome": "deny",
+  "reason_type": "rule",
+  "control": "deny-rules/git-reset-hard-runs"
+}

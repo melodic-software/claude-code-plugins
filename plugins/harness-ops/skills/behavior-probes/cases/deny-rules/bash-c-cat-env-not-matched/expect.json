@@ -1,0 +1,16 @@
+{
+  "claim": "Under dontAsk with Bash(bash -c *) allowed, a Read(./.env) deny rule does not stop `bash -c \"cat .env\"`: the file is read inside a subprocess the rule does not see.",
+  "tags": ["Read rule", "deny rule", "permissions.deny", "Bash", "file commands", "dontAsk", "bash -c", "subprocess"],
+  "docs": [
+    "https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover",
+    "https://code.claude.com/docs/en/permissions#bash-rule-limits"
+  ],
+  "permission_mode": "dontAsk",
+  "target": {
+    "tool": "Bash",
+    "input_match": "bash -c .*cat \\.env",
+    "example": {"command": "bash -c \"cat .env\""}
+  },
+  "outcome": "ran",
+  "match": "probe-env-marker"
+}

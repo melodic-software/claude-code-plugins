@@ -559,3 +559,31 @@ which tools a run allows.
 | Case | Expected | Observed | Verdict |
 |---|---|---|---|
 | `plugin-eval/unlisted-tools-offered` | ran, `Skill=ran` | ran, `Skill=ran Task=ran TaskStop=refused ToolSearch=ran` | pass |
+
+## Pending: cases with no live run yet
+
+These cases have passed `validate` and a dry run only. Each expected outcome comes from the docs
+sections in the case's `docs` field, not from an observation. The first live run of a case and its
+control replaces its row here with a numbered record.
+
+**Recheck trigger.** A release note naming working directories or `additionalDirectories`, deny
+rule precedence over `autoMode`, which Bash forms a `Read` or `Bash` deny rule matches, or `!`
+negation in permission rules.
+
+| Case | Expected | Docs | Observed | Verdict |
+|---|---|---|---|---|
+| `auto-mode/write-in-project-skips-classifier` | ran | [decision order](https://code.claude.com/docs/en/permission-modes#how-the-classifier-evaluates-actions) | not run live | pending |
+| `auto-mode/write-in-additional-directory-skips-classifier` | ran | [working directories](https://code.claude.com/docs/en/permissions#working-directories) | not run live | pending |
+| `auto-mode/write-outside-working-directories-classifier-denies` | deny (classifier) | [decision order](https://code.claude.com/docs/en/permission-modes#how-the-classifier-evaluates-actions) | not run live | pending |
+| `auto-mode/automode-allow-entry-probemark-runs` | ran | [block and allow rules](https://code.claude.com/docs/en/auto-mode-config#override-the-block-and-allow-rules) | not run live | pending |
+| `auto-mode/deny-rule-beats-automode-allow` | deny (rule) | [human checkpoint](https://code.claude.com/docs/en/auto-mode-config#add-a-human-checkpoint) | not run live | pending |
+| `deny-rules/read-tool-env-runs` | ran | [working directories](https://code.claude.com/docs/en/permissions#working-directories) | not run live | pending |
+| `deny-rules/read-tool-env-denied` | deny | [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit) | not run live | pending |
+| `deny-rules/cat-env-runs` | ran | [read-only commands](https://code.claude.com/docs/en/permissions#read-only-commands) | not run live | pending |
+| `deny-rules/cat-env-denied` | deny | [what Read and Edit rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover) | not run live | pending |
+| `deny-rules/bash-c-cat-env-not-matched` | ran | [what Read and Edit rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover) | not run live | pending |
+| `deny-rules/git-reset-hard-runs` | ran | [wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns) | not run live | pending |
+| `deny-rules/git-reset-hard-denied` | deny (rule) | [manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions) | not run live | pending |
+| `deny-rules/git-c-reset-hard-not-matched` | ran | [what a Bash rule doesn't match](https://code.claude.com/docs/en/permissions#bash-rule-limits) | not run live | pending |
+| `deny-rules/negation-after-rule-carves-out` | ran | [`!` negation](https://code.claude.com/docs/en/permissions#special-characters-and-negation) | not run live | pending |
+| `deny-rules/negation-before-rule-carves-nothing` | deny | [`!` negation](https://code.claude.com/docs/en/permissions#special-characters-and-negation) | not run live | pending |

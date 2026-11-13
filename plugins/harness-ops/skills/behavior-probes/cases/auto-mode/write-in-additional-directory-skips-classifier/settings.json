@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "${PROBE_WORKDIR}/extra"
+    ]
+  },
+  "autoMode": {
+    "soft_deny": [
+      "$defaults",
+      "Never create, write or edit any file anywhere under ${PROBE_WORKDIR}"
+    ]
+  }
+}

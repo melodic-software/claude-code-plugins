@@ -1,0 +1,16 @@
+{
+  "claim": "Under dontAsk, a Bash(git reset --hard *) deny rule does not match `git -C . reset --hard HEAD`, so an exact allow rule for that form lets it run.",
+  "tags": ["deny rule", "permissions.deny", "Bash rule", "git reset", "git -C", "dontAsk"],
+  "docs": [
+    "https://code.claude.com/docs/en/permissions#bash-rule-limits"
+  ],
+  "permission_mode": "dontAsk",
+  "cwd": "repo",
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"git -C \\. reset --hard HEAD\"",
+    "example": {"command": "git -C . reset --hard HEAD"}
+  },
+  "outcome": "ran",
+  "match": "HEAD is now at"
+}
