@@ -304,11 +304,17 @@ out of scope until such a signal exists.
   told. Flipping a hook to fail-closed (deny the call when the guard could not
   check it) is the one word `closed` on its install line; the contract test
   reads the registered set from `hooks.json`, so a hook added without the
-  boundary fails it.
+  boundary fails it. A repository or user can make chosen guards deny on a
+  crash without that edit: the `deny_on_crash` setting names them, in the
+  option or in the team file (see `deny_on_crash` under Option details). A
+  named guard that crashes exits as a block, and its notice says the call was
+  denied and how to take the guard off the list. The default names none, and
+  the setting is read only when a guard crashes, so a call that does not crash
+  starts no extra process.
 - **The Bash row fails open on a guard's crash.** An internal script error
   exits 0 so a defect on this hottest-path row cannot freeze the session, with
-  the user notice so the allow is not silent. Stdin timeout and a NUL payload
-  still fail closed. The row sets `"onFailure": "block"`, so on Claude Code
+  the user notice so the allow is not silent. A guard named in `deny_on_crash`
+  denies instead. Stdin timeout and a NUL payload still fail closed. The row sets `"onFailure": "block"`, so on Claude Code
   2.1.295 or later a handler killed at its 60s `hooks.json` `timeout` denies
   the call; an older client lets it proceed. Pointer:
   <https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails>.
@@ -1638,6 +1644,32 @@ or index, so an edit and `git add` do not set it. A missing ref, file or key, a 
 parse, or any other value keeps `allow`; the last two say so. Adding `push-lease-unsafe` to
 `block_dangerous_git_allow` lets the unpinned lease through under either layer.
 
+**`deny_on_crash`.** Names the guards whose crash denies the tool call. A guard crashes when it
+exits with a status it did not choose, such as an unbound variable under `set -u` (the abort
+boundary in "Every hook says so when it could not run", under Scope notes). By default such a guard allows the call
+with the "guard did not run" notice, because the Bash guards sit on the hottest path and a guard
+that denies on its own crash could block every shell command, including the ones that would fix
+it. A named guard exits as a block instead, and its notice says the call was denied and how to
+take the guard off the list. A name is the hook's file name without `.sh`, such as
+`block-dangerous-git`, for a hook that runs before the tool call (`PreToolUse`); `run-guards`
+names the dispatcher. A `PostToolUse` or `SessionStart` hook gates no call, so its name counts as
+unknown. A guard either layer names denies: this
+option, per user, as a comma-separated list, or a `deny_on_crash` list in the repository's
+`docs/conventions/guardrails.yaml` (schema `schemas/guardrails.schema.json`). The team file is read
+from the session's repository (`CLAUDE_PROJECT_DIR`, else the hook's working directory) at its
+local `origin/HEAD`, never the working tree or index. Both layers are read only when a guard
+crashes, so a call that does not crash starts no extra process. An unknown name is ignored and
+reported once per hook process, in its first crash notice; no name stands for every guard, not
+even `all` or `*`. A team file that does not parse is named in that notice and its list is not read. The
+deny cases in Scope notes (a stdin timeout, a NUL payload, a handler killed at its timeout, a dispatcher
+that ends without a verdict) are unchanged.
+
+```yaml
+# docs/conventions/guardrails.yaml
+deny_on_crash:
+  - block-dangerous-git
+```
+
 **`block_windows_drive_tmp_enabled`.** One switch covers both lanes: Bash/PowerShell commands and
 Write/Edit/NotebookEdit file paths. On Git for Windows, a Bash-tool `/tmp` that
 cygpath/mount shows is the usertemp mount of `%TEMP%` is not blocked; `/c/tmp`, `C:\tmp`,
@@ -1780,6 +1812,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `workflow_resilience_check_enabled` | boolean | `false` | Advises on Workflow fan-out with no wave cap of its own; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in. |
 | `flag_commit_pr_skill_bypass_enabled` | boolean | `false` | Advises when a direct gh pr create bypasses the source-control pull-request skill; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Default 2. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block. |
+| `deny_on_crash` | string | *(none)* | Comma-separated guard names (e.g. block-dangerous-git) whose crash denies the tool call instead of allowing it with the guard-did-not-run notice. Empty, the default, lets every crashed guard allow with the notice. An unknown name is reported and ignored. Team-file layer: README Option details. |
 
 ### How to set these
 

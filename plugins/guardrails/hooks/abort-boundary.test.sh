@@ -75,9 +75,13 @@ run_hook() {
   shift
   local rc=0
   # A subshell with exports rather than `env`, which execs a program and so
-  # cannot run the feed_run function.
+  # cannot run the feed_run function. It runs outside any repository, so the
+  # deny_on_crash team file of the checkout running this suite is not read;
+  # a case that wants one sets CLAUDE_PROJECT_DIR to a fixture repository.
   (
-    unset HOOK_TELEMETRY_SINK
+    cd "$TEST_TMPDIR" || exit 99
+    export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
+    unset HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_DENY_ON_CRASH
     export CLAUDE_PROJECT_DIR='' \
       CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED=true \
       CLAUDE_PLUGIN_OPTION_WORKFLOW_RESILIENCE_CHECK_ENABLED=true
@@ -230,6 +234,24 @@ for name in "${REGISTERED[@]}"; do
 done
 for lib in "${SOURCED_LIBS[@]}"; do
   assert_no_exit_trap "$lib" "$PLUGIN_DIR/$lib"
+done
+
+# deny_on_crash names a guard by the name it installs the boundary under. The
+# library's list of those names must match the PreToolUse install lines and
+# the dispatcher's, so a new guard can be named and a removed one is reported
+# as unknown.
+installed=""
+for f in "$HOOK_DIR"/*.sh; do
+  [[ "$f" == *.test.sh ]] && continue
+  installed+=$(awk '/^guard::abort_boundary [A-Za-z0-9_-]+ (PreToolUse|"") / { print $2 }' "$f")$'\n'
+done
+installed=$(printf '%s' "$installed" | grep . | LC_ALL=C sort -u)
+# shellcheck disable=SC2016  # expands in the child shell
+known=$(bash -c 'source "$1/abort-boundary.sh" && printf "%s\n" $_GAB_GUARDS' _ "$HOOK_DIR" | LC_ALL=C sort -u)
+assert_eq "deny_on_crash's guard list matches the PreToolUse boundary install lines" "$installed" "$known"
+for name in "${REGISTERED[@]}"; do
+  [[ "${EVENTS[$name]}" == *" PreToolUse "* ]] || continue
+  [[ " ${known//$'\n'/ } " == *" ${name%.sh} "* ]] || bad "deny_on_crash cannot name registered hook ${name%.sh}"
 done
 
 # Fixtures: the detector flags a competing EXIT trap terminated by `;` (and
@@ -467,6 +489,110 @@ for jq_status in 1 3; do
     assert_silent "$stem: field read status $jq_status is silent" "$ERR$OUT"
   done
 done
+
+# --- deny_on_crash: a named guard denies when it aborts ---------------------
+# block-dangerous-git with an unbound expansion on its block path: a force push
+# aborts it, a benign command never reaches the line. Named in deny_on_crash
+# (the option, or the team file at origin/HEAD), the abort denies with the
+# notice; not named, it allows with the notice, as before. Each case runs the
+# guard directly and through the dispatcher.
+DENY="$TEST_TMPDIR/deny"
+cp -R "$PLUGIN_DIR" "$DENY"
+DENY_BDG="$DENY/hooks/block-dangerous-git.sh"
+inject_after "$DENY_BDG" '^block[(][)] [{]$' ": \"\${${MARKER}?forced abort on the block path}\""
+DENY_OPT=CLAUDE_PLUGIN_OPTION_DENY_ON_CRASH
+DENIED="guardrails block-dangerous-git: ${NOTICE}1); deny-on-crash: this tool call is denied"
+ALLOWED="guardrails block-dangerous-git: ${NOTICE}1); this call was not checked"
+# deny_team_repo <dir> <yaml body>: origin/HEAD carries the team file.
+deny_team_repo() {
+  if ! {
+    git init -q "$1" && mkdir -p "$1/docs/conventions" &&
+      printf '%s\n' "$2" >"$1/docs/conventions/guardrails.yaml" &&
+      git -C "$1" add docs/conventions/guardrails.yaml &&
+      git -C "$1" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q -m team &&
+      git -C "$1" update-ref refs/remotes/origin/main HEAD &&
+      git -C "$1" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+  }; then
+    bad "fixture: could not build $1"
+  fi
+}
+TEAM_DENY="$TEST_TMPDIR/team-deny"
+TEAM_OTHER="$TEST_TMPDIR/team-other"
+TEAM_BAD="$TEST_TMPDIR/team-bad"
+TEAM_WT="$TEST_TMPDIR/team-worktree-only"
+deny_team_repo "$TEAM_DENY" $'deny_on_crash:\n  - block-dangerous-git'
+deny_team_repo "$TEAM_OTHER" 'deny_on_crash: [block-no-verify]'
+deny_team_repo "$TEAM_BAD" 'deny_on_crash: [block-dangerous-git'
+deny_team_repo "$TEAM_WT" 'fix_request_post: allow'
+printf 'deny_on_crash: [block-dangerous-git]\n' >"$TEAM_WT/docs/conventions/guardrails.yaml"
+
+for via in direct dispatched; do
+  # deny_run <env...>: the force push through the aborting guard, by $via.
+  deny_run() {
+    if [[ "$via" == direct ]]; then
+      run_hook "$@" -- feed_run "$BASH_FORCE_PUSH" bash "$DENY_BDG"
+    else
+      run_hook "$@" -- feed_run "$BASH_FORCE_PUSH" bash "$DISPATCH" "$HOOK_DIR/block-no-verify.sh" "$DENY_BDG"
+    fi
+  }
+  deny_run
+  assert_exit "$via: deny_on_crash unset: the abort allows" 0 "$RC"
+  assert_contains "$via: deny_on_crash unset: the notice says the call was not checked" "$ERR" "$ALLOWED"
+  assert_contains "$via: deny_on_crash unset: the user sees the notice" "$(json_field "$OUT" .systemMessage)" "$ALLOWED"
+
+  deny_run "$DENY_OPT=block-dangerous-git"
+  assert_exit "$via: option names the guard: the abort denies" 2 "$RC"
+  assert_contains "$via: option names the guard: the notice says the call was denied" "$ERR" "$DENIED"
+  assert_contains "$via: option names the guard: the notice says how to turn it off" "$ERR" \
+    "remove block-dangerous-git from deny_on_crash in /plugin configure"
+  assert_eq "$via: option names the guard: exactly one notice line" 1 "$(count_notices "$ERR")"
+
+  deny_run "$DENY_OPT= block-no-verify , block-dangerous-git "
+  assert_exit "$via: option lists the guard among others, spaced: the abort denies" 2 "$RC"
+
+  deny_run "$DENY_OPT=block-no-verify"
+  assert_exit "$via: option names another guard: the abort allows" 0 "$RC"
+  assert_contains "$via: option names another guard: the notice is unchanged" "$ERR" "$ALLOWED"
+
+  deny_run "$DENY_OPT=all,*,block-dangerous-gi,cli-flag-verify"
+  assert_exit "$via: unknown names are never all: the abort allows" 0 "$RC"
+  assert_contains "$via: unknown names, and a guard that gates no tool call, are reported" "$ERR" \
+    "deny_on_crash names no guard that gates a tool call: all * block-dangerous-gi cli-flag-verify; ignored."
+  assert_contains "$via: the report reaches the user" "$(json_field "$OUT" .systemMessage)" "block-dangerous-gi cli-flag-verify; ignored."
+
+  deny_run "CLAUDE_PROJECT_DIR=$TEAM_DENY"
+  assert_exit "$via: team file names the guard: the abort denies" 2 "$RC"
+  assert_contains "$via: team file names the guard: the notice names the file" "$ERR" \
+    "denied because deny_on_crash in docs/conventions/guardrails.yaml names this guard"
+  deny_run "CLAUDE_PROJECT_DIR=$TEAM_OTHER"
+  assert_exit "$via: team file names another guard: the abort allows" 0 "$RC"
+  deny_run "CLAUDE_PROJECT_DIR=$TEAM_WT"
+  assert_exit "$via: a team file only in the working tree does not count" 0 "$RC"
+  deny_run "CLAUDE_PROJECT_DIR=$TEAM_BAD"
+  assert_exit "$via: a team file that does not parse keeps the abort an allow" 0 "$RC"
+  assert_contains "$via: a team file that does not parse says so" "$ERR" "does not parse"
+  deny_run "CLAUDE_PROJECT_DIR=$TEAM_OTHER" "$DENY_OPT=block-dangerous-git"
+  assert_exit "$via: either layer naming the guard denies" 2 "$RC"
+
+  # No abort, no change: the benign command never reaches the injected line.
+  if [[ "$via" == direct ]]; then
+    run_hook "$DENY_OPT=block-dangerous-git" -- feed_run "$BASH_BENIGN" bash "$DENY_BDG"
+  else
+    run_hook "$DENY_OPT=block-dangerous-git" -- feed_run "$BASH_BENIGN" bash "$DISPATCH" "$HOOK_DIR/block-no-verify.sh" "$DENY_BDG"
+  fi
+  assert_exit "$via: option set, no abort: the call is allowed" 0 "$RC"
+  assert_silent "$via: option set, no abort: nothing is written" "$ERR$OUT"
+done
+
+# Two aborting guards in one dispatch: the named one denies, the other keeps
+# its notice, and an unknown name is reported once for the call.
+run_hook "$DENY_OPT=block-dangerous-git,nope" -- feed_run "$BASH_FORCE_PUSH" bash "$DISPATCH" "$ABORTING" "$DENY_BDG"
+assert_exit "dispatched: a named aborting guard denies beside an unnamed one" 2 "$RC"
+assert_contains "dispatched: the named guard's notice says denied" "$ERR" "$DENIED"
+assert_contains "dispatched: the unnamed guard's notice says not checked" "$ERR" \
+  "guardrails block-no-verify: ${NOTICE}1); this call was not checked"
+assert_eq "dispatched: an unknown name is reported once" 1 \
+  "$(grep -c 'deny_on_crash names no guard that gates a tool call: nope' <<<"$ERR")"
 
 # --- The helper itself, through stubs -----------------------------------------
 stub() { # stub <name> <body...>: a script that sources the boundary first

@@ -35,6 +35,13 @@
 #   closed  exit 2 with the notice on stderr, the channel a blocking exit feeds
 #           back to the agent. The tool call is denied.
 #
+# Deny on crash (#15992). A repository or user can name open guards that deny
+# instead: the deny_on_crash setting (guard::_abort_deny_resolve below) lists
+# guard names, and a named guard that aborts exits 2 with a notice saying so
+# and how to turn it off. Its default is empty, so nothing changes for a
+# consumer who sets nothing. The setting is read only on an abort, so a call
+# that does not abort starts no process for it.
+#
 # <HookEventName> is the event the hook is registered for (PreToolUse,
 # PostToolUse), kept in _GAB_EVENT for the dispatcher's telemetry. Pass an empty
 # string when the event is not known at install time (the dispatcher serves
@@ -47,7 +54,10 @@
 # Handler discipline. `trap - EXIT` is the handler's first action so nothing it
 # does can re-enter it. It uses builtins only, every variable it reads is set
 # at install time, and it calls nothing from hook-utils.sh, because a failed
-# `source hook-utils.sh` is one of the aborts it exists to report. A failure
+# `source hook-utils.sh` is one of the aborts it exists to report. The one
+# exception is the deny_on_crash team-file read, one git and one awk process
+# on the first abort of an open guard in the process; either failing reads as
+# no team entry, so the guard keeps its open posture. A failure
 # inside the handler ends the process once, with that failure's status, after
 # the stderr line is already written.
 #
@@ -212,8 +222,10 @@ guard::abort_boundary_release() {
 
 # JSON-escape $2 into the variable named by $1: backslash, double quote, and the
 # three line-structure control bytes. The notice text is built from install-time
-# literals and a status number, so nothing else can occur in it; the escape is
-# here so a hook name or event containing a quote cannot break the document.
+# literals, a status number and deny_on_crash names, whose other control bytes
+# guard::_abort_deny_add has already replaced, so nothing else can occur in it;
+# the escape is here so a hook name or event containing a quote cannot break
+# the document.
 guard::_abort_json_escape_to() {
   local __gab_s="$2"
   __gab_s="${__gab_s//\\/\\\\}"
@@ -247,6 +259,74 @@ guard::_abort_on_exit() {
   exit "$_GAB_RC"
 }
 
+# The guards deny_on_crash may name: every hook in this directory that installs
+# the boundary for PreToolUse, and the dispatcher, under the name each installs
+# it with. A PostToolUse or SessionStart hook gates no tool call, so a deny
+# there would claim a call was stopped when none was. abort-boundary.test.sh
+# fails when this list and those install lines disagree.
+readonly _GAB_GUARDS=" block-cd-prefix block-convention-violation block-credential-read block-cross-domain block-dangerous-git block-exported-msys-pathconv block-fix-request-post block-foreground-wait block-github-post-content block-no-verify block-noncanonical-commit block-root-delete-target block-unresolved-pr-merge block-windows-drive-tmp flag-commit-pr-skill-bypass hardcoded-path-check run-guards secret-pattern-detection workflow-resilience-check "
+_GAB_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$_GAB_DIR" == "${BASH_SOURCE[0]}" ]] && _GAB_DIR=.
+_GAB_TEAM_REL="docs/conventions/guardrails.yaml"
+_GAB_DENY_RESOLVED=0
+_GAB_DENY_OPT=" "
+_GAB_DENY_TEAM=" "
+_GAB_DENY_UNKNOWN=" "
+_GAB_DENY_NOTE=""
+
+# guard::_abort_deny_add <comma list> <variable>: append each known guard name
+# in <comma list> to <variable>, and each other name to _GAB_DENY_UNKNOWN. A
+# name is matched whole, so `all` or `*` names no guard.
+guard::_abort_deny_add() {
+  local list="$1," item
+  while [[ -n "$list" ]]; do
+    item="${list%%,*}"
+    list="${list#*,}"
+    item="${item#"${item%%[![:space:]]*}"}"
+    item="${item%"${item##*[![:space:]]}"}"
+    [[ -n "$item" ]] || continue
+    if [[ "$_GAB_GUARDS" == *" $item "* ]]; then
+      printf -v "$2" '%s%s ' "${!2}" "$item"
+      continue
+    fi
+    # The notice quotes an unknown name, so a control byte in it becomes `?`
+    # (the JSON escape below handles only the bytes fixed text can hold).
+    item="${item//[^[:print:]]/?}"
+    if [[ "$_GAB_DENY_UNKNOWN" != *" $item "* ]]; then
+      _GAB_DENY_UNKNOWN+="$item "
+    fi
+  done
+}
+
+# guard::_abort_deny_resolve: read deny_on_crash once per process from both
+# layers. The user layer is the deny_on_crash plugin option, a comma list in
+# CLAUDE_PLUGIN_OPTION_DENY_ON_CRASH. The team layer is `deny_on_crash`, a list
+# of names, in docs/conventions/guardrails.yaml of the session's repository
+# (CLAUDE_PROJECT_DIR, else this process's directory) at its local
+# origin/HEAD, never the working tree, as block-dangerous-git reads
+# unpinned_lease. A guard either layer names denies. A missing ref or file
+# reads as no team entry; a file that does not parse, and an unknown name, go
+# into _GAB_DENY_NOTE, which the first open-posture notice of the process
+# carries.
+guard::_abort_deny_resolve() {
+  ((_GAB_DENY_RESOLVED)) && return 0
+  _GAB_DENY_RESOLVED=1
+  guard::_abort_deny_add "${CLAUDE_PLUGIN_OPTION_DENY_ON_CRASH-}" _GAB_DENY_OPT
+  local text recs k v
+  if text=$(command git -C "${CLAUDE_PROJECT_DIR:-.}" show "refs/remotes/origin/HEAD:$_GAB_TEAM_REL" 2>/dev/null); then
+    if recs=$(LC_ALL=C command awk -f "$_GAB_DIR/yaml-subset.awk" <<<"$text" 2>/dev/null); then
+      while IFS=$'\t' read -r k v; do
+        [[ "$k" == deny_on_crash || "$k" =~ ^deny_on_crash\.[0-9]+$ ]] &&
+          guard::_abort_deny_add "$v" _GAB_DENY_TEAM
+      done <<<"$recs"
+    else
+      _GAB_DENY_NOTE=" $_GAB_TEAM_REL does not parse, so its deny_on_crash was not read."
+    fi
+  fi
+  [[ "$_GAB_DENY_UNKNOWN" == " " ]] ||
+    _GAB_DENY_NOTE+=" deny_on_crash names no guard that gates a tool call:${_GAB_DENY_UNKNOWN% }; ignored."
+}
+
 # guard::_abort_settle <status>: the decision, apart from the exit. Returns 0
 # when <status> is one the hook chose, and nothing else happens. Otherwise
 # writes the notice line to stderr, leaves the stdout document (empty for the
@@ -261,7 +341,22 @@ guard::_abort_settle() {
   _GAB_DOC=""
   _GAB_RC=0
   [[ "$_GAB_CHOSEN" == *" $rc "* ]] && return 0
-  local msg
+  local msg="" note=""
+  if [[ "$_GAB_POSTURE" != closed ]]; then
+    guard::_abort_deny_resolve
+    note="$_GAB_DENY_NOTE"
+    _GAB_DENY_NOTE=""
+    if [[ "$_GAB_DENY_OPT" == *" $_GAB_NAME "* ]]; then
+      msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); deny-on-crash: this tool call is denied because the deny_on_crash option names this guard. To let such a call through with a notice instead, remove ${_GAB_NAME} from deny_on_crash in /plugin configure. The failing line is on the hook's stderr.${note}"
+    elif [[ "$_GAB_DENY_TEAM" == *" $_GAB_NAME "* ]]; then
+      msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); deny-on-crash: this tool call is denied because deny_on_crash in ${_GAB_TEAM_REL} names this guard. To let such a call through with a notice instead, remove ${_GAB_NAME} from that list on the default branch. The failing line is on the hook's stderr.${note}"
+    fi
+    if [[ -n "$msg" ]]; then
+      printf '%s\n' "$msg" >&2
+      _GAB_RC=2
+      return 1
+    fi
+  fi
   if [[ "$_GAB_POSTURE" == closed ]]; then
     msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); fail-closed: this tool call is denied because the guard could not check it. The failing line is on the hook's stderr."
     printf '%s\n' "$msg" >&2
@@ -269,7 +364,7 @@ guard::_abort_settle() {
     return 1
   fi
   # User channel only: nothing was blocked, and the model cannot fix a hook.
-  msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); this call was not checked. Details: claude --debug."
+  msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); this call was not checked. Details: claude --debug.${note}"
   printf '%s\n' "$msg" >&2
   local esc
   guard::_abort_json_escape_to esc "$msg"
