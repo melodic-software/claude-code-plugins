@@ -341,9 +341,9 @@ close-on-ship drift doctrine. A run that publishes plain items needs none of it.
 
 After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, each criterion id left out at Step 3 (one left out as met at base says so), each id sharpened at Step 3, each id kept though it passes at base with its reason, and the suggested execution order. **work the frontier** (unblocked items first).
 
-Close the report with how the items run: at the keyboard, run them with `/work-items:ship run
-#<container-id>` (it runs a published spec container's items); otherwise leave the agent-ready items
-for the lanes, which pick them up from the frontier.
+Close the report with how the items run: at the keyboard, run them with
+`/work-items:ship run #<container-id>` (it runs a published spec container's items); otherwise
+leave the agent-ready items for the lanes, which pick them up from the frontier.
 
 ## Spoke paths
 

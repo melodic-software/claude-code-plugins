@@ -9,7 +9,7 @@ metadata:
 allowed-tools: ["Workflow(planning:plan-panel)"]
 ---
 
-**Arguments.** `[task description|#<map>|review|close-out] [--unattended] [--reader guardrails|standard|step-by-step]`. e.g., /planning:plan add caching to query handlers, /planning:plan #<map>, /planning:plan review, /planning:plan close-out --reader guardrails. Take `--reader <depth>` out of `$ARGUMENTS` before routing; it sets the "Reader depth" of the published copy.
+**Arguments.** `[task description|review|close-out] [--unattended] [--reader guardrails|standard|step-by-step]`. e.g., /planning:plan add caching to query handlers, /planning:plan #<map>, /planning:plan review, /planning:plan close-out --reader guardrails. Take `--reader <depth>` out of `$ARGUMENTS` before routing; it sets the "Reader depth" of the published copy.
 
 ## Repository context. Gather first
 
