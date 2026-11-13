@@ -37,3 +37,5 @@ wayfind-purpose-fog-recorded-not-charted-migration
 wayfind-purpose-fog-recorded-not-charted-retention
 wayfind-purpose-nothing-before-destination
 wayfind-purpose-bare-run-one-item-by-title
+wayfind-chart-labels-from-binding
+wayfind-work-frontier-uses-binding-labels

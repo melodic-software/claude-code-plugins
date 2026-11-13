@@ -1,6 +1,6 @@
 # Map anatomy: the five sections + invariants
 
-A map is one tracker issue (labeled `wayfind: map`) whose sub-issues are typed
+A map is one tracker issue (labeled `<prefix> map`, `<prefix>` per SKILL.md "Pre-computed context") whose sub-issues are typed
 decision items. Every link in the body is an absolute URL. The issue **body** carries five sections. Everything volatile (each decision's
 actual resolution, current frontier, claim state) lives on the items, not recopied into the
 body. The body is a stable index, not a mirror.
@@ -59,7 +59,7 @@ index is for resolved-in-scope decisions.>
 
 Each sub-issue is one topic a single session can work, holding its related **sharp** questions;
 never one item per question. Its body is the question and the criteria an answer must meet,
-nothing else, except a prototype item's, which follows "Prototype item body" below. The `wayfind: <type>` label sets the routing target (which skill resolves it); the
+nothing else, except a prototype item's, which follows "Prototype item body" below. The `<prefix> <type>` label sets the routing target (which skill resolves it); the
 body never states the type:
 
 | Type | Meaning |
@@ -70,9 +70,9 @@ body never states the type:
 | `prototype` | A feasibility (logic) or UX (ui) unknown that needs a throwaway to answer |
 | `task` | Decision-unblocking do-work with no feature code and no PR tie; its resolution records what was done and the facts later items need |
 
-Mode is materialized as the `needs-human` label (present = HITL), set only on an item that needs
+Mode is materialized as the `<human-gated>` label (present = HITL), set only on an item that needs
 the user's intent or vision, whatever its type (SKILL.md "Readiness"). Extension policy: a new
-`wayfind: <type>` value requires an existing routing target. Never add a type with nowhere to go.
+`<prefix> <type>` value requires an existing routing target. Never add a type with nowhere to go.
 
 ## Prototype item body
 

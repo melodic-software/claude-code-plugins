@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "1. /work-items:track add --label 'decide: map' --body-file map-body.md \"Map: notification digest\"\n2. /work-items:track add --parent <map-id> --label 'decide: design' --body-file window.md \"Pick the digest batching window\"\n3. /work-items:track add --parent <map-id> --label 'decide: interview' --label 'owner-call' --body-file promise.md \"Decide what the digest promises a first-time reader\"",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. /work-items:track add --label 'wayfind: map' --body-file map-body.md \"Map: notification digest\"\n2. /work-items:track add --parent <map-id> --label 'wayfind: design' --body-file window.md \"Pick the digest batching window\"",
+      "why": "breaks the rule"
+    }
+  ]
+}
