@@ -983,11 +983,15 @@ def test_pr_finds_sessions_by_link_or_head_branch_on_either_side(data_dir):
     linked["entrypoints"] = ["cli"]
     orchestrator = keyed("orch", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", branches=["main"], output=7)
     orchestrator["branches_sub"] = ["feat/x"]
+    # Matched on both sides: the main transcript's match wins, so no `-sub` entry repeats it.
+    on_branch = keyed("on-branch", "2026-09-03T10:00:00Z", "2026-09-03T11:00:00Z", branches=["feat/x"], prs=[("o/r", 12)])
+    on_branch["branches_sub"] = ["feat/x"]
+    on_branch["prs_sub"] = [{"repo": "o/r", "number": 12}]
     write_store(
         data_dir,
         linked,
         orchestrator,
-        keyed("on-branch", "2026-09-03T10:00:00Z", "2026-09-03T11:00:00Z", branches=["feat/x"], prs=[("o/r", 12)]),
+        on_branch,
         lane,
         keyed("other-pr", "2026-09-05T10:00:00Z", "2026-09-05T11:00:00Z", prs=[("o/r", 13), ("o/other", 12)]),
     )

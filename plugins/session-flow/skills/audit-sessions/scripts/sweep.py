@@ -685,9 +685,11 @@ def pr_matches(record: dict, repo: str, number: int, branch: str | None) -> list
     matched = []
     for side, suffix in (("", ""), ("_sub", "-sub")):
         links = record.get("prs" + side) or []
-        if any(isinstance(p, dict) and p.get("number") == number and str(p.get("repo")).casefold() == repo.casefold() for p in links):
+        if "pr" not in matched and any(
+            isinstance(p, dict) and p.get("number") == number and str(p.get("repo")).casefold() == repo.casefold() for p in links
+        ):
             matched.append("pr" + suffix)
-        if branch is not None and branch in (record.get("branches" + side) or []):
+        if "branch" not in matched and branch is not None and branch in (record.get("branches" + side) or []):
             matched.append("branch" + suffix)
     return matched
 
