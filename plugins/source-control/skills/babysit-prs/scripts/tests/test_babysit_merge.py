@@ -2953,8 +2953,8 @@ class ForcePushedHeadsTests(unittest.TestCase):
         self.assertEqual(heads, [], "beforeCommit null: no head to name")
 
     def test_a_page_with_no_pagination_answer_raises(self) -> None:
-        # The answer is accepted before this fix: a totalCount equal to the
-        # nodes, with no pagination answer to say the listing is whole.
+        # A totalCount equal to the nodes proves nothing: only a pagination
+        # answer says the listing is whole.
         for info in (None, {}, {"hasNextPage": None, "endCursor": None}):
             items = {"totalCount": 1, "nodes": [{"beforeCommit": {"oid": "a" * 40}}]}
             if info is not None:
