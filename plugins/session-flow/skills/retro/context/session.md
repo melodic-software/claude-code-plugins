@@ -298,17 +298,11 @@ situation arises ([Treude and Baltes, Section IV](https://arxiv.org/html/2610.34
 Code configuration: verify it against current official docs before presenting, read through the
 docs lookup the catalog below describes. Never recommend features from training-data assumptions.
 
-**Check first.** For each finding, before choosing a target, ask whether a check could decide it:
-a machine would reach the same verdict every time (guardrail criterion 1 in
-`<plugin-root>/skills/retro/reference/enforcement-ladder.md`, the ladder copy), as for a fixed
-pattern, a banned API, a wrong file name or location, or a missing required field. If yes, the row
-is a check proposal and no `CLAUDE.md`, `AGENTS.md` or rules-file row is written for that finding:
-route it to `/corrections:codify "<the mistake>"` when the `corrections` plugin is installed, which
-applies its own threshold and picks the rung; otherwise propose it from the catalog's Hooks
-section, on the strongest rung of the ladder copy that can decide it, when it meets the catalog's
-"When to propose a check". An existing check that should have caught it is wired or repaired
-instead (Environment findings below). Only a finding no check can decide, or one that fails that
-test without `corrections`, goes on to the catalog's placement questions.
+**Check first.** For each finding, before choosing a target, run the first step of the catalog's
+placement decision tree (loaded below), "First, could a check decide this?", which holds the test and its routing. A finding it
+sends to a check gets a check-proposal row and no `CLAUDE.md`, `AGENTS.md` or rules-file row; an
+existing check that should have caught it is wired or repaired instead (Environment findings
+below).
 
 **Load the catalog.** Read `<plugin-root>/skills/retro/reference/ecosystem-improvement-catalog.md`
 before filling the table. The placement decision tree and the per-target recommendation formats

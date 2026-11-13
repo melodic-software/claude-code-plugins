@@ -15,9 +15,19 @@ script wrote no manifest.
 
 ## Placement Decision Tree
 
-**First, could a check decide this?** That step is "Check first" in session mode's Phase 3
-(`<plugin-root>/skills/retro/context/session.md`); a finding it routes to a check gets no target
-here beyond [Hooks](#hooks). The questions below place only what no check can decide.
+**First, could a check decide this?** For each finding, before choosing a target, ask whether a
+check could decide it: a machine would reach the same verdict every time (guardrail criterion 1 in
+`<plugin-root>/skills/retro/reference/enforcement-ladder.md`, the ladder copy), as for a fixed
+pattern, a banned API, a wrong file name or location, or a missing required field.
+
+- **Yes.** The finding is a check proposal, and no `CLAUDE.md`, `AGENTS.md` or rules-file
+  recommendation is made for it. Route it to `/corrections:codify "<the mistake>"` when the
+  `corrections` plugin is installed, which applies its own threshold and picks the rung; otherwise
+  propose it from the [Hooks](#hooks) section, on the strongest rung of the ladder copy that can
+  decide it, when it meets [When to propose a check](#owner-skills). An existing check that should
+  have caught it is wired or repaired instead.
+- **No.** Only a finding no check can decide, or one that fails that test without `corrections`,
+  goes on to the questions below.
 
 Then determine WHERE the finding should live. The key distinction is **scope**: who needs this
 knowledge, and what happens if it is lost?
@@ -103,7 +113,7 @@ Skills, Agents and MCP Servers follow; they add capability rather than enforce.
 Automated enforcement for agentic workflow. The hook system evolves, so verify supported events,
 matcher syntax, and environment variables against the current hooks documentation.
 
-A finding Phase 3's "Check first" step sends here without `/corrections:codify` takes the
+A finding the placement tree's check-first step sends here without `/corrections:codify` takes the
 strongest rung of the ladder copy that can decide it, which may be a lint rule or a test, not a
 hook: a hook on code content is that check's rung, and a hook on an action is an `action-guard`.
 
@@ -144,7 +154,7 @@ Include: which settings file (user/project), the specific setting key, proposed 
 ## CLAUDE.md / Rules
 
 Recommend a prose line only when no rung above guidance in the ladder copy can decide the finding:
-Phase 3's "Check first" step answered no, or the check failed the ladder's guardrail criterion.
+the placement tree's check-first step answered no, or the check failed the ladder's guardrail criterion.
 
 Conventions and guidelines that should be documented.
 
