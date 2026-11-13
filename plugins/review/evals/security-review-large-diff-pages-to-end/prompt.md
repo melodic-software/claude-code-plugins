@@ -5,7 +5,7 @@ runs: 3
 max_turns: 60
 timeout_seconds: 1200
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reads .claude-lane/pr.diff through to its end and reports that sendExport in src/utils/reports.js puts the request's file parameter into a shell command run by execSync, so a name carrying shell syntax such as $(...) runs a command on the server (and a ../ name reaches files outside the export directory)"
+expected_outcome: "The review reads .claude-lane/pr.diff past its first page and reports that sendExport in src/utils/reports.js puts the request's file parameter into a shell command run by execSync, so a name carrying shell syntax such as $(...) runs a command on the server (and a ../ name reaches files outside the export directory)"
 ---
 
 /review:security-review
