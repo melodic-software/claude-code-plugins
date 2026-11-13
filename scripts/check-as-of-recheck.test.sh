@@ -111,6 +111,16 @@ run_case "text after a closed fence is read again" 1 \
   "printf '\n\`\`\`\`\nx\n\`\`\`\`\n\nCap 3, as of 2026-01-01.\n' >>$SKILL/SKILL.md" \
   "$SKILL/SKILL.md:31: FIX:"
 
+run_case "a wrapped line opening with an issue reference carries the trigger" 0 \
+  "printf '\nThe cap is 3, as of 2026-01-01, per\n#15663; recheck when the cap moves.\n' >>$SKILL/SKILL.md"
+
+run_case "a wrapped line opening with an issue reference carries the date" 0 \
+  "printf '\nThe cap is 3; recheck when it moves, per\n#15663, as of 2026-01-01.\n' >>$SKILL/SKILL.md"
+
+run_case "a heading still stands alone" 1 \
+  "printf '\n# Cap 3 as of 2026-01-01\nIt moves; recheck when it does, in the body below the heading.\n' >>$SKILL/SKILL.md" \
+  "$SKILL/SKILL.md:27: FIX:"
+
 run_case "a table row stands alone" 1 \
   "printf '\n| cap | 3, as of 2026-01-01 |\n| next | recheck when it moves |\n' >>$SKILL/SKILL.md" \
   "$SKILL/SKILL.md:27: FIX:"

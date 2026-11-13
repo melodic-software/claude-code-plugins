@@ -123,7 +123,9 @@ if ((${#files[@]} > 0)); then
     }
     fence { next }
     /^[ \t]*$/ { flush(); next }
-    /^[ \t]*(#|[|])/ { flush(); buf = $0; start = FNR; flush(); next }
+    # A heading needs a space or the line end after its #s, so a wrapped line
+    # opening with an issue reference (#123) stays in its paragraph.
+    /^[ \t]*(#+([ \t]|$)|[|])/ { flush(); buf = $0; start = FNR; flush(); next }
     /^[ \t]*([-*+]|[0-9]+[.)])[ \t]/ { flush() }
     { if (buf == "") start = FNR; buf = buf " " $0 }
     END { close_file() }
