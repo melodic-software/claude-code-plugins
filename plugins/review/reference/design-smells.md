@@ -7,8 +7,8 @@ The design-smell list the `code-reviewer` agent checks a diff against, and the c
 `- Name: sign → remedy` shape.
 
 The names are the smells of Martin Fowler, *Refactoring* (2nd ed., 2018), chapter 3, "Bad Smells
-in Code", whose 24 section headings the publisher's sample chapter lists:
-[When to Start Refactoring Code—and When to Stop](https://www.informit.com/articles/article.aspx?p=2952392).
+in Code", whose 24 section headings the
+[publisher's sample chapter](https://www.informit.com/articles/article.aspx?p=2952392) lists.
 The signs and remedies are ours.
 
 ## Baseline
