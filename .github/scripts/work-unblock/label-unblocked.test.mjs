@@ -7849,24 +7849,18 @@ test("a map item closing leaves its map's admission comment unread and unwritten
   }
 });
 
-test("a closed item carrying a wayfind label is not followed to its map", async (t) => {
-  const logs = [];
-  t.mock.method(console, "log", (line) => logs.push(line));
-  const parent = { ...issue(30, { labels: ["status: ready"] }), issue_dependencies_summary: { blocked_by: 0 } };
+test("an ordinary split parent closes when its last sub-issue, carrying a wayfind label, closes", async () => {
   const first = subIssue(31, { closed_at: "2026-10-16T11:30:00Z", labels: [{ name: "wayfind: decision" }] });
-  const second = subIssue(32, { state: "open", closed_by: null });
+  const second = mergedSecond();
   const { github, calls } = world({
     closedList: [first],
-    issues: { 30: parent, 31: first, 32: second },
-    parents: { 31: parent },
+    issues: { 30: issue(30), 31: first, 32: second },
+    parents: { 31: issue(30) },
     subIssues: { 30: [first, second] },
-    comments: { 30: [admissionNote(SIZE_SPLIT_PENDING)] },
+    comments: { 30: [splitRecordComment()] },
   });
   assert.equal(await sweep({ github }), 0);
-  assert.deepEqual(writes(calls), []);
-  assert.ok(!calls.includes(`GET /repos/${REPO}/issues/31/parent`), "no parent lookup");
-  assert.deepEqual(touches(calls, 30), []);
-  assert.ok(logs.includes(mapNotice([[31, "wayfind: decision"]])), logs.join("\n"));
+  assert.deepEqual(writtenPaths(calls), closeParentWrites, "only the parent's own labels decide");
 });
 
 test("a status: ready map item in no queue is left out of admission unread; without the label it is admitted", async (t) => {

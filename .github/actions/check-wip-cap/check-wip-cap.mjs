@@ -55,9 +55,11 @@
 //   WIP_READS           `pause` for the pause reads alone; anything else reads all
 //   GITHUB_OUTPUT, GITHUB_STEP_SUMMARY
 import { appendFileSync } from "node:fs";
+import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { readRouting, ROUTING_DEFAULTS, routingLabel } from "../check-born-triaged/check-born-triaged.mjs";
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { loadTrustedActors, StatusReadError, statusLabels } from "../resolve-config/read-status.mjs";
@@ -176,7 +178,7 @@ const isCount = (value) => Number.isSafeInteger(value) && value >= 0;
 // `pauseOnly` stops after the open listing and the merged count. `statusOf(number,
 // names)` gives a listed issue's label names with its Work status field's say
 // (listedStatusOf); by default the labels as listed.
-export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, windowHours, remaining = () => null, pauseOnly = false, statusOf = async (number, names) => names }) {
+export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, windowHours, remaining = () => null, pauseOnly = false, statusOf = async (number, names) => names, routing = ROUTING_DEFAULTS }) {
   const author = `author:app/${bot.replace(/\[bot\]$/, "")}`;
   const since = isoSecond(now - windowHours * HOUR_MS);
   let searchIncomplete = false;
@@ -247,13 +249,17 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
   // With a Work status listing (listedStatusOf's `queued`), the field decides
   // which issues are agent-ready and the label listing is not read; a failed
   // listing leaves the count unread.
+  // A map or map item (check-born-triaged.mjs routingLabel) is its filing
+  // skill's to route: the lanes never build, re-fire or hand it off, so it is
+  // no queued work even with agent-ready.
+  const routed = (names) => routingLabel(names.filter((name) => typeof name === "string"), routing) !== null;
   const listQueued = async () => {
     const numbers = [];
     try {
       checkBudget();
       const listed = await statusOf.queued?.();
       if (listed) {
-        return { items: listed.filter((issue) => isQueued(issue.names)).map((issue) => issue.number), unlisted: 0 };
+        return { items: listed.filter((issue) => isQueued(issue.names) && !routed(issue.names)).map((issue) => issue.number), unlisted: 0 };
       }
       for (let page = 1; page <= MAX_PAGES; page += 1) {
         checkBudget();
@@ -261,7 +267,7 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
         if (!Array.isArray(items)) {
           throw new Error("the issues listing answered no list");
         }
-        for (const item of items.filter((entry) => !entry?.pull_request)) {
+        for (const item of items.filter((entry) => !entry?.pull_request && !routed((entry?.labels ?? []).map((label) => label?.name)))) {
           // The listing names only agent-ready issues, so the label counts as
           // on each one unless the field says otherwise. An unreadable field
           // counts as queued, which only slows admissions.
@@ -404,8 +410,8 @@ export function wipStatus(
 
 // The status from the lanes App's PRs in `repo`, for the issue lane's check
 // and work-unblock's sweep alike.
-export async function checkWip(github, { repo, bot, now, limits, wip, remaining, pauseOnly = false, configError = false, statusOf }) {
-  const reads = await readLaneWip(github, { repo, bot, now, windowHours: wip["merge-rate-window-hours"], remaining, pauseOnly, statusOf });
+export async function checkWip(github, { repo, bot, now, limits, wip, remaining, pauseOnly = false, configError = false, statusOf, routing }) {
+  const reads = await readLaneWip(github, { repo, bot, now, windowHours: wip["merge-rate-window-hours"], remaining, pauseOnly, statusOf, routing });
   return wipStatus(reads, { limits, wip, now, configError });
 }
 
@@ -467,7 +473,7 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
     }
   };
   const read = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)
-    ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining, pauseOnly: env.WIP_READS === "pause", configError, statusOf })
+    ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining, pauseOnly: env.WIP_READS === "pause", configError, statusOf, routing: readRouting(join(basePath, "docs/conventions/work-items.yaml"), { who: "check-wip-cap", log }) })
     : wipStatus({ open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null }, { limits, wip, now, configError });
   // What the pause could not read, first one only; none when every read it
   // depends on succeeded. A merged count that cannot be read is no hold: the

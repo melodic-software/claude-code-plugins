@@ -310,9 +310,10 @@
 // labels hold the tracker binding's container label or a label starting with
 // its wayfind prefix (check-born-triaged.mjs routingLabel, read from BASE_PATH's
 // docs/conventions/work-items.yaml). The skill that filed it routes it, so no
-// pass reads, judges, admits, re-fires or comments on it past the listing that
-// named it, and a closed one is not followed to its parent. One notice per run
-// names each one left out; one that loses the label is decided on the next pass.
+// pass reads, judges, admits, re-fires or comments on it past the listing or
+// parent lookup that named it, and the queued cap does not count it
+// (check-wip-cap.mjs). One notice per run names each one left out; one that
+// loses the label is decided on the next pass.
 //
 // Environment:
 //   GH_TOKEN              the lane App token (issues: write)
@@ -2846,11 +2847,11 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot, clo
 }
 
 // Closes the open parent of issue `number` once its split is finished
-// (closeDoneParent). A map item, or a map as its parent, goes no further.
+// (closeDoneParent). A map parent goes no further.
 async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep, writer, statusOf, maps }) {
   // The sweep's close check already read the issue (readClose, cached in `closes`).
   const { issue, trusted } = sweep ? await readClose({ github, repo, number, humans, closes, bot }) : { issue: await github("GET", `/repos/${repo}/issues/${number}`), trusted: true };
-  if (!issue?.parent_issue_url || !trusted || maps.skip(issue)) {
+  if (!issue?.parent_issue_url || !trusted) {
     return;
   }
   const parent = await github("GET", `/repos/${repo}/issues/${number}/parent`);
@@ -3122,7 +3123,8 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     }
     const repo = env.GITHUB_REPOSITORY;
     const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
-    const maps = mapSkipper(readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "label-unblocked" }));
+    const routing = readRouting(join(env.BASE_PATH || ".base", "docs/conventions/work-items.yaml"), { who: "label-unblocked" });
+    const maps = mapSkipper(routing);
     // The Work status field is the state: each status write sets it
     // (write-status.mjs statusWriter), and holds, readiness, event history and
     // the deferred listing read it (read-status.mjs). A caller that hands its
@@ -3165,7 +3167,7 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const wip = readWip(resolved);
     // The issue lane's status, read once per run and only when asked.
     let read;
-    const status = () => (read ??= checkWip(github, { repo, bot, now, limits, wip, remaining: rate.remaining, statusOf: queuedStatus }));
+    const status = () => (read ??= checkWip(github, { repo, bot, now, limits, wip, remaining: rate.remaining, statusOf: queuedStatus, routing }));
     const gate = admissionGate(status);
     let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId, admission, writer: writeTo, statusOf: statusTo, byStatus: listing, maps }) : 0;
     // One close check per issue this run, shared by both passes below.
