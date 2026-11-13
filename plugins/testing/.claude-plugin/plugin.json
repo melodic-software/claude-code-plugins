@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "3.8.1",
+  "version": "3.8.2",
   "license": "MIT",
   "keywords": ["testing", "tdd", "test-plan", "e2e", "diagnose", "coverage", "skill", "test"],
   "metadata": {

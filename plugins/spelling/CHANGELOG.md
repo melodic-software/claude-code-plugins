@@ -3,6 +3,14 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.2] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
+- Corrected in place: the released entries [0.7.5], [0.6.39] now name the JavaScript formatting plugin `javascript-format`, its current name.
+
 ## [2.0.1] - 2026-11-13
 
 ### Changed
