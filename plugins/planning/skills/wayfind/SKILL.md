@@ -189,7 +189,9 @@ that charting needs an interactive session. Do not fabricate a map.
      confirmed as one or two lines. Its kind sets the closure target (work step 8): a PRD, a
      set of build items to decompose, one change, a decision record, or a general summary.
      Recommend a PRD for a coding effort, and a decision record or summary for one that is not.
-     Narrow it to one bounded destination when it reads like a whole product.
+     Narrow it to one bounded destination when it reads like a whole product. Put this question
+     to the user in the first message that asks them anything, step 1's interview offer
+     included; saying that creation waits for a destination does not ask it.
    - **Ready questions.** Next, ask every question step 1 set aside in one
      `/planning:interview` round. The answers join the seed item's settled answers; with no
      interview ledger, the seed item is still created to hold them (step 1's close-at-once
