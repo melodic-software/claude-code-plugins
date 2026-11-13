@@ -42,7 +42,7 @@ key, since unknown keys are inert, so it keeps its earlier behavior.
 | Key | Values | Default | Reader | Level rule |
 |---|---|---|---|---|
 | `lever_scope` | `deterministic`, `non-trivial` | `deterministic` | `/discipline:script-the-deterministic-work lever-check`, called by `/implementation:implement` before a multi-site block and by `/implementation:implement-dispatch` before a fan-out | repository file over user config over default |
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | every corrector that runs the shared method, and `/discipline:sweep-all`: the fresh-context confirmation of a clean audit, the fresh-context re-derivation and the fan-out tiers, through `lib/read-verification.sh` | repository file only, read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)) |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | every corrector that runs the shared method but `/discipline:scrutinize-dont-coast`, and `/discipline:sweep-all`: the fresh-context confirmation of a clean audit, the fresh-context re-derivation and the fan-out tiers, through `lib/read-verification.sh` | repository file only, read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)) |
 
 `lever_scope` values:
 
