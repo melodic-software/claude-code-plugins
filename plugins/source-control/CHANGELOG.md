@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.4.1] - 2026-11-13
+
+### Changed
+
+- `/source-control:pull-request`: the dispatching session owns a PR watch. A dispatched subagent stops once its PR is marked ready and reports the full head sha; the dispatching session watches and merges. The monitor reference, the monitor cadence default and the watch handoff state the rule, and the REST-polling note names one session watching several PRs instead of subagents each watching one ([#15792](https://github.com/melodic-software/claude-code-plugins/issues/15792)).
+
 ## [11.4.0] - 2026-11-13
 
 ### Added
