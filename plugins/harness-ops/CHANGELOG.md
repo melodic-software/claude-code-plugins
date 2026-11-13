@@ -705,7 +705,7 @@ Internal simplification, no behavior change.
   `hold-paths` list); the workflow stops a release whose branch changes one with `stop_reason`
   `hold-path`, files its issue, and marks it done.
 
-- The lanes skill now tells you to check a running lane through `mcp__context-usage__status` in its tool list, because `/context-usage:check` is gone.
+- The lanes skill now tells you to check a running lane through `mcp__context-usage__status` in its tool list, because that plugin's `check` skill is gone.
 
 ## [7.0.0] - 2026-11-03
 
