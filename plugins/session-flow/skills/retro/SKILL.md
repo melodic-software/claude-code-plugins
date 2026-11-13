@@ -72,6 +72,9 @@ I doing", a request for scores, or a `trends` argument, and name `/session-flow:
 That action reads the history this skill writes and adds delivery metrics; this skill analyzes no
 session for it.
 
+A retro of one pull request (its sessions, its review comments) names no retro mode: stop and name
+`/session-flow:audit-sessions pr --number <n> --repo '<owner/repo>'`.
+
 A `codify` argument, "codify reviews" or "mine review comments" names no retro mode: one recurring
 mistake, or the lessons in recent merged pull requests' review comments, go to
 `/corrections:codify` (its `reviews` action reads the review comments) when the `corrections`
