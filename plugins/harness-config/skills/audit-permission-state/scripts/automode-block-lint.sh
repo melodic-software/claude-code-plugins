@@ -49,6 +49,7 @@
 #   C4-defaults      a customized section that omits "$defaults"
 #   C2b-contradiction  the same subject allowed and denied
 #   C3-shadowed      an entry an earlier hard_deny already forecloses
+#   C5-provenance    a date or issue reference in an operator-written entry
 #
 # Usage:
 #   automode-block-lint.sh [--critique] [--help]
@@ -61,7 +62,8 @@ automode-block-lint.sh — lint the autoMode classifier block.
 
 Usage: automode-block-lint.sh [--critique|--help]
 
-  (no arg)    the mechanical checks: $defaults omissions, contradictions, shadowing
+  (no arg)    the mechanical checks: $defaults omissions, contradictions, shadowing,
+              provenance text
   --critique  additionally surface `claude auto-mode critique`, wrapped in
               truncation and empty-output detection
   --help      this message
@@ -342,6 +344,29 @@ for section in ("allow", "soft_deny"):
                 section,
                 'the subject "%s" is already in hard_deny, which cannot be overridden, '
                 "so this entry can never change an outcome" % subject,
+            )
+
+# --- C5: provenance text in an entry the operator wrote ----------------------
+#
+# The classifier reads each entry as prose, so a date or an issue reference is
+# text it must read past; the record of when and why belongs in git history or
+# a decision record. Only entries absent from the built-in list are checked:
+# the shipped entries are not the operator's to edit.
+PROVENANCE = re.compile(r"\b20\d\d-\d\d-\d\d\b|(?<![\w/])(?:[\w.-]+/[\w.-]+)?#\d+\b")  # portability-ok: Python re inside the heredoc, not grep or sed
+for section in SECTIONS:
+    built_in = entries(defaults, section)
+    for entry in entries(config, section):
+        if not isinstance(entry, str) or entry in built_in:
+            continue
+        hit = PROVENANCE.search(entry)
+        if hit:
+            finding(
+                "info",
+                "C5-provenance",
+                section,
+                '"%s" carries provenance text (%s): move dates and issue references to '
+                "git history or a decision record and keep the entry to the rule"
+                % (label_of(entry) or "(unlabeled)", hit.group(0)),
             )
 
 # A section present but not a list was never analyzable, so the run is partial

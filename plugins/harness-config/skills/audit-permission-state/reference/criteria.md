@@ -385,6 +385,7 @@ Prose judgment belongs to `claude auto-mode critique`, which is surfaced rather 
 | `C4-defaults` | a customized section omits `"$defaults"`. The finding names how many built-in entries are gone, because "you dropped N soft_deny rules" is actionable where "missing $defaults" is not. **Pointer**: when deciding what omitting `"$defaults"` does, fetch [auto mode config: override the block and allow rules](https://code.claude.com/docs/en/auto-mode-config#override-the-block-and-allow-rules) live. |
 | `C2b-contradiction` | the same label subject appears in `allow` and in a deny section |
 | `C3-shadowed` | an entry whose subject is already in `hard_deny`, which cannot be overridden, so the entry can never change an outcome |
+| `C5-provenance` | an entry absent from the built-in list carries an ISO date or an issue reference. The classifier reads entries as prose, so history belongs in git or a decision record. Severity `info`: whether such text changes a verdict is unmeasured |
 
 Comparison is by **label subject**, never by body text. The bodies are prose written for an LLM, and
 no mechanical comparison of prose is defensible; a shared label across two sections is a mechanical
