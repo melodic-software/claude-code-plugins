@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.1.2] - 2026-11-13
+
+### Changed
+
+- References to the rate-limit windows plugin use its new name, rate-limits: the `rate-limits@melodic-software` id, the `/rate-limits:setup` command, the `mcp__rate-limits__status` tool and the `~/.claude/rate-limits/` directory.
+- Corrected in place: the released entries [0.49.4], [0.49.3], [0.48.7], [0.48.3], [0.39.64], [0.39.38], [0.34.1], [0.29.0], [0.22.0], [0.28.0], [0.25.4] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [13.1.1] - 2026-11-13
 
 ### Changed

@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.4.13] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.9.5] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
 ## [1.4.12] - 2026-11-13
 
 ### Changed
