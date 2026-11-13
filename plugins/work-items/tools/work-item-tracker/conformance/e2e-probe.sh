@@ -62,14 +62,14 @@ ids() {
 for n in $(gh issue list -R "$REPO" --state open --limit 200 --json number --jq '.[].number' | tr -d '\r'); do
   gh issue close "$n" -R "$REPO" --comment "e2e-probe clean-at-start" >/dev/null 2>&1 || true
 done
-for label in work-map "wayfind: research" "wayfind: task"; do
+for label in spec-container "wayfind: research" "wayfind: task"; do
   gh label create "$label" -R "$REPO" --force >/dev/null 2>&1 || true
 done
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 
-# 1. Map issue (container: bare work-map marker).
-MAP="$(wit create-item --title "e2e map $TS" --body "e2e lifecycle probe map" --labels work-map --repo "$REPO")"
+# 1. Container issue (the default spec-container marker).
+MAP="$(wit create-item --title "e2e map $TS" --body "e2e lifecycle probe map" --labels spec-container --repo "$REPO")"
 MAP_ID="$(jq -r '.id' <<<"$MAP")"
 record "create map" "$MAP"
 assert_contains "map id well-formed" "$MAP_ID" "github:"

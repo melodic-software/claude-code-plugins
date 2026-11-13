@@ -9,6 +9,6 @@ expected_outcome: 'Routes the close-out to the owning ritual instead of executin
 
 /work-items:ship
 
-The discovered container is #400 (labeled work-map), whose body carries `**Execution shape:** per-item PRs`. It has every sub-item closed. Close it out.
+The discovered container is #400 (labeled spec-container), whose body carries `**Execution shape:** per-item PRs`. It has every sub-item closed. Close it out.
 
 Treat the state above as what this run's reads return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does, in order, and why.

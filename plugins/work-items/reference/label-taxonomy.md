@@ -72,13 +72,27 @@ fall back silently. Two constraints on remapping:
 ### Container label
 
 The seam's container marker (CONTRACT.md "Containers and state"), the label that makes an
-ordinary item a navigable graph root (wayfind maps, decompose breakdowns/spec containers)
-and keeps it off every frontier, resolves from the binding key `config.container_label`,
+ordinary item a spec container (a `/work-items:decompose` breakdown that `/work-items:ship`
+drives) and keeps it off every frontier, resolves from the binding key `config.container_label`,
 a **sibling** of `config.role_labels` (it marks a graph root, not a worker role), default
-`work-map` when absent or empty. The same remap constraints as canonical roles apply: the
+`spec-container` when absent or empty. The same remap constraints as canonical roles apply: the
 remapped label must exist (or route through the repo's label-as-code owner), and a repo
 that already holds containers must relabel them when remapping, because the frontier exclusion is
-an exact match against the resolved string.
+an exact match against the resolved string. `work-map` was the earlier default: a repository
+whose containers still carry only `work-map` sets `tracker.config.container_label: work-map`
+until it relabels them.
+
+### Maps and containers
+
+A `/planning:wayfind` map, and each of its items, is known by a label starting with the wayfind
+prefix (`wayfind_label_prefix` below, default `wayfind:`); a spec container is known by the
+container label. An item carrying either is a **map or container**: never intake (no
+`category:general` default and no `needs-triage` floor at filing), never claimable frontier work,
+never counted as backlog that gates a drain exit, and closed only by the skill that owns it
+(`/work-items:ship` for a container, `/planning:wayfind` for a map). Its openness means the map
+or container exists. `list-frontier` and the lanes' routing-label check
+already drop both kinds; every work-items surface that skips containers skips maps by the same
+rule.
 
 ### Hold lists and the wayfind prefix
 

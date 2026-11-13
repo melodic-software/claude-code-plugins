@@ -2,7 +2,7 @@
 
 The lane stops when the cycle-start snapshot shows every retained id closed or covered by an open,
 non-draft close-linked PR, or when the drain-terminal state applies. Lane-infrastructure items never
-gate the drain (telemetry issues, open `work-map` containers). The exclusion contract is owned by
+gate the drain (telemetry issues, open spec containers, open wayfind maps and their decision items). The exclusion contract is owned by
 `SKILL.md` "Exit condition" and cited from the loop-lane convention; this file does not restate it.
 
 ## Exit condition

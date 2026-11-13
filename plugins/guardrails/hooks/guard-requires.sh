@@ -61,6 +61,7 @@ declare -A GUARD_FIELDS=(
   ["block-fix-request-post.sh"]='.tool_input.command .tool_name .cwd'
   ["block-github-post-content.sh"]='.tool_input.command .tool_name .cwd'
   ["block-exported-msys-pathconv.sh"]='.tool_input.command .tool_name'
+  ["block-foreground-wait.sh"]='.tool_input.command .tool_name'
   ["block-no-verify.sh"]='.tool_input.command .tool_name'
   ["block-noncanonical-commit.sh"]='.tool_input.command .cwd .tool_name'
   ["block-root-delete-target.sh"]='.tool_input.command .tool_name .cwd'
@@ -86,11 +87,13 @@ declare -A GUARD_FIELDS=(
 # block-root-delete-target in its own call, only when a recursive delete has a
 # target to judge, so the Bash lane does not pay for it on every command.
 # block-fix-request-post reads `.tool_input.body` and `.tool_input.comments` on
-# the GitHub MCP write row only.
+# the GitHub MCP write row only. block-foreground-wait reads
+# `.tool_input.run_in_background` only when the command holds a wait it judges.
 #
 # shellcheck disable=SC2034  # read by run-guards.test.sh, which checks both projections against it
 declare -A GUARD_FIELDS_UNPRIMED=(
   ["block-fix-request-post.sh"]=$'.tool_input.body\n.tool_input.comments'
+  ["block-foreground-wait.sh"]='.tool_input.run_in_background'
   ["block-root-delete-target.sh"]='.scratchpad_dir'
   ["block-unresolved-pr-merge.sh"]=$'.tool_input.owner\n.tool_input.repo\n.tool_input.pullNumber'
   ["hardcoded-path-check.sh"]='.tool_input.files | length'
