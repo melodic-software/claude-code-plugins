@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "Closed it.\n\nClear, then `/planning:wayfind https://github.com/acme/shop/issues/44`",
+      "answer": "Closed it.\n\nClear, then `/planning:wayfind https://example.com/acme/shop/issues/44`",
       "why": "matches"
     }
   ],
   "fail": [
     {
-      "answer": "Clear, then `/planning:wayfind https://github.com/acme/shop/issues/44`\n\nAnything else?",
+      "answer": "Clear, then `/planning:wayfind https://example.com/acme/shop/issues/44`\n\nAnything else?",
       "why": "does not match"
     }
   ]

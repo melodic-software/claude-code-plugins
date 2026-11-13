@@ -2,7 +2,7 @@
 
 ## #701 Settled in the interview
 
-URL: https://github.com/acme/shop/issues/701. State: closed. Labels: wayfind: interview.
+URL: https://example.com/acme/shop/issues/701. State: closed. Labels: wayfind: interview.
 
 Resolution comment: Settled: exports run nightly at 02:00 UTC. Facts: the largest customer has
 about 4 million invoice lines a month. Glossary: "statement" means one monthly export for one
@@ -10,7 +10,7 @@ customer.
 
 ## #703 Choose the delivery channel and file retention
 
-URL: https://github.com/acme/shop/issues/703. State: open. Labels: wayfind: interview, needs-human.
+URL: https://example.com/acme/shop/issues/703. State: open. Labels: wayfind: interview, needs-human.
 Assignee: none. Blocked by: none open.
 
 How are statements delivered to customers, and how long are generated files kept? An answer names

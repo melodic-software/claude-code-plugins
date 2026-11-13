@@ -4,7 +4,6 @@ set -euo pipefail
 
 src="$(dirname "${BASH_SOURCE[0]}")/../fixtures/wayfind-charting/invoice-ledger"
 mkdir -p .work/invoice-export
-for f in "$src"/*.txt; do
-  name="$(basename "$f")"
-  cp "$f" ".work/invoice-export/${name%.txt}"
+for name in interview-checklist.md; do
+  cp "$src/$name.txt" ".work/invoice-export/$name"
 done

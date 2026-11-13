@@ -4,7 +4,6 @@ set -euo pipefail
 
 src="$(dirname "${BASH_SOURCE[0]}")/../fixtures/wayfind-charting/settled-facts/current"
 mkdir -p tracker-export
-for f in "$src"/*.txt; do
-  name="$(basename "$f")"
-  cp "$f" "tracker-export/${name%.txt}"
+for name in map-700.md items-700.md; do
+  cp "$src/$name.txt" "tracker-export/$name"
 done
