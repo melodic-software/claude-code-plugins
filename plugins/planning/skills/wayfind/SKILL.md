@@ -1,5 +1,5 @@
 ---
-description: "Chart a too-big, still-foggy effort as a map of decision items on the work-item tracker and work its frontier one decision at a time until it closes to a PRD, decomposed work items or one work item. Use when an interview outgrew one session: 'turn this into a map', 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'plan-the-plan'. Not the first step: a new effort starts at /planning:interview. Already sharp tickets: /work-items."
+description: "Chart a too-big, still-foggy effort as a map of decision items on the work-item tracker and work its frontier one decision at a time until it closes to a PRD, decomposed work items or one work item. Use when an interview outgrew one session: 'turn this into a map', 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'plan-the-plan'. New efforts start at /planning:interview, which may offer this. Already sharp tickets: /work-items."
 argument-hint: "[chart|work|<item link>] [topic|map] [item]"
 user-invocable: true
 disable-model-invocation: false
@@ -30,8 +30,9 @@ For an effort **too big to hold at once AND too foggy to ticket**, where half th
 yet be phrased: turn it into a shared **map** on the work-item tracker whose children are
 **decision items**, then work the map's frontier one decision at a time until its destination can
 be handed onward. Say "map" and "decision item"; never "decision map". It is the escalation from an
-interview that outgrew one session, never the first step: a brand-new effort starts with
-`/planning:interview`.
+interview that outgrew one session. The interview stays the entry for a brand-new effort
+(`/planning:interview`), and may offer wayfind in its first round when the request already shows a
+big, foggy effort.
 
 **Plan, don't do.** A map holds *decisions*, not build work. Each resolved decision either sharpens
 the map or feeds the destination. Nothing overrides this: no Notes line, standing preference or
@@ -59,7 +60,8 @@ artifact sets the item's type (work step 5's table).
 - **Chart reads an existing interview ledger** and seeds the map from it (chart step 1). With no
   interview of the effort behind it, chart offers the interview first, preloaded with what the user
   has already said, and runs it inline.
-- **The map closes to `/planning:prd`, `/work-items:decompose` or `/work-items:work`**, or ends in
+- **The map closes to `/planning:prd`, `/planning:plan` then `/work-items:decompose`, or
+  `/work-items:work`**, or ends in
   a decision record or a general summary when that is its destination (work step 8).
 
 ## Settings
@@ -75,7 +77,7 @@ and the default applies. Report one line per setting naming its value and layer,
 | Key | Default | Basis | Meaning |
 |---|---|---|---|
 | `wayfind_research_start` | `auto` | Owner decision Q532 (2026-10-15) | `auto`: start a research item without asking when research is the next step whatever the user picks (the frontier holds no item other than research items); otherwise ask first in an interactive session. `confirm`: always ask first in an interactive session |
-| `wayfind_hitl_concurrency` | `1` | Owner's Topic 10 accept list (2026-10-15): one human-in-the-loop item at a time across sessions | The most `needs-human` items of one map that may be claimed at once, across every session. Research items never count against it |
+| `wayfind_hitl_concurrency` | `1` | Owner decision Q330 (2026-11-12): one human-in-the-loop item at a time per person | The most `needs-human` items of one map that one person (the assignee a claim sets) may hold at once, across all of that person's sessions. Research items never count against it |
 
 An unattended (CI) session asks no one, so labels start research there (Q532): it starts a
 research item only when the item carries `wayfind: research` and no `needs-human`, labels chart
@@ -114,8 +116,13 @@ go on one **dossier branch** for the map issue: `<prefix><key>-<slug>`, `<prefix
 `dossier_branch_prefix` source-control setting (default `dossier/`), `<key>` the bound adapter's
 `branch_ref` for the map, `<slug>` the map title in kebab-case. The first session that writes a
 shared file creates it from the default branch, pushes it and links it from the map's Notes; decision
-items add no branch of their own. The branch is never merged and gets no pull request, and it is
-deleted when the map closes (work step 8). A file only one session reads stays in the memory slice.
+items add no branch of their own. The branch name stays keyed by the map's tracker item. Each item
+writes only its own folder on it, one folder per item named `<item key>-<item slug>` the same way.
+Every push to it is: fetch the branch, rebase your commit onto it, push without force; on a
+rejection, fetch, rebase and push again. No force or lease is needed, because no two items write
+the same folder. The branch is never merged and gets no pull request; it is deleted when the
+destination's container closes, not when the map closes, and the map's closing comment names it
+(work step 8). A file only one session reads stays in the memory slice.
 
 ## Refer by name, link by URL
 
@@ -210,14 +217,16 @@ that charting needs an interactive session. Do not fabricate a map.
    - **Decisions-so-far**: a *pointer index* of resolved-in-scope decisions. Each home is its own
      item's resolution comment, never recopied here; wrongly scoped closures get no pointer.
    - **Not-yet-specified**: fog, one bullet per uncertainty, each opening with a short bold
-     label. Fog never graduates into Out-of-scope.
+     label. Fog never moves into Out-of-scope for being unphrasable, only by an explicit scope
+     ruling at closure (work step 8).
    - **Out-of-scope**: scope exclusions, not unphraseable fog.
 
    Template and tracker actions: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
 4. **Create typed decision items, then wire them.** Create one sub-issue of the map per topic
    one session can work (state no token figure), its related sharp questions grouped inside it,
    never one item per question. An item body holds the question and the criteria an answer must
-   meet, nothing else. The type label sets the
+   meet, nothing else, except a prototype item, whose body follows the prototype template
+   ([`context/map-anatomy.md`](context/map-anatomy.md) "Prototype item body"). The type label sets the
    routing target (the type table in work step 5). Then, in a second pass once every item has
    its real id, wire `blocked-by` edges and write any cross-reference between items. Wire an edge
    only where one decision genuinely gates another; never invent edges to impose order.
@@ -247,8 +256,9 @@ that charting needs an interactive session. Do not fabricate a map.
    `needs-human` items; if that empties the frontier, STOP with a truthful "all remaining decisions
    need a human". Never resolve a HITL item by standing in for the human.
 4. **Pick one and claim it.** Take the item the user named, else the first frontier item in
-   creation order. A `needs-human` item is skipped while the map already has
-   `wayfind_hitl_concurrency` claimed `needs-human` items ("Settings"); with nothing else left,
+   creation order. A `needs-human` item is skipped while the person this session claims as (its
+   assignee) already holds `wayfind_hitl_concurrency` claimed `needs-human` items on the map
+   ("Settings"); other people's claims do not count; with nothing else left,
    report which items hold the slots and stop. A named item that is off the frontier, or a named
    `needs-human` item while the slots are full, is reported with the reason and not claimed. Claim through `/work-items:track start` (the sibling
    claim model: assignee + lease with a race-safe back-off, no claim label; see
@@ -256,9 +266,13 @@ that charting needs an interactive session. Do not fabricate a map.
    exception: **`research`-typed items may be burned down in parallel**, started per
    `wayfind_research_start`. When the frontier holds several, claim each individually (same
    protocol, one claim per item) and dispatch `/discovery:research` per item (it already runs in a
-   fresh-context subagent). Graduate each on completion per step 6; the resolution comment is the
-   finding's durable home and a findings file goes on the dossier branch. Never fan out a
-   `needs-human` item.
+   fresh-context subagent). Ask `/discovery:research` for its lightest verification level,
+   `light`, with no separate verifier pass. Only the repository sets that level; when it resolves
+   to `standard`, skip the verifier for cost as `/discovery:research` allows, and under `strict`
+   let the verifier run. Graduate each on completion per step 6; the resolution comment is the
+   finding's durable home, and the findings file and its sidecars are copied to the item's folder
+   on the dossier branch first ([`context/tracker-mechanics.md`](context/tracker-mechanics.md)
+   "Graduate a research item"). Never fan out a `needs-human` item.
 5. **Consult the Notes skills, then route by type.** First invoke each skill the map's Notes lists
    for every session, one Skill call per skill. Then invoke the target skill for the item's type
    label (never a type its body states); its own Q&A supplies the HITL loop:
@@ -268,8 +282,8 @@ that charting needs an interactive session. Do not fabricate a map.
    | `wayfind: research` | agent-capable | `/discovery:research` (falls back to inline research if not enabled) |
    | `wayfind: interview` | `needs-human` (intent) | `/planning:interview` |
    | `wayfind: design` | agent-capable unless it asks for vision | `/planning:design`, or `/event-storming:methodology` / `/event-storming:simulation` when the item is domain/event-model work |
-   | `wayfind: prototype` | `needs-human` when the user judges it | `/prototype:pressure-test` (behaviour/feasibility) or `/prototype:explore-directions` (design/UX). The item body says which |
-   | `wayfind: task` | per item | Direct decision-unblocking work. No feature code, no PR tie. Its resolution records what was done and the facts later items need |
+   | `wayfind: prototype` | `needs-human` when the user judges it | `/prototype:pressure-test` (behaviour/feasibility) or `/prototype:explore-directions` (design/UX). The item body says which. Its files go in the item's folder on the dossier branch ("Shared files"); its verdict goes in the resolution comment |
+   | `wayfind: task` | per item | Direct decision-unblocking work. No feature code, no PR tie. Its resolution records what was done and the facts later items need. Work only a human can do (a vendor sign-up, credentials, a dashboard) routes to `/wizard:generate`; its resolution records the names and locations of what was set up, never the values |
 
 6. **Graduate on every resolution.** Every edit to the map body, here or anywhere in this skill,
    applies its change to a copy of the body read right before the write, then reads the body back:
@@ -277,10 +291,14 @@ that charting needs an interactive session. Do not fabricate a map.
    again.
    Resolved **in scope**: post the resolution as a comment on
    the item, add its one-line pointer (title linked by URL) to *Decisions-so-far*, then close
-   the item (comment → index → close, as one atomic sequence). **Wrongly scoped** (on the tracker
+   the item (comment → index → close, as one atomic sequence). The comment takes its type's shape
+   ([`context/map-anatomy.md`](context/map-anatomy.md) "Resolution comments"). A decision that
+   rests on a prototype not yet run is recorded as provisional, naming that prototype item, and
+   that prototype's resolution confirms or reverses it (map-anatomy "Provisional decisions").
+   **Wrongly scoped** (on the tracker
    but not this effort): add one Out-of-scope line linking it, then close it, with no
-   Decisions-so-far pointer. Fog stays in Not-yet-specified and never graduates into
-   Out-of-scope. If the resolution sharpened previously-foggy uncertainty, chart the new sharp
+   Decisions-so-far pointer. Fog stays in Not-yet-specified and never moves into Out-of-scope for
+   being unphrasable, only by an explicit scope ruling at closure (step 8). If the resolution sharpened previously-foggy uncertainty, chart the new sharp
    items now (create, then wire, as chart step 4) and delete that bullet from Not-yet-specified.
 7. **Sweep the map after every resolution.** Reread the open items and closed decisions against
    what was just decided:
@@ -293,21 +311,30 @@ that charting needs an interactive session. Do not fabricate a map.
      other. When it resolves, add its pointer to Decisions-so-far and change the old decision's
      line to `[<old title>](<old URL>): superseded by [<new title>](<new URL>) (resolved <date>)`.
      Never reopen the old item or edit its resolution comment.
+
+   **Report the item.** Then report the closed item, its new Decisions-so-far line, the items
+   charted from it and what it unblocked. When the frontier still holds an item, end with one line,
+   since the map holds the state: clear, then `/planning:wayfind <next item URL>`, the next
+   item being the first frontier item in creation order. With an empty frontier, go to step 8.
 8. **Map closure → destination handoff.** When the frontier holds no item and every decision item
-   is closed, post a closing comment on the map that states every resolved decision in full: for
+   is closed, empty Not-yet-specified first; the map does not close while it holds a bullet. Each
+   bullet is charted (chart step 4), moved into a mop-up `interview` item that closure offers, or
+   ruled out of scope by the user, which moves it to Out-of-scope with the reason; that ruling is
+   the one way fog leaves without being charted. Then post a closing comment on the map that states every resolved decision in full: for
    each Decisions-so-far line, its title and Q/D id (when it has one) and the decision its
-   resolution comment records, not only the link. Then close the map issue and hand the decisions
+   resolution comment records, not only the link, and names the dossier branch when one exists. Then close the map issue and hand the decisions
    to the destination's skill in a source form it accepts:
 
    | Destination | Closes to |
    |---|---|
    | A PRD | `/planning:prd`, with the closing comment's decisions as its task description |
-   | A set of build items (a spec or plan) | `/work-items:decompose #<map-number>`; its item source reads the map's body and comments, so it finds the decisions in the closing comment |
+   | A set of build items (a spec or plan) | `/planning:plan`, with the closing comment's decisions as its task description, then `/work-items:decompose` from that plan. A map whose decisions already read as slices goes straight to `/work-items:decompose #<map-number>`; its item source reads the map's body and comments, so it finds the decisions in the closing comment |
    | One change | `/work-items:work` on the item `/work-items:track add` files for it, its body carrying the decisions |
    | A decision record | `/architecture:record-decision` when enabled, else the repository's ADR convention, given the decisions |
    | A general summary | The closing comment is the summary; no further skill |
 
-   Then delete the map's dossier branch, if one exists, after the destination skill has the map.
+   Keep the map's dossier branch, if one exists, until the destination's container closes, then
+   delete it.
 
 ## Escalation. Pull the user back to charting at choke points
 
@@ -324,7 +351,8 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 | Effort too big AND foggy to ticket | **`/planning:wayfind`** (this) | Produces a map of decision items; closes to its destination |
 | The entry, and a single sharp contract to lock | `/planning:interview` | Suggests wayfind past its size threshold; chart runs it inline when no interview exists; `interview`-typed items route here |
 | Product intent still fuzzy | `/planning:prd` | Closure target when the destination is a PRD |
-| Sharp build work | `/work-items:decompose`, `/work-items:work` | Closure targets for a set of build items or one change |
+| Sharp build work | `/planning:plan`, `/work-items:decompose`, `/work-items:work` | Closure targets for a set of build items (plan, then decompose) or one change |
+| Human-only setup in a task item | `/wizard:generate` | `task`-typed items whose work only a human can do route here |
 | Design-space item | `/planning:design`, `/event-storming:*` | `design`-typed items route here |
 | Feasibility / UX unknown | `/prototype:pressure-test`, `/prototype:explore-directions` | `prototype`-typed items route here |
 | External-evidence item | `/discovery:research` | `research`-typed items route here |
@@ -353,7 +381,8 @@ intent is unsettled and escalating here when it outgrows one session → referen
 
 - The map is charted: /planning:wayfind work.
 - The effort has no interview behind it yet: /planning:interview.
-- The map closed on a set of build items: /work-items:decompose #<map-number>.
+- The map closed on a set of build items: /planning:plan.
+- The map closed on build items whose decisions already read as slices: /work-items:decompose #<map-number>.
 - The map closed on a PRD: /planning:prd.
 
 ## Reference

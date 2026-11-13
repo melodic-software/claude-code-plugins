@@ -139,7 +139,7 @@
       "default": "auto"
     },
     "wayfind_hitl_concurrency": {
-      "description": "The most needs-human items of one /planning:wayfind map that may be claimed at once, across every session. Research items never count against it.",
+      "description": "The most needs-human items of one /planning:wayfind map that one person (the assignee) may hold at once, across that person's sessions. Other people's claims and research items never count against it.",
       "type": "integer",
       "minimum": 1,
       "default": 1
