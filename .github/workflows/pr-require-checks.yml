@@ -42,7 +42,7 @@ on:
     # check has to re-evaluate. Whether such an event is CONTRACT-ONLY (lanes
     # gated off, ci-status carrying the recorded `ci-lanes` verdict forward) is
     # decided by one predicate, repeated verbatim in the `concurrency` group and
-    # in every job's `if:` except `ci-status` and its alias `report-ci-status`:
+    # in every job's `if:` except `ci-status`:
     #
     #   github.event.pull_request.head.repo.full_name == github.repository &&
     #   (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
@@ -128,10 +128,9 @@ concurrency:
 # `mark-lanes`; one resolver, `select-tests`; ten working jobs, `lint-repo`,
 # `lint-shell`, `check-plugins`, `check-catalog`, `check-skills`, `test-bash`,
 # `test-python`, `test-node`, `check-managed-files` and `check-tests`; and one
-# aggregate, job `ci-status`, whose check name is `CI Status`. Its alias job
-# `report-ci-status` reports that conclusion under the check name `ci-status`,
-# which, like this workflow's and this file's name, is what the org ci-gate
-# ruleset and its verifiers read until that ruleset requires `CI Status`. No
+# aggregate, job `ci-status`, whose check name `CI Status` is, like this
+# workflow's and this file's name, what the org ci-gate ruleset and its
+# verifiers read. No
 # ordinals, no tool name for a multi-tool job, no runner OS for a portable
 # lane, and no job name another workflow here also uses. A gate step keeps its
 # `id`, its aggregator key, in whichever job it runs.
@@ -984,8 +983,8 @@ jobs:
   # `continue-on-error`, so a broken detector turns this job red rather than
   # resolving a scope nobody verified.
   select-tests:
-    # The contract-only gate, verbatim on every job but `ci-status` and
-    # `report-ci-status` (see the predicate under `on.pull_request.types`). It
+    # The contract-only gate, verbatim on every job but `ci-status` (see the
+    # predicate under `on.pull_request.types`). It
     # carries no status-check function, so on a job with `needs` those edges
     # still govern: the gate only subtracts the label-flip and title/body-edit
     # events, where the lanes would re-run a SHA a full run already answered
@@ -7140,9 +7139,6 @@ jobs:
           yield-wait-seconds: ${{ ((job.status == 'failure' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) || github.event.pull_request.draft) && '0' || '600' }}
           rerun-contract-only-siblings: ${{ github.event.pull_request.draft && 'false' || 'true' }}
           carry-forward-wait-seconds: '0'
-          # report-ci-status mirrors this gate under `ci-status` and runs on
-          # contract-only events too; the run-shape reads must ignore it.
-          alias-jobs: ci-status
           # This step's own name, so the own-step lookup never depends on
           # how many steps of the job are in progress.
           step-name: Aggregate lane results
@@ -7694,23 +7690,3 @@ jobs:
         timeout-minutes: 1
         run: |
           [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_calls github-token; api_budget_emit_content; api_budget_emit_routes github-token; }
-
-  # Keeps the required context `ci-status` reporting CI Status's conclusion
-  # until the github-iac ci-gate ruleset requires `CI Status`; then it is
-  # removed. Like CI Status it carries no contract-only gate, so it reports on
-  # every event the gate runs on. Re-run CI Status, never this job: a re-run of
-  # this one alone replays its old `needs` result.
-  report-ci-status: # lane-coverage-ok: reports CI Status's conclusion under the required context `ci-status`
-    name: ci-status
-    needs: [ci-status]
-    if: ${{ always() }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 3
-    permissions: {}
-    steps:
-      - name: Report the conclusion of `CI Status`
-        env:
-          RESULT: ${{ needs.ci-status.result }}
-        run: |
-          echo "CI Status: $RESULT"
-          [ "$RESULT" = success ]
