@@ -581,5 +581,5 @@ PR in draft, and the `verify` gate's record for the head is a separate file this
 reads or writes.
 
 ```bash
-PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<checkout>") || exit 1; PR_HEAD=$(git -C "$PR_TREE" rev-parse HEAD) || exit 1; bash "<skill-dir>/scripts/confirm-verdict.sh" show --head "$PR_HEAD"; bash "<skill-dir>/scripts/confirm-verdict.sh" show --of measure --head "$PR_HEAD"
+PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER" --dir "<checkout>") || exit 1; PR_HEAD=$(git -C "$PR_TREE" rev-parse HEAD) || exit 1; bash "<skill-dir>/scripts/confirm-verdict.sh" show --head "$PR_HEAD" --dir "$PR_TREE"; bash "<skill-dir>/scripts/confirm-verdict.sh" show --of measure --head "$PR_HEAD" --dir "$PR_TREE"
 ```

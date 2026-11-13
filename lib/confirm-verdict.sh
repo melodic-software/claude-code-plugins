@@ -12,21 +12,22 @@
 #
 # Usage:
 #   confirm-verdict.sh record --head <sha> --verdict CONFIRMED|'NEEDS WORK'|'NOT VERIFIED'
-#                             [--missing <item>]... [--partial <item>]...
+#                             [--missing <item>]... [--partial <item>]... [--dir <checkout>]
 #   confirm-verdict.sh record --of measure --head <sha>
 #                             --verdict CONFIRMED|MIXED|INCONCLUSIVE|'NOT CONFIRMED'|DEGRADED|'CANNOT QUANTIFY'
-#                             [--claim <text>]
-#   confirm-verdict.sh show   [--of measure] --head <sha>
+#                             [--claim <text>] [--dir <checkout>]
+#   confirm-verdict.sh show   [--of measure] --head <sha> [--dir <checkout>]
 #
 # The record lives under the repository's common git directory (`confirm-verdict/<sha>`, and
 # `confirm-verdict/<sha>.measure` for measure), shared by every worktree, so a record and a show
-# agree whichever checkout the shell sits in; or under $CONFIRM_VERDICT_DIR when set. Its first
-# line is `verdict: <verdict>`; each later line is `MISSING: <item>`, `PARTIAL: <item>` or
-# `CLAIM: <text>`, in the order given.
+# agree whichever checkout the shell sits in; or under $CONFIRM_VERDICT_DIR when set. --dir names
+# any checkout of the repository to read that directory from (default: the current directory);
+# $CONFIRM_VERDICT_DIR still wins over it. Its first line is `verdict: <verdict>`; each later line
+# is `MISSING: <item>`, `PARTIAL: <item>` or `CLAIM: <text>`, in the order given.
 #
 # Exit codes:
 #   0  record: stored; show: printed the verdict, that none is recorded or readable, or nothing
-#   1  invalid argument
+#   1  invalid argument, or --dir names no directory
 #   2  record: the state cannot be written
 
 # portability-scope: local state under the git directory; no forge call.
@@ -50,9 +51,14 @@ record | show) CMD="$1" ;;
 esac
 shift
 
-OF=confirm HEAD_SHA="" VERDICT="" items=()
+OF=confirm HEAD_SHA="" VERDICT="" CHECKOUT="" items=()
 while (($# > 0)); do
   case "$1" in
+  --dir)
+    (($# >= 2)) && [[ -n "$2" && -z "$CHECKOUT" ]] || die 1 "--dir needs one value and is given once"
+    CHECKOUT="$2"
+    shift 2
+    ;;
   --of | --head | --verdict | --missing | --partial | --claim)
     (($# >= 2)) || die 1 "$1 needs a value"
     case "$1" in
@@ -75,6 +81,8 @@ confirm | measure) ;;
 *) die 1 "--of must be confirm or measure" ;;
 esac
 [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || die 1 "--head must be a full 40-character commit sha"
+CHECKOUT="${CHECKOUT:-.}"
+[[ -d "$CHECKOUT" ]] || die 1 "--dir $(printf '%q' "$CHECKOUT") is not a directory"
 
 # valid_verdict <verdict>: whether <verdict> is one of the words the --of skill defines.
 valid_verdict() {
@@ -87,7 +95,7 @@ valid_verdict() {
 }
 
 if [[ "$CMD" == show ]]; then
-  [[ -z "$VERDICT" && ${#items[@]} -eq 0 ]] || die 1 "show takes only --of and --head"
+  [[ -z "$VERDICT" && ${#items[@]} -eq 0 ]] || die 1 "show takes only --of, --head and --dir"
 else
   for item in ${items[@]+"${items[@]}"}; do
     case "$OF:$item" in
@@ -100,8 +108,8 @@ fi
 
 dir="${CONFIRM_VERDICT_DIR:-}"
 if [[ -z "$dir" ]]; then
-  if ! common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
-    [[ "$CMD" == show ]] || die 2 "not in a git repository, and CONFIRM_VERDICT_DIR is unset"
+  if ! common=$(git -C "$CHECKOUT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
+    [[ "$CMD" == show ]] || die 2 "$(printf '%q' "$CHECKOUT") is not in a git repository, and CONFIRM_VERDICT_DIR is unset"
     [[ "$OF" == measure ]] ||
       printf 'confirm: no verdict readable for head %s (not in a git repository)\n' "$HEAD_SHA"
     exit 0
