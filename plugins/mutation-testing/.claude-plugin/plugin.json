@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.16.9",
+  "version": "0.17.0",
   "license": "MIT",
   "keywords": [
     "mutation-testing",
