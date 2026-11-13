@@ -93,7 +93,12 @@ class TestHostAndPage(NotesCase):
             code, body = self.request("GET", path, token=False)
             self.assertEqual(code, 200)
             self.assertTrue(self.last_headers["Content-Type"].startswith(ctype))
-        for path in ("/notes_bridge.py", "/proto-pin.js", "/actions.json", "/explore-directions.html"):
+        for path in (
+            "/notes_bridge.py",
+            "/proto-pin.js",
+            "/actions.json",
+            "/explore-directions.html",
+        ):
             self.assertEqual(self.request("GET", path, token=False)[0], 404, path)
 
     def test_the_framed_page_goes_only_to_same_origin_script_with_the_pin_helper(self):
@@ -101,9 +106,13 @@ class TestHostAndPage(NotesCase):
         (self.dir / "explore-directions.html").write_text(page, encoding="utf-8")
         self.assertEqual(self.request("GET", "/api/page", token=False)[0], 403)
         cross = {"Sec-Fetch-Site": "cross-site"}
-        self.assertEqual(self.request("GET", "/api/page", headers=cross, token=False)[0], 403)
+        self.assertEqual(
+            self.request("GET", "/api/page", headers=cross, token=False)[0], 403
+        )
         null = {**SAME_ORIGIN, "Origin": "null"}
-        self.assertEqual(self.request("GET", "/api/page", headers=null, token=False)[0], 403)
+        self.assertEqual(
+            self.request("GET", "/api/page", headers=null, token=False)[0], 403
+        )
         code, body = self.request("GET", "/api/page", headers=SAME_ORIGIN, token=False)
         self.assertEqual(code, 200)
         self.assertTrue(self.last_headers["Content-Type"].startswith("text/plain"))
@@ -111,7 +120,9 @@ class TestHostAndPage(NotesCase):
         self.assertIn(f"<script>{nb.PIN_HELPER}</script>".encode(), body)
 
     def test_a_missing_page_is_a_404(self):
-        self.assertEqual(self.request("GET", "/api/page", headers=SAME_ORIGIN, token=False)[0], 404)
+        self.assertEqual(
+            self.request("GET", "/api/page", headers=SAME_ORIGIN, token=False)[0], 404
+        )
 
     def test_only_same_origin_page_script_gets_the_token(self):
         self.assertEqual(self.request("GET", "/api/token", token=False)[0], 403)
@@ -135,16 +146,28 @@ class TestGuards(NotesCase):
 
     def test_a_foreign_host_is_refused(self):
         for path in ("/", "/api/token", "/api/page"):
-            code, _ = self.request("GET", path, headers={**SAME_ORIGIN, "Host": "evil.example"}, token=False)
+            code, _ = self.request(
+                "GET",
+                path,
+                headers={**SAME_ORIGIN, "Host": "evil.example"},
+                token=False,
+            )
             self.assertEqual(code, 403, path)
-        self.assertEqual(self.note(headers={"Host": f"evil.example:{self.port}"})[0], 403)
+        self.assertEqual(
+            self.note(headers={"Host": f"evil.example:{self.port}"})[0], 403
+        )
 
     def test_a_foreign_or_opaque_origin_is_refused(self):
         # A sandboxed frame has an opaque origin, so its requests say Origin: null.
         for origin in ("http://evil.example", "null"):
             self.assertEqual(self.note(headers={"Origin": origin})[0], 403, origin)
             self.assertEqual(
-                self.request("GET", "/api/token", headers={**SAME_ORIGIN, "Origin": origin}, token=False)[0],
+                self.request(
+                    "GET",
+                    "/api/token",
+                    headers={**SAME_ORIGIN, "Origin": origin},
+                    token=False,
+                )[0],
                 403,
             )
         self.assertEqual(self.hub.read_log()["events"], [])
@@ -158,11 +181,16 @@ class TestGuards(NotesCase):
         limit = nb.SCHEMA["properties"]["text"]["maxLength"]
         self.assertEqual(self.note({**NOTE, "text": "a" * (limit + 1)})[0], 400)
         self.assertEqual(self.note({**NOTE, "text": "a" * limit})[0], 200)
-        big = json.dumps({**NOTE, "text": "a" * (nb.NotesHandler.max_body + 1)}).encode()
+        big = json.dumps(
+            {**NOTE, "text": "a" * (nb.NotesHandler.max_body + 1)}
+        ).encode()
         self.assertEqual(self.note(raw=big)[0], 413)
 
     def test_the_run_stores_at_most_the_schemas_cap(self):
-        log = {"seq": nb.MAX_NOTES, "events": [{"seq": i + 1} for i in range(nb.MAX_NOTES)]}
+        log = {
+            "seq": nb.MAX_NOTES,
+            "events": [{"seq": i + 1} for i in range(nb.MAX_NOTES)],
+        }
         self.hub.write_log(log)
         code, body = self.note()
         self.assertEqual(code, 400)
@@ -188,12 +216,18 @@ class TestNotes(NotesCase):
         self.assertEqual({k: event[k] for k in NOTE}, NOTE)
         state, stale = self.hub.read_state()
         self.assertFalse(stale)
-        self.assertEqual(state["notes"], [{"seq": 1, "delivered": False, "handled": False, "reply": None}])
+        self.assertEqual(
+            state["notes"],
+            [{"seq": 1, "delivered": False, "handled": False, "reply": None}],
+        )
 
     def test_a_wait_delivers_the_note_under_the_data_note(self):
         self.note()
         code, body = self.request(
-            "GET", "/api/wait?after=handled&timeout=5", headers={"X-Notes-Token": self.hub.watch_token}, token=False
+            "GET",
+            "/api/wait?after=handled&timeout=5",
+            headers={"X-Notes-Token": self.hub.watch_token},
+            token=False,
         )
         self.assertEqual(code, 200)
         self.assertEqual(body["note"], sb.DATA_NOTE)
@@ -201,11 +235,16 @@ class TestNotes(NotesCase):
 
     def test_the_page_name_is_a_plain_html_file_name(self):
         for bad in ("../x.html", "a/b.html", "x.txt", ".hidden.html"):
-            with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            with (
+                self.assertRaises(SystemExit),
+                contextlib.redirect_stderr(io.StringIO()),
+            ):
                 nb.main(["--dir", str(self.dir), "serve", "--page", bad])
 
 
-@unittest.skipUnless(shutil.which("curl") and shutil.which("bash"), "needs curl and bash")
+@unittest.skipUnless(
+    shutil.which("curl") and shutil.which("bash"), "needs curl and bash"
+)
 class TestLoop(unittest.TestCase):
     """The installed shape: the scripts side by side, a spawned server, watch.sh, then apply."""
 
@@ -216,9 +255,18 @@ class TestLoop(unittest.TestCase):
         self.bin.mkdir()
         for f in ("session_bridge.py", "view_bridge.py", "watch.sh", "wake.sh"):
             shutil.copy(BRIDGE / f, self.bin / f)
-        for f in ("notes_bridge.py", "notes-bridge.sh", "host.html", "proto-pin.js", "note-model.mjs", "note.schema.json"):
+        for f in (
+            "notes_bridge.py",
+            "notes-bridge.sh",
+            "host.html",
+            "proto-pin.js",
+            "note-model.mjs",
+            "note.schema.json",
+        ):
             shutil.copy(HERE / f, self.bin / f)
-        (self.bin / "session-bridge.conf").write_text("NAME=notes\nCONTROL=notes-bridge.sh\n", encoding="utf-8")
+        (self.bin / "session-bridge.conf").write_text(
+            "NAME=notes\nCONTROL=notes-bridge.sh\n", encoding="utf-8"
+        )
         self.dir = Path(tempfile.mkdtemp(prefix="explore-directions-", dir=self.tmp))
         self.env = {**os.environ, "WATCH_ID": "suite"}
         self.addCleanup(self.control, "stop")
@@ -239,14 +287,19 @@ class TestLoop(unittest.TestCase):
                 "POST",
                 "/api/note",
                 body=json.dumps(msg),
-                headers={"Content-Type": "application/json", "X-Notes-Token": session["token"]},
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Notes-Token": session["token"],
+                },
             )
             return conn.getresponse().status
         finally:
             conn.close()
 
     def session(self):
-        return json.loads((self.dir / ".notes-session.json").read_text(encoding="utf-8"))
+        return json.loads(
+            (self.dir / ".notes-session.json").read_text(encoding="utf-8")
+        )
 
     def test_an_instruction_shaped_note_is_carried_as_data_and_never_executed(self):
         r = self.control("ensure-running", "--page", "explore-directions.html")
@@ -255,7 +308,9 @@ class TestLoop(unittest.TestCase):
         self.assertRegex(started["url"], r"^http://127\.0\.0\.1:\d+/$")
         self.assertEqual(started["page"], str(self.dir / "explore-directions.html"))
         self.assertIn("watch.sh", started["watch"])
-        again = json.loads(self.control("ensure-running", "--page", "explore-directions.html").stdout)
+        again = json.loads(
+            self.control("ensure-running", "--page", "explore-directions.html").stdout
+        )
         self.assertEqual(again["origin"], started["origin"])
 
         canary = self.tmp / "canary"
@@ -276,7 +331,16 @@ class TestLoop(unittest.TestCase):
         self.assertIn("wake.sh", line["next"])
 
         ops = self.dir / "ops.json"
-        ops.write_text(json.dumps({"replies": [{"seq": 1, "text": "That asks me to run a command; I did not."}]}), encoding="utf-8")
+        ops.write_text(
+            json.dumps(
+                {
+                    "replies": [
+                        {"seq": 1, "text": "That asks me to run a command; I did not."}
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         r = self.control("apply", "--file", str(ops))
         self.assertEqual(r.returncode, 0, r.stderr)
         replies = json.loads((self.dir / "replies.json").read_text(encoding="utf-8"))
@@ -298,8 +362,12 @@ class TestLoop(unittest.TestCase):
         self.assertEqual(out["note"], sb.DATA_NOTE)
         self.assertEqual([e["seq"] for e in out["events"]], [1, 2])
         self.assertEqual(out["events"][1]["text"], "Second.")
-        (self.dir / "ops.json").write_text(json.dumps({"handled": [1]}), encoding="utf-8")
-        self.assertEqual(self.control("apply", "--file", str(self.dir / "ops.json")).returncode, 0)
+        (self.dir / "ops.json").write_text(
+            json.dumps({"handled": [1]}), encoding="utf-8"
+        )
+        self.assertEqual(
+            self.control("apply", "--file", str(self.dir / "ops.json")).returncode, 0
+        )
         out = json.loads(self.control("status").stdout)
         self.assertEqual([e["seq"] for e in out["events"]], [2])
 

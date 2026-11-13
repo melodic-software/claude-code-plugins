@@ -57,9 +57,24 @@ STATIC = {
     "/note.schema.json": ("note.schema.json", "application/json"),
 }
 KNOWN = {
-    "$schema", "$id", "$ref", "$defs", "title", "description", "x-version", "x-maxNotesPerRun",
-    "type", "enum", "properties", "required", "additionalProperties", "minLength", "maxLength",
-    "pattern", "minimum", "maximum",
+    "$schema",
+    "$id",
+    "$ref",
+    "$defs",
+    "title",
+    "description",
+    "x-version",
+    "x-maxNotesPerRun",
+    "type",
+    "enum",
+    "properties",
+    "required",
+    "additionalProperties",
+    "minLength",
+    "maxLength",
+    "pattern",
+    "minimum",
+    "maximum",
 }
 
 
@@ -174,7 +189,9 @@ class NotesHub(view.ViewHub):
         with self.cond:
             log = self.read_log()
             if len(log["events"]) >= MAX_NOTES:
-                raise ValueError(f"the page has sent {MAX_NOTES} notes; restart the server")
+                raise ValueError(
+                    f"the page has sent {MAX_NOTES} notes; restart the server"
+                )
             log["seq"] += 1
             log["events"].append({"seq": log["seq"], "at": bridge.now_iso(), **msg})
             self.write_log(log)
@@ -189,7 +206,9 @@ class NotesHandler(view.ViewHandler):
 
     def route_get(self, url, query):
         if url.path in ("/", "/index.html"):
-            return self.send(200, (HERE / "host.html").read_bytes(), "text/html", HOST_CSP)
+            return self.send(
+                200, (HERE / "host.html").read_bytes(), "text/html", HOST_CSP
+            )
         if url.path in STATIC:
             file, ctype = STATIC[url.path]
             return self.send(200, (HERE / file).read_bytes(), ctype)
@@ -201,8 +220,12 @@ class NotesHandler(view.ViewHandler):
             try:
                 raw = self.hub.page.read_bytes()
             except OSError:
-                return self.send(404, {"error": f"no {self.hub.page.name} in the data dir yet"})
-            return self.send(200, raw + f"\n<script>{PIN_HELPER}</script>\n".encode(), "text/plain")
+                return self.send(
+                    404, {"error": f"no {self.hub.page.name} in the data dir yet"}
+                )
+            return self.send(
+                200, raw + f"\n<script>{PIN_HELPER}</script>\n".encode(), "text/plain"
+            )
         if url.path == "/api/token":
             return super().route_get(url, query)
         return self.send(404, {"error": "not found"})
@@ -214,7 +237,9 @@ class NotesHandler(view.ViewHandler):
             seq = self.hub.record(msg)
         except ValueError as e:
             return self.send(400, {"error": str(e)})
-        return self.send(200, {"ok": True, "seq": seq, "listening": self.hub.listener()["state"]})
+        return self.send(
+            200, {"ok": True, "seq": seq, "listening": self.hub.listener()["state"]}
+        )
 
 
 # Control half: what the skill and wake.sh run, composed from session_bridge's client half.
@@ -233,7 +258,10 @@ def cmd_status(d, a):
 
 def cmd_serve(d, a):
     httpd, hub = bridge.start(
-        NotesHandler, lambda port: NotesHub(port, d, a.page, a.idle_seconds), a.port, a.nonce
+        NotesHandler,
+        lambda port: NotesHub(port, d, a.page, a.idle_seconds),
+        a.port,
+        a.nonce,
     )
 
     def expire():
@@ -293,7 +321,8 @@ def cmd_ensure_running(d, a):
                 why = f"the server exited with status {code}"
             tail = bridge.log_tail(bridge.server_log(d, NAME))
             sys.exit(
-                f"{why} (data dir {d})" + (f"\nserver stderr (last lines):\n{tail}" if tail else "")
+                f"{why} (data dir {d})"
+                + (f"\nserver stderr (last lines):\n{tail}" if tail else "")
             )
     origin = f"http://127.0.0.1:{int(s['port'])}"
     print(
@@ -341,7 +370,9 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
     for name in ("ensure-running", "serve"):
         s = sub.add_parser(name)
-        s.add_argument("--port", type=int, default=None if name == "ensure-running" else 0)
+        s.add_argument(
+            "--port", type=int, default=None if name == "ensure-running" else 0
+        )
         s.add_argument("--page", type=page_name, default="page.html")
         s.add_argument("--idle-seconds", type=float, default=view.IDLE_SECONDS)
         if name == "serve":
