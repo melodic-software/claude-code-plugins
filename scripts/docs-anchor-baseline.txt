@@ -1,0 +1,149 @@
+# Skill and agent files that already linked a docs page with no section anchor
+# when the advisory docs-anchor check of validate-plugin-contracts.mjs landed.
+#
+# The rule: .claude/rules/skill-bodies-state-current-rules.md. A docs-page
+# pointer links the section it rests on (`<url>#<section>`); an upstream issue
+# or a probe needs no anchor.
+#
+# Each row is a file's count of lines carrying such a link. A file over its row,
+# or with no row, prints an `advisory:` line per link and does not fail.
+#
+# The list can only SHRINK: the validator FAILs on a row whose count is now
+# lower (lower the row), zero, or whose file is gone (remove the row). Never add
+# a row or raise a count to quiet an advisory: link the section instead.
+#
+# Format: `<repo-relative path> <line count>`, optionally followed by `# note`.
+# Blank lines and `#` lines are ignored.
+
+plugins/ai-briefing/skills/generate/reference/build-pipeline.md 2
+plugins/architecture/skills/map-deployment/SKILL.md 8
+plugins/autonomy/skills/setup/context/agent-session-telemetry.md 1
+plugins/autonomy/skills/setup/context/guardrail-slice.md 1
+plugins/autonomy/skills/setup/context/windows-surfaces.md 2
+plugins/autonomy/skills/setup/templates/trigger-adapters.md 2
+plugins/code-metrics/skills/audit-coverage/SKILL.md 2
+plugins/code-metrics/skills/audit-suppressions/SKILL.md 6
+plugins/code-tidying/skills/remove-comments/reference/tooling.md 1
+plugins/code-tidying/skills/tidy/reference/bundled-simplify.md 1
+plugins/context-budget/skills/audit/reference/native-explain-usage.md 1
+plugins/context7/skills/lookup/context/cli.md 1
+plugins/corrections/skills/codify/reference/finding-classes.md 3
+plugins/debugging/skills/analyze-profile/reference/formats/heapsnapshot.md 1
+plugins/debugging/skills/analyze-profile/reference/formats/other-formats.md 1
+plugins/debugging/skills/debug/reference/ecosystem-debugging.md 1
+plugins/developer-experience/skills/build-cli/reference/cli-contract.md 6
+plugins/discipline/skills/sweep-all/reference/batched-pass.md 1
+plugins/discovery/skills/research/context/artifact-shape.md 1
+plugins/discovery/skills/setup/SKILL.md 2
+plugins/disk-hygiene/skills/clean/reference/safety-model.md 5
+plugins/disk-hygiene/skills/clean/reference/scan-flags.md 1
+plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md 1
+plugins/event-storming/skills/simulation/reference/miro-integration.md 2
+plugins/evals/skills/design/SKILL.md 1
+plugins/evals/skills/methodology/SKILL.md 1
+plugins/evals/skills/methodology/reference/eval-design.md 1
+plugins/evals/skills/plugin-eval/SKILL.md 1
+plugins/evals/skills/plugin-eval/reference/records.md 3
+plugins/evals/skills/plugin-eval/reference/sandboxes.md 1
+plugins/firecrawl/skills/firecrawl/SKILL.md 1
+plugins/firecrawl/skills/update/SKILL.md 1
+plugins/harness-config/skills/audit-automation-gaps/SKILL.md 3
+plugins/harness-config/skills/audit-automation-gaps/context/hook-timing.md 1
+plugins/harness-config/skills/audit-instructions/reference/bundled-claude-api.md 1
+plugins/harness-config/skills/audit-instructions/reference/criteria.md 50
+plugins/harness-config/skills/audit-pass/reference/finding-identity.md 4
+plugins/harness-config/skills/audit-pass/reference/suppression.md 1
+plugins/harness-config/skills/audit-permission-grants/reference/criteria.md 1
+plugins/harness-config/skills/audit-permission-grants/reference/native-surfaces.md 1
+plugins/harness-config/skills/audit-permission-state/reference/criteria.md 2
+plugins/harness-config/skills/audit-permission-state/reference/native-surfaces.md 2
+plugins/harness-config/skills/audit-prompting-postures/reference/postures.md 8
+plugins/harness-config/skills/audit/SKILL.md 4
+plugins/harness-config/skills/audit/context/validation-categories.md 2
+plugins/harness-config/skills/audit/reference/audit-checklist.md 4
+plugins/harness-config/skills/audit/reference/required-permissions.md 8
+plugins/harness-config/skills/setup/reference/wsl-profile.md 2
+plugins/harness-memory/skills/audit/context/update.md 2
+plugins/harness-memory/skills/stateless/reference/native-memory.md 1
+plugins/harness-memory/skills/stateless/reference/official-guidance.md 4
+plugins/harness-ops/skills/audit-native-overlap/SKILL.md 1
+plugins/harness-ops/skills/audit-performance/SKILL.md 1
+plugins/harness-ops/skills/audit-performance/reference/known-performance-issues.md 6
+plugins/harness-ops/skills/changelog/context/read-actions.md 1
+plugins/harness-ops/skills/inventory/SKILL.md 4
+plugins/harness-ops/skills/lanes/SKILL.md 2
+plugins/harness-ops/skills/observability/SKILL.md 1
+plugins/harness-ops/skills/observability/context/otel-queries.md 1
+plugins/harness-ops/skills/observability/context/output-format.md 1
+plugins/harness-ops/skills/observability/context/read-routing.md 1
+plugins/harness-ops/skills/observability/reference/native-explain-usage.md 1
+plugins/harness-ops/skills/plugins/context/gotchas.md 2
+plugins/harness-ops/skills/plugins/context/scope-semantics.md 5
+plugins/implementation/skills/implement-dispatch/SKILL.md 1
+plugins/implementation/skills/implement-dispatch/reference/holdout-tests.md 1
+plugins/implementation/skills/implement/context/replace.md 1
+plugins/instruction-placement/skills/migrate/reference/sources.md 5
+plugins/knowledge/skills/docpage-digest/SKILL.md 1
+plugins/knowledge/skills/docpage-digest/context/anthropic-docs-profile.md 2
+plugins/knowledge/skills/docpage-digest/context/anthropic-docs-queue.md 26
+plugins/machine-health/skills/audit/reference/windows/check-catalog.md 1
+plugins/mcp-tools/skills/audit-posture/reference/checklist.md 2
+plugins/mcp-tools/skills/audit/SKILL.md 1
+plugins/mcp-tools/skills/audit/reference/checklist.md 1
+plugins/mutation-testing/skills/audit/SKILL.md 1
+plugins/mutation-testing/skills/audit/context/tool-test-restriction.md 5
+plugins/mutation-testing/skills/principles/reference/metrics.md 1
+plugins/mutation-testing/skills/principles/reference/operators-and-states.md 1
+plugins/mutation-testing/skills/principles/reference/scaling-and-suppression.md 2
+plugins/mutation-testing/skills/principles/reference/tooling.md 4
+plugins/naming/skills/name-it-better/context/sources.md 1
+plugins/performance/skills/go-faster/reference/catalog/ci-cd.md 13
+plugins/performance/skills/go-faster/reference/catalog/git.md 11
+plugins/performance/skills/go-faster/reference/catalog/harness.md 6
+plugins/performance/skills/go-faster/reference/catalog/measurement.md 1
+plugins/performance/skills/verify/SKILL.md 1
+plugins/planning/skills/design/reference/design-defaults.md 1
+plugins/planning/skills/design/reference/type-discipline/typescript.md 2
+plugins/planning/skills/draft-goal-condition/reference/native-goal.md 2
+plugins/planning/skills/draft-goal-condition/reference/workflow-row.md 1
+plugins/planning/skills/interview/context/surface.md 1
+plugins/playbooks/skills/boris/reference/autonomy.md 2
+plugins/playbooks/skills/boris/reference/foundations.md 1
+plugins/playbooks/skills/fable-5/context/calibration.md 1
+plugins/playbooks/skills/fable-5/context/verification.md 3
+plugins/playwright/skills/playwright/reference/running-code.md 1
+plugins/playwright/skills/playwright/reference/storage-and-auth.md 1
+plugins/playwright/skills/playwright/reference/test-generation.md 1
+plugins/playwright/skills/playwright/reference/tracing-and-video.md 2
+plugins/plugin-quality/skills/audit/reference/component-types/command.md 1
+plugins/prototype/skills/explore-directions/reference/claude-design-tool.md 1
+plugins/prototype/skills/explore-directions/reference/design-canvas.md 1
+plugins/repo-fleet-hygiene/skills/apply/SKILL.md 1
+plugins/repo-fleet-hygiene/skills/audit/SKILL.md 1
+plugins/repo-fleet-hygiene/skills/audit/reference/official-sources.md 10
+plugins/repo-hygiene/skills/clean/context/clean-batch.md 1
+plugins/review/skills/code-review/reference/bundled-code-review.md 2
+plugins/review/skills/quality-gate/context/pr.md 2
+plugins/session-flow/skills/orchestrate/context/sources.md 1
+plugins/source-control/skills/babysit-loop/reference/promotion-evidence-bootstrap.md 2
+plugins/source-control/skills/babysit-loop/reference/telemetry-upsert.md 1
+plugins/source-control/skills/babysit-prs/reference/freshness.md 1
+plugins/source-control/skills/babysit-prs/reference/native-autofix-pr.md 1
+plugins/source-control/skills/babysit-prs/reference/safety.md 6
+plugins/source-control/skills/babysit-prs/reference/stuck-checks.md 1
+plugins/source-control/skills/pull-request/reference/create.md 1
+plugins/source-control/skills/pull-request/reference/monitor.md 1
+plugins/source-control/skills/pull-request/reference/native-surfaces.md 1
+plugins/source-control/skills/worktree/reference/native-worktree.md 3
+plugins/tdd/skills/principles/reference/characterization-testing.md 1
+plugins/tdd/skills/principles/reference/property-based-testing.md 4
+plugins/testing/skills/run-e2e/context/e2e.md 4
+plugins/testing/skills/setup/SKILL.md 4
+plugins/testing/skills/test-value/SKILL.md 2
+plugins/testing/skills/write/context/characterization.md 1
+plugins/testing/skills/write/context/property/typescript.md 2
+plugins/testing/skills/write/context/write.md 1
+plugins/user-interface/skills/audit/reference/launch-scope.md 1
+plugins/user-interface/skills/glossary/reference/rendering-performance.md 1
+plugins/visualization/skills/visualize/context/claude-design-tool.md 1
+plugins/x/skills/read/context/sources.md 1
