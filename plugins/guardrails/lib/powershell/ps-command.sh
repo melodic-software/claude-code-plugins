@@ -2808,7 +2808,6 @@ ps::write_bypass() {
   # The write twin of the git refusal: the reduction just dropped lines that
   # PowerShell may run as commands, so a NO from the scans below would be a
   # statement about text the command does not have. Report a bypass by shape.
-  # block-hook-bypass consults no allow-list on this return, so it is final.
   # See PS_REDUCTION_UNTRUSTED.
   ((PS_REDUCTION_UNTRUSTED)) && return 0
 
