@@ -22,7 +22,7 @@ reference. The two compose: a per-concern doc declares its keys and points here 
 layers merge and which expression form the surface uses.
 
 The distinction is what keeps this doc from colliding with the one-owner-doc-per-shared-concern rule.
-Layering and expression form are genuinely cross-cutting axes every plugin's config shares; keys
+Layering and expression form are cross-cutting axes every plugin's config shares; keys
 are not.
 
 ## The layers
@@ -141,7 +141,7 @@ them wholesale.
 Two sanctioned forms, in order of preference:
 
 1. **Concatenate.** Every layer that exists is loaded and appended. Correct when the content is prose
-   the model reads as guidance: the layers genuinely accumulate, and a reader wants all of them. This
+   the model reads as guidance: the layers accumulate, and a reader wants all of them. This
    is what the first-party precedent does.
 2. **Per-key override.** A later layer replaces an earlier layer's value **key by key**; a key absent
    from a later layer keeps the earlier value. Correct when the values are scalars or closed lists,
