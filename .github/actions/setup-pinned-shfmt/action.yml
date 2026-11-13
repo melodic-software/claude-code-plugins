@@ -1,4 +1,4 @@
-name: Setup Pinned shfmt
+name: Setup Pinned Shfmt
 description: >
   Put the pinned shfmt release on PATH, checked against its SHA-256. The
   release publishes no checksums asset, so each value is GitHub's SHA-256
