@@ -689,5 +689,5 @@ loading or `InstructionsLoaded`, or subagent `isolation` and working directory; 
 | `hub-start/sibling-rm-rf-user-directed-allowed` | allow | [block and allow rules](https://code.claude.com/docs/en/auto-mode-config#override-the-block-and-allow-rules) | not run live | pending |
 | `hub-start/sibling-claude-md-not-loaded-on-read` | ran, `acme/target/CLAUDE.md=absent` | [how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) | not run live | pending |
 | `hub-start/hub-subdir-claude-md-loads-on-read` | ran, `acme/hub/docs/CLAUDE.md=loaded` | [how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) | not run live | pending |
-| `hub-start/subagent-worktree-isolation-stays-in-hub` | ran, `pwd` under `acme/hub/.claude/worktrees/` | [isolate subagents with worktrees](https://code.claude.com/docs/en/worktrees#isolate-subagents-with-worktrees) | not run live | pending |
-| `hub-start/subagent-starts-in-hub` | ran, `pwd` is `acme/hub` | [write subagent files](https://code.claude.com/docs/en/sub-agents#write-subagent-files) | not run live | pending |
+| `hub-start/subagent-worktree-isolation-stays-in-hub` | ran, `$PWD` under `acme/hub/.claude/worktrees/` | [isolate subagents with worktrees](https://code.claude.com/docs/en/worktrees#isolate-subagents-with-worktrees) | not run live | pending |
+| `hub-start/subagent-starts-in-hub` | ran, `$PWD` is exactly `acme/hub` | [write subagent files](https://code.claude.com/docs/en/sub-agents#write-subagent-files) | not run live | pending |

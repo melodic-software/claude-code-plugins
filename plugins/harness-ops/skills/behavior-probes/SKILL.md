@@ -148,8 +148,10 @@ Three more pairs, each case beside its control:
   logs `InstructionsLoaded` and each Read that ran, and its checker prints one line the case judges.
   The absence case names the load case as its `control`, so it passes only while a nested load is
   observed.
-- A subagent spawned with `isolation: "worktree"` and where its `pwd` lands, against the same spawn
-  with no isolation (`cases/lib/cwd-probe-agent.sh`).
+- A subagent spawned with `isolation: "worktree"` and where its working directory lands, against
+  the same spawn with no isolation (`cases/lib/cwd-probe-agent.sh`). The subagent runs
+  `echo "cwd=$PWD|"`, so the control's `match` ends at the `|` and a worktree or sibling path
+  reads `fail`, not a pass on a shared prefix.
 
 Each case's `docs` names the section that states its expected outcome.
 

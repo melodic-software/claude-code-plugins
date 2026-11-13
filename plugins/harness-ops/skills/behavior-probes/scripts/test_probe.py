@@ -202,6 +202,30 @@ class VerdictTests(unittest.TestCase):
         events = (INIT, use("a"), result("a", "launched"), final())
         self.assertEqual(judge(c, *events)["verdict"], "inconclusive")
 
+    def test_subagent_cwd_cases_fail_on_a_wrong_directory(self):
+        cases = {c["id"]: c for c in probe.discover(probe.DEFAULT_CASES)}
+        hub = "/tmp/p/repos/github.com/acme/hub"
+
+        def cwd_verdict(case_id, cwd):
+            return judge(
+                cases[case_id],
+                INIT,
+                use("t1", command='echo "cwd=$PWD|"', parent="p"),
+                result("t1", f"cwd={cwd}|"),
+                final(),
+            )["verdict"]
+
+        control = "hub-start/subagent-starts-in-hub"
+        isolated = "hub-start/subagent-worktree-isolation-stays-in-hub"
+        worktree = f"{hub}/.claude/worktrees/agent-1"
+        sibling = "/tmp/p/repos/github.com/acme/target"
+        self.assertEqual(cwd_verdict(control, hub), "pass")
+        self.assertEqual(cwd_verdict(control, worktree), "fail")
+        self.assertEqual(cwd_verdict(control, sibling), "fail")
+        self.assertEqual(cwd_verdict(isolated, worktree), "pass")
+        self.assertEqual(cwd_verdict(isolated, hub), "fail")
+        self.assertEqual(cwd_verdict(isolated, sibling), "fail")
+
     def test_missing_tool_result_is_inconclusive(self):
         self.assertEqual(
             judge(case(outcome="ran"), INIT, use("t1"), final())["verdict"],

@@ -1,5 +1,5 @@
 {
-  "claim": "In a session started in a hub repository, a subagent spawned with isolation worktree, the one spawn setting that moves a subagent's working directory, runs in a worktree of the hub under its .claude/worktrees/, not in a sibling repository: no spawn setting pins a subagent to another repository. Read from the subagent's pwd.",
+  "claim": "In a session started in a hub repository, a subagent spawned with isolation worktree, the one spawn setting that moves a subagent's working directory, runs in a worktree of the hub under its .claude/worktrees/, not in a sibling repository: no spawn setting pins a subagent to another repository. Read from the subagent's echo of $PWD.",
   "tags": [
     "subagent",
     "Agent tool",
@@ -16,11 +16,12 @@
   "cwd": "repos/github.com/acme/hub",
   "target": {
     "tool": "Bash",
-    "input_match": "\"command\": \"pwd\"",
+    "input_match": "echo .*cwd=\\$PWD",
     "in_subagent": true,
     "example": {
-      "command": "pwd"
-    }
+      "command": "echo \"cwd=$PWD|\""
+    },
+    "result_match": "/\\S+"
   },
   "outcome": "ran",
   "match": "/repos/github.com/acme/hub/.claude/worktrees/"
