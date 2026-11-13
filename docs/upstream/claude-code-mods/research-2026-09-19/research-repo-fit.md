@@ -119,8 +119,8 @@ dispatcher**, 1,360–3,048 ms per fire across the Write, Edit and Bash rows,
 followed by `markdown-format`'s `markdownlint-cli2` Node process. Both are
 already single processes fanning out internally, the shape a mod would produce.
 
-So the honest framing: *a mod does not cut the wall unless it replaces the
-guardrails dispatcher itself*, and guardrails is ADR-0028 **Class A** (the hooks
+A mod does not cut the wall unless it replaces the
+guardrails dispatcher itself, and guardrails is ADR-0028 **Class A** (the hooks
 ARE the plugin), which never splits.
 
 Three further binding facts:

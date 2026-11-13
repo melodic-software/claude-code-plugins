@@ -157,7 +157,7 @@ question are separate; the .NET `403` that settled the second as Full is recorde
 
 ## How this repository is set up
 
-The owner keeps cloud sessions off for work and state: accounts rotate, and a cloud environment
+The owner keeps cloud sessions off for work and state because accounts rotate, and a cloud environment
 and its sessions belong to one claude.ai account
 ([Configure cloud environments](https://code.claude.com/docs/en/cloud-environments)). The setup
 below stays available, and no lane routes to it. Dissent: Lydia Hallie's talk "Rethinking Claude
@@ -195,7 +195,7 @@ again. `CLAUDE_ENV_FILE` PATH repairs still reach subsequent Bash tool calls onl
 Hook processes inherit Claude Code's own environ, which includes `~/.local/bin` but
 not the nvm global prefix.
 
-Best-effort rather than required, deliberately: the plugin contract suites SKIP visibly when an
+Best-effort rather than required, deliberately. The plugin contract suites SKIP visibly when an
 optional tool is absent and CI remains the enforcing gate, while a required install failure would
 block the session from starting. GitHub release-asset downloads are additionally best-effort
 because the [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
@@ -296,7 +296,7 @@ from the two together (see
   Neither `/plugin`
   ([terminal-only commands](https://code.claude.com/docs/en/claude-code-on-the-web#manage-context))
   nor `--plugin-dir` exists in cloud sessions to force one. On an
-  ephemeral VM this is a chicken-and-egg problem, because every fresh session re-installs after its registry is
+  ephemeral VM the hook runs too late, because every fresh session re-installs after its registry is
   already built, so the hook alone can never produce a session with plugins loaded. What the
   hook still buys is correct on-disk state for any process start that happens *after* it: a
   resume (confirmed 2026-08-15: stopping and resuming the same session restarted the process,

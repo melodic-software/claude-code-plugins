@@ -1361,7 +1361,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 
 ### Fixed
 
-- **Accurate PATH-miss notices with probe latch wording + `PATH probed:` diagnostic (#2732).** Skip is for this edit (probe re-runs; only the notice latches). Names
+- **Accurate PATH-miss notices with probe latch wording and a `PATH probed:` diagnostic (#2732).** The skip applies to this edit only. The probe re-runs, and only the notice latches. Names
   Claude Code environment inheritance vs profile PATH; does not probe nvm layouts.
 
 ## [0.6.18]
