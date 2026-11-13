@@ -8,7 +8,10 @@ is small, ship it" exit.
 ## Entry: diff size and retry cost, not behavior change
 
 A change whose diff is quick to review and cheap to retry skips the interview (SKILL.md "What
-this skill does NOT do"). When the interview is invoked on one, say so in one line and recommend
+this skill does NOT do"): when the diff is tiny, a wrong build costs almost nothing, so aligning on
+the diff after it exists beats aligning before it. Work that fails either test is interview-first,
+and an effort too big and too foggy for one session is reached from here, never first
+(`/planning:wayfind` sends a cold start back to this skill). When the interview is invoked on one, say so in one line and recommend
 just doing it: build it, then review the diff and align on it there. The user can still ask for the
 interview, and then it runs as usual.
 

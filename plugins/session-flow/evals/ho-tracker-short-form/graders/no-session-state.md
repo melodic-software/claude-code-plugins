@@ -6,7 +6,7 @@ arm: both
 PASS only if all of these hold:
 
 1. The reply's resume is two lines: an instruction to `/clear` and then run a command, and the
-   command `/planning:wayfind https://example.com/acme/booking/issues/43`.
+   command `/planning:wayfind work https://example.com/acme/booking/issues/40 https://example.com/acme/booking/issues/43`.
 2. The resume carries no session state: no restated findings or decision from item 42, no goal
    quote, no list of remaining actions, and no reference to a handoff file.
 3. Nothing follows the two lines.

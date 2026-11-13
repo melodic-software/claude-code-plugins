@@ -1,11 +1,11 @@
 {
   "pass": [
     {
-      "answer": "Item 42 holds every finding, so this is the tracker short form.\n\n/clear, then run:\n/planning:wayfind https://example.com/acme/booking/issues/43",
+      "answer": "Item 42 holds every finding, so this is the tracker short form.\n\n/clear, then run:\n/planning:wayfind work https://example.com/acme/booking/issues/40 https://example.com/acme/booking/issues/43",
       "why": "the two lines"
     },
     {
-      "answer": "/clear, then run:\n`/planning:wayfind https://example.com/acme/booking/issues/43`",
+      "answer": "/clear, then run:\n`/planning:wayfind work https://example.com/acme/booking/issues/40 https://example.com/acme/booking/issues/43`",
       "why": "command in backticks"
     }
   ],

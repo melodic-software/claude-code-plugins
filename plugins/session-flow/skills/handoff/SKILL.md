@@ -140,7 +140,7 @@ anywhere but a handoff, recommend that route and write no save-point. A user's e
 | Situation | Route |
 |---|---|
 | Deep-window escape with session-chain value | Full handoff file, the default |
-| A tracker item already holds the state (a wayfind map item, say) | Tracker short form: two lines, `/clear, then run:` and the command with the item's URL, no session state; the full file when findings are not yet on the tracker ([reference/tracker-short-form.md](reference/tracker-short-form.md)) |
+| A tracker item already holds the state (a wayfind map item, say) | Tracker short form: two lines, `/clear, then run:` and the command with the item's URL, no session state, accepting the retro-gap cost prompt-only has; the full file when findings are not yet on the tracker or the session chain matters ([reference/tracker-short-form.md](reference/tracker-short-form.md)) |
 | Small follow-ups, no chain value | Prompt-only, accepting its documented retro-gap cost (no file, no chain pointer for `/session-flow:retro` to walk) |
 | The next session's focus differs from this one's | Either form, plus the purpose argument (emphasis tailoring only, per the engine doc) |
 | Going AFK but the work should keep moving | The sibling `/session-flow:continue-in-background` skill, only on the user's explicit request |
