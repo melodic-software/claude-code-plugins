@@ -31,9 +31,9 @@ or a labeled secondary where the primary could not be fetched.
   part. Source: Robert C. Martin,
   [Design Principles and Design Patterns](https://web.archive.org/web/20150906155800if_/http://www.objectmentor.com/resources/articles/Principles_and_Patterns.pdf)
   (2000), section "The Interface Segregation Principle (ISP)".
-- **DIP**: Make high-level policy depend on abstractions it owns and let the details implement
-  them, never the reverse; in Markdown, a generic skill names the capability it needs, not one
-  vendor's tool. Source: Robert C. Martin,
+- **DIP**: Make high-level policy depend on abstractions rather than on the details that
+  implement them, and let the details depend on those same abstractions; in Markdown, a generic
+  skill names the capability it needs, not one vendor's tool. Source: Robert C. Martin,
   [Design Principles and Design Patterns](https://web.archive.org/web/20150906155800if_/http://www.objectmentor.com/resources/articles/Principles_and_Patterns.pdf)
   (2000), section "The Dependency Inversion Principle (DIP)".
 - **Composition over inheritance**: Build behavior by combining parts rather than extending a
@@ -48,33 +48,51 @@ or a labeled secondary where the primary could not be fetched.
   state a fact once and link to it. Source: Dave Thomas in
   [Orthogonality and the DRY Principle](https://www.artima.com/articles/orthogonality-and-the-dry-principle),
   Artima interview with Andy Hunt and Dave Thomas (2003).
-- **Coupling and cohesion**: Keep what changes together in one module and minimize what modules
-  must know about each other, so one change stays in one place; in Markdown, a skill cites another
-  by its `/plugin:skill` name, never by a path into its files. Source (secondary): IEEE Computer
-  Society, [Larry L. Constantine](https://history.computer.org/pioneers/constantine.html) pioneer
-  profile, first published in 1968 and repeated in the widely cited 1974 paper by Stevens, Myers
-  and Constantine, "Structured Design", *IBM Systems Journal* 13(2).
+- **Coupling and cohesion**: Put what is functionally related and changes together in one module,
+  and keep the connections between modules few and weak, so one module can be studied or changed
+  without knowing much about the others; dependencies between modules form no cycle. In Markdown,
+  a skill cites another by its `/plugin:skill` name, never by a path into its files. Source: Edward
+  Yourdon and Larry L. Constantine, *Structured Design* (1978), ch. 6 "Coupling", ch. 7 "Cohesion"
+  and the glossary; Robert C. Martin,
+  [Design Principles and Design Patterns](https://web.archive.org/web/20150906155800if_/http://www.objectmentor.com/resources/articles/Principles_and_Patterns.pdf)
+  (2000), sections "The Common Closure Principle (CCP)" and "The Acyclic Dependencies Principle
+  (ADP)".
 - **Information hiding**: Decompose around the decisions most likely to change and hide each
   behind one module's interface, so changing it touches one module; in Markdown, keep a volatile
-  upstream specific behind one pointer rather than restating it. Source: David L. Parnas,
+  upstream specific behind one pointer rather than restating it. Bundling data with its methods
+  (encapsulation) is a means; a decision is hidden only when callers cannot depend on it. Source:
+  David L. Parnas,
   [On the Criteria To Be Used in Decomposing Systems into Modules](https://wstomv.win.tue.nl/edu/2ip30/references/criteria_for_modularization.pdf),
   *Communications of the ACM* (1972), Conclusion.
 - **Deep modules and change amplification**: Prefer modules whose small interface hides much
   functionality, and treat a simple change that needs edits in many places as a design defect,
   fixed by moving the repeated knowledge behind one module; in Markdown, changing one fact should
-  mean editing one file. Source: John Ousterhout, Stanford CS190 notes
+  mean editing one file. When complexity has to live somewhere, put it inside the module, not in
+  its interface or its callers. Source: John Ousterhout, Stanford CS190 notes
   [Modular Design](https://web.stanford.edu/~ouster/cgi-bin/cs190-winter18/lecture.php?topic=modularDesign)
   and [Complexity](https://web.stanford.edu/~ouster/cgi-bin/cs190-winter18/lecture.php?topic=complexity)
   (Winter 2018).
+- **Errors**: Shape an operation so its ordinary cases cannot fail, defining errors out of
+  existence or handling them inside the module; for a broken invariant or a defect, fail at once
+  and visibly with a message naming the cause, never continue on a default. In Markdown, a skill
+  missing a required input stops and names it rather than guessing. Source: John Ousterhout,
+  Stanford CS190 notes
+  [Exception Handling](https://web.stanford.edu/~ouster/cgi-bin/cs190-winter18/lecture.php?topic=exceptions)
+  (Winter 2018); Jim Shore, [Fail Fast](https://martinfowler.com/ieeeSoftware/failFast.pdf),
+  *IEEE Software* (2004).
+- **Make illegal states unrepresentable**: Model data so invalid combinations cannot be built
+  (one variant per state, not flags that can disagree); in Markdown, a frontmatter or config
+  schema rejects invalid combinations. Source: Yaron Minsky,
+  [Effective ML Revisited](https://blog.janestreet.com/effective-ml-revisited/) (2011).
 - **YAGNI cheap-now test**: Build no capability for a presumptive feature; build ahead only when
   it is cheap now, adds little complexity and significantly cuts later cost. Work that makes the
   code easier to change is never speculative. Source: Martin Fowler,
   [Yagni](https://martinfowler.com/bliki/Yagni.html) (2015).
 - **Reuse first**: Search for and reuse existing code, references and skills before writing new
-  ones. Whether to generalize now or wait for real duplication is a per-task question for the
-  user, answered from expected repetition or per-client variation, the product's existing
-  structure, and upstream context. With known repetition or variation, generalize up front and
-  isolate what varies; otherwise extract on the third occurrence (the Rule of Three), and when an
+  ones. Whether to generalize now or wait for real duplication is, by this plugin's own policy,
+  a per-task question for the user, answered from expected repetition or per-client variation, the
+  product's existing structure, and upstream context. With known repetition or variation,
+  generalize up front and isolate what varies; otherwise extract on the third occurrence (the Rule of Three), and when an
   abstraction stops fitting, inline it back into its callers rather than adding conditionals.
   Source: Sandi Metz, [The Wrong Abstraction](https://sandimetz.com/blog/2016/1/20/the-wrong-abstraction)
   (2016); Rule of Three (secondary):
