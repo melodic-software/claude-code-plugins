@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Against the installed plugin the rerun prints `already installed`, and it still writes the value."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "If it prints `already installed`, nothing changed; uninstall first.",
+      "why": "says the rerun writes nothing"
+    },
+    {
+      "answer": "The fallback is `claude plugin install python-format@<marketplace> -s user --config python_format_enabled=false`.",
+      "why": "near miss: names the rerun but not what it does on an installed plugin"
+    }
+  ]
+}

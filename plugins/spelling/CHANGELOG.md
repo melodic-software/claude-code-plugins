@@ -1898,7 +1898,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 - Initial release: a `PostToolUse` hook that runs `typos --write-changes` on
   `Write`/`Edit` of any file, gated on a consumer typos config
   (`typos.toml`/`_typos.toml`/`.typos.toml`/`Cargo.toml`/`pyproject.toml`)
-  found by an ancestor walk-up, mirroring the `ruff-format`/`markdown-format`
+  found by an ancestor walk-up, mirroring the `python-format`/`markdown-format`
   plugin pattern. Residual (unfixable) findings surface via `additionalContext`
   with remediation guidance pointing at `extend-words` / `extend-identifiers` /
   `extend-ignore-re` allowlist entries. Advisory only, never blocking the edit.

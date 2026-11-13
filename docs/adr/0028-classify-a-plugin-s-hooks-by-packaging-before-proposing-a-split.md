@@ -13,7 +13,7 @@ candidate:
 - **Class A: the hooks ARE the plugin.** Removing them leaves a shell. Twelve plugins:
   `actionlint`, `bash-format`, `biome-format`, `desktop-notification`, `eol-normalizer`,
   `go-format`, `guardrails`, `markdown-format`, `powershell-format`, `rate-limit-guard`,
-  `ruff-format`, `spelling`. Each carries exactly one skill and that skill is `setup`, the
+  `python-format`, `spelling`. Each carries exactly one skill and that skill is `setup`, the
   thing that installs and configures the hooks. Splitting hooks out of these produces an empty
   plugin and a hook bundle, which is the same plugin under two names. **Never split.**
 
@@ -37,7 +37,7 @@ second entry in the catalog. The class only says the question is worth asking.
 
 Alternatives weighed:
 
-- **The fleet-wide split, as originally described: rejected.** It cannot survive contact with
+- **The fleet-wide split, as originally described: rejected.** It does not hold for
   Class A: twelve of the twenty hook-carrying plugins would become empty shells. Stating the policy
   fleet-wide made it sound uniform when it applies to a quarter of the fleet.
 - **No taxonomy, decide case by case: rejected as the status quo that produced this.** The
@@ -63,7 +63,7 @@ which must make its own case, and a decline with recorded reasoning closes any o
 | `context-budget` | #3726 | Does the hook belong in `guardrails` rather than in a plugin of its own? |
 
 Three of the five turn on the same test, and it is the test this taxonomy exists to make explicit: a
-hook that WRITES what a sibling skill READS is one feature with two surfaces, which is Class B
+hook that WRITES what a sibling skill READS is one feature spread across a hook and a skill, which is Class B
 reasoning arriving by a different route.
 
 The counts above are a snapshot of 2026-09-04 and serve only as evidence for the shape

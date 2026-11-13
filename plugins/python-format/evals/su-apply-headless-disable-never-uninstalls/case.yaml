@@ -1,0 +1,50 @@
+schema_version: "1.1"
+name: su-apply-headless-disable-never-uninstalls
+graders:
+  - name: 'configure-route'
+    type: 'regex'
+    pattern: 'claude plugin configure python-format@\S+'
+    target: 'last_message'
+  - name: 'values-false'
+    type: 'regex'
+    pattern: '\bpython_format_enabled\b[^\n]{0,40}?\bfalse\b'
+    target: 'last_message'
+  - name: 'no-uninstall'
+    type: 'llm'
+    criteria: 'The reply does not tell the user to uninstall the plugin in order to reconfigure it, and rules uninstalling out as a way to reconfigure.'
+    focus: 'last_message'
+  - name: 'fresh-session-observed-value'
+    type: 'llm'
+    criteria: 'The reply does not claim the hook is now off. It tells the user to rerun check in a fresh session, because a check in the same session still reports the old value, and to trust the effective value that check observes.'
+    focus: 'last_message'
+  - name: 'no-plugin-cli-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?claude(?:\.exe)?(?:\\\"|'')?(?:(?:\s|\\\\\\n)+-[^\s\"\\]+)*(?:\s|\\\\\\n)+plugins?(?:\s|\\\\\\n)+(?:install|uninstall|remove|configure|enable|disable|update)\b(?!\s+--help\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'fallback-after-configure'
+    type: 'regex'
+    pattern: 'claude plugin configure(?:\s+-\S+)*\s+python\-format@\S+[\s\S]*?claude plugin install(?:\s+-\S+(?:\s+(?!python\-format@)(?:\w+|<[^>\s]+>))?)*\s+python\-format@\S+(?:\\\n|[^\n])*?--config[ =]python_format_enabled=false\b'
+    target: 'last_message'
+  - name: 'rerun-still-writes'
+    type: 'llm'
+    criteria: 'The reply says that running the install --config rerun against an already-installed plugin still saves the value.'
+    focus: 'last_message'
+  - name: 'scope-rule'
+    type: 'llm'
+    criteria: 'The reply says to run claude plugin configure from the project the plugin is installed in, since it has no scope flag, and to pass the install --config rerun the scope claude plugin list reports for this plugin, since a rerun at another scope adds an install record there.'
+    focus: 'last_message'

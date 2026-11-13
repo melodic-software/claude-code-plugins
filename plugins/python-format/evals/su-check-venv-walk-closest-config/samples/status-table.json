@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "| Check | Result | Detail |\n|---|---|---|\n| Bash version | PASS | 5.2 |\n| jq | PASS | /usr/bin/jq |\n| Ruff binary | PASS | .venv/bin/ruff |\n| Ruff config | PASS | src/ruff.toml for src/pkg/mod.py |\n| python_format_enabled | INFO | default true |\n| Node.js | PASS | /usr/bin/node |\n| Git pre-commit entry | FAIL | missing |", "why": "every row"}
+  ],
+  "fail": [
+    {"answer": "jq, ruff, node and the config all pass; the pre-commit entry is missing.", "why": "prose, no table"},
+    {"answer": "| Check | Result |\n|---|---|\n| jq | PASS |\n| Ruff binary | PASS |\n| Ruff config | PASS |\n| python_format_enabled | INFO |\n| Git pre-commit entry | FAIL |", "why": "near miss: no Node.js row"},
+    {"answer": "| Check | Result |\n|---|---|\n| jq | PASS |\n| Ruff config (src/ruff.toml) | PASS |\n| Node.js | PASS |\n| python_format_enabled | INFO |\n| Git pre-commit entry | FAIL |", "why": "near miss: the config row names ruff.toml but there is no binary row"}
+  ]
+}

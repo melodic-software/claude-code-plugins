@@ -10,7 +10,7 @@ cd "$PROJECT_DIR" && uv run ruff check . --no-fix
 cd "$PROJECT_DIR" && uv run ruff check <files> --fix --no-unsafe-fixes --unfixable F401
 ```
 
-`--unfixable F401` matches the `ruff-format` hook: protects just-added imports during iterative
+`--unfixable F401` matches the `python-format` hook: protects just-added imports during iterative
 editing; F401 still surfaces as a finding. Only auto-deletion is suppressed.
 
 ## Format

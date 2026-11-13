@@ -130,7 +130,7 @@ The driving tool's `## Mask`.
 - repo-hygiene | features/repo-hygiene/README.md | entry points: 4 | sources: plugins/repo-hygiene/skills/*/SKILL.md
 - retro-audio | features/retro-audio/README.md | entry points: 4 | sources: plugins/retro-audio/skills/*/SKILL.md
 - review | features/review/README.md | entry points: 4 | sources: plugins/review/skills/*/SKILL.md
-- ruff-format | features/ruff-format/README.md | entry points: 4 | sources: plugins/ruff-format/skills/*/SKILL.md
+- python-format | features/python-format/README.md | entry points: 4 | sources: plugins/python-format/skills/*/SKILL.md
 - session-flow | features/session-flow/README.md | entry points: 4 | sources: plugins/session-flow/skills/*/SKILL.md
 - skill-quality | features/skill-quality/README.md | entry points: 4 | sources: plugins/skill-quality/skills/*/SKILL.md
 - songwriting | features/songwriting/README.md | entry points: 4 | sources: plugins/songwriting/skills/*/SKILL.md

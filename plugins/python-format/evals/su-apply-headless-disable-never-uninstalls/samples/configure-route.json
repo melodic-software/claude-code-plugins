@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "`claude plugin configure python-format@<marketplace> --values-stdin < values.json`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "claude plugin install python-format@m --config python_format_enabled=false",
+      "why": "an install rerun, not the configure flow"
+    },
+    {
+      "answer": "claude plugin configure python-format --values-stdin",
+      "why": "near miss: no marketplace"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Run `/plugin configure python-format@<marketplace>` and set the toggle.",
+      "why": "the interactive route the prompt rules out"
+    }
+  ]
+}

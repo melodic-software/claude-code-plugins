@@ -18,7 +18,7 @@ the pre-commit entry reports it.
     script unless the payload mentions `.go`, so a batch without Go costs one `node` process.
   - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
     [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.
-- **No consumer-config opt-in gate.** Unlike sibling formatter plugins (`ruff-format`,
+- **No consumer-config opt-in gate.** Unlike sibling formatter plugins (`python-format`,
   `spelling`), this plugin needs no repository configuration to run on a `.go` file.
   `goimports`' own docs describe it as "a replacement for your editor's gofmt-on-save hook" and it
   has no meaningful config-divergence axis when left unconfigured. Running it does not impose a

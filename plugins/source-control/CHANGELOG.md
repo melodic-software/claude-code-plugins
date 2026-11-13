@@ -5782,7 +5782,7 @@ Internal simplification, no behavior change.
   disabled, an unrecognized-worktree append dropped, an orphan comparison forced
   false) produce the SAME failing set at both revisions, 3 failures in the first
   round and 8 in the second, spanning both branches of the rename.
-  The whole-file ruff-format reflow that the edit triggered was separated at the
+  The whole-file python-format reflow that the edit triggered was separated at the
   AST level: baseline against formatted-baseline is AST-identical across 37
   changed lines, and replaying the three mechanical edits onto that reproduces
   the committed file exactly. All comments are byte-identical.
