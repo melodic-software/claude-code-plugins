@@ -9,6 +9,10 @@
       "why": "tracker on its own line"
     },
     {
+      "answer": "Ran /work-items:track search rate limiter; it exited 1 (no tracker bound), so tracker items were skipped.",
+      "why": "the read was attempted and failed, which is could not be searched"
+    },
+    {
       "answer": "- Work items: /work-items:track is unavailable in this session.",
       "why": "work items with the skill name"
     },
@@ -93,6 +97,26 @@
     {
       "answer": "Tracker items are not yet available for 2 issues: #7, #8.",
       "why": "tracker items reported, the negation is about something narrower"
+    },
+    {
+      "answer": "The tracker had 2 items and PRs weren't searched.",
+      "why": "tracker items counted, the negation belongs to the pull requests"
+    },
+    {
+      "answer": "Tracker items and PRs: tracker listed 2, PRs weren't searched.",
+      "why": "tracker items counted, the negation belongs to the pull requests"
+    },
+    {
+      "answer": "Tracker listed items and `/source-control:pull-request` isn't available.",
+      "why": "tracker items listed, the unavailable thing is the pull-request skill"
+    },
+    {
+      "answer": "The sliding-window limiter lives in src/limiter.ts and uses a 60-second window.",
+      "why": "an answer to a different question"
+    },
+    {
+      "answer": "",
+      "why": "empty answer"
     }
   ]
 }

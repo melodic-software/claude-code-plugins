@@ -9,6 +9,14 @@
       "why": "gh and tracker"
     },
     {
+      "answer": "Ran `/source-control:pull-request list --state closed --search rate`; it exited 1 (no git remotes found), so closed pull requests were skipped.",
+      "why": "the read was attempted and failed, which is could not be searched"
+    },
+    {
+      "answer": "gh pr list --state closed failed: no git remotes found.",
+      "why": "a failed read, no pull request reported"
+    },
+    {
       "answer": "Closed pull requests: /source-control:pull-request is not available, so they were skipped.",
       "why": "skill name with dots and colon before the outcome"
     },
@@ -165,6 +173,30 @@
     {
       "answer": "PRs were searched, though gh is not authenticated.",
       "why": "claims PRs were searched, uncontracted form"
+    },
+    {
+      "answer": "Read 2 closed PRs, and the tracker items weren't queried.",
+      "why": "pull requests counted, the negation belongs to the tracker"
+    },
+    {
+      "answer": "PRs and the tracker: tracker items weren't searched.",
+      "why": "the negation belongs to the tracker only"
+    },
+    {
+      "answer": "PRs and tracker: the tracker items weren't searched, PRs listed below.",
+      "why": "pull requests listed, the negation belongs to the tracker"
+    },
+    {
+      "answer": "I did not search the tracker; closed PRs returned 2.",
+      "why": "a pull-request search returned a count"
+    },
+    {
+      "answer": "Searched closed PRs: none found.",
+      "why": "a search that ran and returned a zero count"
+    },
+    {
+      "answer": "",
+      "why": "empty answer"
     }
   ]
 }
