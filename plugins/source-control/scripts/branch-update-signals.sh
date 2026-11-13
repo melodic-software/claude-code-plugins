@@ -74,7 +74,7 @@ else
   [[ -n "$BRANCH" && -n "$BASE" ]] || usage
 fi
 [[ -z "$REPO" || "$REPO" =~ ^[A-Za-z0-9._][A-Za-z0-9._-]*/[A-Za-z0-9._][A-Za-z0-9._-]*$ ]] || usage
-[[ -z "$CHECKOUT" ]] || cd -- "$CHECKOUT" 2>/dev/null || usage
+[[ -z "$CHECKOUT" ]] || CDPATH='' cd -- "$CHECKOUT" >/dev/null 2>&1 || usage
 command -v jq >/dev/null 2>&1 || {
   echo "branch-update-signals.sh: jq not found on PATH" >&2
   exit 2

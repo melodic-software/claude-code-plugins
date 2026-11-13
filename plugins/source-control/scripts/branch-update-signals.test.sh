@@ -506,6 +506,14 @@ assert_contains "--dir: the pull request is read from the checkout's repository"
 expect "--dir: head_sha read" head_sha "$SHA"
 expect "--dir: overlap read in the checkout" base_change_needed no
 
+# Under an exported CDPATH, a relative --dir resolved through it would print the directory ahead
+# of the JSON.
+reset_fake "$SHA"
+CDPATH="$WORKDIR" LABEL="--dir under CDPATH" run "$WORKDIR" --pr 7 --dir app
+assert_eq "--dir under CDPATH: stdout is one JSON object" "1 object" \
+  "$(wc -l <<<"$OUT" | tr -d ' ') $(jq -r type <<<"$OUT" 2>/dev/null)"
+expect "--dir under CDPATH: head_sha read" head_sha "$SHA"
+
 reset_fake "$SHA"
 LABEL="no --dir" run "$WORKDIR" --pr 7
 assert_contains "no --dir: the repository comes from gh's placeholders" "$(cat "$FAKE/calls")" "api repos/{owner}/{repo} --jq .full_name"
