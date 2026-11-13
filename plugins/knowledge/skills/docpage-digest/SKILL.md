@@ -259,8 +259,8 @@ The handoff also carries a relied-on-links table, one row per SOURCES.md relied-
 columns link, relied on by (digest unit and claim citation), disposition, and evidence:
 
 - `covered`: a sibling slice under `<resolved-root>/.work/*/` digests that page, matched on its
-  checklist's line starting `- Canonical URL:`, and that checklist ticks Phase 4; an unfinished sibling is
-  not coverage. Evidence: the slice path.
+  checklist's line starting `- Canonical URL:`, and that checklist's `Verification status` line reads
+  `verified`; an unfinished or unverified sibling is not coverage. Evidence: the slice path.
 - `queued`: an uncovered candidate whose host is the source page's host or one the matched
   profile covers, so it earns its own one-page run. Evidence: the proposed entry text (URL plus one
   line on why) for the matched profile's recorded-pages file, or for the user when no profile
