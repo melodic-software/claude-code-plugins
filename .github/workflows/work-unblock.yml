@@ -6,10 +6,11 @@ name: Work Unblock
 # This workflow labels `agent-ready`, oldest first, each blocked issue that is
 # open, has every blocker closed, for any reason, by a listed human or a merge
 # in this repository (a pull request blocker: merged here; another
-# repository's blocker: closed there by a listed human), carries no hold (Work status or label: needs-owner-decision,
-# needs-owner-decision, needs-reporter-info, needs-human), and whose agent-ready label was never
-# removed, or had its Work status set to ready by the lanes App or a listed human
-# after its newest removal. That label starts work-resolve-issue.yml. The rules are in
+# repository's blocker: closed there by a listed human), carries no hold
+# (Work status or label: needs-owner-decision, needs-reporter-info,
+# needs-human), and whose agent-ready label was never removed, or had its
+# Work status set to ready by the lanes App or a listed human after its
+# newest removal. That label starts work-resolve-issue.yml. The rules are in
 # .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
 # effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.
 #
@@ -27,7 +28,8 @@ name: Work Unblock
 # An issue a bot closes (the lanes App, or a PR merge a bot ran) starts no
 # close run; the broker would refuse that mint. The hourly sweep covers it: a
 # scheduled run applies the same rules to every issue a listed human or a
-# merge (a merged pull request or a commit) closed in the last three hours, so one missed run loses nothing.
+# merge (a merged pull request or a commit) closed in the last three hours,
+# so one missed run loses nothing.
 # Each work-resolve-issue run that finishes, unless it ran no job, runs the
 # same sweep at once, so a freed slot admits the next deferred issue then,
 # unless a full sweep finished under limits.sweep-gap-minutes ago.
@@ -47,16 +49,15 @@ name: Work Unblock
 # run a newer agent-ready run replaced is not. It does that once per issue
 # per version of the lane's two workflow files on main, recorded in a comment,
 # and after that on a backoff (its cause's limits.stranded-backoff-hours,
-# doubling each time, at most 24),
-# recorded in one comment it edits; it never adds needs-human for it. An open
+# doubling each time, at most 24), recorded in one comment it edits; it
+# never adds needs-human for it. An open
 # pull request of a listed human's for the issue counts as work running on it.
 # When that run opened a lanes-App PR instead, and the PR merged with `Refs:`
 # or was closed unmerged, the App sets its Work status to needs-triage and
 # takes agent-ready off, after a comment, so the hourly triage sweep sends it
-# back to intake triage. A Refs PR
-# merging or closing unmerged also lifts a needs-human refs-hold already on
-# the issue for it.
-# report-outcome no longer sets that hold, so only an existing one is lifted.
+# back to intake triage. A Refs PR merging or closing unmerged also lifts a
+# needs-human refs-hold already on the issue for it; report-outcome does not
+# set that hold, so only an existing one is lifted.
 # It also relabels a red-main fix issue post-merge-demotion-alert.yml reopened
 # on a repeat failure: that reopen keeps agent-ready but, made with the
 # workflow's GITHUB_TOKEN, starts no run. Matched by the issue's
@@ -85,8 +86,9 @@ name: Work Unblock
 # into the issue's Work status field, and never resets the field from a
 # removal but agent-ready's (.github/scripts/work-unblock/sync-status.mjs).
 
-# API_BUDGET_HOLD (outage posture element 2): only the label-unblocked step sets it; --check-closer
-# is a gate, and sync-status is not yet shown to hold.
+# API_BUDGET_HOLD (outage posture element 2): only the label-unblocked
+# step sets it; --check-closer is a gate, and sync-status is not yet shown
+# to hold.
 # A step opts in only once its script is shown to hold green with a notice on
 # a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
 # a hold would pass what it could not read, so the rest still end red on a
@@ -268,10 +270,6 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
 
-      # Swaps this job's GitHub identity proof for a short-lived lanes App
-      # token for this repository only, with the resolved grant (issues:
-      # write, contents: read, pull-requests: read). The step fails red unless
-      # the broker granted exactly that.
       - name: Report a lane the config turns off
         if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
         env:
@@ -295,6 +293,10 @@ jobs:
           API_BUDGET_TOKEN: github-token
         run: node .base/.github/scripts/work-unblock/sweep-gap.mjs
 
+      # Swaps this job's GitHub identity proof for a short-lived lanes App
+      # token for this repository only, with the resolved grant (issues:
+      # write, contents: read, pull-requests: read). The step fails red unless
+      # the broker granted exactly that.
       - name: Request the lane token
         id: lane-token
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true' && steps.gap.outputs.skip != 'true'
@@ -452,10 +454,10 @@ jobs:
   # limits.lane-level.shadow is set it logs the level as a notice, mints no
   # token and writes nothing. Any failure but the variable check ends green
   # with a notice: a missed hour leaves the last value, which expires to the
-  # default. The pacer does
-  # not skip it: it costs a few job-token calls an hour, and the level should
-  # still be decided when the budget runs hot. A tick the pacer paced made no
-  # lanes App calls, so it hands over no readings and decide() holds L.
+  # default. The pacer does not skip it: it costs a few job-token calls an
+  # hour, and the level should still be decided when the budget runs hot. A
+  # tick the pacer paced made no lanes App calls, so it hands over no readings
+  # and decide() holds L.
   # Schedule only: the broker mints publish-lane-level on no other event.
   publish-lane-level:
     name: Publish Lane Level
@@ -657,9 +659,9 @@ jobs:
   # status field, never from a removal but agent-ready's
   # (.github/scripts/work-unblock/sync-status.mjs). It writes with the lanes
   # App token: the field's reader counts agent-ready only from a listed human
-  # or the App. A label change by a bot (the lanes App, whose scripts write the field
-  # themselves) starts no job; one by an account not listed as a human gets no
-  # token and writes nothing.
+  # or the App. A label change by a bot (the lanes App, whose scripts write
+  # the field themselves) starts no job; one by an account not listed as a
+  # human gets no token and writes nothing.
   sync-status:
     name: Sync Status
     if: >-
