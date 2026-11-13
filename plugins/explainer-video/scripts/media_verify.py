@@ -47,9 +47,12 @@ def frame_at(video, t, out):
     media_encode.run(['-ss', f'{t:.3f}', '-i', video, '-frames:v', '1', out])
 
 
-def luma_ssim(source_png, frame_png):
+def luma_ssim(source_png, frame_png, top=1.0):
+    """top: the share of the height compared, from the top (leaves out a burned-caption band)."""
+    crop = f'crop=iw:trunc(ih*{top}/2)*2:0:0,' if top < 1.0 else ''
     r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', str(frame_png), '-i', str(source_png),
-                        '-lavfi', '[0:v]format=yuv444p[a];[1:v]format=yuv444p[b];[a][b]ssim', '-f', 'null', '-'],
+                        '-lavfi', f'[0:v]{crop}format=yuv444p[a];[1:v]{crop}format=yuv444p[b];[a][b]ssim',
+                        '-f', 'null', '-'],
                        check=True, capture_output=True, text=True)
     m = re.search(r'SSIM Y:([\d.]+)', r.stderr)
     if not m:

@@ -16,6 +16,26 @@
       "type": "object",
       "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },
       "description": "Per-skill verification level, keyed by skill name (for example produce); an entry beats this file's verification value."
+    },
+    "renderer": {
+      "enum": ["manim", "stills"],
+      "default": "manim",
+      "description": "How /explainer-video:produce renders: manim (a ManimCE scene from a topic) or stills (held still frames from a storyboard.json, ADR 0102). A caller handing a storyboard selects stills."
+    },
+    "stitcher": {
+      "type": "string",
+      "default": "ffmpeg",
+      "description": "The stills renderer's final encode: ffmpeg (the reviewer-stills profile), or a command run without a shell, with {inputs} (stitch.json: frames with seconds, audio, captions) and {out} (the MP4) substituted."
+    },
+    "frame_stylesheet": {
+      "type": "string",
+      "description": "Repository-relative path of a CSS file replacing the stills renderer's bundled frame stylesheet. Keep the bottom 22% of the 1920x1080 frame free: captions burn there and the quality check compares only the area above it."
+    },
+    "upload_limit_mb": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "default": 10,
+      "description": "Upload limit in MB (10^6 bytes) for a stills video; over it the video splits at chapter starts, never recompressed or cut."
     }
   }
 }

@@ -1,7 +1,7 @@
 {
   "plugin": "explainer-video",
   "pythons": ["3.12", "3.13"],
-  "probe": ["manim"],
+  "probe": ["manim", "playwright"],
   "build_from_source": ["srt", "pycairo", "manimpango"],
   "build_hint": {
     "match": "pkg-config|cairo|pango|[Cc]ompiler",

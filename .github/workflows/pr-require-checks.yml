@@ -3654,7 +3654,7 @@ jobs:
         run: |
           # Each lock must hold every pin its requirements.in declares, so an edit to the .in
           # without regenerating the lock fails here instead of testing a stale lock.
-          for dir in plugins/animation plugins/playwright/skills/demo-video; do
+          for dir in plugins/animation plugins/playwright/skills/demo-video lib/media-render; do
             stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' "$dir/requirements.in" | sort) \
                              <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' "$dir/requirements.txt" | sort) | paste -sd ' ')
             [ -z "$stale" ] || { echo "::error::$dir/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
@@ -3673,7 +3673,15 @@ jobs:
           if [[ "$leg_needs" == *demovideo* ]]; then
             requirements+=(--requirement plugins/playwright/skills/demo-video/requirements.txt)
           fi
+          if [[ "$leg_needs" == *mediarender* ]]; then
+            requirements+=(--requirement lib/media-render/requirements.txt)
+          fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
+          # The media-render and explainer-video stills suites capture frames with Playwright for Python's own
+          # Chromium build, which can differ from the Node package's.
+          if [[ "$leg_needs" == *mediarender* ]]; then
+            python -m playwright install --only-shell chromium
+          fi
           # The animation render tests and the shared-page UI suite drive the locked playwright's headless Chromium.
           if [[ "$leg_needs" == *animation* || "$leg_needs" == *browser* ]]; then
             if [[ "$PLAYWRIGHT_CACHE_HIT" == "true" ]]; then
@@ -3762,6 +3770,8 @@ jobs:
           SPEECH_REQUIRE_DEPS: '1'
           # The demo-video suite fails on a missing numpy, Pillow, ffmpeg or ffprobe here instead of skipping green.
           DEMO_VIDEO_REQUIRE_DEPS: '1'
+          # The media-render suite fails on a missing Playwright for Python, Chromium, ffmpeg or ffprobe here instead of skipping green.
+          MEDIA_RENDER_REQUIRE_DEPS: '1'
           # The inventory parser suites fail on a missing acorn here instead of skipping green.
           INVENTORY_REQUIRE_ACORN: '1'
           # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
