@@ -330,8 +330,8 @@ lines. It adds reverted commits from git, closed unmerged pull requests through 
 closed tracker items when `/work-items:track` is available, and postmortems from the
 `recall_doc_paths` pathspecs, then reports Tried, Kept, Dropped or reverted, Still reported, and
 Still open in chat, opening with the scope it searched. Still reported lists items of a
-`recall_report_kinds` kind that were reopened, whose fix was reverted, or that repeat a symptom,
-plus the topic's postmortems. It writes nothing.
+`recall_report_kinds` kind whose fix was reverted, that repeat a symptom, or whose own text records
+a reopen (the tracker returns no state history), plus the topic's postmortems. It writes nothing.
 
 ```shell
 /session-flow:recall webhook retry budget   # scope line, then tried / kept / reverted / still reported / open

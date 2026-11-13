@@ -130,10 +130,11 @@ Run each source that is available, and name any that is not:
   no label that names its kind. A match whose kind nothing read shows is of unknown kind: run the
   checks below on it too, and report each one it meets with its kind unconfirmed rather than
   dropping it. Among the matches of a `recall_report_kinds` kind or of unknown kind, mark as still
-  reported each open item that was closed before (its body or comments record the
-  reopen; when nothing read shows reopen history, say so), each closed item whose fix was reverted
-  (a revert above names the item, its fix commit or its pull request), and each group of two or
-  more items, open or closed, that report the same symptom.
+  reported each open item whose own body or comments say it was closed and reopened, each closed
+  item whose fix was reverted (a revert above names the item, its fix commit or its pull request),
+  and each group of two or more items, open or closed, that report the same symptom. Neither
+  `search` nor `view` returns an item's state history, so a reopen that no body or comment mentions
+  is invisible here: never read its absence as "not reopened".
 - **Reverted fixes in git alone.** A revert above whose reverted commit closes an item (a closing
   keyword such as `Fixes #42`) marks that item still reported even when the tracker was not
   searched; say its tracker state is unconfirmed.
@@ -161,8 +162,9 @@ number, item id or document path, with any quoted transcript text placed last on
   quick.
 - **Dropped or reverted**: with the reason when one was recorded.
 - **Still reported**: what did not hold and what users still report: each item Step 5 marked
-  still reported, with why (reopened, its fix reverted, or a repeat report with the other item
-  ids), and each postmortem on the topic with its follow-ups.
+  still reported, with why (its text records a reopen, its fix was reverted, or a repeat report
+  with the other item ids), and each postmortem on the topic with its follow-ups. When the tracker
+  was searched, add one line saying reopens are found only where an item's text records them.
 - **Still open**: other unresolved items and tracker entries.
 
 A source that came back with nothing is reported as coming back with nothing, since that absence
