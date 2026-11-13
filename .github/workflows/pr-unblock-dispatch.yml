@@ -52,8 +52,8 @@ name: PR Unblock Dispatch
 # with the base tip it was judged against, and read again once main moves. A
 # run only skips work on the record, never dispatches on it.
 
-# API_BUDGET_HOLD (outage posture element 2): only the dispatch step sets it; the trigger check
-# and the pace step are gates.
+# API_BUDGET_HOLD (outage posture element 2): only the dispatch step sets
+# it; the trigger check and the pace step are gates.
 # A step opts in only once its script is shown to hold green with a notice on
 # a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
 # a hold would pass what it could not read, so the rest still end red on a
@@ -69,9 +69,10 @@ on:
   # Starts fix-docs on a PR's own event, the only start it has: the refine
   # job below. From 2026-12-02 GitHub blocks pull_request_target in public
   # repositories unless an Actions event policy allows it for this file;
-  # without one, fix-docs stops while reviews still run. pull_request_target runs this file and its checkout from main,
-  # never the PR's copy (ADR 0090). Opened, reopened or turned ready, and a
-  # push, which may add the PR's first Markdown file; a draft is skipped.
+  # without one, fix-docs stops while reviews still run. pull_request_target
+  # runs this file and its checkout from main, never the PR's copy
+  # (ADR 0090). Opened, reopened or turned ready, and a push, which may
+  # add the PR's first Markdown file; a draft is skipped.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
     types: [opened, reopened, ready_for_review, synchronize]
     branches: [main]
@@ -127,7 +128,6 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
-
       - name: Log the checked-out main tip
         run: echo "main tip $(git -C .base rev-parse HEAD)"
 

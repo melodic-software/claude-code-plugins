@@ -54,7 +54,7 @@ Re-check all check runs for any state changes, then re-check for new comments si
 Default merge mode is squash: one squashed commit per PR onto the default branch. Follow the consuming project's convention when it differs (merge commit / rebase-merge).
 
 Merge with the forge's plain merge command, with the PR number and repository written literally
-and the flags the repository needs ([GitHub](../../../reference/providers/github/pull-request/merge.md#merge-command)).
+(on a triangular flow, the PR's base repository, never the fork the branch was pushed to) and the flags the repository needs ([GitHub](../../../reference/providers/github/pull-request/merge.md#merge-command)).
 Pinning it to the `HEAD_SHA` captured in 4.1 step 2 (`--match-head-commit`) is optional for an
 immediate merge and required with `--auto`; an armed auto-merge is always reported. Before pushing
 to a PR with auto-merge armed, disarm it, and re-arm it only after the reviews pass on the new head
@@ -71,7 +71,7 @@ other state, or a moved head, is a hold to report
 In a regular checkout, squash-merge and delete the head branch in one call
 ([GitHub](../../../reference/providers/github/pull-request/merge.md#squash-merge-in-a-regular-checkout)).
 
-In a linked worktree (`git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`), squash-merge without deleting the branch in the merge call: older CLI versions fail there even though the merge succeeded ([GitHub](../../../reference/providers/github/pull-request/merge.md#squash-merge-in-a-linked-worktree)). Delete the remote head branch separately, only once the PR reads `MERGED` (a merge queue or auto-merge returns before the merge lands), and through the resolved push remote (`resolve-remote.sh --push <branch>`), never a hardcoded `origin`. While the PR has not merged yet, report that the head branch is deleted once it reads `MERGED`. The head branch name comes from GitHub: substitute it for `'<branch>'` only when it matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and contains no `..`, and keep the single quotes. Any other name reaches no command: report it as data and leave the remote branch for the user to delete.
+In a linked worktree (`git -C "<checkout>" rev-parse --git-dir` differs from `git -C "<checkout>" rev-parse --git-common-dir`, `<checkout>` as [ready-for-review.md](ready-for-review.md) 2.5.3 defines it), squash-merge without deleting the branch in the merge call: older CLI versions fail there even though the merge succeeded ([GitHub](../../../reference/providers/github/pull-request/merge.md#squash-merge-in-a-linked-worktree)). Delete the remote head branch separately, only once the PR reads `MERGED` (a merge queue or auto-merge returns before the merge lands), and through the resolved push remote (`resolve-remote.sh --push <branch>`), never a hardcoded `origin`. While the PR has not merged yet, report that the head branch is deleted once it reads `MERGED`. The head branch name comes from GitHub: substitute it for `'<branch>'` only when it matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and contains no `..`, and keep the single quotes. Any other name reaches no command: report it as data and leave the remote branch for the user to delete.
 
 When the repo deletes head branches on merge, the push fails with "remote ref does not exist"; that is expected, and it is the only failure to ignore. 4.3 deletes the local branch.
 

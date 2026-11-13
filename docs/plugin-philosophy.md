@@ -580,7 +580,7 @@ both `roto.js` and `measure.py`.
 A plugin requires a `setup` skill iff it has (a) a consumer-project configuration surface, (b) an
 external prerequisite such as a CLI, service, or credential, or (c) non-trivial `userConfig`. Apply the
 criteria through the modular, configurable, repo-, machine-, and user-agnostic lens; zero-config
-zero-prerequisite plugins are exempt, because setup is never blanket ceremony. For formatter and linter
+zero-prerequisite plugins are exempt, because a setup skill there would have nothing to verify and nothing to advise. For formatter and linter
 plugins the requirement is a thin check-centric setup; where one is not yet shipped, the fleet
 conformance audit tracks the gap.
 
@@ -945,6 +945,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Recommendation basis: grounding bar, `Basis:` label, and old → new → why re-statement | [`docs/contracts/recommendation-basis/`](contracts/recommendation-basis/README.md) |
 | Authoring formats: acceptance-criteria format and diagram dialect by artifact kind, read by `/planning:interview`, `/planning:prd`, and `/planning:design` | [`docs/contracts/authoring-formats/`](contracts/authoring-formats/README.md) |
 | Async round presentation: the latest message restates every open item in full after dispatched work returns | [`docs/contracts/async-round-presentation/`](contracts/async-round-presentation/README.md) |
+| UI feedback on non-final UIs: the sandboxing host page, frame helper, note and controls schemas, and notes bridge app in `lib/ui-feedback/` | [`docs/contracts/ui-feedback/`](contracts/ui-feedback/README.md) |
 
 ## Cross-platform contract
 

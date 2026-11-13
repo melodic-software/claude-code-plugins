@@ -82,6 +82,7 @@
     "allow": ["markdown"],
     "max-files": 300,
     "requires": [],
+    "content-rule": "protected-content",
     "commit": { "parents": ["head"], "message": "Apply {activity} on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": null,
     "skip-moved-head": false,

@@ -7,25 +7,46 @@ them.
 
 ## Resolve PR identity
 
+`<checkout>` is the checkout of the PR's repository the session works on, as
+[ready-for-review 2.5.3](../../../../skills/pull-request/reference/ready-for-review.md#253-review-and-verify-the-updated-head)
+defines it (absolute, or `.` when the shell sits in it), so neither the repository nor the branch
+depends on the shell's directory:
+
 ```bash
-PR_NUMBER=$(gh pr view --json number -q '.number' | tr -d '\r')
-OWNER=$(gh repo view --json owner -q .owner.login)
-REPO=$(gh repo view --json name -q .name)
+OWNER_REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
+OWNER=${OWNER_REPO%%/*} REPO=${OWNER_REPO#*/}
+PR_NUMBER=$(gh pr view "$(git -C "<checkout>" branch --show-current)" -R "$OWNER_REPO" --json number -q '.number' | tr -d '\r')
+[ -n "$PR_NUMBER" ] || exit 1
 ```
 
-With multiple PRs open against this checkout, name the branch:
-`gh pr view "$(git branch --show-current)" --json number -q '.number'`.
+On a triangular flow (the branch pushed to a fork, the PR opened on its upstream base), the base
+repository takes `target-repo.sh`'s place, named explicitly, since the script resolves the
+checkout to the fork, and the head is namespaced `<fork-owner>:<branch>`, as in
+[create's triangular flow](create.md#open-the-pr-from-an-out-of-tree-orchestrator):
+
+```bash
+FORK=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
+OWNER_REPO="<base-owner>/<repo>"   # the PR's target, not the push destination
+OWNER=${OWNER_REPO%%/*} REPO=${OWNER_REPO#*/}
+PR_NUMBER=$(gh pr view "${FORK%%/*}:$(git -C "<checkout>" branch --show-current)" -R "$OWNER_REPO" --json number -q '.number' | tr -d '\r')
+[ -n "$PR_NUMBER" ] || exit 1
+```
+
+The commands below write that repository as `<owner>/<repo>`: put the resolved value in its place.
 
 ## Read PR state
 
 ```bash
-gh pr view <pr_number> --json state -q '.state'
+gh pr view <pr_number> -R <owner>/<repo> --json state -q '.state'
 ```
 
 ## Poll checks over REST
 
-The Monitor watch's poll script, passed inline in the `command` parameter. `<scripts-dir>` is the
-placeholder the pull-request skill resolves. `BASELINE_FILE` stays empty on the first arming; a
+The Monitor watch's poll script, passed inline in the `command` parameter. `<scripts-dir>`,
+`<skill-dir>` and `<checkout>` are the placeholders the pull-request skill resolves; the script
+resolves `OWNER` and `REPO` as [Resolve PR identity](#resolve-pr-identity) does, and exits 1 when
+`target-repo.sh` refuses. On a triangular flow, replace its `OWNER_REPO=$(…)` line with the base
+repository named explicitly, as that section shows. `BASELINE_FILE` stays empty on the first arming; a
 re-arm sets it to the snapshot file this same script wrote in a snapshot run (`SNAPSHOT_FILE`
 set: one state check and checks read, the `cur_checks` lines written under a marker line, then
 exit 0, or exit 1 with nothing written when the read failed). A baseline file without that
@@ -35,8 +56,8 @@ baseline.
 ```bash
 PR_NUMBER=<N>
 INTERVAL=60  # raise with several watchers (../README.md#api-budget)
-OWNER=$(gh repo view --json owner -q .owner.login)
-REPO=$(gh repo view --json name -q .name)
+OWNER_REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>") || exit 1
+OWNER=${OWNER_REPO%%/*} REPO=${OWNER_REPO#*/}
 BASELINE_FILE=  # re-arm only: the file a snapshot run of this script wrote
 SNAPSHOT_FILE=  # snapshot run only: write the checks here and exit
 SNAPSHOT_MARK='# monitor-poll checks snapshot'
@@ -196,14 +217,14 @@ note says `pr checks` or `pr view` moved off GraphQL or changes the `pr checks` 
 ## List other open PRs
 
 ```bash
-gh pr list --state open --json number,title,headRefName,statusCheckRollup \
+gh pr list -R <owner>/<repo> --state open --json number,title,headRefName,statusCheckRollup \
   --jq '.[] | "\(.number) \(.headRefName) \(.title)"'
 ```
 
 ## Read mergeability
 
 ```bash
-gh pr view <N> --json mergeable,mergeStateStatus
+gh pr view <N> -R <owner>/<repo> --json mergeable,mergeStateStatus
 ```
 
 ## Wait on a pending check
@@ -247,13 +268,13 @@ cli/cli #11059, #10551, #7771, #7642), while the bundled scripts' REST path retu
 The last-resort eyeball:
 
 ```bash
-gh run view <run-id> --log-failed 2>&1 | grep '##\[error\]'
+gh run view <run-id> -R <owner>/<repo> --log-failed 2>&1 | grep '##\[error\]'
 ```
 
 ## Reply on an inline thread
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/<pr_number>/comments/{comment_id}/replies -f body='...'
+gh api repos/<owner>/<repo>/pulls/<pr_number>/comments/{comment_id}/replies -f body='...'
 ```
 
 Writing the body to a file first is safer; see the
