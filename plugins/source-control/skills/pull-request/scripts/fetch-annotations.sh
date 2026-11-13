@@ -12,13 +12,17 @@
 # Usage:
 #   fetch-annotations.sh <pr-number>           # all check-runs on PR head SHA
 #   fetch-annotations.sh <pr-number> --failed  # only failure-conclusion check-runs
+#   fetch-annotations.sh <pr-number> --dir <checkout>
+#
+# --dir names any checkout of the PR's repository, resolved with target-repo.sh
+# (which honors GH_REPO). Default: `gh repo view` in the current directory.
 #
 # Env overrides:
-#   FETCH_ANNOT_REPO    default `gh repo view --json nameWithOwner -q .nameWithOwner`
+#   FETCH_ANNOT_REPO    owner/name; wins over --dir and the default
 #
 # Exit codes:
 #   0  success (zero or more annotations emitted)
-#   1  invalid argument
+#   1  invalid argument, or --dir names no directory
 #   2  gh api call failed
 #   5  prerequisite missing (gh, jq)
 
@@ -27,8 +31,10 @@ set -uo pipefail
 
 # --- Argument parsing --------------------------------------------------------
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PR_NUMBER=""
 FAILED_ONLY=0
+CHECKOUT=""
 
 usage() {
   sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -44,6 +50,11 @@ while (($# > 0)); do
   case "$1" in
   -h | --help) usage ;;
   --failed) FAILED_ONLY=1 ;;
+  --dir)
+    (($# >= 2)) && [[ -n "$2" && -z "$CHECKOUT" ]] || die 1 "--dir needs one value and is given once"
+    CHECKOUT="$2"
+    shift
+    ;;
   --) break ;;
   -*) die 1 "unknown flag $(printf '%q' "$1") (use --help)" ;;
   *)
@@ -55,6 +66,7 @@ while (($# > 0)); do
 done
 
 [[ -n "$PR_NUMBER" ]] || die 1 "<pr-number> required"
+[[ -z "$CHECKOUT" || -d "$CHECKOUT" ]] || die 1 "--dir $(printf '%q' "$CHECKOUT") is not a directory"
 
 # --- Prerequisites -----------------------------------------------------------
 
@@ -64,12 +76,19 @@ command -v jq >/dev/null 2>&1 || die 5 "jq required"
 # --- Repo resolution ---------------------------------------------------------
 
 REPO="${FETCH_ANNOT_REPO:-}"
-[[ -n "$REPO" ]] || REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r\n')
+if [[ -z "$REPO" && -n "$CHECKOUT" ]]; then
+  REPO=$(bash "$SCRIPT_DIR/target-repo.sh" --dir "$CHECKOUT" | tr -d '\r\n')
+elif [[ -z "$REPO" ]]; then
+  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r\n')
+fi
 [[ "$REPO" == */* ]] || die 2 "cannot resolve owner/repo (set FETCH_ANNOT_REPO=owner/name)"
 
 # --- Resolve PR head SHA -----------------------------------------------------
 
-HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid -q .headRefOid 2>/dev/null | tr -d '\r\n')
+# With --dir the shell's directory names no repository, so the read names it.
+REPO_ARGS=()
+[[ -z "$CHECKOUT" ]] || REPO_ARGS=(-R "$REPO")
+HEAD_SHA=$(gh pr view "$PR_NUMBER" ${REPO_ARGS[@]+"${REPO_ARGS[@]}"} --json headRefOid -q .headRefOid 2>/dev/null | tr -d '\r\n')
 [[ -n "$HEAD_SHA" ]] || die 2 "gh pr view $PR_NUMBER failed (no head SHA)"
 
 # --- Fetch check-runs for head SHA ------------------------------------------

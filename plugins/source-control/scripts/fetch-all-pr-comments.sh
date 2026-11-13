@@ -23,11 +23,15 @@
 # was always correct.
 #
 # Usage:
-#   fetch-all-pr-comments.sh <pr-number>
+#   fetch-all-pr-comments.sh <pr-number> [--dir <checkout>]
 #
-# Env overrides:
-#   FETCH_COMMENTS_OWNER   default `gh repo view --json owner -q .owner.login`
-#   FETCH_COMMENTS_REPO    default `gh repo view --json name -q .name`
+# --dir names any checkout of the PR's repository, resolved with the
+# pull-request skill's target-repo.sh (which honors GH_REPO). Default:
+# `gh repo view` in the current directory.
+#
+# Env overrides (each wins over --dir and the default):
+#   FETCH_COMMENTS_OWNER   the repository's owner
+#   FETCH_COMMENTS_REPO    the repository's name
 #
 # Windows Python consumers (#597):
 #   Output commonly carries non-ASCII bytes (bot badge images, reaction
@@ -40,7 +44,7 @@
 #
 # Exit codes:
 #   0  success (zero or more comments emitted)
-#   1  invalid argument
+#   1  invalid argument, or --dir names no directory
 #   2  gh api call failed, or jq failed parsing a surface or merging
 #   5  prerequisite missing (gh, jq)
 
@@ -48,7 +52,9 @@ set -uo pipefail # -e omitted: gh api failures explicitly guarded with || { exit
 
 # --- Argument parsing --------------------------------------------------------
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PR_NUMBER=""
+CHECKOUT=""
 
 # Print the header block (everything after the shebang up to the first
 # non-comment line) with its comment markers stripped. Derived rather than a
@@ -75,6 +81,14 @@ while (($# > 0)); do
     fi
     break
     ;;
+  --dir)
+    if (($# < 2)) || [[ -z "$2" || -n "$CHECKOUT" ]]; then
+      printf 'fetch-all-pr-comments: --dir needs one value and is given once\n' >&2
+      exit 1
+    fi
+    CHECKOUT="$2"
+    shift 2
+    ;;
   -*)
     printf 'fetch-all-pr-comments: unknown flag %q (use --help)\n' "$1" >&2
     exit 1
@@ -95,6 +109,10 @@ if [[ -z "$PR_NUMBER" ]]; then
   printf 'fetch-all-pr-comments: <pr-number> required\n' >&2
   exit 1
 fi
+if [[ -n "$CHECKOUT" && ! -d "$CHECKOUT" ]]; then
+  printf 'fetch-all-pr-comments: --dir %q is not a directory\n' "$CHECKOUT" >&2
+  exit 1
+fi
 
 # --- Prerequisites -----------------------------------------------------------
 
@@ -111,8 +129,20 @@ have jq || {
 
 # --- Repo resolution ---------------------------------------------------------
 
-OWNER=${FETCH_COMMENTS_OWNER:-$(gh repo view --json owner -q .owner.login 2>/dev/null | tr -d '\r\n')}
-REPO=${FETCH_COMMENTS_REPO:-$(gh repo view --json name -q .name 2>/dev/null | tr -d '\r\n')}
+if [[ -n "$CHECKOUT" ]]; then
+  OWNER_REPO=""
+  [[ -n "${FETCH_COMMENTS_OWNER:-}" && -n "${FETCH_COMMENTS_REPO:-}" ]] ||
+    OWNER_REPO=$(bash "$SCRIPT_DIR/../skills/pull-request/scripts/target-repo.sh" --dir "$CHECKOUT" | tr -d '\r\n')
+  OWNER=${FETCH_COMMENTS_OWNER:-${OWNER_REPO%%/*}}
+  REPO=${FETCH_COMMENTS_REPO:-${OWNER_REPO#*/}}
+  if [[ -z "$OWNER" || -z "$REPO" ]]; then
+    printf 'fetch-all-pr-comments: cannot resolve owner/repo for --dir %q (see target-repo above), or set FETCH_COMMENTS_OWNER + FETCH_COMMENTS_REPO.\n' "$CHECKOUT" >&2
+    exit 2
+  fi
+else
+  OWNER=${FETCH_COMMENTS_OWNER:-$(gh repo view --json owner -q .owner.login 2>/dev/null | tr -d '\r\n')}
+  REPO=${FETCH_COMMENTS_REPO:-$(gh repo view --json name -q .name 2>/dev/null | tr -d '\r\n')}
+fi
 
 if [[ -z "$OWNER" || -z "$REPO" ]]; then
   printf 'fetch-all-pr-comments: cannot resolve owner/repo - gh repo view found no repository for the current directory (%s). Run from a checkout of the target repo, or set FETCH_COMMENTS_OWNER + FETCH_COMMENTS_REPO.\n' "$PWD" >&2
