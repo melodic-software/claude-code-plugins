@@ -265,7 +265,7 @@ proven.
    the 7 days to 2026-10-04: `planning` (102), `source-control` (92), `disk-hygiene` (80),
    `guardrails` (65), `testing` (63), `session-flow` (61), `harness-ops` (57, plus 73 as
    `claude-ops` before its rename to `harness-ops`), `playbooks` (53), `instruction-placement` (53)
-   and `context-guard` (50). Turn on the schedule and the `.changes/**` push trigger; those runs
+   and `context-usage` (50). Turn on the schedule and the `.changes/**` push trigger; those runs
    merge a current, green release pull request themselves. Switch `pr-bump-plugin-version.yml`
    to fragments for listed plugins, because `harness-ops` takes Dependabot updates. Convert
    open pull requests that hand-bump a newly listed plugin with

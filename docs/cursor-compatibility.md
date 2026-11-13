@@ -49,7 +49,7 @@ Each hook on these events is an accepted no-op in Cursor.
 |---|---|---|
 | `PostToolBatch` | bash-format, biome-format, eol-normalizer, go-format, markdown-format, ruff-format | Not in the Cursor docs' event table |
 | `Notification` | desktop-notification | Marked not supported in the Cursor docs |
-| `PostCompact` | context-guard | Not in the Cursor docs' event table |
+| `PostCompact` | context-usage | Not in the Cursor docs' event table |
 | `StopFailure` | harness-ops, rate-limit-guard | Not in the Cursor docs' event table |
 | `UserPromptExpansion` | disk-hygiene, harness-ops | Not in the Cursor docs' event table |
 | `ConfigChange`, `InstructionsLoaded`, `PermissionDenied`, `PostToolUseFailure` | harness-ops | Not in the Cursor docs' event table |

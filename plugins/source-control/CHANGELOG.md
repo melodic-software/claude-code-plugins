@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.2.4] - 2026-11-13
+
+### Changed
+
+Internal simplification, no behavior change.
+
+## [11.2.3] - 2026-11-12
+
+### Changed
+
+- `babysit-prs`: the `/autofix-pr` record keeps a conflicting PR with this skill's conflict handling and points at the Auto-fix docs for comparing coverage.
+
+- Corrected in place: the released entries [0.42.2] now name the spell-check plugin `spelling`, its current name.
+
 ## [11.2.2] - 2026-11-12
 
 ### Fixed

@@ -1,0 +1,296 @@
+---
+description: "Verify the context-usage plugin on this machine: jq, node, whether its mod runs in this session, this session's snapshot freshness, zones.json, and every option's effective value. Seed or repair ~/.claude/context-usage/zones.json from the shipped defaults. Use when: 'set up context-usage', 'is context-usage working', a consumer reports zone unknown in a live session, or after a plugin update. Actions: check (read-only; never edits settings), apply (writes ONLY ~/.claude/context-usage/zones.json, and moves a directory left by the earlier plugin name, on explicit request), apply cache-line (places the prompt-cache status-line segment; prints the statusLine edit)."
+argument-hint: "[check|apply] [defaults|cache-line]"
+user-invocable: true
+disable-model-invocation: true
+allowed-tools:
+  - "Bash(command -v jq*)"
+  - "Bash(command -v node*)"
+shell: bash
+---
+
+## Pre-computed context
+
+Four of `check`'s read-only probes run at load time. Read the values below; do not re-issue them.
+
+`jq` (a path = present, `absent` = missing): !`command -v jq 2>/dev/null || echo "absent"`
+`node` (a path = present, `absent` = missing): !`command -v node 2>/dev/null || echo "absent"`
+`zones.json` contents, capped at 40 lines, or one token distinguishing an absent file from an unreadable one: !`if [ -e "$HOME/.claude/context-usage/zones.json" ]; then head -40 "$HOME/.claude/context-usage/zones.json" 2>&1 || echo "(present but unreadable)"; else echo "(absent)"; fi`
+Leftover directory from the plugin's earlier name (its entries, or `(absent)`): !`if [ -d "$HOME/.claude/context-guard" ]; then ls -A "$HOME/.claude/context-guard" 2>&1; echo "compaction markers: $(find "$HOME/.claude/context-guard/context" -maxdepth 1 -name '*.compacted' 2>/dev/null | wc -l)"; else echo "(absent)"; fi`
+
+## Purpose
+
+Narrow-write setup. The plugin's module (`hooks/register.tsx`, a Claude Code mod) writes each
+session's snapshot, sends Claude the zone lines, draws the optional band row and
+serves the `mcp__context-usage__status` tool. Nothing about it needs wiring, so `check` inspects
+and reports PASS/FAIL/INFO with one remediation line per FAIL. The plugin also owns the machine file
+`~/.claude/context-usage/zones.json`, whose schema it defines and whose values the operator may
+edit; that owned writable file is what obliges an `apply`, and a bare `apply` writes nothing else.
+`apply cache-line` places the one other file, the optional status-line segment.
+
+Action routing: no argument or `check` runs the check; `apply cache-line` runs only the cache-line
+section below; any other `apply` runs the zones.json section.
+
+The code is the source of truth for its own behavior. Read `${CLAUDE_PLUGIN_ROOT}/hooks/register.tsx`
+and `${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh` when a finding depends on what they do, rather
+than reciting this file. The consumer-facing constants (snapshot path pattern, staleness rule,
+default zone bands, zones.json shape) are owned by
+`${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`. Open plugin files by the `${CLAUDE_PLUGIN_ROOT}`
+paths this skill names, with the `Read` tool; never Glob or Grep the plugin directory.
+
+## `check` (read-only)
+
+1. **`jq`**. Read the pre-computed `jq` value. FAIL when it is `absent`: the bash resolver this
+   check runs for the zone report (`${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh`) then prints `unknown`, and `apply`
+   cannot merge into an existing `zones.json`. The module and the PostCompact marker hook do not
+   use jq. Remediation: install jq (<https://jqlang.org/download/>).
+2. **`node`**. Read the pre-computed `node` value. FAIL when it is `absent`: the PostCompact marker
+   row in `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` runs `node hooks/exec-bash.mjs`, and the module
+   writes each snapshot by running `node lib/write-snapshot.mjs`, and installing Claude Code does
+   not put `node` on `PATH` for them (pointer below). Without `node` on `PATH` the marker does not
+   launch and no snapshot is written, so file readers read `unknown`; report that the marker cannot
+   launch (how Claude Code treats a hook that cannot start:
+   [Hooks, "Exit code output"](https://code.claude.com/docs/en/hooks#exit-code-output)), since
+   nothing else says so. The module's zone lines, band row and status tool do not
+   need `node`. Remediation: install Node.js (<https://nodejs.org/en/download>) and restart Claude
+   Code.
+   - **Pointer**: [Set up, "Install with npm"](https://code.claude.com/docs/en/setup#install-with-npm),
+     for whether the installed `claude` binary uses Node.
+3. **Module state.** The module loads only where mods can.
+   - **This session**: the module registers `mcp__context-usage__status` when the session starts.
+     Look for that name in your own tool list, deferred tool names included. Present → PASS, the
+     mod is running in this session. Absent → INFO "mods off in this session, or the status tool
+     was refused by policy" (a refused registration leaves one debug-log line, "context-usage: the
+     status tool could not register").
+   - Run `claude --version`. Older than 2.1.287 → FAIL "mods off: Claude Code <version> is older
+     than the 2.1.287 floor; older builds are unsupported". Remediation: update Claude Code.
+   - A separate `claude plugin test` process never sees this session's settings (a
+     `disableAllHooks` in this session's settings, `--bare`, worker crashes), so it may only say
+     whether mods can load on this build, read against the troubleshoot table at the pointer
+     below; never report it as this session's state.
+   - Where mods are off, the plugin runs reactive-only there: no zone lines,
+     no band row, no status tool and no snapshot writes; the PostCompact marker, a
+     settings hook, still runs wherever settings hooks do.
+
+   - **Pointer**: [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
+     and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesn%E2%80%99t-load).
+   - **As of**: 2026-10-03, Claude Code 2.1.288; the doesn't-load anchor 2026-10-11.
+   - **Recheck trigger**: that table changes a message, or the minimum version changes.
+4. **Live-session snapshot freshness**. This session's id is `${CLAUDE_SESSION_ID}`. The module
+   writes after every tool call, so this check's own Bash calls have each given it a chance to
+   write before you read the file. Read
+   `~/.claude/context-usage/context/${CLAUDE_SESSION_ID}.json` with the `Read` tool:
+   - Exists and `captured_at` is within the reader contract's 10-minute staleness window → PASS
+     (zone-informed consumers get real data). Also report the zone:
+     `bash "${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh" ${CLAUDE_SESSION_ID}`.
+   - Fresh but `used_percentage` or `current_usage` null → INFO: the state before the session's
+     first response or right after `/compact`; the resolver correctly answers `unknown`. Not a
+     defect.
+   - Absent or stale while step 3 reported mods off → INFO "mods off": no module runs here to
+     write it, and readers take their conservative path. Not a missing instrument and not a
+     wiring defect.
+   - Absent or stale while step 3 found the mod running → FAIL: the module ran but its write did
+     not land. Check step 2 (`node`), then the debug log for "context-usage: snapshot write failed"
+     or "context-usage: snapshot write did not run", then name the permissions of
+     `~/.claude/context-usage/context/` as the operator's next check; never write or touch a file
+     there to test them.
+   - If the literal string `${CLAUDE_SESSION_ID}` appears unexpanded above, report that this
+     Claude Code version lacks the substitution and consumers will take the conservative path;
+     probe the newest file in `~/.claude/context-usage/context/` instead, labeled as such.
+5. **zones.json state**, a read-only report over the pre-computed `zones.json` value: absent
+   (shipped defaults in effect, percentage 50/75 plus the window-class token bands; valid
+   zero-config state, not a defect), present and valid
+   (report the bands in effect, both shapes), or present with a malformed shape (report per
+   shape: the resolver validates percentage keys and `token_bands` independently and falls back
+   per shape with a stderr notice; a percentage-only file without `token_bands` is valid, with
+   shipped token bands silently in effect; remediation: `apply`). A `(present but unreadable)`
+   token, or a `cat:` error in place of the contents, is the fourth state: the file exists and
+   cannot be read, which is a defect the absent branch would hide. Report the read error and route
+   the operator to the file's permissions, not to `apply`. Also report the module's keys when
+   present (`approach_margin`, `actions`, `thresholds`; the reader contract's "Zones"
+   section defines them); an absent or invalid one means its default, never a defect. An old key
+   name (`smart_max_*`, `acceptable_max_*`, or `smart`, `acceptable` or `dumb` under `actions`) is
+   INFO: read as its new name for one release; remediation `apply`, which renames it. The module
+   resolves zones with the same bands from the live session, so a machine with no snapshot files
+   still gets lines.
+6. **Cache-line copy** (INFO only). When `~/.claude/context-usage/cache-line.mjs` exists, compare
+   it byte for byte with `${CLAUDE_PLUGIN_ROOT}/scripts/cache-line.mjs`: identical → INFO current;
+   different → INFO stale, remediation `apply cache-line`. Absent → INFO not installed, which is
+   the default and never a defect.
+7. **Option posture**. Report every option, each as its own row with the value substituted below
+   and what that value does. Never collapse them into one "active" status: a plugin that is
+   enabled while its kill switch is off, or whose lines are off, is the exact state an operator is
+   diagnosing when lines are missing.
+
+   | Option | Value | What it does |
+   |---|---|---|
+   | `context_usage_hooks_enabled` | `${user_config.context_usage_hooks_enabled}` | `false` → **INERT**: the module sends no lines and shows no toast or crossing notice, and the PostCompact marker hook exits at once. Snapshot writes, the band row and the status tool continue. |
+   | `model_notices` | `${user_config.model_notices}` | `false` (the default) → no lines to Claude and no operator-mode suggestions; the toast, band and writes continue. `true` sends the zone lines. |
+   | `zone_report_mode` | `${user_config.zone_report_mode}` | `automatic` sends the lines to Claude; `operator` holds them in a turn a person typed and offers them as a prompt suggestion plus a notice row. |
+   | `zone_line_data` | `${user_config.zone_line_data}` | The figures a line carries beside its zone (`percent`, `tokens`, `window`); `zone` alone means none. |
+   | `context_usage_band` | `${user_config.context_usage_band}` | `false` (the default) leaves the band row off; `true` draws it. `/context-usage band on` or `band off` sets it for one session. |
+   | `context_usage_toast` | `${user_config.context_usage_toast}` | `true` shows a toast at each zone crossing; `false` leaves only the transcript line. |
+
+   - Any value still showing its literal `${user_config.<name>}` token (unset key, or a Claude
+     Code without the substitution) → **UNKNOWN** for that row, never the default stated as fact.
+     Say which source was read: the module gets every option with the `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` default filled
+     in, and the PostCompact marker hook applies its own in-script default (on). The
+     operator-inspectable source of truth is this plugin's `pluginConfigs` options block in the
+     user `settings.json` (the hook-config-delivery convention,
+     <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md>,
+     owns why the declared `default` field is not delivered to hook processes).
+   - A `zone_line_data` item outside the four words reads as that option's default, and the module
+     logs one transcript line naming it at session start. Report the value as invalid and the
+     default as what runs.
+   - A `pluginConfigs` key the plugin no longer declares (`zone_lines_enabled`, which
+     `model_notices` replaced; `zone_hook_mode`, `zone_gate_grace_calls`, `zone_block_unattended`),
+     or a `block` action in `zones.json` (which reads as `none`), gates nothing. Report it as INFO, safe to remove.
+   - Every option acts only where step 3 found the mod running, except
+     that the kill switch also turns off the PostCompact marker hook, a settings hook that can run
+     where mods are off.
+   - The module reads its options when it loads, and Claude Code reloads a module when its options
+     change, so a changed value acts from the next event. The marker hook reads its value at session
+     start.
+8. **Directory left by the earlier name** (migration). Read the pre-computed leftover value.
+   `(absent)` → PASS. Otherwise FAIL "drift: `~/.claude/context-guard/` is left from the plugin's
+   earlier name", list its entries and its compaction-marker count (each marker records a
+   session compacted before the rename; the module still reads them there until they move), and say
+   whether the user `settings.json` `statusLine` command names that directory. When it holds
+   `zones.json` and `~/.claude/context-usage/zones.json` is absent, add the drift line "zones.json
+   still in the earlier directory": the module and the resolver read the operator's bands from there
+   until `apply` moves them. Remediation: `apply`, which moves it (see "Earlier-name directory" below).
+   A session still running the plugin under its earlier name recreates `context/` there until it
+   ends.
+
+## `apply` (writes only `~/.claude/context-usage/`, on explicit request)
+
+### Earlier-name directory (migration)
+
+Runs first, on every `apply` form, when `~/.claude/context-guard/` exists:
+
+1. `zones.json`: when `~/.claude/context-usage/zones.json` is absent, move the old file there
+   unchanged (create the directory with mode 700). When both exist and differ, keep both, report
+   the two band sets, and stop this section: the operator chooses which to keep.
+2. `cache-line.mjs`: when the old directory holds one, copy
+   `${CLAUDE_PLUGIN_ROOT}/scripts/cache-line.mjs` to `~/.claude/context-usage/cache-line.mjs`.
+   When the `statusLine` in effect (found as in `apply cache-line` step 2) names the old path,
+   print the same `statusLine` with that path replaced by `~/.claude/context-usage/cache-line.mjs`
+   for the operator to paste; never write it.
+3. Compaction markers: move each `context/<session_id>.compacted` to
+   `~/.claude/context-usage/context/` (create it with mode 700), never over a marker already there.
+   A marker is written only at a compaction, so a resumed session that lost it would read as never
+   compacted.
+4. Remove `~/.claude/context-guard/` (its snapshots are per-session state the module writes
+   afresh) unless step 1 stopped, a marker could not move, the `statusLine` still names it, or a
+   file in its `context/` changed within the reader contract's 10-minute staleness window (a
+   session still running the plugin under its earlier name; a later `apply` finishes it). Report
+   what moved, what was copied and what was removed.
+
+### Zone bands
+
+Seed or refresh `~/.claude/context-usage/zones.json` from the shipped defaults
+(`light_max_used_percentage: 50`, `moderate_max_used_percentage: 75`, and the window-class
+`token_bands`, the reader contract owns these numbers; read them from
+`${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md` rather than this file if they ever disagree).
+The `defaults` argument changes only how a present file is treated:
+
+1. **File absent**. Create the directory if needed and write exactly:
+
+   ```json
+   {
+     "light_max_used_percentage": 50,
+     "moderate_max_used_percentage": 75,
+     "token_bands": {
+       "200000": { "light_max_tokens": 100000, "moderate_max_tokens": 150000 },
+       "1000000": { "light_max_tokens": 128000, "moderate_max_tokens": 500000 }
+     }
+   }
+   ```
+
+2. **File present**. Behavior is mode-explicit, never ambiguous:
+   - `apply` (no argument): repair-only. Valid recognized band values are left untouched and
+     reported; recognized keys that are missing or invalid (non-numeric, inverted, out of range; for `token_bands`, invalid per the reader contract's per-shape validity rules) are set to the
+     shipped defaults. An absent `token_bands` is repaired by adding the shipped token bands
+     (absence is valid zero-config for the resolver, but the seeded SSOT should carry the full
+     tunable surface). An operator's custom-but-valid thresholds are never overwritten by a
+     bare `apply`.
+   - `apply defaults`: set all recognized band keys (both percentage keys and `token_bands`) to
+     the shipped defaults explicitly. This converges forward to a known state; it is not teardown,
+     and it never removes the file or any key it does not recognize.
+   - Both modes rename the old key names first, keeping their values: `smart_max_used_percentage`
+     → `light_max_used_percentage`, `acceptable_max_used_percentage` →
+     `moderate_max_used_percentage`, and in each `token_bands` row `smart_max_tokens` →
+     `light_max_tokens` and `acceptable_max_tokens` → `moderate_max_tokens`; under `actions`,
+     `smart` → `light`, `acceptable` → `moderate` and `dumb` → `heavy`. Where both names are set,
+     keep the new one and drop the old. Report each rename.
+   - Both modes **preserve every unrecognized key semantically**: same keys, same JSON values
+     (the file is a shared SSOT the operator's own tools may extend). The module's own keys
+     (`approach_margin`, `actions`, `thresholds`) are kept the same way. Preservation is
+     value-level, not lexical: a `jq` merge reserializes the document, so formatting and escape
+     spellings may normalize (`"blue"` → `"blue"`); consumers of this file must parse it as
+     JSON, never depend on its raw bytes. Use `jq` to merge so the result stays valid JSON. If
+     `jq` is absent while the file exists, FAIL with the jq install remediation
+     (<https://jqlang.org/download/>) instead of attempting a merge, never risk clobbering the
+     operator's keys with a jq-less rewrite. (Step 1's template write needs no jq.)
+3. **Idempotent**, a second identical `apply` produces no content change; say so.
+4. **Report exactly what was written** (old bands → new bands, unrecognized keys preserved), and
+   remind that consumers re-read the file on their next zone decision. No restart needed.
+
+`apply` never touches `settings.json`, the snapshot directory (beyond the earlier-name
+migration's marker move), or anything in `~/.claude/context-usage/` other than `zones.json` and
+the earlier-name migration above.
+
+## `apply cache-line` (writes only `~/.claude/context-usage/cache-line.mjs`, on explicit request)
+
+Places the optional prompt-cache status-line segment at a fixed path this plugin owns, so the
+operator's status line never depends on where the installed plugin's files live. Pointer: for
+where those files live, see
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
+
+1. **Copy** `${CLAUDE_PLUGIN_ROOT}/scripts/cache-line.mjs` to
+   `~/.claude/context-usage/cache-line.mjs`, creating the directory if needed. When the target is
+   already byte-identical, write nothing and say so.
+2. **Find the `statusLine` in effect.** Read (read-only) every settings file that can set it and
+   take the one that wins by Claude Code's settings precedence; name that file to the operator. When
+   the winner is managed settings, stop: the operator cannot change it, so report that and print no
+   edit. When no file sets it, the target is the user `settings.json`. Pointer: for the precedence
+   order and the scopes a status line can live in, see
+   <https://code.claude.com/docs/en/settings#settings-precedence> and
+   <https://code.claude.com/docs/en/statusline#manually-configure-a-status-line>.
+3. **Print the statusLine edit; never write it, and never compose it by hand.** Pipe that file
+   (`{}` when it is absent) into `node "${CLAUDE_PLUGIN_ROOT}/scripts/cache-line.mjs" --wire` and
+   print its output as the paste-ready `statusLine` object for that same file. With an existing
+   `command` it wraps that command as one quoted argument to `--after`, which runs it on the same
+   input before the segment, and keeps every other `statusLine` key; with none it prints the bare
+   segment. Relay its stderr note when it says the line is already wired, and show the exact
+   current `command` it wrapped. On native Windows without Git Bash, say the wrapper's quoting is
+   POSIX and stop rather than print an edit that would break the existing line.
+
+   Then point the operator at this plugin README's "Prompt-cache status-line segment" section for
+   what the segment needs and covers, rather than restating it here.
+4. **After a plugin update**, re-running `apply cache-line` refreshes the copy; step 6 of `check`
+   reports a stale one.
+
+## Uninstalling
+
+Once the plugin is uninstalled the module stops and nothing writes new snapshots (what an uninstall
+removes:
+[Plugins CLI reference, "What an uninstall deletes and keeps"](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)).
+The operator's directory `~/.claude/context-usage/` (`zones.json`, the snapshots, the
+compaction markers and, after `apply cache-line`, `cache-line.mjs`) stays. Removing it is safe once
+the operator's `statusLine` no longer runs `cache-line.mjs`: restore the command `--after` wrapped,
+or drop the bare segment, first. Readers then read `unknown` and take their conservative path.
+
+## What this skill does not do
+
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
+  contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace
+  repository). Nor `settings.json` (user or project), the operator's status line command, or any
+  other Claude Code settings file; `apply cache-line` prints the statusLine edit for the operator
+  to paste.
+- Install `jq`, `node` or any system package.
+- Write to the snapshot directory `~/.claude/context-usage/context/`, except moving `.compacted`
+  markers there in the earlier-name migration; the module owns those files.
+- Write anywhere outside `~/.claude/context-usage/zones.json` and, on `apply cache-line` or the
+  earlier-name migration only, `~/.claude/context-usage/cache-line.mjs`, including the sibling
+  `rate-limit-guard` directory. The migration's one removal is the earlier-name directory.

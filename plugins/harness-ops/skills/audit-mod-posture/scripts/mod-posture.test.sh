@@ -99,7 +99,7 @@ validate_json hostile false \
   './register.js calls: $.fs.write, rm -rf SECRETCALL1, $.env.get(SECRETCALL2)'
 validate_json elsewhere true './register.js hooks: tool.call'
 validate_json spaced true \
-  './a b.js hooks: tool.call{tool=mcp__plugin_context-guard_context-guard__status}, prompt.submit' \
+  './a b.js hooks: tool.call{tool=mcp__plugin_context-usage_context-usage__status}, prompt.submit' \
   './a b.js calls: $.process.run'
 validate_json silent false
 validate_json localmod true './register.js hooks: session.start'

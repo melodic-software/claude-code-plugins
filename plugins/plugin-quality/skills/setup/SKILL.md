@@ -1,5 +1,5 @@
 ---
-description: "Verify the plugin-quality plugin's prerequisites on this machine: gh presence and the ACTING account, the context-guard snapshot seam, the convention-home binding and effective config with provenance, retired-convention leftovers, and the effective sink; apply converges the pointer-line region and the plugin-quality topic doc at the consumer's convention home. Use when: 'set up plugin-quality', 'which sink will audits use', 'is the audit context-gate live', before a first audit in a repo, after changing the convention home or topic doc, or to migrate the retired .claude/plugin-quality.md. Actions: check (read-only), apply (writes the pointer region and topic doc, on explicit request)."
+description: "Verify the plugin-quality plugin's prerequisites on this machine: gh presence and the ACTING account, the context-usage snapshot seam, the convention-home binding and effective config with provenance, retired-convention leftovers, and the effective sink; apply converges the pointer-line region and the plugin-quality topic doc at the consumer's convention home. Use when: 'set up plugin-quality', 'which sink will audits use', 'is the audit context-gate live', before a first audit in a repo, after changing the convention home or topic doc, or to migrate the retired .claude/plugin-quality.md. Actions: check (read-only), apply (writes the pointer region and topic doc, on explicit request)."
 argument-hint: "[check|apply] [home=<dir>] [sink=<gh-issues|markdown-dir|local-fallback>] [markdown_dir=<path>]"
 user-invocable: true
 disable-model-invocation: true
@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Setup for the `audit` skill's two external dependencies (`gh`, `context-guard`) and its team
+Setup for the `audit` skill's two external dependencies (`gh`, `context-usage`) and its team
 configuration, which lives as a convention doc at the consumer's convention home per the
 consuming marketplace's config-cascade expression doctrine.
 `check` inspects and reports PASS/FAIL/WARN/INFO with one remediation line per finding; `apply`
@@ -27,8 +27,8 @@ against that contract rather than restating it.
    gate surfaces this same account before any `gh issue create`, a surprise here is a
    cross-pollination incident later, so surface it at setup time too. `gh` absent → INFO, not
    FAIL: the sink ladder ends in the local markdown fallback, so audits still work.
-2. **Context-guard seam**. Run the same resolver the audit's context-gate runs, this plugin's own
-   copy, synced byte-identical from the context-guard canonical:
+2. **Context-usage seam**. Run the same resolver the audit's context-gate runs, this plugin's own
+   copy, synced byte-identical from the context-usage canonical:
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh" "${CLAUDE_SESSION_ID}"`. One argument,
    the session id; exit code always 0; the one word on stdout is the answer, `light` /
    `moderate` / `heavy` / `unknown`, and anything else is `unknown`. Its stderr carries
@@ -38,14 +38,14 @@ against that contract rather than restating it.
    - `unknown`, or the `${CLAUDE_SESSION_ID}` substitution surviving unexpanded → **conservative
      dispatch** (the audit's unknown row + visible notice). `unknown` carries no direction: it is
      a working state, not a defect and not evidence about the window either way. Tell
-     structural absence from breakage per the context-guard reader contract, "Sessions with no
-     writer (`unknown` is structural)": the discriminator is whether `mcp__context-guard__status`
+     structural absence from breakage per the context-usage reader contract, "Sessions with no
+     writer (`unknown` is structural)": the discriminator is whether `mcp__context-usage__status`
      is in this session's tool list. Tool absent (mods off, the plugin not enabled, a WSL session
      of the Desktop app, or a policy refused the tool): structural, report "no instrument in this
      environment". Tool present but no fresh snapshot after a tool call: a real defect, usually a
-     missing `node` or an unwritable `~/.claude/context-guard/context/`; point at
-     `/context-guard:setup check`. Statusline wiring is never the remediation. Recommend the
-     `context-guard` plugin's setup only as an optional upgrade.
+     missing `node` or an unwritable `~/.claude/context-usage/context/`; point at
+     `/context-usage:setup check`. Statusline wiring is never the remediation. Recommend the
+     `context-usage` plugin's setup only as an optional upgrade.
 3. **Convention home + effective config**. Run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"`
    and report by exit code; the four outcomes are distinct and never collapsed:
@@ -118,6 +118,6 @@ personal override channel).
 ## What this skill does NOT do
 
 - Run an audit (that is `/plugin-quality:audit`).
-- Install `gh` or `jq`, or set up context-guard (that plugin's own setup owns it).
+- Install `gh` or `jq`, or set up context-usage (that plugin's own setup owns it).
 - Write anything except the pointer-line region and the topic doc in `apply` (plus the gated
   retirement cleanup above).

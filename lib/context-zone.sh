@@ -4,9 +4,9 @@
 # Usage:
 #   context-zone.sh <session_id>
 #
-# Reads ~/.claude/context-guard/context/<session_id>.json (written by
-# context-guard's mod) plus the optional machine-scope
-# ~/.claude/context-guard/zones.json override and prints EXACTLY ONE word:
+# Reads ~/.claude/context-usage/context/<session_id>.json (written by
+# context-usage's mod) plus the optional machine-scope
+# ~/.claude/context-usage/zones.json override and prints EXACTLY ONE word:
 #
 #   light / moderate / heavy / unknown
 #
@@ -118,7 +118,11 @@ sid="${1:-}"
 command -v jq >/dev/null 2>&1 || unknown
 [[ -n "${HOME:-}" ]] || unknown
 
-snap="$HOME/.claude/context-guard/context/$sid.json"
+dir="$HOME/.claude/context-usage"
+# Migration: a session still running the plugin under its earlier name writes the
+# directory below. Remove this line once every lane has converged on context-usage.
+[[ -r "$dir/context/$sid.json" ]] || dir="$HOME/.claude/context-guard"
+snap="$dir/context/$sid.json"
 [[ -r "$snap" ]] || unknown
 
 # SPAWN DISCIPLINE. This resolver sits on the PostToolBatch path, so it runs
@@ -145,7 +149,10 @@ snap="$HOME/.claude/context-guard/context/$sid.json"
 light_max=$DEFAULT_LIGHT_MAX
 moderate_max=$DEFAULT_MODERATE_MAX
 token_bands=$DEFAULT_TOKEN_BANDS
-zones="$HOME/.claude/context-guard/zones.json"
+# The new zones.json wins wherever the snapshot came from. Migration: until the data move runs,
+# the operator's bands stay under the earlier directory; remove this line with the one above.
+zones="$HOME/.claude/context-usage/zones.json"
+[[ -e "$zones" ]] || zones="$HOME/.claude/context-guard/zones.json"
 if [[ -e "$zones" ]]; then
   # Stderr on the GROUP: see REDIRECTION PLACEMENT above.
   { zres=$(jq -r '
@@ -213,14 +220,14 @@ if [[ -e "$zones" ]]; then
     ztb="invalid"
   }
   if [[ "$zpct" == "invalid" ]]; then
-    printf 'context-guard: zones.json malformed — using shipped default bands (%s/%s)\n' \
+    printf 'context-usage: zones.json malformed — using shipped default bands (%s/%s)\n' \
       "$DEFAULT_LIGHT_MAX" "$DEFAULT_MODERATE_MAX" >&2
   elif [[ "$zpct" != "absent" ]]; then
     light_max=${zpct%% *}
     moderate_max=${zpct#* }
   fi
   if [[ "$ztb" == "invalid" ]]; then
-    printf 'context-guard: zones.json token_bands malformed — using shipped default token bands (200000:100000/150000, 1000000:128000/500000)\n' >&2
+    printf 'context-usage: zones.json token_bands malformed — using shipped default token bands (200000:100000/150000, 1000000:128000/500000)\n' >&2
   elif [[ "$ztb" != "absent" ]]; then
     token_bands=$ztb
   fi

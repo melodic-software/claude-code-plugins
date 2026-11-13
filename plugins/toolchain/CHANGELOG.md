@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.6] - 2026-11-12
+
+### Changed
+
+- Corrected in place: the released entries [0.6.0] now name the spell-check plugin `spelling`, its current name.
+
 ## [1.2.5] - 2026-11-12
 
 ### Changed

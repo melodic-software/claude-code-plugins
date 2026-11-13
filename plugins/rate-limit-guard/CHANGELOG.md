@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.21] - 2026-11-12
+
+### Changed
+
+- Corrected in place: the released entries [0.3.8] now name the spell-check plugin `spelling`, its current name.
+
 ## [3.0.20] - 2026-11-12
 
 ### Changed
@@ -822,7 +828,7 @@ Run `/rate-limit-guard:setup` after updating and follow the unwire steps it prin
 
 ### Changed
 
-- The context-guard statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+- The context-usage statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
 
 ## [0.8.16]
 
@@ -864,7 +870,7 @@ Run `/rate-limit-guard:setup` after updating and follow the unwire steps it prin
   em-dash gate, so that marker is gone as well.
 
 - **`skills/setup/reference/legacy-statusline-detect.md` follows its canonical copy.** That file is
-  held byte-identical with `context-guard`'s by `scripts/sync-legacy-statusline-detect.sh`, and the
+  held byte-identical with `context-usage`'s by `scripts/sync-legacy-statusline-detect.sh`, and the
   em-dash purge rewrote the canonical side first. Synced with that script rather than edited here,
   so the pair matches again. The heading is the only line that moved; the classification rules are
   unchanged.
@@ -901,13 +907,13 @@ Run `/rate-limit-guard:setup` after updating and follow the unwire steps it prin
 - `scripts/compose-statusline-wiring.sh` wraps a renderer whose first word is a shell keyword
   (`! false`, `[[ -f file ]]`) in `sh -c`, matching builtins. Both keyword renderers are also
   covered by the idempotency table, so a re-run cannot stack a second adapter. Synced from
-  context-guard.
+  context-usage.
 
 ## [0.8.8]
 
 ### Fixed
 
-- `scripts/compose-statusline-wiring.sh` treats unquoted POSIX grouping operators `(` and `)` as top-level control operators, so a renderer such as `(printf hi)` is wrapped in `sh -c` instead of being emitted as ARGV words the outer shell rejects. Synced from context-guard.
+- `scripts/compose-statusline-wiring.sh` treats unquoted POSIX grouping operators `(` and `)` as top-level control operators, so a renderer such as `(printf hi)` is wrapped in `sh -c` instead of being emitted as ARGV words the outer shell rejects. Synced from context-usage.
 
 ## [0.8.7]
 
@@ -919,7 +925,7 @@ Run `/rate-limit-guard:setup` after updating and follow the unwire steps it prin
 
 ### Changed
 
-- setup: adds `scripts/compose-statusline-wiring.sh`, the statusline peel-and-wrap transform as a script, with the escape round trip and the re-compose idempotency assertion inside it and a 69-case test beside it; byte-identical with context-guard and registered in the cross-plugin source registry (prompt-audit follow-up F15)
+- setup: adds `scripts/compose-statusline-wiring.sh`, the statusline peel-and-wrap transform as a script, with the escape round trip and the re-compose idempotency assertion inside it and a 69-case test beside it; byte-identical with context-usage and registered in the cross-plugin source registry (prompt-audit follow-up F15)
 - setup: `reference/unwrap-before-compose.md` shrinks to that script's argument and exit-code contract, its invocation, and the three judgments it leaves to the skill; step 6 of `check` calls it instead of escaping and round-tripping the command by hand (prompt-audit follow-up F15)
 - setup evals: the five cases that checked the peel and wrap arithmetic now check that the skill invokes the script and reports its result, keeping their ids and names (prompt-audit follow-up F15)
 - reference/reader-contract.md: repairs the tee-file paragraph, where a stray list break split "temp file + rename" across a paragraph boundary and left the sentence unclosed (prompt-audit follow-up F2)
@@ -1094,7 +1100,7 @@ Run `/rate-limit-guard:setup` after updating and follow the unwire steps it prin
   as the present-tense failure it prevents, and lowercased the all-caps emphasis.
 - setup: the shared `legacy-statusline-detect.md` and `unwrap-before-compose.md` spokes drop the
   wrong `< 0.2.0` shim boundary, the ADR rationale, the incident narration, and the all-caps
-  emphasis; edited at the context-guard source and re-synced.
+  emphasis; edited at the context-usage source and re-synced.
 - reference/reader-contract.md: replaced the `TODO(#1218)` tracker pointer with a present-tense
   statement of the account-identity gap, and replaced the hardcoded consumer counts with a pointer
   to the drift-check registry that owns the roster.
@@ -1267,16 +1273,16 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 ### Changed
 
-- **setup: unwrap-before-compose matches context-guard, then shares the spoke.** The inline
-  shell-syntax guard treated bare quoting as a wrap trigger, the bug context-guard already
+- **setup: unwrap-before-compose matches context-usage, then shares the spoke.** The inline
+  shell-syntax guard treated bare quoting as a wrap trigger, the bug context-usage already
   fixed with `type -P` / `type -t`. Peel and wrap rules now live in
-  `reference/unwrap-before-compose.md`, synced byte-identical from context-guard.
+  `reference/unwrap-before-compose.md`, synced byte-identical from context-usage.
 
 ## [0.7.24]
 
 ### Changed
 
-- setup's legacy-statusline detection (shim-revision ladder, legacy version-pinned wiring) moves to the shared synced spoke reference/legacy-statusline-detect.md, synced from context-guard, with a machine-scope bespoke rationale (customization-consistency Phase 2c)
+- setup's legacy-statusline detection (shim-revision ladder, legacy version-pinned wiring) moves to the shared synced spoke reference/legacy-statusline-detect.md, synced from context-usage, with a machine-scope bespoke rationale (customization-consistency Phase 2c)
 
 ## [0.7.23]
 
@@ -1303,7 +1309,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **`statusline-tee.sh` passes payloads over 1MiB through to the wrapped statusline intact.** The
   stdin reader was a single bounded `read -N 1048576`, so anything past the first 1MiB never
-  reached the wrapped command. Ported the sibling context-guard tee's builtin-only
+  reached the wrapped command. Ported the sibling context-usage tee's builtin-only
   read-until-EOF loop, keeping the documented stalled-pipe timeout boundary; a new suite case
   proves a 1.5MB payload reaches the wrapped command byte-for-byte and is still teed. Zero new
   processes: the suite's zero-fork xtrace assertions still pass and the bench spawn floor is
@@ -1314,7 +1320,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **`statusline-tee.sh` hardens its snapshot temp write.** The temp name gains a second `$RANDOM`
   of entropy and the write happens under `set -o noclobber` inside the existing umask subshell,
   so a pre-planted symlink at the temp path is refused instead of followed. The chmod-700
-  directory, trap reclaim, and mv-retry machinery are unchanged. Ported from the context-guard
+  directory, trap reclaim, and mv-retry machinery are unchanged. Ported from the context-usage
   sibling. Suite grows from 96 to 98 checks, all passing.
 
 ## [0.7.20]
@@ -1370,7 +1376,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **`setup`: rejoined an orphaned clause in the never-writes boundary.** The sentence ended with a
   period and then continued lowercase ("...settings surface. the printed edit is the operator's to
-  apply."). The `context-guard` sibling carries the identical slot joined with a semicolon, and this
+  apply."). The `context-usage` sibling carries the identical slot joined with a semicolon, and this
   one now matches it. Whole-repo extract-ssot sweep.
 
 ## [0.7.17]
@@ -1969,7 +1975,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `CLAUDE_CONFIG_DIR`) and the shim's header records both, along with the fallback: should upstream
   rename or drop the marker, resolution degrades to exactly what it does today: a stale tee, never
   a broken statusline. The undocumented `installed_plugins.json` the header previously rejected
-  stays rejected. Port of the context-guard fix from #1787 / PR #1844; the two shims remain
+  stays rejected. Port of the context-usage fix from #1787 / PR #1844; the two shims remain
   deliberately unregistered as a byte-identical cluster (plugin name and header prose differ).
 
   **Existing installs need one `apply`.** The statusline runs the durable copy at
@@ -1990,7 +1996,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   compared against the original. Its single-quoted argument reproduces exactly the quoting context
   the emitted `sh -c '<escaped>'` uses; a double-quoted wrapper would instead let the outer shell
   expand any `$(...)` or backticks in the operator's own command before the check ever ran. Applied
-  in step with `context-guard`'s near-identical setup skill.
+  in step with `context-usage`'s near-identical setup skill.
 
 ## [0.4.1]
 
@@ -2226,14 +2232,14 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   Rationale: `${CLAUDE_PLUGIN_ROOT}` is version-pinned and the old version directory is pruned
   ~14 days after an update, so cache-path wiring stops teeing at the next bump and then breaks the
   operator's whole statusline (`bash <missing>` → 127).
-- `setup check` prints the sibling-composition wiring when `context-guard` is also installed, and
+- `setup check` prints the sibling-composition wiring when `context-usage` is also installed, and
   states the measured per-tee refresh cost (~0.6–0.9 s on Windows/Git Bash, spawn-bound).
 - `setup check` **unwraps recognized guard shims before composing the wiring it prints**, so a
   statusline already wired through the sibling shim (or through this one) is not wrapped a
   second time. Re-wrapping produced a chain running one tee twice, a duplicated write and
   another 0.6–0.9 s on every refresh, whenever the plugins were configured in sequence or
   `check` was simply re-run.
-- The **combined sibling wiring is gated on the sibling shim actually existing**. `context-guard`
+- The **combined sibling wiring is gated on the sibling shim actually existing**. `context-usage`
   being installed is not enough: its shim is written by its own `setup apply`, and printing a
   command that names a missing file reintroduces the `bash <missing>` → 127 failure this whole
   change exists to remove. When the shim is absent the single-shim form is printed instead,

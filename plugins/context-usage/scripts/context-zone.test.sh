@@ -1,0 +1,519 @@
+#!/usr/bin/env bash
+# Black-box contract test for context-zone.sh (the context-usage zone
+# resolver).
+#
+# Contract: `context-zone.sh <session_id>` reads that session's snapshot
+# ($HOME/.claude/context-usage/context/<session_id>.json — tests redirect via
+# HOME) plus the optional $HOME/.claude/context-usage/zones.json override and
+# prints EXACTLY ONE of: light / moderate / heavy / unknown. Fail-open:
+# absent, stale (captured_at older than the 10-minute staleness window), or
+# unparsable snapshot → unknown; used_percentage null / missing / non-numeric
+# / outside 0–100 → unknown; current_usage null or missing (documented
+# early-session and post-/compact states) → unknown. Shipped default bands:
+# light ≤ 50 < moderate ≤ 75 < heavy. Malformed zones.json → shipped
+# defaults + a visible stderr notice. Exit code is always 0 (fail-open
+# resolver; the word IS the contract).
+#
+# Self-contained: defines its own assertion helpers — installed plugins are
+# cache-isolated with no shared test lib.
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ZONE="$SCRIPT_DIR/context-zone.sh"
+
+PASS=0
+FAIL=0
+fail() {
+  echo "FAIL: $*" >&2
+  FAIL=$((FAIL + 1))
+}
+ok() {
+  echo "ok: $*"
+  PASS=$((PASS + 1))
+}
+
+WORK="$(mktemp -d)"
+cleanup() { rm -rf "$WORK"; }
+trap cleanup EXIT
+
+CTX_REL=".claude/context-usage/context"
+
+# write_snapshot <home> <sid> <used_percentage-json> [<captured_at>] [<current_usage-json>]
+# used_percentage-json / current_usage-json are raw JSON fragments (numbers,
+# null) so tests can express null and absurd values directly.
+write_snapshot() {
+  local home="$1" sid="$2" used="$3" ts="${4:-}" cu="${5:-{\"input_tokens\":100\}}"
+  [[ -n "$ts" ]] || ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+  mkdir -p "$home/$CTX_REL"
+  printf '{"captured_at":"%s","session_id":"%s","context_window":{"used_percentage":%s,"remaining_percentage":50,"current_usage":%s}}\n' \
+    "$ts" "$sid" "$used" "$cu" >"$home/$CTX_REL/$sid.json"
+}
+
+old_ts() { # ISO timestamp N minutes in the past
+  # portability-ok: GNU-first, BSD fallback on the continuation line below (#1510)
+  date -u -d "$1 minutes ago" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null ||
+    date -u -v "-$1M" '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+# resolve <home> <sid> → stdout word (stderr passed through to the test's own)
+resolve() {
+  local home="$1" sid="$2"
+  HOME="$home" bash "$ZONE" "$sid"
+}
+
+# expect <label> <want-word> <home> <sid>
+expect() {
+  local label="$1" want="$2" home="$3" sid="$4"
+  local got rc
+  got="$(resolve "$home" "$sid" 2>>"$WORK/stderr.log")"
+  rc=$?
+  if [[ "$got" == "$want" && $rc -eq 0 ]]; then
+    ok "$label → $want"
+  else
+    fail "$label: want '$want' rc 0, got '$got' rc $rc"
+  fi
+}
+
+# --- Shipped default band edges ----------------------------------------------
+H="$WORK/h-bands"
+write_snapshot "$H" s0 0 && expect "used=0" light "$H" s0
+write_snapshot "$H" s50 50 && expect "used=50 (light upper edge, inclusive)" light "$H" s50
+write_snapshot "$H" s50x 50.5 && expect "used=50.5" moderate "$H" s50x
+write_snapshot "$H" s75 75 && expect "used=75 (moderate upper edge, inclusive)" moderate "$H" s75
+write_snapshot "$H" s75x 75.1 && expect "used=75.1" heavy "$H" s75x
+write_snapshot "$H" s100 100 && expect "used=100" heavy "$H" s100
+
+# --- Fail-open: absurd / null / missing used_percentage ----------------------
+write_snapshot "$H" sneg -1 && expect "used=-1 (absurd)" unknown "$H" sneg
+write_snapshot "$H" sbig 101 && expect "used=101 (absurd)" unknown "$H" sbig
+write_snapshot "$H" snull null && expect "used=null (early-session)" unknown "$H" snull
+write_snapshot "$H" sstr '"forty"' && expect "used=non-numeric" unknown "$H" sstr
+mkdir -p "$H/$CTX_REL"
+printf '{"captured_at":"%s","session_id":"snoused","context_window":{"remaining_percentage":50,"current_usage":{"input_tokens":1}}}\n' \
+  "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >"$H/$CTX_REL/snoused.json"
+expect "used_percentage missing" unknown "$H" snoused
+
+# --- Fail-open: null / missing current_usage (post-/compact state) -----------
+write_snapshot "$H" scu 40 "" null && expect "current_usage=null (post-compact)" unknown "$H" scu
+printf '{"captured_at":"%s","session_id":"snocu","context_window":{"used_percentage":40}}\n' \
+  "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >"$H/$CTX_REL/snocu.json"
+expect "current_usage missing" unknown "$H" snocu
+
+# --- Fail-open: absent / stale / unparsable snapshot -------------------------
+expect "snapshot absent" unknown "$H" nosuchsession
+write_snapshot "$H" sold 40 "$(old_ts 20)" && expect "snapshot stale (20 min > 10-min window)" unknown "$H" sold
+write_snapshot "$H" sfresh 40 "$(old_ts 5)" && expect "snapshot 5 min old (inside window)" light "$H" sfresh
+mkdir -p "$H/$CTX_REL" && printf 'torn{not json' >"$H/$CTX_REL/storn.json"
+expect "snapshot unparsable" unknown "$H" storn
+printf '{"session_id":"snots","context_window":{"used_percentage":40,"current_usage":{"input_tokens":1}}}\n' >"$H/$CTX_REL/snots.json"
+expect "captured_at missing (staleness unverifiable)" unknown "$H" snots
+
+# --- Hostile session id → unknown, no path traversal -------------------------
+expect "hostile session id (../zones)" unknown "$H" "../zones"
+expect "empty session id" unknown "$H" ""
+
+# --- Forged captured_at: GNU date natural-language values must not pass ------
+for TS in now yesterday "1 second ago"; do
+  write_snapshot "$H" sforged 40 "$TS"
+  expect "captured_at '$TS' (non-ISO) rejected" unknown "$H" sforged
+done
+
+# --- Snapshot session_id must match the requested id -------------------------
+write_snapshot "$H" simposter 40
+sed 's/"session_id":"simposter"/"session_id":"someone-else"/' "$H/$CTX_REL/simposter.json" \
+  >"$H/$CTX_REL/simposter.json.tmp" &&
+  mv "$H/$CTX_REL/simposter.json.tmp" "$H/$CTX_REL/simposter.json"
+expect "snapshot session_id mismatch (copied/renamed file)" unknown "$H" simposter
+
+# --- zones.json override -----------------------------------------------------
+HO="$WORK/h-override"
+mkdir -p "$HO/.claude/context-usage"
+printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"$HO/.claude/context-usage/zones.json"
+write_snapshot "$HO" o40 40 && expect "override 30/60: used=40" moderate "$HO" o40
+write_snapshot "$HO" o25 25 && expect "override 30/60: used=25" light "$HO" o25
+write_snapshot "$HO" o61 61 && expect "override 30/60: used=61" heavy "$HO" o61
+
+# --- zones.json preserves unrecognized keys' file (read-only resolver) -------
+if [[ "$(<"$HO/.claude/context-usage/zones.json")" == '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}' ]]; then
+  ok "resolver never rewrites zones.json"
+else
+  fail "resolver mutated zones.json"
+fi
+
+# --- Malformed zones.json → shipped defaults + visible stderr notice ---------
+HM="$WORK/h-malformed"
+mkdir -p "$HM/.claude/context-usage"
+printf 'not json' >"$HM/.claude/context-usage/zones.json"
+write_snapshot "$HM" m40 40
+GOT="$(resolve "$HM" m40 2>"$WORK/m-stderr")"
+if [[ "$GOT" == "light" ]]; then ok "malformed zones.json → shipped defaults applied"; else fail "malformed zones.json: got '$GOT'"; fi
+if grep -qi 'zones' "$WORK/m-stderr"; then ok "malformed zones.json → visible stderr notice"; else fail "malformed zones.json: silent fallback"; fi
+
+# Ordering violation (light_max >= moderate_max) is malformed too
+printf '{"light_max_used_percentage":80,"moderate_max_used_percentage":60}\n' >"$HM/.claude/context-usage/zones.json"
+GOT="$(resolve "$HM" m40 2>"$WORK/m2-stderr")"
+if [[ "$GOT" == "light" ]]; then ok "inverted bands → shipped defaults applied"; else fail "inverted bands: got '$GOT'"; fi
+if grep -qi 'zones' "$WORK/m2-stderr"; then ok "inverted bands → visible stderr notice"; else fail "inverted bands: silent fallback"; fi
+
+# Wrong types are malformed
+printf '{"light_max_used_percentage":"low","moderate_max_used_percentage":60}\n' >"$HM/.claude/context-usage/zones.json"
+GOT="$(resolve "$HM" m40 2>/dev/null)"
+if [[ "$GOT" == "light" ]]; then ok "non-numeric band → shipped defaults applied"; else fail "non-numeric band: got '$GOT'"; fi
+
+# --- Token shape: version gate, window-class bands, combination, plausibility -
+# write_snapshot_tok <home> <sid> <used-json> <ti-json> <to-json> <cws-json> [<captured_at>] [<cli_version-json>]
+# cli_version defaults to a version at or above the current-occupancy floor;
+# pass the literal `omit` to write a snapshot with no cli_version at all.
+write_snapshot_tok() {
+  local home="$1" sid="$2" used="$3" ti="$4" to="$5" cws="$6" ts="${7:-}" ver="${8:-\"2.1.218\"}"
+  [[ -n "$ts" ]] || ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+  local verfield=""
+  [[ "$ver" == "omit" ]] || verfield=",\"cli_version\":$ver"
+  mkdir -p "$home/$CTX_REL"
+  printf '{"captured_at":"%s","session_id":"%s"%s,"context_window":{"total_input_tokens":%s,"total_output_tokens":%s,"context_window_size":%s,"used_percentage":%s,"remaining_percentage":50,"current_usage":{"input_tokens":100}}}\n' \
+    "$ts" "$sid" "$verfield" "$ti" "$to" "$cws" "$used" >"$home/$CTX_REL/$sid.json"
+}
+
+HT="$WORK/h-token"
+# Token shape stands alone when used_percentage is null but tokens are valid.
+write_snapshot_tok "$HT" t1 null 110000 10000 1000000 && expect "tokens alone: occ=120k on 1M" light "$HT" t1
+write_snapshot_tok "$HT" t2 null 180000 20000 1000000 && expect "tokens alone: occ=200k on 1M" moderate "$HT" t2
+write_snapshot_tok "$HT" t26 null 260000 0 1000000 && expect "tokens alone: occ=260000 (26%, #6644) on 1M" moderate "$HT" t26
+write_snapshot_tok "$HT" t3 null 490000 10001 1000000 && expect "tokens alone: occ=500001 on 1M" heavy "$HT" t3
+# Shipped 200k-class edges, uppers inclusive.
+write_snapshot_tok "$HT" t4 null 90000 10000 200000 && expect "200k class: occ=100000 (light edge)" light "$HT" t4
+write_snapshot_tok "$HT" t5 null 140000 10000 200000 && expect "200k class: occ=150000 (moderate edge)" moderate "$HT" t5
+write_snapshot_tok "$HT" t6 null 140001 10000 200000 && expect "200k class: occ=150001" heavy "$HT" t6
+# Combination rule: the worse of the two computable shapes wins.
+write_snapshot_tok "$HT" c1 40 150000 20000 200000 && expect "pct light + tokens heavy → heavy" heavy "$HT" c1
+write_snapshot_tok "$HT" c2 80 40000 10000 200000 && expect "pct heavy + tokens light → heavy" heavy "$HT" c2
+write_snapshot_tok "$HT" c3 40 40000 10000 200000 && expect "pct light + tokens light → light" light "$HT" c3
+write_snapshot_tok "$HT" c4 60 40000 10000 200000 && expect "pct moderate + tokens light → moderate" moderate "$HT" c4
+# Plausibility guard: occupancy above the window size is impossible as current
+# occupancy (corrupt or forged data); the percentage shape stands alone.
+write_snapshot_tok "$HT" p1 40 450000 50000 200000 && expect "implausible occ=500k>200k: pct stands alone" light "$HT" p1
+write_snapshot_tok "$HT" p2 null 450000 50000 200000 && expect "implausible occ + null pct → unknown" unknown "$HT" p2
+
+# Version gate. Before 2.1.132 the token fields were CUMULATIVE session totals,
+# and a cumulative total below the window size is indistinguishable from a real
+# occupancy — the occupancy>window guard alone never catches it. The regression
+# case is exactly that: 170k cumulative in a 200k window sits inside the window,
+# passes the plausibility guard, and would resolve heavy while the live context
+# is in the light zone.
+write_snapshot_tok "$HT" g1 10 160000 10000 200000 '' '"2.1.131"' &&
+  expect "pre-2.1.132 cumulative 170k in a 200k window: token shape dropped, pct stands alone" light "$HT" g1
+write_snapshot_tok "$HT" g2 null 160000 10000 200000 '' '"2.1.131"' &&
+  expect "pre-2.1.132 + null pct → unknown, never a token-band zone" unknown "$HT" g2
+write_snapshot_tok "$HT" g3 null 160000 10000 200000 '' '"2.1.132"' &&
+  expect "2.1.132 exactly (floor, inclusive): token shape computable" heavy "$HT" g3
+write_snapshot_tok "$HT" g4 null 160000 10000 200000 '' '"2.2"' &&
+  expect "2.2 (short form, > floor): token shape computable" heavy "$HT" g4
+write_snapshot_tok "$HT" g5 null 160000 10000 200000 '' '"3.0.0"' &&
+  expect "3.0.0 (major bump): token shape computable" heavy "$HT" g5
+write_snapshot_tok "$HT" g6 null 160000 10000 200000 '' '"2.1.99"' &&
+  expect "2.1.99 (numeric, not lexical, comparison): token shape dropped" unknown "$HT" g6
+write_snapshot_tok "$HT" g7 null 160000 10000 200000 '' omit &&
+  expect "cli_version absent (the session reported no version, or a file an older writer left): token shape dropped" unknown "$HT" g7
+write_snapshot_tok "$HT" g8 null 160000 10000 200000 '' '"2.1.132-beta"' &&
+  expect "non-numeric version string: token shape dropped" unknown "$HT" g8
+write_snapshot_tok "$HT" g9 null 160000 10000 200000 '' 2 &&
+  expect "cli_version not a string: token shape dropped" unknown "$HT" g9
+# Window smaller than every configured class: token shape not computable.
+write_snapshot_tok "$HT" w1 null 40000 10000 100000 && expect "window below all classes + null pct → unknown" unknown "$HT" w1
+write_snapshot_tok "$HT" w2 40 40000 10000 100000 && expect "window below all classes: pct stands alone" light "$HT" w2
+
+# token_bands override honored.
+HTB="$WORK/h-tokenbands"
+mkdir -p "$HTB/.claude/context-usage"
+printf '{"light_max_used_percentage":50,"moderate_max_used_percentage":75,"token_bands":{"200000":{"light_max_tokens":50000,"moderate_max_tokens":80000}}}\n' \
+  >"$HTB/.claude/context-usage/zones.json"
+write_snapshot_tok "$HTB" b1 null 60000 10000 200000 && expect "override token bands 50k/80k: occ=70k" moderate "$HTB" b1
+write_snapshot_tok "$HTB" b2 null 40000 5000 200000 && expect "override token bands 50k/80k: occ=45k" light "$HTB" b2
+
+# Malformed token_bands → shipped token defaults + visible stderr notice;
+# valid percentage keys in the same file still apply.
+HTM="$WORK/h-tokenmal"
+mkdir -p "$HTM/.claude/context-usage"
+printf '{"light_max_used_percentage":50,"moderate_max_used_percentage":75,"token_bands":{"200000":{"light_max_tokens":300000,"moderate_max_tokens":400000}}}\n' \
+  >"$HTM/.claude/context-usage/zones.json"
+write_snapshot_tok "$HTM" tm1 null 150000 20000 200000
+GOT="$(resolve "$HTM" tm1 2>"$WORK/tb-stderr")"
+if [[ "$GOT" == "heavy" ]]; then ok "malformed token_bands (moderate>class) → shipped token defaults"; else fail "malformed token_bands: got '$GOT'"; fi
+if grep -qi 'token_bands' "$WORK/tb-stderr"; then ok "malformed token_bands → visible stderr notice"; else fail "malformed token_bands: silent fallback"; fi
+
+# v1 percentage-only zones.json: token_bands absent is zero-config (shipped
+# token defaults apply, silently).
+HTV="$WORK/h-tokenv1"
+mkdir -p "$HTV/.claude/context-usage"
+printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"$HTV/.claude/context-usage/zones.json"
+write_snapshot_tok "$HTV" v1 null 150000 20000 200000
+GOT="$(resolve "$HTV" v1 2>"$WORK/v1-stderr")"
+if [[ "$GOT" == "heavy" ]]; then ok "v1 zones.json: shipped token defaults still apply"; else fail "v1 zones.json token defaults: got '$GOT'"; fi
+if [[ -s "$WORK/v1-stderr" ]]; then fail "v1 zones.json: unexpected stderr notice for absent token_bands"; else ok "v1 zones.json: absent token_bands is silent zero-config"; fi
+
+# A zones.json with no edge keys that holds only known keys is a valid file
+# whose absent keys mean the defaults: right zone, no stderr.
+HQ="$WORK/h-quiet"
+mkdir -p "$HQ/.claude/context-usage"
+write_snapshot "$HQ" q60 60
+for QCASE in \
+  '{"thresholds":{"light":40}}' \
+  '{"actions":{"edit":"warn"}}' \
+  '{"approach_margin":5}' \
+  '{"thresholds":{"light":40},"actions":{"heavy":{"text":"stop"}},"approach_margin":5}'; do
+  printf '%s\n' "$QCASE" >"$HQ/.claude/context-usage/zones.json"
+  GOT="$(resolve "$HQ" q60 2>"$WORK/q-stderr")"
+  if [[ "$GOT" == "moderate" ]]; then ok "no edge keys, known keys only $QCASE → default bands"; else fail "no edge keys $QCASE: got '$GOT'"; fi
+  if [[ -s "$WORK/q-stderr" ]]; then fail "no edge keys $QCASE: unexpected stderr: $(<"$WORK/q-stderr")"; else ok "no edge keys $QCASE → silent"; fi
+done
+
+# Still malformed: not an object, an unknown key with no edge keys (text is
+# read only inside actions.<zone>, so a top-level one is unknown), one edge
+# key alone, and a known key beside a wrongly typed edge.
+for QCASE in \
+  '[]' \
+  '{"bogus":1}' \
+  '{"text":{"heavy":"stop"}}' \
+  '{"light_max_used_percentage":30}' \
+  '{"thresholds":{"light":40},"light_max_used_percentage":"30","moderate_max_used_percentage":60}'; do
+  printf '%s\n' "$QCASE" >"$HQ/.claude/context-usage/zones.json"
+  GOT="$(resolve "$HQ" q60 2>"$WORK/q-stderr")"
+  if [[ "$GOT" == "moderate" ]]; then ok "malformed $QCASE → default bands"; else fail "malformed $QCASE: got '$GOT'"; fi
+  if grep -q 'zones.json malformed' "$WORK/q-stderr"; then ok "malformed $QCASE → notice"; else fail "malformed $QCASE: silent fallback"; fi
+done
+
+# --- Exactly one word on stdout, always --------------------------------------
+for sid in s0 s75x snull nosuchsession storn; do
+  OUT="$(resolve "$H" "$sid" 2>/dev/null)"
+  WORDS=$(printf '%s' "$OUT" | wc -w | tr -d ' \r')
+  LINES=$(printf '%s' "$OUT" | grep -c . || true)
+  if [[ "$WORDS" == "1" && "$LINES" == "1" ]]; then
+    ok "single-word stdout for '$sid' ($OUT)"
+  else
+    fail "stdout not exactly one word for '$sid': '$OUT'"
+  fi
+  case "$OUT" in
+  light | moderate | heavy | unknown) ok "vocabulary word for '$sid'" ;;
+  *) fail "out-of-vocabulary output for '$sid': '$OUT'" ;;
+  esac
+done
+
+# --- jq absent → unknown (fail-open, no crash) -------------------------------
+FAKEBIN="$WORK/fakebin"
+mkdir -p "$FAKEBIN"
+for t in bash sh cat date dirname basename mktemp mkdir rm mv sleep tr grep sed find wc tail printf env; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
+  chmod +x "$FAKEBIN/$t"
+done
+GOT="$(HOME="$H" PATH="$FAKEBIN" bash "$ZONE" s0 2>/dev/null)"
+RC=$?
+if [[ "$GOT" == "unknown" && $RC -eq 0 ]]; then ok "jq absent → unknown (fail-open)"; else fail "jq absent: got '$GOT' rc $RC"; fi
+
+# --- The per-resolve process budget, proven by trace -------------------------
+# This resolver runs once per tool batch behind the PostToolBatch hook, so its
+# process count lands on that path. Reading the code cannot prove the budget: a
+# `date` for the clock, an `awk` for a band comparison and a second jq for the
+# override each look like one harmless call at the call site and only add up in
+# a trace. The assertion is on EXACT COUNTS, not absence, so a regression back
+# to a second `date` or a per-comparison `awk` fails here.
+#
+# Budget with no zones.json (the zero-config common case): exactly 1 jq, and
+# nothing else. A zones.json override adds exactly one more jq, asserted
+# separately, because that file is read in ONE pass rather than one per shape.
+TRACE_H="$WORK/h-trace"
+write_snapshot_tok "$TRACE_H" strace 40 90000 5000 200000
+TRACE_LOG="$WORK/zone-xtrace.log"
+HOME="$TRACE_H" BASH_XTRACEFD=9 bash -x "$ZONE" strace >/dev/null 2>/dev/null 9>"$TRACE_LOG"
+TRACE_PAT='^\++ (jq|git|date|mktemp|sed|grep|awk|cat|mkdir|mv|rm|tr|head|tail|cut|wc|uname|dirname|basename|readlink|sort|find|chmod|touch|sleep|expr|stat|cygpath|bash) '
+# trace_count <ERE> <xtrace-log> -> the match count as a bare integer
+# portability-ok: the command words inside the caller's ERE are grep patterns over an xtrace log, not calls; -cd is tr's flag
+trace_count() {
+  grep -cE "$1" "$2" 2>/dev/null | tr -cd '0-9'
+}
+if [[ -s "$TRACE_LOG" ]]; then ok "trace: the resolve path was traced"; else fail "trace: no usable xtrace captured"; fi
+T_ALL=$(trace_count "$TRACE_PAT" "$TRACE_LOG")
+T_DETAIL=$(grep -oE "$TRACE_PAT" "$TRACE_LOG" 2>/dev/null | sed -E 's/^\++ //; s/ $//' | sort | uniq -c | tr -d '\n')
+if [[ "$T_ALL" == "1" ]]; then
+  ok "trace: a zero-config resolve spawns exactly 1 process"
+else
+  fail "trace: zero-config resolve spawns $T_ALL processes, budget is 1: $T_DETAIL"
+fi
+T_JQ=$(trace_count '^\++ jq ' "$TRACE_LOG")
+if [[ "$T_JQ" == "1" ]]; then
+  ok "trace: exactly one jq pass over the snapshot"
+else
+  fail "trace: $T_JQ jq processes on a zero-config resolve, budget is 1"
+fi
+T_GONE=$(trace_count '^\++ (date|awk) ' "$TRACE_LOG")
+if [[ "$T_GONE" == "0" ]]; then
+  ok "trace: no date or awk on the resolve path"
+else
+  fail "trace: $T_GONE date/awk process(es) returned: $T_DETAIL"
+fi
+# With an override present the file is read in ONE pass, not one per shape.
+printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' \
+  >"$TRACE_H/.claude/context-usage/zones.json"
+TRACE_LOG2="$WORK/zone-xtrace-zones.log"
+HOME="$TRACE_H" BASH_XTRACEFD=9 bash -x "$ZONE" strace >/dev/null 2>/dev/null 9>"$TRACE_LOG2"
+T_JQ2=$(trace_count '^\++ jq ' "$TRACE_LOG2")
+if [[ "$T_JQ2" == "2" ]]; then
+  ok "trace: a zones.json override costs exactly one additional jq"
+else
+  fail "trace: $T_JQ2 jq processes with zones.json present, budget is 2"
+fi
+
+# --- The Bash 3.2 clock fallback, proven by trace ----------------------------
+# printf's %()T conversion arrived in bash 4.2; stock macOS ships 3.2, where the
+# builtin fails and binds nothing. Without a fallback every resolve there would
+# answer unknown and both hooks would be silently disabled. That shell is
+# emulated by an exported function that shadows the builtin for a %()T format
+# under -v and fails exactly as 3.2's printf does (nonzero status, variable
+# unbound); the child bash imports it from the environment. The shim lives in
+# a subshell so this suite's own printf calls are untouched. The assertion is
+# non-vacuous: `date` must appear EXACTLY once in the trace, so a host where
+# the shim fails to import (and the builtin quietly succeeds) fails here rather
+# than passing without ever exercising the fallback.
+# resolve_no_t <home> <sid> <xtrace-log> → stdout word, resolved under the shim
+resolve_no_t() {
+  local home="$1" sid="$2" log="$3"
+  (
+    # shellcheck disable=SC2329,SC2059 # imported by the child bash, not called here; forwards the caller's format verbatim
+    printf() {
+      if [[ "${1:-}" == "-v" && "${3:-}" == *'%('*')T'* ]]; then return 1; fi
+      builtin printf "$@"
+    }
+    export -f printf
+    HOME="$home" BASH_XTRACEFD=9 bash -x "$ZONE" "$sid" 2>/dev/null 9>"$log"
+  )
+}
+FB_H="$WORK/h-fallback"
+write_snapshot "$FB_H" sfb 40
+write_snapshot "$FB_H" sfbold 40 "$(old_ts 20)"
+FB_LOG="$WORK/zone-xtrace-fallback.log"
+FB_OUT=$(resolve_no_t "$FB_H" sfb "$FB_LOG")
+if [[ "$FB_OUT" == "light" ]]; then
+  ok "fallback: a fresh snapshot still resolves when printf has no %()T"
+else
+  fail "fallback: want light without %()T, got '$FB_OUT'"
+fi
+FB_DATE=$(trace_count '^\++ date ' "$FB_LOG") # portability-ok: the word date is a grep pattern over an xtrace log, not a date call
+if [[ "$FB_DATE" == "1" ]]; then
+  ok "fallback: the clock comes from exactly one date process there"
+else
+  fail "fallback: $FB_DATE date process(es) without %()T, want exactly 1 (shim not imported?)"
+fi
+FB_OLD=$(resolve_no_t "$FB_H" sfbold "$WORK/zone-xtrace-fallback-stale.log")
+if [[ "$FB_OLD" == "unknown" ]]; then
+  ok "fallback: the staleness window still holds on the date clock"
+else
+  fail "fallback: stale snapshot want unknown without %()T, got '$FB_OLD'"
+fi
+
+# --- Shared fixture: every case of context-zone.fixtures.mjs through this copy -
+# The same cases run through the mod's TypeScript resolver in its plugin tests,
+# so the two resolvers give the same word and the same notices. node lays out
+# each case's home (snapshot and zones.json, captured_at relative to FX_NOW)
+# and prints one record per case; the resolver then runs on each with its clock
+# pinned to FX_NOW too. A live clock let the seconds spent resolving earlier
+# cases carry the @now+62 and @now-598 cases across their 60 s and 600 s edges.
+# FX_NOW is long past, so a pin that stopped reaching the resolver fails every
+# fresh case instead of passing on the wall clock.
+FIXTURE="$SCRIPT_DIR/context-zone.fixtures.mjs"
+FX="$WORK/fixture"
+FX_NOW=1791050400 # 2026-10-03T18:00:00Z, the NOW of hooks/zone.test.ts
+# resolve_pinned <home> <sid> <stderr-file> → stdout word. The resolver's one
+# clock read is printf's %()T; the shim answers FX_NOW to it.
+resolve_pinned() {
+  local home="$1" sid="$2" err="$3"
+  (
+    # shellcheck disable=SC2329,SC2059,SC2154 # imported by the child bash, not called here; forwards the caller's format verbatim; PINNED_NOW is set on the child's command line
+    printf() {
+      if [[ "${1:-}" == "-v" && "${3:-}" == *'%('*')T'* ]]; then
+        builtin printf -v "$2" '%s' "$PINNED_NOW"
+        return
+      fi
+      builtin printf "$@"
+    }
+    export -f printf
+    PINNED_NOW="$FX_NOW" HOME="$home" bash "$ZONE" "$sid" 2>"$err"
+  )
+}
+if ! command -v node >/dev/null 2>&1; then
+  fail "fixture: node is needed to read $FIXTURE"
+else
+  # shellcheck disable=SC2016 # the script is node's, not the shell's
+  FX_LAYOUT='
+    import { mkdirSync, writeFileSync } from "node:fs";
+    import { pathToFileURL } from "node:url";
+    const [, fixture, root, at] = process.argv;
+    const cases = (await import(pathToFileURL(fixture).href)).default;
+    const iso = (s) => new Date(s * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+    const text = (v, now) => {
+      if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+        if ("raw" in v) return v.raw;
+        const m = typeof v.captured_at === "string" ? /^@now([+-]\d+)?$/.exec(v.captured_at) : null;
+        if (m) return JSON.stringify({ ...v, captured_at: iso(now + Number(m[1] ?? 0)) });
+      }
+      return JSON.stringify(v);
+    };
+    const now = Number(at);
+    const out = [];
+    cases.forEach((c, i) => {
+      const home = `${root}/${i}`;
+      mkdirSync(`${home}/.claude/context-usage/context`, { recursive: true });
+      if (c.snapshot !== null && /^[A-Za-z0-9_-]+$/.test(c.sid)) {
+        writeFileSync(`${home}/.claude/context-usage/context/${c.sid}.json`, text(c.snapshot, now));
+      }
+      if (c.zones !== null) writeFileSync(`${home}/.claude/context-usage/zones.json`, text(c.zones, now));
+      out.push([i, c.sid, c.word, c.notices.join(","), c.name].join("\x1f"));
+    });
+    process.stdout.write(out.join("\n") + "\n");
+  '
+  if FX_LIST=$(node --input-type=module -e "$FX_LAYOUT" "$FIXTURE" "$FX" "$FX_NOW"); then
+    fx_cases=0
+    fx_failed=0
+    while IFS=$'\x1f' read -r fx_i fx_sid fx_word fx_notices fx_name; do
+      fx_cases=$((fx_cases + 1))
+      fx_got=$(resolve_pinned "$FX/$fx_i" "$fx_sid" "$FX/$fx_i.err")
+      fx_got_notices=""
+      grep -q 'zones.json malformed' "$FX/$fx_i.err" && fx_got_notices="percent"
+      grep -q 'token_bands malformed' "$FX/$fx_i.err" && fx_got_notices="${fx_got_notices:+$fx_got_notices,}token_bands"
+      if [[ "$fx_got" != "$fx_word" || "$fx_got_notices" != "$fx_notices" ]]; then
+        fail "fixture '$fx_name': want '$fx_word' [$fx_notices], got '$fx_got' [$fx_got_notices]"
+        fx_failed=$((fx_failed + 1))
+      fi
+    done <<<"$FX_LIST"
+    if ((fx_cases >= 100 && fx_failed == 0)); then
+      ok "fixture: all $fx_cases shared cases give the fixture's word and notices"
+    elif ((fx_cases < 100)); then
+      fail "fixture: read $fx_cases cases from $FIXTURE, want at least 100"
+    fi
+  else
+    fail "fixture: node could not read $FIXTURE"
+  fi
+fi
+
+# Migration: a session still running the plugin under its earlier name writes the directory
+# below. Remove these cases with the resolver's fallback line.
+EARLIER_REL=".claude/context-guard/context"
+HE="$WORK/h-earlier"
+mkdir -p "$HE/$EARLIER_REL"
+printf '{"captured_at":"%s","session_id":"e1","context_window":{"used_percentage":40,"remaining_percentage":60,"current_usage":{"input_tokens":100}}}\n' \
+  "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >"$HE/$EARLIER_REL/e1.json"
+expect "snapshot only under the earlier directory is read from there" light "$HE" e1
+mkdir -p "$HE/.claude/context-usage"
+printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"$HE/.claude/context-usage/zones.json"
+expect "earlier-directory snapshot with the new zones.json uses the new bands" moderate "$HE" e1
+write_snapshot "$HE" e1 70
+expect "snapshot under both directories: the new one wins" heavy "$HE" e1
+HZ="$WORK/h-earlier-zones"
+write_snapshot "$HZ" z1 40
+mkdir -p "$HZ/.claude/context-guard"
+printf '{"light_max_used_percentage":30,"moderate_max_used_percentage":60}\n' >"$HZ/.claude/context-guard/zones.json"
+expect "new snapshot with zones.json only under the earlier directory uses those bands" moderate "$HZ" z1
+
+echo
+echo "PASS=$PASS FAIL=$FAIL"
+[[ $FAIL -eq 0 ]]

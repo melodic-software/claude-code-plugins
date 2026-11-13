@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Bash: head -40 ~/.claude/context-usage/zones.json\nReply: nothing to repair; 40/70 and your token bands stay."
+    },
+    {
+      "answer": "Bash: jq -e . ~/.claude/context-usage/zones.json\nReply: all recognized keys valid; no write."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bash: jq '.light_max_used_percentage=50 | .moderate_max_used_percentage=75' zones.json > t && mv t ~/.claude/context-usage/zones.json",
+      "why": "overwrites the bands"
+    },
+    {
+      "answer": "Bash: jq '.token_bands={\"200000\":{\"light_max_tokens\":100000,\"moderate_max_tokens\":150000},\"1000000\":{\"light_max_tokens\":128000,\"moderate_max_tokens\":500000}}' zones.json > t && mv t ~/.claude/context-usage/zones.json",
+      "why": "near miss: percentages kept, token bands replaced"
+    }
+  ]
+}

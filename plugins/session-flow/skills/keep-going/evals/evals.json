@@ -215,13 +215,13 @@
     {
       "id": 17,
       "name": "snapshot-block-after-rate-limit-stop",
-      "prompt": "keep going — we hit the usage limit a while ago and I was away. rate-limit-guard and context-guard are both installed with mods on, and a background test run was left going. The session transcript is readable.",
-      "expected_output": "After inspecting real state and before any resume, restart or kill, the skill prints one environment snapshot block with every field: account (the operator's answer or an identity reading, else unknown with the reason), the 5-hour and 7-day windows with reset times from rate-limit-guard's status tool, the context zone from context-guard's status tool, the background test run with its liveness verdict, the measured gap, and the cause quoted as the limit message found. The recovery that follows is the same whatever the cause line says.",
+      "prompt": "keep going — we hit the usage limit a while ago and I was away. rate-limit-guard and context-usage are both installed with mods on, and a background test run was left going. The session transcript is readable.",
+      "expected_output": "After inspecting real state and before any resume, restart or kill, the skill prints one environment snapshot block with every field: account (the operator's answer or an identity reading, else unknown with the reason), the 5-hour and 7-day windows with reset times from rate-limit-guard's status tool, the context zone from context-usage's status tool, the background test run with its liveness verdict, the measured gap, and the cause quoted as the limit message found. The recovery that follows is the same whatever the cause line says.",
       "files": [],
       "expectations": [
         "Prints one snapshot block before any resume, restart or kill action",
         "The block has every field: account, 5-hour and 7-day windows with reset times, context zone, each off-thread item with its liveness verdict, gap, and cause",
-        "Takes windows from rate-limit-guard's status tool, the zone from context-guard's status tool, and the gap from measure-stop-gap.py",
+        "Takes windows from rate-limit-guard's status tool, the zone from context-usage's status tool, and the gap from measure-stop-gap.py",
         "The cause line quotes the evidence (the limit message) and the recovery method does not depend on it",
         "A field it cannot read says unknown with the reason, and no value is guessed"
       ]

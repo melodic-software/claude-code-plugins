@@ -1,0 +1,15 @@
+{
+  "claim": "Control: under dontAsk with no deny rule, a Read of .env in the working directory runs.",
+  "tags": ["Read rule", "deny rule", "permissions.deny", "Bash", "file commands", "dontAsk"],
+  "docs": [
+    "https://code.claude.com/docs/en/permissions#working-directories"
+  ],
+  "permission_mode": "dontAsk",
+  "target": {
+    "tool": "Read",
+    "input_match": "\"file_path\": \"[^\"]*/\\.env\"",
+    "example": {"file_path": "/tmp/cc-probe-dry/.env"}
+  },
+  "outcome": "ran",
+  "match": "probe-env-marker"
+}

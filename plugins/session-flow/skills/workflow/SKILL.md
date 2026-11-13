@@ -143,10 +143,10 @@ When the just-finished work closed out a stage (its artifact exists), or the use
 to carry on, the *mechanism* question is separate from the *next stage* question: continue here,
 `/clear`, handoff, background, clean-stop, or compact, with a cloud session offered as advice. Load `context/continuation.md` and walk
 its ordered router; recommend exactly one mechanism with its rationale, zone-informed when
-context-guard's zone report (its `mcp__context-guard__status` tool, or its snapshot) has data and
+context-usage's zone report (its `mcp__context-usage__status` tool, or its snapshot) has data and
 conservative when it does not. Mid-stage with a healthy window,
 skip this, the default is simply to continue. Mid-stage with a bloated window, walk the router
-too. Between human stages (interview, PRD, design, plan), suggest a handoff only at context-guard
+too. Between human stages (interview, PRD, design, plan), suggest a handoff only at context-usage
 zone `heavy` or on its compaction marker; these stages run in one session
 (`context/continuation.md`).
 

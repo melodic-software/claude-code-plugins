@@ -1,0 +1,15 @@
+{
+  "claim": "Control: under dontAsk with no deny rule, `cat .env` runs as a read-only command.",
+  "tags": ["Read rule", "deny rule", "permissions.deny", "Bash", "file commands", "dontAsk"],
+  "docs": [
+    "https://code.claude.com/docs/en/permissions#read-only-commands"
+  ],
+  "permission_mode": "dontAsk",
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"cat \\.env\"",
+    "example": {"command": "cat .env"}
+  },
+  "outcome": "ran",
+  "match": "probe-env-marker"
+}

@@ -1,0 +1,16 @@
+{
+  "claim": "In auto mode, a Write to a file in the primary working directory runs without reaching the classifier: an autoMode.soft_deny rule that forbids the write does not stop it.",
+  "tags": ["auto mode", "classifier", "working directories", "additionalDirectories", "additional directories", "Write", "file edits", "autoMode", "soft_deny"],
+  "docs": [
+    "https://code.claude.com/docs/en/permission-modes#how-the-classifier-evaluates-actions",
+    "https://code.claude.com/docs/en/permissions#working-directories"
+  ],
+  "permission_mode": "auto",
+  "cwd": "proj",
+  "target": {
+    "tool": "Write",
+    "input_match": "\"file_path\": \"[^\"]*/proj/probe\\.txt\"",
+    "example": {"file_path": "/tmp/cc-probe-dry/proj/probe.txt", "content": "probe"}
+  },
+  "outcome": "ran"
+}

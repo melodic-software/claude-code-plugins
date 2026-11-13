@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| context_usage_hooks_enabled | true |\n| model_notices | false |\n| zone_report_mode | automatic |\n| zone_line_data | zone |\n| context_usage_band | false |\n| context_usage_toast | true |"
+    },
+    {
+      "answer": "| context_usage_hooks_enabled | UNKNOWN (unexpanded) |\n| model_notices | UNKNOWN |\n| zone_report_mode | UNKNOWN |\n| zone_line_data | UNKNOWN |\n| context_usage_band | UNKNOWN |\n| context_usage_toast | UNKNOWN |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| context_usage_hooks_enabled | true |\n| model_notices | false |\n| zone_report_mode | automatic |\n| zone_line_data | zone |\n| context_usage_band | false |\n| context_usage_toast | |",
+      "why": "near miss: one value missing"
+    },
+    {
+      "answer": "All six options are at their defaults.",
+      "why": "collapsed"
+    },
+    {
+      "answer": "| context_usage_hooks_enabled | ${user_config.context_usage_hooks_enabled} |\n| model_notices | false |\n| zone_report_mode | automatic |\n| zone_line_data | zone |\n| context_usage_band | false |\n| context_usage_toast | true |",
+      "why": "near miss: an unexpanded token reported as a value, not UNKNOWN"
+    }
+  ]
+}

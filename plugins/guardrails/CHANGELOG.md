@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.1] - 2026-11-12
+
+### Changed
+
+- Corrected in place: the released entries [0.41.1], [0.32.5], [0.18.3] now name the spell-check plugin `spelling`, its current name.
+
+- References to the spell-check plugin use its new name, `spelling`.
+
 ## [3.1.0] - 2026-11-12
 
 ### Added
@@ -5927,7 +5935,7 @@ not that.)
   from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms.
   `read -N` is Bash 4.1+, and these hooks support Bash 3.2+ (macOS system bash), so the pre-4.1 path
   falls back to the delimiter read inside the same re-arming loop, the same guard and rationale as
-  `context-guard`'s `statusline-tee.sh`.
+  `context-usage`'s `statusline-tee.sh`.
   **The fail-closed posture is unchanged.** A stalled pipe still yields rc 2 (regression test in
   `lib/hook-utils.test.sh`), a payload containing a violation is still blocked, and a violation
   sitting at the very end of a 200 KB payload is now *caught* rather than swept up in a

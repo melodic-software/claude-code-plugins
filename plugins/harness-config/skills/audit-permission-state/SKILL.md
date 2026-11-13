@@ -254,6 +254,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/automode-block
   entries are gone. `reference/criteria.md` §"The `autoMode` block lane" holds the pointer.
 - **`C2b-contradiction`**: the same subject in `allow` and in a deny section.
 - **`C3-shadowed`**: an entry an earlier `hard_deny` already forecloses, so it can never fire.
+- **`C5-provenance`**: a date or issue reference in an entry you wrote.
 - **`--critique` surfaces `claude auto-mode critique`, wrapped and never replaced.** It owns the
   semantic judgment. What this adds is honesty about it: measured across three consecutive runs on one
   unchanged config, output was truncated mid-sentence twice and empty once, **exiting 0 every time**.

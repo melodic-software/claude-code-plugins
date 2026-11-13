@@ -354,7 +354,7 @@ the fleet when the record is demoted to report-only under the mechanism's demoti
 no retirement record.
 
 **Scope.** This doctrine governs repository-scope surfaces only. Machine-scope files under
-`~/.claude/` (context-guard, rate-limit-guard, machine-health) are outside both the criterion and
+`~/.claude/` (context-usage, rate-limit-guard, machine-health) are outside both the criterion and
 the retirement mechanism; ADR 0018 records that exclusion.
 
 ## Resolution algorithm

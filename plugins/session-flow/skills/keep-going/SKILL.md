@@ -124,7 +124,7 @@ itself the thing this skill removes.
      with none the field is `unknown`.
    - **Windows**: the 5-hour and 7-day windows with reset times, from
      `mcp__rate-limit-guard__status`.
-   - **Zone**: the word from `mcp__context-guard__status`, per "Zone
+   - **Zone**: the word from `mcp__context-usage__status`, per "Zone
      input".
    - **Off-thread items**: each with its liveness verdict from this step,
      or `none found`.
@@ -242,15 +242,15 @@ reason.
 
 Step 5 continues the main task in **this** session, and that is only right
 when this session's context is still fit for the work. When the
-`context-guard` plugin is enabled, look up this session's zone word with
-its `mcp__context-guard__status` pull tool, or resolve it per its reader
+`context-usage` plugin is enabled, look up this session's zone word with
+its `mcp__context-usage__status` pull tool, or resolve it per its reader
 contract, before continuing (the contract owns the snapshot
 path, staleness rule, and bands. Read them there; this skill consumes
 only the resulting word and inlines no band values). Never substitute
 your own estimate of the remaining window for the instrument's reading.
 Plugin not enabled, absent snapshot, or
 `unknown` → judge from response quality alone, conservatively. A degraded
-zone, or context-guard's evidence-degraded marker for this session, does
+zone, or context-usage's evidence-degraded marker for this session, does
 not stop the recovery (steps 1-4 are reads and evidence-gated actions
 either way); it changes where the *continuation* goes. Route it with
 `/session-flow:workflow continue`, whose router in

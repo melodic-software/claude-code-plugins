@@ -229,8 +229,8 @@
     {
       "id": 19,
       "name": "hyphenated-superstring-is-not-a-container-match",
-      "prompt": "Rename the `context` plugin to `session-context`. The repo also has a `context-guard` plugin referenced as /plugin configure context-guard@acme-tools and context-guard@acme-tools.",
-      "expected_output": "The `context-guard` references are NOT matched. Container IDs are kebab-case, so a plain word boundary would let `context` match inside the hyphenated superstring `context-guard` and auto-rewrite an unrelated plugin's identifier on a Certain-rated form. Forms 13 and 15 exclude an adjacent hyphen on both sides, so `/plugin configure context@acme-tools` and `context@acme-tools` match while `/plugin configure context-guard@acme-tools` and `context-guard@acme-tools` do not.",
+      "prompt": "Rename the `context` plugin to `session-context`. The repo also has a `context-usage` plugin referenced as /plugin configure context-usage@acme-tools and context-usage@acme-tools.",
+      "expected_output": "The `context-usage` references are NOT matched. Container IDs are kebab-case, so a plain word boundary would let `context` match inside the hyphenated superstring `context-usage` and auto-rewrite an unrelated plugin's identifier on a Certain-rated form. Forms 13 and 15 exclude an adjacent hyphen on both sides, so `/plugin configure context@acme-tools` and `context@acme-tools` match while `/plugin configure context-usage@acme-tools` and `context-usage@acme-tools` do not.",
       "files": [],
       "expectations": [
         "A hyphenated superstring containing the token is never matched as the container",
@@ -316,7 +316,7 @@
       "id": 26,
       "name": "sentence-initial-appositive-is-matched",
       "prompt": "Rename the `guard` plugin to `guardrails`. The docs say: The guard plugin ships two hooks.",
-      "expected_output": "Form 15's appositive alternative matches the sentence-initial `The`, not only a lowercase `the`. Otherwise the token's only hit is Form 2, which container mode suppresses as residue, and apply mode finishes with the stale container reference. Only the article is case-flexible; the token itself stays case-sensitive, and `The context-guard plugin` is still rejected as a hyphenated superstring.",
+      "expected_output": "Form 15's appositive alternative matches the sentence-initial `The`, not only a lowercase `the`. Otherwise the token's only hit is Form 2, which container mode suppresses as residue, and apply mode finishes with the stale container reference. Only the article is case-flexible; the token itself stays case-sensitive, and `The commit-guard plugin` is still rejected as a hyphenated superstring.",
       "files": [],
       "expectations": [
         "Sentence-initial `The` is matched as well as lowercase `the`",
@@ -549,11 +549,11 @@
     {
       "id": 45,
       "name": "slash-token-does-not-match-hyphenated-command",
-      "prompt": "Rename the `context` plugin to `context-tools`. The repo documents an unrelated `/context-guard` command. Is it safe to auto-apply the Certain bucket?",
-      "expected_output": "Yes, now that Form 1's trailing boundary excludes a hyphen. A bare `\\b` treats a hyphen as a word boundary, so `\\B/<old>\\b` matched `/context-guard` as a `context` reference -- and Form 1 is on container mode's Certain allowlist, so the default auto-apply path would have rewritten another command's name to `/context-tools-guard`. The consumed `([^\\w-]|$)` terminator rules it out, the same shape Forms 13 and 15 use for the same reason. Discrimination is otherwise unchanged: `/context`, the namespaced `/context:sub` (a colon is a valid terminator) and `see /context.` still match, while `/context-guard`, `/contextual` and `path/context` do not. The consumed character is not part of the reference and is left in place, and Form 1 now participates in the survey's rescan-cursor rule like the other consume-the-delimiter forms.",
+      "prompt": "Rename the `context` plugin to `context-tools`. The repo documents an unrelated `/context-usage` command. Is it safe to auto-apply the Certain bucket?",
+      "expected_output": "Yes, now that Form 1's trailing boundary excludes a hyphen. A bare `\\b` treats a hyphen as a word boundary, so `\\B/<old>\\b` matched `/context-usage` as a `context` reference -- and Form 1 is on container mode's Certain allowlist, so the default auto-apply path would have rewritten another command's name to `/context-tools-usage`. The consumed `([^\\w-]|$)` terminator rules it out, the same shape Forms 13 and 15 use for the same reason. Discrimination is otherwise unchanged: `/context`, the namespaced `/context:sub` (a colon is a valid terminator) and `see /context.` still match, while `/context-usage`, `/contextual` and `path/context` do not. The consumed character is not part of the reference and is left in place, and Form 1 now participates in the survey's rescan-cursor rule like the other consume-the-delimiter forms.",
       "files": [],
       "expectations": [
-        "`/context-guard` is not matched as a `context` reference",
+        "`/context-usage` is not matched as a `context` reference",
         "A namespaced `/context:sub` invocation still matches",
         "The danger is tied to Form 1 being auto-applied rather than merely reported",
         "The consumed terminator is not rewritten as part of the reference"

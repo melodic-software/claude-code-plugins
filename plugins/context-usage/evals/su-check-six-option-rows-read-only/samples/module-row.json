@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| Module | PASS | mcp__context-usage__status is in my tool list |"
+    },
+    {
+      "answer": "| Module | INFO | mcp__context-usage__status is not in my tool list: mods off here, or the tool was refused |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Module | FAIL | the status tool is missing; reinstall the plugin |",
+      "why": "near miss: absent graded FAIL"
+    },
+    {
+      "answer": "| Module | PASS | claude plugin test says mods can load |",
+      "why": "near miss: a separate process read as this session"
+    },
+    {
+      "answer": "| Module | INFO | not checked |",
+      "why": "no evidence"
+    }
+  ]
+}

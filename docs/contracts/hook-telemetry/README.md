@@ -204,7 +204,7 @@ under `${CLAUDE_PLUGIN_ROOT}`, so there is no shared library to import. Each cop
 canonical `lib/hook-utils.sh`, and `scripts/sync-shared-copies.sh --check` fails on drift. This mirrors the
 standards-repo "adopt by copy" pattern.
 
-A mod emits from its own hooks module instead, in TypeScript: context-guard's
+A mod emits from its own hooks module instead, in TypeScript: context-usage's
 `hooks/register.tsx` builds the same envelope, resolves `HOOK_TELEMETRY_SINK` by the rules above
 (`@harness-ops` through `$.fs.list` and `$.fs.stat` modification times of the config dir's plugin
 data root, since a mod has no
@@ -291,5 +291,5 @@ where the formatter every writer calls lives:
 | `autonomy` plugin | `lane-stop-gate` | `data/lane-stop-gate.schema.json` |
 | `disk-hygiene` plugin | `destructive-guard` | `data/destructive-guard.schema.json` |
 | `disk-hygiene` plugin | `guard-launch-monitor` | `data/guard-launch-monitor.schema.json` |
-| `context-guard` plugin (mod) | `zone-crossing-inject` (events `tool.call`, `prompt.submit` and `turn.complete`, per the schema) | `data/zone-crossing-inject.schema.json` |
-| `context-guard` plugin | `post-compact-mark` | `data/post-compact-mark.schema.json` |
+| `context-usage` plugin (mod) | `zone-crossing-inject` (events `tool.call`, `prompt.submit` and `turn.complete`, per the schema) | `data/zone-crossing-inject.schema.json` |
+| `context-usage` plugin | `post-compact-mark` | `data/post-compact-mark.schema.json` |

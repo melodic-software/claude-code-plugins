@@ -17,17 +17,17 @@ it rides along as advice (Output shape, below).
 
 ## Zone input (presence-gated, conservative)
 
-When the `context-guard` plugin is enabled, look up this session's zone word with its
-`mcp__context-guard__status` pull tool (the `zone` field), or resolve it from the snapshot per its
+When the `context-usage` plugin is enabled, look up this session's zone word with its
+`mcp__context-usage__status` pull tool (the `zone` field), or resolve it from the snapshot per its
 reader contract (the contract owns the snapshot path, staleness rule, and bands, so read them
 there; this router consumes only the resulting word, and inlines no band values). Plugin not
 enabled, no tool and an absent snapshot, or `unknown` → assume degraded and lean on the judgment tests below (window position
-and response quality). The zone word reports room only. Context-guard's evidence-degraded marker
+and response quality). The zone word reports room only. Context-usage's evidence-degraded marker
 for this session (`evidence_degraded` in the status tool), or other knowledge that the session was
 compacted, is a separate fact read beside it: earlier conversation survives only as a summary, so
 constraints stated only in conversation may be gone. The marker alone does not make a light zone
 degraded; it keys the human-stage handoff rule below, and decay in the answers since still counts
-as degraded. A context-guard release before the rename reports `smart`, `acceptable` and
+as degraded. A release from before the zone words were renamed reports `smart`, `acceptable` and
 `dumb`; read them as `light`, `moderate` and `heavy`.
 
 ## Informant inputs (presence-gated pointers, never duplicated reads)
@@ -148,7 +148,7 @@ boundary.
    compacts again when the window needs it. A related next task uses this stage's artifact or files
    and serves the same Original goal or work item, so the session's context is still its context.*
 
-**Between human stages, suggest a handoff only at context-guard zone `heavy` or on its compaction marker.** The human stages
+**Between human stages, suggest a handoff only at context-usage zone `heavy` or on its compaction marker.** The human stages
 are the interview, PRD, design and plan (`context/steps.md`, stages 1, 4, 5 and 6, with the
 explore and research detours they call), and they run in one session. At a boundary between two of
 them, the move to the next stage does not by itself reach question 5: the router suggests
@@ -313,8 +313,8 @@ worker's spawn brief.
 ## Where the mechanism menu lives
 
 The menu of continuation mechanisms lives only in this skill body, never in a hook or
-any model-injected text, and the router takes only the zone WORD from `context-guard`
-(`mcp__context-guard__status` or the snapshot) and inlines no band values, so the router never
+any model-injected text, and the router takes only the zone WORD from `context-usage`
+(`mcp__context-usage__status` or the snapshot) and inlines no band values, so the router never
 states or reasons from a remaining-context count; the tool's other figures are not its input. The signals that license
 a continuation are the ones named under Autonomy above: the user's own turn, an instrument that
 measures the window, and visible decay in the model's own output. A count is not a decay signal.

@@ -71,6 +71,15 @@ expect a deny when `;`, `&&`, `|` or `$()` adds a `touch` the rule does not appr
 settings put a stub `gh` first on `PATH` that logs its arguments and prints `gh-stub-marker`, so a
 call that gets through touches no real issue; the control passes only on that marker.
 
+The `deny-rules` area runs under `dontAsk`, to keep classifier verdicts out of a rule's outcome;
+what that mode evaluates is
+[its section](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)'s
+to state. It
+checks which forms of a read a `Read(./.env)` deny stops (the Read tool, `cat`, `bash -c`), whether a
+`Bash` deny on `git reset --hard` stops a `git -C .` form an exact allow rule approves, and whether
+a `!` carve-out's place in the deny list decides what it carves out. Each case's `docs` names the
+section that states its expected outcome; the rule behavior itself is that section's to state.
+
 The `autocompact` area checks which auto-compact window `/autocompact`, run with no argument, reports
 when a project settings file, the `--autocompact` flag and the environment variable each set one. Its
 cases judge the printed line, not a tool call. A base case sets only the project file's top-level
@@ -150,7 +159,8 @@ substituted in `settings.json` and `prompt.md`; a scaffold gets them, plus `PROB
 and `PROBE_MODEL` (the model the case runs), as environment variables and runs in the temp directory.
 
 `expect.json` fields: `claim`; `tags` (terms a changelog item would use for the surface, read by
-`recheck`); `target` (`tool`, `input_match` regex over the call's JSON input, `example` input for the
+`recheck`); optional `docs` (section-anchored URLs of the docs sections that state the expected
+outcome, so a `fail` names the section to recheck; the runner does not read it); `target` (`tool`, `input_match` regex over the call's JSON input, `example` input for the
 dry run, optional `in_subagent`, `select` of `first|any|all`, `count`, `result_match`, a regex the
 tool result must match to be judged at all, else `inconclusive`); `outcome` (`allow`, `deny`,
 `ran` or `refused`: `allow` accepts `ran` or `refused`, `refused` is an error result with no

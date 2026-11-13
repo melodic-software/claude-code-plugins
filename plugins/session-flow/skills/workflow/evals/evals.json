@@ -86,7 +86,7 @@
     {
       "id": 8,
       "name": "continue-degraded-zone-rejects-in-session",
-      "prompt": "/workflow continue — context-guard's `mcp__context-guard__status` reports the zone word as light, but this session hit an evidence-degraded `.compacted` marker earlier, and since then the answers have started missing details I gave before. What is left is designing the retry and idempotency semantics across three services.",
+      "prompt": "/workflow continue — context-usage's `mcp__context-usage__status` reports the zone word as light, but this session hit an evidence-degraded `.compacted` marker earlier, and since then the answers have started missing details I gave before. What is left is designing the retry and idempotency semantics across three services.",
       "expected_output": "The light zone word reports room only, and the compaction marker is read beside it: it does not by itself make the zone degraded, but the answers missing details given before are visible decay, which counts as degraded. Question 3 therefore fails for judgment-heavy work: only mechanical, low-judgment steps qualify as 'simple enough' in a degraded context. The remaining design work is the same activity, so the router falls through to question 6 and recommends `/compact <focus>` again; compaction may repeat within an activity.",
       "files": [],
       "narration": true,
@@ -186,7 +186,7 @@
     {
       "id": 16,
       "name": "same-task-degraded-zone-compacts-with-focus",
-      "prompt": "/workflow continue — context-guard's `mcp__context-guard__status` reports the zone word as heavy and the window is getting full. The plan in PLAN.md is half implemented; the next step is phase 3 of the same plan, editing the same files. This session has not been compacted.",
+      "prompt": "/workflow continue — context-usage's `mcp__context-usage__status` reports the zone word as heavy and the window is getting full. The plan in PLAN.md is half implemented; the next step is phase 3 of the same plan, editing the same files. This session has not been compacted.",
       "expected_output": "The next work is the related next task: it uses this stage's artifact and files and serves the same goal. It is not unrelated (question 4), it does not leave the session and is not a finished plan moving into execution (question 5), so the router falls through to question 6 and recommends `/compact <focus>`, typed by the user, with a focus naming what the summary must keep (the plan path, the current phase, the files in play).",
       "files": [],
       "expectations": [
@@ -450,7 +450,7 @@
     {
       "id": 38,
       "name": "human-stage-boundary-marker-offers-handoff",
-      "prompt": "/workflow continue — the interview is done and the next stage is design. context-guard reports the zone word as light, and evidence_degraded is true: this session was compacted earlier.",
+      "prompt": "/workflow continue — the interview is done and the next stage is design. context-usage reports the zone word as light, and evidence_degraded is true: this session was compacted earlier.",
       "expected_output": "At a boundary between two human stages the handoff rule keys on zone `heavy` or the compaction marker. The zone is light, but the marker exists, so the router suggests `session-flow:handoff`, then `/clear`, and reports the marker beside the light zone word as its evidence.",
       "files": [],
       "expectations": [

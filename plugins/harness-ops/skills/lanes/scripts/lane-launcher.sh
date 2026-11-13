@@ -323,7 +323,7 @@ cli_version() {
 }
 
 # --- Mods state (#6157) -------------------------------------------------------
-# context-guard and rate-limit-guard run as mods; with mods off a lane gets only
+# context-usage and rate-limit-guard run as mods; with mods off a lane gets only
 # their reactive settings hooks. start/restart/status print one `mods:` line per
 # lane: `off (<cause>)` for a cause the launcher can see, `unknown (<why>)` when
 # it cannot tell, and `can load` only when nothing it can see stops them. Causes

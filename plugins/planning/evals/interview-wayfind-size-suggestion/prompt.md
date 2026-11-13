@@ -10,4 +10,4 @@ expected_outcome: "The reply suggests /planning:wayfind chart once, giving the r
 
 /planning:interview me: resume the billing-consolidation interview. Its ledger is `.work/billing-consolidation/interview-checklist.md`.
 
-[Session state: round 6 has just been answered and recorded in that ledger, and one question is ready for round 7: Q32, whether invoices keep their current numbering after the merge. Every round so far closed more branches than it opened, so the fog trigger has not fired. The context-guard zone is unchanged since entry. No planning.yaml sets wayfind_suggest_questions, so its default applies. Nobody has mentioned wayfind yet. Write your next message to the user.]
+[Session state: round 6 has just been answered and recorded in that ledger, and one question is ready for round 7: Q32, whether invoices keep their current numbering after the merge. Every round so far closed more branches than it opened, so the fog trigger has not fired. The context-usage zone is unchanged since entry. No planning.yaml sets wayfind_suggest_questions, so its default applies. Nobody has mentioned wayfind yet. Write your next message to the user.]

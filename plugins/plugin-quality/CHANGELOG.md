@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.7] - 2026-11-12
+
+### Changed
+
+- Corrected in place: the released entries [0.15.1] now name the spell-check plugin `spelling`, its current name.
+
 ## [0.20.6] - 2026-11-12
 
 ### Changed
@@ -177,7 +183,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- The context gate's copy of `scripts/context-zone.sh` now follows a lowered auto-compact window. When context-guard's snapshot carries `bands.auto_compact_window`, the resolver scales its percentage edges by that window over `context_window_size`, so the gate reads the same zone context-guard publishes (#12854).
+- The context gate's copy of `scripts/context-zone.sh` now follows a lowered auto-compact window. When context-usage's snapshot carries `bands.auto_compact_window`, the resolver scales its percentage edges by that window over `context_window_size`, so the gate reads the same zone context-usage publishes (#12854).
 
 ## [0.18.9] - 2026-11-03
 
@@ -388,7 +394,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **The bundled zone resolver's 1M-window token band reads `dumb` past 500000 tokens, not 250000 ([#6644](https://github.com/melodic-software/claude-code-plugins/issues/6644)),** synced from context-guard's reader contract.
+- **The bundled zone resolver's 1M-window token band reads `dumb` past 500000 tokens, not 250000 ([#6644](https://github.com/melodic-software/claude-code-plugins/issues/6644)),** synced from context-usage's reader contract.
 
 ## [0.14.6] - 2026-10-08
 
@@ -466,13 +472,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- **Resolver test copy synced from context-guard: its shared-fixture cases no longer depend on how fast they run ([#6214](https://github.com/melodic-software/claude-code-plugins/issues/6214)).** No change to the resolver.
+- **Resolver test copy synced from context-usage: its shared-fixture cases no longer depend on how fast they run ([#6214](https://github.com/melodic-software/claude-code-plugins/issues/6214)).** No change to the resolver.
 
 ## [0.13.8] - 2026-10-04
 
 ### Changed
 
-- **Shared `context-zone.sh` resolver synced to context-guard's tighter token bands.** Shipped defaults are now 100000/150000 on a 200000 window and 128000/250000 on a 1000000 window; the resolver tests and the zones inline-drift check follow.
+- **Shared `context-zone.sh` resolver synced to context-usage's tighter token bands.** Shipped defaults are now 100000/150000 on a 200000 window and 128000/250000 on a 1000000 window; the resolver tests and the zones inline-drift check follow.
 
 ## [0.13.7] - 2026-10-04
 
@@ -487,12 +493,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Shared `context-zone.sh` resolver synced.** A `zones.json` that sets no percentage edges and
   holds only known keys (`token_bands`, `actions`, `approach_margin`, `thresholds`) now keeps the
   shipped percentage bands silently instead of printing the malformed notice; an unknown key still
-  warns. Its comments now name context-guard's mod, not the retired statusline tee, as the
+  warns. Its comments now name context-usage's mod, not the retired statusline tee, as the
   snapshot writer. Its resolver test now runs the shared fixture cases too.
-- **`/plugin-quality:setup` and the audit evidence packet name context-guard's mod as the snapshot
+- **`/plugin-quality:setup` and the audit evidence packet name context-usage's mod as the snapshot
   writer.** Setup no longer reads `statusLine` from every settings scope to tell a structural
-  `unknown` from a broken one; it follows the context-guard reader contract: no
-  `mcp__context-guard__status` tool is structural, and the tool present with no fresh snapshot
+  `unknown` from a broken one; it follows the context-usage reader contract: no
+  `mcp__context-usage__status` tool is structural, and the tool present with no fresh snapshot
   after a tool call is a real defect. Statusline wiring is never the remediation.
 
 ## [0.13.5] - 2026-10-03
@@ -800,7 +806,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The citation and zones drift suites and the packet prune and seal contract suites source one scripts/test-helpers.sh with a lane initializer per assertion shape instead of four inline copies; context-zone.test.sh stays the registered twin of its context-guard canonical. Output and exit codes are byte-identical.
+- The citation and zones drift suites and the packet prune and seal contract suites source one scripts/test-helpers.sh with a lane initializer per assertion shape instead of four inline copies; context-zone.test.sh stays the registered twin of its context-usage canonical. Output and exit codes are byte-identical.
 
 ## [0.7.20]
 
@@ -812,7 +818,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The context-guard statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+- The context-usage statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
 
 ## [0.7.18]
 
@@ -865,7 +871,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The audit context-gate and the setup context-guard probe now run `scripts/context-zone.sh`, a byte-identical synced copy of the context-guard zone resolver, instead of resolving the zone by hand from inlined band tables, a staleness window, a token-shape version floor and a combination rule; the copy and its `context-zone.test.sh` are registered in `scripts/cross-plugin-source-registry.txt` and held byte-identical by the new `scripts/sync-context-zone.sh --check` (prompt-audit follow-up F19).
+- The audit context-gate and the setup context-usage probe now run `scripts/context-zone.sh`, a byte-identical synced copy of the context-usage zone resolver, instead of resolving the zone by hand from inlined band tables, a staleness window, a token-shape version floor and a combination rule; the copy and its `context-zone.test.sh` are registered in `scripts/cross-plugin-source-registry.txt` and held byte-identical by the new `scripts/sync-context-zone.sh --check` (prompt-audit follow-up F19).
 - `scripts/zones-inline-drift.test.sh` now asserts the ten floor phrases against the synced resolver and the evidence-degraded marker path against the audit skill body, closing the resolver-versus-contract gap that byte-identity alone does not cover (prompt-audit follow-up F19).
 - audit, auditor: dated records for the two live doc-page titles and the fork and cloud-scoping claims, and a recheck trigger for the six dated stamps that lacked one (prompt-audit follow-up F6)
 
@@ -1308,7 +1314,7 @@ in review, so this work ships as `0.6.4` and that entry is kept below unchanged.
 
 ### Changed
 
-- **Context-gate migrated to the context-guard reader contract's v2 band shape (#1475).** The
+- **Context-gate migrated to the context-usage reader contract's v2 band shape (#1475).** The
   gate now understands the token shape: `zones.json` validity is evaluated per shape (percentage
   keys as before; optional `token_bands` with per-window-class rows, where absent is valid
   zero-config), the inlined fallback floor carries both the percentage bands (50/75) and the
@@ -1318,8 +1324,8 @@ in review, so this work ships as `0.6.4` and that entry is kept below unchanged.
   only one is computable, it stands alone; when neither is, the zone is unknown. This removes the
   documented split-brain hazard where a token-shape `zones.json` would have been rejected
   wholesale in favor of the stale inlined 50/75 table. The compaction override now also
-  recognizes context-guard's new evidence-degraded marker
-  (`~/.claude/context-guard/context/<session_id>.compacted`). The inlined token shape also carries
+  recognizes context-usage's new evidence-degraded marker
+  (`~/.claude/context-usage/context/<session_id>.compacted`). The inlined token shape also carries
   the contract's version floor: it is computable only when the snapshot's `cli_version` is present,
   purely numeric dotted, and >= 2.1.132, because before that release the token fields were
   cumulative session totals and a cumulative value below the window size is indistinguishable from
@@ -1331,7 +1337,7 @@ in review, so this work ships as `0.6.4` and that entry is kept below unchanged.
   "Inline-floor ownership" rule has always named but nothing implemented: asserts every
   inlined floor phrase the gate depends on (staleness window, snapshot/zones/marker paths, both band
   shapes, the token-shape version floor, the combination-rule sentence) appears in BOTH this skill
-  and the context-guard reader contract after normalization. Runs in the repo's plugin-gate CI job via the shared
+  and the context-usage reader contract after normalization. Runs in the repo's plugin-gate CI job via the shared
   `*.test.sh` discovery; SKIPs cleanly in an installed plugin cache where the sibling contract
   file is unreachable.
 
@@ -1464,7 +1470,7 @@ in review, so this work ships as `0.6.4` and that entry is kept below unchanged.
   <plugin>[:<component>]`): evidence capture into a compaction-proof packet, map+ground in the
   fresh `auditor` subagent with per-topic fresh-docs verification, blindspot + candidates,
   interactive contract lock, presence-gated review seams, sink emit behind the draft+confirm
-  egress gate (acting `gh` account surfaced). Context-gate over context-guard snapshots with a
+  egress gate (acting `gh` account surfaced). Context-gate over context-usage snapshots with a
   per-zone decision table; conservative on unknown. Evals incl. conservative-dispatch and
   prompt-injection anti-pattern cases.
 - `agents/auditor.md`: fresh-context audit specialist (steps 2–3) with an honest Bash grant and
@@ -1474,5 +1480,5 @@ in review, so this work ships as `0.6.4` and that entry is kept below unchanged.
 - `reference/config.md`: `.claude/plugin-quality.md` cascade surface (per-key override), sink
   resolution ladder, markdown item schema (byte-compatible with the cross-terminal handoff inbox
   contract), work-items seam boundary.
-- `skills/setup`: `check` (gh + acting account, context-guard seam → dispatch mode, config
+- `skills/setup`: `check` (gh + acting account, context-usage seam → dispatch mode, config
   provenance) / `apply` (tracked config only), with evals.

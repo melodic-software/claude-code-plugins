@@ -37,16 +37,16 @@ their repo mid-session.
   `check-retirements.sh` helper, with a WARN-visible dual-read while the old tracked file
   persists.
 - **Setup skill** (`skills/setup`). `check` (reports `gh` and the ACTING account, whether
-  context-guard is present and the dispatch mode that follows from it, the convention-home binding
+  context-usage is present and the dispatch mode that follows from it, the convention-home binding
   and effective config with provenance, and retired-convention leftovers) / `apply` (converges the pointer-line region and the topic doc, plus gated
   retirement cleanup).
 
-## Context-gate (context-guard integration)
+## Context-gate (context-usage integration)
 
-The audit consumes the `context-guard` plugin's per-session snapshots as a **soft dependency**:
+The audit consumes the `context-usage` plugin's per-session snapshots as a **soft dependency**:
 a fresh snapshot routes packet handling, review dispatch, and evidence-flush timing by zone
 (light / moderate / heavy); an absent or stale snapshot degrades to the conservative row with a
-visible notice. Deep analysis always runs in a fresh subagent either way. No context-guard
+visible notice. Deep analysis always runs in a fresh subagent either way. No context-usage
 install is required. With one, a long-session audit adapts its handling as the context fills.
 
 ## Security posture

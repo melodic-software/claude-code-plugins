@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [3.5.22] - 2026-11-12
+
+### Changed
+
+- `audit`: the sandbox guidance audits each surface the sandbox leaves out against its own control and reports egress to an unlisted host as blocked only when the permission mode and settings refuse it.
+
 ## [3.5.21] - 2026-11-12
 
 ### Changed
@@ -3114,7 +3120,7 @@ Shipped through [#5154](https://github.com/melodic-software/claude-code-plugins/
   The directive had fractured under the same per-plugin de-slop campaign;
   `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
   sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
-  two, `context-guard` and `rate-limit-guard`, state it about their own scripts in their own words
+  two, `context-usage` and `rate-limit-guard`, state it about their own scripts in their own words
   and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
   extract-ssot sweep.
 

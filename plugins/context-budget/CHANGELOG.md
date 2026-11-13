@@ -11,7 +11,7 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
 
 ### Fixed
 
-- The README no longer says `context-guard` offers optional blocking; that plugin denies no tool
+- The README no longer says `context-usage` offers optional blocking; that plugin denies no tool
   call.
 
 ## [1.1.6] - 2026-11-12
@@ -60,7 +60,7 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
 
 ### Changed
 
-- The audit report's headline framing uses context-guard's renamed zones (`light`, `moderate`,
+- The audit report's headline framing uses context-usage's renamed zones (`light`, `moderate`,
   `heavy`, formerly `smart`, `acceptable`, `dumb`).
 
 ## [1.0.8] - 2026-11-10
@@ -131,7 +131,7 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
 
 ### Changed
 
-- The probe sets drop `context-guard:check` from their competitors, because that skill is gone.
+- The probe sets drop context-usage's `check` skill from their competitors, because that skill is gone.
 
 ## [0.15.2] - 2026-11-02
 
@@ -852,7 +852,7 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
   The directive had fractured under the same per-plugin de-slop campaign;
   `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
   sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
-  two, `context-guard` and `rate-limit-guard`, state it about their own scripts in their own words
+  two, `context-usage` and `rate-limit-guard`, state it about their own scripts in their own words
   and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
   extract-ssot sweep.
 
@@ -1094,7 +1094,7 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
 ### Added
 
 - The report contract (`skills/audit/reference/report.md`): stamped header, smart-zone headline
-  (reclaimed reasoning space, never cost) with optional context-guard zone framing when that
+  (reclaimed reasoning space, never cost) with optional context-usage zone framing when that
   plugin is installed, measured category totals, ranked per-tool attribution with incomparable
   rows carrying reasons instead of numbers and unmeasured tools listed rather than omitted,
   lever findings grouped by honesty category with citations and emitted config, route-outs,

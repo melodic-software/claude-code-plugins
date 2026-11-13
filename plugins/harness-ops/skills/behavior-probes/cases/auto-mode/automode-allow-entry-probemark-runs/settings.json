@@ -1,0 +1,8 @@
+{
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Running a python3 -c command that only prints the word PROBEMARK is allowed: it prints text and changes nothing."
+    ]
+  }
+}
