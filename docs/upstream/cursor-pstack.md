@@ -323,8 +323,8 @@ evidence as a pointer (preferably one a committed script produced), an explicit 
 `harness-ops:audit-install-state`, whose CSV writer passed names read from disk straight into a file
 the reader opens in a spreadsheet. It is fixed, with a test that fails when the guard is disabled.
 
-**Still rejected:** the per-reply summary section (a session-wide output posture, a species here
-with one member, `adhd:shape`) and a second log-versus-transcript self-audit (the loop lanes already
+**Still rejected:** the per-reply summary section (a session-wide output posture with one example
+here, `adhd:shape`) and a second log-versus-transcript self-audit (the loop lanes already
 ground every cycle claim in a tool result). **Reversed:** the mandatory cross-model review; a
 fresh-context review of the trail now runs in `implementation:implement-dispatch` for autonomous runs
 (`plugins/implementation/skills/implement-dispatch/SKILL.md:228-235`).
