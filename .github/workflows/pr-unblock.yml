@@ -1779,11 +1779,13 @@ jobs:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether address-feedback-subscription handed off to the fallback token, read from this run's
-  # jobs by handoff-evidence.sh, never from a address-feedback-subscription output: its broker
-  # allowed it, its run job succeeded and its scan job never ran. It runs
-  # only when address-feedback-handoff found the fallback token set, so with the token empty
-  # nothing starts that did not before. A failed read starts no third call.
+  # Whether address-feedback-subscription handed off to the fallback token,
+  # read from this run's jobs by handoff-evidence.sh, never from an
+  # address-feedback-subscription output: its broker allowed it, its run job
+  # succeeded and its scan job never ran. It runs only when
+  # address-feedback-handoff found the fallback token set, so with the token
+  # empty nothing starts that did not before. A failed read starts no third
+  # call.
   address-feedback-subscription-handoff:
     name: Address Feedback Subscription Handoff
     needs: [address-feedback-handoff, address-feedback-subscription]
@@ -1839,9 +1841,9 @@ jobs:
           tokens: github-token
 
   # The third call, on the central fallback subscription's token alone: it
-  # runs only on address-feedback-subscription-handoff's read, after address-feedback-subscription's subscription leg handed off (a
-  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
-  # hands off.
+  # runs only on address-feedback-subscription-handoff's read, after
+  # address-feedback-subscription's leg handed off (a limit stop, a credit
+  # stop, or a 401 or 402). It is the last leg and never hands off.
   address-feedback-fallback:
     name: Address Feedback Fallback
     needs: [address-feedback-select, address-feedback, address-feedback-handoff, address-feedback-subscription, address-feedback-subscription-handoff]
@@ -1891,9 +1893,10 @@ jobs:
     name: Apply Feedback Patch
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, adjudicate-feedback]
     # One leg answers the round: the fallback call when it ran, else the
-    # first, and every model-call input below is that leg's, so one leg's
-    # patch never pairs with the other's replies and an empty field never
-    # falls through. A patch with no replies is not pushed.
+    # subscription call when it ran, else the first, and every model-call
+    # input below is that leg's, so one leg's patch never pairs with another's
+    # replies and an empty field never falls through. A patch with no replies
+    # is not pushed.
     if: >-
       ${{ !cancelled()
       && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '') == 'written'
@@ -2154,16 +2157,17 @@ jobs:
       # runs the key leg, then the subscription leg when the key leg handed
       # off (a credit stop, or a 401 or 402) or did not run, then the fallback
       # leg when the subscription leg handed off (a limit stop, a credit stop,
-      # or a 401 or 402) or its token is empty. The steps hold one credential each and stay in one
-      # job: the judge has Read alone, no Bash (run-claude-cli's one-job rule). The judge has
-      # Read alone, as pr-verify's verifier does: evidence.json names every
-      # file it needs, so Glob and Grep are denied rather than trusted to
-      # honor Read denials. The Read denials keep the base checkout and the
-      # runner's temp files (the lane's replies.jsonl, the other slots) out
-      # (code.claude.com/docs/en/permissions, "Read and Edit"). Each staged
-      # file carries a .txt suffix, so a cited CLAUDE.md or .claude/** file
-      # is never loaded as instructions. The steps repeat once per slot up to MAX_THREADS
-      # (workflow-gates.test.mjs pins the count and their grants).
+      # or a 401 or 402) or its token is empty. The steps hold one credential
+      # each and stay in one job: the judge has Read alone, no Bash
+      # (run-claude-cli's one-job rule), as pr-verify's verifier does:
+      # evidence.json names every file it needs, so Glob and Grep are denied
+      # rather than trusted to honor Read denials. The Read denials keep the
+      # base checkout and the runner's temp files (the lane's replies.jsonl,
+      # the other slots) out (code.claude.com/docs/en/permissions, "Read and
+      # Edit"). Each staged file carries a .txt suffix, so a cited CLAUDE.md
+      # or .claude/** file is never loaded as instructions. The steps repeat
+      # once per slot up to MAX_THREADS (workflow-gates.test.mjs pins the
+      # count and their grants).
 
       - name: Stage disputed thread 0
         if: (steps.key.outputs.present == 'true' || steps.sub.outputs.present == 'true' || steps.fb.outputs.present == 'true') && fromJSON(steps.prepare.outputs.count || '0') > 0
@@ -2974,8 +2978,6 @@ jobs:
           mkdir -p "$(dirname "$VERDICTS_FILE")"
           node .base/.github/scripts/pr-unblock/adjudicate-feedback.mjs collect
 
-      # overwrite: false, so a copy the model job's head code uploaded first
-      # fails this upload, and the reply job reads no verdicts.
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
@@ -2984,6 +2986,8 @@ jobs:
         with:
           path: ${{ runner.temp }}/adjudication/verdicts.json
 
+      # overwrite: false, so a copy the model job's head code uploaded first
+      # fails this upload, and the reply job reads no verdicts.
       - name: Upload the verdicts
         id: upload
         if: >-
@@ -3045,7 +3049,7 @@ jobs:
       review-replies-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
       review-replies-sha256: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
       review-patch-state: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
-      # The adjudicator's verdicts on the INCORRECT replies, and their SHA-256,
+      # The adjudicator's verdicts on the disputed replies, and their SHA-256,
       # set only once its upload succeeded.
       review-adjudication-attempt: ${{ needs.adjudicate-feedback.outputs.attempt }}
       review-adjudication-sha256: ${{ needs.adjudicate-feedback.outputs.sha256 }}
@@ -3255,7 +3259,7 @@ jobs:
           # The review-only dependencies, read from the base.
           DEPENDABOT_POLICY: .base/.github/standards/dependabot-policy/policy.json
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-          # Where a stale install-script pin's patch goes (install-script-pin.mjs).
+          # A stale install-script pin's patch (install-script-pin.mjs).
           PIN_PATCH_FILE: ${{ runner.temp }}/dependency-pin/patch.diff
         run: |
           mkdir -p "$DEPENDENCY_DIR" "$(dirname "$PIN_PATCH_FILE")"
