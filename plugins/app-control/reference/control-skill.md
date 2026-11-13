@@ -255,8 +255,28 @@ sections in this order:
 | `## Sub-features` | The states or branches inside this feature that have their own feature file, each a pointer to it, or `none` |
 | `## Entry points` | Where a user starts the feature, one line each. Each line ends `driven` or `not driven: <reason>`, the reason naming what would make it drivable, such as a test account, a seeded record or a `cli/` command. A drive through one entry point proves only that one and never marks another `driven` |
 | `## Reset` | How to return the app's own data to a known state |
-| `## Drive` | The steps a user takes, one action per step |
+| `## Drive` | The steps a user takes, one action per step, each with the result a user should observe, ending in a proof step ([Drive steps](#drive-steps)) |
 | `## Gotchas` | What has made a run lie or fail before |
+
+### Drive steps
+
+Each step is one list item at the start of a line, a bullet or a number such as `1.`, that may
+wrap onto indented lines. A step names three things: the user's action, the exact command or
+handle it uses (a selector, a key, a URL or a `cli/` command), and, after `Result:`, what a user
+should observe once it runs, as an output, a screen state, an exit code or a file state. The last
+step is the proof step, labeled `**Proof.**`, which takes no action of its own. Its `Result:` is
+the end state that proves the feature works, and its `Captures:` names the
+[Capture](#writing-the-capture-section) kinds that show that end state:
+
+```text
+1. Open the cart: `click [data-test=basket]`. Result: the cart page lists one item.
+2. **Proof.** Result: the cart page lists the added item at its price. Captures: screenshot, trace
+```
+
+A step and its result change together, so the result stays on its step; a feature has no
+separate proof section. Preconditions and `Budget:` lines are not list items. A `## Drive`
+that hands off to another feature or to a [steps file](#steps-files) has no steps of its own:
+the steps there state their results. `/app-control:map check` reports a step with no `Result:`.
 
 `## Drive` may end with performance budget lines, one per measure, in this form:
 
@@ -336,7 +356,9 @@ at most 24,000 characters (hub plus a module and a feature file), against the 16
 A feature may keep its Drive steps in a machine-readable steps file in its own folder, or in
 `shared/` when two or more features use it. The format, the file name and the field names are the
 project's choice; the contract fixes only what they mean. The feature's `## Drive` names the file,
-and its prose names steps by id and never repeats a selector the file holds. A feature whose steps
+and its prose names steps by id and never repeats a selector the file holds. Every step holds a
+result: what a user should observe once it runs, with the meaning [Drive steps](#drive-steps)
+gives it, and the last step before the finally steps is the proof step. A feature whose steps
 include a `shared/` item names `shared/<item>` in its feature file, which is how Shared items counts
 its users.
 
