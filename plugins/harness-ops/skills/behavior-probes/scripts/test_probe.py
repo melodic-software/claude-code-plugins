@@ -424,6 +424,42 @@ class ControlTests(unittest.TestCase):
         probe.apply_controls(rows, cases)
         self.assertEqual(rows[0]["verdict"], "inconclusive")
 
+    def test_ran_case_naming_a_failed_control_is_inconclusive(self):
+        # An absence result (sibling CLAUDE.md=absent) proves nothing when its
+        # positive control (a nested CLAUDE.md that should load) did not pass.
+        cases = {
+            "a": case(id="a", outcome="ran", control="p"),
+            "p": case(id="p", outcome="ran"),
+        }
+        rows = [
+            {"id": "a", "verdict": "pass", "note": ""},
+            {"id": "p", "verdict": "fail", "note": ""},
+        ]
+        probe.apply_controls(rows, cases)
+        self.assertEqual(rows[0]["verdict"], "inconclusive")
+        self.assertIn("control p did not pass", rows[0]["note"])
+
+    def test_ran_case_naming_no_control_stands_alone(self):
+        cases = {"a": case(id="a", outcome="ran")}
+        rows = [{"id": "a", "verdict": "pass", "note": ""}]
+        probe.apply_controls(rows, cases)
+        self.assertEqual(rows[0]["verdict"], "pass")
+
+    def test_ran_case_naming_a_missing_control_fails_validation(self):
+        c = case(id="a", outcome="ran", control="nope", dir=Path("/nonexistent"))
+        self.assertIn(
+            "a: control 'nope' is not another case",
+            probe.case_problems(c, {"a": c}),
+        )
+
+    def test_shipped_absence_case_depends_on_its_control(self):
+        cases = {c["id"]: c for c in probe.discover(probe.DEFAULT_CASES)}
+        absent = cases["hub-start/sibling-claude-md-not-loaded-on-read"]
+        self.assertTrue(probe.controlled(absent))
+        self.assertEqual(
+            absent["control"], "hub-start/hub-subdir-claude-md-loads-on-read"
+        )
+
 
 class SuiteTests(unittest.TestCase):
     def setUp(self):

@@ -27,5 +27,6 @@
     "result_match": "instructions-hook=live trigger=read \\S+=(loaded|absent)"
   },
   "outcome": "ran",
-  "match": "instructions-hook=live trigger=read acme/target/CLAUDE.md=absent"
+  "match": "instructions-hook=live trigger=read acme/target/CLAUDE.md=absent",
+  "control": "hub-start/hub-subdir-claude-md-loads-on-read"
 }

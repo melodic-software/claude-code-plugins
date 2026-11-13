@@ -146,6 +146,8 @@ Three more pairs, each case beside its control:
 - A Read of the sibling's `README.md` by absolute path and whether the sibling's `CLAUDE.md` loads,
   against a Read in a hub subdirectory that holds its own `CLAUDE.md`. `cases/lib/instructions-probe.sh`
   logs `InstructionsLoaded` and each Read that ran, and its checker prints one line the case judges.
+  The absence case names the load case as its `control`, so it passes only while a nested load is
+  observed.
 - A subagent spawned with `isolation: "worktree"` and where its `pwd` lands, against the same spawn
   with no isolation (`cases/lib/cwd-probe-agent.sh`).
 
@@ -194,8 +196,10 @@ regex over the first non-blank printed line, `example`, the text the dry run pri
 `printed_match`, a regex a line must match to be judged at all (else `inconclusive`). A `deny` or `refused`
 case names its positive control in `control`, a case that differs only in the element that causes the
 denial, per the [liveness-assertion convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/liveness-assertion/README.md).
-A `prints` case may name a `prints` control whose `example` its `text_match` rejects; either kind
-keeps a `pass` only while its control passes.
+A `prints` case may name a `prints` control whose `example` its `text_match` rejects, and a `ran`
+or `allow` case may name any other case, as an absence result must (a `CLAUDE.md` reported not
+loaded means nothing unless a load is shown to be observable); every kind keeps a `pass` only while
+its control passes.
 Run `validate` and `dry-run`, then a live run of the new case and its control, and add its record.
 
 ## Next
