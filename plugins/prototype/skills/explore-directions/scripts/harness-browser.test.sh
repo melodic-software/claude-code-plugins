@@ -30,6 +30,7 @@ session="edh-$$"
 # so both stay in the scratch dir.
 pw() { (cd "$tmp" && TMPDIR="$tmp/b" playwright-cli -s="$session" "$@"); } # prereq-ok: test-only
 finish() {
+  # shellcheck disable=SC2310  # cleanup on exit: a browser that is already gone is fine
   pw close >/dev/null 2>&1 || true
   bash "$bridge/notes-bridge.sh" --dir "$d" stop >/dev/null 2>&1 || true
   case "$tmp" in
@@ -70,10 +71,12 @@ port=$(printf '%s' "$started" | sed -n 's/.*"url": "http:\/\/127\.0\.0\.1:\([0-9
 script_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
 # One page script through playwright-cli; every PASS or FAIL line it returns is graded.
 run() { # script
-  local name out
+  local name out path
   name=$(basename "$1" .js)
   sed "s/__PORT__/$port/" "$1" >"$tmp/$name.js"
-  out=$(pw run-code --filename "$(script_path "$tmp/$name.js")" 2>&1 || true)
+  path=$(script_path "$tmp/$name.js")
+  # A failed run prints no PASS line, which the grading below counts as a failure.
+  out=$(cd "$tmp" && TMPDIR="$tmp/b" playwright-cli -s="$session" run-code --filename "$path" 2>&1) || true # prereq-ok: test-only
   local n=0 line
   while IFS= read -r line; do
     n=$((n + 1))
