@@ -1,8 +1,10 @@
 # Go in this repository. Contract and schema: docs/contracts/ecosystem-commands/.
-# Off: the repository has no go.mod and no Go source.
-enabled: false
-globs: ["*.go", "go.mod", "go.sum"]
+# Nothing to build, test or lint: the repository has no go.mod, and its Go
+# files are plugin test fixtures. The globs match code-metrics' own map for the
+# lane, so those fixtures are still measured there.
+globs: ["*.go"]
 build-cmd: null
 test-cmd: null
 check-cmd: null
 fix-cmd: null
+code-fix-cmd: null
