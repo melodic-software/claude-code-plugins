@@ -343,7 +343,7 @@ jobs:
           STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
           RELEASE: ${{ needs.gate.outputs.release }}
           MODEL: ${{ steps.models.outputs.model }}
-        run: bash .base/.github/scripts/upstream-apply-changelog/prepare-working-tree.sh
+        run: bash .github/scripts/upstream-apply-changelog/prepare-working-tree.sh
 
       - name: Run the changelog apply
         id: run
@@ -713,7 +713,7 @@ jobs:
           STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
           RELEASE: ${{ needs.gate.outputs.release }}
           MODEL: ${{ steps.models.outputs.model }}
-        run: bash .base/.github/scripts/upstream-apply-changelog/prepare-working-tree.sh
+        run: bash .github/scripts/upstream-apply-changelog/prepare-working-tree.sh
 
       - name: Run the changelog apply
         id: run
@@ -1036,7 +1036,7 @@ jobs:
           STAGE: ${{ runner.temp }}/upstream-apply-changelog-stage
           RELEASE: ${{ needs.gate.outputs.release }}
           MODEL: ${{ steps.models.outputs.model }}
-        run: bash .base/.github/scripts/upstream-apply-changelog/prepare-working-tree.sh
+        run: bash .github/scripts/upstream-apply-changelog/prepare-working-tree.sh
 
       - name: Run the changelog apply
         id: run

@@ -324,7 +324,7 @@ jobs:
         env:
           STAGE: ${{ runner.temp }}/upkeep-stage
           MODEL: ${{ steps.models.outputs.model }}
-        run: bash .base/.github/scripts/maintenance-tidy-code-upkeep/prepare-working-tree.sh
+        run: bash .github/scripts/maintenance-tidy-code-upkeep/prepare-working-tree.sh
 
       - name: Sweep the areas
         id: run
@@ -645,7 +645,7 @@ jobs:
         env:
           STAGE: ${{ runner.temp }}/upkeep-stage
           MODEL: ${{ steps.models.outputs.model }}
-        run: bash .base/.github/scripts/maintenance-tidy-code-upkeep/prepare-working-tree.sh
+        run: bash .github/scripts/maintenance-tidy-code-upkeep/prepare-working-tree.sh
 
       - name: Sweep the areas
         id: run
@@ -919,7 +919,7 @@ jobs:
         env:
           STAGE: ${{ runner.temp }}/upkeep-stage
           MODEL: ${{ steps.models.outputs.model }}
-        run: bash .base/.github/scripts/maintenance-tidy-code-upkeep/prepare-working-tree.sh
+        run: bash .github/scripts/maintenance-tidy-code-upkeep/prepare-working-tree.sh
 
       - name: Sweep the areas
         id: run
