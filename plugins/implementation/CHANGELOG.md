@@ -3,6 +3,14 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.1] - 2026-11-13
+
+### Added
+
+- The copy of the shared type rules (`reference/type-discipline.md`) gains a row: two values that
+  share a primitive type and must never be swapped each get their own distinct nominal type,
+  produced only by their parse.
+
 ## [0.39.0] - 2026-11-13
 
 ### Added
