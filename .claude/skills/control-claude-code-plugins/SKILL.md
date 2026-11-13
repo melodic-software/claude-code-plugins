@@ -125,12 +125,12 @@ The driving tool's `## Mask`.
 - plugin-quality | features/plugin-quality/README.md | entry points: 4 | sources: plugins/plugin-quality/skills/*/SKILL.md
 - powershell-format | features/powershell-format/README.md | entry points: 4 | sources: plugins/powershell-format/skills/*/SKILL.md
 - prototype | features/prototype/README.md | entry points: 4 | sources: plugins/prototype/skills/*/SKILL.md
+- python-format | features/python-format/README.md | entry points: 4 | sources: plugins/python-format/skills/*/SKILL.md
 - rate-limit-guard | features/rate-limit-guard/README.md | entry points: 4 | sources: plugins/rate-limit-guard/skills/*/SKILL.md
 - repo-fleet-hygiene | features/repo-fleet-hygiene/README.md | entry points: 4 | sources: plugins/repo-fleet-hygiene/skills/*/SKILL.md
 - repo-hygiene | features/repo-hygiene/README.md | entry points: 4 | sources: plugins/repo-hygiene/skills/*/SKILL.md
 - retro-audio | features/retro-audio/README.md | entry points: 4 | sources: plugins/retro-audio/skills/*/SKILL.md
 - review | features/review/README.md | entry points: 4 | sources: plugins/review/skills/*/SKILL.md
-- python-format | features/python-format/README.md | entry points: 4 | sources: plugins/python-format/skills/*/SKILL.md
 - session-flow | features/session-flow/README.md | entry points: 4 | sources: plugins/session-flow/skills/*/SKILL.md
 - skill-quality | features/skill-quality/README.md | entry points: 4 | sources: plugins/skill-quality/skills/*/SKILL.md
 - songwriting | features/songwriting/README.md | entry points: 4 | sources: plugins/songwriting/skills/*/SKILL.md
