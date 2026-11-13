@@ -16,7 +16,8 @@ line and hand over the `file://` page as usual.
    ```
 
    It prints one JSON line: `url`, `origin`, `page` and `watch`. The run directory from `mktemp -d`
-   is already private, as the bridge requires.
+   is already private, as the bridge requires. Start the notes host outside a sandboxed Bash call:
+   started inside one, it does not stay up for the person's page or the watcher.
 2. Give the person `url` (the `127.0.0.1` form) beside the `file://` path. The host page frames the
    mockup in a sandbox: the switcher and its keys work as on `file://`, and Pick an element (or P)
    then a click pins a note to that element without pressing it. A variant script that uses
