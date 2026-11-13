@@ -179,7 +179,7 @@
     "orient_catch_up_word_cap": {
       "type": "number",
       "title": "Orient catch-up word cap",
-      "description": "Most words /session-flow:orient catch-up may use in its reply, visuals excluded; default 250, minimum 150. The reply opens with what needs you, then what happened, then each decision.",
+      "description": "Most words /session-flow:orient catch-up may use for what happened, visuals excluded; default 250, minimum 150. Every action item is listed in full whatever the cap. The reply opens with what needs you, then what happened, then each decision.",
       "default": 250,
       "min": 150
     }
