@@ -131,7 +131,7 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
 
 ### Changed
 
-- The probe sets drop `context-usage:check` from their competitors, because that skill is gone.
+- The probe sets drop context-usage's `check` skill from their competitors, because that skill is gone.
 
 ## [0.15.2] - 2026-11-02
 
