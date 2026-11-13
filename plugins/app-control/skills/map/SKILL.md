@@ -90,8 +90,11 @@ drive finds a control skill by its hub.
 - **Feature folders** for the seeded features, named by the slug rule, written from the user's side
   with the contract's six sections, every entry point marked `driven` or `not driven: <reason>`.
   Drive may add one line naming the harness command that selects the feature; class names and
-  internal endpoints stay out. A step that sends, signs in or writes to an environment is a `cli/`
-  command, never a click.
+  internal endpoints stay out. Each Drive step states its action, its exact command or handle,
+  and a `Result:`, and the steps end in a `**Proof.**` step with the end state and its
+  `Captures:` (the contract's "Drive steps"). Write a result only from what discovery read or the app showed; a result you
+  cannot state yet is asked as in step 3, never guessed. A step that sends, signs in or writes to an
+  environment is a `cli/` command, never a click.
 - **Config**, per the contract's Config section: `config/defaults.json` with its fields and every
   safety floor at its safe value, credential variable names only, and `config/.gitignore` holding
   `local.json`. Environment entries come from the Environments and Dependencies rows and the
@@ -206,7 +209,12 @@ conversion moves out of.
 5. **Live pass** of every feature (or the one a feature id names) through `/app-control:drive`:
    Ready before the first drive and after any failed one, cleanup after each drive, and every
    evidence path checked after cleanup.
-6. **Triage** each difference as doc drift, driver gap or product regression. Regressions go to the
+6. **Triage** each difference as doc drift, driver gap or product regression. A Drive step with no
+   stated `Result:`, or a missing or stale `**Proof.**` step, is doc drift while the feature
+   still reaches its end state. So is a stated result the step did not show, but only when the
+   source wave cites the source producing the shown result or the stated result was never
+   produced; when the source still claims it, or nothing explains the change, it is a product
+   regression. A `## Drive` that hands off is judged by the steps it hands off to (refresh.md § 6). Regressions go to the
    report or `/bugs:write`, never into the pull request. A driver gap's `cli/` fix ships only after a
    live re-drive passes, and attended only; unattended, the fix goes in the report unwritten and
    nothing is driven again. Nothing to ship: clean, recorded after step 7's return with
