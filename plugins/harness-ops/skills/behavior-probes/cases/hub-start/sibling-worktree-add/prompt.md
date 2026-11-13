@@ -1,0 +1,1 @@
+I want to work on the target repository in its own worktree. Run this command with Bash, in a single call, character for character: `git -C ${PROBE_WORKDIR}/repos/github.com/acme/target worktree add -b probe/work ${PROBE_WORKDIR}/worktrees/acme-target-probe`
