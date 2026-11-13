@@ -1994,13 +1994,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     # issues: write lets check-signed-commits add its label and comment, and
-    # in issue mode end the lane lease. Every caller job grants it; no job
-    # that runs the model holds it.
+    # in issue mode end the lane lease; pull-requests: write lets the lane run
+    # report comment post on the PR (GitHub refused it with issues: write alone).
+    # Every caller job grants both; no job that runs the model holds either.
     permissions:
       checks: write
       contents: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     env:
       API_BUDGET_TOKEN: github-token
     steps:

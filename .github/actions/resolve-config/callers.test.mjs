@@ -1843,13 +1843,13 @@ test("work-resolve-issue.yml: the resolve-issue model jobs receive no App token 
   }
   assert.ok(!run.steps.some((s) => String(s.uses ?? "").startsWith("anthropics/claude-code-action@")), "no claude-code-action step");
   // No job of the read runner holds a write permission but the report job's
-  // checks and issues (also the lease release) and the broker-check job's
-  // id-token and issues (the issue lease, before any model turn), none of
-  // which runs the model.
+  // checks, issues (also the lease release) and pull-requests (the lane run
+  // report comment) and the broker-check job's id-token and issues (the issue
+  // lease, before any model turn), none of which runs the model.
   for (const [name, job] of Object.entries(read.jobs)) {
     for (const [scope, level] of Object.entries(job.permissions ?? {})) {
       if (level === "write") {
-        assert.ok((name === "report" && (scope === "checks" || scope === "issues")) || (name === "broker-check" && (scope === "id-token" || scope === "issues")), `${name} ${scope}`);
+        assert.ok((name === "report" && ["checks", "issues", "pull-requests"].includes(scope)) || (name === "broker-check" && (scope === "id-token" || scope === "issues")), `${name} ${scope}`);
       }
     }
   }
@@ -3423,7 +3423,7 @@ test("pr-refine.yml: fix-docs runs only on a fix-docs dispatch with a PR number,
     assert.equal(jobs[id].with["trusted-base"], "default-tip", id);
     assert.equal(jobs[id].with["dispatcher-run-id"], "${{ inputs.dispatcher-run-id }}", id);
     assert.equal(jobs[id].with.lane, "pr-refine", id);
-    assert.deepEqual(jobs[id].permissions, { actions: "read", contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" }, id);
+    assert.deepEqual(jobs[id].permissions, { actions: "read", contents: "read", "pull-requests": "write", checks: "write", issues: "write", "id-token": "write" }, id);
   }
   const starts = ({ activity = "fix-docs", pr = "7", sender = "1", held = "false" } = {}) =>
     evaluate(jobs["fix-docs"].if, {
@@ -9473,7 +9473,7 @@ test("pr-unblock.yml: resolve-feedback-threads is its own base-only script job a
   const { jobs } = workflow("pr-unblock.yml");
   const job = jobs["resolve-feedback-threads"];
   const publish = jobs["publish-feedback"];
-  const tokenPermissions = { actions: "read", contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" };
+  const tokenPermissions = { actions: "read", contents: "read", "pull-requests": "write", checks: "write", issues: "write", "id-token": "write" };
   assert.deepEqual(publish.permissions, tokenPermissions, "publish-feedback's job permissions are unchanged");
   assert.equal(publish.with.activity, "publish-feedback");
   assert.deepEqual(job.permissions, tokenPermissions, "the job token holds no write beyond publish-feedback's");
