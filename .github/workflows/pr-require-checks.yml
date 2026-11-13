@@ -1755,7 +1755,7 @@ jobs:
           # verify-legacy-fails.json is generated verdict data (SHAs, branch
           # names); the review revert cases' fixtures are byte copies of this
           # repository's history.
-          exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/** plugins/developer-experience/evals/sources/labels/** plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json plugins/review/evals/revert-*/fixtures/**
+          exclude: plugins/*/vendor/** plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/** plugins/developer-experience/evals/sources/labels/** plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json plugins/review/evals/revert-*/fixtures/**
 
       # Every run scans only history the commit under test can reach, so a
       # finding on another branch cannot fail it (#3599); each branch is scanned
