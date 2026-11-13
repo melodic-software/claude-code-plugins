@@ -223,7 +223,7 @@
       "prompt": "/code-tidying:remove-comments report lib/worker.sh\n\n(lib/worker.sh is committed. It carries a '# set the counter to zero' comment above 'counter=0', a rationale comment whose reasoning is absent from git history, and a two-line comment that a function extraction would make superfluous. A test suite exists. AskUserQuestion is unavailable.)",
       "narration": true,
       "expectations": [
-        "Edits no file: the class-A deletion, the rationale deletion, and the extraction are all emitted as proposals",
+        "Edits no file in the repository: the class-A deletion, the rationale deletion, and the extraction are all emitted as proposals",
         "Each proposal names the file and line, the class, and the treatment it would apply",
         "Says the report has no census delta because nothing was edited, rather than reporting +0",
         "Finishes without asking a question"
@@ -237,7 +237,7 @@
       "expectations": [
         "Runs added-lines.sh with main to resolve the scope instead of scope-code-files.sh",
         "Proposes treatments only for the two added comments; the older comments are not triaged or reported",
-        "Edits no file"
+        "Edits no file in the repository"
       ]
     },
     {
@@ -247,8 +247,8 @@
       "narration": true,
       "expectations": [
         "Proposes a lint rule for the forbidden direct fetch call and a regression test for the open-before-push order",
-        "Announces the findings file path under .work/comment-pass/feat-retry-fix/ before writing it, and creates .work/.gitignore containing * with an announcement",
-        "The findings file declares type: review-findings, and its row for the lint proposal carries Tier SUGGESTION, the comment's path:line as Location, and code-tidying:remove-comments as the surface",
+        "Announces the findings file path under .work/reviews/feat-retry-fix/ before writing it, and creates .work/.gitignore containing * with an announcement",
+        "The findings file declares type: review-findings, and its row for the lint proposal opens its Finding cell with code-tidying/remove-comments/rule-lint-proposal and carries Tier SUGGESTION, the comment's path:line as Location, code-tidying:remove-comments as the surface, and an Action naming the rule to add and the lint config file it goes in",
         "Names the file and offers /corrections:codify findings with that path without running it",
         "Edits no file in src/"
       ]
@@ -419,6 +419,20 @@
         "Does NOT report the history-narration comment on app.py line 1 or the one in lib.py, since neither sits on an added line",
         "Finishes the report without asking the user a question",
         "No file is edited"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "workaround-and-reshape-rows-reach-the-fix-action",
+      "prompt": "/code-tidying:remove-comments necessary lib/cache.sh\n\n(The current branch is fix/Cache-Writes. lib/cache.sh is committed and tree-sitter is present for bash. It has '# Workaround: write twice, our cache wrapper drops the first write after a reconnect' above two identical cache_set calls inside a function named store_session, and '# seconds, not milliseconds' above the global 'CACHE_TTL=900', which lib/session.sh also reads. Neither comment gives a link or a removal condition. The repository has no discoverable test command. The memory root .work/ exists with a .gitignore containing *. AskUserQuestion is unavailable.)",
+      "narration": true,
+      "expectations": [
+        "Deletes both comments behind COMMENT-ONLY proofs with their narrative staged, and leaves the two cache_set calls and the CACHE_TTL assignment byte-identical",
+        "Announces and writes a findings file under .work/reviews/fix-cache-writes/ whose frontmatter declares type: review-findings and branch: fix/Cache-Writes, the directory and admission fields /review:fanout fix reads",
+        "The file has a row whose Finding cell opens with code-tidying/remove-comments/rule-open-root-cause, with Tier IMPORTANT, Location lib/cache.sh at the workaround comment's line, Surface(s) code-tidying:remove-comments, and an Action naming the dropped first write as the cause to fix, the cache wrapper's file or 'cause not located', and /implementation:implement or /debugging:debug as the next step",
+        "The file has a row whose Finding cell opens with code-tidying/remove-comments/rule-reshape-flag, with Tier SUGGESTION and an Action naming a move on CACHE_TTL, such as renaming it to carry its unit, which also reaches lib/session.sh",
+        "No row's Action says the run fixed the cause or applied the move, and the run does not attempt the root-cause fix",
+        "The report names the findings file and offers /review:fanout fix as a next step without running it"
       ]
     }
   ]
