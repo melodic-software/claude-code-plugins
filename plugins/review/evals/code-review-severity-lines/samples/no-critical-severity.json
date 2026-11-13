@@ -3,6 +3,10 @@
     {
       "answer": "src/cart.js:9\n\nThe discount applies below the threshold.\n\nseverity: IMPORTANT\n\ncritical-findings: 0",
       "why": "IMPORTANT, no CRITICAL line"
+    },
+    {
+      "answer": "src/cart.js:9\n\n```\nThe discount applies below the threshold.\n\nseverity: IMPORTANT\n```\n\ncritical-findings: 0",
+      "why": "fenced comment body with no CRITICAL line"
     }
   ],
   "fail": [

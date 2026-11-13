@@ -73,10 +73,10 @@ The wrapper names its files on prompt lines; take each path from its line.
   (`That change is in <path>`), review that file's change and use the full
   diff, else `gh pr diff`, only for context. With no diff line, use
   `gh pr diff`. With neither a named file nor a working `gh`, review nothing:
-  say in the summary that the diff could not be read. Read the diff file to
-  its end: page Read with `offset` and `limit` until a Read returns its last
-  line. The same holds for the incremental file when the scope is
-  incremental. Grep and Glob look up surrounding code; they never stand in for
+  say in the summary that the diff could not be read. Read the file under
+  review to its end (the incremental file when the scope is incremental, else
+  the diff file): page Read with `offset` and `limit` until a Read returns its
+  last line. Grep and Glob look up surrounding code; they never stand in for
   reading a section of the diff.
 - **PR context.** The file on the line that starts `PR CONTEXT:` ("Closing
   issue" under Criteria).
@@ -281,7 +281,7 @@ When you fan out subagents for candidate findings, dispatch each hunter and
 verifier as the `review:lane-verifier` agent, never a general-purpose
 subagent, so no subagent can re-invoke this skill and fan out. Name in each
 brief the diff file, PR context file, settled-threads file and prior-findings file from "Inputs",
-when the wrapper named them: a subagent of a lane without Bash has no other way to the diff. The producer of a
+when the wrapper named them, and that the diff file is read to its end as "Inputs" says: a subagent of a lane without Bash has no other way to the diff. The producer of a
 finding must not be the verifier. Drop candidates the verifier rejects, except a
 `manifest <field>: flag` line, which a verifier never drops: the diff hitting the item is the
 evidence. End the summary with one line, `Verifier dropped N of M candidates.`, so verifier
@@ -299,10 +299,14 @@ HEAD SHA for locations no changed line can carry.
 The merge gate reads severity from two plain-text lines, never HTML comments:
 
 - Each inline comment carries exactly one line `severity: IMPORTANT` (a
-  blocking finding) or `severity: SUGGESTION` (an advisory one), above the
-  lane footer line, which stays the comment's last line. `severity: CRITICAL`
-  is only for a finding behind a `critical-security` hold ("Hold for a
-  person").
+  blocking finding or a `manifest <field>: flag`) or `severity: SUGGESTION`
+  (an advisory one), above the lane footer line, which stays the comment's
+  last line. `severity: CRITICAL` is only for a security finding this lane
+  reports because no security lane runs ("Gotchas") that meets
+  `/review:security-review`'s three-part severity bar: the review cites, with
+  file and line, who reaches it, the leak, compromise or charge it gets, and
+  that no existing control stops it. Such a finding sets the
+  `critical-security` hold when the schema has a `hold` field.
 - The summary carries exactly one line `critical-findings: <n>`: the number of
   CRITICAL findings it reports that have no inline comment (0 when none).
 

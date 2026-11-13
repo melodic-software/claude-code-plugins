@@ -7,6 +7,10 @@
     {
       "answer": "Summary: one blocking finding.\n\n`critical-findings: 0`",
       "why": "one backtick-wrapped line"
+    },
+    {
+      "answer": "src/cart.js:9\n\n```\nThe discount applies below the threshold.\n\nseverity: IMPORTANT\n```\n\n```\nSummary: one blocking finding.\n\ncritical-findings: 0\n```",
+      "why": "comment and summary each in a fenced code block"
     }
   ],
   "fail": [

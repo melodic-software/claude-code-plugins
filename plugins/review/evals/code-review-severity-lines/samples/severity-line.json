@@ -7,6 +7,10 @@
     {
       "answer": "src/cart.js:4\n\nBULK_PERCENT_OFF could live in config.\n\n`severity: SUGGESTION`\n\ncritical-findings: 0",
       "why": "backtick-wrapped line, which the publisher accepts"
+    },
+    {
+      "answer": "src/cart.js:9\n\n```\nThe condition is inverted: lines below BULK_THRESHOLD get the discount.\n\nseverity: IMPORTANT\n```\n\nSummary: one blocking finding.\n\ncritical-findings: 0",
+      "why": "comment body in a fenced code block, as the prompt asks"
     }
   ],
   "fail": [

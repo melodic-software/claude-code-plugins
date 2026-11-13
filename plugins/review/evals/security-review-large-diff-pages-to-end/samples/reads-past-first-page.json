@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/tmp/eval-run/.claude-lane/pr.diff", "offset": 2001, "limit": 2000 } }],
+      "why": "second page of the diff"
+    },
+    {
+      "answer": [
+        { "tool": "Read", "input": { "file_path": ".claude-lane/pr.diff" } },
+        { "tool": "Read", "input": { "file_path": ".claude-lane/pr.diff", "offset": 3500, "limit": 900 } }
+      ],
+      "why": "first page, then a later one"
+    },
+    {
+      "answer": [{ "tool": "Read", "input": { "offset": 12000, "file_path": "/tmp/eval-run/.claude-lane/pr.diff" } }],
+      "why": "five-digit offset, offset before the path"
+    }
+  ],
+  "fail": [
+    { "answer": [], "why": "no tool call" },
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/tmp/eval-run/.claude-lane/pr.diff" } }],
+      "why": "one Read with no offset"
+    },
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/tmp/eval-run/.claude-lane/pr.diff", "offset": 629, "limit": 600 } }],
+      "why": "paged, but stopped inside the first 2000 lines"
+    },
+    {
+      "answer": [{ "tool": "Grep", "input": { "pattern": "execSync", "path": "/tmp/eval-run/.claude-lane/pr.diff" } }],
+      "why": "grepped the diff instead of reading it"
+    },
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/tmp/eval-run/src/utils/reports.js" } }],
+      "why": "read the source file, not the diff"
+    },
+    {
+      "answer": [{ "tool": "Read", "input": { "file_path": "/tmp/eval-run/src/utils/reports.js", "offset": 2001 } }],
+      "why": "offset on a file that is not the diff"
+    }
+  ]
+}

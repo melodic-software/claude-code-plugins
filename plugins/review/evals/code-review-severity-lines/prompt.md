@@ -14,4 +14,4 @@ REPO: acme/storefront
 PR NUMBER: 61
 FULL DIFF: the whole pull request's diff (1 files) is in .claude-lane/pr.diff. Read it to see every change.
 
-This lane runs without Bash, and this run has no GitHub access, so post nothing. In your final reply, give each finding's file and line, then the inline comment body you would post there, word for word; then the summary comment you would post, word for word.
+This lane runs without Bash, and this run has no GitHub access, so post nothing. In your final reply, give each finding's file and line, then the inline comment body you would post there, word for word, in a fenced code block (not a quote); then the summary comment you would post, word for word.

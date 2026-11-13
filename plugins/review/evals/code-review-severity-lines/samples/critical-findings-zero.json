@@ -3,6 +3,10 @@
     {
       "answer": "Summary: one blocking finding.\n\ncritical-findings: 0",
       "why": "zero, matching a review with no CRITICAL finding"
+    },
+    {
+      "answer": "```\nSummary: one blocking finding.\n\ncritical-findings: 0\n```",
+      "why": "summary in a fenced code block"
     }
   ],
   "fail": [
