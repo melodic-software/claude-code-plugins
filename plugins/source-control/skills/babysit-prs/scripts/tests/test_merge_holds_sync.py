@@ -123,10 +123,6 @@ def import_closure(entries: tuple[str, ...]) -> list[str]:
         name = file.relative_to(ROOT).as_posix()
         if name in seen:
             continue
-        # A directory URL (admit.mjs lists `../../workflows/` for their
-        # names) loads no code; each gated workflow is floored by name.
-        if file.is_dir():
-            continue
         seen.add(name)
         for spec in IMPORT.findall(file.read_text(encoding="utf-8")):
             todo.append(file.parent / spec)
