@@ -7,8 +7,7 @@ is asked, stated, or blocked before the confirmation gate.
 
 - `me` and `auto` runs with a register, once no open question remains on the frontier and before
   the Step 3 register gate and confirmation gate. The `auto` Mixed path runs it after its residue round.
-- Skipped when the run asked no question (no register exists), in `lock`, and under verification
-  `light` and `off` (SKILL.md Step 2); the pre-round contradiction pass below is skipped there too.
+- Skipped when the run asked no question (no register exists) and in `lock`.
 - After the answers to sweep rows land, sweep again over what those answers changed. Step 3 starts
   when a sweep adds no `open` row.
 
@@ -98,8 +97,7 @@ You write the results, not the sub-agent, so register ids stay contiguous.
   location. It re-reads each location and returns, per F-line, `confirmed` when the quoted text is
   there and states the fact, else `not-found`. This is how `/planning:audit-answers` checks
   answers: a validator that never saw the reasoning. A `not-found` item is not settled; it falls
-  through to the next line as a register row. Under verification `light` or `off` no quote check
-  runs, so every fact-settled item takes that same path.
+  through to the next line as a register row.
 - **decision:** never settled from facts, whatever the session believes was decided earlier, so
   a sweep's `decision` item always takes the next line. When a quoted prior owner ruling covers
   it, that row is written `answered` with `answered-from-decision:` (loop.md "Self-answer gate").

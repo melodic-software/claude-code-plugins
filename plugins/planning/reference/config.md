@@ -60,7 +60,7 @@ never used in its place. An invalid value never stops the run.
 | `shared_session.accent` | `teal`, `indigo`, `violet`, `amber` | `teal` | retired: no effect. The page offers one theme choice, the canonical chrome's System/Light/Dark toggle, so no session or team setting sets its accent; a file that still sets the key stays valid | none |
 | `shared_session.prototype_tiers` | a list of `screenshot`, `snapshot`, `live`, each at most once; `[]` shows prototype questions as text | `[screenshot, snapshot]` | same: which prototype views guests get | repository file over default |
 | `shared_session_open_browser` | `true`, `false` | `true` | same: opens the owner's page in the browser at start | user config over default |
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | `/planning:plan` Step 3: the plan-reviewer dispatch; `/planning:interview` Step 2: the pre-round contradiction pass, the assumption sweep and its quote check; through `lib/read-verification.sh` | repository file only, read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)) |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | `/planning:plan` Step 3: the plan-reviewer dispatch, through `lib/read-verification.sh` | repository file only, read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)) |
 
 `phase_order` values, in phase order:
 

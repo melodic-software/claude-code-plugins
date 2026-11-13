@@ -1,4 +1,0 @@
-schema_version: "1.1"
-name: interview-light-skips-contradiction-pass
-context:
-  scaffold_script: scaffold.sh

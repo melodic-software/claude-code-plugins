@@ -38,8 +38,9 @@ emits the results labeled unverified instead of skipping them.
 - To raise the level, set `verification: standard` (or `strict`) in the team file on the default
   branch, or `verification_skills.<skill>` for one skill.
 - A plugin whose team file sits at a fixed path whatever the convention home passes it with
-  `--file <path>`, and the convention home is not read: `bugs`, `testing`, `mutation-testing` and
-  `work-items` pass `--file docs/conventions/<plugin>.yaml`. Without `--file` the file is `<home>/<plugin>.yaml`.
+  `--file <path>`, and the convention home is not read: `bugs`, `discipline`, `discovery`,
+  `docs-hygiene`, `education`, `implementation`, `mutation-testing`, `planning`, `session-flow`,
+  `testing`, `verification` and `work-items` pass `--file docs/conventions/<plugin>.yaml`. Without `--file` the file is `<home>/<plugin>.yaml`.
 - **Team layer only, read from the default branch.** Floor direction `team-only`
   ([config-cascade](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion)):
   the file is read at `origin/<default>` after a fetch, never the working tree, so a branch cannot
@@ -71,10 +72,13 @@ emits the results labeled unverified instead of skipping them.
 
 ## Exempt skills
 
-A skill that is itself the independent check when invoked does not read the level:
-`/planning:audit-answers`, `/performance:verify`, `/discipline:scrutinize-dont-coast`,
-`/review:quality-gate`, `/review:fanout`, `/planning:devils-advocate` and
-`/review:security-review`.
+The level governs a pass that checks the skill's own output; a pass that produces the skill's
+deliverable is not governed. These skills do not read the level: `/planning:audit-answers`,
+`/performance:verify`, `/discipline:scrutinize-dont-coast`, `/review:quality-gate`,
+`/review:fanout`, `/planning:devils-advocate`, `/review:security-review` and
+`/planning:interview`. Each is itself the independent check when invoked, except
+`/planning:interview`, whose contradiction pass, assumption sweep and quote check produce the
+questions it exists to ask.
 
 ## Adopters
 
@@ -86,7 +90,6 @@ A skill that is itself the independent check when invoked does not read the leve
 | every `/discipline` corrector on the shared method but `/discipline:scrutinize-dont-coast`, and `/discipline:sweep-all` | the fresh-context confirmation of a clean audit on load-bearing work (shared method, step 2), the fresh-context re-derivation (step 3) and the fan-out tiers' dispatch; `strict` takes do-your-research's fan-out tier at `full` depth |
 | `/education:quiz-me` | the fresh-context answer-key pass |
 | `/planning:plan` | the plan-reviewer dispatch in Step 3; `strict` dispatches it for every plan, which `plan_stress_test`'s `auto` otherwise skips on LOW plans |
-| `/planning:interview` | the pre-round contradiction pass, the assumption sweep and its quote check (Step 2) |
 | `/session-flow:orchestrate`, `/session-flow:workflow`, `/session-flow:retro` | imperative 3's verifier in a primed session; the fresh-context reviewer in pre-PR step 2, without which Stage 10 is not done; retro's single-pass analysis and scoring under `retro_lenses: 1` |
 | `/harness-config:audit-automation-gaps` | the fresh-context refusal gate (2.3), whose verdicts `light` lists as `unverified`, and the Phase 4 step 6 reviewer |
 | `/harness-config:audit-instructions` | the Phase C verifiers (per lane, B2 and I33) |
@@ -97,7 +100,7 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/testing:cleanup` | the Cannot-fail-only mode's step 2 skeptic: `light` clears no row, so that mode deletes nothing |
 | `/testing:write` | the Handoff advisor checkpoint for a HIGH or CRITICAL suite; `strict` calls it for every suite |
 | `/debugging:debug` | the fresh-context outcome verifier when no outcome-verification capability is used |
-| `/implementation:implement` | the fresh-context verifier at each phase boundary (item 1 of the ritual) |
+| `/implementation:implement` | the fresh-context verifier at each phase boundary (item 1 of the ritual) and the Step 5 advisor checkpoint; `strict` calls the advisor for every change |
 | `/docs-hygiene:compress` | the semantic-diff subagent and its revert pass (Hard rules); `compare` is not governed |
 | `/docs-hygiene:audit-derivability` | the empirical spot-test and the keep-sample (Classification method) |
 | `/docs-hygiene:audit-noise` | the fresh-context verification pass over the merged verdicts |
