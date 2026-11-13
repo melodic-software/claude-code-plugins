@@ -265,6 +265,10 @@ interval, or when either runners endpoint changes its permission requirement.
 
 `gh run view --log-failed` is the LAST resort: it truncates at the CLI display layer (~4MB cap,
 cli/cli #11059, #10551, #7771, #7642), while the bundled scripts' REST path returns complete logs.
+`fetch-annotations.sh` and `fetch-failed-logs.sh` take `--dir "<checkout>"` and resolve the
+repository with `target-repo.sh`, as [Resolve PR identity](#resolve-pr-identity) does. On a
+triangular flow, name the PR's base repository in `GH_REPO`, or in `FETCH_ANNOT_REPO` and
+`FETCH_LOGS_REPO`, which win over `--dir`, since the script resolves the checkout to the fork.
 The last-resort eyeball:
 
 ```bash
@@ -289,4 +293,6 @@ gh api "repos/<owner>/<repo>/commits/<head-sha>/check-runs"
 ## Why the comment script
 
 `gh pr view --json comments,reviews` MISSES inline review comments, so the bundled
-`fetch-all-pr-comments.sh` reads all three surfaces instead.
+`fetch-all-pr-comments.sh` reads all three surfaces instead. Like the log scripts, it takes
+`--dir "<checkout>"`; on a triangular flow, name the PR's base repository in `GH_REPO`, or in
+`FETCH_COMMENTS_OWNER` and `FETCH_COMMENTS_REPO`, which win over `--dir`.

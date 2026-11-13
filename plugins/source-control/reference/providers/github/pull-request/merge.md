@@ -150,7 +150,7 @@ Then, as its own command, delete the remote head branch once the PR reads `MERGE
 
 ```bash
 if [ "$(gh pr view <pr_number> -R <owner>/<repo> --json state -q .state)" = MERGED ]; then
-  REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push '<branch>') && git push "$REMOTE" --delete --end-of-options '<branch>'
+  REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push --dir "<checkout>" '<branch>') && git -C "<checkout>" push "$REMOTE" --delete --end-of-options '<branch>'
 else
   echo 'PR not merged yet (merge queue or auto-merge); delete the head branch once it reads MERGED' >&2
 fi
