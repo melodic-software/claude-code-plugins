@@ -9,16 +9,13 @@
 //
 // Usage: check-body.mjs --type <type> --body-file <path> [--contract <path>]
 // Prints one JSON object: {type, missing: [heading...], empty: [heading...], unknownType}.
-// Exit 0 when every required field is present and answered, 1 when one is not, 2 on usage error.
+// Exit 0 when every required field is present and answered, 1 when one is not, 2 on usage error
+// or an unknown type.
 
 import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
-const DEFAULT_CONTRACT = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../../reference/issue-body-contract.json",
-);
+const DEFAULT_CONTRACT = new URL("../../../reference/issue-body-contract.json", import.meta.url);
 
 const normalize = (text) => text.trim().replace(/\s+/g, " ").toLowerCase();
 
@@ -68,13 +65,10 @@ export function checkBody(contract, typeKey, body) {
   const found = sections(body, contract.headingLevels);
   const missing = [];
   const empty = [];
-  for (const field of type.fields.filter((f) => f.required)) {
-    const text = found.get(normalize(field.heading));
-    if (text === undefined) missing.push(field.heading);
-    else {
-      const answer = text.join("\n").trim();
-      if (answer === "" || answer === contract.emptyAnswer) empty.push(field.heading);
-    }
+  for (const { heading } of type.fields.filter((f) => f.required)) {
+    const text = found.get(normalize(heading));
+    if (!text) missing.push(heading);
+    else if (["", contract.emptyAnswer].includes(text.join("\n").trim())) empty.push(heading);
   }
   return { type: typeKey, unknownType: false, missing, empty };
 }
@@ -94,5 +88,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const contract = JSON.parse(await readFile(flag("--contract") ?? DEFAULT_CONTRACT, "utf8"));
   const result = checkBody(contract, typeKey, await readFile(bodyFile, "utf8"));
   process.stdout.write(`${JSON.stringify(result)}\n`);
-  process.exit(result.unknownType ? 2 : result.missing.length + result.empty.length > 0 ? 1 : 0);
+  const incomplete = result.missing.length > 0 || result.empty.length > 0;
+  process.exit(result.unknownType ? 2 : incomplete ? 1 : 0);
 }
