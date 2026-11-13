@@ -221,6 +221,7 @@ apply() {
     key="${pair%%=*}" value="${pair#*=}"
     [[ "$key" =~ ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ && "$key" != schema ]] || die "invalid key '$key'"
     [[ "$value" != *[$'\t\n\r#']* ]] || die "invalid value for $key"
+    [[ "$LAYER" == team || ! "$key" =~ ^verification(_skills)?(\.|$) ]] || die "$key is read from the team layer only"
     existing="$(awk -F '\t' -v k="$key" '$1!=k' <<<"$existing")"
     [[ -n "$value" ]] && existing+=$'\n'"$key"$'\t'"$value"
   done

@@ -1,11 +1,11 @@
 export const meta = {
   name: 'drift-audit',
   description: 'Read-only drift audit of model, effort, subagent and workflow guidance: area finders check claims against upstream pages, skeptics try to refute each finding, and confirmed defaults drift comes back as a proposed diff',
-  whenToUse: 'Run by /multi-agent:audit-defaults, which resolves args: mode (defaults or repo), pointers (defaults mode, required), targets (repo mode, required), upstream, roles, maxConcurrent, asOf. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /multi-agent:audit-defaults.',
+  whenToUse: 'Run by /multi-agent:audit-defaults, which resolves args: mode (defaults or repo), pointers (defaults mode, required), targets (repo mode, required), upstream, roles, maxConcurrent, asOf, verification. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /multi-agent:audit-defaults.',
   phases: [
     { title: 'Fetch', detail: 'one docs-fetcher per source page reads it fresh and raw; checkers judge from those slices' },
     { title: 'Find', detail: 'per area (repo mode) a file reader then a web checker; per default owner (defaults mode) a web checker' },
-    { title: 'Verify', detail: 'independent skeptics per batch try to refute each finding; a finding stands on a majority' },
+    { title: 'Verify', detail: 'independent skeptics per batch try to refute each finding; a finding stands on a majority; verification light or off skips them and reports every finding unverified' },
   ],
 }
 
@@ -31,6 +31,8 @@ const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent)
   ? Math.min(16, Math.max(1, input.maxConcurrent))
   : 4
 const AS_OF = typeof input.asOf === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.asOf) ? input.asOf : '<date of this run>'
+// The level /multi-agent:audit-defaults resolved; light and off skip the skeptic panel.
+const SKIP_PANEL = input.verification === 'light' || input.verification === 'off'
 
 // An http(s) URL whose host is a public DNS name or a public dotted-quad IPv4,
 // so no stage is pointed at an internal address. Same check as the discovery
@@ -659,9 +661,14 @@ for (const f of deduped) {
   if (problem) unverified.push({ ...f, why: problem })
   else verifiable.push(f)
 }
-const toVerify = verifiable.slice(0, VERIFY_CAP)
-for (const f of verifiable.slice(VERIFY_CAP)) unverified.push({ ...f, why: 'past the verification cap of ' + VERIFY_CAP })
-if (verifiable.length > VERIFY_CAP) log('Verify: ' + (verifiable.length - VERIFY_CAP) + ' findings past the cap of ' + VERIFY_CAP + ' are reported unverified')
+const toVerify = SKIP_PANEL ? [] : verifiable.slice(0, VERIFY_CAP)
+if (SKIP_PANEL) {
+  for (const f of verifiable) unverified.push({ ...f, why: 'verification: skipped (' + input.verification + ')' })
+  log('Verify: skipped (' + input.verification + '); ' + verifiable.length + ' findings are reported unverified')
+} else {
+  for (const f of verifiable.slice(VERIFY_CAP)) unverified.push({ ...f, why: 'past the verification cap of ' + VERIFY_CAP })
+  if (verifiable.length > VERIFY_CAP) log('Verify: ' + (verifiable.length - VERIFY_CAP) + ' findings past the cap of ' + VERIFY_CAP + ' are reported unverified')
+}
 
 // ---- Verify ----
 phase('Verify')

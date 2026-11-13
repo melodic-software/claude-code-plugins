@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: deepening-standard-reproduces-strong
+description: "deepening.md Phase 1.5 with the stated reader line verification: standard: a confidence: strong candidate and a runtime-claim are reproduced before the report, and the phase-1.5 line carries the three counts, not a skip."
+tags: [architecture, improve, verification-level, read-only]
+expected_outcome: "Says Phase 1.5 reproduces the strong candidate's shallow-signal and the dead-code claim before Phase 2, and that the artifact's phase-1.5 line carries downgraded, dropped and corrected counts; writes no verification: skipped line."
+execution:
+  prompt: "/architecture:improve deepening. Phase 1 already ran; do not scan or open files. The scan returned two candidates: OrderHandler (confidence: strong, shallow-signal: OrderHandler, OrderValidator and OrderRepo each forward their one argument unmodified) and LegacyExporter (confidence: worth-exploring, runtime-claim: dead code, nothing registers it). Say exactly what happens to each before the report, which badge each can carry, and what the candidate artifact's phase-1.5 line will say, then stop. [The level reader has already been run for this case and printed `verification: standard (docs/conventions/architecture.yaml verification at origin/main)`; this run uses that line and does not run the reader again.]"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+  timeout_seconds: 300
+graders:
+  - name: no-skip-token
+    type: regex
+    pattern: 'verification[*_`\\]*:[*_`\s\\]*skipped'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: phase-counts
+    type: regex
+    pattern: 'downgraded'
+    flags: 'i'
+    target: 'last_message'
+  - name: reproduces-both
+    type: llm
+    criteria: "PASS only if the reply says the OrderHandler shallow-signal and the LegacyExporter dead-code claim are each reproduced against the code before the report, and that OrderHandler loses Strong if its signal does not reproduce. FAIL if either is presented without reproduction or labeled unverified."

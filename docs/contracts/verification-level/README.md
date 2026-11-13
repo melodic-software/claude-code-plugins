@@ -38,8 +38,8 @@ emits the results labeled unverified instead of skipping them.
 - To raise the level, set `verification: standard` (or `strict`) in the team file on the default
   branch, or `verification_skills.<skill>` for one skill.
 - A plugin whose team file sits at a fixed path whatever the convention home passes it with
-  `--file <path>`, and the convention home is not read: `bugs`, `testing`, `mutation-testing` and
-  `work-items` pass `--file docs/conventions/<plugin>.yaml`. Without `--file` the file is `<home>/<plugin>.yaml`.
+  `--file <path>`, and the convention home is not read: `bugs`, `testing`, `mutation-testing`,
+  `work-items` and `playbooks` pass `--file docs/conventions/<plugin>.yaml`. Without `--file` the file is `<home>/<plugin>.yaml`.
 - **Team layer only, read from the default branch.** Floor direction `team-only`
   ([config-cascade](../config-cascade/README.md#sanctioned-exception-class-policy-floor-precedence-inversion)):
   the file is read at `origin/<default>` after a fetch, never the working tree, so a branch cannot
@@ -105,6 +105,12 @@ A skill that is itself the independent check when invoked does not read the leve
 | `/explainer-video:produce` | the step 7 fresh-context frame judge on the delivery render: `light` reports the frames as not independently judged |
 | `/knowledge:video-digest` | the 9.4 vision fidelity spot-check: `light` reports the slice structural complete only |
 | `/event-storming:simulation` | the fresh-context rubric scorer ("How to Run an Evaluation", step 3), the product: `light` leaves every criterion `unscored` |
+| `/architecture:improve` | the deepening lens's Phase 1.5 reproduction and the conventions lens's "Verify before presenting", the product: `light` presents those claims `unverified` |
+| `/coupling:reduce` | phase C's reproduction of scan findings, the product: `light` ledgers them `evidence-verified: false` and routes them, never applies them; phase F's build, test and lint run at every level |
+| `/multi-agent:audit-defaults` | the `drift-audit` workflow's skeptic panel, the product: `light` reports every finding `unverified` and proposes no diff |
+| `/playbooks:fable-5` | the fresh-context verifier gate (orchestration chapter, "Fresh-context verification"); the self-review floor runs at every level, and `strict` drops the mechanical-batch exemption |
+| `/plugin-quality:audit` | the adversarial re-examination seam, the product: `light` labels the findings `unverified`; `standard` keeps its `high`-effort gate and `strict` runs it at every effort |
+| `/songwriting:co-write`, `/songwriting:diagnose` | the hard gate's skeptic refutation row; `standard` keeps it skippable by the writer's named reason, and `strict` runs it on every batch; the rubric's counted passes run at every level |
 | `/work-items:work` | the bug path's step 2 capture check, a fresh-context subagent per reproduction capture; `light` leaves the runs unconfirmed |
 | `/codebase-health:audit` | the Phase 2 separate false-positive validator; `strict` dispatches it after an inline Phase 1 too, and `light` reports the findings `unverified` |
 | `/developer-experience:build-cli` | the review mode's fresh-context reviewer, the product: `light` runs the review in the main session and labels every gap `unverified`; `strict` dispatches the reviewer for every review |

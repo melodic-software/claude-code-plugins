@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/architecture/schemas/architecture.schema.json",
   "title": "Architecture team config",
-  "description": "Schema for <home>/architecture.yaml and <home>/architecture.local.yaml: the decision-record keys /architecture:record-decision reads through the four layers of docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md. The map-* keys stay in the topic doc <home>/architecture/README.md (plugins/architecture/reference/config.md).",
+  "description": "Schema for <home>/architecture.yaml and <home>/architecture.local.yaml: the decision-record keys /architecture:record-decision reads through the four layers of docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md, and the verification level /architecture:improve reads from the team file only. The map-* keys stay in the topic doc <home>/architecture/README.md (plugins/architecture/reference/config.md).",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -21,6 +21,16 @@
       "description": "How /architecture:record-decision retires a record a new decision reverses, after the person's yes. delete: remove the file; its number is never reused. supersede: set its status to superseded by the new record. archive: move it to the ADR folder's archive folder.",
       "enum": ["delete", "supersede", "archive"],
       "default": "delete"
+    },
+    "verification": {
+      "enum": ["off", "light", "standard", "strict"],
+      "default": "light",
+      "description": "How much independent checking this plugin's skills run: off, light (the default: skip the verifier dispatch), standard (run it) or strict (also run the optional passes). Read from the team file's committed copy on the default branch only, so a branch cannot lower it and architecture.local.yaml cannot set it. Levels: docs/contracts/verification-level/README.md."
+    },
+    "verification_skills": {
+      "type": "object",
+      "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },
+      "description": "Per-skill verification level, keyed by skill name (for example improve); an entry beats this file's verification value."
     }
   }
 }

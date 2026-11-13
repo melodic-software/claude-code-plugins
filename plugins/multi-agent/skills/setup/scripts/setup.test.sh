@@ -88,6 +88,11 @@ out="$(run team apply --layer team --write roles.verifier.effort=xhigh)"
 assert_contains "team with no file creates the concern YAML" "$out" "wrote: $T/team/repo/docs/conventions/multi-agent.yaml"
 out="$(run team check session=opus)"
 assert_contains "the new YAML is the team layer" "$out" '"layer":"team","path":"'"$T/team/repo/docs/conventions/multi-agent.yaml"'","state":"read"'
+out="$(run team apply --layer team --write verification=standard)"
+assert_contains "team apply writes the verification level" "$(cat "$T/team/repo/docs/conventions/multi-agent.yaml")" 'verification: standard'
+run team apply --layer local --write verification=light >/dev/null
+assert_eq "local apply of the verification level is a usage error" 2 "$?"
+assert_contains "the refusal names the team layer" "$(cat "$T/team.err")" "verification is read from the team layer only"
 
 # A bound convention home moves the team YAML apply writes.
 fixture bound

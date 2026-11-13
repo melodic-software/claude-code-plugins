@@ -390,6 +390,9 @@ the write-up says they were skipped. Each is used when a skill filling the role 
 
 - **Adversarial re-examination**, a blind fresh-context attempt to refute each finding. *Absent:* a
   fresh subagent re-derives each finding from its cited artifact and reports what did not reproduce.
+  Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin plugin-quality --skill audit`
+  and copy its line: `standard` keeps the effort gate, `strict` runs at every effort, and `light` and
+  `off` run nothing, writing `verification: skipped (<level>)` and labeling findings `unverified`.
 - **Upstream conformance**, each harness or upstream claim checked against current official docs.
   *Absent:* step 2's own per-topic doc check is the only one; say so in the write-up.
 - **The running model's adaptation chapter**, suggested changes read against current guidance for
