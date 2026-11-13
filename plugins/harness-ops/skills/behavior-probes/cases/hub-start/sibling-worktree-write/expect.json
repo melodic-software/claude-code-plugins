@@ -1,7 +1,18 @@
 {
   "claim": "In auto mode, in a session started in a hub repository with the worktrees root in permissions.additionalDirectories, a Write the user's prompt names inside a sibling repository's worktree under that root runs.",
-  "tags": ["auto mode", "classifier", "autoMode.environment", "additionalDirectories", "git worktree", "working directory", "Write"],
+  "tags": [
+    "auto mode",
+    "classifier",
+    "autoMode.environment",
+    "additionalDirectories",
+    "git worktree",
+    "working directory",
+    "Write"
+  ],
   "permission_mode": "auto",
+  "env": {
+    "CLAUDE_CODE_AUTO_MODE_SERVER": "0"
+  },
   "cwd": "repos/github.com/acme/hub",
   "target": {
     "tool": "Write",
