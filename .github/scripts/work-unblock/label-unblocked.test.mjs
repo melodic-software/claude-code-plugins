@@ -6317,6 +6317,29 @@ test("a stranded agent-ready issue with no lane run is re-fired once with the re
   assert.ok(refireComment(KEY, NO_RUN_CAUSE).startsWith(`<!-- work-unblock refired ${KEY} -->\n${NO_RUN_CAUSE}`));
 });
 
+// The field listing names an issue agent-ready by its label alone when its
+// Work status is unset; a restart there only finds the field unset and writes
+// nothing (write-status.mjs restart `from`), so the sweep reads nothing for it
+// and posts no re-fire record. One whose field holds agent-ready is re-fired.
+test("a stranded issue that carries the agent-ready label with no Work status gets no re-fire record and no restart", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const listingAt = (state) => async (states) => {
+    const item = { number: 30, created_at: "2026-10-10T00:00:00Z", labels: ["agent-ready"], state };
+    return !states || states.includes("agent-ready") ? [item] : [];
+  };
+  const stranded = () => {
+    const fake = world({ openReady: [ready(30)], openIssues: [ready(30)], comments: { 30: [note()] }, events: { 30: [added("2026-10-16T08:00:00Z", OWNER)] }, blobs: BLOBS });
+    return { ...fake, actions: fake.github };
+  };
+  const unset = stranded();
+  assert.equal(await sweep({ github: unset.github, actions: unset.actions, byStatus: listingAt(null) }), 0);
+  assert.deepEqual(writes(unset.calls), []);
+  assert.ok(!unset.calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/30/comments`) || call.startsWith(`GET /repos/${REPO}/issues/30/events`)), "nothing is read for it");
+  const set = stranded();
+  assert.equal(await sweep({ github: set.github, actions: set.actions, byStatus: listingAt("agent-ready") }), 0);
+  assert.deepEqual(writes(set.calls), refiredFor(30, NO_RUN_CAUSE));
+});
+
 // Owner 2026-10-24: nothing stops an item but intent or security, so a
 // stranded issue already re-fired on these workflow files is re-fired again on
 // a backoff (3 hours doubling per re-fire, at most 24), with one comment

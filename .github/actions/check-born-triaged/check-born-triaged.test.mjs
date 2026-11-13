@@ -419,6 +419,46 @@ test("CLI with BORN_TRIAGED=false triages a born-triaged issue and prints no not
   assert.doesNotMatch(stdout, /::notice::/);
 });
 
+// The agent-ready label starts no lane run and admission writes the Work
+// status, so a born-triaged issue whose only status is that label, with the
+// field configured and unset, has no status: intake triages it, in one read.
+const labelOnlyRun = (labels, fields, { author, config = STATUS_CONFIG, attempts = 3 } = {}) => {
+  let reads = 0;
+  const result = run({
+    fetchIssue: async () => {
+      reads += 1;
+      return issue({ labels, ...(author && { author }) });
+    },
+    list: LIST,
+    lanesAppId: LANES_APP_ID,
+    statusOf: statusReader({ github: withFields(async () => [], fields), repository: "o/r", config, trustedActors: TRUSTED_ACTORS, log: () => {} }),
+    sleep: noSleep,
+    attempts,
+  });
+  return result.then((answer) => ({ ...answer, reads }));
+};
+
+test("run triages a born-triaged issue whose only status is the agent-ready label while its Work status is unset", async () => {
+  assert.deepEqual(await labelOnlyRun(["agent-ready"], {}), { skip: "false", reason: "label-only", reads: 1 });
+  assert.deepEqual(await labelOnlyRun(["agent-ready", "area: x"], { 7: { state: "agent-ready", setter: STRANGER_ID } }), { skip: "false", reason: "label-only", reads: 1 });
+});
+
+test("run still skips an agent-ready label beside a set Work status or another status label", async () => {
+  assert.deepEqual(await labelOnlyRun(["agent-ready"], { 7: { state: "agent-ready" } }), { skip: "true", reason: "born-triaged", reads: 1 });
+  assert.deepEqual(await labelOnlyRun(["agent-ready"], { 7: { state: "ready" } }), { skip: "true", reason: "born-triaged", reads: 1 });
+  assert.deepEqual(await labelOnlyRun(["agent-ready", "status: ready"], {}), { skip: "true", reason: "born-triaged", reads: 1 });
+  assert.deepEqual(await labelOnlyRun(["agent-ready", "needs-human"], {}), { skip: "true", reason: "born-triaged", reads: 1 });
+});
+
+test("with no Work status configured the agent-ready label is still the status", async () => {
+  assert.deepEqual(await labelOnlyRun(["agent-ready"], {}, { config: null }), { skip: "true", reason: "born-triaged", reads: 1 });
+});
+
+test("a label-only issue keeps the author check: a stranger's is untrusted-author, not label-only", async () => {
+  assert.deepEqual(await labelOnlyRun(["agent-ready"], {}, { author: { id: 1, login: "stranger" } }), { skip: "false", reason: "untrusted-author", reads: 1 });
+  assert.deepEqual(await labelOnlyRun(["agent-ready"], {}, { author: LISTED_BOT }), { skip: "false", reason: "untrusted-author", reads: 1 });
+});
+
 test("humanIds lists only the human actors' ids", () => {
   const second = { id: 42, login: "other", kind: "human" };
   assert.equal(humanIds({ version: 1, actors: [HUMAN, LISTED_BOT, LANES_APP, second] }), "153232337,42");
