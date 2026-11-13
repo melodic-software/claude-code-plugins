@@ -14,7 +14,7 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-ALL_ON=$'base-merge\tenabled\nplan-evidence\tenabled\ncode-review\tenabled\nsecurity-review\tenabled\nverify\tenabled'
+ALL_ON=$'base-merge\tenabled\nplan-evidence\tenabled\ncode-review\tenabled\nsecurity-review\tenabled\nverify\tenabled\nevidence\tenabled'
 
 ON_DEFAULT=(--base main --default-branch main)
 read_doc() { printf '%s' "$1" | bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null; }
@@ -30,7 +30,11 @@ assert_eq "an empty list runs every step by default" $'source\tdefault\n'"$ALL_O
 
 out=$(read_doc $'pre_ready:\n  - step: base-merge\n    enabled: true\n  - step: code-review\n    enabled: false\n  - step: verify\n    enabled: true\n')
 assert_eq "a disabled step is off and every other step stays on" \
-  $'source\tconfig\nbase-merge\tenabled\nplan-evidence\tenabled\ncode-review\tdisabled\nsecurity-review\tenabled\nverify\tenabled' "$out"
+  $'source\tconfig\nbase-merge\tenabled\nplan-evidence\tenabled\ncode-review\tdisabled\nsecurity-review\tenabled\nverify\tenabled\nevidence\tenabled' "$out"
+
+out=$(read_doc $'pre_ready:\n  - step: evidence\n    enabled: false\n')
+assert_eq "the evidence step can be disabled" \
+  $'source\tconfig\nbase-merge\tenabled\nplan-evidence\tenabled\ncode-review\tenabled\nsecurity-review\tenabled\nverify\tenabled\nevidence\tdisabled' "$out"
 
 # Each untrusted shape: the source line fails closed with a reason, and every step is on.
 check_fail_closed() {
@@ -86,7 +90,7 @@ read_response() { printf '%s' "$1" | bash "$SCRIPT" "${ON_DEFAULT[@]}" --http-re
 
 out=$(read_response $'HTTP/2.0 200 OK\r\nContent-Type: application/vnd.github.raw\r\n\r\npre_ready:\n  - step: verify\n    enabled: false\n')
 assert_eq "a 200 response is read as the document" \
-  $'source\tconfig\nbase-merge\tenabled\nplan-evidence\tenabled\ncode-review\tenabled\nsecurity-review\tenabled\nverify\tdisabled' "$out"
+  $'source\tconfig\nbase-merge\tenabled\nplan-evidence\tenabled\ncode-review\tenabled\nsecurity-review\tenabled\nverify\tdisabled\nevidence\tenabled' "$out"
 out=$(read_response $'HTTP/2.0 404 Not Found\r\nContent-Type: application/json\r\n\r\n{"message":"Not Found"}')
 assert_eq "a 404 response runs every step by default" $'source\tdefault\n'"$ALL_ON" "$out"
 out=$(read_response $'HTTP/2.0 502 Bad Gateway\r\n\r\n')

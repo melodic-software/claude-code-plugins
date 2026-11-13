@@ -45,7 +45,7 @@ if ! grep -q 'verify-gate.sh" check --head' "$FLOW" || ! grep -q '^ready_run_see
   exit 1
 fi
 REPORT="$TEST_TMPDIR/report.sh"
-block "## 2.5.6 Report" 1 "$REPORT_REF" >"$REPORT"
+block "## 2.5.7 Report" 1 "$REPORT_REF" >"$REPORT"
 if ! grep -q 'confirm-verdict.sh" show --head' "$REPORT"; then
   echo "FAIL: the confirm verdict block was not found in $REPORT_REF" >&2
   exit 1
@@ -145,7 +145,7 @@ new_state "$BEFORE"
 out=$(run_flow "$BEFORE" "$BEFORE")
 assert_contains "a record for the pre-push commit only: the guard refuses" "$out" "FLIP_EXIT=2"
 
-# The /verification:confirm verdict: recorded per head, named in the 2.5.6 report for the PR
+# The /verification:confirm verdict: recorded per head, named in the 2.5.7 report for the PR
 # worktree's HEAD, and advisory, so neither NEEDS WORK nor a missing verdict stops the flip or
 # changes the verify gate's result for that head.
 confirm_record() { CONFIRM_VERDICT_DIR="$STATE/confirm" bash "$SKILL_DIR/scripts/confirm-verdict.sh" record "$@"; }
@@ -266,7 +266,7 @@ out=$(FLOW_CWD="$TEST_TMPDIR/other" STUB_OID="$PEER" run_flow "$BEFORE" "$BEFORE
 assert_eq "the worktree on the head branch lacks the PR's head commit: the PR is not flipped" "no" "$flipped"
 assert_contains "the worktree on the head branch lacks the PR's head commit: the refusal names it" "$out" "$PEER"
 
-# The 2.5.6 report from a shell outside every checkout, with no CONFIRM_VERDICT_DIR: the verdicts
+# The 2.5.7 report from a shell outside every checkout, with no CONFIRM_VERDICT_DIR: the verdicts
 # come from the repository's common git directory, reached through <checkout>.
 new_state ""
 bash "$SKILL_DIR/scripts/confirm-verdict.sh" record --head "$PUSHED" --verdict CONFIRMED --dir "$REPO"
