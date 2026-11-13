@@ -51,11 +51,16 @@ printf '#!/usr/bin/env bash\necho "THREADS_OK unresolved=0"\n' >"$STUB_DIR/sourc
 # The PR is open for the first read and merged for the second, so the watch runs one poll and
 # exits. The check a is finished, c is still running, and b is finished unless STUB_B names its
 # status. STUB_FAIL_CHECKS makes the check-runs read fail. No gh default repository is recorded,
-# and a REST read of any repository other than acme/app fails.
+# and a REST read of any repository other than acme/app fails, except that me/app reads as a fork
+# of acme/app the caller can push to.
 cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
 if [[ "$1 $2" == "repo set-default" ]]; then
   echo "No default remote repository has been set." >&2
+  exit 0
+fi
+if [[ "$1 $2" == "api repos/me/app" ]]; then
+  echo acme/app
   exit 0
 fi
 [[ "$1" == api && " $* " == *" repos/acme/app/"* ]] || exit 1
@@ -140,6 +145,28 @@ assert_exit "snapshot run with a failed checks read exits non-zero" 1 "$?"
 assert_contains "snapshot run with a failed checks read says so" "$out" "SNAPSHOT-FAILED"
 [[ -e "$TEST_TMPDIR/failed-snap" ]] && snap_written=yes || snap_written=no
 assert_eq "snapshot run with a failed checks read writes no file" "no" "$snap_written"
+
+# A triangular flow: the checkout pushes to the fork me/app and its upstream is acme/app, where
+# the PR is open. target-repo.sh resolves the checkout to the fork, so the reference names the base
+# repository in its place; the watch built with that line reads acme/app only.
+TRI="$TEST_TMPDIR/triangular"
+git init -q "$TRI"
+git -C "$TRI" remote add origin https://github.com/me/app.git
+git -C "$TRI" remote add upstream https://github.com/acme/app.git
+fork=$(PATH="$STUB_DIR:$PATH" bash "$SCRIPT_DIR/target-repo.sh" --dir "$TRI" 2>/dev/null)
+assert_eq "triangular flow: target-repo.sh resolves the checkout to the fork" "me/app" "$fork"
+BASE_LINE=$(awk '/^## Resolve PR identity/ { on = 1; next } on && /^## / { exit }
+  on && /^```bash/ { if (++i == 2) f = 1; next } f && /^```/ { exit } f' "$REF" |
+  sed -e 's#<base-owner>/<repo>#acme/app#')
+assert_eq "triangular flow: the reference names the base repository explicitly" \
+  'OWNER_REPO="acme/app"   # the PR'"'"'s target, not the push destination' "$BASE_LINE"
+TRI_POLL="$TEST_TMPDIR/poll-triangular.sh"
+awk -v line="$BASE_LINE" '/^OWNER_REPO=\$\(/ { print line; next } { print }' "$POLL" >"$TRI_POLL"
+rm -f "$TEST_TMPDIR/count"
+out=$(cd "$OUTSIDE" && PATH="$STUB_DIR:$PATH" GH_STUB_COUNT="$TEST_TMPDIR/count" TEST_CHECKOUT="$TRI" \
+  timeout 30 bash "$TRI_POLL" 2>&1)
+assert_exit "triangular flow with the base named: the watch runs to the merge and exits 0" 0 "$?"
+assert_contains "triangular flow with the base named: the watch completes" "$out" "PR #5 MERGED — watch complete"
 
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0

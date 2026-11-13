@@ -54,7 +54,7 @@ Re-check all check runs for any state changes, then re-check for new comments si
 Default merge mode is squash: one squashed commit per PR onto the default branch. Follow the consuming project's convention when it differs (merge commit / rebase-merge).
 
 Merge with the forge's plain merge command, with the PR number and repository written literally
-and the flags the repository needs ([GitHub](../../../reference/providers/github/pull-request/merge.md#merge-command)).
+(on a triangular flow, the PR's base repository, never the fork the branch was pushed to) and the flags the repository needs ([GitHub](../../../reference/providers/github/pull-request/merge.md#merge-command)).
 Pinning it to the `HEAD_SHA` captured in 4.1 step 2 (`--match-head-commit`) is optional for an
 immediate merge and required with `--auto`; an armed auto-merge is always reported. Before pushing
 to a PR with auto-merge armed, disarm it, and re-arm it only after the reviews pass on the new head

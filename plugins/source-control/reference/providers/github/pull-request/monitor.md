@@ -18,6 +18,15 @@ OWNER=${OWNER_REPO%%/*} REPO=${OWNER_REPO#*/}
 PR_NUMBER=$(gh pr view "$(git -C "<checkout>" branch --show-current)" -R "$OWNER_REPO" --json number -q '.number' | tr -d '\r')
 ```
 
+On a triangular flow (the branch pushed to a fork, the PR opened on its upstream base), the base
+repository takes `target-repo.sh`'s place, named explicitly, since the script resolves the
+checkout to the fork, as in
+[create's triangular flow](create.md#open-the-pr-from-an-out-of-tree-orchestrator):
+
+```bash
+OWNER_REPO="<base-owner>/<repo>"   # the PR's target, not the push destination
+```
+
 The commands below write that repository as `<owner>/<repo>`: put the resolved value in its place.
 
 ## Read PR state
@@ -31,7 +40,8 @@ gh pr view <pr_number> -R <owner>/<repo> --json state -q '.state'
 The Monitor watch's poll script, passed inline in the `command` parameter. `<scripts-dir>`,
 `<skill-dir>` and `<checkout>` are the placeholders the pull-request skill resolves; the script
 resolves `OWNER` and `REPO` as [Resolve PR identity](#resolve-pr-identity) does, and exits 1 when
-`target-repo.sh` refuses. `BASELINE_FILE` stays empty on the first arming; a
+`target-repo.sh` refuses. On a triangular flow, replace its `OWNER_REPO=$(…)` line with the base
+repository named explicitly, as that section shows. `BASELINE_FILE` stays empty on the first arming; a
 re-arm sets it to the snapshot file this same script wrote in a snapshot run (`SNAPSHOT_FILE`
 set: one state check and checks read, the `cur_checks` lines written under a marker line, then
 exit 0, or exit 1 with nothing written when the read failed). A baseline file without that

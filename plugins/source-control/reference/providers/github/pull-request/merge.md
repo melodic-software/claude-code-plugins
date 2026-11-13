@@ -8,7 +8,11 @@ hold and ordering; this file holds the commands and the GitHub and `gh` facts be
 `bash "<skill-dir>/scripts/target-repo.sh" --dir "<checkout>"` prints, `<checkout>` being the
 checkout of the PR's repository the session works on, as
 [ready-for-review 2.5.3](../../../../skills/pull-request/reference/ready-for-review.md#253-review-and-verify-the-updated-head)
-defines it. Every command below names it, so none depends on the shell's directory.
+defines it. Every command below names it, so none depends on the shell's directory. On a
+triangular flow (the branch pushed to a fork, the PR opened on its upstream base), the script
+resolves the checkout to the fork, so the base repository takes its place, named explicitly, as in
+[create's triangular flow](create.md#open-the-pr-from-an-out-of-tree-orchestrator): the PR's
+target, not the push destination.
 
 ## Re-check checks and comments before merge
 
@@ -210,6 +214,9 @@ MODE=squash
 jq -e 'any(.[]; .type == "merge_queue")' <<<"$RULES" >/dev/null && MODE=queue
 echo "merge-ready $HEAD_SHA $MODE"
 ```
+
+On a triangular flow, replace its first line with the base repository named explicitly,
+`REPO="<base-owner>/<repo>"`, as the top of this file says.
 
 The script does not merge. After `merge-ready <sha> <queue|squash>`, run the
 [merge command](#merge-command) as its own Bash command with the PR number and repository written
