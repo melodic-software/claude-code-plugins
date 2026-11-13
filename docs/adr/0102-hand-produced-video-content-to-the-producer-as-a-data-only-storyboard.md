@@ -6,7 +6,7 @@
 
 ## Context
 
-`/review:reviewer-media` turns a pull request into a narrated video, and `education:illustrate` will
+The review plugin's reviewer-media skill turns a pull request into a narrated video, and `education:illustrate` will
 feed the same producer. The producer, `explainer-video:produce`, renders with a still-frame renderer
 (Chromium over HTML templates) or with manim. The content comes from pull request text, diffs and file
 names, which are untrusted: any of it can carry markup.
