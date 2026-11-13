@@ -78,7 +78,7 @@ function repositoryLayer(root, ref) {
     const sha = spawnSync("git", ["-C", real, "rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { encoding: "utf8" });
     if (sha.status !== 0) return { doc: null, read_at: `none (${ref} does not exist)`, problems: [] };
     readAt = `${ref} (${sha.stdout.trim()})`;
-    const entry = spawnSync("git", ["-C", real, "ls-tree", `${ref}`, "--", FILE], { encoding: "utf8" }).stdout.trim();
+    const entry = spawnSync("git", ["-C", real, "ls-tree", ref, "--", FILE], { encoding: "utf8" }).stdout.trim();
     if (entry === "") return { doc: null, read_at: `${readAt}, no ${FILE}`, problems: [] };
     if (!/^100(644|755) blob /.test(entry)) return { doc: null, read_at: readAt, problems: [`${FILE}: the committed entry is not a regular file; repository layer dropped`] };
     const shown = spawnSync("git", ["-C", real, "show", `${ref}:${FILE}`], { encoding: "utf8" });
@@ -88,7 +88,8 @@ function repositoryLayer(root, ref) {
     const path = join(real, FILE);
     if (!existsSync(path)) return { doc: null, read_at: `working tree, no ${FILE}`, problems: [] };
     // A symlink, or a path that resolves elsewhere through a linked directory, is refused (config.md "Resolution").
-    if (lstatSync(path).isSymbolicLink() || realpathSync(path) !== path || !lstatSync(path).isFile()) {
+    const stat = lstatSync(path);
+    if (stat.isSymbolicLink() || realpathSync(path) !== path || !stat.isFile()) {
       return { doc: null, read_at: "working tree", problems: [`${FILE}: not a regular file inside the repository; repository layer dropped`] };
     }
     text = readFileSync(path, "utf8");
