@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "'Choose the billing aggregate' (#42) is first; 'Pick the payment-provider adapter' (#43) follows.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Picking #42; #43 and #44 wait.",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Option: move it into a mop-up interview item.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Option: chart it as an item if you can phrase it.",
+      "why": "breaks the rule"
+    }
+  ]
+}

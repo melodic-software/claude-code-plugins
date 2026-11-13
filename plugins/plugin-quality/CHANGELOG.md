@@ -5,6 +5,18 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.10] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.7.19], [0.7.17] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
+## [0.20.9] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [0.20.8] - 2026-11-13
 
 ### Changed
@@ -827,7 +839,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The context-usage statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+- The context-usage statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limits and plugin-quality twins of the two canonical suites carry the same change.
 
 ## [0.7.18]
 
@@ -839,7 +851,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- compose-statusline-wiring.sh reuses its shim-prefix recognizer when peeling a prefix and returns its syntax and shell tests directly; the compose, context-zone and statusline test suites read fixture files without a cat fork and share the mv shim builder; rate-limit-guard's statusline-tee.sh resolves the tee enablement verdict once instead of in three branches. Synced copies refreshed. No behavior change.
+- compose-statusline-wiring.sh reuses its shim-prefix recognizer when peeling a prefix and returns its syntax and shell tests directly; the compose, context-zone and statusline test suites read fixture files without a cat fork and share the mv shim builder; rate-limits's statusline-tee.sh resolves the tee enablement verdict once instead of in three branches. Synced copies refreshed. No behavior change.
 
 ## [0.7.16]
 

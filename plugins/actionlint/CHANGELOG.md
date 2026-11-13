@@ -3,6 +3,18 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.3] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.7.1] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
+## [1.1.2] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [1.1.1] - 2026-11-12
 
 ### Changed
@@ -1508,7 +1520,7 @@ No behavior change.
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
   `-s <scope>`, sourced from what `claude plugin list` reports for this plugin, the same fix
-  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  already applied to `session-flow` and `rate-limits` in #1393.
   The recipe also now requires the reinstall to re-supply **every** key whose value should
   stay non-default, not only the key being changed: uninstalling drops the stored
   `pluginConfigs` entry, so an omitted key silently falls back to its manifest default.

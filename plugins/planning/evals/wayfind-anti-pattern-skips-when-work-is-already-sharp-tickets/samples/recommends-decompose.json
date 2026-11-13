@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Route them to /work-items:decompose.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll chart these as decision items instead.",
+      "why": "breaks the rule"
+    }
+  ]
+}

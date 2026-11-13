@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Destination: a PRD for partner-API v2. Is that right? Nothing is created until you confirm.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Created the map with items for auth, rate limits and versioning.",
+      "why": "breaks the rule"
+    }
+  ]
+}

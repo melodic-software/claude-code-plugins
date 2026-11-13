@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Item 'Choose the search backend'. Body: Which backend serves order search? Candidates: Postgres full-text search, OpenSearch, Typesense. An answer names the backend and why.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Item 'Choose the search backend'. Body: Which backend serves order search? An answer names the backend and why.",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -32,17 +32,17 @@ hash step printing the hash of empty input, `e3b0c44298fc1c14`; that value is ne
 so it also means cannot attribute. The address never reaches the output or a command line.
 
 Read the snapshot file once into a variable and derive everything from that copy: `snap=$(cat
-"$HOME/.claude/rate-limit-guard/rate-limits.json")`, then `printf '%s' "$snap" | fp .account.email`
+"$HOME/.claude/rate-limits/rate-limits.json")`, then `printf '%s' "$snap" | fp .account.email`
 for the fingerprint and the same `printf` into `jq` for `captured_at` and the windows. Never reopen
 the path between them: another session's write can replace the file, and a fingerprint from one
 snapshot beside windows from another attributes the windows to the wrong account.
 
 `.oauthAccount.emailAddress` is internal Claude Code state, not a documented surface. Its
-verification record is the recheck trigger in the `rate-limit-guard` reader contract
-(`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository, cited for
+verification record is the recheck trigger in the `rate-limits` reader contract
+(`plugins/rate-limits/reference/reader-contract.md` in the marketplace repository, cited for
 provenance only).
 
-The Monitor armed on the snapshot file fires on each write by rate-limit-guard's mod, headless sessions
+The Monitor armed on the snapshot file fires on each write by rate-limits's mod, headless sessions
 included, under the mod's machine-wide write floor. Between writes a paused lane still wakes on its
 `ScheduleWakeup` schedule, whose maximum delay bounds how late a switch is seen.
 

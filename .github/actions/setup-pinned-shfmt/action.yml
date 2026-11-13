@@ -1,0 +1,64 @@
+name: Setup Pinned Shfmt
+description: >
+  Put the pinned shfmt release on PATH, checked against its SHA-256. The
+  release publishes no checksums asset, so each value is GitHub's SHA-256
+  digest of that exact binary, the Linux one equal to the pin in
+  .claude/cloud-bootstrap.sh. Linux and Windows amd64 runners only. With
+  cache-dir set, the download is reused from there when present (a calling
+  job restores that directory with actions/cache, keyed on the version).
+
+inputs:
+  bin-dir:
+    description: Directory shfmt goes into and onto PATH; empty means $HOME/.local/bin.
+    default: ""
+  cache-dir:
+    description: >
+      Optional download cache directory; the binary is kept there as
+      shfmt-<version> and fetched only when that file is missing.
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install shfmt
+      shell: bash
+      env:
+        BIN_DIR: ${{ inputs.bin-dir }}
+        CACHE_DIR: ${{ inputs.cache-dir }}
+      run: |
+        set -euo pipefail
+        version=v3.14.1
+        case "$RUNNER_OS" in
+          Linux)
+            asset="shfmt_${version}_linux_amd64" name=shfmt
+            sum=76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf ;;
+          Windows)
+            asset="shfmt_${version}_windows_amd64.exe" name=shfmt.exe
+            sum=13629ce28442ca80b6b5a819f7574ab39e1c28c6e26734ca816c9714e04851df ;;
+          *)
+            echo "::error::setup-pinned-shfmt supports Linux and Windows runners, not $RUNNER_OS"
+            exit 1 ;;
+        esac
+        # A quoted variable keeps a leading ~ literal; actions/cache expands it.
+        bin=${BIN_DIR:-$HOME/.local/bin}
+        bin=${bin/#'~/'/$HOME/}
+        url="https://github.com/mvdan/sh/releases/download/$version/$asset"
+        mkdir -p "$bin"
+        if [ -n "$CACHE_DIR" ]; then
+          cache=${CACHE_DIR/#'~/'/$HOME/}
+          mkdir -p "$cache"
+          [ -f "$cache/shfmt-$version" ] ||
+            curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$cache/shfmt-$version" "$url"
+          cp "$cache/shfmt-$version" "$bin/$name"
+        else
+          curl -fSL --no-progress-meter --retry 7 --retry-all-errors -o "$bin/$name" "$url"
+        fi
+        echo "$sum  $bin/$name" | sha256sum -c -
+        if [ "$RUNNER_OS" = Windows ]; then
+          cygpath -w "$bin" >>"$GITHUB_PATH"
+        else
+          chmod +x "$bin/$name"
+          echo "$bin" >>"$GITHUB_PATH"
+        fi
+        got=$("$bin/$name" --version)
+        [ "$got" = "$version" ] || { echo "::error::shfmt --version printed '$got', not $version"; exit 1; }

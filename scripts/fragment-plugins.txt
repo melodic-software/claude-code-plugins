@@ -16,7 +16,6 @@ architecture
 attribution
 autonomy
 bash-format
-biome-format
 bugs
 code-metrics
 code-tidying
@@ -56,6 +55,7 @@ harness-ops
 implementation
 improvement
 instruction-placement
+javascript-format
 kindle-dedrm
 knowledge
 machine-health
@@ -77,7 +77,7 @@ powershell-format
 pr-pipeline
 prototype
 python-format
-rate-limit-guard
+rate-limits
 repo-fleet-hygiene
 repo-hygiene
 retro-audio

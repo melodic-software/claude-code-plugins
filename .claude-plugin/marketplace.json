@@ -50,8 +50,8 @@
       }
     },
     {
-      "name": "biome-format",
-      "source": "./plugins/biome-format",
+      "name": "javascript-format",
+      "source": "./plugins/javascript-format",
       "category": "development",
       "tags": [
         "biome",
@@ -762,8 +762,8 @@
       ]
     },
     {
-      "name": "rate-limit-guard",
-      "source": "./plugins/rate-limit-guard",
+      "name": "rate-limits",
+      "source": "./plugins/rate-limits",
       "category": "claude-code",
       "defaultEnabled": false,
       "tags": [

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Set javascript_format_lint_gitignored to true with `/plugin configure javascript-format@<marketplace>`, or headless by a route from the marketplace's plugin-reconfiguration convention."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Remove .work/ from .gitignore.",
+      "why": "another route"
+    },
+    {
+      "answer": "There is an option for this.",
+      "why": "near miss: names neither the option nor the flow"
+    }
+  ]
+}

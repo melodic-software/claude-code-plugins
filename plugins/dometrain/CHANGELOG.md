@@ -3,6 +3,18 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.5] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.1.3] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
+## [0.9.4] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [0.9.3] - 2026-11-12
 
 ### Changed
@@ -496,7 +508,7 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
   rationale attached to it. `-y` skips only `uninstall`'s `--prune` confirmation; the recipe never
   passes `--prune`, so the flag changed nothing and the claimed CI hang could not occur. Completes
   the same correction 0.21.2/0.17.2/0.3.1 landed for `claude-ops`, `session-flow`, and
-  `rate-limit-guard`, and 0.2.3 landed for `miro`.
+  `rate-limits`, and 0.2.3 landed for `miro`.
 
 ## [0.1.2]
 

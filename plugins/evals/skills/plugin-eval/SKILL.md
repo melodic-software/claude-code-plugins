@@ -386,6 +386,9 @@ its second-model run; otherwise `do not promote`, followed by the first conditio
 A no-loss two-version compare ships a cut only after a detection control, the before text with the
 changed rule removed, scores clearly lower on the same cases and model; otherwise report it as
 unable to detect a loss: [reading-results.md, Detection control](reference/reading-results.md#detection-control).
+A whole-page deletion is proven with a sensitivity control instead, the page replaced by a
+plausible but wrong version and run beside the before version, which must score clearly lower;
+every other cut keeps the detection control.
 
 ## Calibrating a judge
 

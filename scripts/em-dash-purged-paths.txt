@@ -152,9 +152,6 @@ plugins/autonomy/skills/setup/templates/*.md
 plugins/bash-format/README.md
 plugins/bash-format/CHANGELOG.md
 plugins/bash-format/skills/*/SKILL.md
-plugins/biome-format/README.md
-plugins/biome-format/CHANGELOG.md
-plugins/biome-format/skills/*/SKILL.md
 plugins/bugs/README.md
 plugins/bugs/CHANGELOG.md
 plugins/bugs/reference/*.md
@@ -320,6 +317,9 @@ plugins/improvement/skills/*/SKILL.md
 plugins/improvement/skills/find/context/*.md
 plugins/instruction-placement/README.md
 plugins/instruction-placement/skills/*/SKILL.md
+plugins/javascript-format/README.md
+plugins/javascript-format/CHANGELOG.md
+plugins/javascript-format/skills/*/SKILL.md
 plugins/kindle-dedrm/README.md
 plugins/kindle-dedrm/CHANGELOG.md
 plugins/kindle-dedrm/skills/*/SKILL.md
@@ -407,10 +407,10 @@ plugins/prototype/skills/*/SKILL.md
 plugins/python-format/README.md
 plugins/python-format/CHANGELOG.md
 plugins/python-format/skills/*/SKILL.md
-plugins/rate-limit-guard/README.md
-plugins/rate-limit-guard/CHANGELOG.md
-plugins/rate-limit-guard/reference/*.md
-plugins/rate-limit-guard/skills/*/SKILL.md
+plugins/rate-limits/README.md
+plugins/rate-limits/CHANGELOG.md
+plugins/rate-limits/reference/*.md
+plugins/rate-limits/skills/*/SKILL.md
 plugins/repo-fleet-hygiene/README.md
 plugins/repo-fleet-hygiene/CHANGELOG.md
 plugins/repo-fleet-hygiene/skills/*/SKILL.md

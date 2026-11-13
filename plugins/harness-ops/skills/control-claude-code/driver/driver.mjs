@@ -1,17 +1,9 @@
 #!/usr/bin/env node
 // Drives Claude Code's TUI for the control-claude-code skill.
 //
-//   node driver.mjs launch --plugin-dir <dir> [--session <name>] [--ttl <seconds>] [--deps-dir <dir>] [--unattended] [--in-sandbox]
-//   node driver.mjs wait-for <text> [--timeout <ms>] [--session <name>]
-//   node driver.mjs type [<text>] [--key <Name>]... [--session <name>]
-//   node driver.mjs screenshot <path.png|path.svg> [--session <name>]
-//   node driver.mjs record start <path.mp4|.gif|.png|.cast> [--session <name>]
-//   node driver.mjs record stop [--session <name>]
-//   node driver.mjs stop [--session <name>]
-//   node driver.mjs doctor [--deps-dir <dir>]
-//   node driver.mjs ready --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] [--session <name>] [--deps-dir <dir>] [--unattended] [--in-sandbox]
-//   node driver.mjs log <prompt> --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] [--unattended] [--in-sandbox]
-//   node driver.mjs plugins [<changed file>...]
+// `node driver.mjs --help` lists the verbs; `node driver.mjs <verb> --help` prints one verb's
+// flags (HELP below). `--dry-run` on a verb that writes or sends prints what it would do and does
+// nothing.
 //
 // `screenshot` and `record` never capture the live terminal: the holder reads
 // its cells, hides every `## Mask` match in SKILL.md and every signed-in
@@ -984,9 +976,14 @@ async function serve(opts) {
 async function launch(opts) {
   const pluginDir = opts['plugin-dir'] && resolve(opts['plugin-dir']);
   const config = launchConfig(opts, pluginDir);
-  const { env } = buildLaunch(config, process.env); // usage and credential checks before any install
+  const { env, argv } = buildLaunch(config, process.env); // usage and credential checks before any install
   if (!WHOLE.test(opts.ttl) || Number(opts.ttl) > MAX_TTL_S) {
     throw new UsageError(`--ttl takes a whole number of seconds up to ${MAX_TTL_S}`);
+  }
+  if (opts['dry-run']) {
+    checkSession(opts.session);
+    depsBase(opts['deps-dir'], false);
+    return `dry run: would launch session '${opts.session}' running ${argv.join(' ')}; started nothing`;
   }
   // Everything from here on, the pipe name and the log included, happens under the reservation.
   const lock = reserve(opts.session);
@@ -1233,8 +1230,17 @@ async function sessionLine(session) {
   }
 }
 
+/** What a print-mode verb would run, printed in place of running it under --dry-run. */
+const wouldRunPrint = (config, prompt, out) =>
+  `dry run: would run ${buildPrint(config, process.env, prompt).argv.join(' ')} and write its stream-json to ${out}; ran nothing`;
+
 async function ready(opts) {
   const { config, keySource, out, timeoutMs } = printTarget(opts, 'ready', READY_TIMEOUT_MS);
+  if (opts['dry-run']) {
+    checkSession(opts.session);
+    depsBase(opts['deps-dir'], false);
+    return wouldRunPrint(config, READY_PROMPT, out);
+  }
   const { pluginDir } = config;
   const health = doctor(opts);
   const lines = [health.text, await sessionLine(opts.session)];
@@ -1254,6 +1260,7 @@ async function ready(opts) {
 
 async function log(opts, prompt) {
   const { config, keySource, out, timeoutMs } = printTarget(opts, 'log', LOG_TIMEOUT_MS);
+  if (opts['dry-run']) return wouldRunPrint(config, prompt, out);
   const run = await runPrint({ config, out, prompt, stopAt: (i) => i.apiKeySource !== keySource, timeoutMs });
   const ended = run.timedOut ? `stopped after ${timeoutMs} ms` : run.signal ? `stopped by ${run.signal}` : `exit ${run.code}`;
   if (!run.init) return { text: `log: ${out} (claude ${ended}); init: no init event`, status: 1 };
@@ -1385,7 +1392,81 @@ const OPTIONS = {
   out: { type: 'string' },
   unattended: { type: 'boolean' },
   'in-sandbox': { type: 'boolean' },
+  'dry-run': { type: 'boolean' },
+  help: { type: 'boolean' },
 };
+
+const SESSION_OPT = '[--session <name>]';
+const LAUNCH_ENV_OPTS = '[--unattended] [--in-sandbox]';
+/**
+ * Per verb: `usage`, its flags after `node driver.mjs <verb>`; `brief`, the line `--help` lists it
+ * with; `more`, what only `<verb> --help` adds; `writes`, whether it writes or sends, which is what
+ * makes it take `--dry-run`.
+ */
+export const HELP = {
+  launch: {
+    usage: `--plugin-dir <dir> ${SESSION_OPT} [--ttl <seconds>] [--deps-dir <dir>] ${LAUNCH_ENV_OPTS}`,
+    brief: 'Starts Claude Code with the plugin loaded, held by a detached session holder.',
+    more: 'Installs the terminal engine from the committed lockfile on first use. The session stops after --ttl seconds (default 3600) or at stop.',
+    writes: true,
+  },
+  'wait-for': { usage: `<text> [--timeout <ms>] ${SESSION_OPT}`, brief: 'Waits until the session screen shows <text>; reads only.' },
+  type: {
+    usage: `[<text>] [--key <Name>]... ${SESSION_OPT}`,
+    brief: 'Sends <text>, then each --key (such as Enter), to the session as keystrokes.',
+    writes: true,
+  },
+  screenshot: {
+    usage: `<path.png|path.svg> ${SESSION_OPT}`,
+    brief: 'Writes a masked capture of the session screen to <path>.',
+    more: 'Writes the text the capture shows beside it as <path>.txt. A frame that does not redraw exactly writes nothing.',
+    writes: true,
+  },
+  record: {
+    usage: `(start <path.mp4|.gif|.png|.cast> | stop) ${SESSION_OPT}`,
+    brief: 'Starts or stops a masked recording of the session.',
+    more: 'stop writes the recording, and every frame\'s text beside it as <path>.txt.',
+    writes: true,
+  },
+  stop: { usage: SESSION_OPT, brief: 'Stops the session; the evidence files stay.', writes: true },
+  doctor: { usage: '[--deps-dir <dir>]', brief: 'Prints whether the terminal engine is installed and loads, and whether the status font is present; reads only.' },
+  ready: {
+    usage: `--plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] ${SESSION_OPT} [--deps-dir <dir>] ${LAUNCH_ENV_OPTS}`,
+    brief: 'Checks a session is fit to drive and writes the init event to --out.',
+    more: 'Prints doctor\'s lines and whether the session answers, then runs one print-mode turn and stops it at the init event. Exits 4 when doctor finds a broken install, else 1 unless the key source is the one the launch expects and the init event lists the plugin under test.',
+    writes: true,
+  },
+  log: {
+    usage: `<prompt> --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] ${LAUNCH_ENV_OPTS}`,
+    brief: 'Runs <prompt> in print mode and keeps its stream-json in --out.',
+    writes: true,
+  },
+  plugins: { usage: '[<changed file>...]', brief: 'Prints the plugin directory of each changed file, once each; reads only.' },
+};
+const EXITS = 'Exit: 0 done, 1 the step failed, 2 usage, 3 no session, 4 broken install, 5 a directory others can write.';
+const usageLine = (verb) => `node driver.mjs ${verb} ${HELP[verb].usage}${HELP[verb].writes ? ' [--dry-run]' : ''}`;
+
+/** `--help` text: one line per verb, or, for a verb, its flags and all it does. */
+export function helpText(verb) {
+  const entry = Object.hasOwn(HELP, verb) ? HELP[verb] : undefined;
+  if (entry) return [usageLine(verb), '', [entry.brief, entry.more].filter(Boolean).join(' '), '', EXITS].join('\n');
+  return [
+    'node driver.mjs <verb> [flags]',
+    '',
+    ...Object.entries(HELP).map(([name, { brief }]) => `  ${name.padEnd(11)}${brief}`),
+    '',
+    'node driver.mjs <verb> --help prints that verb\'s flags. --dry-run, on a verb that writes or sends, prints what it would do and does nothing.',
+    EXITS,
+  ].join('\n');
+}
+
+/** What a session request would send, printed in place of sending it under --dry-run. */
+const wouldRequest = (session, kind, payload = {}) => {
+  checkSession(session);
+  const json = JSON.stringify(payload);
+  return `dry run: would send '${kind}' to session '${session}'${json === '{}' ? '' : ` with ${json}`}; sent nothing`;
+};
+const sendOrShow = (o, kind, payload) => (o['dry-run'] ? wouldRequest(o.session, kind, payload) : request(o.session, kind, payload));
 
 /** A capture reply must be exactly what the holder answers for the request; any other path is never printed. */
 const expectReply = (got, want, what = 'the requested capture path') => {
@@ -1402,22 +1483,27 @@ const VERBS = {
   },
   type: (o, [text]) => {
     if (!text && !o.key) throw new UsageError('type needs <text> or --key <Name>');
-    return request(o.session, 'type', { text, keys: o.key });
+    return sendOrShow(o, 'type', { text, keys: o.key });
   },
   screenshot: async (o, [path]) => {
     if (!path) throw new UsageError('screenshot needs <path>');
     const want = resolve(path);
+    if (o['dry-run']) return wouldRequest(o.session, 'screenshot', { path: want });
     return expectReply(await request(o.session, 'screenshot', { path: want }), want);
   },
   record: async (o, [action, path]) => {
     if (action === 'start' && path) {
       const want = resolve(path);
+      if (o['dry-run']) return wouldRequest(o.session, 'record-start', { path: want });
       return expectReply(await request(o.session, 'record-start', { path: want }), `recording: ${want}`);
     }
-    if (action === 'stop') return expectReply(await request(o.session, 'record-stop'), RECORD_STOPPED, `"${RECORD_STOPPED}"`);
+    if (action === 'stop') {
+      if (o['dry-run']) return wouldRequest(o.session, 'record-stop');
+      return expectReply(await request(o.session, 'record-stop'), RECORD_STOPPED, `"${RECORD_STOPPED}"`);
+    }
     throw new UsageError('record takes start <path> or stop');
   },
-  stop: (o) => request(o.session, 'stop'),
+  stop: (o) => sendOrShow(o, 'stop'),
   doctor: (o) => doctor(o),
   ready: (o) => ready(o),
   log: (o, [prompt]) => log(o, prompt),
@@ -1432,16 +1518,32 @@ async function main(argv) {
   try {
     parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, tokens: true });
   } catch (err) {
-    throw new UsageError(err.message);
+    throw new UsageError(`${err.message}; node driver.mjs --help lists the verbs and their flags`);
   }
   const [verb, ...rest] = parsed.positionals;
-  const run = VERBS[verb];
-  if (!run) throw new UsageError(`verbs: ${Object.keys(VERBS).filter((v) => v !== 'serve').join(', ')}`);
+  const unknown = new UsageError(`verbs: ${Object.keys(HELP).join(', ')}; node driver.mjs --help says what each does`);
+  if (parsed.values.help) {
+    if (verb !== undefined && !Object.hasOwn(HELP, verb)) throw unknown;
+    console.log(helpText(verb));
+    return 0;
+  }
+  const run = Object.hasOwn(VERBS, verb) ? VERBS[verb] : undefined;
+  if (!run) throw unknown;
   if (rest.length > (ARITY[verb] ?? 0)) throw new UsageError(`${verb} got extra arguments: ${rest.join(' ')}`);
+  const dryRun = parsed.values['dry-run'];
+  if (dryRun && !HELP[verb]?.writes) {
+    throw new UsageError(`${verb} writes and sends nothing, so it takes no --dry-run; run it without that flag`);
+  }
   const broker = process.env.CCD_BROKER_SOCK;
   if (broker && BROKERED.includes(verb)) {
     checkBrokerSocket(broker);
-    return viaBroker(broker, brokerRequest(verb, parsed.tokens, rest), { timeoutMs: brokerDeadline(verb, parsed.values) });
+    // The broker refuses an option it does not know, so a dry run stops here, after the verb's own
+    // dry run has checked the arguments the way a real run would.
+    const req = brokerRequest(verb, parsed.tokens.filter((t) => t.name !== 'dry-run'), rest);
+    if (!dryRun) return viaBroker(broker, req, { timeoutMs: brokerDeadline(verb, parsed.values) });
+    await run(parsed.values, rest);
+    console.log(`dry run: would send ${JSON.stringify(req)} to the launch broker at ${broker}; sent nothing`);
+    return 0;
   }
   const out = await run(parsed.values, rest);
   if (out && typeof out === 'object') {

@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.1.10] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.6.14] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
+## [1.1.9] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [1.1.8] - 2026-11-13
 
 ### Changed
@@ -859,7 +871,7 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
   The directive had fractured under the same per-plugin de-slop campaign;
   `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
   sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
-  two, `context-usage` and `rate-limit-guard`, state it about their own scripts in their own words
+  two, `context-usage` and `rate-limits`, state it about their own scripts in their own words
   and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
   extract-ssot sweep.
 

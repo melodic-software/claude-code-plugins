@@ -3,6 +3,20 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.3.2] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
+## [2.0.2] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
+- Corrected in place: the released entries [0.7.5], [0.6.39] now name the JavaScript formatting plugin `javascript-format`, its current name.
+
 ## [2.0.1] - 2026-11-13
 
 ### Changed
@@ -713,7 +727,7 @@ No behavior change.
 
 ### Changed
 
-- **The shared `hooks/hook-utils.sh` gained the optional `prerequisite` notice class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).** A `prerequisite` notice latches once per session and keeps its install route on renewal. `spelling` adopts it for the missing-`typos` notice only, in the next release. It ships no session-start probe, no `prerequisites.json` and no model-invocable check: its hook fires on every Write, Edit and NotebookEdit of any file, so the missing-binary branch is reached on the first edit. `biome-format` and `go-format` are gated by config or extension, and were the silent ones in #4240.
+- **The shared `hooks/hook-utils.sh` gained the optional `prerequisite` notice class ([#4240](https://github.com/melodic-software/claude-code-plugins/issues/4240)).** A `prerequisite` notice latches once per session and keeps its install route on renewal. `spelling` adopts it for the missing-`typos` notice only, in the next release. It ships no session-start probe, no `prerequisites.json` and no model-invocable check: its hook fires on every Write, Edit and NotebookEdit of any file, so the missing-binary branch is reached on the first edit. `javascript-format` and `go-format` are gated by config or extension, and were the silent ones in #4240.
 
 ## [0.7.4] - 2026-09-28
 
@@ -1071,7 +1085,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 
 - **`build_data_json` states why its fallback exists, matching its three sibling
   formatter hooks.** The sentence is taken from `bash-format.sh`, where it is
-  byte-identical to the `actionlint-check.sh` and `biome-format.sh` copies, with
+  byte-identical to the `actionlint-check.sh` and `javascript-format.sh` copies, with
   one deliberate word changed: the siblings say the fallback fires only if
   `jq -n` fails, while this hook's `build_data_json` uses `printf | jq -c`, so
   the sentence names `jq -c`. Copying it verbatim would have stated something
@@ -1861,7 +1875,7 @@ disclosure from the tool's own report rather than from an exit-code map.
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
   `-s <scope>`, sourced from what `claude plugin list` reports for this plugin. This is the same
-  fix already applied to `session-flow` and `rate-limit-guard` in #1393.
+  fix already applied to `session-flow` and `rate-limits` in #1393.
 
 ## [0.3.1]
 

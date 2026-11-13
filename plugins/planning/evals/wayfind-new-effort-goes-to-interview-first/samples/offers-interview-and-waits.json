@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing shows an interview of this yet. Shall I run /planning:interview first? Waiting for your answer.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Charting now: destination, items, fog.",
+      "why": "breaks the rule"
+    }
+  ]
+}

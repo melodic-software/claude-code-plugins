@@ -211,7 +211,7 @@ separate plugin, skill, catalog, or config-file family carries it.
 **Routine prerequisite resolution** uses the catalog's own noun for these facts. It is not:
 
 1. **Guard-plugin "capability detection"**: session-auth, fail-open, session-scoped
-   (`plugins/rate-limit-guard/reference/reader-contract.md` §Capability detection (fail-open);
+   (`plugins/rate-limits/reference/reader-contract.md` §Capability detection (fail-open);
    mirrored in `context-usage`; consumed by work-loop, babysit-loop, attend-queue). Fail-open is
    that posture; this contract is fail-closed.
 2. **Autonomy's internal "capability"**: a shipped contract area

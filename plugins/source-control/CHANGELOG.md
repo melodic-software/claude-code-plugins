@@ -3,6 +3,86 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.7.1] - 2026-11-13
+
+### Fixed
+
+- The unattended merge gate no longer refuses a pull request with `no-lane-job` because an earlier head's review run was superseded: when the head moved while Wait Refine waited, the caller job was skipped and the run reviewed nothing, so the open-findings scan now passes over it. At the pinned head such a run still binds nothing. Such a run also no longer drops the blocking security count carried from an earlier head's review.
+
+## [11.7.0] - 2026-11-13
+
+### Added
+
+- `branch-update-signals.sh` takes `--dir <checkout>`, as `fetch-all-pr-comments.sh` and `resolve-remote.sh` do: every git read runs in that checkout, and the repository is resolved there with `target-repo.sh` (which honors `GH_REPO`); `--repo` still wins. Without `--dir`, the script reads the current directory and gh's `{owner}/{repo}` placeholders as before.
+
+### Changed
+
+- References to the rate-limit windows plugin use its new name, rate-limits: the `rate-limits@melodic-software` id, the `/rate-limits:setup` command, the `mcp__rate-limits__status` tool and the `~/.claude/rate-limits/` directory.
+- Corrected in place: the released entries [0.79.21], [0.79.20], [0.79.13], [0.79.9], [0.74.0], [0.55.55], [0.55.28], [0.49.1], [0.39.0], [0.31.4], [0.24.0], [0.36.0], [0.33.1] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
+### Fixed
+
+- `/source-control:pull-request ready` 2.5.2 and the shared update sequence name `<branch-checkout>`, the path of the checkout holding the branch (for a PR, the worktree `pr-worktree.sh` prints), where they said "from the PR's checkout": `push-branch.sh`, `resolve-remote.sh` and `branch-update-signals.sh` get `--dir "<branch-checkout>"`, and the base fetch and merge, the fast-forward after the forge's update and the signed-head read run with `git -C "<branch-checkout>"`, so a session whose shell is outside the PR's checkout can run the step.
+
+## [11.6.0] - 2026-11-13
+
+### Added
+
+- `/source-control:pull-request ready` posts the PR's evidence comment after the flip (new step 2.5.5, `evidence`). It runs when the PR is out of draft, the verify record for the PR worktree's HEAD lets the flip through, an evidence file exists for that head (`ready --evidence <file>`, or this session's `/testing:run-e2e --unattended` or `/app-control:drive` run on that head), the verdict for that head is `CONFIRMED`, and the forge shows the same head. It then calls the `evidence` action, which keeps its own gates. With no evidence file, another verdict, or a refusal by the `evidence` action, nothing is posted, the PR stays ready, and the report says why. Unattended runs skip the step, because the pr-merge lane posts the comment in CI. The digest and the report move to 2.5.6 and 2.5.7.
+- `evidence` joins the steps `ready --skip` and the `pre_ready` list accept (`pre-ready-steps.sh`, `schemas/source-control.schema.json`).
+
+## [11.5.1] - 2026-11-13
+
+### Fixed
+
+- The merge gate's force-push read no longer fails on a pull request that
+  changes a lane source and has any timeline item that is not a force push.
+  GitHub's `totalCount` on a `timelineItems` connection counts every item,
+  whatever `itemTypes` names, so the read now treats the listing as whole only
+  when its last page answers `hasNextPage: false`, and raises on a page whose
+  pagination answer is missing or malformed, or whose force-push node is not an
+  object carrying `beforeCommit`.
+
+- `/source-control:pull-request ready` resolves the repository and branch from `<checkout>` (`target-repo.sh --dir`, `git -C`), reads the base's rules, branch protection and reviews from `$REPO` instead of gh's `{owner}/{repo}` placeholders, and passes `--repo "$REPO"` to `review-venue.sh`. The GitHub review-venue reference names `<owner>/<repo>`, the script's `--repo` value.
+- The shared review discipline's D5–D7 commands name `<owner>/<repo>` (`gh api` paths and `gh pr comment -R`), and its fix-commit check passes `--dir "<checkout>"` to `resolve-remote.sh` and runs git with `-C "<checkout>"`, as the monitor reference's copy does.
+
+## [11.5.0] - 2026-11-13
+
+### Added
+
+- `fetch-annotations.sh`, `fetch-failed-logs.sh` and `fetch-all-pr-comments.sh` take `--dir <checkout>`, as `pr-worktree.sh`, `verify-gate.sh` and `confirm-verdict.sh` do, and resolve the repository there with `target-repo.sh` (which honors `GH_REPO`); `FETCH_ANNOT_REPO`, `FETCH_LOGS_REPO`, `FETCH_COMMENTS_OWNER` and `FETCH_COMMENTS_REPO` still win. `resolve-remote.sh` takes `--dir <checkout>` and reads that checkout's branch and remote config. Without `--dir`, each script uses the current directory as before.
+
+### Fixed
+
+- `fetch-annotations.sh` reads the PR head with `-R` naming the repository it resolved, so with `FETCH_ANNOT_REPO` set the head comes from that repository, not the shell's, as every other read in the script already did.
+- `/source-control:pull-request monitor` and `merge`: the log, annotation and comment fetches, the fix-commit check and the linked-worktree branch delete pass `--dir "<checkout>"` and run git with `-C "<checkout>"`, so a session whose shell is outside the target checkout reads and pushes to the right repository. The GitHub readiness reference names `<owner>/<repo>` on every `gh pr checks`, `gh run view` and `gh api` call instead of relying on the shell's directory or gh's `{owner}/{repo}` placeholders, and reads the head from `<checkout>`.
+
+## [11.4.1] - 2026-11-13
+
+### Changed
+
+- `/source-control:pull-request`: the dispatching session owns a PR watch. A dispatched subagent stops once its PR is marked ready and reports the full head sha; the dispatching session watches and merges. The monitor reference, the monitor cadence default and the watch handoff state the rule, and the REST-polling note names one session watching several PRs instead of subagents each watching one ([#15792](https://github.com/melodic-software/claude-code-plugins/issues/15792)).
+
+## [11.4.0] - 2026-11-13
+
+### Added
+
+- `confirm-verdict.sh` takes `--dir <checkout>`, as `pr-worktree.sh` and `verify-gate.sh` do, and finds the common git directory there (`CONFIRM_VERDICT_DIR` still wins). The `ready` report (2.5.6) passes `--dir "$PR_TREE"` and the `evidence` action passes `--dir "<checkout>"`. Without `--dir`, the script uses the current directory as before.
+
+### Fixed
+
+- `/source-control:pull-request monitor` and `merge`: the PR identity block and the Monitor poll script take the repository from `target-repo.sh --dir "<checkout>"` instead of `gh repo view`, and read the PR number with `-R`, so a watch armed from a shell outside the target checkout polls the right repository. Every other `gh` command in the GitHub monitor and merge references names `<owner>/<repo>` instead of relying on the shell's directory or gh's `{owner}/{repo}` placeholders, and the merge-after-AI-review script resolves its repository the same way.
+
+## [11.3.0] - 2026-11-13
+
+### Added
+
+- `/source-control:pull-request ready`: `pr-worktree.sh` and `verify-gate.sh` take `--dir <checkout>`, as `target-repo.sh` does. `pr-worktree.sh` reads the PR's head and lists worktrees in that checkout, and `verify-gate.sh` finds the common git directory there (`READY_VERIFY_DIR` still wins). The ready phase's command lines pass `--dir`, so a session that works on a repository by absolute path, with its shell in another checkout, finds the PR's worktree and the verify record. Without `--dir`, both scripts use the current directory as before.
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [11.2.6] - 2026-11-13
 
 ### Changed
@@ -4098,13 +4178,13 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- **babysit-loop and the pull-request watch handoff inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
+- **babysit-loop and the pull-request watch handoff inline rate-limits's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
 
 ## [0.79.20] - 2026-10-04
 
 ### Changed
 
-- **`babysit-loop` and the `pull-request` watch handoff call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+- **`babysit-loop` and the `pull-request` watch handoff call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limits's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
 - **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
 
 ## [0.79.19] - 2026-10-04
@@ -4148,7 +4228,7 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The babysit loop and the pull-request watch handoff now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The babysit loop and the pull-request watch handoff now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limits 0.14.0's reader contract.
 
 ## [0.79.12] - 2026-10-04
 
@@ -4173,7 +4253,7 @@ Internal simplification, no behavior change.
 ### Changed
 
 - The README notes that an installed mod can stop this plugin's `PreToolUse` hooks from running and can approve a call they blocked, with links to the two mods events sections. Nothing the plugin runs changed.
-- `/source-control:babysit-loop`'s paused-wait reference says rate-limit-guard's mod writes the snapshot in headless sessions too, so the Monitor armed on it wakes on the mod's writes under its machine-wide write floor.
+- `/source-control:babysit-loop`'s paused-wait reference says rate-limits's mod writes the snapshot in headless sessions too, so the Monitor armed on it wakes on the mod's writes under its machine-wide write floor.
 
 ## [0.79.8] - 2026-10-04
 
@@ -4426,7 +4506,7 @@ Internal simplification, no behavior change.
   and the babysit loop, by whether the person is staying and whether the machine stays on. For a
   route only the person can start, the skill prints it ready to run, and `/autofix-pr` comes with
   a filled-in prompt that carries the skill's review discipline (verify, reply, then fix; no merge
-  or force-push). Before any route it reads the `rate-limit-guard` tee file: a window at the
+  or force-push). Before any route it reads the `rate-limits` tee file: a window at the
   pause threshold starts and offers nothing and reports the reset time, lower readings sit beside
   the recommendation, and unknown usage points at `/usage` and favors `monitor` for a person who
   is staying. New
@@ -5680,7 +5760,7 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- babysit-loop: the inlined rate-limit-guard "Operable floor" block states that the tee file carries an `account.email` field when the writer could attribute the observation, replacing the claim that it carries no account-identifier field; synced from the reader contract that owns the block, with `scripts/check-loop-lane-floor-drift.sh` holding all six copies equal
+- babysit-loop: the inlined rate-limits "Operable floor" block states that the tee file carries an `account.email` field when the writer could attribute the observation, replacing the claim that it carries no account-identifier field; synced from the reader contract that owns the block, with `scripts/check-loop-lane-floor-drift.sh` holding all six copies equal
 
 ## [0.55.54]
 
@@ -6271,7 +6351,7 @@ Internal simplification, no behavior change.
 
 ### Changed
 
-- **Rate-limit-guard inline floor restored to byte-identity.** The loop-lane convention requires the
+- **Rate-limits inline floor restored to byte-identity.** The loop-lane convention requires the
   floor's values identical across the three consuming lanes; hashing those three plus the reader
   contract they cite and `extract-ssot`'s orchestrated-mode consumer found two distinct texts. The
   drift traces to two de-slop shards, which made the same two substitutions and so produced one
@@ -7900,7 +7980,7 @@ Internal simplification, no behavior change.
 - **`babysit-loop`: the rate-limit floor's reactive-only mode now reads the detection records.**
   The fail-open bullet named reactive-only but gave the lane no `stop-events.jsonl` behavior; the
   skill now carries the reader contract's read cadence (read on mode entry and before each new work
-  claim, recency baseline = lane start advanced by each resume attempt). Mirrors rate-limit-guard
+  claim, recency baseline = lane start advanced by each resume attempt). Mirrors rate-limits
   0.4.4's reader-contract addition.
 
 ## [0.49.0]
@@ -8784,7 +8864,7 @@ Internal simplification, no behavior change.
 
 - **`babysit-loop` samples per-cycle usage into its durable state block
   (melodic-software/claude-code-plugins#1651).** A lane's spend was a blind spot: the cycle budget
-  counts cycles, the rate-limit guard's pause is a ceiling, and nothing recorded how much of the
+  counts cycles, the rate-limits floor's pause is a ceiling, and nothing recorded how much of the
   shared subscription windows a cycle actually consumed. The durable-state block now carries a
   `usage_sample`, the two window percentages the guard step **already reads** every cycle, plus the
   rise since the previous sample, so measuring adds a write, not an observation. The field is
@@ -8800,7 +8880,7 @@ Internal simplification, no behavior change.
   session totals as of Claude Code v2.1.132. A machine-readable cumulative cost field
   (`cost.total_cost_usd`) does exist and is session-scoped, so it is the deferred candidate for
   per-lane attribution, but the guard's tee does not forward it, and widening the tee is a
-  rate-limit-guard change this entry deliberately does not make
+  rate-limits change this entry deliberately does not make
   (<https://code.claude.com/docs/en/statusline>, re-verified 2026-07-28: `used_percentage` 0–100,
   `resets_at` epoch seconds, `rate_limits` subscriber-only and each window independently absent; no
   drift).
@@ -8922,7 +9002,7 @@ Internal simplification, no behavior change.
   with no qualifying progress increments it. Qualifying progress means a PR merged or closed, a PR
   materially changed (head, reviews, comments, checks, draft elevation, foreign activity included;
   the lane's own repeat attempt at the same still-unresolved blocker never re-qualifies), or a new
-  escalation written. An idle cycle (no open PRs), or one held by the rate-limit guard, meaning
+  escalation written. An idle cycle (no open PRs), or one held by the rate-limits floor, meaning
   `rate_limit_latch` set, which starts no new mutating work and outlives the pause end, leaves it
   unchanged, and any qualifying progress resets it. At the threshold (new `babysit_loop_no_progress_threshold` config key, default 3) the
   lane raises a stall escalation through the existing escalation contract, a
@@ -9210,7 +9290,7 @@ Internal simplification, no behavior change.
 
 ### Fixed
 
-- **`babysit-loop` no longer downgrades the whole rate-limit guard because one window is absurd
+- **`babysit-loop` no longer downgrades the whole rate-limits floor because one window is absurd
   (#1612).** The lane body inlined the reader contract's mode table, "tee file absent, stale, missing
   `rate_limits`, or absurd values → mode unknown → reactive-only", which collapses the guard wholesale
   as soon as any single value is absurd. Against the floor's "pause when **either** window reports
@@ -9622,7 +9702,7 @@ Internal simplification, no behavior change.
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
   `-s <scope>`, sourced from what `claude plugin list` reports for this plugin, the same fix
-  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  already applied to `session-flow` and `rate-limits` in #1393.
   The recipe also now requires the reinstall to re-supply **every** key whose value should
   stay non-default, not only the key being changed: uninstalling drops the stored
   `pluginConfigs` entry, so an omitted key silently falls back to its manifest default.
@@ -10259,7 +10339,7 @@ Internal simplification, no behavior change.
   by a reviewable PR, is the recorded lane-enabling act. Shared cross-lane concerns are held by
   citation to the marketplace repository's `docs/conventions/loop-lane/` convention: topology, stop
   shapes including the drain-terminal state, cycle-budget and expiry semantics, capability tiers,
-  and the subagent discipline preamble. The rate-limit guard's operable floor
+  and the subagent discipline preamble. The rate-limits operable floor
   is inlined verbatim per that convention's inline-floor rule. `reference/config-resolution.md`
   widens accordingly: the layered `.claude/source-control.md` surface now documents the
   `babysit_loop_*` key family (stop mode, tier preset, per-dimension overrides, grace-window width,

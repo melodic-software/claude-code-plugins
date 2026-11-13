@@ -164,6 +164,24 @@ class NextGraphTest(unittest.TestCase):
             err,
         )
 
+    def test_two_declared_skip_to_edges_both_pass(self) -> None:
+        self.fx.skill("p:start", "interview", "/p:interview")
+        self.fx.skill(
+            "p:interview",
+            "interview",
+            "- Locked: /p:design.\n- Build items: /p:decompose.\n- No design question: /p:plan.",
+        )
+        self.fx.roster(
+            "p:start | entry: start",
+            "p:interview | skip-to: p:decompose an owner decision | skip-to: p:plan another",
+            "p:design",
+            "p:plan",
+            "p:decompose",
+            "p:implement | terminal: end",
+        )
+        rc, _, err = self.fx.run()
+        self.assertEqual(rc, 0, err)
+
     def test_skip_to_without_a_target_exits_2(self) -> None:
         self.fx.roster("p:interview | skip-to: an owner decision")
         rc, _, err = self.fx.run()

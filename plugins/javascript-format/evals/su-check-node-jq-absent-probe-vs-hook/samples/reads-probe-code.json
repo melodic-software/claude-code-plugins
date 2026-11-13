@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/javascript-format/lib/prerequisites.mjs"
+          }
+        }
+      ],
+      "why": "the probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "C:\\plugins\\javascript-format\\lib\\prerequisites.mjs"
+          }
+        }
+      ],
+      "why": "Windows path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/javascript-format/lib/prerequisites.sh"
+          }
+        }
+      ],
+      "why": "the shell form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /plugins/javascript-format/lib/prerequisites.mjs",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "cat, not Read"
+    }
+  ]
+}

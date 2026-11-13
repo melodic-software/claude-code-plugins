@@ -4,6 +4,24 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [1.4.13] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.9.5] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
+## [1.4.12] - 2026-11-13
+
+### Changed
+
+- Repaired the stale vtt-parser path in the course-digest Teachable adapter reference to point at the vendored module.
+
+## [1.4.11] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [1.4.10] - 2026-11-13
 
 ### Changed
@@ -3015,7 +3033,7 @@ amendment rather than decided in-run.
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
   `-s <scope>`, sourced from what `claude plugin list` reports for this plugin, the same fix
-  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  already applied to `session-flow` and `rate-limits` in #1393.
   The recipe also now requires the reinstall to re-supply **every** key whose value should
   stay non-default, not only the key being changed: uninstalling drops the stored
   `pluginConfigs` entry, so an omitted key silently falls back to its manifest default.

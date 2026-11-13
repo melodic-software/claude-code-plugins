@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gate: the rate-limit-guard "operable floor" block must stay identical across
+# Gate: the rate-limits "operable floor" block must stay identical across
 # every surface that inlines it.
 #
 #   scripts/check-loop-lane-floor-drift.sh            report drift, exit 1 if any
@@ -139,7 +139,7 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 # The one file that OWNS the floor. Everything below is a copy of this.
-SOURCE="plugins/rate-limit-guard/reference/reader-contract.md"
+SOURCE="plugins/rate-limits/reference/reader-contract.md"
 
 # The explicit consumer registry: "<mode> <path>".
 #
@@ -419,7 +419,7 @@ done
 if ((errors != 0)); then
   cat >&2 <<EOF
 
-The rate-limit guard's operable floor is inlined on purpose: an installed
+The rate-limits operable floor is inlined on purpose: an installed
 plugin cannot read a sibling plugin's files at runtime, so every consumer
 carries its own copy (docs/contracts/loop-lane/README.md section 6). The
 values are DECIDED in one place only:

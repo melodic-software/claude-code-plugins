@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "billing/export | the Export button | not driven (nothing is launched here)\n  replaced stated result: Proof, header row `date,number,amount` (now `date,number,amount,currency`)",
+      "why": "names the stated header row the requirement replaced"
+    },
+    {
+      "answer": "Expected outcome, the Export button: invoices.csv downloads; the stated header row date,number,amount gives way to the criterion's header row.",
+      "why": "quotes the stated result in the expected outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Expected outcome, the Export button: invoices.csv downloads with the header row `date,number,amount,currency`.",
+      "why": "only the requirement's header row, never the stated one"
+    },
+    {
+      "answer": "billing/export | the Export button | not driven (nothing is launched here)\n  no stated results",
+      "why": "ignored the feature file's stated results"
+    }
+  ]
+}

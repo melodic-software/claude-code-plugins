@@ -42,6 +42,26 @@ optional `## Gotchas`, and an index:
 | Driving tool (above the sections) | The tool that drives the app, such as a browser driver or the project's CLI. Written and read as the App row is |
 | `Attended runs only.` (above the sections) | Present when that tool drives the person's own signed-in browser. A marker for the person and for later drive work, as the App row is |
 | Integrated apps (above the sections) | One line per integrated app, per [Integrated apps](#integrated-apps), or none |
+| Driving conventions (above the sections, optional) | How every run drives this app, per [Driving conventions](#driving-conventions) |
+
+### Driving conventions
+
+A hub may state, above its sections, the conventions every drive of the app follows, so each agent
+drives it the same repeatable way. Create writes these three, adjusted to the app:
+
+- Start from the baseline: run each feature's `## Reset`, or the launch from empty data, before its
+  first step, never from the state an earlier run left.
+- Name a control by its role and accessible name, or by its label, test id (such as
+  `[data-test=basket]`), prompt text or route, never by a styling or structural CSS selector, a
+  screen coordinate or tab order, unless the app exposes nothing else.
+- Write literal commands: the exact command, handle and path the run types, never an example a
+  reader has to adapt. The placeholders this contract defines (`<environment url>`,
+  `<<service> service url>`, `<changed files>` and a steps file's parameters) stay placeholders.
+
+`/app-control:map check` does not require them, and a hub without them stays valid. Basis: the
+stable-handle and real-command rules of
+<https://github.com/cursor/plugins/blob/main/pstack/skills/create-verification-skill/SKILL.md>
+(read 2026-11-13).
 
 Below them, an index with one line per feature file it indexes, in this form:
 
@@ -246,17 +266,41 @@ whose `## Mask` in effect, the hand-off target's included, holds no mask line an
 
 ## Feature files
 
-`features/[<module>/]<feature>/README.md`, written from the user's side, with these six H2
-sections in this order:
+`features/[<module>/]<feature>/README.md`, written from the user's side. It opens with an H1
+title, the feature's name, and one paragraph saying what the feature is, then these six H2 sections
+in this order:
 
 | Section | Holds |
 |---|---|
-| `## Parts` | The distinct behaviors inside the feature, one short line each |
+| `## Parts` | The distinct behaviors inside the feature, one short line each. A line may start with a short id in bold, such as `**P1.**`, that steps and evidence can name |
 | `## Sub-features` | The states or branches inside this feature that have their own feature file, each a pointer to it, or `none` |
 | `## Entry points` | Where a user starts the feature, one line each. Each line ends `driven` or `not driven: <reason>`, the reason naming what would make it drivable, such as a test account, a seeded record or a `cli/` command. A drive through one entry point proves only that one and never marks another `driven` |
 | `## Reset` | How to return the app's own data to a known state |
-| `## Drive` | The steps a user takes, one action per step |
+| `## Drive` | The steps a user takes, one action per step, each with the result a user should observe, ending in a proof step ([Drive steps](#drive-steps)) |
 | `## Gotchas` | What has made a run lie or fail before |
+
+Create writes the title and paragraph, and may give Parts ids. `/app-control:map check` requires
+neither: a feature file without them stays valid.
+
+### Drive steps
+
+Each step is one list item at the start of a line, a bullet or a number such as `1.`, that may
+wrap onto indented lines. A step names three things: the user's action, the exact command or
+handle it uses (a selector, a key, a URL or a `cli/` command), and, after `Result:`, what a user
+should observe once it runs, as an output, a screen state, an exit code or a file state. The last
+step is the proof step, labeled `**Proof.**`, which takes no action of its own. Its `Result:` is
+the end state that proves the feature works, and its `Captures:` names the
+[Capture](#writing-the-capture-section) kinds that show that end state:
+
+```text
+1. Open the cart: `click [data-test=basket]`. Result: the cart page lists one item.
+2. **Proof.** Result: the cart page lists the added item at its price. Captures: screenshot, trace
+```
+
+A step and its result change together, so the result stays on its step; a feature has no
+separate proof section. Preconditions and `Budget:` lines are not list items. A `## Drive`
+that hands off to another feature or to a [steps file](#steps-files) has no steps of its own:
+the steps there state their results. `/app-control:map check` reports a step with no `Result:`.
 
 `## Drive` may end with performance budget lines, one per measure, in this form:
 
@@ -336,7 +380,13 @@ at most 24,000 characters (hub plus a module and a feature file), against the 16
 A feature may keep its Drive steps in a machine-readable steps file in its own folder, or in
 `shared/` when two or more features use it. The format, the file name and the field names are the
 project's choice; the contract fixes only what they mean. The feature's `## Drive` names the file,
-and its prose names steps by id and never repeats a selector the file holds. A feature whose steps
+and its prose names steps by id and never repeats a selector the file holds. Every step holds a
+result: what a user should observe once it runs, with the meaning [Drive steps](#drive-steps)
+gives it. The proof step belongs to the list a run expands to, not to each file: it is the last
+step before the finally steps, kept in the feature's own steps file, so an included file needs
+none. In the file it is a step with an id, a result and the capture kinds that show the end state,
+and no action or command: the run performs nothing for it and reports it by its id, with the
+captures it names, after the steps before it have run. A feature whose steps
 include a `shared/` item names `shared/<item>` in its feature file, which is how Shared items counts
 its users.
 
@@ -406,6 +456,23 @@ CLI through it. Otherwise write a script in the language the repository already 
   temp files), and turns bytecode off itself (for Python, `-B` or `sys.dont_write_bytecode = True`
   before any import), so the folder stays exactly the pinned tree and the untracked check in
   [Integrated apps](#integrated-apps) (Checkout off the pin) does not stop a second run.
+
+So agents can use it well, the CLI also has these traits, which create writes and
+`/app-control:map check` does not require:
+
+- a few composable commands, each doing real work, rather than many thin ones;
+- `--dry-run` on every command that writes or sends: it checks its arguments and the floors as a
+  real run would, prints what it would do, and does nothing. A dry run sits beside the
+  [Safety floors](#safety-floors) and the Write grants, never in place of them: it grants no write,
+  lifts no floor, and a command a floor refuses is refused under `--dry-run` too (exit 4);
+- subcommands that reveal features gradually: `--help` lists the commands one line each, and
+  `<command> --help` gives that command's flags;
+- error messages that say what to do instead, such as the flag to add or the command to run first;
+- rich `--help` text on every command: its flags, what it does and its exit codes.
+
+Basis: the traits of a CLI agents use well in
+<https://github.com/cursor/plugins/blob/main/pstack/docs/guide/06-verify-and-ship.md> (read
+2026-11-13), all but its machine-readable output, which `--json` above already covers.
 
 A feature whose `## Drive` has a step that sends to anyone, signs in, or writes to an environment
 or external system needs `cli/`: each such step is a `cli/` command, never a click or a raw request

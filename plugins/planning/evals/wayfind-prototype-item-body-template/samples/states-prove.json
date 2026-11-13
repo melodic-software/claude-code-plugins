@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "**Prove:** one Knock API call sends a templated email and an in-app message (logic).",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Prototype Knock.",
+      "why": "breaks the rule"
+    }
+  ]
+}

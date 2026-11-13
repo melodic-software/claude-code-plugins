@@ -5,6 +5,19 @@ All notable changes to the `context-usage` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.2] - 2026-11-13
+
+### Changed
+
+- References to the rate-limit windows plugin use its new name, rate-limits: the `rate-limits@melodic-software` id, the `/rate-limits:setup` command, the `mcp__rate-limits__status` tool and the `~/.claude/rate-limits/` directory.
+- Corrected in place: the released entries [0.12.0], [0.7.73], [0.7.62], [0.7.60], [0.7.56], [0.7.54], [0.7.53], [0.7.51], [0.7.31], [0.7.28], [0.5.3], [0.4.0], [0.3.0] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
+## [6.0.1] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [6.0.0] - 2026-11-13
 
 ### Changed
@@ -612,7 +625,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- **`/context-usage` resolves, and no longer collides with another plugin's command.** The module registered the bare name `band`, which rate-limit-guard registers too, so only one of the two owned `/band`, and the the plugin-namespaced `band` command the 0.11.0 entry below documents never existed.
+- **`/context-usage` resolves, and no longer collides with another plugin's command.** The module registered the bare name `band`, which rate-limits registers too, so only one of the two owned `/band`, and the the plugin-namespaced `band` command the 0.11.0 entry below documents never existed.
 - **A crossing read while a restatement was pending is no longer dropped.** Before, the carrier merged it into the restatement, so Claude got the stale verdict (for example acceptable while the session was dumb, with no save-state note) and the person got no menu. A crossing recorded after the restatement now replaces it; a crossing or restatement recorded before it still merges into it.
 
 ## [0.11.1] - 2026-10-04
@@ -960,7 +973,7 @@ No plugin change in this release.
   a verifier traced 0.7.38 running while 0.7.54 was installed. With two or more live candidates it
   now ranks the version directory `installed_plugins.json` names first, then compares dotted-number
   version names by value, then keeps the mtime order for any other pair. The same rule as the
-  rate-limit-guard shim; still builtins only and never writes. Shim revision 4; re-run
+  rate-limits shim; still builtins only and never writes. Shim revision 4; re-run
   `/context-usage:setup apply` to refresh the installed copy (#4675).
 
 ## [0.7.72] - 2026-09-27
@@ -1051,7 +1064,7 @@ No plugin change in this release.
 
 ### Changed
 
-- The context-usage statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+- The context-usage statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limits and plugin-quality twins of the two canonical suites carry the same change.
 
 ## [0.7.61]
 
@@ -1063,7 +1076,7 @@ No plugin change in this release.
 
 ### Changed
 
-- compose-statusline-wiring.sh reuses its shim-prefix recognizer when peeling a prefix and returns its syntax and shell tests directly; the compose, context-zone and statusline test suites read fixture files without a cat fork and share the mv shim builder; rate-limit-guard's statusline-tee.sh resolves the tee enablement verdict once instead of in three branches. Synced copies refreshed. No behavior change.
+- compose-statusline-wiring.sh reuses its shim-prefix recognizer when peeling a prefix and returns its syntax and shell tests directly; the compose, context-zone and statusline test suites read fixture files without a cat fork and share the mv shim builder; rate-limits's statusline-tee.sh resolves the tee enablement verdict once instead of in three branches. Synced copies refreshed. No behavior change.
 
 ## [0.7.59]
 
@@ -1101,7 +1114,7 @@ No plugin change in this release.
   was grepped before its surrounding line was touched, every dash sat outside the pinned span, and
   the suite reports PASS=11 FAIL=0.
 - **`skills/setup/reference/legacy-statusline-detect.md` is the canonical copy of a synced cluster.**
-  Only this copy was edited; `plugins/rate-limit-guard`'s carrier was brought back into line with
+  Only this copy was edited; `plugins/rate-limits`'s carrier was brought back into line with
   `scripts/sync-legacy-statusline-detect.sh`, and `--check` reports the copies matching.
 - **Reflexive `load-bearing` and `seam` become the concrete thing each stood for**, including in
   three released entries that used the words to describe their own diffs.
@@ -1135,13 +1148,13 @@ No plugin change in this release.
 - `scripts/compose-statusline-wiring.sh` wraps a renderer whose first word is a shell keyword
   (`! false`, `[[ -f file ]]`) in `sh -c`, matching builtins. Both keyword renderers are also
   covered by the idempotency table, so a re-run cannot stack a second adapter. Synced to
-  rate-limit-guard.
+  rate-limits.
 
 ## [0.7.53]
 
 ### Fixed
 
-- `scripts/compose-statusline-wiring.sh` treats unquoted POSIX grouping operators `(` and `)` as top-level control operators, so a renderer such as `(printf hi)` is wrapped in `sh -c` instead of being emitted as ARGV words the outer shell rejects. Synced to rate-limit-guard.
+- `scripts/compose-statusline-wiring.sh` treats unquoted POSIX grouping operators `(` and `)` as top-level control operators, so a renderer such as `(printf hi)` is wrapped in `sh -c` instead of being emitted as ARGV words the outer shell rejects. Synced to rate-limits.
 
 ## [0.7.52]
 
@@ -1153,7 +1166,7 @@ No plugin change in this release.
 
 ### Changed
 
-- setup: adds `scripts/compose-statusline-wiring.sh`, the statusline peel-and-wrap transform as a script, with the escape round trip and the re-compose idempotency assertion inside it and a 69-case test beside it; byte-identical with rate-limit-guard and registered in the cross-plugin source registry (prompt-audit follow-up F15)
+- setup: adds `scripts/compose-statusline-wiring.sh`, the statusline peel-and-wrap transform as a script, with the escape round trip and the re-compose idempotency assertion inside it and a 69-case test beside it; byte-identical with rate-limits and registered in the cross-plugin source registry (prompt-audit follow-up F15)
 - setup: `reference/unwrap-before-compose.md` shrinks to that script's argument and exit-code contract, its invocation, and the three judgments it leaves to the skill; `reference/statusline-edit.md` and step 7 of `check` call it instead of composing the edit by hand (prompt-audit follow-up F15)
 - setup evals: the seven cases that checked the peel and wrap arithmetic now check that the skill invokes the script and reports its result, keeping their ids and names (prompt-audit follow-up F15)
 - setup: the `check` action's jq, installed-shim-versus-shipped-source, and `zones.json` probes move into a `## Pre-computed context` block that runs them at load time; the body reads those values instead of issuing three Bash calls, and eval 1 asserts that (prompt-audit follow-up F17)
@@ -1583,7 +1596,7 @@ No plugin change in this release.
 
 - **setup: extract unwrap-before-compose to a synced spoke.** Peel rules and the
   shell-syntax guard move to `reference/unwrap-before-compose.md`, canonical here
-  and synced into rate-limit-guard so the twins cannot drift on quoting-as-trigger
+  and synced into rate-limits so the twins cannot drift on quoting-as-trigger
   again.
 
 ## [0.7.30]
@@ -1612,7 +1625,7 @@ No plugin change in this release.
 - **`statusline-tee.sh` no longer leaks temp files when the process dies mid-write.** The tee had
   no traps, and its snapshot prune deliberately excluded `.tmp.*` names, so a SIGKILL or crash
   between temp write and rename left the temp file behind forever. Ported the sibling
-  rate-limit-guard tee's proven pattern: a reclaim function wired to EXIT/TERM/INT/HUP traps
+  rate-limits tee's proven pattern: a reclaim function wired to EXIT/TERM/INT/HUP traps
   (signal traps exit so EXIT stays the single reclaim path) plus an age-filtered orphan sweep for
   the SIGKILL case, glob-guarded so a clean directory spawns no processes. The suite's old case
   that pinned the leak now asserts reclamation, with a fresh in-flight temp asserted untouched,
@@ -2356,7 +2369,7 @@ write-ordering fix.
   operator who ran `apply` before revision 3 shipped keeps running the old shim until they re-run
   it. Uninstalling first is the trap worth naming: the setup skill goes with the plugin while the
   stale shim stays behind, leaving no in-product path to the remediation. Kept in step with the
-  identical `rate-limit-guard` change (#1866). The two shims are a deliberate byte-identical
+  identical `rate-limits` change (#1866). The two shims are a deliberate byte-identical
   cluster, so their setup contracts must not drift apart.
 
 ## [0.5.2]
@@ -2701,7 +2714,7 @@ write-ordering fix.
     disarmed gate: both zone consumers treat a marked session's effective zone as dumb
     regardless of its post-compaction numbers, so the marker is never write-only), and prunes
     sibling markers on the tee's 14-day cutoff. jq-free by design, mirroring the
-    rate-limit-guard StopFailure recorder.
+    rate-limits StopFailure recorder.
   - All three hooks read stdin through a plugin-local chunked drain loop (`hooks/payload.sh`,
     mirroring the tee's proven `read -N` pattern) instead of the shared lib's single bounded
     read, which on Windows/MSYS pipes times out on exactly the payloads these events carry:
@@ -2828,14 +2841,14 @@ write-ordering fix.
   Rationale: `${CLAUDE_PLUGIN_ROOT}` is version-pinned and the old version directory is pruned
   ~14 days after an update, so cache-path wiring stops teeing at the next bump and then breaks the
   operator's whole statusline (`bash <missing>` → 127).
-- `setup check` prints the sibling-composition wiring when `rate-limit-guard` is also installed,
+- `setup check` prints the sibling-composition wiring when `rate-limits` is also installed,
   and states the measured per-tee refresh cost (~0.6–0.9 s on Windows/Git Bash, spawn-bound).
 - `setup check` **unwraps recognized guard shims before composing the wiring it prints**, so a
   statusline already wired through the sibling shim (or through this one) is not wrapped a
   second time. Re-wrapping produced a chain running one tee twice, a duplicated write and
   another 0.6–0.9 s on every refresh, whenever the plugins were configured in sequence or
   `check` was simply re-run.
-- The **combined sibling wiring is gated on the sibling shim actually existing**. `rate-limit-guard`
+- The **combined sibling wiring is gated on the sibling shim actually existing**. `rate-limits`
   being installed is not enough: its shim is written by its own `setup apply`, and printing a
   command that names a missing file reintroduces the `bash <missing>` → 127 failure this whole
   change exists to remove. When the shim is absent the single-shim form is printed instead,

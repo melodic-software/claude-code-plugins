@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Here \"Account\" already means one person's sign-in identity (src/auth/account.ts:2), so I recommend **household account** for the group that pays.",
+      "why": "cites the code file"
+    },
+    {
+      "answer": "The glossary defines Account as a single person's sign-in, never shared (docs/glossary.md:3).",
+      "why": "cites the glossary"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Q1: **How many members can one account pay for?**\n\nMy recommendation: **up to six**.",
+      "why": "uses the bare word with no source for the clash"
+    }
+  ]
+}

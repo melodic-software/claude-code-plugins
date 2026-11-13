@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "I'd start it preloaded with the search indexing rewrite and that it feels big.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Shall I run /planning:interview?",
+      "why": "breaks the rule"
+    }
+  ]
+}

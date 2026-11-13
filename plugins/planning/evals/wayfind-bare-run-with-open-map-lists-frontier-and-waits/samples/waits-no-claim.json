@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Which one? I'll claim it once you pick.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Claiming #42 now: /work-items:track start #42.",
+      "why": "breaks the rule"
+    }
+  ]
+}

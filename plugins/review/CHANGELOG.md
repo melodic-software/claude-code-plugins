@@ -3,6 +3,20 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.4.17] - 2026-11-13
+
+### Added
+
+- The `code-reviewer` agent's copy of the shared type rules (`context/type-discipline.md`) gains a
+  row: two values that share a primitive type and must never be swapped each get their own
+  distinct nominal type, produced only by their parse.
+
+## [8.4.16] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [8.4.15] - 2026-11-13
 
 ### Changed

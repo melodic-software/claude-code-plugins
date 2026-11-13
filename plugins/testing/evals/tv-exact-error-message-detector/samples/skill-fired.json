@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": [{ "tool": "Skill", "input": { "skill": "testing:test-value" } }],
+      "why": "the skill loaded"
+    }
+  ],
+  "fail": [
+    { "answer": [], "why": "no Skill call" },
+    {
+      "answer": [{ "tool": "Skill", "input": { "skill": "testing:audit" } }],
+      "why": "another testing skill"
+    }
+  ]
+}

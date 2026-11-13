@@ -14,8 +14,8 @@ name: PR Review Main
 # model reads them with the Read tool alone. A diff over one review's size
 # cap is reviewed in chunks of whole files, one run each, and one verdict
 # sums their findings and takes the most CRITICAL ones in a chunk. Each
-# lane uploads its verdict as
-# the artifact pr-review-main-<lane>-<pr>-<tree> (write-verdict.mjs); only a
+# lane uploads its verdict as the artifact pr-review-main-<lane>-<pr>-<tree>
+# (write-verdict.mjs); only a
 # run's own steps can upload its artifacts, so the gate authenticates the
 # name through this run's record (path, workflow_run event, main, completed
 # success). The review job's token can only read; the record job, which runs
@@ -48,9 +48,9 @@ name: PR Review Main
 #
 # The trigger job reads the PR's files, then runs the trigger gate only for a
 # lane-source PR whose head both lanes have not already reviewed (a verdict the
-# merge gate binds), once per run; no leg starts otherwise. The key leg takes its result, a boolean, the
-# PR number and two SHAs
-# checked against fixed shapes, only from the same run attempt, and gates
+# merge gate binds), once per run; no leg starts otherwise. The key leg
+# takes its result, a boolean, the PR number and two SHAs checked against
+# fixed shapes, only from the same run attempt, and gates
 # itself otherwise. The later legs gate themselves at their own start. The
 # trusted-text job reads the trusted pull request text once per run; a leg
 # takes it only when it matches the leg, and otherwise reads its own.
@@ -98,10 +98,9 @@ env:
 
 jobs:
   # The PR's file list and, for a lane-source PR, the trigger gate, read once
-  # per run for both of the review job's lanes. Its outputs are only what the gate computed (a
-  # boolean, the PR number, two SHAs) and the lane-source boolean, each
-  # checked against a fixed shape by the lane; never head-ref or other PR
-  # text. A lane uses them only from this run attempt: a lane a person re-runs
+  # per run for both of the review job's lanes. Its outputs are fixed shapes
+  # only (booleans, the PR number, SHAs, the run attempt), each checked
+  # against a fixed shape by the lane; never head-ref or other PR text. A lane uses them only from this run attempt: a lane a person re-runs
   # alone ("re-run failed jobs" or one job) keeps an earlier attempt's trigger
   # job, so it gates itself, as every later leg does. The lost-run reconciler
   # re-runs a lane run in full (reconcile.mjs, the lane kind), so this job
@@ -153,8 +152,9 @@ jobs:
           path: .base
           persist-credentials: false
 
-      # The main commit a lane's later leg checks out when the credit gate
-      # skipped its key leg, which would have recorded its own.
+      # The main commit the trusted-text job checks out, and a lane's later
+      # leg when the credit gate skipped its key leg, which would have
+      # recorded its own.
       - name: Record the main commit
         id: main
         run: echo "main-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
@@ -362,7 +362,7 @@ jobs:
           ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
 
       # Only a pull request that changes a lane source is reviewed here; the
-      # predicate is the merge gate's own, read from main. The files read
+      # predicate is the merge gate's own, read from main. The file list read
       # above stands only for the gate's own PR; any other PR is read again.
       - name: Select a lane-source pull request
         id: select
@@ -731,7 +731,8 @@ jobs:
       pull-requests: read # the PR, its files, comments and reviews
       actions: read # the upstream run the trigger gate reads
     # One output per lane, since a matrix job's outputs merge: why the lane
-    # was handed to the next leg, empty when it was not.
+    # was handed to the next leg (empty when it was not), the main commit
+    # this leg checked out, and the designed stop with the head it names.
     outputs:
       claude-review: ${{ steps.handoff.outputs.claude-review }}
       claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
@@ -1671,7 +1672,7 @@ jobs:
   # repeat the review job's from a fresh main checkout but for the
   # credential, fallback-ready and the fallback reason (workflow.test.mjs
   # holds them equal), so the gates, the kill switch and the hardening run
-  # again. Only this job's launcher step gets the subscription token.
+  # again. Only this job's launcher steps get the subscription token.
   review-subscription:
     name: Review Subscription
     needs: [trusted-text, review-handoffs]
@@ -1696,7 +1697,8 @@ jobs:
       pull-requests: read # the PR, its files, comments and reviews
       actions: read # the upstream run the trigger gate reads
     # One output per lane, since a matrix job's outputs merge: why the lane
-    # was handed to the next leg, empty when it was not.
+    # was handed to the next leg (empty when it was not), the main commit
+    # this leg checked out, and the designed stop with the head it names.
     outputs:
       claude-review: ${{ steps.handoff.outputs.claude-review }}
       claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
@@ -2595,7 +2597,8 @@ jobs:
   # The fallback leg, on the central fallback token, one per lane the
   # subscription leg handed on. Its steps repeat the review job's but for the
   # credential and the fallback reason, and it hands nothing on: it is the
-  # last leg, so a stop here leaves the lane unbound and fails the job.
+  # last leg, so a launcher stop here (credit, limit, auth) leaves the lane
+  # unbound and fails the job.
   review-fallback:
     name: Review Fallback
     needs: [trusted-text, subscription-handoffs]
@@ -2637,7 +2640,7 @@ jobs:
           persist-credentials: false
 
       # The main commit this leg checked out, under the lane's own output
-      # name: a later leg for the lane checks out the same commit.
+      # name, as the earlier legs record it; no later leg reads it here.
       - name: Record the main commit
         id: base
         env:
@@ -3430,7 +3433,8 @@ jobs:
         with:
           tokens: github-token
 
-      # A reviewed pull request that left no verdict fails here, so the run shows it; the lane stays unbound either way.
+      # A reviewed pull request that left no verdict fails here, so the run
+      # shows it; the lane stays unbound either way.
       - name: Fail without a verdict
         if: always() && steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success'
         run: |
@@ -3442,8 +3446,8 @@ jobs:
   # cannot hide an earlier CRITICAL finding once its artifact is gone: the
   # merge gate takes the most CRITICAL findings any of this PR's commits
   # carries (babysit_review_evidence `_main_lane`). A forged one can only add
-  # a hold. No model runs in this job; it reads only the counts that
-  # write-verdict.mjs checked, from this run's own artifacts.
+  # a hold. No model runs in this job; it reads only the legs' stop outputs
+  # and the counts write-verdict.mjs checked, from this run's own artifacts.
   record:
     name: Record
     needs: [review, review-subscription, review-fallback]
@@ -3505,21 +3509,20 @@ jobs:
             critical=$(jq -r '.critical' "$file"); findings=$(jq -r '.findings' "$file")
             [[ $lane =~ ^claude(-security)?-review$ && $head =~ ^[0-9a-f]{40}$ && $critical =~ ^[0-9]{1,6}$ && $findings =~ ^[0-9]{1,6}$ ]] || {
               echo "::error::a verdict file is malformed: $file"; exit 1; }
-            # Neutral either way: the gate reads the title, and a red check would
-            # send the fix-ci lane after a review finding.
-            conclusion=neutral
+            # Neutral: the gate reads the title, and a red check would send the
+            # fix-ci lane after a review finding.
             calls=$((calls + 1))
             gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
               -f name="pr-review-main: $lane" -f head_sha="$head" -f status=completed \
-              -f conclusion="$conclusion" \
+              -f conclusion=neutral \
               -f "output[title]=findings=$findings critical=$critical" \
               -f "output[summary]=pr-review-main reviewed $head from main: $findings finding(s), $critical CRITICAL. The run's summary lists them." >/dev/null
             echo "recorded $lane $head findings=$findings critical=$critical"
           done
 
       # The hub's api-calls notice, in log-api-budget's api_budget_emit_calls
-      # shape: this job has no checkout of that action, and its only calls
-      # are the check-run POSTs of the two record steps, counted as they are sent.
+      # shape: this job has no checkout of that action, and its only calls are
+      # the check-run POSTs of the two record steps, counted as they are sent.
       - name: Log the API calls at the end
         if: always()
         run: |

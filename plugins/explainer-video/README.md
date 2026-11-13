@@ -47,7 +47,7 @@ to set these keys, checked against
 
 | Key | Values | Default | What it controls |
 |---|---|---|---|
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/explainer-video:produce` dispatches its fresh-context frame judge on the delivery render: `light` and `off` skip it and report the frames as not independently judged. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/explainer-video:produce` dispatches its fresh-context frame judge on the delivery render: `light` and `off` skip it and report the frames as not independently judged. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 ## Narration
 

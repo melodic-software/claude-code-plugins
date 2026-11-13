@@ -72,7 +72,7 @@ to set these keys, checked against
 
 | Key | Values | Default | What it controls |
 |---|---|---|---|
-| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `standard` | Whether `/event-storming:simulation` dispatches its fresh-context rubric scorer: `light` and `off` skip it and leave every criterion `unscored`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+| `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/event-storming:simulation` dispatches its fresh-context rubric scorer: `light` and `off` skip it and leave every criterion `unscored`. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
 
 ## License
 

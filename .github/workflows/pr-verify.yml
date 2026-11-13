@@ -3,13 +3,13 @@ name: PR Verify
 # The verifier: a model that did not write the pull request judges each head
 # that passes pr-require-checks, or fails it only on holds an approving review
 # of the head lifts (resolve-pr.mjs heldOnly, so the person approves a judged
-# head), against its linked issue, and the run uploads
-# its verdict as the artifact pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>, a
-# FAIL's followed by -i<issues> (write-verdict.mjs artifactName); its readers also
-# accept the -<ref-digest> before that (write-verdict.mjs headRefDigest). A
-# FAIL first uploads its index (upload-fail-index, write-verdict.mjs
-# failIndexNames), which the gate reads by exact name instead of the whole
-# artifact listing, and uploads only once every index did.
+# head), against its linked issue. The run uploads its verdict as the artifact
+# pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>, a FAIL's followed by
+# -i<issues> (write-verdict.mjs artifactName); its readers also accept the
+# -<ref-digest> before that (write-verdict.mjs headRefDigest). A FAIL first
+# uploads its index (upload-fail-index, write-verdict.mjs failIndexNames),
+# which the gate reads by exact name instead of the whole artifact listing,
+# and uploads the verdict only once every index did.
 # Only steps of a run of this file on main can upload that run's artifacts, so
 # the pr-merge lane counts a verdict only through its run record
 # (plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py).
@@ -25,10 +25,10 @@ name: PR Verify
 # at most 35 minutes for it, the later jobs take what it found) and downloads it
 # into pr-verify-data/capture as untrusted data. A missing, unfinished or
 # blocked capture never fails a verdict, and with the app set the verdict
-# records it blocked with find-capture's reason. The diff, the trusted PR text, the linked
-# issues and the upstream run's jobs (upstream-jobs.mjs) are data files in
-# pr-verify-data under the working directory too, and the
-# model reads them with the Read tool alone: its rules allow that directory
+# records it blocked with find-capture's reason. The diff, the trusted PR
+# text, the linked issues and the upstream run's jobs (upstream-jobs.mjs) are
+# data files in pr-verify-data under the working directory too, and the model
+# reads them with the Read tool alone: its rules allow that directory
 # and deny .base and every other tool. The judgment runs on ci-workflows'
 # run-claude-cli as the pr-verify role, on one credential per job. The
 # check-intent job holds only the API key. The check-intent-subscription job
@@ -37,51 +37,52 @@ name: PR Verify
 # a credit stop, or class auth with API status 401 or 402) with no permission
 # denial, or its key is empty; then check-intent writes no verdict and does
 # not fail. It also runs when check-intent's credit gate skipped the key leg
-# because the key's credit stop is recent. With the org secret FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, the
-# subscription leg hands off the same way (a limit stop, a credit stop, or a
-# 401 or 402) and the check-intent-fallback job judges once on that token, on
-# a third VM; with it empty, nothing hands off past the subscription job. So
-# one job per run judges. Each later job repeats every step from a fresh
-# checkout, but the subscription job takes check-intent's reads instead of
-# repeating them: four outputs, each compared to a fixed string in its `if` or
-# in the fallback-reason expression that picks one of three literals, and
-# `reads`, the resolved PR, spec and trusted text, which the "Hand the reads
-# on" step writes from base-side step files before the model runs and which
-# reaches resolve-pr.mjs only through env. It still runs the trigger gate
-# (2 reads), whose head the agree step compares with the carried one, and
-# reads everything again when the bundle is missing, malformed, too large or
-# from another run attempt (resolve-pr.mjs takeReads). None of them is written
-# into a `run:` script, and it takes no cache and no artifact but the capture,
-# which each job downloads for itself. run-claude-cli sets
-# handoff and lane-class after it restores the step files, so the model cannot
-# set them.
+# because the key's credit stop is recent. With the org secret
+# FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, the subscription leg hands off the
+# same way (a limit stop, a credit stop, or a 401 or 402) and the
+# check-intent-fallback job judges once on that token, on a third VM; with it
+# empty, nothing hands off past the subscription job. So one job per run
+# judges. Each later job repeats every step from a fresh checkout, but the
+# subscription job takes check-intent's reads instead of repeating them. Of
+# check-intent's outputs it reads next-leg, compared to a fixed string in its
+# `if`; next-reason, passed only as its credential call's `reason` input;
+# capture, a `<run id>:<artifact id>` or a miss code that cannot change
+# (find-capture.mjs); and `reads`, the resolved PR, spec and trusted text,
+# which the "Hand the reads on" step writes from base-side step files before
+# the model runs and which reaches resolve-pr.mjs only through env. It still
+# runs the trigger gate (2 reads), whose head the agree step compares with
+# the carried one, and reads everything again when the bundle is missing,
+# malformed, too large or from another run attempt
+# (resolve-pr.mjs takeReads). None of them is written into a `run:` script,
+# and it takes no cache and no artifact but the capture, which each job
+# downloads for itself. run-claude-cli sets handoff and lane-class after it
+# restores the step files, so the model cannot set them.
 # A diff over one judgment's read budget is judged in chunks, each its own
 # run-claude-cli step in the same job, on its own prompt, against the same
 # spec (chunk-diff.sh, write-verdict.mjs mergeChunks): any chunk's fail fails
 # the head, and a chunk that passes short of every part or leaves no output
 # leaves no verdict for the head, so size alone never writes a fail. A head of
-# two chunks or more also needs a final judge, with no diff, over the spec and every
-# chunk's result (spec-prompt.md): an item no chunk delivers fails the head,
-# and with no output from that judge there is no verdict.
-# The judging jobs' tokens can only read. Every script and local action comes from the
-# main checkout in .base; the Claude actions are ci-workflows', at main. After
-# them, wake-pr-merge, whose only write is actions: write, starts a PR-scoped
-# pr-merge run on a pass or pass-notes verdict that uploaded.
+# two chunks or more also needs a final judge, with no diff, over the spec
+# and every chunk's result (spec-prompt.md): an item no chunk delivers fails
+# the head, and with no output from that judge there is no verdict.
+# The judging jobs' tokens can only read. Every script and local action comes
+# from the main checkout in .base, and the Claude actions are ci-workflows',
+# pinned by commit SHA. After them, wake-pr-merge, whose only write is
+# actions: write, starts a PR-scoped pr-merge run on a pass or pass-notes
+# verdict that uploaded.
 #
-# Every local action runs from the main checkout at ./.base. zizmor's
-# self-repository advice (`$/...`) is ignored on those lines, as in
-# pr-run-activity-read.yml.
+# zizmor's self-repository advice (`$/...`) is ignored on the local action
+# lines, as in pr-run-activity-read.yml.
 
 # API_BUDGET_HOLD (outage posture element 2): only each job's resolver step
 # sets it. resolve-pr.mjs holds green with a notice on a GitHub fault, a rate
 # stop included, or on a 200 a re-read could return whole (closing,
 # incomplete), and the reconciler re-runs the held run once; it still ends
 # red on any other error, a list past what its query reads (shortList)
-# included. A step opts in only once its
-# script is shown to hold green with a notice on a refused call (rate-guard.mjs
-# createRateLimitLatch); a gate never does, since a hold would pass what it
-# could not read, so the rest still end red on a rate limit past the guard's
-# budget.
+# included. A step opts in only once its script is shown to hold green with
+# a notice on a refused call (rate-guard.mjs createRateLimitLatch); a gate
+# never does, since a hold would pass what it could not read, so the rest
+# still end red on a rate limit past the guard's budget.
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
@@ -96,8 +97,8 @@ permissions: {}
 # One judgment per PR and head at a time, never cancelled once running: a
 # later run for the same head (a label or body edit re-runs pr-require-checks)
 # queues behind it and then skips the judged head. GitHub still cancels an
-# older run while it is pending when a newer one queues; nothing uploads
-# before the judge step, so a run cancelled then leaves no verdict
+# older run while it is pending when a newer one queues; no verdict uploads
+# before the judge step, so a run cancelled then leaves none
 # (workflow.test.mjs). "none" stands in when the payload names no PR, so the
 # expression never fails.
 concurrency:
@@ -375,7 +376,7 @@ jobs:
           credential-set: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
           selected: ${{ steps.credit.outputs.next-leg }}
 
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
+      # The skipped key leg's lane record: outcome skipped, class credit-stop,
       # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
         if: steps.credential.outputs.key-skipped == 'true'
@@ -646,10 +647,10 @@ jobs:
       # A fail the head can count ends the judgment here (write-verdict.mjs
       # checkChunk): the later chunks, the final judge and any handoff are
       # skipped, and "Write the verdict" runs on it, so no later step can lose
-      # it to a re-run. A step that fails before it does not stop the check,
-      # and a judge step run-claude-cli failed with no lane class, having left
-      # an execution file, stopped on its credential scan, so it counts as a fail
-      # with none of its text.
+      # it to a re-run. !cancelled() runs the check even after an earlier step
+      # failed. A judge step that run-claude-cli failed with no lane class but
+      # with an execution file stopped on its credential scan, so it counts as
+      # a fail with none of its text.
       - name: Read chunk 1's verdict
         id: chunk-fail
         if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
@@ -1982,7 +1983,7 @@ jobs:
         if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || steps.chunk-fail-5.outputs.fail == 'true' || steps.chunk-fail-6.outputs.fail == 'true' || steps.chunk-fail-7.outputs.fail == 'true' || steps.chunk-fail-8.outputs.fail == 'true' || steps.chunk-fail-9.outputs.fail == 'true' || steps.chunk-fail-10.outputs.fail == 'true' || steps.chunk-fail-11.outputs.fail == 'true' || steps.chunk-fail-12.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 5 || steps.judge-5.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 6 || steps.judge-6.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 7 || steps.judge-7.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 8 || steps.judge-8.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 9 || steps.judge-9.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 10 || steps.judge-10.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 11 || steps.judge-11.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 12 || steps.judge-12.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && steps.judge-spec.outputs.lane-class == '' && steps.judge-spec.outputs.execution-file != ''))))) }}
         env:
           # Each chunk's files in chunk order. A counted fail needs no others;
-          # anything else needs every chunk and the final judge.
+          # anything else needs every chunk and the whole-spec judgment.
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
             ${{ steps.judge-2.outputs.execution-file }}
@@ -2131,9 +2132,9 @@ jobs:
           retention-days: 1
 
       # The leg the next job runs, from this job's credential decision and
-      # a clean handoff of its last judge step (select-model-credential). It
-      # has no if:, so it names a leg only when every step before it passed,
-      # and the next job also needs this one's success, as before.
+      # a clean handoff of whichever judge step handed off
+      # (select-model-credential). It has no if:, so it names a leg only when
+      # every step before it passed; the next job also needs this job's success.
       - name: Pick the next leg
         id: next
         continue-on-error: true
@@ -2144,8 +2145,8 @@ jobs:
           handoff: ${{ (steps.judge.outputs.handoff == 'true' || steps.judge-2.outputs.handoff == 'true' || steps.judge-3.outputs.handoff == 'true' || steps.judge-4.outputs.handoff == 'true' || steps.judge-5.outputs.handoff == 'true' || steps.judge-6.outputs.handoff == 'true' || steps.judge-7.outputs.handoff == 'true' || steps.judge-8.outputs.handoff == 'true' || steps.judge-9.outputs.handoff == 'true' || steps.judge-10.outputs.handoff == 'true' || steps.judge-11.outputs.handoff == 'true' || steps.judge-12.outputs.handoff == 'true' || steps.judge-spec.outputs.handoff == 'true') && (steps.key-leg.outputs.clean || steps.key-leg-2.outputs.clean || steps.key-leg-3.outputs.clean || steps.key-leg-4.outputs.clean || steps.key-leg-5.outputs.clean || steps.key-leg-6.outputs.clean || steps.key-leg-7.outputs.clean || steps.key-leg-8.outputs.clean || steps.key-leg-9.outputs.clean || steps.key-leg-10.outputs.clean || steps.key-leg-11.outputs.clean || steps.key-leg-12.outputs.clean || steps.key-leg-spec.outputs.clean) == 'true' }}
           handoff-reason: ${{ steps.judge.outputs.handoff-reason || steps.judge-2.outputs.handoff-reason || steps.judge-3.outputs.handoff-reason || steps.judge-4.outputs.handoff-reason || steps.judge-5.outputs.handoff-reason || steps.judge-6.outputs.handoff-reason || steps.judge-7.outputs.handoff-reason || steps.judge-8.outputs.handoff-reason || steps.judge-9.outputs.handoff-reason || steps.judge-10.outputs.handoff-reason || steps.judge-11.outputs.handoff-reason || steps.judge-12.outputs.handoff-reason || steps.judge-spec.outputs.handoff-reason }}
 
-      # Note the hold's marker, on a green job only, as monitor signal 13
-      # reads holds.
+      # Keep the marker Note the hold wrote, for a day and on a green job
+      # only, for monitor signal 13 to read.
       - name: Keep the lane hold marker
         if: steps.note-hold.outcome == 'success'
         continue-on-error: true
@@ -2166,24 +2167,26 @@ jobs:
           tokens: github-token
 
       # A clean handoff, an empty key or a key the credit gate skipped hands
-      # the judgment on; any other
-      # run that passed the gates and left no verdict fails here.
+      # the judgment on; any other run that passed the gates and left no
+      # verdict fails here.
       - name: Fail without a verdict
         if: always() && steps.agree.outcome == 'success' && steps.credential.outputs.key-skipped != 'true' && steps.verdict.outcome != 'success' && steps.credential.outputs.present != 'false' && steps.key-leg.outcome != 'success' && steps.key-leg-2.outcome != 'success' && steps.key-leg-3.outcome != 'success' && steps.key-leg-4.outcome != 'success' && steps.key-leg-5.outcome != 'success' && steps.key-leg-6.outcome != 'success' && steps.key-leg-7.outcome != 'success' && steps.key-leg-8.outcome != 'success' && steps.key-leg-9.outcome != 'success' && steps.key-leg-10.outcome != 'success' && steps.key-leg-11.outcome != 'success' && steps.key-leg-12.outcome != 'success' && steps.key-leg-spec.outcome != 'success'
         run: |
           echo "::error::the judgment left no verdict for this head"
           exit 1
 
-  # The subscription leg, as its own job on a new VM: check-intent's
+  # The subscription leg, as its own job on a new VM. It runs only when
+  # check-intent succeeded and named it the next leg (a clean handoff, an
+  # empty key or a key the credit gate skipped); a check-intent that failed,
+  # a denial on its key leg included, leaves it skipped. check-intent's
   # processes and environment do not reach it, and of its files only the
   # pre-judge reads do, through the `reads` output. Its steps repeat
-  # check-intent's from a fresh checkout but for the credential, the
-  # key-leg check and the reads it takes from check-intent's `reads` output
-  # (workflow.test.mjs holds them equal), so the trigger gate, the kill
-  # switch and the hardening run again. Only this job references the
-  # subscription token. It runs after a check-intent that succeeded, so one
-  # that failed, a denial on its key leg included, leaves this job skipped;
-  # or after check-intent's credit gate skipped its key leg.
+  # check-intent's from a fresh checkout but for the credential, the reads
+  # and capture it takes from check-intent, its own leg checks and the
+  # key-only steps (handing the reads on, the credit gate, the credit-stop
+  # and probing markers); workflow.test.mjs holds the rest equal, so the
+  # trigger gate, the kill switch and the hardening run again. Only this
+  # job references the subscription token.
   check-intent-subscription:
     name: Check Intent Subscription
     needs: check-intent
@@ -2242,8 +2245,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The run fails, so the lost-run reconciler re-runs it once the switch
-      # is off and the head is judged then.
       - name: Report the kill switch
         if: steps.kill.outputs.proceed != 'true'
         env:
@@ -2252,12 +2253,6 @@ jobs:
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict until the lost-run reconciler re-runs it"
           exit 1
 
-      # The resolver reads only, and skips on its own reads every run it
-      # would not judge (a head already judged or moved past, a draft, a run
-      # red for anything an approval does not lift, an author it does not
-      # judge), so it runs first and the gate's reads go only to a run it
-      # would judge. Nothing it writes reaches the model before the gate and
-      # the agree step pass.
       - name: Resolve the pull request
         id: pr
         if: steps.kill.outputs.proceed == 'true'
@@ -2304,12 +2299,6 @@ jobs:
           # reason, so the next step can mark it held; it still stops.
           fault-reason: "true"
 
-      # A GitHub fault held the resolver green with a `held: ` notice and
-      # proceed=false (resolve-pr.mjs closing), or stopped the trigger gate
-      # with reason read-fault, which this step's notice reports. It marks the
-      # run so the lost-run reconciler finds it from the jobs listing and
-      # re-runs it once on its next pass (reconcile.mjs faultHeld), where the
-      # gate checks the trigger again.
       - name: Note the hold
         id: note-hold
         if: steps.pr.outputs.reason == 'held' || steps.gate.outputs.reason == 'read-fault'
@@ -2323,8 +2312,6 @@ jobs:
           # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
           { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-verify $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-verify"; } || true
 
-      # The gate and the resolver read the PR separately; both must name the
-      # same PR at the run's head, or nothing is judged.
       - name: Assert the gate and the resolver agree
         id: agree
         if: steps.gate.outputs.proceed == 'true'
@@ -2351,14 +2338,6 @@ jobs:
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
           github-token: ${{ github.token }}
 
-      # A blobless fetch of the two commits into its own repository outside
-      # the workspace. git diff reads no attributes or diff drivers from it,
-      # so nothing in the PR runs; the patch is a data file. chunk-diff.sh cuts
-      # it into chunks of whole files, and each chunk into parts one Read
-      # returns whole, in as many chunks as the diff takes, up to the ceiling
-      # chunk-diff.sh sets, with a judge step below for each. A file over one
-      # chunk, or a diff over the ceiling, fails the step by name: no verdict,
-      # so no fail on size alone.
       - name: Write the diff
         id: diff
         if: steps.agree.outcome == 'success'
@@ -2394,10 +2373,6 @@ jobs:
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
           bash .base/.github/scripts/pr-verify/chunk-diff.sh
 
-      # The jobs of the run this one was started by, each with its name and
-      # conclusion, so the model can judge whether the suites that cover the
-      # change ran (prompt.md), and the Node suites at the head that test-bash
-      # runs through a sibling .test.sh. The token reads only.
       - name: List the upstream run's jobs
         if: steps.agree.outcome == 'success'
         env:
@@ -2408,8 +2383,6 @@ jobs:
           HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
         run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
 
-      # The judgment's model, turns and effort: the verify-pr route of the
-      # base config's models block.
       - name: Resolve the verifier's model
         id: models
         if: steps.agree.outcome == 'success'
@@ -2432,8 +2405,6 @@ jobs:
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ needs.check-intent.outputs.next-reason }}
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.agree.outcome == 'success'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@fc442ad3e808adafe3b195e9d12fff901220db50 # fc442ad 2026-11-09
@@ -2444,16 +2415,6 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # The capture pr-verify-capture.yml took of this head, in its own run
-      # since it runs pull request code (find-capture.mjs). Both runs start
-      # on the same event, so check-intent waits while the capture runs, at
-      # most 35 minutes; the later jobs find it done. With
-      # merge.verify-capture.app unset it reads nothing and waits for
-      # nothing. Any miss leaves no artifact id but a blocked reason the
-      # verdict records, and the judgment goes on; only a miss that cannot
-      # change is carried to the later jobs, which otherwise search again.
-      # The job's timeout holds this step's and the download's on top of the
-      # judge steps' (workflow.test.mjs).
       - name: Find the capture
         id: capture
         if: steps.credential.outputs.present == 'true'
@@ -2538,18 +2499,9 @@ jobs:
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
-      # continue-on-error keeps a launcher failure, which run-claude-cli
-      # reports by failing this step, from ending the job before the outcome
-      # step; "Fail without a verdict" carries the red. With the fallback
-      # token set, a limit stop, a credit stop or a 401 or 402 hands off,
-      # which skips the verdict steps; the outcome step records the leg as
-      # handed off, and the fallback job judges the run. One leg of
-      # leg-timeout-minutes and the CLI install fit in timeout-minutes, which
-      # the outcome step repeats, and the job's timeout holds one of those for
-      # every judge step. The model may share its job with the upload: it has
-      # Read alone and the job token can only read.
-      # Under dontAsk only the allow rule's directory is readable; the deny
-      # rules hold if the tools or the working directory change.
+      # With the fallback token set, a limit stop, a credit stop or a 401 or
+      # 402 hands off, which skips the verdict steps; the outcome step records
+      # the leg as handed off, and the fallback job judges the run.
       - name: Judge the pull request
         id: judge
         if: steps.credential.outputs.present == 'true'
@@ -2627,8 +2579,6 @@ jobs:
           # Why this job ran, for its lane record.
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
         if: always() && steps.judge.outputs.execution-file != ''
         continue-on-error: true
@@ -2638,13 +2588,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # A fail the head can count ends the judgment here (write-verdict.mjs
-      # checkChunk): the later chunks, the final judge and any handoff are
-      # skipped, and "Write the verdict" runs on it, so no later step can lose
-      # it to a re-run. A step that fails before it does not stop the check,
-      # and a judge step run-claude-cli failed with no lane class, having left
-      # an execution file, stopped on its credential scan, so it counts as a fail
-      # with none of its text.
       - name: Read chunk 1's verdict
         id: chunk-fail
         if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
@@ -2659,10 +2602,6 @@ jobs:
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
 
-      # Chunk 2 on, each the first chunk's steps on its own prompt: chunk k runs
-      # only when the diff has k chunks and chunk k-1 judged and handed nothing
-      # on, so a handoff hands the whole judgment on and the next leg judges
-      # every chunk again. The leg check reads every chunk's log so far.
       - name: Time chunk 2
         id: time-2
         if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true' && steps.chunk-fail.outputs.fail != 'true'
@@ -3786,11 +3725,6 @@ jobs:
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
 
-      # A diff in chunks: one more judge, with no diff, reads the spec and every
-      # chunk's checked result and fails an item no chunk delivers. The results
-      # are model text, checked as any verdict is and read as data; a chunk that
-      # fails the check fails here, so the head gets no verdict. The deny rule
-      # keeps this judge off the diff, and a denial voids a pass or pass-notes.
       - name: Write the chunk results
         id: chunk-results
         if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 5 || steps.judge-5.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 6 || steps.judge-6.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 7 || steps.judge-7.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 8 || steps.judge-8.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 9 || steps.judge-9.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 10 || steps.judge-10.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 11 || steps.judge-11.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 12 || steps.judge-12.outcome == 'success') && steps.chunk-fail.outputs.fail != 'true' && steps.chunk-fail-2.outputs.fail != 'true' && steps.chunk-fail-3.outputs.fail != 'true' && steps.chunk-fail-4.outputs.fail != 'true' && steps.chunk-fail-5.outputs.fail != 'true' && steps.chunk-fail-6.outputs.fail != 'true' && steps.chunk-fail-7.outputs.fail != 'true' && steps.chunk-fail-8.outputs.fail != 'true' && steps.chunk-fail-9.outputs.fail != 'true' && steps.chunk-fail-10.outputs.fail != 'true' && steps.chunk-fail-11.outputs.fail != 'true' && steps.chunk-fail-12.outputs.fail != 'true'
@@ -3945,9 +3879,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-spec
 
-      # The structured output, in the last result message of the execution
-      # file, is untrusted model text: read from the file and checked by the
-      # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
         if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || steps.chunk-fail-5.outputs.fail == 'true' || steps.chunk-fail-6.outputs.fail == 'true' || steps.chunk-fail-7.outputs.fail == 'true' || steps.chunk-fail-8.outputs.fail == 'true' || steps.chunk-fail-9.outputs.fail == 'true' || steps.chunk-fail-10.outputs.fail == 'true' || steps.chunk-fail-11.outputs.fail == 'true' || steps.chunk-fail-12.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 5 || steps.judge-5.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 6 || steps.judge-6.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 7 || steps.judge-7.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 8 || steps.judge-8.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 9 || steps.judge-9.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 10 || steps.judge-10.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 11 || steps.judge-11.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 12 || steps.judge-12.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && steps.judge-spec.outputs.lane-class == '' && steps.judge-spec.outputs.execution-file != ''))))) }}
@@ -4019,9 +3950,6 @@ jobs:
           FAIL_INDEX: "1"
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
-      # A FAIL uploads its index first (write-verdict.mjs failIndexNames), and
-      # the FAIL only after every index uploaded: the merge gate finds a FAIL
-      # by its index alone, so a failed index upload leaves no verdict.
       - name: Upload the FAIL index
         id: fail-index
         if: >-
@@ -4065,10 +3993,6 @@ jobs:
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
-      # The leg the next job runs, from this job's credential decision and
-      # a clean handoff of its last judge step (select-model-credential). It
-      # has no if:, so it names a leg only when every step before it passed,
-      # and the next job also needs this one's success, as before.
       - name: Pick the next leg
         id: next
         continue-on-error: true
@@ -4079,8 +4003,6 @@ jobs:
           handoff: ${{ (steps.judge.outputs.handoff == 'true' || steps.judge-2.outputs.handoff == 'true' || steps.judge-3.outputs.handoff == 'true' || steps.judge-4.outputs.handoff == 'true' || steps.judge-5.outputs.handoff == 'true' || steps.judge-6.outputs.handoff == 'true' || steps.judge-7.outputs.handoff == 'true' || steps.judge-8.outputs.handoff == 'true' || steps.judge-9.outputs.handoff == 'true' || steps.judge-10.outputs.handoff == 'true' || steps.judge-11.outputs.handoff == 'true' || steps.judge-12.outputs.handoff == 'true' || steps.judge-spec.outputs.handoff == 'true') && (steps.sub-leg.outputs.clean || steps.sub-leg-2.outputs.clean || steps.sub-leg-3.outputs.clean || steps.sub-leg-4.outputs.clean || steps.sub-leg-5.outputs.clean || steps.sub-leg-6.outputs.clean || steps.sub-leg-7.outputs.clean || steps.sub-leg-8.outputs.clean || steps.sub-leg-9.outputs.clean || steps.sub-leg-10.outputs.clean || steps.sub-leg-11.outputs.clean || steps.sub-leg-12.outputs.clean || steps.sub-leg-spec.outputs.clean) == 'true' }}
           handoff-reason: ${{ steps.judge.outputs.handoff-reason || steps.judge-2.outputs.handoff-reason || steps.judge-3.outputs.handoff-reason || steps.judge-4.outputs.handoff-reason || steps.judge-5.outputs.handoff-reason || steps.judge-6.outputs.handoff-reason || steps.judge-7.outputs.handoff-reason || steps.judge-8.outputs.handoff-reason || steps.judge-9.outputs.handoff-reason || steps.judge-10.outputs.handoff-reason || steps.judge-11.outputs.handoff-reason || steps.judge-12.outputs.handoff-reason || steps.judge-spec.outputs.handoff-reason }}
 
-      # Note the hold's marker, on a green job only, as monitor signal 13
-      # reads holds.
       - name: Keep the lane hold marker
         if: steps.note-hold.outcome == 'success'
         continue-on-error: true
@@ -4110,17 +4032,21 @@ jobs:
           exit 1
 
   # The fallback leg, the central fallback subscription, as its own job on a
-  # new VM, only when the subscription job named it the next leg: a clean
-  # handoff (a limit stop, a credit stop, or a 401 or 402, with the fallback
-  # token set and no permission denial), or an empty subscription token with
-  # the fallback token set. Its steps repeat the subscription job's but for
-  # the credential, the leg check and the fallback reason (workflow.test.mjs
-  # holds them equal). It reads the subscription job's next-leg, compared to
-  # a fixed string in its `if`, and next-reason, which its credential call
-  # checks against a closed list; neither is written into a `run:` script. It
-  # is the last leg and never hands off.
-  # !cancelled(): the implicit success() also needs every ancestor, so a
-  # check-intent the credit gate skipped would skip this job too.
+  # new VM. It runs only when check-intent-subscription succeeded and named
+  # it the next leg (a limit stop, a credit stop or a 401 or 402 handed off
+  # cleanly, or an empty subscription token, each with the fallback token
+  # set); a subscription job that failed, a denial on its leg included,
+  # leaves it skipped. Its steps repeat check-intent's from a fresh checkout,
+  # reads included (it takes none from the subscription job), but for the
+  # credential, the capture it takes from the subscription job, the fallback
+  # reason its outcome steps record, and the steps it has no use for: the
+  # key-only ones (handing the reads on, the credit gate, the credit-stop and
+  # probing markers), the leg checks and the next-leg pick, since it is the
+  # last leg and never hands off; workflow.test.mjs holds the rest equal. Of
+  # the subscription job's outputs it reads next-leg, compared to a fixed
+  # string in its `if`, next-reason, which its credential call checks against
+  # a closed list, and the capture, through env; none is written into a
+  # `run:` script.
   check-intent-fallback:
     name: Check Intent Fallback
     needs: check-intent-subscription
@@ -4175,8 +4101,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The run fails, so the lost-run reconciler re-runs it once the switch
-      # is off and the head is judged then.
       - name: Report the kill switch
         if: steps.kill.outputs.proceed != 'true'
         env:
@@ -4185,12 +4109,6 @@ jobs:
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict until the lost-run reconciler re-runs it"
           exit 1
 
-      # The resolver reads only, and skips on its own reads every run it
-      # would not judge (a head already judged or moved past, a draft, a run
-      # red for anything an approval does not lift, an author it does not
-      # judge), so it runs first and the gate's reads go only to a run it
-      # would judge. Nothing it writes reaches the model before the gate and
-      # the agree step pass.
       - name: Resolve the pull request
         id: pr
         if: steps.kill.outputs.proceed == 'true'
@@ -4214,9 +4132,6 @@ jobs:
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
-      # The upstream run's actors, the re-runner and the PR author must all be
-      # on the trusted-actor list. A re-run github-actions[bot] started passes
-      # only as the lost-run reconciler's recorded re-run of this run.
       - name: Check the trigger
         id: gate
         if: steps.pr.outputs.proceed == 'true'
@@ -4234,12 +4149,6 @@ jobs:
           # reason, so the next step can mark it held; it still stops.
           fault-reason: "true"
 
-      # A GitHub fault held the resolver green with a `held: ` notice and
-      # proceed=false (resolve-pr.mjs closing), or stopped the trigger gate
-      # with reason read-fault, which this step's notice reports. It marks the
-      # run so the lost-run reconciler finds it from the jobs listing and
-      # re-runs it once on its next pass (reconcile.mjs faultHeld), where the
-      # gate checks the trigger again.
       - name: Note the hold
         id: note-hold
         if: steps.pr.outputs.reason == 'held' || steps.gate.outputs.reason == 'read-fault'
@@ -4253,8 +4162,6 @@ jobs:
           # The hold's marker for monitor signal 13 (lane-hold-marker.mjs).
           { mkdir -p "$RUNNER_TEMP/lane-hold" && echo "pr-verify $GITHUB_RUN_ID" >"$RUNNER_TEMP/lane-hold/pr-verify"; } || true
 
-      # The gate and the resolver read the PR separately; both must name the
-      # same PR at the run's head, or nothing is judged.
       - name: Assert the gate and the resolver agree
         id: agree
         if: steps.gate.outputs.proceed == 'true'
@@ -4280,14 +4187,6 @@ jobs:
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
           github-token: ${{ github.token }}
 
-      # A blobless fetch of the two commits into its own repository outside
-      # the workspace. git diff reads no attributes or diff drivers from it,
-      # so nothing in the PR runs; the patch is a data file. chunk-diff.sh cuts
-      # it into chunks of whole files, and each chunk into parts one Read
-      # returns whole, in as many chunks as the diff takes, up to the ceiling
-      # chunk-diff.sh sets, with a judge step below for each. A file over one
-      # chunk, or a diff over the ceiling, fails the step by name: no verdict,
-      # so no fail on size alone.
       - name: Write the diff
         id: diff
         if: steps.agree.outcome == 'success'
@@ -4323,10 +4222,6 @@ jobs:
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
           bash .base/.github/scripts/pr-verify/chunk-diff.sh
 
-      # The jobs of the run this one was started by, each with its name and
-      # conclusion, so the model can judge whether the suites that cover the
-      # change ran (prompt.md), and the Node suites at the head that test-bash
-      # runs through a sibling .test.sh. The token reads only.
       - name: List the upstream run's jobs
         if: steps.agree.outcome == 'success'
         env:
@@ -4337,8 +4232,6 @@ jobs:
           HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
         run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
 
-      # The judgment's model, turns and effort: the verify-pr route of the
-      # base config's models block.
       - name: Resolve the verifier's model
         id: models
         if: steps.agree.outcome == 'success'
@@ -4349,7 +4242,8 @@ jobs:
           model-route: verify-pr
           output-path: ${{ runner.temp }}/pr-verify-models.json
 
-      # Only whether each secret is set reaches the action, never a value.
+      # Only whether the fallback token is set reaches the action, as both
+      # inputs, never its value.
       - name: Check the credential
         id: credential
         if: steps.agree.outcome == 'success'
@@ -4361,8 +4255,6 @@ jobs:
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ needs.check-intent-subscription.outputs.next-reason }}
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.agree.outcome == 'success'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@fc442ad3e808adafe3b195e9d12fff901220db50 # fc442ad 2026-11-09
@@ -4373,16 +4265,6 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # The capture pr-verify-capture.yml took of this head, in its own run
-      # since it runs pull request code (find-capture.mjs). Both runs start
-      # on the same event, so check-intent waits while the capture runs, at
-      # most 35 minutes; the later jobs find it done. With
-      # merge.verify-capture.app unset it reads nothing and waits for
-      # nothing. Any miss leaves no artifact id but a blocked reason the
-      # verdict records, and the judgment goes on; only a miss that cannot
-      # change is carried to the later jobs, which otherwise search again.
-      # The job's timeout holds this step's and the download's on top of the
-      # judge steps' (workflow.test.mjs).
       - name: Find the capture
         id: capture
         if: steps.credential.outputs.present == 'true'
@@ -4467,16 +4349,6 @@ jobs:
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
-      # continue-on-error keeps a launcher failure, which run-claude-cli
-      # reports by failing this step, from ending the job before the outcome
-      # step; "Fail without a verdict" carries the red. The fallback leg
-      # never hands off. One leg of
-      # leg-timeout-minutes and the CLI install fit in timeout-minutes, which
-      # the outcome step repeats, and the job's timeout holds one of those for
-      # every judge step. The model may share its job with the upload: it has
-      # Read alone and the job token can only read.
-      # Under dontAsk only the allow rule's directory is readable; the deny
-      # rules hold if the tools or the working directory change.
       - name: Judge the pull request
         id: judge
         if: steps.credential.outputs.present == 'true'
@@ -4534,8 +4406,6 @@ jobs:
           # Why this job ran, for its lane record.
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
         if: always() && steps.judge.outputs.execution-file != ''
         continue-on-error: true
@@ -4545,13 +4415,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # A fail the head can count ends the judgment here (write-verdict.mjs
-      # checkChunk): the later chunks, the final judge and any handoff are
-      # skipped, and "Write the verdict" runs on it, so no later step can lose
-      # it to a re-run. A step that fails before it does not stop the check,
-      # and a judge step run-claude-cli failed with no lane class, having left
-      # an execution file, stopped on its credential scan, so it counts as a fail
-      # with none of its text.
       - name: Read chunk 1's verdict
         id: chunk-fail
         if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
@@ -4566,10 +4429,6 @@ jobs:
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
 
-      # Chunk 2 on, each the first chunk's steps on its own prompt: chunk k runs
-      # only when the diff has k chunks and chunk k-1 judged and handed nothing
-      # on, so a handoff hands the whole judgment on and the next leg judges
-      # every chunk again. The leg check reads every chunk's log so far.
       - name: Time chunk 2
         id: time-2
         if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true' && steps.chunk-fail.outputs.fail != 'true'
@@ -5484,11 +5343,6 @@ jobs:
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
 
-      # A diff in chunks: one more judge, with no diff, reads the spec and every
-      # chunk's checked result and fails an item no chunk delivers. The results
-      # are model text, checked as any verdict is and read as data; a chunk that
-      # fails the check fails here, so the head gets no verdict. The deny rule
-      # keeps this judge off the diff, and a denial voids a pass or pass-notes.
       - name: Write the chunk results
         id: chunk-results
         if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 5 || steps.judge-5.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 6 || steps.judge-6.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 7 || steps.judge-7.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 8 || steps.judge-8.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 9 || steps.judge-9.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 10 || steps.judge-10.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 11 || steps.judge-11.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 12 || steps.judge-12.outcome == 'success') && steps.chunk-fail.outputs.fail != 'true' && steps.chunk-fail-2.outputs.fail != 'true' && steps.chunk-fail-3.outputs.fail != 'true' && steps.chunk-fail-4.outputs.fail != 'true' && steps.chunk-fail-5.outputs.fail != 'true' && steps.chunk-fail-6.outputs.fail != 'true' && steps.chunk-fail-7.outputs.fail != 'true' && steps.chunk-fail-8.outputs.fail != 'true' && steps.chunk-fail-9.outputs.fail != 'true' && steps.chunk-fail-10.outputs.fail != 'true' && steps.chunk-fail-11.outputs.fail != 'true' && steps.chunk-fail-12.outputs.fail != 'true'
@@ -5617,9 +5471,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-spec
 
-      # The structured output, in the last result message of the execution
-      # file, is untrusted model text: read from the file and checked by the
-      # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
         if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || steps.chunk-fail-5.outputs.fail == 'true' || steps.chunk-fail-6.outputs.fail == 'true' || steps.chunk-fail-7.outputs.fail == 'true' || steps.chunk-fail-8.outputs.fail == 'true' || steps.chunk-fail-9.outputs.fail == 'true' || steps.chunk-fail-10.outputs.fail == 'true' || steps.chunk-fail-11.outputs.fail == 'true' || steps.chunk-fail-12.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 5 || steps.judge-5.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 6 || steps.judge-6.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 7 || steps.judge-7.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 8 || steps.judge-8.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 9 || steps.judge-9.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 10 || steps.judge-10.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 11 || steps.judge-11.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 12 || steps.judge-12.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && steps.judge-spec.outputs.lane-class == '' && steps.judge-spec.outputs.execution-file != ''))))) }}
@@ -5691,9 +5542,6 @@ jobs:
           FAIL_INDEX: "1"
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
-      # A FAIL uploads its index first (write-verdict.mjs failIndexNames), and
-      # the FAIL only after every index uploaded: the merge gate finds a FAIL
-      # by its index alone, so a failed index upload leaves no verdict.
       - name: Upload the FAIL index
         id: fail-index
         if: >-
@@ -5737,8 +5585,6 @@ jobs:
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
-      # Note the hold's marker, on a green job only, as monitor signal 13
-      # reads holds.
       - name: Keep the lane hold marker
         if: steps.note-hold.outcome == 'success'
         continue-on-error: true
@@ -5768,12 +5614,11 @@ jobs:
   # pass or pass-notes, so a lanes App pull request is armed now rather than
   # at pr-merge's next scheduled run (every 30 minutes, the backstop). The
   # dispatch starts a PR-scoped run of main's pr-merge.yml (inputs.pr), which
-  # arms only that pull request and only if every rule allows; it filters the
-  # author itself, since nothing here names it. A GITHUB_TOKEN's
-  # workflow_dispatch creates a run, as github-actions[bot], which pr-merge's
-  # who step admits for this case alone (who.mjs verdictWake). The job holds
-  # actions: write, pull-requests: read and contents: read (for main's
-  # api-budget library alone), runs no model, and passes the
+  # arms only that pull request and only if every rule allows, its author's
+  # included; the wake step reads the pull request only to spare pr-merge a
+  # run it would not arm on. A GITHUB_TOKEN's workflow_dispatch creates a
+  # run, as github-actions[bot], which pr-merge's who step admits for this
+  # case alone (who.mjs verdictWake). The job runs no model and passes the
   # verdict jobs' outputs through env, checked in bash. A failed dispatch
   # only warns: the run's verdict stands, and the schedule arms it. A failed
   # job (timeout, lost runner) leaves the run's conclusion to the verdict jobs,
@@ -5844,8 +5689,6 @@ jobs:
           FB_VERDICT: ${{ needs.check-intent-fallback.outputs.verdict }}
         run: |
           set -euo pipefail
-          # Each gh call keeps its rate-limit reading for the job-end api-calls
-          # notice; none when the checkout of the library failed.
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           pr=''
           # One job per run judges; the first pass in job order names the PR.

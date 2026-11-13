@@ -3,6 +3,20 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.4] - 2026-11-13
+
+### Changed
+
+- Corrected in place: the released entries [0.6.3] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
+## [1.1.3] - 2026-11-13
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
+- Corrected in place: the released entries [0.2.0] now name the JavaScript formatting plugin `javascript-format`, its current name.
+
 ## [1.1.2] - 2026-11-13
 
 ### Changed
@@ -1604,7 +1618,7 @@ No behavior change.
   silently uninstalled a separate user-scope record while the effective project/local install kept
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
   `-s <scope>`, sourced from what `claude plugin list` reports for this plugin, the same fix
-  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  already applied to `session-flow` and `rate-limits` in #1393.
 
 ## [0.6.2]
 
@@ -1725,7 +1739,7 @@ No behavior change.
 ### Changed
 
 - **Breaking:** renamed the plugin `bash-lint` → `bash-format`, aligning with the hook-plugin
-  `<tool>-format` verb family (`biome-format`, `python-format`, `powershell-format`). The hook
+  `<tool>-format` verb family (`javascript-format`, `python-format`, `powershell-format`). The hook
   mutates files via shfmt, which "lint" undersold. This is a hard break with no marketplace
   `renames` entry: uninstall `bash-lint` and run `/plugin install bash-format@<marketplace>`.
   Renamed with it: the hook script (`hooks/bash-format.sh`), the telemetry `hook` value

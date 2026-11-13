@@ -1,9 +1,12 @@
 # Who watches the pull request
 
 Once a PR is out of draft, CI and the review lanes start posting, and something must answer them.
-Choose who at the end of `ready` (2.5.6), and again at `monitor` entry when no choice was made.
+Choose who at the end of `ready` (2.5.7), and again at `monitor` entry when no choice was made.
 The facts each route rests on (who can start it, what it needs, what it cannot see) are in
 [native-surfaces.md](native-surfaces.md); this file holds the decision.
+
+A dispatched subagent makes no choice here: it reports the PR number and full head sha and stops,
+and the dispatching session watches ([monitor.md](monitor.md)).
 
 ## Check usage first
 
@@ -31,16 +34,16 @@ starts; for where it runs, see
 [Auto-fix pull requests](https://code.claude.com/docs/en/claude-code-on-the-web#auto-fix-pull-requests). A local `monitor` or
 loop that trips later follows the floor's drain-then-pause, which pauses only an opted-in session.
 
-## Rate-limit guard floor (inlined)
+## Rate-limits floor (inlined)
 
 Inlined **verbatim** per the loop-lane convention's inline-floor rule; provenance is the
-`rate-limit-guard` plugin's reader contract
-(`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository), cited for
+`rate-limits` plugin's reader contract
+(`plugins/rate-limits/reference/reader-contract.md` in the marketplace repository), cited for
 provenance only, since an installed plugin cannot read a sibling plugin's files at runtime. A
 launch decision uses the snapshot file, the threshold, the reset time and the staleness rule; the rest
 applies to a watcher that opted in to pausing.
 
-- **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+- **Snapshot file (fixed path):** `~/.claude/rate-limits/rate-limits.json`
 - **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose session environment sets
   `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read it at lane start with
   `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it pauses when **either** window reports

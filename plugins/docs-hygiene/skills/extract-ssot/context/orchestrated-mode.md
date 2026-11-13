@@ -5,7 +5,7 @@
 - [Roles](#roles)
 - [Worker tiering](#worker-tiering)
 - [Concurrency: static, conservative, capped](#concurrency-static-conservative-capped)
-- [Rate-limit guard integration (when present)](#rate-limit-guard-integration-when-present)
+- [Rate-limits integration (when present)](#rate-limits-integration-when-present)
 - [Cadence and commits](#cadence-and-commits)
 - [Cross-references](#cross-references)
 
@@ -64,9 +64,9 @@ The user may raise the cap for a run; the orchestrator never raises it
 on its own, and a rate-limit error observed mid-run drops the batch to
 fully sequential for its remainder.
 
-## Rate-limit guard integration (when present)
+## Rate-limits integration (when present)
 
-When the consuming machine runs the `rate-limit-guard` plugin, its
+When the consuming machine runs the `rate-limits` plugin, its
 snapshot file makes the windows observable, and this mode consumes it
 between wave dispatches: before dispatching each wave (and each pair
 within a wave), read the snapshot and apply the floor's drain-then-pause:
@@ -74,12 +74,12 @@ with the opt-in, finish in-flight workers, dispatch nothing new, and
 pause until the pause end; without it, report the window and the
 options and keep dispatching. The operable floor below is inlined
 **verbatim** per the loop-lane convention's inline-floor rule (byte-identical across consumers and to the reader
-contract's floor); provenance is the `rate-limit-guard` plugin's reader
-contract (`plugins/rate-limit-guard/reference/reader-contract.md` in
+contract's floor); provenance is the `rate-limits` plugin's reader
+contract (`plugins/rate-limits/reference/reader-contract.md` in
 the marketplace repository), cited for provenance only, since an
 installed plugin cannot read a sibling plugin's files at runtime.
 
-- **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+- **Snapshot file (fixed path):** `~/.claude/rate-limits/rate-limits.json`
 - **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose session environment sets
   `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read it at lane start with
   `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it pauses when **either** window reports
@@ -131,7 +131,7 @@ seven-day window is plausible and already ≥ 95, the seven-day trip counts (and
 the whole-guard rows above drop the run to reactive-only.
 
 **Reactive-only mode:** keep the static concurrency cap, never fabricate a pause from untrusted
-data, and react to (a) detection records in `~/.claude/rate-limit-guard/stop-events.jsonl` (read on
+data, and react to (a) detection records in `~/.claude/rate-limits/stop-events.jsonl` (read on
 entering reactive-only and again before each new work claim; records newer than this session's
 start, and later newer than the last resume baseline, are live signal) and (b) rate-limit error text
 this session itself sees. Resume timing comes from that error text where available, otherwise

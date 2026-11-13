@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Create dossier/300-map-search-rewrite from the default branch, link it in Notes, copy the findings and sidecars to 305-pick-the-index-library/.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Paste the findings into the map body.",
+      "why": "breaks the rule"
+    }
+  ]
+}

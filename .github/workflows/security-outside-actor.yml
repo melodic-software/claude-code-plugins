@@ -32,12 +32,11 @@ name: Security Outside Actor
 # (a pull request gets the `needs-human` label), and posts one comment per
 # outside actor, naming their login without a mention and quoting none of
 # their text. `security: outside-actor` is a hold of its own (merge-holds.mjs
-# OUTSIDE_ACTOR_LABEL): the merge queue, auto-merge arming, babysit,
-# intake triage, the work-unblock sweep and each activity whose
-# labels-absent lists needs-human skip it, and only a listed person removes it:
-# any other removal is undone. The script reads the event payload itself; no event text
-# reaches a shell. The lanes kill switch does not stop this check: it would
-# silence the boundary it guards.
+# OUTSIDE_ACTOR_LABEL): the merge queue, auto-merge arming, babysit, intake
+# triage, the work-unblock sweep and each activity whose labels-absent lists
+# needs-human skip it. The script reads the event payload itself; no event
+# text reaches a shell. The lanes kill switch does not stop this check: it
+# would silence the boundary it guards.
 #
 # Accepted exposure: `issues`, `issue_comment` and `pull_request_target` run
 # this file from the default branch with a write token. `pull_request_review`
@@ -129,13 +128,14 @@ jobs:
           node-version-file: .base/.node-version
 
       # flag.mjs writes an issue's Work status through resolve-config.mjs,
-      # whose packages only the resolve-config action installs; this job does
-      # not run it.
-      # The label and comment must land without it; on an issue the field write then fails the run visibly.
+      # whose packages only the resolve-config action installs, and this job
+      # does not run that action. The label and comment must land without them,
+      # so a failed install continues; on an issue the field write then fails
+      # the run visibly.
       - name: Install resolve-config's packages
         continue-on-error: true
         timeout-minutes: 3
-        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
       - name: Flag an outside actor
         env:

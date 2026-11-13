@@ -97,11 +97,13 @@ run_gen() { # run_gen <tree> [extra args...] — stdout+stderr to $OUT, exit cod
   CODE=$?
 }
 
-# assert_fails <label> <tree> <expected substring>
+# assert_fails <label> <tree> <expected substring>: generate fails naming the
+# defect and leaves the sheet byte-unchanged.
 assert_fails() {
-  local label="$1" tree="$2" expected="$3"
+  local label="$1" tree="$2" expected="$3" before
+  before="$(od -c "$tree/docs/skill-cheat-sheet.md")"
   run_gen "$tree"
-  if [[ "$CODE" -ne 0 && "$OUT" == *"$expected"* ]]; then
+  if [[ "$CODE" -ne 0 && "$OUT" == *"$expected"* && "$(od -c "$tree/docs/skill-cheat-sheet.md")" == "$before" ]]; then
     ok "$label"
   else
     fail "$label (exit=$CODE, output: $OUT)"
@@ -273,5 +275,87 @@ mk_tree tree
 printf '## 3. Blueprint (renamed upstream)\n' \
   >"$tree/plugins/session-flow/skills/workflow/context/steps.md"
 assert_fails "spine-drift assertion fires on renamed stage" "$tree" "spine drift"
+
+# --- marker forms: either form is read, and regenerating keeps the one found -----
+OLD_START='<!-- cheatsheet:start -->'
+OLD_END='<!-- cheatsheet:end -->'
+GEN_START='<!-- BEGIN GENERATED: cheatsheet. Run node scripts/generate-cheatsheet.mjs -->'
+GEN_END='<!-- END GENERATED: cheatsheet -->'
+
+write_sheet() { # write_sheet <tree> <marker line...>
+  local tree="$1"
+  shift
+  {
+    printf '# Skill cheat sheet (fixture)\n\n'
+    printf '%s\n' "$@"
+  } >"$tree/docs/skill-cheat-sheet.md"
+}
+
+mk_tree tree
+run_gen "$tree"
+sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
+if [[ "$CODE" -eq 0 && "$sheet" == *"$OLD_START"$'\n'* && "$sheet" == *$'\n'"$OLD_END"* &&
+  "$sheet" == *"/alpha:mapped"* && "$sheet" != *"BEGIN GENERATED"* ]]; then
+  ok "regenerating a start/end sheet keeps the start/end markers"
+else
+  fail "start/end form not kept (exit=$CODE: $sheet)"
+fi
+rm -rf "$tree"
+
+mk_tree tree
+write_sheet "$tree" "$GEN_START" "$GEN_END"
+run_gen "$tree" --check
+if [[ "$CODE" -ne 0 && "$OUT" == *"drift"* ]]; then
+  ok "--check on an empty BEGIN GENERATED block reports drift"
+else
+  fail "empty BEGIN GENERATED block passed --check (exit=$CODE: $OUT)"
+fi
+run_gen "$tree"
+sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
+if [[ "$CODE" -eq 0 && "$sheet" == *"$GEN_START"$'\n'* && "$sheet" == *$'\n'"$GEN_END"* &&
+  "$sheet" == *"/alpha:mapped"* && "$sheet" != *"cheatsheet:start"* ]]; then
+  ok "regenerating a BEGIN GENERATED sheet keeps the BEGIN GENERATED markers"
+else
+  fail "BEGIN GENERATED form not kept (exit=$CODE: $sheet)"
+fi
+run_gen "$tree" --check
+if [[ "$CODE" -eq 0 ]]; then ok "--check passes on a regenerated BEGIN GENERATED sheet"; else fail "BEGIN GENERATED --check (exit=$CODE: $OUT)"; fi
+rm -rf "$tree"
+
+mk_tree tree
+write_sheet "$tree" "$OLD_START" "$OLD_END" "$GEN_START" "$GEN_END"
+assert_fails "a sheet with both marker forms fails" "$tree" "carries markers of more than one form"
+
+mk_tree tree
+write_sheet "$tree" "$OLD_START"
+assert_fails "a start marker with no end marker fails" "$tree" "has unbalanced markers"
+
+mk_tree tree
+write_sheet "$tree" "$GEN_END" "$GEN_START"
+assert_fails "an end marker before its start marker fails" "$tree" "has unbalanced markers"
+
+mk_tree tree
+write_sheet "$tree" "$GEN_START" "$GEN_END" "$GEN_START" "$GEN_END"
+assert_fails "a repeated marker pair fails" "$tree" "has unbalanced markers"
+
+mk_tree tree
+write_sheet "$tree" '<!-- BEGIN GENERATED: cheatsheet. Run something else -->' "$GEN_END"
+assert_fails "a BEGIN GENERATED line with other instruction text fails naming the expected line" "$tree" \
+  "differs from the expected line $GEN_START"
+
+mk_tree tree
+write_sheet "$tree" "$OLD_START" "$OLD_END" "$GEN_END"
+run_gen "$tree"
+if [[ "$CODE" -ne 0 && "$OUT" == *"more than one form"* && "$OUT" == *"$GEN_END"* && "$OUT" != *"BEGIN GENERATED"* ]]; then
+  ok "the more-than-one-form message lists the stray end marker found, not an absent start"
+else
+  fail "more-than-one-form message (exit=$CODE: $OUT)"
+fi
+rm -rf "$tree"
+
+mk_tree tree
+write_sheet "$tree" "no markers here"
+assert_fails "a sheet with no markers fails, naming the BEGIN GENERATED pair first" "$tree" \
+  "is missing the cheatsheet markers ($GEN_START ... $GEN_END or $OLD_START ... $OLD_END)"
 
 test_harness::report

@@ -208,7 +208,7 @@
     },
     "pre_ready": {
       "type": "array",
-      "maxItems": 5,
+      "maxItems": 6,
       "allOf": [
         {
           "contains": {
@@ -249,15 +249,24 @@
           },
           "minContains": 0,
           "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": { "step": { "const": "evidence" } },
+            "required": ["step"]
+          },
+          "minContains": 0,
+          "maxContains": 1
         }
       ],
-      "description": "Which pre-flip steps /source-control:pull-request ready runs, read at the pull request's base branch and honored only when that base is the base repository's default branch. A list of {step, enabled} mappings rather than a mapping keyed by step, so the shared YAML-subset reader reads each item by index. A step the list leaves out runs. The hold checks, the push and the flip are not steps here and always run. Each step appears at most once (the allOf maxContains entries); the reader runs every step when one repeats, names an unknown step, or the list does not parse.",
+      "description": "Which configurable steps /source-control:pull-request ready runs, read at the pull request's base branch and honored only when that base is the base repository's default branch. A list of {step, enabled} mappings rather than a mapping keyed by step, so the shared YAML-subset reader reads each item by index. A step the list leaves out runs. The hold checks, the push and the flip are not steps here and always run. Each step appears at most once (the allOf maxContains entries); the reader runs every step when one repeats, names an unknown step, or the list does not parse.",
       "default": [
         { "step": "base-merge", "enabled": true },
         { "step": "plan-evidence", "enabled": true },
         { "step": "code-review", "enabled": true },
         { "step": "security-review", "enabled": true },
-        { "step": "verify", "enabled": true }
+        { "step": "verify", "enabled": true },
+        { "step": "evidence", "enabled": true }
       ],
       "items": {
         "type": "object",
@@ -270,9 +279,10 @@
               "plan-evidence",
               "code-review",
               "security-review",
-              "verify"
+              "verify",
+              "evidence"
             ],
-            "description": "base-merge: update the branch from its base, by the method the shared branch update decision chooses. plan-evidence: gather the review evidence a plan's Review: value asks for. code-review and security-review: the fresh-context reviews of the pull request's diff. verify: the verify gate on the updated head."
+            "description": "base-merge: update the branch from its base, by the method the shared branch update decision chooses. plan-evidence: gather the review evidence a plan's Review: value asks for. code-review and security-review: the fresh-context reviews of the pull request's diff. verify: the verify gate on the updated head. evidence: after the flip, post the evidence comment for a confirmed head that has an evidence file."
           },
           "enabled": {
             "type": "boolean",

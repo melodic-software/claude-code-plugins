@@ -83,9 +83,11 @@ is not that argument: it is the caller declaring that nobody is present, so take
 match `catch-up` against the rest. It answers "what
 happened since my last message, and what needs me", still read-only.
 
-**Word cap.** The whole reply stays within `${user_config.orient_catch_up_word_cap}` words,
-visuals excluded. A value still reading `${user_config.…}`, or empty, is unset: the cap is 250.
-A value below 150 is treated as 150.
+**Word cap.** The What happened part stays within `${user_config.orient_catch_up_word_cap}`
+words, visuals excluded. A value still reading `${user_config.…}`, or empty, is unset: the cap is
+250. A value below 150 is treated as 150. The cap never costs an action item: list every one in
+full, even past the cap, never as a count, never merged with another, never as a link in its
+place. To fit the cap, shorten What happened.
 
 **Anchor.** The user's last message they wrote themselves. Notifications and subagent results
 are not the user's messages. Assume the user remembers that message and nothing after it, so
@@ -115,6 +117,11 @@ waiting from before the anchor. Work the session can still do itself is not an a
 
 Add a visual (table, diagram) only when one exists or can be built from what is in hand; never
 invent a number or picture.
+
+When `/explainer-video:produce` is among the available skills and the reply did not stop at
+Needs you, end the reply with a one-line offer of a video of the catch-up, and on a yes hand the
+catch-up to that skill, which owns how the video is made. When that skill is not available, say
+nothing about a video. Unattended, record the offer in the output instead of asking.
 
 ## Zoom-out scope. `/session-flow:orient zoom-out [--days <N>]`
 

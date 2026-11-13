@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Open 'Revisit the invoice table design' linking [Share one invoice table across tenants](URL).",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Reopen #39 and edit its resolution to per-tenant tables.",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "/clear, then run:\n/planning:wayfind work https://example.com/acme/booking/issues/40 https://example.com/acme/booking/issues/43",
+      "why": "two lines, no state"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/clear, then paste:\nGoal: decide the booking model. Findings from #42: slots are per clinic; decision: one calendar per clinic. Next: /planning:wayfind work https://example.com/acme/booking/issues/40 https://example.com/acme/booking/issues/43",
+      "why": "restates the item's findings"
+    }
+  ]
+}

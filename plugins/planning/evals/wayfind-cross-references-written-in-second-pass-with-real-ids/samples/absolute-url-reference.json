@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Edit the channel body: 'Depends on [Pick the export format](<URL returned by the create>)'.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Edit the channel body: 'Depends on #57'.",
+      "why": "breaks the rule"
+    }
+  ]
+}

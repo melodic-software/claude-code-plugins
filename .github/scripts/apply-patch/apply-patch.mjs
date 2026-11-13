@@ -20,8 +20,10 @@
 //           patch again, applies it to the index with git's hooks and config
 //           off, and refuses the whole patch when any change matches a
 //           refusal, exceeds max-files, fails an allow predicate or the row's
-//           content rule, or a new blob carries a credential shape. On a PR, a
-//           head that moved since
+//           content rule, or a new blob carries a credential shape. A row
+//           whose content rule is a drop rule (protected-content) then leaves
+//           protected content out, with a warning per part, and applies the
+//           rest. On a PR, a head that moved since
 //           the model job skips superseded-sha under a skip-moved-head row,
 //           and otherwise takes the patch with --3way only when the moved
 //           commits touch no patched path, else it skips superseded-sha; an
@@ -336,6 +338,220 @@ export const CONTENT_RULES = {
   },
 };
 
+// The released and historical tiers' paths in docs/conventions/docs-naming.yaml,
+// the repository's definition of content that stays as written: a CHANGELOG.md
+// the release tooling writes from .changes/ fragments, and the ADR, upstream
+// and unhobble records. This script reads no YAML, so it keeps this copy;
+// apply-patch.test.mjs fails when the two differ.
+export const FROZEN_TIERS = Object.freeze({
+  historical: Object.freeze(["docs/adr/**", "docs/upstream/**", ".claude/unhobble/**"]),
+  released: Object.freeze(["**/CHANGELOG.md"]),
+});
+const FROZEN_WHY = {
+  historical: "a historical record (docs/conventions/docs-naming.yaml tier historical) whose narrative stays as written",
+  released: "a released changelog (docs/conventions/docs-naming.yaml tier released) the release tooling writes",
+};
+// A tier glob is `**/<name>` or `<directory>/**`, read through segments() as
+// every path rule is: in any case and through any .. segment.
+const tierGlob = (glob) => {
+  const parts = segments(glob);
+  if (parts.length === 2 && parts[0] === "**" && parts[1] !== "**") {
+    return (path) => path.at(-1) === parts[1];
+  }
+  if (parts.at(-1) === "**" && !parts.slice(0, -1).includes("**")) {
+    const prefix = parts.slice(0, -1);
+    return (path) => path.length > prefix.length && prefix.every((part, i) => path[i] === part);
+  }
+  throw new Error(`FROZEN_TIERS holds a glob apply-patch cannot read: ${glob}`);
+};
+const FROZEN_MATCHERS = Object.entries(FROZEN_TIERS).map(([tier, globs]) => [tier, globs.map(tierGlob)]);
+const frozenTier = (path) => FROZEN_MATCHERS.find(([, tests]) => tests.some((matches) => matches(segments(path))))?.[0];
+
+// A standalone marker line; a mention inside other text is not one.
+const BEGIN_GENERATED = /^[ \t]*<!-- BEGIN GENERATED:(.*)-->[ \t]*$/;
+const END_GENERATED = /^[ \t]*<!-- END GENERATED:.*-->[ \t]*$/;
+// A blob's lines, each with its line end, as latin1 so they rebuild to the same bytes.
+const linesOf = (bytes) => (bytes.length === 0 ? [] : bytes.toString("latin1").split(/(?<=\n)/));
+const markerText = (line) => line.replace(/\r?\n$/, "");
+
+// The generated regions of a blob, each { begin, end, generator }: the line
+// indices of its BEGIN and END GENERATED lines and the text after the BEGIN
+// line's `GENERATED:`. The END line's text may be shorter than the BEGIN's, so
+// markers pair by order alone; a BEGIN inside a region, an END outside one, or
+// a BEGIN never closed is { error }.
+export function generatedRegions(bytes) {
+  const regions = [];
+  let open = null;
+  for (const [index, line] of linesOf(bytes).entries()) {
+    const begin = BEGIN_GENERATED.exec(markerText(line));
+    if (begin) {
+      if (open) {
+        return { error: "its generated-region markers do not pair" };
+      }
+      open = { begin: index, generator: Buffer.from(begin[1], "latin1").toString("utf8").trim() };
+    } else if (END_GENERATED.test(markerText(line))) {
+      if (!open) {
+        return { error: "its generated-region markers do not pair" };
+      }
+      regions.push({ ...open, end: index });
+      open = null;
+    }
+  }
+  return open ? { error: "its generated-region markers do not pair" } : { regions };
+}
+
+// What workflow commands read: a message escapes %, CR and LF, a property
+// also : and , (actions/toolkit command.ts escapeData and escapeProperty).
+const commandText = (text, property = false) => {
+  const escaped = String(text)
+    .replace(/[\x00-\x09\x0b\x0c\x0e-\x1f\x7f]+/g, " ")
+    .slice(0, 300)
+    .replaceAll("%", "%25")
+    .replaceAll("\r", "%0D")
+    .replaceAll("\n", "%0A");
+  return property ? escaped.replaceAll(":", "%3A").replaceAll(",", "%2C") : escaped;
+};
+const fileWarning = (path, why) => `::warning file=${commandText(path, true)}::${commandText(`apply-patch dropped the change to ${path}, ${why}`)}`;
+const regionWarning = (path, line, generator) =>
+  `::warning file=${commandText(path, true)},line=${line}::${commandText(`apply-patch dropped a change to the generated region of ${path} (${generator}); change the generator's inputs and regenerate`)}`;
+
+// The byte offset each line of a blob starts at.
+function lineStarts(bytes) {
+  const starts = [];
+  for (let at = 0; at < bytes.length; at = bytes.indexOf(10, at) + 1 || bytes.length) {
+    starts.push(at);
+  }
+  return starts;
+}
+
+// git's own -U0 hunks of one blob against another, as 0-based { oldStart,
+// oldCount, newStart, newCount }; a pure insertion's oldStart is the index of
+// the line it goes before. An added or deleted file is one hunk.
+function hunksOf(git, entry, oldCount, newCount) {
+  if (ZERO.test(entry.oldSha) || ZERO.test(entry.newSha)) {
+    return [{ oldStart: 0, oldCount, newStart: 0, newCount }];
+  }
+  // Two blob ids carry no path, so no .gitattributes text, eol, diff or
+  // binary setting applies, and core.autocrlf does not touch diff output;
+  // every option a repository config could change is given here.
+  const diff = git(["diff", "-U0", "--inter-hunk-context=0", "-a", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", entry.oldSha, entry.newSha]).toString("latin1");
+  const at = (start, count) => (count === 0 ? start : start - 1);
+  // A header is a whole line from LF to LF: a CR inside a content line never
+  // starts one.
+  return diff.split("\n").flatMap((line) => {
+    const header = line.startsWith("@@ -") ? /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line) : null;
+    if (!header) {
+      return [];
+    }
+    const [, a, b = "1", c, d = "1"] = header;
+    return [{ oldStart: at(Number(a), Number(b)), oldCount: Number(b), newStart: at(Number(c), Number(d)), newCount: Number(d) }];
+  });
+}
+
+const regionBytes = (lines, regions) => JSON.stringify(regions.map((region) => lines.slice(region.begin, region.end + 1).join("")));
+
+// One entry's change with its protected content left out: the blob and mode
+// to keep and a warning per dropped hunk, or one for the file. A hunk is
+// dropped when its head lines meet a head region, BEGIN through END lines
+// included, when it inserts lines strictly between a BEGIN and its END, or
+// when the lines it writes hold a marker line; an insertion right before a
+// BEGIN line or right after an END line is outside and kept. The whole change
+// is left out for a frozen tier's file, for markers that do not pair in
+// either blob, and whenever the rebuilt blob's regions are not byte for byte
+// the head's, and the deletion of a file whose head holds a region is left
+// out whole. Patched bytes are kept only when their regions are the head's
+// byte for byte, whatever the hunk list says. A mode change is kept unless
+// the whole change is left out. `hunks` is hunksOf, or a list a test injects.
+export function protectedRegions(git, entry, hunks = hunksOf) {
+  const restore = (why) => ({ sha: entry.oldSha, mode: entry.oldMode, warnings: [fileWarning(entry.path, why)] });
+  const tier = frozenTier(entry.path);
+  if (tier) {
+    return restore(FROZEN_WHY[tier]);
+  }
+  const blob = (sha) => (ZERO.test(sha) ? Buffer.alloc(0) : git(["cat-file", "blob", sha]));
+  const [before, after] = [blob(entry.oldSha), blob(entry.newSha)];
+  const [head, patched] = [generatedRegions(before), generatedRegions(after)];
+  if (head.error || patched.error) {
+    return restore("whose generated-region markers do not pair");
+  }
+  if (head.regions.length === 0 && patched.regions.length === 0) {
+    return { sha: entry.newSha, mode: entry.newMode, warnings: [] };
+  }
+  if (ZERO.test(entry.newSha)) {
+    return restore(`which it deletes though it holds a generated region (${head.regions[0].generator})`);
+  }
+  const headRegions = regionBytes(linesOf(before), head.regions);
+  const keepPatched = () =>
+    regionBytes(linesOf(after), patched.regions) === headRegions ? { sha: entry.newSha, mode: entry.newMode, warnings: [] } : restore("whose generated regions the patch would change");
+  const [oldStarts, newStarts] = [lineStarts(before), lineStarts(after)];
+  const slice = (bytes, starts, from, count) => bytes.subarray(starts[from] ?? bytes.length, starts[from + count] ?? bytes.length);
+  const isMarker = (line) => BEGIN_GENERATED.test(markerText(line)) || END_GENERATED.test(markerText(line));
+  const warnings = [];
+  const parts = [];
+  let cursor = 0;
+  for (const hunk of hunks(git, entry, oldStarts.length, newStarts.length)) {
+    const last = hunk.oldStart + hunk.oldCount - 1;
+    let region = hunk.oldCount > 0 ? head.regions.find((r) => r.begin <= last && hunk.oldStart <= r.end) : head.regions.find((r) => r.begin < hunk.oldStart && hunk.oldStart <= r.end);
+    if (!region) {
+      for (let j = hunk.newStart; j < hunk.newStart + hunk.newCount && !region; j += 1) {
+        const line = slice(after, newStarts, j, 1).toString("latin1");
+        if (isMarker(line)) {
+          region = patched.regions.find((r) => r.begin === j || r.end === j) ?? { generator: "a generated-region marker" };
+        }
+      }
+    }
+    parts.push(slice(before, oldStarts, cursor, hunk.oldStart - cursor));
+    if (region) {
+      warnings.push(regionWarning(entry.path, Math.max(1, hunk.oldCount > 0 ? hunk.oldStart + 1 : hunk.oldStart), region.generator));
+      parts.push(slice(before, oldStarts, hunk.oldStart, hunk.oldCount));
+    } else {
+      parts.push(slice(after, newStarts, hunk.newStart, hunk.newCount));
+    }
+    cursor = hunk.oldStart + hunk.oldCount;
+  }
+  if (warnings.length === 0) {
+    return keepPatched();
+  }
+  parts.push(slice(before, oldStarts, cursor, oldStarts.length - cursor));
+  const rebuilt = Buffer.concat(parts);
+  const check = generatedRegions(rebuilt);
+  if (check.error || regionBytes(linesOf(rebuilt), check.regions) !== headRegions) {
+    return restore("whose generated regions its kept hunks would change");
+  }
+  // The head's bytes, under the patch's mode change if it made one.
+  if (rebuilt.equals(before)) {
+    return { sha: entry.oldSha, mode: ZERO.test(entry.oldSha) ? entry.oldMode : entry.newMode, warnings };
+  }
+  return { sha: git(["hash-object", "-w", "--no-filters", "--stdin"], { input: rebuilt, stdio: ["pipe", "pipe", "pipe"] }).toString("utf8").trim(), mode: entry.newMode, warnings };
+}
+
+// Content rules that leave content out rather than refuse the patch. Each
+// returns the index entries to set, as `git update-index -z --index-info`
+// reads them, and a warning line per dropped part.
+export const CONTENT_DROPS = {
+  // A generated region's lines, its marker lines included, and the whole
+  // change to a frozen tier's file (protectedRegions).
+  "protected-content": ({ entries, git }) => {
+    const updates = [];
+    const warnings = [];
+    for (const entry of entries) {
+      const outcome = protectedRegions(git, entry);
+      for (const warning of outcome.warnings) {
+        warnings.push(warning);
+      }
+      if (outcome.sha !== entry.newSha || outcome.mode !== entry.newMode) {
+        // --index-info reads mode 0 as a removal whatever the id, so a kept
+        // blob must carry a file mode.
+        if (!ZERO.test(outcome.sha) && ![REGULAR, EXECUTABLE].includes(outcome.mode)) {
+          throw new Error(`protected-content would set ${entry.path} to blob ${outcome.sha} at mode ${outcome.mode}`);
+        }
+        updates.push(ZERO.test(outcome.sha) ? `0 ${"0".repeat(40)}\t${entry.path}` : `${outcome.mode} ${outcome.sha}\t${entry.path}`);
+      }
+    }
+    return { updates, warnings };
+  },
+};
+
 export function loadRules(baseDir) {
   if (!baseDir) {
     throw new Error("BASE_DIR, the trusted base checkout, is not set");
@@ -471,8 +687,12 @@ export function checkRow(row) {
   if (!Array.isArray(row.allow) || row.allow.length === 0) {
     fail("allows nothing");
   }
-  if (row["content-rule"] !== undefined && !Object.hasOwn(CONTENT_RULES, String(row["content-rule"]))) {
+  if (row["content-rule"] !== undefined && !Object.hasOwn(CONTENT_RULES, String(row["content-rule"])) && !Object.hasOwn(CONTENT_DROPS, String(row["content-rule"]))) {
     fail(`names an unknown content rule: ${row["content-rule"]}`);
+  }
+  // pushMerge runs no drop rule, so a merge row naming one would push what it should drop.
+  if (isMerge(row) && Object.hasOwn(CONTENT_DROPS, String(row["content-rule"]))) {
+    fail(`names the drop rule ${row["content-rule"]} on a merge row`);
   }
   if (row["reads-report"] !== null && !Object.hasOwn(REPORTS, row["reads-report"])) {
     fail(`reads an unknown report: ${row["reads-report"]}`);
@@ -1083,7 +1303,7 @@ export async function push({
     const holds = row.escalations.some((reason) => reason.endsWith("-credential"));
     return escalate(holds ? unscannedKind(patchFile, "not-applied") : "not-applied", "the patch does not apply to the gated head");
   }
-  const entries = diffEntries(git, headSha, tree);
+  let entries = diffEntries(git, headSha, tree);
   if (entries.length === 0) {
     return escalate("empty", "the patch changes nothing");
   }
@@ -1122,15 +1342,43 @@ export async function push({
   if (outside) {
     return escalate("protected-path", `not allowed by ${row.allow.join(", ")}: ${outside.path}`);
   }
-  const written = entries.filter((entry) => !ZERO.test(entry.newSha));
+  let written = entries.filter((entry) => !ZERO.test(entry.newSha));
   const oversize = oversizeBlobs(git, written);
   if (oversize) {
     return escalate("invalid", oversize);
   }
+  // A drop rule leaves protected content out of the tree only after every
+  // check above passed on the whole patch, so nothing it drops escapes one;
+  // the blobs it rebuilds face the credential and size checks again.
+  if (Object.hasOwn(CONTENT_DROPS, String(row["content-rule"]))) {
+    const { updates, warnings } = CONTENT_DROPS[row["content-rule"]]({ entries, git });
+    for (const warning of warnings) {
+      log(warning);
+    }
+    if (updates.length > 0) {
+      git(["update-index", "-z", "--index-info"], { input: updates.map((update) => `${update}\0`).join(""), stdio: ["pipe", "pipe", "pipe"] });
+      tree = git(["write-tree"]).toString("utf8").trim();
+      entries = diffEntries(git, headSha, tree);
+      // Nothing is left to push and nobody is asked for anything.
+      if (entries.length === 0) {
+        log("the patch changes nothing outside protected content; nothing is pushed");
+        return { outcome: "not-applicable" };
+      }
+      const rebuiltLeak = leakedBlob(git, entries);
+      if (rebuiltLeak) {
+        return escalate("credential", leakWhy(rebuiltLeak));
+      }
+      written = entries.filter((entry) => !ZERO.test(entry.newSha));
+      const rebuiltOversize = oversizeBlobs(git, written);
+      if (rebuiltOversize) {
+        return escalate("invalid", rebuiltOversize);
+      }
+    }
+  }
   const blobs = written.map((entry) => ({ entry, bytes: git(["cat-file", "blob", entry.newSha]) }));
   // Before any tree or commit is built: each file's change must also meet the
   // row's content rule.
-  const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context, api, pr, headSha });
+  const contentRefusal = Object.hasOwn(CONTENT_RULES, String(row["content-rule"])) ? await CONTENT_RULES[row["content-rule"]]({ entries, git, context, api, pr, headSha }) : null;
   if (contentRefusal) {
     return escalate("protected-path", `refused by the ${row["content-rule"]} rule (${String(contentRefusal).slice(0, 200)})`);
   }
@@ -1470,7 +1718,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     appendFileSync(env.GITHUB_OUTPUT, `commit=${result.commit}\nbranch=${result.branch}\n`);
   }
   if (result.outcome !== "pushed") {
-    const skip = result.outcome === "superseded" ? "superseded-sha" : result.outcome === "escalate" ? stopSkip(result.escalationReason) : "awaiting-human";
+    const skip = { superseded: "superseded-sha", "not-applicable": "not-applicable" }[result.outcome] ?? (result.outcome === "escalate" ? stopSkip(result.escalationReason) : "awaiting-human");
     writeFileSync(env.SKIP_REASON_FILE, `${skip}\n`);
   }
   log(`apply-patch (${row.name}): ${result.outcome}${result.escalationReason ? ` (${result.escalationReason})` : ""}`);

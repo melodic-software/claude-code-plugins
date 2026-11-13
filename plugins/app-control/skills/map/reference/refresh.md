@@ -152,8 +152,9 @@ directory into a new temporary directory outside the checkout (`mktemp -d`). The
 files into `.claude/skills/control-<slug>/` with `git mv` (plain move for an untracked map) and
 rewrite them in place per Converting a legacy map, re-running the
 [real-path checks](naming.md#real-paths) before each write and listing every path the conversion
-creates, moved files' new paths included. Commit nothing yet; the `sources` globs and each entry
-point's `driven` mark wait for step 6.2. Both passes then read the converted control skill. The
+creates, moved files' new paths included. Commit nothing yet; the `sources` globs, each entry
+point's `driven` mark, and each Drive step's `Result:` and proof step wait for step 6.2. Both
+passes then read the converted control skill. The
 step-6 ask then covers the pass's other edits. A pass that stops before step 6.3, or whose step-6
 edits are declined, undoes the conversion before it ends: it unstages each listed path
 (`git reset -q -- <path>`) and deletes it, then each directory the conversion created that is left
@@ -180,7 +181,10 @@ wave through another agent. Give each its feature file, the index
 line's `sources` globs (none yet in a conversion), the changed-file list and these questions: which
 parts, entry points, handles, routes or commands the file lists are gone, renamed or moved in the
 source; which entry points the source now has that the file does not list; which gotchas no longer
-apply; and one drive recipe for the live pass. The first subagent also gets the hub and is asked
+apply; which `## Drive` steps state no `Result:`, or a result the source no longer produces, and
+whether the last step is a `**Proof.**` step with a `Result:` and `Captures:` (for a `## Drive`
+that hands off to another feature or a steps file, ask this of the steps there, the proof step in
+the feature's own steps file); and one drive recipe for the live pass. The first subagent also gets the hub and is asked
 which of its `## Gotchas` no longer apply. Every answer cites `file:line`. Features whose sources
 did not change still get a subagent: a rename can sit in a shared file.
 
@@ -242,9 +246,9 @@ Sort every difference between the control skill and the app:
 
 | Class | What the passes show | Where it goes |
 |---|---|---|
-| Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a missing prerequisite, a lesson to place (SKILL.md Lessons) | A correction to the feature file or hub, in the contract's shape, with the index's entry-point counts and `sources` globs kept true, on the hub's lines and on a module `README.md`'s `## Sub-features` lines. An added, removed or changed entry point, its `driven` or `not driven` mark included, is written in the feature's own `README.md`, the copy a drive result is recorded in; the same edit rewrites the module `README.md`'s `## Entry points` from its features and the hub count with it. Ships in the pull request |
+| Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a missing prerequisite, or a lesson to place (SKILL.md Lessons). While the feature still reaches its end state, also: a Drive step with no `Result:`; a stated result that differs from what the step showed, only when the source wave cites the `file:line` that produces the shown result or finds the stated result was never produced (otherwise it is a product regression); and a missing `**Proof.**` step or one whose `Result:` or `Captures:` no longer matches what the live pass showed (a `## Drive` that hands off is judged by the steps it hands off to, its proof step in the feature's own steps file) | A correction to the feature file or hub, in the contract's shape, each corrected result written from what the live pass observed, with the index's entry-point counts and `sources` globs kept true, on the hub's lines and on a module `README.md`'s `## Sub-features` lines. An added, removed or changed entry point, its `driven` or `not driven` mark included, is written in the feature's own `README.md`, the copy a drive result is recorded in; the same edit rewrites the module `README.md`'s `## Entry points` from its features and the hub count with it. Ships in the pull request |
 | Driver gap | The behavior works but the control skill cannot drive it: a `cli/` command that fails or is missing, a Ready that misses a wedged app | Attended: after the person agrees, a fix in `cli/` or the hub, documented in `cli/README.md`, then that feature driven again live; it ships only when that re-drive passes, else it goes in the report unwritten. Unattended: the fix goes in the report unwritten and nothing is driven again, since the `cli/` code enforces the safety floors and no one has reviewed the change. Never a floor loosened |
-| Product regression | A behavior the files list is gone, or fails against a healthy app | The entry stays as written: the control skill never records a lost behavior as current. Written up through `/bugs:write` when it is enabled, else in the report with drive's evidence. Kept out of the pull request |
+| Product regression | A behavior the files list is gone, or fails against a healthy app, a step's stated `Result:` included when the step no longer shows it and the source still claims it or nothing the source wave found explains the change | The entry stays as written: the control skill never records a lost behavior as current. Written up through `/bugs:write` when it is enabled, else in the report with drive's evidence. Kept out of the pull request |
 | Not mapped | A user-facing feature the control skill does not list | The report |
 
 Then the outcome:
@@ -262,7 +266,8 @@ Then the outcome:
   these four steps. Then:
   1. **Branch.** The pass switched to the upkeep branch before step 4 (§ Upkeep branch) and stays
      on it. Done when `git branch --show-current` prints the upkeep branch.
-  2. **Write** the edits (for a legacy conversion, also the `sources` globs and `driven` marks),
+  2. **Write** the edits (for a legacy conversion, also the `sources` globs, `driven` marks, step
+     results and proof steps),
      re-running the [real-path checks](naming.md#real-paths) before each write. Then run the Check steps in SKILL.md on the result; a structural finding
      in a file this pass wrote is fixed before the commit, and one it cannot fix makes the outcome
      **blocked** with the finding.
@@ -340,7 +345,9 @@ legacy map's conversion is written before step 4 (see there); a flat one's at st
   (keeping `build: not exposed`), and `Features` the index in the contract's line form, with the
   `sources` globs the source wave found. `## Capture` names only what the repository shows, and
   `## Cleanup` stops only what a run started.
-- **Feature files.** Each takes the contract's six sections: `Parts` and `Drive` carry over,
+- **Feature files.** Each takes the contract's six sections: `Parts` and `Drive` carry over, with a
+  `Result:` on each Drive step and a closing `**Proof.**` step, written at step 6.2 from what the
+  live pass observed,
   `Traps` becomes `Gotchas`, `Sub-features` is `none` unless the old file pointed at a state or
   branch of this feature, per the contract's Feature files, `Reset` takes the starting data `Drive` named (a flat control-skill file's `## States`
   goes there too), and each entry point ends `driven` or `not driven: <reason>` from the live pass.

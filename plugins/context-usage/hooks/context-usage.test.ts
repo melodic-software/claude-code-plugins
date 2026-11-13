@@ -1470,7 +1470,7 @@ test('command: the status says when zones.json is absent and the zone is unknown
   expect(text).toContain('/srv/u/.claude/context-usage/zones.json (absent)')
 })
 
-for (const other of ['band', 'rate-limit-guard']) {
+for (const other of ['band', 'rate-limits']) {
   test(`command: /${other} passes to the hooks beneath`, async ($, on) => {
     world(on)
     const seen: string[] = []

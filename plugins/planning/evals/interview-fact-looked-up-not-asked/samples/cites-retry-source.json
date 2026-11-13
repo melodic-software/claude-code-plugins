@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Fact (answered-from-codebase): the sender retries 4 times after the first attempt. Basis: verified, config/webhooks.json:2",
+      "why": "cites the config file"
+    },
+    {
+      "answer": "maxRetries is 4, so a delivery is final after the fifth attempt.",
+      "why": "names the key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Q1: **How many times does the sender retry today?** Could you check with the team?",
+      "why": "asks the user for the fact"
+    }
+  ]
+}

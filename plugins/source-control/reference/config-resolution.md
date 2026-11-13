@@ -226,9 +226,9 @@ reads the file itself, through a script where the key names one below.
   `posix-ere`. No skill here reads it. The guardrails enforcement resolver does, and any other value
   turns its enforcement off with a diagnostic; see the
   [commit-convention enforcement README](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/commit-convention/README.md).
-- `pre_ready`: which pre-flip steps `/source-control:pull-request ready` runs, a list of
-  `{step, enabled}` mappings over `base-merge`, `plan-evidence`, `code-review`, `security-review`
-  and `verify`; a step the list leaves out runs. Team level only, with no `userConfig` option: a
+- `pre_ready`: which configurable steps `/source-control:pull-request ready` runs, a list of
+  `{step, enabled}` mappings over `base-merge`, `plan-evidence`, `code-review`, `security-review`,
+  `verify` and `evidence`; a step the list leaves out runs. Team level only, with no `userConfig` option: a
   person cannot switch off a repository's gates. Read at the pull request's base branch, never the
   head, by `skills/pull-request/scripts/read-pre-ready.sh`, and honored only when that base is
   the base repository's default branch. The reader runs every step when the key is missing, the
@@ -412,7 +412,7 @@ whose value is empty, non-scalar or unknown.
 | `babysit_loop_escalation` | tier name for dimension 7 (escalation posture); the escalation *surface* is fixed by the loop-lane convention, never by config | preset value |
 | `babysit_loop_grace_window_minutes` | positive integer, the concurrency-safety activity grace window | `30` |
 | `babysit_loop_cycle_budget` | positive integer, cycles per session before the budget-hit stop | none, meaning no per-session budget |
-| `babysit_loop_no_progress_threshold` | positive integer, consecutive no-progress cycles (open PRs in view, none merged, materially changed, or escalated; cycles held by the rate-limit guard are not counted) before the lane raises its stall escalation; it escalates and keeps looping, never stops | `3` |
+| `babysit_loop_no_progress_threshold` | positive integer, consecutive no-progress cycles (open PRs in view, none merged, materially changed, or escalated; cycles held by the rate-limits floor are not counted) before the lane raises its stall escalation; it escalates and keeps looping, never stops | `3` |
 | `babysit_loop_trusted_internal_bot_logins` | a YAML sequence (in an H2, a flat bullet list, `- <login>` per line) of exact GitHub App bot logins the repository attests as its own internal automation, the C5 trust test's reviewed internal-bot trust signal; **honored in the team-tracked layer only** ("the C5 trust test's one reviewed widening" below) | none, the empty set: the trust test accepts `OWNER`/`MEMBER` only |
 
 No key, `babysit_loop_merge` included, sets an approval count: how many approving reviews a merge needs comes from the repository

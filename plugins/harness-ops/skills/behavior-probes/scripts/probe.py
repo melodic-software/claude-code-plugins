@@ -216,10 +216,8 @@ def cli_args_ok(args) -> bool:
 
 
 def controlled(case: dict) -> bool:
-    """A negative case always needs a passing control; a prints case when it names one."""
-    return case.get("outcome") in NEGATIVE or (
-        case.get("outcome") == PRINTS and "control" in case
-    )
+    """A negative case always needs a passing control; any other case when it names one."""
+    return case.get("outcome") in NEGATIVE or "control" in case
 
 
 def print_problems(case: dict, target: dict, by_id: dict[str, dict]) -> list[str]:
@@ -335,6 +333,9 @@ def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
             )
         elif control.get("outcome") in NEGATIVE:
             problems.append(f"{cid}: control {control['id']} is itself a negative case")
+    elif "control" in case and case.get("outcome") != PRINTS:
+        if by_id.get(str(case["control"])) in (None, case):
+            problems.append(f"{cid}: control {case['control']!r} is not another case")
     for name in ("settings.json", "prompt.md"):
         if not (case["dir"] / name).is_file():
             problems.append(f"{cid}: {name} is missing")

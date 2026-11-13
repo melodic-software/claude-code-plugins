@@ -168,7 +168,6 @@ lib/exec-bash.mjs plugins/actionlint/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/animation/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/autonomy/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/bash-format/hooks/exec-bash.mjs
-lib/exec-bash.mjs plugins/biome-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/context-usage/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/desktop-notification/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/disk-hygiene/hooks/exec-bash.mjs
@@ -176,10 +175,11 @@ lib/exec-bash.mjs plugins/eol-normalizer/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/go-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/guardrails/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/harness-ops/hooks/exec-bash.mjs
+lib/exec-bash.mjs plugins/javascript-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/markdown-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/powershell-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/python-format/hooks/exec-bash.mjs
-lib/exec-bash.mjs plugins/rate-limit-guard/hooks/exec-bash.mjs
+lib/exec-bash.mjs plugins/rate-limits/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/repo-hygiene/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/session-flow/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/source-control/hooks/exec-bash.mjs
@@ -200,9 +200,6 @@ lib/prerequisites.ps1 plugins/autonomy/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/bash-format/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/bash-format/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/bash-format/lib/prerequisites.ps1
-lib/prerequisites.mjs plugins/biome-format/lib/prerequisites.mjs
-lib/prerequisites.sh plugins/biome-format/lib/prerequisites.sh
-lib/prerequisites.ps1 plugins/biome-format/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/context-budget/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/context-budget/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/context-budget/lib/prerequisites.ps1
@@ -227,6 +224,9 @@ lib/prerequisites.ps1 plugins/desktop-notification/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/display-redaction/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/display-redaction/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/display-redaction/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/javascript-format/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/javascript-format/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/javascript-format/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/discovery/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/discovery/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/discovery/lib/prerequisites.ps1
@@ -414,9 +414,9 @@ lib/prerequisites.ps1 plugins/powershell-format/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/python-format/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/python-format/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/python-format/lib/prerequisites.ps1
-lib/prerequisites.mjs plugins/rate-limit-guard/lib/prerequisites.mjs
-lib/prerequisites.sh plugins/rate-limit-guard/lib/prerequisites.sh
-lib/prerequisites.ps1 plugins/rate-limit-guard/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/rate-limits/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/rate-limits/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/rate-limits/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/session-flow/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/session-flow/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/session-flow/lib/prerequisites.ps1
@@ -444,7 +444,6 @@ lib/prerequisites.ps1 plugins/speech/lib/prerequisites.ps1
 lib/hook-utils.sh plugins/animation/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/autonomy/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/bash-format/hooks/hook-utils.sh
-lib/hook-utils.sh plugins/biome-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/context-usage/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/desktop-notification/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/eol-normalizer/hooks/hook-utils.sh
@@ -452,9 +451,10 @@ lib/hook-utils.sh plugins/explainer-video/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/go-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/guardrails/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/harness-ops/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/javascript-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/markdown-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/python-format/hooks/hook-utils.sh
-lib/hook-utils.sh plugins/rate-limit-guard/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/rate-limits/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/repo-hygiene/skills/clean/scripts/hook-utils.sh
 lib/hook-utils.sh plugins/source-control/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/speech/hooks/hook-utils.sh
@@ -469,7 +469,7 @@ lib/view-builder.mjs plugins/machine-health/lib/view-builder.mjs
 lib/view-runtime.js plugins/machine-health/lib/view-runtime.js
 lib/mermaid-gate.mjs plugins/visualization/lib/mermaid-gate.mjs
 lib/mermaid-gate.mjs plugins/architecture/lib/mermaid-gate.mjs
-lib/write-snapshot.mjs plugins/rate-limit-guard/lib/write-snapshot.mjs
+lib/write-snapshot.mjs plugins/rate-limits/lib/write-snapshot.mjs
 lib/write-snapshot.mjs plugins/context-usage/lib/write-snapshot.mjs
 lib/publish-gate.mjs plugins/review/lib/publish-gate.mjs
 lib/publish-gate.mjs plugins/visualization/lib/publish-gate.mjs
@@ -614,8 +614,8 @@ lib/confirm-verdict.sh plugins/source-control/skills/pull-request/scripts/confir
 lib/git-hooks/install.mjs plugins/spelling/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/python-format/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/bash-format/lib/git-hooks/install.mjs
-lib/git-hooks/install.mjs plugins/biome-format/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/go-format/lib/git-hooks/install.mjs
+lib/git-hooks/install.mjs plugins/javascript-format/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/markdown-format/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/powershell-format/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/actionlint/lib/git-hooks/install.mjs
@@ -624,8 +624,8 @@ lib/git-hooks/install.mjs plugins/instruction-placement/lib/git-hooks/install.mj
 lib/git-hooks/check-lib.sh plugins/spelling/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/python-format/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/bash-format/lib/git-hooks/check-lib.sh
-lib/git-hooks/check-lib.sh plugins/biome-format/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/go-format/lib/git-hooks/check-lib.sh
+lib/git-hooks/check-lib.sh plugins/javascript-format/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/markdown-format/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/powershell-format/lib/git-hooks/check-lib.sh
 lib/git-hooks/check-lib.sh plugins/actionlint/lib/git-hooks/check-lib.sh
@@ -634,8 +634,8 @@ lib/git-hooks/check-lib.sh plugins/instruction-placement/lib/git-hooks/check-lib
 lib/git-hooks/git-hook-decisions.md plugins/spelling/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/python-format/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/bash-format/skills/setup/reference/git-hook-decisions.md
-lib/git-hooks/git-hook-decisions.md plugins/biome-format/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/go-format/skills/setup/reference/git-hook-decisions.md
+lib/git-hooks/git-hook-decisions.md plugins/javascript-format/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/markdown-format/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/powershell-format/skills/setup/reference/git-hook-decisions.md
 lib/git-hooks/git-hook-decisions.md plugins/actionlint/skills/setup/reference/git-hook-decisions.md
@@ -772,7 +772,6 @@ lib/resolve-convention-home.sh plugins/wizard/lib/resolve-convention-home.sh
 docs/contracts/plugin-reconfiguration/README.md plugins/actionlint/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/ai-briefing/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/bash-format/reference/plugin-reconfiguration.md
-docs/contracts/plugin-reconfiguration/README.md plugins/biome-format/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/bugs/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/code-tidying/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/context-budget/reference/plugin-reconfiguration.md
@@ -785,6 +784,7 @@ docs/contracts/plugin-reconfiguration/README.md plugins/eol-normalizer/reference
 docs/contracts/plugin-reconfiguration/README.md plugins/go-format/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/guardrails/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/harness-ops/reference/plugin-reconfiguration.md
+docs/contracts/plugin-reconfiguration/README.md plugins/javascript-format/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/knowledge/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/machine-health/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/markdown-format/reference/plugin-reconfiguration.md
@@ -793,7 +793,7 @@ docs/contracts/plugin-reconfiguration/README.md plugins/mutation-testing/referen
 docs/contracts/plugin-reconfiguration/README.md plugins/planning/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/powershell-format/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/python-format/reference/plugin-reconfiguration.md
-docs/contracts/plugin-reconfiguration/README.md plugins/rate-limit-guard/reference/plugin-reconfiguration.md
+docs/contracts/plugin-reconfiguration/README.md plugins/rate-limits/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/repo-hygiene/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/session-flow/reference/plugin-reconfiguration.md
 docs/contracts/plugin-reconfiguration/README.md plugins/skill-quality/reference/plugin-reconfiguration.md

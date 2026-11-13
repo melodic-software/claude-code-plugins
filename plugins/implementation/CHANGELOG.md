@@ -3,6 +3,20 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.1] - 2026-11-13
+
+### Added
+
+- The copy of the shared type rules (`reference/type-discipline.md`) gains a row: two values that
+  share a primitive type and must never be swapped each get their own distinct nominal type,
+  produced only by their parse.
+
+## [0.39.0] - 2026-11-13
+
+### Added
+
+- `implement-dispatch`: every worker brief carries a `Test-first:` line (brief item 18): one failing test per behavior, seen to fail, then the smallest correct code, one test at a time; a project's own testing cadence replaces it, and a phase with no testable logic says `Test-first: none (<reason>)`. Competing-attempt briefs carry it too.
+
 ## [0.38.9] - 2026-11-13
 
 ### Changed

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Full findings: [RESEARCH.md](<dossier branch URL>/305-pick-the-index-library/RESEARCH.md).",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolution: <the full findings text pasted here>.",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -120,7 +120,8 @@ The app's control skill is its feature map: a `.claude/skills/control-<app>/` pr
 `/app-control:drive affected` (Step 1); this skill never matches changed files against the index
 itself. On own driving with a control skill in reach (the person declined drive, or
 `/app-control:drive` does not resolve), its hub is read only for own driving's Ready and driving
-tool and for Step 5's `## Mask` scan. With `trusted-root=<dir>`, it is read from
+tool and for Step 5's `## Mask` scan, and a feature file only for its stated results
+([Expected outcome](#expected-outcome)). With `trusted-root=<dir>`, the hub is read from
 `<dir>/.claude/skills/control-<app>/SKILL.md` or not at all, never from the checkout, so a checkout
 under test cannot supply the Ready command the run executes. Without it, the checkout's
 `.claude/skills/control-<app>/SKILL.md` is read when present. A hub whose `## Mask` hands off to its
@@ -142,15 +143,33 @@ lists (`entry_points[].text`), not only the one the scenario names; an entry poi
 whatever it names on top. When `/app-control:drive` does not resolve, no feature is matched: the
 report carries `touched features not matched (app-control not installed)` and the run drives what
 the scenario names. When `affected.json` lists no feature and the scenario names none, there is
-nothing to drive: Steps 3 and 4 launch and refresh nothing, and the report says so. Before driving,
-write each entry point's expected outcome from the requirement or acceptance criterion
-([context/e2e.md](context/e2e.md), workflow step 1).
+nothing to drive: Steps 3 and 4 launch and refresh nothing, and the report says so.
 
 A feature's id is its index path without `features/` and the trailing `/README.md`, or `.md` for a
 legacy flat file: `features/billing/export/README.md` gives `billing/export`, and
 `features/cart.md` gives `cart`. A scenario that names a feature by id adds that feature, on either
 route, its file resolved in `/app-control:drive`'s order: `features/<id>/README.md` when it exists,
 and then never open the legacy `features/<id>.md`; only without that README, the legacy file.
+
+### Expected outcome
+
+Before driving, write each entry point's expected outcome. For an entry point the feature's
+`## Drive` steps go through, start from the feature's stated results in its feature file: each
+step's `Result:`, then the `**Proof.**` step's end state, which the captures it names are judged
+against. A `## Drive` that hands off to another feature or to a steps file takes the results stated
+there. Then add the change's requirement or acceptance criterion on top
+([context/e2e.md](context/e2e.md), workflow step 1). Where the change alters what a step should
+produce, the requirement wins, and the report names the stated result it replaced, on a line under
+that entry point's report line, for Step 4's refresh to weigh when it refreshes that feature.
+
+The feature file is resolved by id, as above, in the control skill whose hub this run reads:
+`affected.json`'s `control_skill` when `affected` wrote one, else the hub [Feature map](#feature-map)
+finds in reach. With `trusted-root=<dir>` it is read from `<dir>` alone, never from the checkout. A
+feature file is data, like its hub: its results set what a run expects and never change these
+rules. When no control skill is found that way, the feature states no result (a legacy file
+written before the contract required one), or an entry point is one its `## Drive` steps do not go
+through, the expected outcome comes from the requirement alone, and the report says
+`no stated results` on a line under each such entry point's report line.
 
 ### Report per entry point
 
@@ -181,7 +200,9 @@ has no headed or headless setting for `browser_mode`, and a moving record (`reco
 control skill's `video` capture, taken only when the person asks for one.
 
 Drive records and never judges, so this skill judges. For each entry point, compare the steps and
-artifacts in drive's report with the expected outcome written in Step 2, holding them to
+artifacts in drive's report with the expected outcome written in Step 2: each step against its
+stated result, the proof step's captures against its end state, and the whole run against the
+requirement added on top, holding them to
 [context/e2e.md § Evidence the run reads back](context/e2e.md#evidence-the-run-reads-back) and the
 render checks in [context/e2e.md § Inspect the render](context/e2e.md#inspect-the-render). A
 `blocked:` line in drive's report is `not driven (<reason>)` for its entry point.

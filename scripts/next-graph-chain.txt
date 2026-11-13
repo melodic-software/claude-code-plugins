@@ -2,13 +2,14 @@
 #
 # One skill per line as plugin:skill. A skill nothing routes to by design adds
 # `| entry: <reason>`; a skill with no successor adds `| terminal: <reason>`; one
-# owner-decided edge that skips a required stage adds `| skip-to: <plugin:skill> <reason>`.
+# owner-decided edge that skips a required stage adds `| skip-to: <plugin:skill> <reason>`,
+# once per edge.
 # Stage order comes from each skill's workflow-stage frontmatter and the ladder in
 # /session-flow:workflow, never from this file.
 planning:brainstorm | entry: diverges a rough problem before any scope; /session-flow:workflow names it an entry skill
 planning:prd
 planning:interview
-planning:wayfind | skip-to: work-items:decompose a closed map has resolved the design decisions a plan holds; the owner's Q531 closes it to prd, decompose or work (#12477)
+planning:wayfind | skip-to: work-items:decompose a closed map has resolved the design decisions a plan holds; the owner's Q531 closes it to prd, decompose or work (#12477) | skip-to: planning:plan a map closed on a set of build items has the same decisions resolved, so it goes to a plan and then decompose (#15784)
 planning:audit-answers
 planning:design
 planning:design-handoff

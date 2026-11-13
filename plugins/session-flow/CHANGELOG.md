@@ -1,5 +1,37 @@
 # Changelog: session-flow plugin
 
+## [7.11.1] - 2026-11-13
+
+### Changed
+
+- References to the rate-limit windows plugin use its new name, rate-limits: the `rate-limits@melodic-software` id, the `/rate-limits:setup` command, the `mcp__rate-limits__status` tool and the `~/.claude/rate-limits/` directory.
+- Corrected in place: the released entries [0.48.7], [0.34.14], [0.23.7] now name the rate-limit windows plugin by its current name, `rate-limits`.
+
+## [7.11.0] - 2026-11-13
+
+### Added
+
+- `/session-flow:orient catch-up` ends with a one-line offer of a video of the catch-up when
+  `/explainer-video:produce` is available, and says nothing about a video when it is not.
+
+### Changed
+
+- The catch-up word cap (`orient_catch_up_word_cap`) now limits only the What happened part.
+  Every action item is listed in full, never dropped, counted, merged or replaced by a link to
+  fit the cap. A new eval case, `or-catch-up-over-cap-keeps-every-item`, covers it.
+
+## [7.10.0] - 2026-11-13
+
+### Added
+
+- `handoff` gains a tracker short form: when a tracker item (a wayfind map item, say) already holds every finding, decision and remaining action and no session state is left, the resume is two lines, `/clear, then run:` and the command with the item's URL, with no handoff file. Findings not yet on the tracker still take the full file (new `skills/handoff/reference/tracker-short-form.md`).
+
+### Changed
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
+- `workflow` is the one home for route choice: new `context/pre-implementation-order.md` holds the pre-implementation order, moved in full from `docs/finding-your-unknowns.md`, and the quick-change and foggy-effort on-ramps carry the reasons that were in the interview's routing file.
+
 ## [7.9.16] - 2026-11-13
 
 ### Changed
@@ -1355,7 +1387,7 @@
 
 ### Changed
 
-- **Rate-limit and zone lookups name the guards' pull tools.** `/session-flow:orchestrate` names rate-limit-guard's mod as the snapshot writer and `mcp__rate-limit-guard__status` as a source; headroom counts as unobservable whenever no live reading is obtainable (mods off, the guard not installed, the tool's registration refused by policy, or a tool answer with no windows), no longer in every cloud or headless session. `/session-flow:workflow` and `/session-flow:keep-going` look up the zone word with `mcp__context-usage__status` or the snapshot, and `/session-flow:keep-going` reads live `rate_limits` through `mcp__rate-limit-guard__status`.
+- **Rate-limit and zone lookups name the guards' pull tools.** `/session-flow:orchestrate` names rate-limits's mod as the snapshot writer and `mcp__rate-limits__status` as a source; headroom counts as unobservable whenever no live reading is obtainable (mods off, the guard not installed, the tool's registration refused by policy, or a tool answer with no windows), no longer in every cloud or headless session. `/session-flow:workflow` and `/session-flow:keep-going` look up the zone word with `mcp__context-usage__status` or the snapshot, and `/session-flow:keep-going` reads live `rate_limits` through `mcp__rate-limits__status`.
 
 ## [0.48.6] - 2026-10-04
 
@@ -2420,7 +2452,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   The directive had fractured under the same per-plugin de-slop campaign;
   `docs/PLUGIN-PHILOSOPHY.md` now owns the rule under a `runtime-grounded` clause, and the eighteen
   sites that campaign fractured carry one wording. Twenty setup skills assert the rule; the other
-  two, `context-usage` and `rate-limit-guard`, state it about their own scripts in their own words
+  two, `context-usage` and `rate-limits`, state it about their own scripts in their own words
   and are left for a separate pass, so the fleet is not yet down to a single form. Whole-repo
   extract-ssot sweep.
 
@@ -3101,7 +3133,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
 ### Changed
 
 - **`orchestrate`: cloud / unobservable rate-limit headroom fallback.** Imperative 7 now treats a
-  missing/stale/`rate_limits`-less `rate-limit-guard` tee (the expected cloud / remote state) as
+  missing/stale/`rate_limits`-less `rate-limits` tee (the expected cloud / remote state) as
   thin headroom by default: small concurrent-worker cap, short waves, scale only on own-session
   rate-limit errors or live sibling-automation 429s. Never invent window percentages. Gotchas and
   sources cite the reader contract's degraded-mode section; the live cloud statusline producer

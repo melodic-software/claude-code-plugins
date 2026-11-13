@@ -1,0 +1,24 @@
+# #40 Map: checkout redesign
+
+URL: https://example.com/acme/shop/issues/40. State: open. Labels: work-map.
+
+## Destination
+
+A PRD for the checkout redesign.
+
+## Notes
+
+- Checkout stays one page; no multi-step wizard.
+
+## Decisions-so-far
+
+- [Pick the payment form provider](https://example.com/acme/shop/issues/41): hosted fields from the
+  existing processor (resolved 2026-11-02)
+
+## Not-yet-specified
+
+- **Guest checkout**: something about how guests and accounts merge feels unsettled.
+
+## Out-of-scope
+
+- Native mobile checkout.

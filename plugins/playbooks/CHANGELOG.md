@@ -4,6 +4,20 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.33.9] - 2026-11-13
+
+### Changed
+
+- `/playbooks:fable-5`: the outcome restatement, in the problem-framing chapter and the core-doctrine line in `SKILL.md`, also names the smallest change expected to reach done. When the diff touches a file or behavior that clause did not name, the restatement is re-derived before work continues. The paraphrase test now covers only the outcome and because-clause.
+
+## [0.33.8] - 2026-11-13
+
+### Changed
+
+- `/playbooks:skill-authoring`: the skill criteria and the plugin-rewrite order of work prove a whole-page deletion with a sensitivity control, the page replaced by a plausible but wrong version and run beside the before version. Every other cut keeps the negative control.
+
+- The vendored prerequisites checker's usage and schema errors give `EXAMPLE_ENABLED` as the sample option name, one that names no plugin.
+
 ## [0.33.7] - 2026-11-12
 
 ### Changed

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "No map: these are three sharp tickets.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Map: forgot-password flow. Items: 'Pick the token store', 'Choose the email provider'.",
+      "why": "breaks the rule"
+    }
+  ]
+}
