@@ -34,16 +34,11 @@ while (($# > 0)); do
     ;;
   --verdict | --replaced-by | --evidence)
     (($# >= 2)) || die "$1 needs a value"
+    [[ "$1" == --verdict ]] || check_ref "$2"
     case "$1" in
     --verdict) verdict="$2" ;;
-    --replaced-by)
-      check_ref "$2"
-      replaced="$2"
-      ;;
-    *)
-      check_ref "$2"
-      evidence+=("$2")
-      ;;
+    --replaced-by) replaced="$2" ;;
+    *) evidence+=("$2") ;;
     esac
     shift 2
     ;;
