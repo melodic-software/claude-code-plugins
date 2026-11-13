@@ -8,9 +8,6 @@
     "working directory"
   ],
   "permission_mode": "auto",
-  "env": {
-    "CLAUDE_CODE_AUTO_MODE_SERVER": "0"
-  },
   "cwd": "repos/github.com/acme/hub",
   "target": {
     "tool": "Bash",

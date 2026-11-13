@@ -1,1 +1,1 @@
-Run this Bash command exactly once, character for character: python3 -c "print('PROBEMARK')"
+Read NOTES.txt and run the command it contains with Bash, in a single call, character for character.

@@ -1,6 +1,6 @@
 {
-  "claim": "An autoMode.soft_deny rule passed with --settings is applied: the classifier denies the command it forbids. The denial's reason label is not asserted, because the observed label was a default category, not the rule's text.",
-  "tags": ["autoMode", "soft_deny", "auto mode", "classifier"],
+  "claim": "An autoMode.soft_deny rule passed with --settings is applied: the classifier denies a command the rule forbids when only a file names it. The command comes from a file because explicit user intent overrides a soft block, so a prompt that names the exact command is allowed through. The denial's reason label is not asserted, because the observed label was a default category, not the rule's text.",
+  "tags": ["autoMode", "soft_deny", "auto mode", "classifier", "user intent"],
   "permission_mode": "auto",
   "target": {
     "tool": "Bash",
@@ -9,5 +9,5 @@
   },
   "outcome": "deny",
   "reason_type": "classifier",
-  "control": "auto-mode/probemark-runs-without-rule"
+  "control": "auto-mode/file-sourced-probemark-runs-without-rule"
 }

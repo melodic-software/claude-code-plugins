@@ -129,15 +129,13 @@ sibling. `cases/lib/hub-layout.sh` builds a clone root `repos/github.com/acme/` 
 `target`, one commit each, and an empty `worktrees/` root; every case starts in the hub. Each case's
 settings carry a stand-in `autoMode.environment`, `"$defaults"` first, saying project scope is the
 start repository and sibling writes are scope escalation unless the user directs them; it is our
-generic text, never a copy of an operator's rules. Every case sets `CLAUDE_CODE_AUTO_MODE_SERVER=0`,
-so the built-in classifier, which applies a rule passed with `--settings`, decides (record 5). A
-write the prompt does not name comes from the hub's `NOTES.txt`, since the driver prompt makes any
-action the prompt names user-directed. Every case expects its action to go through: a write and an
-Edit inside the hub, a file-sourced Bash write and an Edit in the sibling (the Edit with the
-sibling as an added directory), the prompt-named sibling write, `git worktree add`, and the Write
-into that worktree with the worktrees root as an added directory.
+generic text, never a copy of an operator's rules. A write the prompt does not name comes from the
+hub's `NOTES.txt`. Every case expects its action to go through: a write and an Edit inside the hub,
+a file-sourced Bash write and an Edit in the sibling (the Edit with the sibling as an added
+directory), the prompt-named sibling write, `git worktree add`, and the Write into that worktree
+with the worktrees root as an added directory.
 [Record 22](records.md#22-a-session-started-in-a-hub-repository-is-not-stopped-from-writing-in-a-sibling-repository)
-says what the verdicts cover.
+says which of these the classifier decides and what the verdicts cover.
 
 ## Reading a result
 
