@@ -87,7 +87,7 @@ both are non-negotiable:
   next author can reopen it and nothing catches them.
 - **Every fix lands repro-first.** The new stay-quiet case must *fail* against the unmodified hook
   (reproducing the over-fire) and pass after the fix. A stay-quiet assertion that is already green before the
-  fix guards nothing.
+  fix guards nothing. It only looks tested.
 
 ## Platform gap: `if` file rules on Windows
 
