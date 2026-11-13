@@ -14,3 +14,5 @@ bump: patch
   project is routed to that project through the `ClaudeDesign` tool, or to throwaway variants with
   the reason when the tool is not available, and nothing is written to the project before the plan
   is approved.
+- Eval case `ed-design-offer-shadowed`: with a local skill named `design` in the listing, no
+  `/design` canvas offer is made and the user is told why.

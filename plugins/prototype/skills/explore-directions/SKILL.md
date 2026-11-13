@@ -426,13 +426,18 @@ Before acting on a row, read [reference/boundaries.md](reference/boundaries.md) 
 
 - **`design` (bundled skill)**: only the person runs `/design`; never run or publish the canvas or
   cite it in tracked files. Before building on the mockup host, unless the medium keeps the view on
-  this machine or `--unattended` is set, tell the user: If /design is available in your session (gate
-  basis: the verification record in [reference/design-canvas.md](reference/design-canvas.md)), you
-  can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas.
+  this machine or `--unattended` is set (then suggest and record nothing), tell the user:
+  If /design is available in your session (gate basis: the verification record in
+  [reference/design-canvas.md](reference/design-canvas.md)), you can run `/design <scope>` instead
+  of or alongside this skill for a hand-editable design canvas.
+  Every offer adds that `/design`'s description should read "Make a new Design artifact from a
+  brief". A `design` entry in your skill listing is a local skill shadowing the bundled one: make
+  no offer, and tell the user a local `design` skill shadows the bundled canvas command.
 - **`ClaudeDesign` (built-in tool)**: for an existing claude.ai/design project the person names,
   links or asks for, use the tool when it resolves; write only to that project, only after they
   asked, and report a refusal without retrying around it.
-- **`playground` (marketplace plugin)**: a parameter explorer that hands back a prompt is its job.
+- **`playground` (marketplace plugin)**: a parameter explorer that hands back a prompt is its job,
+  not this skill's.
 
 ## Next
 

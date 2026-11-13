@@ -16,14 +16,12 @@ the intent selector lands on the HTML mockup substrate:
 
 **Routing.** On the mockup host, this skill builds the mockup whether or not the user runs
 `/design`. The resolved medium is read per [medium.md](medium.md). State the lifecycle difference
-with the offer; the design-canvas subsection in [SKILL.md](../SKILL.md) carries the offer shape. A
-local skill named `design` at any level shadows the bundled command (precedence: [Skills § Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)), and the
-bundled one never appears in your skill listing, so a `design` entry in that listing is a
-shadowing local skill: do not make the offer, and tell the user a local `design` skill shadows the
-bundled canvas command. A local `design` skill that disables model invocation shadows it too and
-is hidden from you, so every offer adds that `/design`'s description should read "Make a new
-Design artifact from a brief"; anything else is a local skill, not the canvas, and not to be run
-for it. With `--unattended`, make no `/design` suggestion, record none, and never attempt the
+with the offer; the design-canvas subsection in [SKILL.md](../SKILL.md) carries the offer shape. Why
+the SKILL.md shadowing check and description line exist: a local skill named `design` at any level
+shadows the bundled command (precedence: [Skills § Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)), and the
+bundled one never appears in your skill listing. A local `design` skill that disables model
+invocation shadows it too and is hidden from you; a `/design` whose description differs is a
+local skill, not the canvas, and not to be run for it. With `--unattended`, never attempt the
 command: build without asking.
 
 **Mutation gate.** The canvas persists under the user's account; the capture discipline records

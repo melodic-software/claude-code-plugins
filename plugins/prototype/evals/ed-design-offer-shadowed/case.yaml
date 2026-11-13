@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: ed-design-offer-shadowed
+description: "Base design-canvas boundary, shadowed: with a local skill named design in the session's skill listing, the skill makes no /design canvas offer, tells the user a local design skill takes that name, and never invokes design."
+tags: [explore-directions, hard]
+runs: 3
+expected_outcome: "Before building, the reply does not suggest running /design as a design-canvas alternative, tells the user that a local skill named design in this session takes the /design name, and makes no Skill call to design."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:explore-directions empty state for the project list in a new app with no UI yet. Before building, tell me how you plan to do it."
+  allowed_tools: [Read, Glob, Grep, Bash, Skill, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

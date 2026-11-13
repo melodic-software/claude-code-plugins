@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no skill call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "design"
+          }
+        }
+      ],
+      "why": "invoked design"
+    }
+  ]
+}
