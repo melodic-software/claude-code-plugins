@@ -15,6 +15,10 @@
     {
       "answer": "Kept:\n- sliding window (9f8e7d6)\nReverted:\n- token bucket (4c5d6e7), dropped requests during bursts",
       "why": "kept header, bare item"
+    },
+    {
+      "answer": "## Tried\n- **Token-bucket limiter** (`b61c929`, 2026-11-13). It replaced the in-memory map with `bucket(key).take()`.\n- **Sliding-window limiter** (`603049c`, 2026-11-13).\n\n## Kept\n- **Sliding-window limiter** is what `HEAD` has in `src/limiter.ts` (`603049c`).\n\n## Dropped or reverted\n- **Token-bucket** was reverted in `39620d8` (2026-11-13). The recorded reason is \"The bucket dropped legitimate requests during traffic bursts.\"\n\n**Answer:** Yes. The in-memory limiter was already replaced once, with a token bucket, and that was reverted because it dropped legitimate requests during bursts. A sliding-window limiter then replaced the in-memory one and is current.",
+      "why": "real eval answer: the closing line calls the sliding window current after naming the token bucket"
     }
   ],
   "fail": [
@@ -41,6 +45,10 @@
     {
       "answer": "**Kept**\n- Token bucket (a1b2c3d)\n\n**Dropped or reverted**\n- Sliding window (9f8e7d6), dropped requests in bursts",
       "why": "kept header holds the token bucket"
+    },
+    {
+      "answer": "The sliding window was reverted in 4c5d6e7 after bursts, and the token bucket is still current (a1b2c3d).",
+      "why": "token bucket named after the sliding window and called current"
     }
   ]
 }

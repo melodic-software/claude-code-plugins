@@ -11,6 +11,14 @@
     {
       "answer": "Closed pull requests: /source-control:pull-request is not available, so they were skipped.",
       "why": "skill name with dots and colon before the outcome"
+    },
+    {
+      "answer": "**Other sources:** I searched git. The `/source-control:pull-request` and `/work-items:track` skills aren't available here, so I searched neither closed PRs nor the tracker.",
+      "why": "real eval answer: contracted negation after the hyphenated skill name"
+    },
+    {
+      "answer": "- **Pull requests and tracker:** `/source-control:pull-request` and `/work-items:track` aren't available here, so closed PRs and tracker items weren't searched.",
+      "why": "real eval answer: aren't available, weren't searched"
     }
   ],
   "fail": [
@@ -33,6 +41,14 @@
     {
       "answer": "Tracker: skipped. Pull requests: 2 closed unmerged, listed below.",
       "why": "the outcome belongs to the tracker sentence"
+    },
+    {
+      "answer": "Closed PRs were searched with gh, but I didn't search the tracker.",
+      "why": "pull requests searched, the negation belongs to the tracker"
+    },
+    {
+      "answer": "Searched closed pull requests with gh and found 2 unmerged ones.",
+      "why": "claims the pull requests were searched"
     }
   ]
 }
