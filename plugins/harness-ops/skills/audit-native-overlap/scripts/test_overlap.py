@@ -400,6 +400,99 @@ class GenerateTests(unittest.TestCase):
         )
 
 
+OLD_MARKERS = ("<!-- native-surfaces:start -->", "<!-- native-surfaces:end -->")
+GENERATED_MARKERS = (
+    "<!-- BEGIN GENERATED: native-surfaces. Edit the native-overlap store, then run "
+    "python3 ${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py generate -->",
+    "<!-- END GENERATED: native-surfaces -->",
+)
+
+
+class MarkerFormTests(unittest.TestCase):
+    def setUp(self):
+        self.repo = TempRepo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.view_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def write_view(self, *marker_lines):
+        text = "# Kept header\n" + "".join(f"{line}\nold body\n" for line in marker_lines)
+        self.repo.view_path.write_text(text, encoding="utf-8")
+        return text
+
+    def assert_refused(self, text, message):
+        self.assertEqual(self.repo.generate(), 1)
+        self.assertEqual(self.repo.generate(["--check"]), 1)
+        self.assertEqual(self.repo.view_path.read_text(encoding="utf-8"), text)
+        _, error = overlap.render_view([deep_copy(BASE_ROW)], text)
+        self.assertIn(message, error)
+
+    def test_a_new_view_gets_the_begin_generated_markers(self):
+        self.repo.view_path.unlink(missing_ok=True)
+        self.assertEqual(self.repo.generate(), 0)
+        text = self.repo.view_path.read_text(encoding="utf-8")
+        self.assertIn(f"\n{GENERATED_MARKERS[0]}\n", text)
+        self.assertTrue(text.endswith(f"\n{GENERATED_MARKERS[1]}\n"))
+        self.assertNotIn("native-surfaces:start", text)
+        self.assertEqual(self.repo.generate(["--check"]), 0)
+
+    def test_each_form_regenerates_in_place_and_then_passes_check(self):
+        for start, end in (OLD_MARKERS, GENERATED_MARKERS):
+            with self.subTest(start=start):
+                self.write_view(start, end)
+                self.assertEqual(self.repo.generate(["--check"]), 1)
+                self.assertEqual(self.repo.generate(), 0)
+                text = self.repo.view_path.read_text(encoding="utf-8")
+                self.assertTrue(text.startswith(f"# Kept header\n{start}\n\n"))
+                self.assertTrue(text.endswith(f"\n{end}\nold body\n"))
+                self.assertEqual(text.count("old body"), 1)
+                self.assertIn("`doctor`", text)
+                self.assertEqual(self.repo.generate(["--check"]), 0)
+                self.assertEqual(self.repo.self_check(), 0)
+
+    def test_a_view_with_both_forms_fails(self):
+        text = self.write_view(*OLD_MARKERS, *GENERATED_MARKERS)
+        self.assert_refused(text, "carries markers of more than one form")
+
+    def test_a_start_marker_with_no_end_marker_fails(self):
+        text = self.write_view(GENERATED_MARKERS[0])
+        self.assert_refused(text, "has unbalanced markers")
+
+    def test_an_end_marker_before_its_start_marker_fails(self):
+        text = self.write_view(OLD_MARKERS[1], OLD_MARKERS[0])
+        self.assert_refused(text, "has unbalanced markers")
+
+    def test_a_repeated_marker_pair_fails(self):
+        text = self.write_view(*GENERATED_MARKERS, *GENERATED_MARKERS)
+        self.assert_refused(text, "has unbalanced markers")
+
+    def test_a_begin_generated_line_with_other_instruction_text_names_the_expected_line(self):
+        text = self.write_view(
+            "<!-- BEGIN GENERATED: native-surfaces. Run overlap.py generate -->",
+            GENERATED_MARKERS[1],
+        )
+        self.assert_refused(text, f"differs from the expected line {GENERATED_MARKERS[0]}")
+
+    def test_the_more_than_one_form_message_lists_the_markers_found(self):
+        text = self.write_view(*OLD_MARKERS, GENERATED_MARKERS[1])
+        self.assert_refused(
+            text,
+            f"more than one form ({GENERATED_MARKERS[1]}; {OLD_MARKERS[0]}, {OLD_MARKERS[1]})",
+        )
+
+    def test_a_generated_body_holding_a_marker_line_fails_before_writing(self):
+        row = deep_copy(BASE_ROW)
+        row["evidence"] = [f"native description: a\n{OLD_MARKERS[1]}"]
+        self.repo.write_store(make_store([row]))
+        text = self.write_view(*OLD_MARKERS)
+        self.assertEqual(self.repo.generate(), 1)
+        self.assertEqual(self.repo.view_path.read_text(encoding="utf-8"), text)
+        _, error = overlap.render_view([row], text)
+        self.assertIn(f"generated content holding the marker line {OLD_MARKERS[1]}", error)
+        self.repo.view_path.unlink()
+        self.assertEqual(self.repo.generate(), 1)
+        self.assertFalse(self.repo.view_path.exists())
+
+
 class SelfCheckTests(unittest.TestCase):
     def setUp(self):
         self.repo = TempRepo()

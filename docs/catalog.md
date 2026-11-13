@@ -4,7 +4,7 @@ The generated per-category plugin catalog: the block between the markers below i
 plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabulary is owned by
 [`docs/catalog-taxonomy.md`](catalog-taxonomy.md).
 
-<!-- catalog:start -->
+<!-- BEGIN GENERATED: catalog. Run node scripts/generate-catalog.mjs -->
 
 ## Discovery
 
@@ -153,4 +153,4 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 - [`ai-briefing`](../plugins/ai-briefing): Build source-backed AI-industry briefings from official vendor publications, configured RSS/Atom feeds, GitHub releases, reputable secondary reporting, and user-supplied URLs. Deduplicate, rank, and present results as markdown or optional HTML/PPTX decks, with repository-owned profile, audience, and brand configuration. Automated X/Twitter collection is disabled; Playwright is used only for deterministic local rendering.
 - [`adhd`](../plugins/adhd): Shapes assistant output for a reader with ADHD: action-first and low-friction. adhd:shape is a standing session posture: lead with the next action, number steps, restate state across turns, cap and rank lists, size work concretely, cut preamble. adhd:clarify reshapes one dense, decision-heavy message: one decision at a time, jargon defined, operative terms quoted verbatim, with an HTML decision table for big content. Reauthored in part from ayghri/i-have-adhd (MIT).
 
-<!-- catalog:end -->
+<!-- END GENERATED: catalog -->

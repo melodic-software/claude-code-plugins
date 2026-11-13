@@ -266,5 +266,15 @@ out=$(FLOW_CWD="$TEST_TMPDIR/other" STUB_OID="$PEER" run_flow "$BEFORE" "$BEFORE
 assert_eq "the worktree on the head branch lacks the PR's head commit: the PR is not flipped" "no" "$flipped"
 assert_contains "the worktree on the head branch lacks the PR's head commit: the refusal names it" "$out" "$PEER"
 
+# The 2.5.6 report from a shell outside every checkout, with no CONFIRM_VERDICT_DIR: the verdicts
+# come from the repository's common git directory, reached through <checkout>.
+new_state ""
+bash "$SKILL_DIR/scripts/confirm-verdict.sh" record --head "$PUSHED" --verdict CONFIRMED --dir "$REPO"
+bash "$SKILL_DIR/scripts/confirm-verdict.sh" record --of measure --head "$PUSHED" --verdict MIXED --dir "$REPO"
+out=$(cd "$TEST_TMPDIR/outside" && PATH="$STUB_DIR:$PATH" GH_REPO=acme/tool STUB_STATE="$STATE" STUB_BRANCH="$STUB_BRANCH" \
+  STUB_OID="$PUSHED" FLOW_CHECKOUT="$REPO" PR_NUMBER=5 timeout 30 bash "$REPORT" 2>&1)
+assert_eq "from outside every checkout: the report names both verdicts for the head" "confirm: CONFIRMED for head $PUSHED
+measure: MIXED for head $PUSHED" "$out"
+
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0

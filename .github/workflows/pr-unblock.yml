@@ -169,10 +169,10 @@ jobs:
   # skip it), pins the default branch tip as the base, checks out the head
   # with no credentials, skips a head that already holds that base, and
   # merges the base into it with the base's prepare.sh, copied out and
-  # hashed first: clean (the push job
-  # commits the merge with no model), conflicted (the model resolves) or
-  # escalate (the repeat cap, a protected path, or a conflict no model can
-  # resolve from markers). Every gate, head, base and conflict tree the jobs
+  # hashed first: clean (the push job commits the merge with no model),
+  # conflicted (the model resolves) or escalate (the repeat cap, a protected
+  # path, or a conflict no model can resolve from markers). Every gate, head,
+  # base and conflict tree the jobs
   # after it take comes from here, and every model-call input from a model
   # call's scan job, never from its run job, whose runner head code could
   # forge.
@@ -440,9 +440,9 @@ jobs:
   # (escalation-routes.mjs stopSkip: lane-stopped for a stop routed to a
   # failing status, which ends the head until the base moves;
   # awaiting-human for one held for a person). A kill-switch stop reads no
-  # head, and nothing is posted; nor is
-  # an up-to-date skip, since a neutral check would end the head for the
-  # dispatcher should a later default-branch push conflict with it.
+  # head, and nothing is posted; nor is an up-to-date skip, since a neutral
+  # check would end the head for the dispatcher should a later default-branch
+  # push conflict with it.
   resolve-conflicts-not-run:
     name: Resolve Conflicts Not Run
     needs: resolve-conflicts-select
@@ -605,9 +605,10 @@ jobs:
           CALLS: resolve-conflicts
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
 
-      # Whether the third call can run, never the token. resolve-conflicts-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last; a failed read leaves it empty, which hands nothing on.
+      # Whether the third call can run, never the token.
+      # resolve-conflicts-subscription passes it on as fallback-ready, so with
+      # the token empty its subscription leg stays the last; a failed read
+      # leaves it empty, which hands nothing on.
       - name: Check the fallback token
         id: fallback
         env:
@@ -659,11 +660,13 @@ jobs:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether resolve-conflicts-subscription handed off to the fallback token, read from this run's
-  # jobs by handoff-evidence.sh, never from a resolve-conflicts-subscription output: its broker
-  # allowed it, its run job succeeded and its scan job never ran. It runs
-  # only when resolve-conflicts-handoff found the fallback token set, so with the token empty
-  # nothing starts that did not before. A failed read starts no third call.
+  # Whether resolve-conflicts-subscription handed off to the fallback token,
+  # read from this run's jobs by handoff-evidence.sh, never from a
+  # resolve-conflicts-subscription output: its broker allowed it, its run job
+  # succeeded and its scan job never ran. It runs only when
+  # resolve-conflicts-handoff found the fallback token set, so with the token
+  # empty nothing starts that did not before. A failed read starts no third
+  # call.
   resolve-conflicts-subscription-handoff:
     name: Resolve Conflicts Subscription Handoff
     needs: [resolve-conflicts-handoff, resolve-conflicts-subscription]
@@ -719,9 +722,9 @@ jobs:
           tokens: github-token
 
   # The third call, on the central fallback subscription's token alone: it
-  # runs only on resolve-conflicts-subscription-handoff's read, after resolve-conflicts-subscription's subscription leg handed off (a
-  # limit stop, a credit stop, or a 401 or 402). It is the last leg and never
-  # hands off.
+  # runs only on resolve-conflicts-subscription-handoff's read, after
+  # resolve-conflicts-subscription's leg handed off (a limit stop, a credit
+  # stop, or a 401 or 402). It is the last leg and never hands off.
   resolve-conflicts-fallback:
     name: Resolve Conflicts Fallback
     needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-handoff, resolve-conflicts-subscription, resolve-conflicts-subscription-handoff]
@@ -762,7 +765,8 @@ jobs:
   # base as parents, without force. A clean merge commits with no patch; an
   # empty patch leaves the conflicts to a person (unresolved-conflict). One
   # leg answers a conflicted round: the fallback call when it ran, else the
-  # first, and every model-call input below is that leg's scan job's.
+  # subscription call when it ran, else the first, and every model-call
+  # input below is that leg's scan job's.
   apply-conflict-patch:
     name: Apply Conflict Patch
     needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-subscription, resolve-conflicts-fallback]
@@ -1067,9 +1071,9 @@ jobs:
           [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the default branch tip is not a commit id"; exit 1; }
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
 
-      # The base's merge scripts, version-bump script and sync script, never
-      # the head's, each merge script with its SHA-256, which the merge step
-      # checks.
+      # The base's merge scripts and version-bump script, never the head's,
+      # each with its SHA-256, which the merge step checks; the repeat cap
+      # reads loop.no-progress from the resolved config.
       - name: Copy the merge scripts from the base
         id: merge-bin
         if: steps.base-sha.outcome == 'success'
@@ -1215,9 +1219,9 @@ jobs:
   # Every select outcome posts the sync-shared-copies check on the head the
   # select job read, so dispatch.mjs sends a head once: no-model-turn when it
   # proceeded (apply-shared-copies pushes the merge), else the skip reason, else
-  # the refusal's own skip (escalation-routes.mjs stopSkip). A select job whose
-  # hold read held on a fault posts nothing. A select job that
-  # failed after reading the head posts failure, which dispatch.mjs retries
+  # the refusal's own skip (escalation-routes.mjs stopSkip). A select job
+  # whose hold read held on a fault posts nothing. A select job that failed
+  # after reading the head posts failure, which dispatch.mjs retries
   # until limit-stops-per-head failures stand on the head, as it does
   # resolve-conflicts's. A kill-switch stop reads no head, and nothing is
   # posted.
@@ -1296,10 +1300,10 @@ jobs:
   # a script with no model that runs no head code. It merges the select job's
   # pinned base into the head again, refuses any state but the select job's
   # clean merge and tree, applies the select job's patch to that tree (none
-  # when the sync was empty), admits
-  # only copies the base-tip scripts/shared-copies.txt lists, skips a head
-  # that moved since the select job read it, and pushes one merge commit with
-  # the head and the base as parents, without force.
+  # when the sync was empty), admits only copies the base-tip
+  # scripts/shared-copies.txt lists, skips a head that moved since the select
+  # job read it, and pushes one merge commit with the head and the base as
+  # parents, without force.
   apply-shared-copies:
     name: Apply Shared Copies
     needs: sync-shared-copies-select
@@ -1719,9 +1723,10 @@ jobs:
           CALLS: address-feedback
         run: bash .base/.github/scripts/lib/handoff-evidence.sh posted
 
-      # Whether the third call can run, never the token. address-feedback-subscription passes it
-      # on as fallback-ready, so with the token empty its subscription leg
-      # stays the last; a failed read leaves it empty, which hands nothing on.
+      # Whether the third call can run, never the token.
+      # address-feedback-subscription passes it on as fallback-ready, so with
+      # the token empty its subscription leg stays the last; a failed read
+      # leaves it empty, which hands nothing on.
       - name: Check the fallback token
         id: fallback
         env:
