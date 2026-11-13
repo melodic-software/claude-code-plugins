@@ -22,7 +22,10 @@ banned API, a wrong file location, a missing required field.
 
 - **Yes.** The proposal is a check, not a prose line. Route it to `/corrections:codify "<the
   mistake>"` when the `corrections` plugin is installed. Otherwise propose it from the
-  [Hooks](#hooks) section, on the strongest rung of the ladder copy that can decide it.
+  [Hooks](#hooks) section, on the strongest rung of the ladder copy that can decide it. When the
+  check would fail the rest of the ladder's guardrail criterion (for example, the mistake is below
+  the recurrence threshold in [When to propose a check](#owner-skills)), propose no check: go on
+  to the scope questions below to place it as guidance.
 - **No.** Go on to the scope questions below.
 
 Then determine WHERE the finding should live. The key distinction is **scope**: who needs this
