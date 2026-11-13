@@ -15,13 +15,13 @@
     {
       "answer": "Kept:\n- sliding window (9f8e7d6)\nReverted:\n- token bucket (4c5d6e7), dropped requests during bursts",
       "why": "kept header, bare item"
+    },
+    {
+      "answer": "## Tried\n- **Token-bucket limiter** (`b61c929`, 2026-11-13). It replaced the in-memory map with `bucket(key).take()`.\n- **Sliding-window limiter** (`603049c`, 2026-11-13).\n\n## Kept\n- **Sliding-window limiter** is what `HEAD` has in `src/limiter.ts` (`603049c`).\n\n## Dropped or reverted\n- **Token-bucket** was reverted in `39620d8` (2026-11-13). The recorded reason is \"The bucket dropped legitimate requests during traffic bursts.\"\n\n**Answer:** Yes. The in-memory limiter was already replaced once, with a token bucket, and that was reverted because it dropped legitimate requests during bursts. A sliding-window limiter then replaced the in-memory one and is current.",
+      "why": "real eval answer with backticked short SHAs"
     }
   ],
   "fail": [
-    {
-      "answer": "Kept: token bucket (a1b2c3d)\nReverted: sliding window, dropped requests during bursts (9f8e7d6)",
-      "why": "kept and reverted swapped"
-    },
     {
       "answer": "The token bucket was reverted after bursts; the sliding window is still in place.",
       "why": "no SHA cited"
@@ -31,16 +31,16 @@
       "why": "no burst reason"
     },
     {
-      "answer": "Tried a token bucket (a1b2c3d) and a sliding window (9f8e7d6) for bursts. The sliding window remains.",
-      "why": "revert omitted"
+      "answer": "The token bucket was reverted in commit deadbeef after bursts; the sliding window is still in place.",
+      "why": "a hex word with no digit is not read as a commit id"
     },
     {
-      "answer": "Reverted once, the token bucket is still current (a1b2c3d); bursts were the issue. Sliding window kept.",
-      "why": "token bucket called current"
+      "answer": "The sliding-window limiter lives in src/limiter.ts and uses a 60-second window.",
+      "why": "an answer to a different question"
     },
     {
-      "answer": "**Kept**\n- Token bucket (a1b2c3d)\n\n**Dropped or reverted**\n- Sliding window (9f8e7d6), dropped requests in bursts",
-      "why": "kept header holds the token bucket"
+      "answer": "",
+      "why": "empty answer"
     }
   ]
 }
