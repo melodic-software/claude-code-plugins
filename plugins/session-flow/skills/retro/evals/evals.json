@@ -152,6 +152,19 @@
         "It does not run a session or quick retrospective, parse a transcript or score a session",
         "It writes nothing to the score history and invokes no other skill in place of naming it"
       ]
+    },
+    {
+      "id": 16,
+      "name": "mechanical-finding-proposes-check-not-rules-line",
+      "prompt": "/retro session. Twice today you created skill files named like `ReviewHelper.md` and I had to rename them, because this repo requires kebab-case file names under skills/. The corrections plugin is installed.",
+      "expected_output": "Session mode first asks whether a check could decide the finding. A file-name casing rule is one a script decides the same way every time, so the Phase 3 recommendation is a check, routed to /corrections:codify with the kebab-case mistake as its description, and presented for approval. It proposes no CLAUDE.md, AGENTS.md or rules-file line for the convention.",
+      "files": [],
+      "expectations": [
+        "It treats the kebab-case file-name rule as one a check can decide before it asks where the knowledge should live",
+        "The Phase 3 recommendation routes the mistake to /corrections:codify as a check proposal",
+        "It proposes no new CLAUDE.md, AGENTS.md or rules-file line for the convention",
+        "The proposal awaits the user's approval; nothing is built or applied without it"
+      ]
     }
   ]
 }

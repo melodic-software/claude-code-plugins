@@ -15,8 +15,18 @@ script wrote no manifest.
 
 ## Placement Decision Tree
 
-Before recommending a target, determine WHERE the finding should live. The key distinction is
-**scope**: who needs this knowledge, and what happens if it is lost?
+**First, could a check decide this?** A check can decide a finding when a machine would reach the
+same verdict on it every time (guardrail criterion 1 in
+`<plugin-root>/skills/retro/reference/enforcement-ladder.md`, the ladder copy): a fixed pattern, a
+banned API, a wrong file location, a missing required field.
+
+- **Yes.** The proposal is a check, not a prose line. Route it to `/corrections:codify "<the
+  mistake>"` when the `corrections` plugin is installed. Otherwise propose it from the
+  [Hooks](#hooks) section, on the strongest rung of the ladder copy that can decide it.
+- **No.** Go on to the scope questions below.
+
+Then determine WHERE the finding should live. The key distinction is **scope**: who needs this
+knowledge, and what happens if it is lost?
 
 **Two scopes:**
 
@@ -29,8 +39,6 @@ Before recommending a target, determine WHERE the finding should live. The key d
 
 1. **Would another contributor (human or agent) on a fresh clone need this?**
    - Technical gotchas, tooling quirks, conventions → **project** (rules/CLAUDE.md)
-   - A mistake a deterministic check could catch → **project**, routed through
-     [Owner skills](#owner-skills) rather than written as prose
    - Example: "the analyzer silently skips generated files" → the relevant `.claude/rules/` file
 2. **Does it protect the accuracy or quality of a specific git-tracked artifact?**
    - Guard rails for skills, rules files, or documentation → **project** (in the artifact it
@@ -79,40 +87,70 @@ CLAUDE.md / Rules, or Skills for a script whose output cost many tokens).
 | An agent-loaded doc (CLAUDE.md, AGENTS.md, rules) that misled or bloated the session | `/docs-hygiene:write-for-agents` |
 
 **When to propose a check.** Retro proposes a check and never adopts one: the user decides at the
-approval checkpoint, and the owner skill picks the mechanism. Propose one on the first occurrence of
-a policy-class mistake (irreversible, public, or security-relevant), and on a repeat with the same
-cause for a behavior correction. Sometimes the right outcome is no check: the model already
-complies, the action is reversible, or the repo has nothing to wire a check into. An existing check
-that should have caught the mistake but is unwired (no CI or pre-commit step runs it) or broken is
-the finding, reported before any new check is proposed. A repo with no CI or pre-commit step to
-wire a check into is still reported as a finding. It proposes a check only when a mistake in this
-session is one that check would have caught; otherwise it is reported as a standing gap with no
-proposal, since a check proposed from general practice rather than a session event tends to go
-unread by later sessions ([Treude and Baltes, RQ1](https://arxiv.org/html/2610.34938v1)).
+approval checkpoint, and the owner skill picks the mechanism. How often a mistake must recur first
+is `/corrections:codify`'s threshold, its `recurrence.min_occurrences` setting, and a policy-class
+mistake needs one occurrence, per guardrail criterion 2 in the ladder copy. Without the
+`corrections` plugin, apply criterion 2 with a repeat of the same cause as the threshold.
+Sometimes the right outcome is no check: the model already complies, the action is reversible, or
+the repo has nothing to wire a check into. An existing check that should have caught the mistake
+but is unwired (no CI or pre-commit step runs it) or broken is the finding, reported before any
+new check is proposed. A repo with no CI or pre-commit step to wire a check into is still reported
+as a finding. It proposes a check only when a mistake in this session is one that check would have
+caught; otherwise it is reported as a standing gap with no proposal, since a check proposed from
+general practice rather than a session event tends to go unread by later sessions
+([Treude and Baltes, RQ1](https://arxiv.org/html/2610.34938v1)).
 
-## Memory
+The enforcement targets below run strongest first, as the ladder copy does: Hooks and Settings can
+block, CLAUDE.md / Rules is guidance a model reads, and Memory reaches only this user's sessions.
+Skills, Agents and MCP Servers follow; they add capability rather than enforce.
 
-Personal learnings that persist across THIS USER's sessions on THIS machine. NOT committed, NOT
-shared. It is either rediscoverable (preferences, references) or ephemeral (work status).
+## Hooks
+
+Automated enforcement for agentic workflow. The hook system evolves, so verify supported events,
+matcher syntax, and environment variables against the current hooks documentation.
+
+A finding the decision tree's first step sends here without `/corrections:codify` takes the
+strongest rung of the ladder copy that can decide it, which may be a lint rule or a test, not a
+hook: a hook on code content is that check's rung, and a hook on an action is an `action-guard`.
+
+- **Pointer**: [Hooks reference § Configuration](https://code.claude.com/docs/en/hooks#configuration)
+  and [§ Hook lifecycle](https://code.claude.com/docs/en/hooks#hook-lifecycle)
 
 ### When to recommend
 
-- **Feedback memory.** The user corrected behavior, or a non-obvious approach was validated
-- **User memory.** Learned something about the user's role, preferences, or expertise
-- **Project memory.** Learned about ongoing work, deadlines, or context not in code/git
-- **Reference memory.** Discovered where information lives in external systems
+- A recurring mistake could be caught automatically before it happens
+- A quality gate was missed that could be enforced by a hook
+- A specific tool usage pattern should be blocked or warned about
 
-### Format
+### Hook events
 
-Match the consumer's existing auto-memory conventions. Read a sibling memory file first and follow
-its naming, structure, and any index it maintains rather than inventing a new format.
+The hook-event catalog (event names, use cases, matchers) is owned by the official docs: read
+the current list at the Hook lifecycle pointer above (slug `hooks`, through the docs lookup
+above) before recommending. It grows and
+changes faster than any copy here could track, so no copy is kept here.
 
-### What NOT to save
+### Recommendation format
 
-No code patterns derivable from the codebase, no git history, no debugging recipes, no duplicates
-of instruction-file content, no ephemeral task details.
+Include: hook event, matcher pattern, what the script checks, expected behavior (block vs warn).
+
+## Settings / Configuration
+
+Changes to Claude Code settings (settings.json, permissions, environment variables).
+
+### When to recommend
+
+- A permission was repeatedly denied that should be pre-approved
+- An environment variable was needed but not configured
+- A sandbox or security setting needs adjustment
+
+### Recommendation format
+
+Include: which settings file (user/project), the specific setting key, proposed value, rationale.
 
 ## CLAUDE.md / Rules
+
+Recommend a prose line only when no rung above guidance in the ladder copy can decide the finding:
+the decision tree's first step answered no, or the check failed the ladder's guardrail criterion.
 
 Conventions and guidelines that should be documented.
 
@@ -136,30 +174,27 @@ Conventions and guidelines that should be documented.
 Do NOT recommend content that duplicates source-of-truth files (linter configs, analyzer rule
 lists, formatter settings). CLAUDE.md documents that enforcement exists; it doesn't reproduce it.
 
-## Hooks
+## Memory
 
-Automated enforcement for agentic workflow. The hook system evolves, so verify supported events,
-matcher syntax, and environment variables against the current hooks documentation.
-
-- **Pointer**: [Hooks reference § Configuration](https://code.claude.com/docs/en/hooks#configuration)
-  and [§ Hook lifecycle](https://code.claude.com/docs/en/hooks#hook-lifecycle)
+Personal learnings that persist across THIS USER's sessions on THIS machine. NOT committed, NOT
+shared. It is either rediscoverable (preferences, references) or ephemeral (work status).
 
 ### When to recommend
 
-- A recurring mistake could be caught automatically before it happens
-- A quality gate was missed that could be enforced by a hook
-- A specific tool usage pattern should be blocked or warned about
+- **Feedback memory.** The user corrected behavior, or a non-obvious approach was validated
+- **User memory.** Learned something about the user's role, preferences, or expertise
+- **Project memory.** Learned about ongoing work, deadlines, or context not in code/git
+- **Reference memory.** Discovered where information lives in external systems
 
-### Hook events
+### Format
 
-The hook-event catalog (event names, use cases, matchers) is owned by the official docs: read
-the current list at the Hook lifecycle pointer above (slug `hooks`, through the docs lookup
-above) before recommending. It grows and
-changes faster than any copy here could track, so no copy is kept here.
+Match the consumer's existing auto-memory conventions. Read a sibling memory file first and follow
+its naming, structure, and any index it maintains rather than inventing a new format.
 
-### Recommendation format
+### What NOT to save
 
-Include: hook event, matcher pattern, what the script checks, expected behavior (block vs warn).
+No code patterns derivable from the codebase, no git history, no debugging recipes, no duplicates
+of instruction-file content, no ephemeral task details.
 
 ## Skills
 
@@ -210,20 +245,6 @@ Include: server transport (choose from the transports the docs currently support
 provided, read-only vs read-write, expected benefit.
 
 - **Pointer**: [Connect Claude Code to tools via MCP § Installing MCP servers](https://code.claude.com/docs/en/mcp#installing-mcp-servers)
-
-## Settings / Configuration
-
-Changes to Claude Code settings (settings.json, permissions, environment variables).
-
-### When to recommend
-
-- A permission was repeatedly denied that should be pre-approved
-- An environment variable was needed but not configured
-- A sandbox or security setting needs adjustment
-
-### Recommendation format
-
-Include: which settings file (user/project), the specific setting key, proposed value, rationale.
 
 ## Other Ecosystem Components
 
