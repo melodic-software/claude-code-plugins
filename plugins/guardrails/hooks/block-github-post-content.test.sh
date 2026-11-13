@@ -161,6 +161,7 @@ deny "--attach= word taken as the --title value" "gh issue create --body ok --ti
 deny "bare --attach ending a segment" "gh pr comment 1 --body ok --attach && gh pr comment 2 --body 'see $AHP/x/log.txt'" path
 deny "attach operand brace-expanding to a body" "gh pr comment 1 --attach {./x.png,--body=$AHP/log}" path
 deny "attach operand IFS-splitting to a body" "gh pr comment 1 --attach ./x.png\$IFS--body=$AHP/log" path
+deny "attach operand with a backtick substitution splitting to a body" "gh pr comment 1 --attach ./x.png\`printf ' '\`--body=$AHP/log" path
 deny "joined attach operand IFS-splitting to a body" "gh pr comment 1 --attach=./x.png\$IFS--body=$AHP/log" path
 deny "PowerShell attach array carrying a body" "gh pr comment 1 --attach './x.png','--body=$AWP\\log'" path PowerShell
 deny "token in attach alt text" "gh pr comment 1 --body ok --attach '$AHP/a.png#alt $TOK'" secret
