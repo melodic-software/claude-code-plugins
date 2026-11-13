@@ -68,7 +68,7 @@ Two diagnostics ride the taxonomy:
   never surfaced, not a capability gap.
 
 We run the method as a loop: what an artifact teaches becomes the starting map for the next
-round. The author's own framing of this loop (S1, section "Matching map and territory") is his
+round. The author's own framing of this loop (S1, section "Matching map and territory") is a
 metaphor, not adopted as house vocabulary (see `glossary.md` rejected terms).
 
 ## The pre-implementation workflow
