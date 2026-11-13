@@ -2121,8 +2121,9 @@ jobs:
   # source (GNU-only constructs, piped early-exit greps, temp-path cleanup,
   # fixture git isolation, discriminating skips, the kill-switch hoist, silent
   # prerequisite skips, slow hook shapes). Every one is a gate step: absorbed
-  # with `continue-on-error`, fed to the aggregator at the foot of this job. Python comes with the pinned requirements file because
-  # the slow-shapes gate reads hook frontmatter through PyYAML.
+  # with `continue-on-error`, fed to the aggregator at the foot of this job.
+  # Python comes with the pinned requirements file because the slow-shapes
+  # gate reads hook frontmatter through PyYAML.
   #
   # ITS OWN JOB BECAUSE OF THE WHOLE-REPOSITORY SCAN. ShellCheck lints the
   # changed shell files on most diffs, but the whole repository (up to 292 s
@@ -2182,10 +2183,9 @@ jobs:
 
       # Every guard ships a `<name>_enabled` switch, and an operator who turns
       # one off is entitled to stop paying for it. Reading that switch through
-      # hook::check_enabled means the whole 2,684-line hook-utils.sh is parsed
-      # first — ~3.5 ms of a disabled standalone guard's ~5.3 ms on this runner.
-      # The audit that prompted #3712 found the switch below the source in 43 of
-      # 43 hooks, and scripts/sync-shared-copies.sh covers the vendored library
+      # hook::check_enabled parses the whole of hook-utils.sh first, so rule 1
+      # holds a PreToolUse or PostToolUse hook's switch above its first source
+      # (#3712). scripts/sync-shared-copies.sh covers the vendored library
       # copies but NOT the entry scripts, so nothing else here would notice the
       # ordering drifting back. Rule 2 holds every other blocking event to the
       # same order: a Stop or Notification hook's first early exit comes before
@@ -2222,15 +2222,12 @@ jobs:
         run: scripts/check-discriminating-test-skips.sh
 
       # A test suite that BUILDS a git fixture must clear the inherited git
-      # environment, in shell and in Python alike. `git -C <fixture>` is a
-      # readability guard, not an isolation guarantee: an exported ABSOLUTE
-      # GIT_DIR overrides repository DISCOVERY, so the fixture identity lands
-      # in the CALLER's .git/config — shared by every worktree of the clone —
-      # and the caller's next commit is silently re-authored. That failed
-      # required_signatures with `no_user` and cost #2827 -> #2830 (#2840).
-      # Skipped on a diff that touches no shell or Python file and not the
-      # baseline: the gate reads exactly those (see the skill-count gate in
-      # `lint-repo` for the pattern).
+      # environment, in shell and in Python alike: an exported ABSOLUTE GIT_DIR
+      # overrides repository DISCOVERY even under `git -C <fixture>`, so the
+      # fixture identity lands in the CALLER's .git/config, shared by every
+      # worktree of the clone, and re-authors the caller's next commit (#2840).
+      # Declined with a notice on a diff that touches no shell or Python file,
+      # the baseline, or this workflow.
       - name: Check fixture git isolation
         id: fixture_git_isolation
         continue-on-error: true
@@ -2300,15 +2297,16 @@ jobs:
       # A BLANK LIST IS A WHOLE-REPOSITORY SCAN, NOT AN EMPTY ONE: the composite
       # cannot tell a blank input from an unset one, so it falls back to its own
       # discovery. That is the wanted answer on the whole tree (no diff base:
-      # a schedule or dispatch run), and on any diff that changes what every script is judged
-      # against: the rcfile, a sourced shell file outside plugins/ (lib/,
-      # scripts/lib/, a scripts/ harness), or this workflow, which pins the
-      # composite and so the ShellCheck version. A failed basename search also
-      # falls back to it. Deletions stay in the diff so removing a library still
-      # counts. A path git prints quoted (non-ASCII, tab, newline) or that holds
-      # a space cannot survive the whitespace-separated list, so it full-scans
-      # too. This branches in the shell rather than in `if:` because a step
-      # cannot carry both a resolver gate and an event gate.
+      # a schedule or dispatch run), and on any diff that changes what every
+      # script is judged against: the rcfile, a sourced shell file outside
+      # plugins/ (lib/, scripts/lib/, a scripts/ harness), or this workflow,
+      # which pins the composite and so the ShellCheck version. A failed
+      # basename search also falls back to it. Deletions stay in the diff so
+      # removing a library still counts. A path git prints quoted (non-ASCII,
+      # tab, newline) or that holds a space cannot survive the
+      # whitespace-separated list, so it full-scans too. This branches in the
+      # shell rather than in `if:` because the diff base is a data output,
+      # which the docs-only gate never admits in a condition.
       #
       # THE LANE IS SCOPED, NEVER SKIPPED. Every resolver gate carries the
       # docs-only term: a pull request whose only change is a shell script under
@@ -2365,11 +2363,10 @@ jobs:
         if: always()
         env:
           # The feed's rules are stated on the one in `lint-repo`; the docs-only
-          # gate pins them on every job.
-          # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
-          # the job's own check-run annotations (checks: read), else points at
-          # the step log.
+          # gate pins them on every job. Gates that run as `uses:` actions,
+          # whose output scripts/run-hygiene-gate.sh cannot capture: a failure
+          # here quotes the job's own check-run annotations (checks: read),
+          # else points at the step log.
           CHECK_RUN_ID: ${{ job.check_run_id }}
           GH_TOKEN: ${{ github.token }}
           STEP_LOG_CHECKS: shellcheck
@@ -2397,14 +2394,13 @@ jobs:
   # gates, the hook-declaration gates, the performance counter ceilings, the
   # cross-plugin drift check, and the delivery checks of the shared-library
   # copies. The steps that read the root npm install (`claude plugin validate`
-  # and the rendered-view HTML assets), with the copy and prerequisite gates
-  # moved beside them, are `check-catalog`'s: as one job the two took up to
-  # 125 s against a 3-minute work budget that holds a p95 of at most 120.
+  # and the rendered-view HTML assets), and the copy and prerequisite gates,
+  # are `check-catalog`'s, whose header says why.
   #
   # The hook, catalog and changelog gates run first, on Python with the pinned
-  # requirements, then the manifest schema steps, whose composite leaves uv on
-  # PATH for every later step. Node follows for the counter ceilings, gated
-  # like the steps that read it.
+  # requirements, then the manifest schema steps, on the check-jsonschema that
+  # install provides. Node follows for the counter ceilings, gated like the
+  # steps that read it.
   #
   # The shared-library bump checks need base history: `download-full-history`
   # runs once, at the top, and every bump check below resolves
@@ -2475,10 +2471,7 @@ jobs:
       # Windows `bash` resolves to the WSL relay System32\bash.exe and `python3`
       # to a zero-length WindowsApps alias stub, and the hook never launches. A
       # failed launch is a NON-BLOCKING error, so a PreToolUse guard wired this
-      # way silently enforces nothing. This class has shipped three times in
-      # disk-hygiene alone (#1006 fixed it, #1504 reintroduced it, #2570 fixed
-      # it again) while the harness-config audit checklist carried it as an
-      # `error` row the whole time — a checklist a human reads is not a gate.
+      # way silently enforces nothing (#1006, #1504, #2570).
       - name: Check hook declarations for exec-form bare command names
         id: hook_exec_form
         continue-on-error: true
@@ -2556,14 +2549,10 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh plugin-options-docs {0}
         run: python3 scripts/sync-plugin-options-docs.py --check
 
-      # #1547: a routine `git merge origin/main` silently dropped
-      # plugins/guardrails/.claude-plugin/plugin.json for ~14 minutes on a
-      # branch while .claude-plugin/marketplace.json still catalogued
-      # "guardrails" at that directory — no conflict markers, nothing to alert
-      # the author; an AI reviewer reading the diff caught it, not CI.
       # check-jsonschema validates the SHAPE of a manifest that exists; it
-      # cannot see one that is simply absent. Repo-wide and static, so it
-      # always runs.
+      # cannot see one that is absent, as when a merge silently drops a
+      # plugin.json the catalog still lists (#1547). Repo-wide and static, so
+      # it always runs.
       - name: Check every catalog entry resolves to a present, name-matching plugin manifest, and no plugin has a top-level bin/
         id: plugin_manifest_presence
         continue-on-error: true
@@ -2594,17 +2583,16 @@ jobs:
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh changelog-parity {0}
         run: scripts/check-changelog-parity.sh --check
-      # The merge queue runs the bump, fragment and vendor gates too (#6443 merged a
-      # hand bump the queue never checked), against HEAD^1: the queued squash
-      # commit is this pull request's own change on top of main and every entry
-      # ahead of it. The group event names no pull request, so this step reads
-      # the queued one from the group's head ref
-      # (gh-readonly-queue/<base>/pr-<number>-<base sha>): its author and its
-      # head branch, which the release and Dependabot exemptions read on
-      # pull_request, and its head commit, fetched so the Dependabot exemption
-      # reads the pull request's own commits rather than the queue's squash.
-      # The SHA in the ref is the commit the group is built on, not the pull
-      # request's head, so the head comes from the pull request itself.
+      # The merge queue runs the bump, fragment and vendor gates too (#6443),
+      # against HEAD^1: the queued squash commit is this pull request's own
+      # change on top of main and every entry ahead of it. The group event
+      # names no pull request, so this step reads the queued one from the
+      # group's head ref (gh-readonly-queue/<base>/pr-<number>-<base sha>): its
+      # author and its head branch, which the release and Dependabot exemptions
+      # read on pull_request, and its head commit, fetched so the Dependabot
+      # exemption reads the pull request's own commits rather than the queue's
+      # squash. The SHA in the ref is the commit the group is built on, not the
+      # pull request's head, so the head comes from the pull request itself.
       - name: Resolve the queued pull request
         id: queued_pr
         if: github.event_name == 'merge_group'
@@ -2765,9 +2753,7 @@ jobs:
       # committed copy at the plugin root (vendor/), so no sync-*.sh byte-drift
       # gate applies; the invariant that replaces it is delivery-by-version — a
       # vendor/ source change must bump the plugin's manifest version, the
-      # update cache key, or installed consumers never receive it. Only prose
-      # enforced that, and two unbumped vendor edits shipped (b3445bc2,
-      # b01dace3).
+      # update cache key, or installed consumers never receive it.
       - name: Verify a vendor/ source change bumps the plugin's version
         id: vendor_version_bump
         continue-on-error: true
@@ -2809,14 +2795,11 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh plugin-schema {0}
         run: check-jsonschema --schemafile https://json.schemastore.org/claude-code-plugin-manifest.json plugins/*/.claude-plugin/plugin.json
 
-      # JSON Schema validates the ALREADY-PARSED document, so it structurally
-      # cannot see a duplicate object key -- by the time a schema runs, the
-      # earlier member is already gone (every JSON parser resolves a repeated
-      # key last-wins). #1492 shipped plugins/skill-quality/.claude-plugin/
-      # plugin.json with two "version" members through this exact schema step
-      # green. scripts/check-manifest-duplicate-keys.py reads the raw
-      # key/value pairs via object_pairs_hook, BEFORE that collapse, so it
-      # catches what the schema step next to it cannot. See #1498.
+      # JSON Schema validates the ALREADY-PARSED document, so it cannot see a
+      # duplicate object key: every JSON parser keeps the last member, and a
+      # manifest with two "version" members passed the schema step (#1492).
+      # scripts/check-manifest-duplicate-keys.py reads the raw key/value pairs
+      # via object_pairs_hook, BEFORE that collapse (#1498).
       - name: Detect duplicate keys in plugin/marketplace manifests
         id: duplicate_keys
         if: needs.select-tests.outputs.run_manifests == 'true'
@@ -2826,8 +2809,8 @@ jobs:
 
       # Node for the counter ceilings, whose hook rows start each hook through
       # its node launcher. They read no root npm install: that is
-      # `check-catalog`'s. Gated like that step, so a docs-only diff does not
-      # pay for it.
+      # `check-catalog`'s. Gated like the counter ceilings, so a docs-only diff
+      # does not pay for it.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
         uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -2836,9 +2819,7 @@ jobs:
 
       # The shared-library delivery checks (ADR 0019): a change to a canonical
       # bumps every carrying plugin. That the copies match their canonical is
-      # checked in `check-catalog`. The bump checks need a base ref, so they
-      # return early off a pull request rather than diffing against a ref that
-      # does not exist.
+      # checked in `check-catalog`.
       - name: Verify carrying plugins bumped when a generated copy's canonical changed
         if: needs.select-tests.outputs.run_tests == 'true'
         env:
@@ -3060,7 +3041,8 @@ jobs:
         # only its own directory. Every repository-wide pass (contracts,
         # catalog, the --strict catalog pass, mods) still runs. Every plugin
         # when there is no diff base, or when the validator, its report
-        # renderer, the CLI's lockfile or this workflow changed.
+        # renderer, the root package.json or lockfile, or this workflow
+        # changed.
         env:
           VALIDATE_CONTRACTS_BASE_REF: origin/${{ github.base_ref || 'main' }}
           DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
@@ -3105,17 +3087,15 @@ jobs:
 
   # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
   # portability lint, leaf names, spoke paths, the listing budgets, the eval
-  # schema and quality lint, the invocation probes, the detector/eval crosswalk
-  # and coverage, orphaned fixtures, the fleet finding and grammar gates, and
-  # precompute composition. Python comes with the pinned requirements file, and
-  # the eval-coverage gate reads the pinned shfmt.
+  # schema, quality lint and suite validation, the invocation probes, the
+  # detector/eval crosswalk and coverage, orphaned fixtures, the fleet finding
+  # and grammar gates, and precompute composition. Python comes with the pinned
+  # requirements file, and the eval-coverage gate reads the pinned shfmt.
   #
   # ITS OWN JOB BECAUSE OF CHECK 25. The full skill corpus (about 300 s) runs on
   # a diff that touches the checker or its inputs, and the changed-skills gate
   # checks each changed skill in turn; beside `lint-repo` either one would set
   # the critical path.
-  #
-  # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-skills:
     name: Check Skills
     needs: [select-tests]
@@ -3271,8 +3251,8 @@ jobs:
       # checker. On a pull request it runs the static contract gate
       # (trigger-keyword preservation vs the base ref, frontmatter, line caps,
       # broken refs, evals presence) over each changed skill under
-      # plugins/*/skills/**. Eval sets are schema-validated AND quality-linted
-      # on every event.
+      # plugins/*/skills/**. Every event schema-validates every eval set and
+      # quality-lints the ones its diff touched (every set without a diff base).
       #
       # The whole corpus (every SKILL.md through the full checker, about 300 s
       # of this job) runs on a pull request only when `skill_checker` matched,
@@ -3326,12 +3306,12 @@ jobs:
         run: bash plugins/skill-quality/scripts/check-evals-quality.test.sh
       # Beyond-schema quality lint (FAIL tier: duplicate case ids/names, empty
       # criterion items, unresolvable files fixtures; WARN tier stays advisory
-      # and never fails the step). Whole-repo and static, so it runs on every
-      # event like the schema step above.
-      # Each eval set is linted on its own, and its `files` entries resolve
-      # under its skill directory (evals/ or the skill root), so a diff lints
-      # the set of every skill directory it touched; the whole corpus when the
-      # lint itself or this workflow changed, or when there is no diff base.
+      # and never fails the step). Static, and it runs on every event like the
+      # schema step above. Each eval set is linted on its own, and its `files`
+      # entries resolve under its skill directory (evals/ or the skill root), so
+      # a diff lints the set of every skill directory it touched; the whole
+      # corpus when the lint itself or this workflow changed, or when there is
+      # no diff base.
       - name: Lint every eval set for quality
         id: evals_quality
         continue-on-error: true
@@ -3409,26 +3389,24 @@ jobs:
       # consumer's 8,000-char fallback is not measured: this fleet is
       # permanently many times over it, so that number carries no signal.
       #
-      # THE FRACTION IS READ FROM .claude/settings.json, never repeated here.
-      # A literal 0.05 in this file would be a second copy of a value that
-      # lives in exactly one place, free to drift the moment anyone retunes the
-      # setting — and it would drift silently, because a wrong basis still
-      # prints a confident OK. Reading it means the tripwire follows the
-      # setting by construction. A tree that stops setting the key is a warning
-      # rather than a silently green step: the repo would then be on the
-      # harness default 0.01 and this measurement would be measuring nothing.
+      # THE FRACTION IS READ FROM .claude/settings.json, never repeated here, so
+      # the tripwire follows the setting by construction; a second copy would
+      # drift silently, because a wrong basis still prints a confident OK. A
+      # tree that stops setting the key is a warning rather than a silently
+      # green step: the repo would then be on the harness default 0.01 and this
+      # measurement would be measuring nothing.
       #
       # THE WINDOW IS PINNED TO THE TIGHTER BASIS, 750,000 tokens, which is
       # what #3505 exhibited live. The budget is a FRACTION of the live
       # context window, so the same fraction buys a third more characters on
       # a 1M-token model than at 750k. Measuring the 1M basis would put this
-      # WARN roughly
-      # a month after the 750k consumers had already overflowed, and a tripwire
-      # that fires after the failure it exists to predict is worse than none.
-      # (Neither basis speaks for a 200k-window consumer, whose budget the
-      # fleet overflows today; docs/cloud-sessions.md records that.)
-      # Report-only (the script always exits 0). The fix for the aggregate is
-      # trimming descriptions at their source, not raising the fraction.
+      # WARN roughly a month after the 750k consumers had already overflowed,
+      # and a tripwire that fires after the failure it exists to predict is
+      # worse than none. (Neither basis speaks for a 200k-window consumer,
+      # whose budget the fleet overflows today; docs/cloud-sessions.md records
+      # that.) Report-only: the script exits 0 on an overflow (2 only on a
+      # usage error). The fix for the aggregate is trimming descriptions at
+      # their source, not raising the fraction.
       - name: Report the skill-listing budget at this repo's configured fraction
         id: listing_budget_configured
         if: github.event_name == 'schedule'
@@ -3509,25 +3487,25 @@ jobs:
   # (scripts/plan-test-lanes.sh): the shell suites the change selects go to
   # `test-bash`, its Python suites to `test-python`, and the Node packages they
   # reach to `test-node`; a Node suite with a sibling .test.sh runs through
-  # that wrapper in `test-bash`, and a Pester suite in pr-test-platforms.yml. The
-  # whole tree (a schedule, a dispatch, or a change
-  # to this workflow or its actions) runs every suite of every lane.
+  # that wrapper in `test-bash`, and a Pester suite in pr-test-platforms.yml.
+  # The whole tree (a schedule, a dispatch, or a change to this workflow or its
+  # actions) runs every suite of every lane.
   #
   # ORDERED SKIPS. Each test lane carries the contract-only and draft gates and
-  # one more term, its own `run_<lane>` row of `select-tests`: a lane the plan gives no
-  # work skips as a job instead of paying a runner and a queue slot to report
-  # nothing. `ci-status` passes such a skip only where `select-tests` succeeded and
-  # its row for that lane says 'false'; any other skipped lane is red
-  # (scripts/check-docs-only-gate.sh pins both halves).
+  # one more term, its own `run_<lane>` row of `select-tests`: a lane the plan
+  # gives no work skips as a job instead of paying a runner and a queue slot to
+  # report nothing. `ci-status` passes such a skip only where `select-tests`
+  # succeeded and its row for that lane says 'false'; any other skipped lane is
+  # red (scripts/check-docs-only-gate.sh pins both halves).
   #
   # ONE TO TWELVE LEGS, SIZED FROM THE SELECTION. The plan packs the selected
   # suites into legs of about 120 suite-seconds each (scripts/suite-seconds.txt),
   # longest first onto the least-loaded leg, at most twelve, and twelve on the
-  # whole tree. A leg costs about 45 s of setup before it runs a suite, so the count
-  # follows the work rather than a fixed fan-out. The job key stays one entry in
-  # `ci-status.needs` at any size. `fail-fast: false` because a leg is a slice
-  # of one selection: cancelling the others on the first failure would hide
-  # every other failure behind whichever leg lost the race.
+  # whole tree. A leg costs about 45 s of setup before it runs a suite, so the
+  # count follows the work rather than a fixed fan-out. The job key stays one
+  # entry in `ci-status.needs` at any size. `fail-fast: false` because a leg is
+  # a slice of one selection: cancelling the others on the first failure would
+  # hide every other failure behind whichever leg lost the race.
   #
   # Three suites at a time per leg, not four (scripts/run-plugin-tests.sh
   # --jobs 3). The runner has 4 vCPUs and the suites are spawn-bound, so four
@@ -3588,16 +3566,17 @@ jobs:
       - name: Install and verify ShellCheck toolchain
         # This canonical action also makes the exact ShellCheck version
         # available to the bash-format contract suites in this same job. It
-        # verifies the install on one small file that sources nothing; the
-        # ShellCheck gate in `lint-shell` is what lints the repository.
+        # verifies the install on one small file whose one source is marked
+        # source=/dev/null; the ShellCheck gate in `lint-shell` is what lints
+        # the repository.
         uses: melodic-software/ci-workflows/.github/actions/shellcheck@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
       # The eval-coverage gate's suite reads `shfmt --to-json` and exits 2 when
       # shfmt is missing, so this job installs the same v3.14.1 pin as
-      # check-skills. The shfmt, DuckDB and lefthook downloads are cached by version (four
-      # red main runs in two weeks were these downloads failing), and a miss
+      # `check-skills`. The shfmt, DuckDB and lefthook downloads are cached by
+      # version (they were a recurring cause of red main runs), and a miss
       # retries transient failures. `--no-progress-meter` instead of `-s` keeps
       # curl's "Will retry" warning in the log. The SHA-256 check runs on a hit
       # too.
@@ -3678,12 +3657,13 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ env.BROWSER_CACHE_KEY }}
       # The animation wheels (numpy and opencv; the speech suites need their
-      # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
-      # inventory's parser packages go only on a leg whose suites need them,
-      # per the plan (`LEG_PLAN`). An under-install is loud, not quiet: those
-      # suites fail rather than skip without their dependency
-      # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, DEMO_VIDEO_REQUIRE_DEPS,
-      # INVENTORY_REQUIRE_ACORN).
+      # numpy), demo-video's locked numpy and Pillow, the inventory's parser
+      # packages and check-visual-parity's pixelmatch and pngjs go only on a leg
+      # whose suites need them, per the plan (`LEG_PLAN`). An under-install is
+      # loud, not quiet: those suites fail rather than skip without their
+      # dependency (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS,
+      # DEMO_VIDEO_REQUIRE_DEPS, INVENTORY_REQUIRE_ACORN and
+      # VISUAL_COMPARE_REQUIRE).
       - name: Install locked plugin test toolchains
         timeout-minutes: 5
         id: toolchains
@@ -3831,9 +3811,8 @@ jobs:
   # module and the planning share module, which alone ran 234 s serially on
   # main and would hold its leg near the 280 s that 1.5 x p95 allows, spread
   # their tests over pytest-xdist workers, one test class to a worker
-  # (`--dist loadscope`), since a class's tests share ordered state.
-  # Node and the root
-  # npm install come too: Python suites run the claude CLI from
+  # (`--dist loadscope`), since a class's tests share ordered state. Node and
+  # the root npm install come too: Python suites run the claude CLI from
   # node_modules/.bin and the inventory's parser packages through node.
   test-python:
     name: Test Python
