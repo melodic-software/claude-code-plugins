@@ -10,6 +10,7 @@
              [--session ID ...]
     sweep.py --data-dir D --tickets PATTERN [--branch NAME] [--since ...] [--until ...] [--scope ...] [--state-key K]
              [--format json|md]
+    sweep.py --data-dir D --pr N --repo OWNER/REPO [--branch NAME] [--since ...] [--until ...] [--scope ...] [--state-key K]
 
 Reads only the `session-record/v1` files `collect.py` wrote; it never opens a transcript. Each
 rule in `reference/sweep-rules.json` names one metric: per-session metrics report their median and
@@ -49,6 +50,12 @@ directory; a reused worktree's directory can name an older ticket, so it comes l
 sessions, their summed output tokens, the first-start-to-last-end span (a session-side proxy, not
 cycle time), the distinct linked PRs, and the gaps between consecutive sessions. `--branch NAME`
 keeps only the key the pattern matches in NAME. It refuses `--session` and `--write-report`.
+
+`--pr N --repo OWNER/REPO` prints, instead of the report, the sessions in scope and window that
+worked on that pull request (schema `audit-sessions.pr/v1`), for the skill's `pr` action: those
+whose main or subagent transcripts link the PR, or, with `--branch NAME`, ran on that branch.
+Automated sessions are kept and labeled, because lanes do PR work too. It refuses `--session` and
+`--write-report`.
 """
 
 from __future__ import annotations
@@ -67,6 +74,7 @@ import census
 
 SCHEMA = "audit-sessions.sweep/v1"
 TICKETS_SCHEMA = "audit-sessions.tickets/v1"
+PR_SCHEMA = "audit-sessions.pr/v1"
 SPAN_LABEL = "session-side proxy, not cycle time"
 RULES_SCHEMA = "audit-sessions.sweep-rules/v1"
 # Placeholders collect.py stores in place of a path; neither names one file.
@@ -84,6 +92,7 @@ VERDICTS = ("correction", "not-correction")
 EXCERPT_KEYS = ("project", "session", "started", "excerpt")
 CANDIDATE_KEYS = ("turn_id", "project", "session", "started", "flags", "excerpt")
 STATE_KEY_RE = re.compile(r"[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)+")
+REPO_RE = re.compile(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+")
 
 
 def _get(record: dict, *path: str) -> float | None:
@@ -671,6 +680,58 @@ def tickets_md(data: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def pr_matches(record: dict, repo: str, number: int, branch: str | None) -> list[str]:
+    """How a session reached the PR: `pr` or `branch`, with `-sub` when only a subagent's transcript shows it."""
+    matched = []
+    for side, suffix in (("", ""), ("_sub", "-sub")):
+        links = record.get("prs" + side) or []
+        if any(isinstance(p, dict) and p.get("number") == number and str(p.get("repo")).casefold() == repo.casefold() for p in links):
+            matched.append("pr" + suffix)
+        if branch is not None and branch in (record.get("branches" + side) or []):
+            matched.append("branch" + suffix)
+    return matched
+
+
+def pr_data(records: list[dict], repo: str, number: int, branch: str | None) -> dict:
+    sessions = []
+    for r in records:
+        if matched := pr_matches(r, repo, number, branch):
+            times = r.get("time") if isinstance(r.get("time"), dict) else {}
+            subagents = r.get("subagents") if isinstance(r.get("subagents"), dict) else {}
+            sessions.append({
+                "session_id": r["session_id"],
+                "class": census.session_class(r),
+                "start": times.get("start"),
+                "end": times.get("end"),
+                "matched_by": matched,
+                "subagents": subagents.get("count", 0),
+                "output_tokens": sum(_get(r, "tokens", side, "output") or 0 for side in ("main", "sub")),
+            })
+    sessions.sort(key=lambda s: (census.epoch(s["start"]) is None, census.epoch(s["start"]) or 0, s["session_id"]))
+    return {"repo": repo, "number": number, "branch": branch, "sessions": sessions}
+
+
+def pr_md(data: dict) -> str:
+    window = data["window"]
+    span = f"{window['since'] or 'start'} to {window['until'] or 'now'}"
+    branch = markdown_code(data["branch"]) if data["branch"] else "not given"
+    lines = [
+        f"# Sessions on {markdown_code(data['repo'])} #{data['number']} ({data['scope']})",
+        "",
+        f"Sessions read: {window['sessions']} ({span}); head branch: {branch}",
+        "",
+    ]
+    if not data["sessions"]:
+        return "\n".join(lines + ["No session links this PR or ran on its branch."]) + "\n"
+    lines += ["| Session | Class | Start | Matched by | Subagents | Output tokens |", "|---|---|---|---|---|---|"]
+    for s in data["sessions"]:
+        lines.append(
+            f"| {markdown_code(s['session_id'])} | {s['class']} | {s['start'] or 'n/a'} | {', '.join(s['matched_by'])}"
+            f" | {s['subagents']} | {_fmt(s['output_tokens'])} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def _pattern(value: str) -> re.Pattern:
     try:
         return re.compile(value)
@@ -705,7 +766,9 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--correction-candidates", action="store_true", help="print the excerpts with a turn_id for the judge")
     mode.add_argument("--judged", help="the judge's verdict file, merged as a separate unranked section")
     mode.add_argument("--tickets", type=_pattern, help="print a per-key rollup, keys matched by this regular expression")
-    parser.add_argument("--branch", help="with --tickets, only the key this pattern matches in the branch name")
+    mode.add_argument("--pr", type=census._positive, help="list the sessions that worked on this PR number")
+    parser.add_argument("--repo", help="with --pr, the PR's OWNER/REPO")
+    parser.add_argument("--branch", help="with --tickets, only the key this pattern matches in the branch name; with --pr, the PR's head branch")
     parser.add_argument("--session", nargs="+", action="extend", help="only these session ids")
     try:
         args = parser.parse_args(argv)
@@ -719,8 +782,12 @@ def main(argv: list[str] | None = None) -> int:
         return emit("json", "error", "--session reports are not kept, so --session refuses --write-report", {}, 2)
     if args.tickets is not None and (args.session or args.write_report):
         return emit("json", "error", "--tickets refuses --session and --write-report", {}, 2)
-    if args.branch is not None and args.tickets is None:
-        return emit("json", "error", "--branch needs --tickets", {}, 2)
+    if args.branch is not None and args.tickets is None and args.pr is None:
+        return emit("json", "error", "--branch needs --tickets or --pr", {}, 2)
+    if args.pr is not None and (args.session or args.write_report):
+        return emit("json", "error", "--pr refuses --session and --write-report", {}, 2)
+    if (args.pr is None) != (args.repo is None) or (args.repo is not None and not REPO_RE.fullmatch(args.repo)):
+        return emit("json", "error", "--pr and --repo OWNER/REPO go together", {}, 2)
     if args.scope == "project" and not (args.state_key and STATE_KEY_RE.fullmatch(args.state_key)):
         return emit("json", "error", "--scope project needs --state-key <identity>/<worktree>", {}, 2)
     data_dir = Path(args.data_dir)
@@ -761,6 +828,15 @@ def main(argv: list[str] | None = None) -> int:
         else:
             summary = f"{len(data['tickets'])} keys over {len(population)} sessions"
             print(json.dumps({"schema": TICKETS_SCHEMA, "status": "pass", "summary": summary, "data": data}, indent=2))
+        return 0
+    if args.pr is not None:
+        data = pr_data(scoped, args.repo, args.pr, args.branch)
+        data.update(scope=scope, window={**window, "sessions": len(scoped)})
+        if args.format == "md":
+            sys.stdout.write(pr_md(data))
+        else:
+            summary = f"{len(data['sessions'])} of {len(scoped)} sessions worked on {args.repo}#{args.pr}"
+            print(json.dumps({"schema": PR_SCHEMA, "status": "pass", "summary": summary, "data": data}, indent=2))
         return 0
     drift = census.drift(
         records, canaries, min_count=args.min_count, versions=args.versions, session_floor=args.session_floor

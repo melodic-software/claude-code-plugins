@@ -141,6 +141,19 @@
       ]
     },
     {
+      "id": 16,
+      "name": "pr-scope-finds-reads-and-hands-off-reviews",
+      "prompt": "/session-flow:audit-sessions pr --number 812 --repo 'acme/billing'. The PR is merged, and the corrections and source-control plugins are installed.",
+      "expected_output": "The skill takes the head branch from /source-control:pull-request view, collects, runs sweep.py with --pr 812 --repo 'acme/billing' and --branch, measures the matched sessions with --session, and reads their main and subagent transcripts in fresh read-only subagents sized so none gets more than a quarter of its context window, splitting a larger file by line ranges. It invokes /corrections:codify reviews and says whether PR 812 was among the merged PRs that action read. It applies no finding.",
+      "files": [],
+      "expectations": [
+        "Passes --pr 812 and --repo acme/billing to sweep.py, with the head branch from the view action as --branch",
+        "Reads subagent transcripts as well as main ones, in subagents sized to the files rather than one reader for everything",
+        "Invokes /corrections:codify reviews and says whether PR 812 was among the PRs it read",
+        "Applies no finding and edits no file"
+      ]
+    },
+    {
       "id": 11,
       "name": "now-stops-on-an-unexpanded-session-id",
       "prompt": "/session-flow:audit-sessions now (in a context where the session id substitution stayed literal)",

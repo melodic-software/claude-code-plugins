@@ -152,6 +152,17 @@
         "It does not run a session or quick retrospective, parse a transcript or score a session",
         "It writes nothing to the score history and invokes no other skill in place of naming it"
       ]
+    },
+    {
+      "id": 16,
+      "name": "pull-request-retro-names-audit-sessions-pr",
+      "prompt": "/session-flow:retro on pull request 812 in acme/billing: every session that went into it, plus what reviewers said.",
+      "expected_output": "A retro of one pull request is not a retro mode. The skill stops and names /session-flow:audit-sessions pr --number 812 --repo 'acme/billing' as the action that finds the PR's sessions and hands its review comments on. It analyzes no session itself.",
+      "files": [],
+      "expectations": [
+        "The answer names /session-flow:audit-sessions pr with --number 812 and --repo acme/billing",
+        "It does not run a session or quick retrospective, parse a transcript or score a session"
+      ]
     }
   ]
 }

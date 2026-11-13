@@ -248,10 +248,13 @@ file. The `correction` action has the session's model judge
 which stored short turns corrected the agent and reports them in a separate, unranked `Judged`
 section beside the measured findings. The `trends` action reads the health scores `retro` records
 and shows how they move across sessions, with delivery metrics beside them when the work-items
-plugin is installed.
+plugin is installed. The `pr` action looks back over one pull request: it finds the sessions that
+linked it or ran on its head branch, subagents included, reads them in subagents sized to the
+transcripts, and hands review comments to `/corrections:codify reviews` when that plugin is installed.
 
 ```shell
 /session-flow:audit-sessions                                # collect, then sweep every session
+/session-flow:audit-sessions pr --number 123 --repo 'o/r'   # every session behind one pull request
 /session-flow:audit-sessions sweep --since 2026-09-01       # a date window
 /session-flow:audit-sessions --scope project --write-report # this repository, saved report
 /session-flow:audit-sessions correction --since 2026-09-01  # model-judged corrections, reported unranked

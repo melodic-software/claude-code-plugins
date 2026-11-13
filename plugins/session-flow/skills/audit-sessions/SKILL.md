@@ -1,6 +1,6 @@
 ---
-description: "Audit every Claude Code session on this machine for wasted time and tokens against a reference baseline, routing each finding to its fix, plus session score trends over time. Use when: 'audit my sessions', 'which sessions burned the most tokens', 'show trends', or corrections keep repeating. One session's retro: /session-flow:retro."
-argument-hint: "[sweep|trends…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
+description: "Audit every Claude Code session on this machine, or every session behind one pull request, for wasted time and tokens against a reference baseline, routing each finding to its fix, plus session score trends over time. Use when: 'audit my sessions', 'which sessions burned the most tokens', 'retro this PR', 'show trends', or corrections keep repeating. One session's retro: /session-flow:retro."
+argument-hint: "[sweep|pr|trends…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Cross-session audit of transcripts with routed, never-applied findings
 ---
 
-**Arguments.** `[sweep|trends…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]`. Full form: [sweep|sweep-only|excerpts-only|now|ticket|correction|trends] [--unattended] and the options above. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions now, /audit-sessions ticket --pattern 'PROJ-\d+', /audit-sessions sweep-only --since 2026-09-01, /audit-sessions excerpts-only --scope machine --since 2026-09-01, /audit-sessions correction --since 2026-09-01, /audit-sessions trends
+**Arguments.** `[sweep|pr|trends…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]`. Full form: [sweep|sweep-only|excerpts-only|now|ticket|pr|correction|trends] [--unattended] and the options above. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions now, /audit-sessions ticket --pattern 'PROJ-\d+', /audit-sessions pr --number 123 --repo 'owner/repo', /audit-sessions sweep-only --since 2026-09-01, /audit-sessions excerpts-only --scope machine --since 2026-09-01, /audit-sessions correction --since 2026-09-01, /audit-sessions trends
 
 ## Purpose
 
@@ -28,16 +28,18 @@ a code or config review, and not Claude Code's built-in `/insights` (see "Bounda
 ## Arguments
 
 Read `$ARGUMENTS` whole. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present
-(see "Boundary" below); take it out before reading the rest. Seven actions: `sweep`, which is also what a bare invocation does,
+(see "Boundary" below); take it out before reading the rest. Eight actions: `sweep`, which is also what a bare invocation does,
 `sweep-only` and `excerpts-only`, the consumer modes below, `now` ("Current session" below), `ticket`
-("Ticket rollup" below), `correction` ("Correction lens" below) and `trends`
+("Ticket rollup" below), `pr` ("Pull request scope" below), `correction` ("Correction lens" below) and `trends`
 ("Score trends" below). `--scope`,
 `--since`, `--until` and `--write-report` pass through to `sweep.py` unchanged (dates are
 `YYYY-MM-DD`, UTC); `sweep-only` and `correction` refuse `--write-report`, `excerpts-only` requires
 `--scope`, takes `--state-key` and `--since` beside it and refuses everything else, `--write-report`
 included, and `now` and `trends` take no option. `ticket` requires `--pattern '<regex>'`, takes
 `--branch '<name>'`, `--scope`, `--since` and `--until`, and refuses `--write-report`; stop when
-`ticket` has no pattern. Stop and name this accepted set on any other token; never guess.
+`ticket` has no pattern. `pr` requires `--number <n>` and `--repo '<owner/repo>'`, takes
+`--branch '<name>'`, `--scope`, `--since` and `--until`, and refuses `--write-report`. Stop and name
+this accepted set on any other token; never guess.
 
 ## Consumer mode: `sweep-only`
 
@@ -235,6 +237,13 @@ as the report labels it, a session-side proxy, not cycle time; sessions whose ti
 working directory hold no match are counted as unkeyed and cannot be linked. `--branch` keeps only the key the pattern matches in
 that branch name. Exit 2 is a bad pattern or argument: report it and stop. Step 3's rule covers
 every key, which is text matched out of a stored title, branch or path.
+
+## Pull request scope: `pr`
+
+`pr` looks back over one pull request: every session that linked it or ran on its head branch,
+subagents included, measured, read in subagents sized to the transcripts, and its human review
+comments handed to `/corrections:codify reviews`. Read [actions/pr.md](actions/pr.md) and follow
+its process.
 
 ## Correction lens
 
