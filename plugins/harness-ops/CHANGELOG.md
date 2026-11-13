@@ -3,6 +3,30 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.12.42] - 2026-11-12
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.41] - 2026-11-12
+
+### Changed
+
+- Internal simplification, no behavior change.
+
+## [8.12.40] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
+## [8.12.39] - 2026-11-12
+
+### Added
+
+- `behavior-probes`: two auto-mode cases check that a custom `soft_deny` list without `"$defaults"` keeps a non-git default rule (a file-sourced `gh secret set` is denied; `gh secret list` runs). Record 6 now covers them and its rerun on Claude Code 2.1.322, where the denial label reads `[Destructive or Unwanted Actions]`.
+
 ## [8.12.38] - 2026-11-12
 
 ### Changed
@@ -6135,7 +6159,7 @@ Internal simplification, no behavior change.
   section composed from `skill-quality` when that plugin is installed. Mutation sits behind an
   explicit apply step and never runs on bare invocation.
 
-  Detection names its two substrates rather than blurring them: the native side is the sibling
+  Detection names its two sources rather than blurring them: the native side is the sibling
   `inventory` extractor's JSON, consumed with a `schema == 1` assertion and a presence check on
   every key read (`builtin_commands`, `bundled_skills`, `plugin_backed`, `integrity`), because the
   extractor's integrity block guards extraction drift and not its own key names. A missing key is
@@ -7555,7 +7579,7 @@ CLI behavior added or changed below was verified on **Claude Code 2.1.240**.
   session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
-  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  opt out with; the reported case was `spelling` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
   project root is outside it. The exemption is deliberate and necessary: when the project root
   itself lives under temp, as in a `mktemp -d` fixture checkout, which is how this repository's own

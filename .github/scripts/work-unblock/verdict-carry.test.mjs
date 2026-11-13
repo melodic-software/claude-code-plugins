@@ -133,9 +133,13 @@ test("a rate-limit stop's reset is carried by its job and the limit mode, and a 
   const old = loadCarry(undefined, now - 60_000, "a".repeat(64));
   old.keepRefusal(71, "limit", "2026-11-10T03:30:00Z");
   old.keepRefusal(72, "limit", "2026-11-10 03:30");
+  old.keepRefusal(73, "limit", "2026-11-10T03:30:00Z server-503");
+  old.keepRefusal(74, "limit", "2026-11-10T03:30:00Z server-403");
   old.save(join(dir, "kept.json"));
   const next = loadCarry(join(dir, "kept.json"), now, "a".repeat(64));
   assert.deepEqual(next.refusal(71, "limit"), { value: "2026-11-10T03:30:00Z" });
+  assert.deepEqual(next.refusal(73, "limit"), { value: "2026-11-10T03:30:00Z server-503" }, "a server error hold's reset and 5xx are kept");
+  assert.equal(next.refusal(74, "limit"), undefined, "a status that is no 5xx is dropped");
   assert.equal(next.refusal(71, "check"), undefined, "the reset is kept for the limit mode only");
   assert.equal(next.refusal(72, "limit"), undefined, "a reset not in the stop line's form is dropped");
 });

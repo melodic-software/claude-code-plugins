@@ -40,9 +40,9 @@ const RECORD_PREFIX = "pr-unblock-dispatched-";
 // A workflow_run dispatcher sends one dispatch per run and names its record
 // with the upstream run that started it, then the run it dispatched.
 const RUN_RECORD_NAME = /^pr-feedback-dispatched-([1-9][0-9]{0,14})-([1-9][0-9]{0,14})$/;
-// A pull_request_target dispatcher sends one dispatch, of this workflow only,
-// and names its record with the default-branch commit it ran, then the run it
-// dispatched.
+// A pull_request_target dispatcher dispatches this workflow only, and names
+// one record per dispatch with the default-branch commit it ran, then the run
+// it dispatched.
 const TARGET_EVENT = "pull_request_target";
 const TARGET_DISPATCHED = ".github/workflows/pr-refine.yml";
 const TARGET_RECORD_NAME = /^pr-unblock-target-dispatched-([0-9a-f]{40})-([1-9][0-9]{0,14})$/;

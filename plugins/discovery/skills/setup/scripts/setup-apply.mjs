@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 // Write or check the repository layer of the discovery plugin's settings,
-// docs/conventions/discovery.yaml, against schemas/discovery.schema.json.
+// <home>/discovery.yaml, against schemas/discovery.schema.json. <home> is
+// the repository's convention home.
 //
-// Usage:
-//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
-//   setup-apply.mjs [--root <dir>] --check
-//
-// The options, guarantees and exit codes are in ../../../lib/setup-apply.mjs.
+// The usage, options, guarantees and exit codes are in
+// ../../../lib/setup-apply.mjs.
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

@@ -721,7 +721,9 @@ skipped), reads that one pull request through `refine-event-dispatch.mjs` and di
 `pr-unblock-target-dispatched-<workflow commit>-<run id>`
 ([ADR 0090](../../adr/0090-let-a-pull-request-target-dispatcher-start-pr-refine.md)). A push to
 the default branch and the half-hourly tick send no `fix-docs`; a pull request that run skipped
-waits for its next event.
+waits for its next event. On a listed human's event, never the lanes App's, the job also
+dispatches each activity `refine-dispatch.activities` lists, with the same three inputs, and
+records each dispatch in its own record of that form.
 
 A third call runs each activity once more, on the central fallback subscription's token. Each
 handoff job also reads whether the org secret `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` is set and passes

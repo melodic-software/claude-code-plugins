@@ -14,7 +14,7 @@ import { OUTSIDE_ACTOR_LABEL } from "../../scripts/pr-merge/merge-holds.mjs";
 import { planPasses } from "../../scripts/pr-refine/plan-passes.mjs";
 import { decide } from "../../scripts/lib/lane-level.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
-import { configFromBase, ownedBranchesFromBase, postMergeFromBase } from "./resolve-config.mjs";
+import { configFromBase, ownedBranchesFromBase, postMergeFromBase, refineDispatchActivitiesFromBase } from "./resolve-config.mjs";
 import { laneSlots, resolve, resolveGrant, resolveLimits, slotTargets } from "./resolve.mjs";
 
 const read = (relative) =>
@@ -903,6 +903,12 @@ test("live config: pr-merge's re-fire step skips the release branch release-publ
 test("live config: fix-ci reads the owned branches, the release branch among them, from the base", () => {
   const branches = ownedBranchesFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) });
   assert.ok(branches.includes("release/plugins"), JSON.stringify(branches));
+});
+
+// Empty here, so the refine job sends no dispatch beyond fix-docs; a
+// repository that syncs this runtime may list its own activities.
+test("live config: the refine job dispatches no configured activity", () => {
+  assert.deepEqual(refineDispatchActivitiesFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) }), []);
 });
 
 // The canary pass records owner-login agent merges on their own path, record

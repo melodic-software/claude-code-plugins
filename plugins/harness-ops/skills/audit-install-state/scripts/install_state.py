@@ -40,6 +40,7 @@ import stat
 import subprocess
 import sys
 import time
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Callable
@@ -717,20 +718,12 @@ def deny_roots(records: list[dict]) -> list[str]:
     by case are two directories, and folding them would drop protection from
     one of them.
     """
-    out: list[str] = []
-    for rec in records:
-        root_path = rec["deny_root"]
-        if root_path not in out:
-            out.append(root_path)
-    return out
+    return list(dict.fromkeys(rec["deny_root"] for rec in records))
 
 
 def under_deny(rel: str, denied: list[str]) -> bool:
     rel = rel.replace("\\", "/")
-    for d in denied:
-        if d in ("", ".") or rel == d or rel.startswith(d + "/"):
-            return True
-    return False
+    return any(d in ("", ".") or rel == d or rel.startswith(d + "/") for d in denied)
 
 
 DOCUMENTED_MINIMUM_DAYS = 1
@@ -785,24 +778,26 @@ def read_retention(root: Path) -> dict:
         "basis": "https://code.claude.com/docs/en/claude-directory.md (Application data)",
     }
 
+    def apply_setting(data: object, field: str) -> None:
+        if not isinstance(data, dict) or "cleanupPeriodDays" not in data:
+            return
+        raw = data["cleanupPeriodDays"]
+        days = valid_retention_days(raw)
+        if days is None:
+            # Reported, not silently ignored, and it does NOT drive
+            # effective_days -- the previously effective value stands.
+            result[field] = f"invalid: {raw!r}"
+        else:
+            result[field] = result["effective_days"] = days
+            result["effective_evidence"] = MEASURED
+
     settings_unparsable = False
     settings = root / "settings.json"
     if settings.is_file():
         try:
             data = json.loads(read_text_guarded(root, "settings.json"))
             result["user_settings_parse"] = "ok"
-            if isinstance(data, dict) and "cleanupPeriodDays" in data:
-                days = valid_retention_days(data["cleanupPeriodDays"])
-                if days is None:
-                    # Reported, not silently ignored, and it does NOT drive
-                    # effective_days -- the documented default stands instead.
-                    result["user_setting_days"] = (
-                        f"invalid: {data['cleanupPeriodDays']!r}"
-                    )
-                else:
-                    result["user_setting_days"] = days
-                    result["effective_days"] = days
-                    result["effective_evidence"] = MEASURED
+            apply_setting(data, "user_setting_days")
         except (OSError, json.JSONDecodeError) as exc:
             settings_unparsable = True
             result["user_settings_parse"] = f"failed: {type(exc).__name__}"
@@ -829,16 +824,7 @@ def read_retention(root: Path) -> dict:
                 data = json.loads(
                     candidate.read_text(encoding="utf-8", errors="replace")
                 )
-                if isinstance(data, dict) and "cleanupPeriodDays" in data:
-                    days = valid_retention_days(data["cleanupPeriodDays"])
-                    if days is None:
-                        result["managed_setting_days"] = (
-                            f"invalid: {data['cleanupPeriodDays']!r}"
-                        )
-                    else:
-                        result["managed_setting_days"] = days
-                        result["effective_days"] = days
-                        result["effective_evidence"] = MEASURED
+                apply_setting(data, "managed_setting_days")
             except (OSError, json.JSONDecodeError):
                 result["managed_setting_days"] = "unparsable"
                 result["findings"].append(
@@ -856,13 +842,9 @@ def read_retention(root: Path) -> dict:
                 )
             break
 
-    # The finding above is raised while reading settings.json, before managed settings
-    # have been looked at -- but its own claim names managed settings as the exception
-    # that keeps the sweep running. On an enterprise machine that supplies a valid
-    # cleanupPeriodDays, leaving it in place told the reader that nothing is being swept
-    # and that every staleness reading is suspect, when neither is true. Withdraw it once
-    # the exception is measured to apply. The parse failure itself is still reported, in
-    # `user_settings_parse`, so no evidence is lost.
+    # The settings-unparsable finding names managed settings as the exception that
+    # keeps the sweep running, so withdraw it once a valid managed value is measured.
+    # The parse failure itself stays reported in `user_settings_parse`.
     if settings_unparsable and isinstance(result["managed_setting_days"], int):
         result["findings"] = [
             f
@@ -922,11 +904,7 @@ def count_files(root: Path, exclude: set[str] | None = None) -> dict[str, int]:
 
 
 def count_by_entry(rows: list[FileRow]) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for row in rows:
-        head = top_level_name(row.relpath)
-        counts[head] = counts.get(head, 0) + 1
-    return counts
+    return dict(Counter(top_level_name(row.relpath) for row in rows))
 
 
 def walk_tree(
@@ -955,9 +933,7 @@ def walk_tree(
             except OSError as exc:
                 errors.append({"path": rel, "error": repr(exc)})
                 continue
-            surface, _note = classify_entry(rel)
-            if is_never_read(rel) and surface != SECRET:
-                surface = SECRET
+            surface = SECRET if is_never_read(rel) else classify_entry(rel)[0]
             verdict = verdict_for(rel, probe=probe)
             rows.append(
                 FileRow(
@@ -998,23 +974,16 @@ def rollup(
     out: list[dict] = []
     for name, members in sorted(groups.items()):
         surface, note = classify_entry(name)
-        # `classify_entry` consults SURFACE_TABLE and nothing else, so a top-level
-        # directory with no table row of its own reads `unclassified` even when the
-        # files under it are secret-bearing: `ide/*.lock` is in NEVER_READ_GLOBS and
-        # every member row is promoted to SECRET by `walk_tree`, but `ide` has no
-        # SURFACE_TABLE key, so the entry summary read `unclassified` -- and its
-        # staleness verdict `unclassified-report-only` rather than `keep`. The entry
-        # line is what a reader scans first; it must never be less alarming than the
-        # rows beneath it, so a SECRET member promotes the entry.
+        # `classify_entry` reads SURFACE_TABLE only, so an entry with no row of its
+        # own (such as `ide`, whose `*.lock` members are never-read) would read
+        # `unclassified` above SECRET member rows. The entry line is what a reader
+        # scans first and must never be milder than its rows, so a SECRET member
+        # promotes the entry.
         secret_members = sum(1 for m in members if m.surface == SECRET)
         if surface != SECRET and secret_members:
             surface = SECRET
-            # The count, not just the fact: a mixed tree can be promoted by a couple of
-            # vendored `*.pem` bundles, and the reader needs it against the `files` field
-            # sitting beside it to see the proportion rather than assume the whole entry
-            # is secret. Promotion is still the right call -- the verdict it produces is
-            # `keep`, and a report-only audit must not summarize a secret-bearing file
-            # under a milder line.
+            # The count lets a reader weigh it against `files`: a mixed tree can be
+            # promoted by a couple of vendored `*.pem` bundles.
             note = (
                 f"Contains {secret_members} never-read secret-bearing file(s), so the entry "
                 f"is classified by its contents rather than by its own name. "
@@ -1141,8 +1110,7 @@ def recent_writers(rows: list[FileRow], hours: int) -> list[dict]:
     for row in rows:
         if row.mtime >= cutoff:
             head = top_level_name(row.relpath)
-            if head not in seen or row.mtime > seen[head]:
-                seen[head] = row.mtime
+            seen[head] = max(seen.get(head, row.mtime), row.mtime)
     return [
         {"entry": k, "newest_write": v, "evidence": MEASURED}
         for k, v in sorted(seen.items(), key=lambda kv: kv[1], reverse=True)
@@ -1161,6 +1129,19 @@ WALK_PROC = "proc"
 WALK_PS = "ps"
 WALK_CIM = "cim"
 WALK_PARENT_ONLY = "parent-only"
+
+_WALK_NOTES = {
+    WALK_PROC: "The auditor's own ancestry was read from /proc.",
+    WALK_PS: "The auditor's own ancestry was read from one `ps` listing.",
+    WALK_CIM: "The auditor's own ancestry was read from one Win32_Process listing.",
+    "supplied": "The caller supplied the auditor PID set.",
+    WALK_PARENT_ONLY: (
+        "No process listing could be obtained, so the auditor's ancestry stops "
+        "at its parent. A marker held by the launching Claude Code session, "
+        "normally two or more generations up, is NOT marked self_held here; "
+        "an `alive` PID group may still be this session."
+    ),
+}
 
 
 def _parent_from_proc(pid: int) -> int | None:
@@ -1281,15 +1262,14 @@ def summarize_numeric(
     """
     if self_pids is None:
         self_pids, self_pids_walk = auditor_ancestry()
-    buckets: dict[str, int] = {}
+    buckets: Counter[str] = Counter()
     pid_groups: dict[int, dict] = {}
     shapes: dict[str, dict] = {}
-    by_parent: dict[str, int] = {}
+    by_parent: Counter[str] = Counter()
     for row in rows:
         if row.number_meaning == NO_NUMBER:
             continue
-        key = f"{row.number_meaning}/{row.liveness}"
-        buckets[key] = buckets.get(key, 0) + 1
+        buckets[f"{row.number_meaning}/{row.liveness}"] += 1
         if row.number_meaning == PID:
             pid = extract_pid(row.relpath) or -1
             group = pid_groups.setdefault(
@@ -1313,8 +1293,7 @@ def summarize_numeric(
                 shape, {"shape": shape, "count": 0, "example": row.relpath}
             )
             entry["count"] += 1
-            head = top_level_name(row.relpath)
-            by_parent[head] = by_parent.get(head, 0) + 1
+            by_parent[top_level_name(row.relpath)] += 1
     pid_typed = []
     for group in sorted(pid_groups.values(), key=lambda g: g["pid"]):
         group["paths"] = sorted(group["paths"])
@@ -1333,22 +1312,7 @@ def summarize_numeric(
     return {
         "counts_by_meaning_and_liveness": dict(sorted(buckets.items())),
         "self_pids_walk": walk,
-        "self_pids_walk_note": (
-            "The auditor's own ancestry was read from /proc."
-            if walk == WALK_PROC
-            else "The auditor's own ancestry was read from one `ps` listing."
-            if walk == WALK_PS
-            else "The auditor's own ancestry was read from one Win32_Process listing."
-            if walk == WALK_CIM
-            else "The caller supplied the auditor PID set."
-            if walk == "supplied"
-            else (
-                "No process listing could be obtained, so the auditor's ancestry stops "
-                "at its parent. A marker held by the launching Claude Code session, "
-                "normally two or more generations up, is NOT marked self_held here; "
-                "an `alive` PID group may still be this session."
-            )
-        ),
+        "self_pids_walk_note": _WALK_NOTES.get(walk, _WALK_NOTES[WALK_PARENT_ONLY]),
         "pid_typed": pid_typed,
         "unknown_meaning_sample": sample,
         "unknown_shapes_total": len(shapes),
@@ -1390,16 +1354,12 @@ def home_root_state(root: Path) -> list[dict]:
                 "been verified to be one, so no liveness lookup was attempted -- an unverified "
                 "guess here is exactly the error this engine exists to prevent. Judge by age."
             )
-        out.append(
-            {
-                **record,
-                "note": (
-                    "Home-root state. Not covered by the ~/.claude retention sweep. Values inside "
-                    "are never read by this engine (MCP server configs can carry tokens). The "
-                    "supported way to shed project state from it is `claude purge`."
-                ),
-            }
+        record["note"] = (
+            "Home-root state. Not covered by the ~/.claude retention sweep. Values inside "
+            "are never read by this engine (MCP server configs can carry tokens). The "
+            "supported way to shed project state from it is `claude purge`."
         )
+        out.append(record)
     return out
 
 
@@ -1555,17 +1515,19 @@ def largest_subtrees(
             bucket = agg.setdefault(key, [0, 0])
             bucket[0] += row.bytes
             bucket[1] += 1
-    kept: list[tuple[str, list[int]]] = []
-    for key, (size, files) in agg.items():
-        prefix = key + "/"
-        children = [
-            v[0]
-            for k, v in agg.items()
-            if k.startswith(prefix) and "/" not in k[len(prefix) :]
-        ]
-        if size and children and max(children) >= passthrough * size:
-            continue
-        kept.append((key, [size, files]))
+    largest_child: dict[str, int] = {}
+    for key, (size, _files) in agg.items():
+        parent = key.rpartition("/")[0]
+        largest_child[parent] = max(largest_child.get(parent, 0), size)
+    kept = [
+        (key, bucket)
+        for key, bucket in agg.items()
+        if not (
+            bucket[0]
+            and key in largest_child
+            and largest_child[key] >= passthrough * bucket[0]
+        )
+    ]
     ranked = sorted(kept, key=lambda kv: (-kv[1][0], kv[0]))[:top_n]
     return [
         {
@@ -1593,35 +1555,28 @@ def node_modules_bucket(rows: list[FileRow]) -> dict:
     the clone, a hook using the documented `${CLAUDE_PLUGIN_DATA}` pattern),
     so those bytes are measured separately and attributed to nobody.
     """
-    total = 0
-    files = 0
-    dirs: set[str] = set()
-    other_total = 0
-    other_files = 0
-    other_dirs: set[str] = set()
+    cache = {"bytes": 0, "files": 0, "directories": set()}
+    other = {"bytes": 0, "files": 0, "directories": set()}
     for row in rows:
         parts = row.relpath.split("/")
         if parts[0] != "plugins" or "node_modules" not in parts[1:-1]:
             continue
-        idx = parts.index("node_modules")
-        if _is_cache_version_node_modules(parts):
-            dirs.add("/".join(parts[: idx + 1]))
-            total += row.bytes
-            files += 1
-        else:
-            other_dirs.add("/".join(parts[: idx + 1]))
-            other_total += row.bytes
-            other_files += 1
-    return {
-        "bytes": total,
-        "files": files,
-        "directories": sorted(dirs),
-        "evidence": MEASURED,
-        "elsewhere_under_plugins": {
-            "bytes": other_total,
-            "files": other_files,
-            "directories": sorted(other_dirs),
+        tally = cache if _is_cache_version_node_modules(parts) else other
+        tally["bytes"] += row.bytes
+        tally["files"] += 1
+        tally["directories"].add("/".join(parts[: parts.index("node_modules") + 1]))
+
+    def measured(tally: dict) -> dict:
+        return {
+            **tally,
+            "directories": sorted(tally["directories"]),
             "evidence": MEASURED,
+        }
+
+    return {
+        **measured(cache),
+        "elsewhere_under_plugins": {
+            **measured(other),
             "note": (
                 "node_modules under plugins/ outside the cache's version-directory layout "
                 "(marketplace checkouts, plugin data directories). Not product-installed by "
@@ -1659,12 +1614,11 @@ def unreferenced_versions(
     to `opened` when given.
     """
     opened = set() if opened is None else opened
-    sizes: dict[tuple[str, str, str], int] = {}
+    sizes: Counter[tuple[str, str, str]] = Counter()
     for row in rows:
         parts = row.relpath.split("/")
         if len(parts) >= 6 and parts[:2] == ["plugins", "cache"]:
-            key = (parts[2], parts[3], parts[4])
-            sizes[key] = sizes.get(key, 0) + row.bytes
+            sizes[(parts[2], parts[3], parts[4])] += row.bytes
     if not sizes:
         return [], None
 
@@ -1711,12 +1665,10 @@ def unreferenced_versions(
 def engine_version() -> str:
     """The owning plugin's manifest version, or `unknown` outside a plugin layout."""
     try:
-        manifest = (
-            Path(__file__).resolve().parents[3] / ".claude-plugin" / "plugin.json"
-        )
+        manifest = _LIB_DIR.parent / ".claude-plugin" / "plugin.json"
         data = json.loads(manifest.read_text(encoding="utf-8"))
         return str(data.get("version") or "unknown")
-    except (OSError, ValueError, IndexError):
+    except (OSError, ValueError):
         return "unknown"
 
 
@@ -1913,38 +1865,17 @@ def write_csv(rows: list[FileRow], path: Path) -> int:
     must never decide how much of the tree reaches the artifact, or the report
     silently drops most of the install while its own prose claims completeness.
     """
-    written = 0
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(
-            [
-                "relpath",
-                "bytes",
-                "mtime_utc",
-                "surface",
-                "number_meaning",
-                "liveness",
-                "liveness_reason",
-                "deny_listed",
-                "evidence",
-            ]
+            "mtime_utc" if field.name == "mtime" else field.name
+            for field in dataclasses.fields(FileRow)
         )
-        for row in sorted(rows, key=lambda r: r.relpath):
-            writer.writerow(
-                [
-                    csv_safe(row.relpath),
-                    row.bytes,
-                    row.mtime,
-                    csv_safe(row.surface),
-                    csv_safe(row.number_meaning),
-                    csv_safe(row.liveness),
-                    csv_safe(row.liveness_reason),
-                    row.deny_listed,
-                    csv_safe(row.evidence),
-                ]
-            )
-            written += 1
-    return written
+        writer.writerows(
+            [csv_safe(value) for value in dataclasses.astuple(row)]
+            for row in sorted(rows, key=lambda r: r.relpath)
+        )
+    return len(rows)
 
 
 def main(argv: list[str] | None = None) -> int:

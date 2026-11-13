@@ -99,6 +99,8 @@ fi
 #                                   403 with those headers and that message;
 #                                   graphql's resource on a graphql call
 #   last <reset> <body>             200 that spends the last request
+#   held <5xx> <retry-after>        that status with Retry-After and headroom
+#                                   left: a server error hold, no rate limit
 #   fail <status> <message>         that status, no rate-limit headers
 #   net                             no response: a network error, no status
 # Without -i only the body, or the error text on stderr, is printed. sleep
@@ -127,6 +129,11 @@ limit)
     printf '\r\n{"message":"%s"}\n' "$rest"
   fi
   printf 'gh: %s (HTTP 403)\n' "$rest" >&2
+  exit 1
+  ;;
+held)
+  [[ -z $include ]] || printf 'HTTP/2.0 %s X\r\nX-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 4000\r\nRetry-After: %s\r\n\r\n{}\n' "$a" "$b"
+  printf 'gh: Service Unavailable (HTTP %s)\n' "$a" >&2
   exit 1
   ;;
 fail)
@@ -424,6 +431,32 @@ if [[ "$out" != *"rate limit blocks"* ]]; then
   ok "a guessed stop at the third send prints no reset"
 else
   fail "a guessed stop at the third send named a reset: '$out'"
+fi
+
+# A 5xx whose only signal is Retry-After is held as a rate limit is, but each
+# line gh_read writes for it names the server error, never a rate limit.
+fresh
+STUB_SCRIPT='held 503 30
+ok after' run 'x=$(gh_read repos/o/r/pulls/1); echo "got $x"'
+check "a server error hold inside the deadline is waited out under its own wording" 0 2 "31" \
+  "::notice title=GitHub server error::'gh api repos/o/r/pulls/1' is held by GitHub's Retry-After on HTTP 503; waiting 31s for it to pass, then reading again." "rate limit"
+
+fresh
+STUB_SCRIPT='held 502 3000' run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+check "a server error hold past the deadline fails the read at once under its own wording" 0 1 "" \
+  "::error title=GitHub server error::GitHub answered HTTP 502 with a Retry-After, which holds 'gh api repos/o/r/pulls/1' until 2026-10-24T00:50:00Z, past the 2026-10-24T00:10:00Z ci-status can wait to inside its timeout; a re-run after 2026-10-24T00:50:00Z is needed." "rate limit"
+
+fresh
+STUB_SCRIPT='fail 502 Bad Gateway
+fail 502 Bad Gateway
+held 504 30
+ok never' run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+jitter "a third send that is a server error hold names it and its time" 0 3 5 10 -- \
+  "::error title=GitHub server error::GitHub answered HTTP 504 with a Retry-After, which holds 'gh api repos/o/r/pulls/1' until 2026-10-24T00:0"
+if [[ "$out" == *", and this read has made its 3 sends; a re-run after 2026-10-24T00:0"* && "$out" != *"rate limit"* ]]; then
+  ok "a third send's server error hold asks for a re-run after it, naming no rate limit"
+else
+  fail "a third send's server error hold was worded '$out'"
 fi
 
 ci_gh_read::reset "$TMP_ROOT" $((NOW - 1))

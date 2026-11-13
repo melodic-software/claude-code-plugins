@@ -2563,3 +2563,125 @@ test("the lane token request passes the resolved grant's actions, so an actions 
     assert.match(block, new RegExp(`\\n {10}${scope}: \\$\\{\\{ steps\\.config\\.outputs\\.${scope} \\}\\}\\n`));
   }
 });
+
+// A server error hold (a 5xx whose only signal was Retry-After) exits 75 and
+// holds as a rate limit does; the job's cause file beside the stop file says
+// which it was, and each relay of that exit names it. No cause, or a rate
+// limit among the stops ending then, reads as a rate limit.
+const HOLD = "4102444800";
+const SERVER_STOP = { stop: `* ${HOLD}\n`, cause: `* ${HOLD} server-503\n` };
+
+// Runs step `name` of `list` in a fresh RUNNER_TEMP holding `stop` and `cause`,
+// with .base holding the repository's .github and `gate`, and a python3 and a
+// gate that exit `code`.
+const runHeld = (name, list, { stop, cause, code = 75, env = {} } = {}) => {
+  const dir = tempDir("pr-merge-held-");
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    mkdirSync(join(dir, ".base"));
+    for (const top of [".github", "docs", "lib", "plugins", "scripts"]) symlinkSync(join(root, top), join(dir, ".base", top));
+    mkdirSync(join(dir, "api-budget"));
+    if (stop !== undefined) writeFileSync(join(dir, "api-budget", "stop"), stop);
+    if (cause !== undefined) writeFileSync(join(dir, "api-budget", "cause"), cause);
+    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\necho '{"needsDispatch": false}'\nexit ${code}\n`);
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "5000/5000 reset=1"\n`);
+    writeFileSync(join(dir, ".base", "gate"), `#!/usr/bin/env bash\necho '{"error": "held"}'\nexit ${code}\n`);
+    for (const file of [join(bin, "python3"), join(bin, "gh"), join(dir, ".base", "gate")]) chmodSync(file, 0o755);
+    writeFileSync(join(dir, "resolved-config.json"), '{"selected": {"args": ""}}');
+    writeFileSync(join(dir, "held.json"), "[]");
+    writeFileSync(join(dir, "candidates.json"), JSON.stringify([{ number: 7, head: "h7", updatedAt: "u" }]));
+    const output = join(dir, "output");
+    const result = spawnSync("bash", ["-c", runScript(name, list)], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        RUNNER_TEMP: dir,
+        GITHUB_OUTPUT: output,
+        GITHUB_STEP_SUMMARY: join(dir, "step-summary"),
+        REPO: "o/r",
+        OWNER: "o",
+        SCRIPT: "gate",
+        BABYSIT_VERIFY_GH_TOKEN: "t",
+        KILL_SWITCH: "proceed",
+        RUNG_CAP: "",
+        BUDGET_MINUTES: "",
+        CANDIDATE_MINUTES: "",
+        DEFERRED_MINUTES: "",
+        ...env,
+      },
+    });
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr, output: existsSync(output) ? readFileSync(output, "utf8") : "" };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("rate_stop_cause names a server error hold only when every stop ending then is one", () => {
+  const cases = [
+    ["a * server error hold", `* ${HOLD}\n`, `* ${HOLD} server-503\n`, "a GitHub server error hold (HTTP 503 with a Retry-After)"],
+    ["no cause file", `* ${HOLD}\n`, undefined, "a GitHub rate limit"],
+    ["a later stop with no cause", `core 4102448400\n* ${HOLD}\n`, `* ${HOLD} server-503\n`, "a GitHub rate limit"],
+    ["a rate limit ending then too", `* ${HOLD}\ncore ${HOLD}\n`, `* ${HOLD} server-502\ncore ${HOLD} limit\n`, "a GitHub rate limit"],
+    ["a cause for no stop in the file", `core ${HOLD}\n`, `graphql ${HOLD} server-503\n`, "a GitHub rate limit"],
+    ["a pool's own server error hold", `graphql ${HOLD}\n`, `graphql ${HOLD} server-504\n`, "a GitHub server error hold (HTTP 504 with a Retry-After)"],
+  ];
+  for (const [name, stop, cause, want] of cases) {
+    const dir = tempDir("pr-merge-stop-cause-");
+    try {
+      mkdirSync(join(dir, "api-budget"));
+      writeFileSync(join(dir, "api-budget", "stop"), stop);
+      if (cause !== undefined) writeFileSync(join(dir, "api-budget", "cause"), cause);
+      const script = `. ${join(root, ".github/actions/log-api-budget/api-budget.bash")}\n. ${join(root, ".github/scripts/pr-merge/rate-stop.bash")}\nrate_stop_cause\n`;
+      const result = spawnSync("bash", ["-c", script], { encoding: "utf8", env: { ...process.env, RUNNER_TEMP: dir } });
+      assert.equal(result.stdout.trim(), want, `${name}: ${result.stderr}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("post-merge-dispatch's check names a server error hold, and hands it on in its rate-limited output", () => {
+  const held = runHeld("Check earlier lane merges", stepsOf(jobBlock("post-merge-dispatch")), SERVER_STOP);
+  assert.notEqual(held.status, 0, held.stderr);
+  assert.ok(held.stdout, held.stderr);
+  assert.match(held.stdout, /^::error title=GitHub server error::the post-merge check stopped on a GitHub server error hold \(HTTP 503 with a Retry-After\); no full run is started or re-run$/m);
+  assert.doesNotMatch(held.stdout, /rate limit/);
+  assert.match(held.output, /^rate-limited=every pool until 2100-01-01T00:00:00Z, held on HTTP 503 with a Retry-After$/m);
+  const limited = runHeld("Check earlier lane merges", stepsOf(jobBlock("post-merge-dispatch")), { stop: `* ${HOLD}\n`, cause: `* ${HOLD} limit\n` });
+  assert.match(limited.stdout, /^::error::the post-merge check stopped on a GitHub rate limit; no full run is started or re-run$/m);
+  assert.match(limited.output, /^rate-limited=every pool until 2100-01-01T00:00:00Z$/m);
+});
+
+for (const id of ["merge", "enable-auto-merge"]) {
+  test(`${id} names post-merge-dispatch's server error hold under its own title`, () => {
+    const list = stepsOf(jobBlock(id));
+    const run = (STOP) => spawnSync("bash", ["-c", runScript(list[0].name, list)], { encoding: "utf8", env: { ...process.env, STOP } });
+    const held = run("every pool until 2100-01-01T00:00:00Z, held on HTTP 503 with a Retry-After");
+    assert.equal(held.status, 1);
+    assert.equal(
+      held.stdout,
+      "::error title=GitHub server error::post-merge-dispatch stopped on a GitHub server error hold (every pool until 2100-01-01T00:00:00Z, held on HTTP 503 with a Retry-After); this job sends nothing to GitHub\n",
+    );
+    assert.match(run("the core pool until 2100-01-01T00:00:00Z").stdout, /^::error title=GitHub rate limit::post-merge-dispatch stopped on a GitHub rate limit \(the core pool until 2100-01-01T00:00:00Z\)/);
+  });
+}
+
+test("the merge job's check names a server error hold", () => {
+  const held = runHeld("Check earlier lane merges", steps, SERVER_STOP);
+  assert.notEqual(held.status, 0);
+  assert.match(held.stdout, /^::error::the post-merge check stopped on a GitHub server error hold \(HTTP 503 with a Retry-After\); no remediation or gate runs$/m);
+  assert.doesNotMatch(held.stdout, /rate limit/);
+  assert.match(runHeld("Check earlier lane merges", steps, { stop: `* ${HOLD}\n` }).stdout, /^::error::the post-merge check stopped on a GitHub rate limit; no remediation or gate runs$/m);
+});
+
+test("a gate stopped on a server error hold is named so, and no later candidate is gated", () => {
+  const held = runHeld("Run the merge gate on each candidate", steps, SERVER_STOP);
+  assert.equal(held.status, 1, held.stderr);
+  assert.match(held.stdout, /^::error title=GitHub server error::PR #7's gate stopped on a GitHub server error hold \(HTTP 503 with a Retry-After\); no later candidate is gated this run$/m);
+  assert.match(held.output, /^rate-limited=true$/m);
+  const limited = runHeld("Run the merge gate on each candidate", steps, { stop: `* ${HOLD}\n`, cause: `* ${HOLD} limit\n` });
+  assert.match(limited.stdout, /^::error title=GitHub rate limit::PR #7's gate stopped on a GitHub rate limit; no later candidate is gated this run$/m);
+});

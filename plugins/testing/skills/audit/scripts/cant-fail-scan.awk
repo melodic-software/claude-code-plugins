@@ -1072,8 +1072,6 @@ function arg_path(args,    first, p) {
   return ""
 }
 
-function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-
 # Literal parts joined with "/", after an optional leading base that names the
 # test's directory (__dirname, import.meta.dirname).
 function join_literals(args,    out, part, more) {

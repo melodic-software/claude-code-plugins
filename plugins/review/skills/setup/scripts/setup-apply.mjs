@@ -1,10 +1,7 @@
 #!/usr/bin/env node
 // Write or check the repository layer of the review plugin's settings,
-// docs/conventions/review.yaml, against schemas/review.schema.json.
-//
-// Usage:
-//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
-//   setup-apply.mjs [--root <dir>] --check [--ref <ref>]
+// <home>/review.yaml, against schemas/review.schema.json. <home> is the
+// repository's convention home.
 //
 // --ref reads the file as committed at a 40-hex commit id or origin/<name>, so
 // a policy-floor key is read from the default branch and a branch cannot set

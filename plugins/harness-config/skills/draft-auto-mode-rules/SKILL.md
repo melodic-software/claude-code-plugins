@@ -91,8 +91,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/automode-block
 
 Three things there change what you should ask:
 
-- A section missing `"$defaults"` means built-in rules are **already** discarded. Say so before adding
-  to that section.
+- A section missing `"$defaults"` drops the built-in rules by the docs' account (pointer in Phase 3),
+  though for `soft_deny` the behavior probes observed them kept, git and non-git rules alike
+  (`/harness-ops:behavior-probes` record 6). Say both, and add the token before adding to that
+  section: it is correct under either behavior.
 - A `C2b-contradiction` or `C3-shadowed` finding means the block already disagrees with itself.
   Resolving that comes before adding an entry that would deepen it.
 - A `status=skipped` or `status=unavailable` result means you could **not** read the block. Draft

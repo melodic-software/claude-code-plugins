@@ -56,6 +56,14 @@ Amended 2026-11-07: the half-hourly tick no longer dispatches fix-docs, so this 
 fix-docs's only start (issue #13717's done-when, after an event-started Refine was seen reaching
 review).
 
+Amended 2026-11-12 (owner decision, configurable refine dispatch list): the same run may also
+dispatch each `pr-refine.yml` activity the base config's `refine-dispatch.activities` lists, from
+a closed allowlist in `refine-event-dispatch.mjs` (`fix-marker`), on a listed human's event only,
+never the lanes bot's, whose patch push would start the activity again. Each dispatch gets its own
+`pr-unblock-target-dispatched-<commit>-<run id>` record, so one run may hold two; the gate and the
+broker each accept the record that names their own run. The invariants and the checks above are
+unchanged. The list is empty by default, and in this repository.
+
 ## Alternatives considered
 
 - **Start Refine from a `pull_request` run.** Its file and checkout come from the PR head, so a

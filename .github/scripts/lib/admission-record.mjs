@@ -21,7 +21,7 @@ export async function writeAdmissionRecord(github, repository, number, { actorId
   await github("POST", `/repos/${repository}/issues/${number}/comments`, { body: recordBody({ actorId, title, body }) });
 }
 
-const timeOf = (value) => (typeof value === "string" ? Date.parse(value) : Number.NaN);
+export const timeOf = (value) => (typeof value === "string" ? Date.parse(value) : Number.NaN);
 
 // The lanes App's admission records, oldest first, each {at, record}. A
 // comment counts only when the App's user id wrote it (never its login), its

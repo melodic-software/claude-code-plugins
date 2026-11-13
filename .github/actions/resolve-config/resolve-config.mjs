@@ -662,6 +662,12 @@ export function tidyCutoffsFromBase(env) {
   return configFromBase(env).activities["resolve-issue"]?.tidy?.cutoffs ?? null;
 }
 
+// `refine-dispatch.activities` as set, or [], for the refine event dispatcher,
+// which checks each id against its own allowlist.
+export function refineDispatchActivitiesFromBase(env) {
+  return configFromBase(env)["refine-dispatch"]?.activities ?? [];
+}
+
 // The base config's `models.issue-dimensions` leaf as set, or null, after the
 // same file checks as resolve(), for intake triage's verdict writer.
 export function issueDimensionsFromBase(env) {

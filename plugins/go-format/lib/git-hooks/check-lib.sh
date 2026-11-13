@@ -50,6 +50,8 @@
 #   exits 1 even when it exits 0 itself: a check that saw only part of the
 #   change must not pass it.
 #   checks_partly_staged <p>   0 when <p> has unstaged changes too
+#   checks_staged_gone <p>     pre-commit: 0 when <p> is gone from the work
+#                              tree and the index holds it as a regular file
 #   checks_refuse_partly_staged
 #                              a rewriting check calls this first: prints the
 #                              contract line per partly staged path, returns 1
@@ -553,6 +555,13 @@ checks_partly_staged() {
     [[ "$f" == "$1" ]] && return 0
   done <"$CHECKS_TMP/unstaged"
   return 1
+}
+
+# checks_staged_gone <path>: 0 at pre-commit when <path> is gone from the work tree and
+# the index holds it as a regular file, not a symlink (mode 120000) or a submodule.
+checks_staged_gone() {
+  [[ "$CHECKS_MODE" == pre-commit && ! -e "$1" && ! -L "$1" ]] || return 1
+  [[ "$(git ls-files -s -- ":(literal)$1" 2>/dev/null)" == 100* ]]
 }
 
 # checks_refuse_config_drift [--if <fn>] <name>... -- <path>...: pre-commit

@@ -413,13 +413,21 @@ _READ_VERBS = frozenset({"checks", "diff", "download", "list", "status", "view"}
 class RateLimitExhausted(BaseException):
     """A GitHub rate-limit pool is exhausted: nothing is sent to it before
     `reset`. A BaseException, like `DeadlineReached`, so no `except Exception`
-    handler on the way up turns it into a verdict."""
+    handler on the way up turns it into a verdict. `server_status` is the 5xx
+    of a `server_error_hold`: the same hold, reported as a server error."""
 
-    def __init__(self, pool: str, reset: float | None, reason: str) -> None:
+    def __init__(
+        self,
+        pool: str,
+        reset: float | None,
+        reason: str,
+        server_status: int | None = None,
+    ) -> None:
         super().__init__(pool, reset, reason)
         self.pool = pool
         self.reset = reset
         self.reason = reason
+        self.server_status = server_status
 
     def error_line(self) -> str:
         try:
@@ -433,6 +441,12 @@ class RateLimitExhausted(BaseException):
         except (OverflowError, OSError, ValueError):
             # MAX_RESET is past the year 9999 datetime can show.
             reset = f"epoch second {int(self.reset)}"
+        if self.server_status is not None:
+            return (
+                "::error title=GitHub server error::"
+                f"GitHub answered HTTP {self.server_status} with a Retry-After; "
+                f"no GitHub call is sent before {reset}"
+            )
         return (
             "::error title=GitHub rate limit::"
             f"{_pool_label(self.pool)} pool is exhausted "
@@ -473,6 +487,12 @@ _job_stops_error: str | None = None
 # digits only. Lines split on \n alone, so a line holding a \r is skipped, and
 # the piece after the last \n is no line.
 _STOP_LINE = re.compile(r"([a-z_]+|\*) ([0-9]{1,12})")
+# The job's cause file beside it, as rate-guard.mjs reads it: one line
+# `<pool> <reset epoch> <cause>` per stop, cause `limit` or `server-<5xx>` for
+# a `server_error_hold`, read once with the stop file. A missing or unreadable
+# file holds no cause.
+_CAUSE_LINE = re.compile(r"([a-z_]+|\*) ([0-9]{1,12}) (limit|server-5[0-9]{2})")
+_job_causes: list[tuple[str, int, str]] = []
 
 
 def reset_rate_guard() -> None:
@@ -484,11 +504,49 @@ def reset_rate_guard() -> None:
     _trip_reported = False
     _job_stops = None
     _job_stops_error = None
+    _job_causes.clear()
 
 
 def _stop_file() -> str | None:
     temp = os.environ.get("RUNNER_TEMP")
     return os.path.join(temp, "api-budget", "stop") if temp else None
+
+
+def _cause_file() -> str | None:
+    path = _stop_file()
+    return None if path is None else os.path.join(os.path.dirname(path), "cause")
+
+
+def _read_job_causes() -> list[tuple[str, int, str]]:
+    path = _cause_file()
+    try:
+        text = Path(path).read_bytes().decode("utf-8", "replace") if path else ""
+    except OSError:
+        text = ""
+    causes = []
+    for line in text.split("\n")[:-1]:
+        match = _CAUSE_LINE.fullmatch(line)
+        if match:
+            causes.append((match[1], int(match[2]), match[3]))
+    return causes
+
+
+def stop_server_status(pool: str, *, now: float | None = None) -> int | None:
+    """The 5xx when the job's stop holding `pool` is a server error hold: every
+    stop of `pool` or `*` ending then has a cause line of its own, each
+    `server-<5xx>`. A stop with no cause line (one an older writer left), or a
+    rate limit among them, is None, the safe reading. rate-guard.mjs
+    `serverHeld` is its twin; the shared vectors' `stop_causes` pin both."""
+    at = stopped_until(pool, now=now)
+    status = None
+    for held in dict.fromkeys((pool, ALL_POOLS)):
+        if at is None or (_job_stops or {}).get(held) != at:
+            continue
+        own = [c for p, r, c in _job_causes if p == held and r == at]
+        if not own or "limit" in own:
+            return None
+        status = int(own[-1].removeprefix("server-"))
+    return status
 
 
 def _read_job_stops() -> dict[str, int]:
@@ -528,6 +586,7 @@ def stopped_until(pool: str, *, now: float | None = None) -> int | None:
     global _job_stops
     if _job_stops is None:
         _job_stops = _read_job_stops()
+        _job_causes[:] = _read_job_causes()
     at = max(_job_stops.get(ALL_POOLS, 0), _job_stops.get(pool, 0))
     return at if at > (time.time() if now is None else now) else None
 
@@ -537,17 +596,26 @@ def _pool_label(pool: str) -> str:
     return "every" if pool == ALL_POOLS else f"the {pool}"
 
 
-def _record_stop(pool: str, reset: float) -> None:
-    """Append a stop to the job's stop file, as rate-guard.mjs writes one.
-    Never raises: the in-process trip still holds, and a stop the file cannot
-    take is reported on stderr, naming the pool."""
+def _record_stop(pool: str, reset: float, server_status: int | None = None) -> None:
+    """Append a stop to the job's stop file, and its cause to the cause file,
+    as rate-guard.mjs writes them. Never raises: the in-process trip still
+    holds, a stop the file cannot take is reported on stderr, naming the pool,
+    and a cause it cannot take reads as a rate limit."""
     path = _stop_file()
     if path is None:
         return
+    cause = "limit" if server_status is None else f"server-{server_status}"
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "a", encoding="utf-8") as handle:
             handle.write(f"{pool} {int(reset)}\n")
+        with (
+            contextlib.suppress(OSError),
+            open(
+                os.path.join(os.path.dirname(path), "cause"), "a", encoding="utf-8"
+            ) as handle,
+        ):
+            handle.write(f"{pool} {int(reset)} {cause}\n")
     except OSError as exc:
         print(
             "::error title=GitHub rate limit::"
@@ -563,6 +631,41 @@ def _int_header(headers: Mapping[str, Any], name: str) -> int | None:
     value = headers.get(name)
     text = "" if value is None or isinstance(value, bool) else str(value)
     return int(text) if _INT_HEADER.fullmatch(text) else None
+
+
+def _body_and_errors(body: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """A response body as an object (its text parsed; anything else empty)
+    and its `errors` entries."""
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except ValueError:
+            body = None
+    body = json_object(body)
+    return body, [json_object(error) for error in json_array(body.get("errors"))]
+
+
+def server_error_hold(
+    *, status: int | None, headers: Mapping[str, Any], body: Any
+) -> bool:
+    """Whether a response's stop has a Retry-After on a 5xx as its only
+    cause: no `x-ratelimit-remaining` of 0, no message naming a rate limit or
+    abuse detection, and no GraphQL `RATE_LIMITED` error, whatever the call.
+    GitHub documents its rate limits as 403 or 429 answers (REST) and 200 or
+    403 (GraphQL), so such a hold is held the same but reported as a server
+    error. rate-guard.mjs `serverErrorHold` is its twin; the shared vectors'
+    `server_error` pins both."""
+    if status is None or not 500 <= status <= 599:
+        return False
+    if _int_header(headers, "retry-after") is None:
+        return False
+    if _int_header(headers, "x-ratelimit-remaining") == 0:
+        return False
+    body, errors = _body_and_errors(body)
+    texts = [body.get("message"), *(error.get("message") for error in errors)]
+    if any(RATE_LIMIT_MESSAGE.search(str(t if t is not None else "")) for t in texts):
+        return False
+    return not any(error.get("type") == GRAPHQL_RATE_LIMITED for error in errors)
 
 
 def evaluate_rate_response(
@@ -583,13 +686,7 @@ def evaluate_rate_response(
     limit = _int_header(headers, "x-ratelimit-limit")
     reset_header = _int_header(headers, "x-ratelimit-reset")
     ra = _int_header(headers, "retry-after")
-    if isinstance(body, str):
-        try:
-            body = json.loads(body)
-        except ValueError:
-            body = None
-    body = json_object(body)
-    errors = [json_object(error) for error in json_array(body.get("errors"))]
+    body, errors = _body_and_errors(body)
     # GraphQL answers a secondary limit with a 200 or a 403 and an error
     # message, so for a GraphQL call any status counts, and so do its errors'.
     graphql = any(r.search(url) for r, p in URL_POOLS if p == "graphql")
@@ -756,19 +853,26 @@ def _refuse_if_exhausted(pool: str | None, limits_pool: str) -> None:
         if trip.reset is not None and time.time() >= trip.reset:
             del _tripped[name]
             continue
-        raise RateLimitExhausted(trip.pool, trip.reset, trip.reason)
+        raise RateLimitExhausted(trip.pool, trip.reset, trip.reason, trip.server_status)
     for name in pools:
         at = stopped_until(name)
         if at is not None:
             held = name if (_job_stops or {}).get(name) == at else ALL_POOLS
-            raise _trip(held, at, _job_stops_error or "a stop this job recorded")
+            raise _trip(
+                held,
+                at,
+                _job_stops_error or "a stop this job recorded",
+                stop_server_status(name),
+            )
     limits = pool_limits(limits_pool)
     if isinstance(limits, str):
         raise RateLimitExhausted(ALL_POOLS, None, f"fail closed: {limits}")
 
 
-def _trip(pool: str, reset: float | None, reason: str) -> RateLimitExhausted:
-    trip = RateLimitExhausted(pool, reset, reason)
+def _trip(
+    pool: str, reset: float | None, reason: str, server_status: int | None = None
+) -> RateLimitExhausted:
+    trip = RateLimitExhausted(pool, reset, reason, server_status)
     _tripped[pool] = trip
     return trip
 
@@ -823,12 +927,14 @@ def _guard_response(
         _headroom[limits_pool] = (remaining, limit)
     if not reading["latched"]:
         return
+    server = server_error_hold(status=status, headers=headers, body=body)
     trip = _trip(
         reading["pool"],
         reading["reset"],
         f"{reading['reset_source']} reset, HTTP {status if status is not None else 'error'}",
+        status if server else None,
     )
-    _record_stop(reading["pool"], reading["reset"])
+    _record_stop(reading["pool"], reading["reset"], trip.server_status)
     if proc.returncode != 0:
         raise trip
 

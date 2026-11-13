@@ -41,7 +41,7 @@ docs show per-edit lint and test hooks as well.
    hook to act before a tool call or change files in session; a git hook to cover every author;
    `pre-commit` within the commit budget, `pre-push` up to 60 s, CI beyond. Report-only findings
    never reach the model per edit. Each report-only check runs in exactly one local place
-   (formatters excepted; the typos-format pilot left the end-of-turn check opt-in, off by default)
+   (formatters excepted; the spelling pilot left the end-of-turn check opt-in, off by default)
    and CI re-runs it on the change only; CI never skips a check because a
    hook passed; the twice-daily full-tree CI run stays.
 2. **Formatters** rewrite once per batch in session from `PostToolBatch`, with no model-facing
@@ -106,7 +106,7 @@ run, local-to-shared migration, which install command to run, and acting on drif
 ## Consequences
 
 - Check plugins replace their per-edit report rows with git-hook entries, after a measured
-  typos-format pilot; formatters move to one `PostToolBatch` row per plugin or to `pre-commit` only.
+  spelling pilot; formatters move to one `PostToolBatch` row per plugin or to `pre-commit` only.
 - Consumer repositories gain installed hook copies: local scope under the git hooks directory or
   `lefthook-local.yml`, shared scope under a committed `.githooks/`.
 - A consumer without a CI job that re-runs a check should not use the skip, since nothing then
@@ -119,5 +119,5 @@ matching, or hook `ask` handling in auto mode.
 
 Recheck the rubric's rule 4 (report-only findings never reach the model per edit;
 [check-placement](../contracts/check-placement/README.md#the-rubric)) when sessions move off Sonnet
-5.5: its evidence is the Sonnet 5.5 probes in Context and the typos-format pilot, which also ran on
+5.5: its evidence is the Sonnet 5.5 probes in Context and the spelling pilot, which also ran on
 Sonnet ([2026-10-25 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6402548080)).

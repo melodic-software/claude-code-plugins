@@ -19,7 +19,7 @@ the pre-commit entry reports it.
   - **Pointer**: when deciding what filters a `PostToolBatch` row, fetch
     [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch) live.
 - **No consumer-config opt-in gate.** Unlike sibling formatter plugins (`ruff-format`,
-  `typos-format`), this plugin needs no repository configuration to run on a `.go` file.
+  `spelling`), this plugin needs no repository configuration to run on a `.go` file.
   `goimports`' own docs describe it as "a replacement for your editor's gofmt-on-save hook" and it
   has no meaningful config-divergence axis when left unconfigured. Running it does not impose a
   style choice a repo hasn't made, the same reasoning that makes `gofmt` itself safe to run

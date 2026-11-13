@@ -761,6 +761,11 @@ export async function loadBaseTidyCutoffs(env) {
   return fromBase(env, "tidyCutoffsFromBase");
 }
 
+// The base config's refine-dispatch.activities, the same way, or [].
+export async function loadBaseRefineActivities(env) {
+  return fromBase(env, "refineDispatchActivitiesFromBase");
+}
+
 // Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
 // returns, so a run cancelled mid-step still records what it sent.
 export function wrapRunIds(base, env) {

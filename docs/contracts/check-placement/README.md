@@ -39,7 +39,7 @@ and what reaches the model.
    place, and CI re-runs it on the change only. Formatters are the one exception: they run once
    per batch in session (when within the ceiling below) and again at `pre-commit`. The opt-in
    end-of-turn hand-back is not an exception, because the
-   [typos-format pilot](#typos-format-pilot-2026-10-15) left it off by default. markdown-format's
+   [spelling pilot](#spelling-pilot-2026-10-15) left it off by default. markdown-format's
    default end-of-turn report is the one stated exception
    ([#11502](https://github.com/melodic-software/claude-code-plugins/issues/11502)): its lint
    runs at turn end and again at `pre-commit`, and the turn-end findings go to the user only.
@@ -75,7 +75,7 @@ see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-
   `<plugin>_end_of_turn` userConfig boolean, default `false`. Its findings exit 2, so the model
   fixes them before the turn ends; the row honors `stop_hook_active` and blocks at most once per
   turn. The hand-back stays off by default for every report-only plugin, per the
-  [typos-format pilot](#typos-format-pilot-2026-10-15).
+  [spelling pilot](#spelling-pilot-2026-10-15).
 - **markdown-format reports at turn end by default.** Its `markdown_format_end_of_turn` has no
   default: unset, the `Stop` row exits 0 with the findings in a `systemMessage`, which the user
   sees and the model does not, and the turn ends. `true` is the hand-back above; `false` runs
@@ -86,7 +86,7 @@ see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-
 No `TaskCompleted` gate is used. In-session blocking verification, where a plugin has it, runs
 from `Stop`; for report-only checks the `pre-commit` gate stays the default blocking point, and
 their `Stop` row stays opt-in as stated above. Reason: in the
-[typos-format pilot](#typos-format-pilot-2026-10-15) the end-of-turn check never fired, because
+[spelling pilot](#spelling-pilot-2026-10-15) the end-of-turn check never fired, because
 the `pre-commit` hook caught every finding first, so a per-task gate has no measured catch to earn
 its cost. Revisit when a finding reaches a commit that no hook caught.
 Dissent: Lydia Hallie's talk "Rethinking Claude Code Best Practices"
@@ -146,6 +146,12 @@ rewrites, so a file with unstaged changes fails with the Rewrites message below 
 ```
 
 `event` is `pre-commit` | `pre-push` | `commit-msg`; `rewrites: true` with `pre-push` is rejected.
+
+A renamed plugin adds an optional top-level `earlierNames` array of its former plugin names
+(`"earlierNames": ["old-name"]`), each matching the entry-name rule and never its own name.
+The installer looks for artifacts and decline keys under those names only, so another plugin that
+ships an entry of the same name is never touched. Each name is a migration line: the rename adds
+it, and it is removed once no consumer repository still holds artifacts under that name.
 
 An entry may add an optional `assets` array: files the script reads at run time, such as a default
 config (`"assets": ["config/default-typos.toml"]`).
@@ -288,7 +294,7 @@ each asset in manifest order, a NUL and that asset's LF-normalized bytes. The st
 version stamp would flag drift on every release, and at shared scope each rerun would add a commit
 to every consumer repository.
 
-`verify` reports one of five states per entry:
+`verify` reports one of five states per entry, plus one `superseded` row per declared earlier name an entry has artifacts under:
 
 | State | Meaning | Output |
 |---|---|---|
@@ -296,12 +302,14 @@ to every consumer repository.
 | stale | stamp differs from the current source hash (a changed source script, check lib or asset) | drift line |
 | modified | the installed copy, or an installed asset, no longer hashes to its stamp | drift line; the agent decides (D1) |
 | missing | not installed and not declined | drift line |
-| declined | `checks.<plugin>.<name>.declined` true at any git config scope, or unset with `checks.git-hooks.declined` true | silent until `verify` runs by hand |
+| declined | `checks.<plugin>.<name>.declined` true at any git config scope; unset, the same entry's key under a declared earlier name (`earlierNames`) true by git's precedence (its detail names the carry-over; that key false is an opt-in, as the entry's own false is); both unset, `checks.git-hooks.declined` true | silent until `verify` runs by hand |
+| superseded | an artifact of this entry under a former name the plugin declares in `earlierNames`, as an install made before the rename leaves: a copy whose stamp names the entry, its `<event>.d/` marker, a lefthook job running it, a config-hook copy under the user git config directory with its `includeIf` and `hook.<name>-<entry>` keys, or a decline key under the earlier name in this clone's own local or worktree config, or one whose value this clone has not yet carried to its own local key | drift line naming each artifact; `plan` returns them as a `superseded` decision, and the setup agent removes them and carries this clone's resolved decline or opt-in to its own local key on the user's yes (D1). An earlier-name decline line in a system or global file, or a file one includes, is never edited: `plan` reports it with the command to remove it once every clone relying on it has its own key, and `verify` stays silent about it once this clone has one |
 
 Drift line, shown to the user only:
 
 ```text
 <plugin>: git hook <name> <state>; run /<plugin>:setup apply install-git-hooks
+<plugin>: git hook <name> left under an earlier plugin name (remove <dir> and <marker> and any hook-manager line that runs <script>; ...); run /<plugin>:setup apply install-git-hooks
 ```
 
 The SessionStart drift check runs inside the plugin's `prerequisites.mjs probe`, which harness-ops'
@@ -320,7 +328,7 @@ Every git-hook entry has a test and a measured cost row in the table below. A ch
 builds a throwaway repository, stages a file, runs the script, and asserts exit code and stderr;
 each check carries at least one stay-quiet case ([hook-precision](../hook-precision/README.md)).
 
-## typos-format pilot (2026-10-15)
+## spelling pilot (2026-10-15)
 
 Claude Code 2.1.301, Sonnet, headless, one multi-edit task over four files with seeded misspellings
 in a passage the prompt asked to paste verbatim, then a commit; user settings excluded so only the
@@ -378,7 +386,7 @@ marketplace comes from these rows.
 
 | Hook | Placement | Measured | Host | Date |
 |---|---|---|---|---|
-| typos-format `pre-commit` entry (typos 1.51.1, plain dispatcher), staged sets from real `origin/main` commits | pre-commit | 1 file 0.039 s (0.038-0.040); 10 files 0.125 s (0.122-0.133); 44 files 0.508 s (0.491-0.681) | reference host (Linux, WSL2, 32 CPUs) | 2026-10-15 |
+| spelling `pre-commit` entry (typos 1.51.1, plain dispatcher), staged sets from real `origin/main` commits | pre-commit | 1 file 0.039 s (0.038-0.040); 10 files 0.125 s (0.122-0.133); 44 files 0.508 s (0.491-0.681) | reference host (Linux, WSL2, 32 CPUs) | 2026-10-15 |
 | guardrails `commit-msg-convention` entry, one message | commit-msg | 10 ms median (9-11) | reference host (Linux, WSL2) | 2026-10-16 |
 | guardrails `pre-commit-content` entry, staged sets from real `origin/main` commits | pre-commit | 1 file 0.039 s (0.036-0.040); 10 files 0.311 s (0.298-0.337); 44 files 1.277 s (1.206-1.450), re-measured 1.302 s (1.209-1.467) once it was the only guardrails `pre-commit` entry | reference host (Linux, WSL2) | 2026-10-16 |
 | guardrails `reference-verify` entry, the 44-file `origin/main` commit (37 of its files are `.md`/`.sh`) as one pushed range | pre-push | 10.6 s median (10.1-12.5); 15.7 s on the first run in a clone, which builds the deleted-path cache | reference host (Linux, WSL2) | 2026-10-16 |
@@ -390,7 +398,7 @@ marketplace comes from these rows.
 | markdown-format, per edit (`.md`, configured) | PostToolUse today | 180 ms median (174-186) | reference host (Linux, WSL2) | 2026-10-15 |
 | powershell-format, per edit (`.ps1`, configured) | PostToolUse today | 973 ms median (918-1,026) | reference host (Linux, WSL2) | 2026-10-15 |
 | ruff-format, per edit (`.py`, configured) | PostToolUse today | 75 ms median (73-83) | reference host (Linux, WSL2) | 2026-10-15 |
-| typos-format, per edit (`.md`) | PostToolUse until removed; now pre-commit | 59 ms median (56-63) | reference host (Linux, WSL2) | 2026-10-15 |
+| spelling, per edit (`.md`) | PostToolUse until removed; now pre-commit | 59 ms median (56-63) | reference host (Linux, WSL2) | 2026-10-15 |
 
 The per-edit rows are today's `PostToolUse` rows run from each plugin's `hooks/hooks.json` with a
 sample that needs work (hyperfine, 2 warmups, 10 runs; a 15 ms spawn baseline is included). They

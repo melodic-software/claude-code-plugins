@@ -409,17 +409,39 @@ export function planOf({ limit, remaining }, limitCap = null) {
 // stopFloor of the header's limit whose header reset is still ahead.
 // headers is a Headers or a plain object of lower-case names; body is the
 // parsed body, or its text.
+const parseBody = (body) => {
+  if (typeof body !== "string") {
+    return body;
+  }
+  try {
+    return JSON.parse(body);
+  } catch {
+    return null;
+  }
+};
+
+// Whether a response's stop has a Retry-After on a 5xx as its only cause: no
+// x-ratelimit-remaining of 0, no message naming a rate limit or abuse
+// detection, and no RATE_LIMITED error, whatever the call. GitHub documents
+// its rate limits as 403 or 429 answers (REST) and 200 or 403 (GraphQL), so
+// such a stop holds as long as classify says but is reported as a server
+// error. babysit_gh.py server_error_hold is its twin; rate-guard.vectors.json's
+// server_error pins both.
+export function serverErrorHold({ status, headers, body }) {
+  const get = headerReader(headers);
+  if (!(status >= 500 && status <= 599) || intHeader(get, "retry-after") === null || intHeader(get, "x-ratelimit-remaining") === 0) {
+    return false;
+  }
+  const parsed = parseBody(body);
+  const errors = Array.isArray(parsed?.errors) ? parsed.errors : [];
+  const texts = [parsed?.message, ...errors.map((error) => error?.message)].map((text) => String(text ?? ""));
+  return !texts.some((text) => SIGNALS.message.test(text)) && !errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
+}
+
 export function classify({ url, status, headers, body }, { now = Date.now(), readFloor = null, limitCap = null, stopFloor = null } = {}) {
   const get = headerReader(headers);
   const graphqlPool = poolOf(url) === "graphql";
-  let parsed = body;
-  if (typeof body === "string") {
-    try {
-      parsed = JSON.parse(body);
-    } catch {
-      parsed = null;
-    }
-  }
+  const parsed = parseBody(body);
   const remaining = intHeader(get, "x-ratelimit-remaining");
   const limit = intHeader(get, "x-ratelimit-limit");
   const reset = intHeader(get, "x-ratelimit-reset");
@@ -461,12 +483,30 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   return { latched, low, reset_source: source, reset: Math.min(at, MAX_RESET), pool };
 }
 
+// The stop an answer's headers set whatever its body says, or null: the
+// headers alone latch with a time a header gave (Retry-After, or
+// x-ratelimit-reset at remaining 0 or the stop floor). classify takes that
+// time from the headers only, and a body only ORs in signals, so with any
+// body classify returns the same reset and this pool or `*`, which holds it
+// too. With no header time (a 403 or 429 the body decides, a GraphQL
+// RATE_LIMITED), the body sets the fallback, so there is none.
+export function headerStop({ url, status, headers }, options) {
+  const verdict = classify({ url, status, headers, body: null }, options);
+  return verdict.latched && verdict.reset_source !== "fallback" ? { pool: verdict.pool, reset: verdict.reset } : null;
+}
+
 export const resetLabel = (seconds) => new Date(seconds * 1000).toISOString().replace(".000Z", "Z");
 const poolLabel = (pool) => (pool === "*" ? "API" : `${pool} API`);
 
+// serverStatus: the 5xx of a serverErrorHold, the same stop worded as a
+// server error.
 export class RateLimitStop extends Error {
-  constructor(what, pool, reset) {
-    super(`${what} was not sent: GitHub's ${poolLabel(pool)} rate limit holds until ${resetLabel(reset)}`);
+  constructor(what, pool, reset, serverStatus = null) {
+    super(
+      serverStatus === null
+        ? `${what} was not sent: GitHub's ${poolLabel(pool)} rate limit holds until ${resetLabel(reset)}`
+        : `${what} was not sent: GitHub answered HTTP ${serverStatus} with a Retry-After; no call to it before ${resetLabel(reset)}`,
+    );
     this.name = "RateLimitStop";
     this.status = 429;
     // budgetedFetch's mark: a caller that defers its work on a rate limit
@@ -540,6 +580,44 @@ function readStops(path, log) {
   return stops;
 }
 
+// The job's cause file beside the stop file: one line `<pool> <reset epoch>
+// <cause>` per stop a port wrote, cause `limit` or `server-<5xx>` for a
+// serverErrorHold. Read by STOP_LINE's rule (rate-guard.vectors.json's
+// stop_causes); a missing or unreadable file holds no cause.
+const CAUSE_LINE = /^([a-z_]+|\*) (\d{1,12}) (limit|server-5\d\d)$/;
+
+function readCauses(path) {
+  let text = "";
+  try {
+    text = path ? readFileSync(path, "utf8") : "";
+  } catch {
+    text = "";
+  }
+  return text
+    .split("\n")
+    .slice(0, -1)
+    .map((line) => CAUSE_LINE.exec(line))
+    .filter(Boolean)
+    .map(([, pool, reset, cause]) => ({ pool, reset: Number(reset), cause }));
+}
+
+// The 5xx when every stop of `pools` that ends at `at` has a cause line of its
+// own and each is a server error hold, else null: a stop with no cause line (a
+// stop an older writer left), or a rate limit among them, reads as a rate
+// limit, the safe reading.
+function serverHeld(causes, stops, pools, at) {
+  const ending = at === null ? [] : [...new Set(pools)].filter((pool) => stops.get(pool) === at);
+  let status = null;
+  for (const pool of ending) {
+    const own = causes.filter((c) => c.pool === pool && c.reset === at);
+    if (!own.length || own.some((c) => c.cause === "limit")) {
+      return null;
+    }
+    status = Number(own.at(-1).cause.slice("server-".length));
+  }
+  return status;
+}
+
 // hold: a refusal logs a notice and leaves the exit to the caller, which must
 // then hold (no write, no merge, green with a notice). A gate that holds green
 // would pass what it could not read, so hold is for lanes only.
@@ -553,6 +631,8 @@ export function createRateLimitLatch({
   hold = process.env.API_BUDGET_HOLD === "1",
 } = {}) {
   const stops = readStops(stopFile, log);
+  const causeFile = stopFile ? join(dirname(stopFile), "cause") : null;
+  const causes = readCauses(causeFile);
   const low = new Map();
   const warned = new Set();
   // The resets waited out, summed; the extra second only lands the call after one.
@@ -578,6 +658,12 @@ export function createRateLimitLatch({
     return at * 1000 > now() ? at : null;
   }
 
+  // The pool whose stop holds url until `at`: its own, else "*".
+  const heldBy = (url, at) => (stops.get(poolOf(url)) === at ? poolOf(url) : "*");
+
+  // The 5xx when url's stop is a server error hold, else null (serverHeld).
+  const serverStatus = (url) => serverHeld(causes, stops, [poolOf(url), "*"], until(url));
+
   const resetMs = (url) => {
     const at = until(url);
     return at === null ? null : Math.max(0, at * 1000 - now());
@@ -594,7 +680,9 @@ export function createRateLimitLatch({
       return;
     }
     const reset = resetMs(url);
-    log(`::notice::${method} ${url} waits ${Math.ceil(reset / 1000) + 1}s for GitHub's rate limit to reset at ${resetLabel(until(url))}`);
+    const status = serverStatus(url);
+    const reason = status === null ? "GitHub's rate limit to reset" : `GitHub's Retry-After on HTTP ${status} to pass`;
+    log(`::notice::${method} ${url} waits ${Math.ceil(reset / 1000) + 1}s for ${reason} at ${resetLabel(until(url))}`);
     waited += reset;
     await wait(reset + 1000);
   }
@@ -604,11 +692,13 @@ export function createRateLimitLatch({
     if (at === null) {
       return;
     }
-    const stop = new RateLimitStop(`${method} ${url}`, stops.get(poolOf(url)) === at ? poolOf(url) : "*", at);
+    const status = serverStatus(url);
+    const stop = new RateLimitStop(`${method} ${url}`, heldBy(url, at), at, status);
+    const title = status === null ? "" : " title=GitHub server error";
     if (hold) {
-      log(`::notice::${stop.message}; this step holds`);
+      log(`::notice${title}::${stop.message}; this step holds`);
     } else {
-      log(`::error::${stop.message}`);
+      log(`::error${title}::${stop.message}`);
       fail();
     }
     throw stop;
@@ -619,40 +709,71 @@ export function createRateLimitLatch({
   // refusal fails nothing.
   async function observe(url, response, method = "GET", token = undefined, resend = false) {
     const pool = poolOf(url);
-    const needsBody = SIGNALS.statuses.includes(response.status) || pool === "graphql";
-    const body = needsBody ? await response.clone().text().catch(() => "") : null;
+    // classify reads the body of a 403, a 429 and a GraphQL answer; a 5xx's
+    // body is read only for serverErrorHold's cause, never for the stop.
+    const classifiesBody = SIGNALS.statuses.includes(response.status) || pool === "graphql";
+    const needsBody = classifiesBody || response.status >= 500;
     const limitCap = margin(pool, "limit-cap", token);
     const stopFloor = margin(pool, "stop-floor", token);
-    const verdict = classify({ url, status: response.status, headers: response.headers, body }, { now: now(), readFloor: margin(pool, "read-floor", token), limitCap, stopFloor });
+    const options = { now: now(), readFloor: margin(pool, "read-floor", token), limitCap, stopFloor };
+    // The in-process stop holds either way; a later step only sees a
+    // recorded one, so a failed write is named. Each distinct stop is set
+    // and written once.
+    const recorded = new Map();
+    const record = ({ pool: held, reset }) => {
+      const key = `${held} ${reset}`;
+      if (!recorded.has(key)) {
+        stops.set(held, Math.max(stops.get(held) ?? 0, reset));
+        let failed = "";
+        if (stopFile) {
+          try {
+            mkdirSync(dirname(stopFile), { recursive: true });
+            appendFileSync(stopFile, `${key}\n`);
+          } catch (error) {
+            failed = `; the stop could not be recorded in the job's stop file (${error?.code ?? error?.message}), so later steps do not see it`;
+          }
+        }
+        recorded.set(key, failed);
+      }
+      return recorded.get(key);
+    };
+    // A stop every body agrees on is set before any await, so a call in
+    // flight beside this one is refused while the body is read.
+    const early = headerStop({ url, status: response.status, headers: response.headers }, options);
+    if (early) {
+      record(early);
+    }
+    const body = needsBody ? await response.clone().text().catch(() => "") : null;
+    const verdict = classify({ url, status: response.status, headers: response.headers, body: classifiesBody ? body : null }, options);
     low.set(pool, verdict.low);
     if (verdict.latched) {
-      stops.set(verdict.pool, Math.max(stops.get(verdict.pool) ?? 0, verdict.reset));
-      // The in-process stop holds either way; a later step only sees a
-      // recorded one, so a failed write is named.
-      let unrecorded = "";
-      if (stopFile) {
+      const unrecorded = record(verdict);
+      const refused = await refusedForLimit(response);
+      const get = headerReader(response.headers);
+      const [limit, remaining] = ["limit", "remaining"].map((name) => Number(get(`x-ratelimit-${name}`)));
+      const floored = !refused && stopFloor !== null && remaining > 0 && remaining <= stopFloor * limit;
+      const server = !floored && serverErrorHold({ status: response.status, headers: response.headers, body });
+      const cause = server ? `server-${response.status}` : "limit";
+      // Until the cause is in, a refusal reads this stop as a rate limit.
+      causes.push({ pool: verdict.pool, reset: verdict.reset, cause });
+      if (stopFile && !unrecorded) {
         try {
-          mkdirSync(dirname(stopFile), { recursive: true });
-          appendFileSync(stopFile, `${verdict.pool} ${verdict.reset}\n`);
-        } catch (error) {
-          unrecorded = `; the stop could not be recorded in the job's stop file (${error?.code ?? error?.message}), so later steps do not see it`;
+          appendFileSync(causeFile, `${verdict.pool} ${verdict.reset} ${cause}\n`);
+        } catch {
+          // Read as a rate limit, the safe reading.
         }
       }
-      const refused = await refusedForLimit(response);
       // A stop later steps cannot see is a fault, not a limit to hold on.
       const resent = !unrecorded && resend && waits(url) && refused;
       const holds = resent || (hold && !unrecorded);
       const then = resent ? "it is sent again after the reset" : `this step ${holds ? "holds" : "fails"}`;
-      const get = headerReader(response.headers);
-      const [limit, remaining] = ["limit", "remaining"].map((name) => Number(get(`x-ratelimit-${name}`)));
-      const what =
-        !refused && stopFloor !== null && remaining > 0 && remaining <= stopFloor * limit
-          ? `left GitHub's ${poolLabel(verdict.pool)} ${remaining} of ${limit} requests, at or under its stop-floor share ${stopFloor}`
-          : `hit GitHub's ${poolLabel(verdict.pool)} rate limit`;
-      log(
-        `${holds ? "::notice::" : "::error::"}${method} ${url} ${what} (status ${response.status}):` +
-          ` no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); ${then}${unrecorded}`,
-      );
+      const what = floored
+        ? `left GitHub's ${poolLabel(verdict.pool)} ${remaining} of ${limit} requests, at or under its stop-floor share ${stopFloor} (status ${response.status})`
+        : server
+          ? `got a GitHub server error, HTTP ${response.status} with a Retry-After`
+          : `hit GitHub's ${poolLabel(verdict.pool)} rate limit (status ${response.status})`;
+      const level = `${holds ? "::notice" : "::error"}${server ? " title=GitHub server error" : ""}::`;
+      log(`${level}${method} ${url} ${what}: no call to it before ${resetLabel(verdict.reset)} (${verdict.reset_source}); ${then}${unrecorded}`);
       if (!holds) {
         fail();
       }
@@ -677,7 +798,9 @@ export function createRateLimitLatch({
       for (const [pool, reset] of readStops(stopFile, log)) {
         stops.set(pool, Math.max(stops.get(pool) ?? 0, reset));
       }
+      causes.push(...readCauses(causeFile));
     },
+    serverStatus,
     belowFloor: (url) => low.get(poolOf(url)) === true,
     // Waits out url's stop when it fits the budget (with wait, the latch's own
     // sleep when unset), so a caller can wait before it starts its own timers.

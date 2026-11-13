@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "{\"spelling_enabled\": \"false\"}"
+    },
+    {
+      "answer": "Set spelling_enabled to false."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"spelling_enabled\": \"true\"}",
+      "why": "wrong value"
+    },
+    {
+      "answer": "{\"spelling_end_of_turn\": \"false\"}",
+      "why": "near miss: the other key"
+    }
+  ]
+}

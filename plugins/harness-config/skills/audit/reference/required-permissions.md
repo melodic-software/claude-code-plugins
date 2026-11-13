@@ -106,6 +106,17 @@ the repository's ignored entries as live.
   [repository settings under an admin-required sandbox](https://code.claude.com/docs/en/sandboxing#repository-settings-under-an-admin-required-sandbox)
   live.
 
+**Name what the sandbox does not cover.** A sandbox finding speaks only for what the sandbox
+wraps: list each surface it leaves out and audit that surface against its own control. Report
+egress to an unlisted host as blocked only when the session's permission mode and effective
+settings refuse it.
+
+- **Pointer**: for which surfaces run outside and how each mode and setting treats an unlisted
+  host, fetch
+  [what runs outside the sandbox](https://code.claude.com/docs/en/sandboxing#what-runs-outside-the-sandbox)
+  and [hosts outside your allowed domains](https://code.claude.com/docs/en/sandboxing#hosts-outside-your-allowed-domains)
+  live.
+
 **Platform limit. Check before recommending it.** Do not offer the sandbox as the fix on a
 native-Windows workstation, where we treat the OS-level remedy as unavailable.
 

@@ -54,7 +54,7 @@ import {
   timeLimitNoted,
 } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
-import { emptyRecord, isHandled, markHandled, sendDispatch } from "./dispatch-record.mjs";
+import { emptyRecord, isHandled, markHandled, sendDispatch, startOf } from "./dispatch-record.mjs";
 import { STOP_RESOLVED } from "./escalation-routes.mjs";
 import { HOLD_LINE, runTitle } from "./feedback-dispatch.mjs";
 import { DEFAULTS as DOCS_FIX_DEFAULTS } from "./fix-docs-dispatch.mjs";
@@ -165,7 +165,6 @@ const asRest = (run) => ({
 // readable attempt falls back to timing, a stop after it and before the next
 // fix-ci check started.
 export function withStops(runs, stopRuns) {
-  const startOf = (run) => Date.parse(run.started_at ?? "");
   const stops = stopRuns.filter((run) => laneStop(run) || tokenRefused(run));
   const kills = stopRuns.filter(killSwitchStop);
   const starts = runs.map(startOf).sort((a, b) => a - b);

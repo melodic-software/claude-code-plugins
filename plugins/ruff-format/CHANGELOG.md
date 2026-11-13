@@ -3,6 +3,24 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.1] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
+## [1.1.0] - 2026-11-12
+
+### Added
+
+- A plugin can declare its former names as `earlierNames` in `git-hooks/entries.json`, and the git-hook installer then finds what an install under one of those names left: copies, `<event>.d/` markers, lefthook jobs, config-hook copies and keys, and decline keys. `verify` reports them as `superseded` drift, a decline under the earlier name still counts as declined, and `plan` returns them as a `superseded` decision that `apply install-git-hooks` removes on the user's yes, carrying this clone's resolved decline or opt-in to this plugin's key in its local config. A decline line under the earlier name in a system or global config file is reported with the command to remove it, never edited, since other clones may rely on it.
+
+## [1.0.23] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
 ## [1.0.22] - 2026-11-12
 
 ### Changed
@@ -1413,7 +1431,7 @@ No behavior change.
   session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
-  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  opt out with; the reported case was `spelling` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
   project root is outside it. The exemption is deliberate and required: when the project root
   itself lives under temp, its files are still accepted. That case is a `mktemp -d` fixture
@@ -1549,7 +1567,7 @@ No behavior change.
   registered `ruff-format` in its Implementers table, closing the gap where the
   hook's `hook::emit_telemetry("ruff-format", ...)` envelope had no per-hook
   `data` schema for a consuming sink to validate against, unlike the sibling
-  `markdown-format` and `typos-format` producers. No hook behavior change.
+  `markdown-format` and `spelling` producers. No hook behavior change.
 
 ## [0.4.2]
 

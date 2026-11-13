@@ -64,6 +64,11 @@ Classify each changed file:
 | Analyzer / lint rules | Analyzer tests (verify diagnostic output) |
 | Parser, serializer, pure transform, collection or stateful class | Property tests beside examples (invariants from the spec, a model or metamorphic relation; see `/testing:write`) |
 | Replace, rewrite, migrate or port of existing behavior | Characterization or differential tests first (old output as a pin, intentional differences in a ledger; see `/testing:write`), then the usual rows for the new code |
+| Parser, decoder or handler whose input is untrusted (request bodies, uploaded files, hook or webhook payloads, CLI arguments from another process) | Fuzz target: generated and mutated inputs fed to the entry point, asserting no crash, hang, unbounded resource use or failure other than the documented rejection, with a seed corpus of valid inputs; a parser matching the property row too gets both |
+| Client of a service whose provider will run the verification, or an endpoint another service consumes | Consumer-driven contract test: the consumer records the requests it sends and the responses it relies on, and the provider's build verifies it still meets them. A public third-party API's provider runs none: plan its canned responses per `testing:test-value` (if enabled) instead |
+
+Leave out each fuzz-target or contract-test section whose row no changed code matches, and do not
+list it under "Not testing".
 
 ### 2. Generate the test plan
 
@@ -90,6 +95,12 @@ when undocumented, mirror the ecosystem's idiom (the PascalCase placeholders are
 
 ### Pins (if replacing or migrating behavior)
 - [ ] {Behavior pinned} — {recorded corpus, comparator, intentional-differences ledger}
+
+### Fuzz targets (if code whose input is untrusted changed)
+- [ ] {Entry point} — {input shape, seed corpus, what must not happen: crash, hang, unbounded memory}
+
+### Contract tests (if a service client or consumed endpoint changed)
+- [ ] {Consumer} → {provider interaction} — {requests sent, response fields relied on, where the provider verifies it}
 
 ### E2E verification (if UI/API changes)
 - [ ] Navigate to {endpoint}, verify {behavior}

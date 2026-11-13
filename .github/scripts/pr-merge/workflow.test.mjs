@@ -2273,3 +2273,29 @@ test("the re-fire step reads the skip list from the file the merge job's config 
   assert.equal(config, "${{ runner.temp }}/resolved-config.json");
   assert.match(refire, /\n {10}RESOLVED_CONFIG_PATH: \$\{\{ runner\.temp \}\}\/resolved-config\.json\n/);
 });
+
+// The fresh check's exit 75 is a server error hold when the job's cause file
+// says so (a 5xx whose only signal was Retry-After); with no cause it reads
+// as a rate limit, as above.
+test("a PR-scoped run's outcome names a fresh check stopped on a server error hold", () => {
+  const dir = tempDir("pr-merge-wake-held-");
+  try {
+    mkdirSync(join(dir, ".base"));
+    symlinkSync(fileURLToPath(new URL("../../../.github", import.meta.url)), join(dir, ".base", ".github"));
+    mkdirSync(join(dir, "api-budget"));
+    writeFileSync(join(dir, "api-budget", "stop"), "* 4102444800\n");
+    writeFileSync(join(dir, "api-budget", "cause"), "* 4102444800 server-503\n");
+    const arm = job("enable-auto-merge");
+    const body = /- name: Report the PR-scoped outcome\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
+    const script = /\n {8}run: \|\n([\s\S]*)$/.exec(body)[1].replace(/^ {10}/gm, "");
+    const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
+      cwd: dir,
+      env: { PATH: process.env.PATH, RUNNER_TEMP: dir, PR: "7", CALLS: "github-token=0 lanes-app=0", OUTCOME: "", KILL: "true", WHO: "true", STANDS: "false", FRESH: "75" },
+      encoding: "utf8",
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout.trim(), /report=fresh outcome=skipped: the fresh post-merge check stopped on a GitHub server error hold \(HTTP 503 with a Retry-After\)$/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

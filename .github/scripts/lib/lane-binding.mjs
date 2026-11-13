@@ -73,7 +73,7 @@ export function laneFooter(body) {
 export function bindingOf(body) {
   const all = lines(body);
   const at = nonBlankIndexes(all);
-  if (at.length < 2 || laneFooter(body) === null) {
+  if (at.length < 2 || !FOOTER.test(all[at.at(-1)].trim())) {
     return null;
   }
   const match = BINDING.exec(all[at.at(-2)].trim());
@@ -122,10 +122,7 @@ export function wasEdited({ createdAt, updatedAt, lastEditedAt } = {}) {
 
 // Whether a comment with no binding still counts.
 export function legacyCounts(comment, cutoff = LEGACY_CUTOFF) {
-  if (cutoff === null) {
-    return true;
-  }
-  return Date.parse(comment.createdAt ?? "") <= Date.parse(cutoff) && !wasEdited(comment);
+  return cutoff === null || (Date.parse(comment.createdAt ?? "") <= Date.parse(cutoff) && !wasEdited(comment));
 }
 
 // One file's bytes from a zip archive (stored or deflated), or null when the
@@ -199,30 +196,24 @@ export function recordEntries(text) {
 export function laneChecker({ pr, getPull, getRun, listArtifacts, download, workflows = LANE_WORKFLOWS, cutoff = LEGACY_CUTOFF }) {
   const runs = new Map();
   let pull;
-  const readPull = () => {
-    pull ??= getPull(Number(pr));
-    return pull;
+  const readPull = () => (pull ??= getPull(Number(pr)));
+  const loadRun = async (runId) => {
+    const run = await getRun(runId);
+    const live = (await listArtifacts(runId)).filter((a) => String(a?.name ?? "").startsWith(RECORD_PREFIX) && a.expired !== true);
+    const entries = [];
+    const recorded = new Set();
+    for (const artifact of live) {
+      const record = recordEntries(zipEntry(await download(artifact.id), RECORD_FILE)?.toString("utf8"));
+      entries.push(...record);
+      if (record.some((e) => e.complete === true)) {
+        recorded.add(artifact.name);
+      }
+    }
+    return { run, entries, recorded };
   };
   const readRun = (runId) => {
     if (!runs.has(runId)) {
-      runs.set(
-        runId,
-        (async () => {
-          const run = await getRun(runId);
-          const records = (await listArtifacts(runId)).filter((a) => String(a?.name ?? "").startsWith(RECORD_PREFIX));
-          const live = records.filter((a) => a.expired !== true);
-          const entries = [];
-          const recorded = new Set();
-          for (const artifact of live) {
-            const lines = recordEntries(zipEntry(await download(artifact.id), RECORD_FILE)?.toString("utf8"));
-            entries.push(...lines);
-            if (lines.some((e) => e.complete === true)) {
-              recorded.add(artifact.name);
-            }
-          }
-          return { run, entries, recorded };
-        })(),
-      );
+      runs.set(runId, loadRun(runId));
     }
     return runs.get(runId);
   };

@@ -2830,6 +2830,16 @@ test("pull_request_target dispatcher: a listed human's event proceeds", async ()
   assert.deepEqual(await targetDispatched({ github }), PROCEED);
 });
 
+// The refine job records fix-docs's dispatch and a refine-dispatch.activities
+// one as two records of one dispatcher run; each vouches for its own run only.
+test("pull_request_target dispatcher: with two records on the run, the one naming this run vouches, and another run's alone does not", async () => {
+  const other = record({ name: `pr-unblock-target-dispatched-${DISPATCHER_HEAD}-38155580530` });
+  const own = record({ name: `pr-unblock-target-dispatched-${DISPATCHER_HEAD}-${SELF_RUN_ID}` });
+  assert.deepEqual(await targetDispatched({ github: fakeGitHub(targetRoutes({ artifacts: listing(other, own) })) }), PROCEED);
+  const onlyOther = fakeGitHub(targetRoutes({ dispatcher: { status: "completed" }, artifacts: listing(other, other) }));
+  assert.deepEqual(await targetDispatched({ github: onlyOther }), STOPPED("untrusted-actor"));
+});
+
 test("pull_request_target dispatcher: the matching entry may follow another PR's", async () => {
   const github = fakeGitHub(targetRoutes({ dispatcher: { pull_requests: [prEntry({ number: 43 }), prEntry()] } }));
   assert.deepEqual(await targetDispatched({ github }), PROCEED);

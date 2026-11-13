@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.10.9] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
 ## [2.10.8] - 2026-11-12
 
 ### Changed

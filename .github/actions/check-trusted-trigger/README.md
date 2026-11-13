@@ -111,7 +111,8 @@ condition 1 and the actor and author parts of condition 2).
     stops the run; the entry's head SHA is not compared);
   - its `actor` and `triggering_actor` are each the lanes App (`lanes-app-id`) or a listed human,
     and a re-run attempt still needs a listed human;
-  - its record is named `pr-unblock-target-dispatched-<40-hex commit>-<this run's id>`, and the
+  - its record is named `pr-unblock-target-dispatched-<40-hex commit>-<this run's id>`, one of
+    the run's records when it dispatched more than one run, and the
     tag and ancestry checks read that commit, read after the record, in place of `head_sha`.
     Since 2025-12-08 a `pull_request_target` run takes its workflow file and checkout commit
     from the default branch, so only that branch's dispatcher can upload the record

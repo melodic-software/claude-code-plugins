@@ -204,7 +204,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate, RECONCILER_ATTEMPT_CAP, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
+import { escapeCommand, ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.mjs";
 import { HELD_STEP, refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
@@ -476,8 +476,6 @@ const slimJob = (job) => ({
   runner_id: job.runner_id,
   steps: Array.isArray(job.steps) ? job.steps.map((s) => ({ name: s?.name, number: s?.number, status: s?.status, conclusion: s?.conclusion })) : job.steps,
 });
-
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
 // A workflow path's file name, as the per-workflow runs endpoint takes it.
 const workflowFile = (path) => path.slice(path.lastIndexOf("/") + 1);

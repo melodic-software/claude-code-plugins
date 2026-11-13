@@ -2621,7 +2621,7 @@ write-ordering fix.
   session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite,
   or autocorrect then ran on throwaway files that are not project content and carry no project
-  config to opt out with; the reported case was `typos-format` autocorrecting a shell variable in a
+  config to opt out with; the reported case was `spelling` autocorrecting a shell variable in a
   scratch script and silently breaking it. The guard now rejects a file inside the OS temp tree when
   the project root is outside it. The exemption is deliberate and required: when the project root
   itself lives under temp, as in a `mktemp -d` fixture checkout, which is how this repository's own

@@ -3,6 +3,24 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.1] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
+## [1.1.0] - 2026-11-12
+
+### Added
+
+- A plugin can declare its former names as `earlierNames` in `git-hooks/entries.json`, and the git-hook installer then finds what an install under one of those names left: copies, `<event>.d/` markers, lefthook jobs, config-hook copies and keys, and decline keys. `verify` reports them as `superseded` drift, a decline under the earlier name still counts as declined, and `plan` returns them as a `superseded` decision that `apply install-git-hooks` removes on the user's yes, carrying this clone's resolved decline or opt-in to this plugin's key in its local config. A decline line under the earlier name in a system or global config file is reported with the command to remove it, never edited, since other clones may rely on it.
+
+## [1.0.23] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
 ## [1.0.22] - 2026-11-12
 
 ### Changed
@@ -427,7 +445,7 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 - Shared `prerequisites.mjs` synced: the SessionStart probe now also reports a drifted git-hook entry for a plugin that ships `git-hooks/entries.json`.
 - Vendored the shared git-hook installer and check lib under `lib/git-hooks/`; nothing uses them until this plugin ships its own git-hook entries.
-- The README's known-limitation note no longer names typos-format's removed write mode as the other in-place Markdown rewriter; it now covers any other hook that rewrites Markdown in place.
+- The README's known-limitation note no longer names spelling's removed write mode as the other in-place Markdown rewriter; it now covers any other hook that rewrites Markdown in place.
 
 ## [0.12.15] - 2026-10-13
 
@@ -1746,7 +1764,7 @@ disclosure from the tool's own report rather than from an exit-code map.
   (markdownlint-cli2 reads it only under an explicit `--config` flag; its README "Configuration"
   section, fetched 2026-07-31). Part of #1809's single-writer decision: by default at most one
   in-place rewriter matches any file class, which dissolves the undefined-precedence race with
-  `typos-format` this marketplace shipped for every Markdown edit.
+  `spelling` this marketplace shipped for every Markdown edit.
 
 ## [0.8.6]
 
@@ -1757,7 +1775,7 @@ disclosure from the tool's own report rather than from an exit-code map.
   session whose project directory is the user's home admitted everything under the OS temp root,
   including Claude Code's own per-session scratchpad, which lives there. Hooks that lint, rewrite, or
   autocorrect then ran on throwaway files that are not project content and carry no project config to
-  opt out with; the reported case was `typos-format` autocorrecting a shell variable in a scratch
+  opt out with; the reported case was `spelling` autocorrecting a shell variable in a scratch
   script and silently breaking it. The guard now rejects a file inside the OS temp tree when the
   project root is outside it. The exemption is deliberate and required: when the project root
   itself lives under temp, its files are still accepted. That is how this repository's own hook

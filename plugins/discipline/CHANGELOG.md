@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.26.9] - 2026-11-12
+
+### Changed
+
+- Internal restructuring, no behavior change.
+
 ## [0.26.8] - 2026-11-12
 
 ### Changed
