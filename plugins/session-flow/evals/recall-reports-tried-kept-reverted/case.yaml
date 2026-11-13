@@ -21,10 +21,15 @@ graders:
     pattern: '(?=[\s\S]*token[- ]bucket)(?=[\s\S]*sliding[- ]window)'
     flags: i
     arm: both
-  - name: tried-kept-reverted
+  - name: cites-commit-and-burst
     type: regex
-    pattern: '^(?=[\s\S]*(?:token[- ]bucket[^\n]*\brevert|\brevert[^\n]*token[- ]bucket|(?:^|\n)[ \t#*_>-]*(?:dropped or reverted|reverted|dropped)\b[ \t*_:]*\n(?:[ \t]*\n)?[^\n]*token[- ]bucket))(?=[\s\S]*\bburst)(?=[\s\S]*(?:sliding[- ]window[^\n]*\b(?:kept|current|still|in place|stayed|stays|remains|in use)\b|\b(?:kept|current|still in place|in place|remains)\b[^\n]*sliding[- ]window|(?:^|\n)[ \t#*_>-]*kept\b[ \t*_:]*\n(?:[ \t]*\n)?[^\n]*sliding[- ]window))(?=[\s\S]*\b(?=[0-9a-f]*[0-9])[0-9a-f]{7,40}\b)(?![\s\S]*token[- ]bucket(?:(?:(?!sliding[- ]window)[^\n])*|(?:[^\n.;]|\.(?=\S))*)\bis\s+(?:still\s+)?(?:current|in place|live|kept|in use)\b)'
+    pattern: '^(?=[\s\S]*\b(?=[0-9a-f]*[0-9])[0-9a-f]{7,40}\b)(?=[\s\S]*\bburst)'
     flags: 'i'
+    arm: both
+  - name: token-bucket-reverted-sliding-window-kept
+    type: llm
+    focus: last_message
+    criteria: "Judge only what the reply says happened to the two rate limiters, the token bucket and the sliding window. PASS only if the reply says the token bucket was reverted (or dropped, removed or backed out) because of traffic bursts, such as dropping requests during bursts, and says the sliding window is the one kept: current, still in place, in use, or the one that replaced the token bucket or the in-memory limiter and stayed. A sentence that names the token bucket and then says the sliding window is current counts for the sliding window. FAIL if anything in the reply, a closing summary included, says the token bucket is current, kept, still in place, remains or is in use, or that it was re-applied, re-adopted or restored after its revert. Also FAIL if the reply says the sliding window was reverted or dropped, gives no reason for the token bucket's revert, gives the bursts as a problem of anything other than the token bucket, names both without saying which was reverted and which was kept, or does not say what happened to the rate limiters. Do not judge commit hashes, dates, file paths, or what the reply says about other sources such as pull requests or the tracker."
     arm: both
   - name: unavailable-prs-named
     type: llm

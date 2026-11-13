@@ -19,16 +19,24 @@
     {
       "answer": "## Tried\n- **Token-bucket limiter** (`b61c929`, 2026-11-13). It replaced the in-memory map with `bucket(key).take()`.\n- **Sliding-window limiter** (`603049c`, 2026-11-13).\n\n## Kept\n- **Sliding-window limiter** is what `HEAD` has in `src/limiter.ts` (`603049c`).\n\n## Dropped or reverted\n- **Token-bucket** was reverted in `39620d8` (2026-11-13). The recorded reason is \"The bucket dropped legitimate requests during traffic bursts.\"\n\n**Answer:** Yes. The in-memory limiter was already replaced once, with a token bucket, and that was reverted because it dropped legitimate requests during bursts. A sliding-window limiter then replaced the in-memory one and is current.",
       "why": "real eval answer: the closing line calls the sliding window current after naming the token bucket"
+    },
+    {
+      "answer": "The token bucket (a1b2c3d) was reverted in 4c5d6e7 because it dropped requests during bursts; the sliding window (9f8e7d6) replaced it and is current.",
+      "why": "one sentence names the token bucket, and is current belongs to the sliding window"
+    },
+    {
+      "answer": "The token bucket (a1b2c3d) was replaced by the sliding window (9f8e7d6), which is current; the token bucket was reverted in 4c5d6e7 because it dropped requests during bursts.",
+      "why": "replaced by the sliding window, which is current"
+    },
+    {
+      "answer": "The token bucket was reverted in 4c5d6e7 after it dropped requests during bursts, and the sliding window (9f8e7d6) is current.",
+      "why": "token bucket reverted after bursts, and the sliding window is current"
     }
   ],
   "fail": [
     {
       "answer": "Kept: token bucket (a1b2c3d)\nReverted: sliding window, dropped requests during bursts (9f8e7d6)",
       "why": "kept and reverted swapped"
-    },
-    {
-      "answer": "The token bucket was reverted after bursts; the sliding window is still in place.",
-      "why": "no SHA cited"
     },
     {
       "answer": "Token bucket reverted in 4c5d6e7. Sliding window kept (9f8e7d6).",
@@ -89,6 +97,42 @@
     {
       "answer": "**Tried**\n- token-bucket rate limiter (a1b2c3d)\n- sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: it dropped legitimate requests during bursts.\n\n**Answer:** the token bucket came after the sliding window and is current.",
       "why": "closing line: token bucket came after the sliding window and is current"
+    },
+    {
+      "answer": "The token bucket was reverted in a1b2c3d because it dropped requests during bursts, but it later replaced the sliding window; it is current.",
+      "why": "the token bucket later replaced the sliding window and it is current"
+    },
+    {
+      "answer": "The token bucket (a1b2c3d) was reverted in 4c5d6e7 because it dropped requests during bursts, but it was restored the next day and is kept today; the sliding window (9f8e7d6) was only tried.",
+      "why": "token bucket restored and kept after the revert"
+    },
+    {
+      "answer": "The token bucket was reverted in 4c5d6e7 for dropping requests during bursts, then re-adopted in b61c929 once burst handling was fixed, and it is what runs now. The sliding window (9f8e7d6) was tried in between.",
+      "why": "token bucket re-adopted after the revert and running now"
+    },
+    {
+      "answer": "Both were tried: the token bucket (a1b2c3d) and the sliding window (9f8e7d6). The burst problem was fixed in 4c5d6e7, and the token bucket remains in use.",
+      "why": "token bucket remains in use"
+    },
+    {
+      "answer": "The sliding window (9f8e7d6) was reverted in 4c5d6e7 because it dropped requests during bursts; the token bucket (a1b2c3d) replaced it and is current.",
+      "why": "the two approaches reversed"
+    },
+    {
+      "answer": "The history mentions a token-bucket rate limiter (a1b2c3d) and a sliding-window rate limiter (9f8e7d6); commit 4c5d6e7 also mentions bursts.",
+      "why": "names both, gives no outcome"
+    },
+    {
+      "answer": "The token bucket (a1b2c3d) was reverted in 4c5d6e7 because it was too slow; the sliding window (9f8e7d6) now handles bursts and is current.",
+      "why": "revert reason is not the bursts; bursts are given to the sliding window"
+    },
+    {
+      "answer": "The sliding-window limiter lives in src/limiter.ts and uses a 60-second window.",
+      "why": "an answer to a different question"
+    },
+    {
+      "answer": "",
+      "why": "empty answer"
     }
   ]
 }
