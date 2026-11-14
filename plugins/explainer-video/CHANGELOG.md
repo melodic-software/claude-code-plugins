@@ -3,6 +3,15 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.2] - 2026-11-14
+
+### Fixed
+
+- A code line that wraps at a space no longer fails the frame fit check: the space at the wrap
+  point used to hang past the content area's right edge.
+- A flow diagram keeps its nodes and arrows on one row, wrapping text inside each node with
+  balanced lines, instead of wrapping a node onto a second row after a dangling arrow.
+
 ## [2.4.1] - 2026-11-14
 
 ### Fixed
