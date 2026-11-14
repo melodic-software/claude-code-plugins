@@ -38,6 +38,13 @@ out=$(read_doc $'pre_ready:\n  - step: verify\n    enabled: "false"\nprep_audits
 assert_eq "a quoted enabled under another key does not fail this list" \
   $'source\tconfig\nmarkdown\tdefault\nrenames\tdefault\nskills\tdefault\nrules\toff\ntests\tdefault' "$out"
 
+# The parser accepts a uniform base indent and a byte-order mark, so the text scan must too.
+RULES_ONLY_OFF=$'source\tconfig\nmarkdown\tdefault\nrenames\tdefault\nskills\tdefault\nrules\toff\ntests\tdefault'
+out=$(read_doc $'  pr_open_state: ready\n  prep_audits:\n    - class: rules\n      enabled: false\n  other: 1\n')
+assert_eq "a document indented two spaces is read" "$RULES_ONLY_OFF" "$out"
+out=$(read_doc $'\xef\xbb\xbfprep_audits:\n  - class: rules\n    enabled: false\n')
+assert_eq "a byte-order mark before the key is read" "$RULES_ONLY_OFF" "$out"
+
 # Names the reader uses inside must not be read from the environment it inherits.
 out=$(printf '' | env audit_rules=off bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
 assert_eq "an inherited audit_rules does not turn the rules audit off" $'source\tdefault\n'"$ALL_DEFAULT" "$out"
@@ -92,6 +99,10 @@ check_fail_closed "an unknown key with an empty value" \
   $'prep_audits:\n  - class: rules\n    enabled: false\n    note:\n' "prep_audits item has a key with no value"
 check_fail_closed "a trailing empty list item" \
   $'prep_audits:\n  - class: rules\n    enabled: false\n  -\n' "prep_audits holds an empty item"
+check_fail_closed "a trailing empty item under a two-space base indent" \
+  $'  prep_audits:\n    - class: rules\n      enabled: false\n    -\n' "prep_audits holds an empty item"
+check_fail_closed "an empty value under a two-space base indent" \
+  $'  prep_audits:\n    - class: rules\n      enabled: false\n      skill: []\n' "prep_audits item has a key with no value"
 check_fail_closed "an only, empty list item" \
   $'prep_audits:\n  -\n' "prep_audits holds an empty item"
 check_fail_closed "a file the parser rejects" \

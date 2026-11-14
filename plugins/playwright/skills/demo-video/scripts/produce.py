@@ -22,6 +22,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+import media_encode
 from demo_common import font, smooth
 from ripple_geometry import HALO, ring
 
@@ -292,21 +293,19 @@ def main(argv=None):
     ap.add_argument('out')
     ap.add_argument('--off', default='', help='comma-separated layers to switch off')
     ap.add_argument('--jobs', type=int, default=min(16, os.cpu_count() or 4))
-    ap.add_argument('--preset', help='x264 preset in place of the EDL\'s (a faster draft encode)')
+    ap.add_argument('--preset', help='x264 preset in place of the demo-video profile\'s (a faster draft encode)')
     a = ap.parse_args(argv)
     edl = json.loads(Path(a.edl).read_text())
     off = set(filter(None, a.off.split(',')))
     W, H, fps = edl['width'], edl['height'], edl['fps']
     nframes = int(round(edl['total'] * fps))
-    enc = {**edl['encode'], **({'preset': a.preset} if a.preset else {})}
+    video_args = list(media_encode.PROFILES['demo-video']['video'])
+    if a.preset:
+        video_args[video_args.index('-preset') + 1] = a.preset
     out = Path(a.out)
     video_only = out.with_suffix('.video.mp4')
-    vf = 'scale=out_color_matrix=bt709:out_range=tv:flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp,format=' + enc['pix_fmt']
     cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}',
-           '-r', str(fps), '-i', '-', '-vf', vf, '-c:v', enc['codec'], '-profile:v', enc['profile'], '-preset', enc['preset'],
-           '-crf', str(enc['crf']), '-x264-params', 'colorprim=bt709:transfer=bt709:colormatrix=bt709:range=tv',
-           '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv',
-           '-movflags', '+faststart', str(video_only)]
+           '-r', str(fps), '-i', '-', *video_args, str(video_only)]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     logs = []
     with Pool(a.jobs, initializer=_init, initargs=(edl, off)) as pool:
@@ -318,18 +317,7 @@ def main(argv=None):
         raise SystemExit('ffmpeg video encode failed')
     clips = edl.get('audio', []) if edl['layers'].get('narration') and 'narration' not in off else []
     if clips:
-        cmd = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', str(video_only)]
-        parts = []
-        for i, x in enumerate(clips):
-            cmd += ['-i', x['file']]
-            ms = int(round(x['start'] * 1000))
-            parts.append(f"[{i + 1}:a]atrim=start={x.get('trim', 0)}:duration={x['duration']},asetpts=PTS-STARTPTS,"
-                         f'aresample=48000,adelay={ms}:all=1[a{i}]')
-        fc = ';'.join(parts) + ';' + ''.join(f'[a{i}]' for i in range(len(clips))) + \
-            f'amix=inputs={len(clips)}:normalize=0:dropout_transition=0,apad[mixed]'
-        cmd += ['-filter_complex', fc, '-map', '0:v', '-map', '[mixed]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k',
-                '-t', f'{nframes / fps:.3f}', '-movflags', '+faststart', str(out)]
-        subprocess.run(cmd, check=True)
+        media_encode.mix(video_only, clips, out, nframes / fps)
         video_only.unlink()
     else:
         video_only.replace(out)

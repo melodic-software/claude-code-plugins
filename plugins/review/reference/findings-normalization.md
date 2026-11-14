@@ -47,6 +47,7 @@ Per-surface free-text → records `{surface, file, line, line_basis, category, n
 - **Line normalization**: permalink range → start line. `file:line` → as-is, `line_basis: inferred`. No-line findings → `line: null`, file-scoped bucket. Doc-drift lines → `space: doc` (never bucket against source lines).
 - **Category normalization**: a small enum (`security`, `architecture`, `performance`, `testing`, `error-handling`, `concurrency`, `docs`, …; unmappable → `other`), NOT raw per-source strings (they false-split).
 - **Parse-failure accounting**: record raw vs normalized counts per surface; preserve unparsable findings as raw text in the report's `## Unparsed` appendix. NEVER drop.
+- **Reviewer coverage**: judge a `code-reviewer` or `security-reviewer` report by its closing `Coverage:` line as [`reviewer-handback.md`](reviewer-handback.md) "Incomplete reply" says. Extract its findings, and when that section makes the report partial or no result, add one record for that surface saying so and naming what it did not reach, so the surface never merges as clean.
 
 ## Stage 1: Severity crosswalk (deterministic)
 

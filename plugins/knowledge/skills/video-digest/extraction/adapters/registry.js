@@ -114,15 +114,29 @@ export function resolveSourceAdapter(url) {
  * `acquire` is never called with an unclaimed URL.
  *
  * @param {string} url
- * @param {{workDir: string, mode: 'full'|'transcript', captionWaitDeadline?: string|null}} options
+ * @param {{workDir: string, mode: 'full'|'transcript', captionWaitDeadline?: string|null, timeRange?: import('../lib/time-range.js').TimeRange|null}} options -
+ *   a `timeRange` the owning adapter cannot honor (no `timeRange` capability) throws
  * @param {object} [deps] - adapter-specific injectable I/O (tests only)
  * @returns {Promise<AcquireOutcome>}
  */
-export async function acquireMedia(url, { workDir, mode, captionWaitDeadline = null }, deps = {}) {
+export async function acquireMedia(
+  url,
+  { workDir, mode, captionWaitDeadline = null, timeRange = null },
+  deps = {},
+) {
   const adapter = resolveSourceAdapter(url);
   const claim = adapter.matchUrl(url);
   if (!claim) {
     throw new UnsupportedSourceError(url, supportedHosts());
   }
-  return adapter.acquire(claim.canonicalUrl, { workDir, mode, captionWaitDeadline, deps });
+  if (timeRange && adapter.capabilities.timeRange !== true) {
+    throw new Error(`${adapter.id} acquisition does not support a time range`);
+  }
+  return adapter.acquire(claim.canonicalUrl, {
+    workDir,
+    mode,
+    captionWaitDeadline,
+    ...(timeRange ? { timeRange } : {}),
+    deps,
+  });
 }

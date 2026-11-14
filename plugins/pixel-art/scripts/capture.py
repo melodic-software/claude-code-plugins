@@ -29,6 +29,8 @@ import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import media_encode
+
 UNREVIEWED = (
     "visually unreviewed: no browser tool is present, so the scene was not captured"
 )
@@ -310,26 +312,21 @@ def _decode_data_url(value):
 
 def _mux_audio(webm, wav, seconds, work):
     """Return webm with wav looped under it, or None when ffmpeg is absent or cannot mux it."""
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
+    if not shutil.which("ffmpeg"):
         print("capture.py: scene.webm is video-only because ffmpeg is absent", file=sys.stderr)
         return None
     (work / "scene-in.webm").write_bytes(webm)
     (work / "audio.wav").write_bytes(wav)
     out = work / "scene-out.webm"
+    profile = media_encode.PROFILES["pixel-art-webm"]
     try:
-        done = subprocess.run(
-            [
-                ffmpeg, "-y", "-i", str(work / "scene-in.webm"),
-                "-stream_loop", "-1", "-i", str(work / "audio.wav"),
-                "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "libopus",
-                "-t", str(seconds), str(out),
-            ],
-            capture_output=True, text=True, timeout=max(30, seconds + 20),
-        )
-        reason = done.stderr.strip()[-300:] if done.returncode else ""
-        if not reason and not (out.exists() and out.stat().st_size):
-            reason = "ffmpeg wrote no output"
+        media_encode.run([
+            "-i", work / "scene-in.webm", "-stream_loop", "-1", "-i", work / "audio.wav",
+            "-map", "0:v", "-map", "1:a", *profile["video"], *profile["audio"], "-t", seconds, out,
+        ], timeout=max(30, seconds + 20))
+        reason = "" if out.exists() and out.stat().st_size else "ffmpeg wrote no output"
+    except media_encode.EncodeError as exc:
+        reason = str(exc)[-300:]
     except subprocess.TimeoutExpired:
         reason = "ffmpeg timed out"
     if reason:

@@ -1,0 +1,42 @@
+{
+  "skill_name": "principles",
+  "evals": [
+    {
+      "id": 1,
+      "name": "seam-answered-with-feathers-and-our-narrowing-kept-apart",
+      "prompt": "/architecture:principles what is a seam, and is it the same as a boundary?",
+      "expected_output": "Loads reference/vocabulary.md and answers that a seam is a placement decision: the spot where one adapter comes out and another goes in with no edit at that spot, as in the TaxRates port with the rates-service client in production and DictTaxRates in tests. Credits the seam to Michael Feathers, Working Effectively with Legacy Code, and labels 'a module's interface sits wherever its seam sits' as this skill's own narrowing. Says boundary is not the word to use, because domain-driven design already spends it on bounded contexts.",
+      "files": [],
+      "expectations": [
+        "Defines a seam as the spot where one adapter is swapped for another with no edit at that spot",
+        "Credits Michael Feathers for seam and does not credit Ousterhout for it",
+        "Labels 'a module's interface sits wherever its seam sits' as this skill's narrowing, not as Feathers' words",
+        "Says boundary is not a synonym to use, giving the bounded-context reason"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "deletion-test-and-leverage-credited-as-our-own",
+      "prompt": "/architecture:principles where do the deletion test and the idea of leverage and locality come from?",
+      "expected_output": "Answers from the Basis list in reference/vocabulary.md: leverage and locality as the two things depth produces, the deletion test and the two-adapter check are this skill's own terms and checks, not Ousterhout's; depth, deep and shallow modules come from John Ousterhout's A Philosophy of Software Design. Explains the deletion test: if removing a module leaves each caller a direct call to what it wrapped, the module only forwarded calls; if the same logic would be copied into every caller, it was doing real work.",
+      "files": [],
+      "expectations": [
+        "Credits leverage, locality, the deletion test and the two-adapter check to this skill, not to Ousterhout or any third party",
+        "Credits depth and deep or shallow modules to Ousterhout's A Philosophy of Software Design",
+        "States both outcomes of the deletion test: forwarding only, or real work copied into every caller",
+        "Invents no page number and no quotation"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "friction-scan-routed-to-improve",
+      "prompt": "/architecture:principles find the shallow modules in this repository",
+      "expected_output": "Says this skill defines the terms and does not scan code, and points at /architecture:improve for a scan for shallow modules and seam leaks. It may define shallow from reference/vocabulary.md, but it reads no repository files and produces no candidates.",
+      "files": [],
+      "expectations": [
+        "Routes the scan to /architecture:improve",
+        "Produces no candidate list and reads no repository source files"
+      ]
+    }
+  ]
+}

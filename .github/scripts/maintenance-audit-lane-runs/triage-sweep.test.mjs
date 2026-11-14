@@ -874,6 +874,19 @@ test("a run from before the job rename, its jobs named by id, is classified the 
   }
 });
 
+test("a deferred triage counts as transient under the reusable's Title Case apply job and its earlier name, never under another job", async () => {
+  const renamed = (name) => DEFERRED.map((j) => (j.name === "Intake Triage / claude-intake-triage-apply" ? { ...j, name } : j));
+  for (const name of ["Intake Triage / Apply", "intake-triage / Apply", "Intake Triage / claude-intake-triage-apply"]) {
+    const result = await sweep(transientRuns(renamed(name), { 221: NOTES.deferred }));
+    assert.deepEqual([result.dispatched, result.handed], [[1], []], name);
+  }
+  for (const name of ["Intake Triage / Status", "Other / Apply", "Apply"]) {
+    const gh = transientRuns(renamed(name), { 221: NOTES.deferred });
+    await sweep(gh);
+    assert.ok(!gh.writes[1]?.body.body.includes("22~"), name);
+  }
+});
+
 test("a run whose apply failed for a reason a retry does not clear counts", async () => {
   for (const message of ["POST /repos/o/r/issues/1/labels failed with status 403", "admission failed: the rules file does not parse"]) {
     const gh = transientRuns(FAILED_500, { 220: [note("failure", "Process completed with exit code 1."), note("failure", message)] });

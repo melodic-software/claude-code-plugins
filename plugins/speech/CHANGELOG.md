@@ -3,6 +3,35 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0] - 2026-11-14
+
+### Added
+
+- `narrate.py --scan-pattern <regex>` (repeatable) adds a pattern the floor refuses before any online voice; a match exits 4 as any other scan hit, and a pattern that does not compile fails the scan.
+
+## [1.1.0] - 2026-11-14
+
+### Added
+
+- **`narrate.py --backend-chain`: one voice for the whole script, with fallback.** Backends `edge-tts`
+  (free, default voice en-US-AndrewNeural), `kokoro`, `openai` and `elevenlabs` (paid) and `command` (a
+  `{script}` `{out}` template) are tried in order; a failed call is retried after 1, 2 and 4 seconds, then the
+  whole script goes to the next backend, so voices never mix; a call past its hard timeout (`--timeout`) goes to
+  the next backend at once. The timeout bounds a paid call too: an `openai` socket timeout is not retried, and
+  `elevenlabs` caps each request and its own rate-limit retry waits by it, so no billed request starts after it.
+  `voice.json` records the backend, the voice and every attempt. Exits: 3 a paid backend without
+  `--allow-paid-voice`, 4 the script failed the secret and machine-data scan (run before any online backend,
+  nothing sent), 5 no backend produced audio. Without `--backend-chain`, `narrate.py` runs kokoro exactly as
+  before.
+- `edge-tts==7.3.1` joins the hash-locked `requirements.txt`; ffmpeg and `OPENAI_API_KEY` are listed as
+  optional prerequisites.
+
+## [1.0.18] - 2026-11-14
+
+### Fixed
+
+- The shared hook library's command reader now says, when shfmt rejects text a guard lifted out of the command and named with `HOOK_BPS_SPAN`, which guard refused, that shfmt's `line:col` counts from the start of that text rather than the command, and the text's first 60 characters. Its own second readings (a backtick's unescaped text, a joined here-doc body) name themselves the same way. A refusal of the command itself reads as before.
+
 ## [1.0.17] - 2026-11-13
 
 ### Changed

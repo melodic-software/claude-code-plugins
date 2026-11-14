@@ -85,7 +85,9 @@
 // ready` issues in no queue (neither agent-ready nor admission-deferred, no
 // hold or refuse label, no open blocker or sub-issue), at most
 // limits.readmit-per-run of them, oldest updated first (readmitReady), and
-// writes as intake's admission does. A born-triaged issue (check-born-triaged
+// writes as intake's admission does. One with an open blocker or sub-issue
+// goes to the rules too, once a day, while no admission comment is newer than
+// its newest `status: ready` (admissionUndecided). A born-triaged issue (check-born-triaged
 // notBornTriaged: the marker as its body's last line, a listed human or the
 // App its author) that the rules refuse only for a Size or Uncertainty no one
 // set yet waits with no write: its filer sets them after filing, and if no one
@@ -271,7 +273,7 @@
 // that lane already restarted the issue for a fresh attempt or parked it.
 // The issues this path reads carry agent-ready.
 //
-// It relabels a red-main fix issue post-merge-demotion-alert.yml reopened on
+// It relabels a red-main fix issue post-merge-file-demotion-issues.yml reopened on
 // a repeat failure: the reopen keeps agent-ready but ran on that workflow's
 // GITHUB_TOKEN, which starts no run. An open agent-ready issue filed by
 // github-actions[bot] with a `<!-- post-merge-fix check=... -->` first line
@@ -496,7 +498,7 @@ const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const HOLDS = LANE_HOLDS;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-// post-merge-demotion-alert.yml's fix issue and the comment it posts when it
+// post-merge-file-demotion-issues.yml's fix issue and the comment it posts when it
 // reopens one, both under that workflow's GITHUB_TOKEN.
 const ALERT_BOT = "github-actions[bot]";
 const FIX_ISSUE = /^<!-- post-merge-fix check=[^\r\n]+ -->/;
@@ -984,7 +986,8 @@ function admissionGate(status) {
 // Admits a ready issue within the gate's room: its Work status set to
 // agent-ready, which starts the lane run, unless a person's hold kept it; past
 // the room, sets it deferred unless it already reads deferred (`deferred`). No
-// status label is written. The admission record (admission-record.mjs) names
+// status label is added; the agent-ready write removes the other status
+// labels first (write-status.mjs). The admission record (admission-record.mjs) names
 // the title and body of one read right before the field write, so the run's
 // text freeze (write-issue.mjs) has an anchor; a failed read or post throws,
 // and nothing is admitted without it.
@@ -1256,7 +1259,7 @@ const unstatused = (issue) => labelNames(issue).filter((name) => !isStatusLabel(
 // reads it as waiting. Read fresh: a run queued behind another may land after a reopen,
 // and an open issue keeps them; the sweep hands in the issue its close check
 // just read (`read`) instead. A post-merge fix issue keeps agent-ready
-// across its close, as post-merge-demotion-alert.yml reopens it with the label
+// across its close, as post-merge-file-demotion-issues.yml reopens it with the label
 // and the sweep relabels it (recurrenceRefusal). A Work status of agent-ready
 // moves to needs-triage (write-status.mjs leaveAgentReady), so a reopen does
 // not read as queued work no run picked up; any other state stays.
@@ -1455,6 +1458,20 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
   }
 }
 
+// Whether no admission comment (ADMIT_MARKER, by `bot`) among `comments` was
+// written at or after the newest `status: ready` add in the issue's events,
+// read through `events()` only when that comment exists: no admission decided
+// the ready status the issue holds now, as when intake's admission skipped or
+// failed on it.
+export async function admissionUndecided({ comments, events, bot }) {
+  const own = comments.find((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(ADMIT_MARKER));
+  if (!own) {
+    return true;
+  }
+  const decided = Date.parse(own.updated_at);
+  return (await events()).some((event) => event?.event === "labeled" && String(event.label?.name).toLowerCase() === READY && Date.parse(event.created_at) > decided);
+}
+
 // Runs intake's admission on the open `status: ready` issues in no queue:
 // neither agent-ready nor admission-deferred, so nothing else revisits them (a
 // deferral whose label was lost, or a `status: ready` set by hand). Those of
@@ -1478,8 +1495,13 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
 // sub-issues read only for a comment it may rewrite, so each is read once a
 // day whether or not a sub-issue closes. One that read shows has no open
 // sub-issue goes to the rules: the summary leaves a duplicate close out of
-// `completed`, so it can show a wait with nothing open. Returns how many reads
-// or writes failed.
+// `completed`, so it can show a wait with nothing open. Every issue left out
+// for an open blocker or sub-issue, on the same hour, goes to the rules when
+// no admission decided its `status: ready` (admissionUndecided): one comments
+// read each, shared with refreshSplitWait, and its events only when it has an
+// admission comment. A decision that leaves that comment unchanged, or posts
+// none, leaves the issue undecided, so it is decided again the next day.
+// Returns how many reads or writes failed.
 async function readmitReady({ github, repo, listed: open, names = labelNames, humans, bot, gate, appId, admission, cap, now, writer = NO_WRITER, statusOf, maps = NO_MAPS }) {
   const lower = (item) => names(item).map((name) => name.toLowerCase());
   const listed = open.filter((item) => lower(item).includes(READY) && !maps.skip(item));
@@ -1489,6 +1511,9 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
   const hour = new Date(now).getUTCHours();
   const rotated = (entry) => Number(entry.number) % 24 === hour && entry.issue_dependencies_summary?.blocked_by === 0 && lower(entry).includes(READY) && !queued(lower(entry));
   const drained = new Set();
+  // The comments refreshSplitWait read, by issue; null once it rewrote the
+  // admission comment, which decides the issue.
+  const read = new Map();
   for (const item of listed.filter((entry) => rotated(entry) && waiting(entry))) {
     const base = `/repos/${repo}/issues/${item.number}`;
     try {
@@ -1499,14 +1524,29 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
         }
         return left;
       };
-      if (await refreshSplitWait({ github, repo, parent: item, names: lower(item), comments: await paginate(github, `${base}/comments`), open, bot })) {
+      const comments = await paginate(github, `${base}/comments`);
+      const rewrote = await refreshSplitWait({ github, repo, parent: item, names: lower(item), comments, open, bot });
+      read.set(item.number, rewrote ? null : comments);
+      if (rewrote) {
         console.log(`label-unblocked: #${item.number} admission comment now names its open sub-issues`);
       }
     } catch (error) {
       failed += failedFor(github, item.number, error);
     }
   }
-  let candidates = listed.filter((item) => !queued(lower(item)) && (!waiting(item) || drained.has(item.number)));
+  const undecided = new Set();
+  for (const item of listed.filter((entry) => Number(entry.number) % 24 === hour && waiting(entry) && !drained.has(entry.number) && !queued(lower(entry)) && read.get(entry.number) !== null)) {
+    const number = Number(item.number);
+    try {
+      const comments = read.get(item.number) ?? (await paginate(github, `/repos/${repo}/issues/${number}/comments`));
+      if (await admissionUndecided({ comments, events: () => eventsOf(github, repo, statusOf, number), bot })) {
+        undecided.add(item.number);
+      }
+    } catch (error) {
+      failed += failedFor(github, number, error);
+    }
+  }
+  let candidates = listed.filter((item) => !queued(lower(item)) && (!waiting(item) || drained.has(item.number) || undecided.has(item.number)));
   if (candidates.length === 0) {
     return failed;
   }
@@ -1705,7 +1745,7 @@ export const infraComment = (key, cause, refires) =>
 // The relabel's record, posted before the label moves: one per recurrence
 // comment.
 export const recurrenceComment = (id) =>
-  `<!-- work-unblock recurrence ${id} -->\nThis check failed on main again, and post-merge-demotion-alert reopened this issue, which starts no work-resolve-issue run. work-unblock removed and added \`${LABEL}\` back to start one. It does this once per reopen.`;
+  `<!-- work-unblock recurrence ${id} -->\nThis check failed on main again, and post-merge-file-demotion-issues reopened this issue, which starts no work-resolve-issue run. work-unblock removed and added \`${LABEL}\` back to start one. It does this once per reopen.`;
 
 // The hand-offs to triage once the lane PR ended, each posted once per pull
 // request before its labels move.
@@ -2206,7 +2246,7 @@ const staleQueued = (run, now, minutes) => run.status === "queued" && now - run.
 // `issue`'s lowercased names as the Work status field decides them (fieldFirst).
 const fieldNamesOf = (statusOf, issue) => fieldFirst(statusOf, issue.number, labelNames(issue).map((name) => name.toLowerCase()));
 
-// For a fix issue post-merge-demotion-alert reopened on a repeat failure: why
+// For a fix issue post-merge-file-demotion-issues reopened on a repeat failure: why
 // it is not relabeled now, or null with what to do. Null for any other issue,
 // and for one agent-ready was added to since the reopen, which the restart
 // and re-fire rules then take.

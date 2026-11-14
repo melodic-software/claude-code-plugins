@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-repo/features/testing/README.md"
+          }
+        }
+      ],
+      "why": "resolved the id without a question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "AskUserQuestion",
+          "input": {
+            "questions": [
+              {
+                "question": "No feature file for testing/run-e2e. Which file should I drive?"
+              }
+            ]
+          }
+        }
+      ],
+      "why": "asked in an unattended run"
+    }
+  ]
+}

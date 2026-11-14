@@ -3,6 +3,30 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.4] - 2026-11-14
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: the changed-line ranges no longer read an added line starting `++ b/` as a file header, so findings in the hunks after it stay with their real file.
+
+## [1.2.3] - 2026-11-14
+
+### Changed
+
+- Shared `check-lib.sh` synced where this plugin carries it: it gains `checks_restage`, which no instruction-placement hook calls.
+
+## [1.2.2] - 2026-11-14
+
+### Fixed
+
+- The pre-commit and pre-push checks now test the changed files for binary content with a fixed number of processes instead of three per file. Each check reads the index, or each pushed tip, through one listing and one `git cat-file --batch`, and reads work tree files with no extra process. On Windows, a commit that staged a few hundred files spent minutes starting git once per file. A file still counts as binary only when its first 8,000 bytes hold a NUL byte, whatever its attributes say. Installed hooks report drift until reinstalled.
+
+## [1.2.1] - 2026-11-14
+
+### Changed
+
+- The shared check library reads the merge heads once per run. No behavior change for this hook, which reads the staged diff directly. Installed hooks report drift until reinstalled.
+
 ## [1.2.0] - 2026-11-13
 
 ### Changed

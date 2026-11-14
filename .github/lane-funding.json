@@ -133,16 +133,16 @@
       "keyed": true,
       "category": "maintenance",
       "lanes": [
-        { "id": "eval", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "pull_request"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "eval-subscription", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "pull_request"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "eval-fallback", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "pull_request"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "eval", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "pull_request"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
+        { "id": "eval-subscription", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "pull_request"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "eval-fallback", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "pull_request"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "pass-a", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "pass-a2", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "propose", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "pass-b", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "pass", "workflow": "eval-hill-climb-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "pass-subscription", "workflow": "eval-hill-climb-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "pass-fallback", "workflow": "eval-hill-climb-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "pass", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
+        { "id": "pass-subscription", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "pass-fallback", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     }
   ]

@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: ed-level-config-default
+description: "Levels, MB:plugins/prototype/skills/explore-directions/reference/levels.md: with no level in the request, the team file docs/conventions/prototype.yaml (scaffolded with level: sketch) sets the level, the reply prints the report line 'level: sketch (team)' above the plan, and the plan takes sketch's two variants. The prompt holds no level name or phrase. Plan only, no server: sandbox-safe."
+tags: [explore-directions, levels]
+runs: 3
+expected_outcome: "Before any file is written, the agent runs lib/prototype-settings.mjs resolve with no --prompt and no --argument, the reply shows the line 'level: sketch (team)', and the plan line names the route, the host and exactly two variants, each named by its direction."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:explore-directions order history page for an online bakery. Show me the plan before you build anything."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

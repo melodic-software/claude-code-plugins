@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "node \"/p/prototype/lib/prototype-settings.mjs\" resolve --option ''", "description": "x"}}],
+      "why": "resolver run, empty option"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat docs/conventions/prototype.yaml", "description": "prototype-settings.mjs resolve"}}],
+      "why": "resolver named only in the description"
+    }
+  ]
+}

@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# Offline test of the review agents' turn budgets and the checkpoint contract
+# of the reviewers that write a findings file: derives both sets from the agent
+# definitions, checks each capped agent's stated cap, stop turn and closing
+# not-reached line, each findings-file reviewer's sentinel, and that every
+# caller of the contract names the same sentinel. Reads files only.
+# test-scope: plugins/review/agents/*.md plugins/review/reference/reviewer-handback.md plugins/review/reference/findings-normalization.md plugins/review/skills/quality-gate/context/*.md plugins/review/workflows/fanout-sweep.js
+set -uo pipefail
+
+PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+AGENTS="$PLUGIN_DIR/agents"
+SENTINEL='Coverage: in progress'
+# Turns kept back for the report: the final write, when there is one, and the reply.
+RESERVE=6
+# Capped agents that keep no Turn budget section, each with its reason.
+declare -A EXEMPT=(
+  [stage-normalizer]='a single Read-only extraction pass whose output schema the workflow enforces'
+  [brief-reviewer]='cap 60, sized by its callers'
+)
+
+FAILED=0
+pass() { printf 'PASS: %s\n' "$1"; }
+fail() {
+  FAILED=$((FAILED + 1))
+  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
+}
+assert_contains() {
+  case "$2" in *"$3"*) pass "$1" ;; *) fail "$1" "expected to contain: $3" ;; esac
+}
+
+# One pass per agent file. Prints key=value facts:
+#   tools, cap            frontmatter tools and maxTurns
+#   handback              1 when the Handback section names a `Findings path:` line
+#   budget                1 when a `## Turn budget` section exists
+#   budget_cap            the integer after `maxTurns:` in that section
+#   stop                  N from `Stop gathering by turn N`
+#   reach                 1 when that section names what the agent `did not reach`
+#   sentinel              1 when the body names the checkpoint sentinel
+#   out_criteria/out_coverage  1 when Output format names `Criteria read:` / `Coverage:`
+#   never                 1 when a Handback line naming the sentinel also names `No findings.`
+facts() {
+  awk -v s="$SENTINEL" '
+    NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }
+    fm && /^---[[:space:]]*$/ { fm = 0; next }
+    fm && /^tools:/ { v = $0; sub(/^tools:[[:space:]]*/, "", v); gsub(/"/, "", v); print "tools=" v; next }
+    fm && /^maxTurns:/ { print "cap=" $2 + 0; next }
+    fm { next }
+    /^## / { sec = substr($0, 4); if (sec == "Turn budget") print "budget=1"; next }
+    index($0, s) { print "sentinel=1" }
+    sec == "Turn budget" && match($0, /maxTurns: [0-9]+/) { print "budget_cap=" substr($0, RSTART + 10, RLENGTH - 10) + 0 }
+    sec == "Turn budget" && match($0, /Stop gathering by turn [0-9]+/) { print "stop=" substr($0, RSTART + 23, RLENGTH - 23) + 0 }
+    sec == "Turn budget" && index($0, "did not reach") { print "reach=1" }
+    sec == "Output format" && index($0, "Criteria read:") { print "out_criteria=1" }
+    sec == "Output format" && index($0, "Coverage:") { print "out_coverage=1" }
+    sec == "Handback" && index($0, "Findings path:") { print "handback=1" }
+    sec == "Handback" && index($0, s) && index($0, "never holds `No findings.`") { print "never=1" }
+  ' "$1"
+}
+
+# get <facts> <key>: the value of key, empty when absent.
+get() { [[ $1 =~ (^|$'\n')$2=([^$'\n']*) ]] && printf '%s' "${BASH_REMATCH[2]}"; }
+# flag <facts> <key> <name>: passes when key=1.
+flag() { if [[ "$(get "$1" "$2")" == 1 ]]; then pass "$3"; else fail "$3" "not found"; fi; }
+
+# Facts for every agent, read once. The capped set: agents with a maxTurns, less
+# the exemptions. The handback set: agents that hold Write and name a
+# `Findings path:` in Handback.
+declare -A FACTS=()
+CAPPED=() HANDBACK=()
+for file in "$AGENTS"/*.md; do
+  a="${file##*/}"
+  a="${a%.md}"
+  f="$(facts "$file")"
+  FACTS[$a]="$f"
+  [[ -n "$(get "$f" cap)" && -z ${EXEMPT[$a]+x} ]] && CAPPED+=("$a")
+  [[ "$(get "$f" handback)" == 1 && ", $(get "$f" tools)," == *", Write,"* ]] && HANDBACK+=("$a")
+done
+
+names_capped=" ${CAPPED[*]} "
+for want in code-reviewer security-reviewer architecture-guardian doc-drift-detector ecosystem-specialist ci-log-auditor lane-verifier; do
+  assert_contains "capped set holds $want" "$names_capped" " $want "
+done
+for a in "${!EXEMPT[@]}"; do
+  if [[ -n "$(get "${FACTS[$a]-}" cap)" ]]; then
+    pass "exempt $a has a maxTurns (${EXEMPT[$a]})"
+  else
+    fail "exempt $a has a maxTurns" "no capped agent named $a; drop the stale exemption"
+  fi
+done
+names=" ${HANDBACK[*]} "
+for want in code-reviewer security-reviewer; do
+  assert_contains "handback set holds $want" "$names" " $want "
+done
+
+for a in "${CAPPED[@]}"; do
+  f="${FACTS[$a]}"
+  cap="$(get "$f" cap)"
+  if [[ "$(get "$f" budget)" == 1 ]]; then pass "$a has a Turn budget section"; else fail "$a has a Turn budget section" "no '## Turn budget' heading"; fi
+  bcap="$(get "$f" budget_cap)"
+  if [[ -n $cap && $bcap == "$cap" ]]; then
+    pass "$a Turn budget states the frontmatter cap ($cap)"
+  else
+    fail "$a Turn budget states the frontmatter cap" "frontmatter maxTurns '$cap', Turn budget 'maxTurns: ${bcap:-none}'"
+  fi
+  stop="$(get "$f" stop)"
+  if [[ -n $cap && -n $stop ]] && ((stop <= cap - RESERVE)); then
+    pass "$a stops gathering at least $RESERVE turns below its cap ($stop of $cap)"
+  else
+    fail "$a stops gathering at least $RESERVE turns below its cap" "stop turn '${stop:-none}', cap '$cap'"
+  fi
+  flag "$f" reach "$a Turn budget ends the report naming what it did not reach"
+done
+
+for a in "${HANDBACK[@]}"; do
+  f="${FACTS[$a]}"
+  assert_contains "handback agent $a is in the capped set" "$names_capped" " $a "
+  flag "$f" sentinel "$a names the checkpoint sentinel '$SENTINEL'"
+  flag "$f" out_criteria "$a Output format names the 'Criteria read:' line"
+  flag "$f" out_coverage "$a Output format names the 'Coverage:' line"
+  flag "$f" never "$a Handback keeps 'No findings.' out of the checkpoint on the sentinel's line"
+done
+
+# Every consumer of the findings file names the same sentinel.
+for rel in reference/reviewer-handback.md skills/quality-gate/context/security.md skills/quality-gate/context/self.md workflows/fanout-sweep.js; do
+  assert_contains "$rel names the checkpoint sentinel" "$(<"$PLUGIN_DIR/$rel")" "$SENTINEL"
+done
+
+# reviewer-handback.md "After the reply", one list item or paragraph per line, wrapping joined.
+after="$(awk '
+  /^## / { on = ($0 == "## After the reply"); next }
+  !on { next }
+  /^[[:space:]]*$/ || /^- / { if (item != "") print item; item = "" }
+  { sub(/^[[:space:]]+/, ""); item = item == "" ? $0 : item " " $0 }
+  END { if (item != "") print item }
+' "$PLUGIN_DIR/reference/reviewer-handback.md")"
+assert_contains "reviewer-handback.md After the reply names SendMessage" "$after" "SendMessage"
+assert_contains "reviewer-handback.md After the reply names a partial result" "$after" "partial"
+CLEAN="Only \`Coverage: all changed files reviewed\` can be clean"
+assert_contains "reviewer-handback.md After the reply lets only full coverage be clean" "$after" "$CLEAN"
+assert_contains "workflows/fanout-sweep.js extractor brief lets only full coverage be clean" \
+  "$(<"$PLUGIN_DIR/workflows/fanout-sweep.js")" "$CLEAN"
+# A reply with no block must never be written over the agent's checkpoint.
+keeps=0 clobbers=0
+while IFS= read -r item; do
+  [[ $item == *"Never write"* && $item == *"$SENTINEL"* ]] && keeps=1
+  [[ $item == *"no block"* && ($item == *"the reply is the report"* || $item == *"replacing"*) ]] && clobbers=1
+done <<<"$after"
+if ((keeps)); then pass "reviewer-handback.md never writes a reply over a checkpoint"; else fail "reviewer-handback.md never writes a reply over a checkpoint" "no item pairs 'Never write' with '$SENTINEL'"; fi
+if ((clobbers)); then fail "reviewer-handback.md does not take a no-block reply as the report" "an item pairs 'no block' with taking or writing the reply as the report"; else pass "reviewer-handback.md does not take a no-block reply as the report"; fi
+
+# The quality-gate callers point at the handback recovery and treat the unresolved-base decline as no result.
+DECLINE='Coverage: none, change set unresolved'
+for rel in skills/quality-gate/context/self.md skills/quality-gate/context/security.md; do
+  text="$(<"$PLUGIN_DIR/$rel")"
+  assert_contains "$rel points at reviewer-handback.md \"Incomplete reply\"" "$text" '"Incomplete reply"'
+  assert_contains "$rel names the unresolved-base decline" "$text" "$DECLINE"
+done
+
+# Stage 0, which the main-thread fanout paths run, judges the reviewers by the handback rule.
+stage0="$(awk '/^## / { on = (index($0, "## Stage 0") == 1); next } on' "$PLUGIN_DIR/reference/findings-normalization.md")"
+assert_contains "findings-normalization.md Stage 0 points at reviewer-handback.md" "$stage0" "(reviewer-handback.md) \"Incomplete reply\""
+
+if ((FAILED)); then
+  printf '%d assertion(s) failed\n' "$FAILED" >&2
+  exit 1
+fi
+echo "All turn-budget assertions passed"

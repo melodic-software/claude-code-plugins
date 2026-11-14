@@ -1,4 +1,6 @@
 # Direct pins for the kokoro backend: onnxruntime runs the Kokoro-82M ONNX export, numpy holds its tensors.
+# edge-tts is the edge-tts backend's client for Microsoft's read-aloud endpoint; Dependabot proposes its bumps.
 # Python >= 3.12 (numpy 2.5). After a change, recompile requirements.txt with the command in its header.
+edge-tts==7.3.1
 numpy==2.5.4
 onnxruntime==1.31.1

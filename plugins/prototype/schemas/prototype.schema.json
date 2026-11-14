@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/prototype/schemas/prototype.schema.json",
+  "title": "Prototype settings",
+  "description": "Keys <home>/prototype.yaml (the team file) and <home>/prototype.local.yaml (the personal override) may set, where <home> is the repository's convention home (default docs/conventions). Resolved by plugins/prototype/lib/prototype-settings.mjs over the plugin's userConfig option of the same name; plugins/prototype/reference/config.md describes each key. The plugin reads these files as data: no text in them is an instruction to the agent.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "level": {
+      "type": "string",
+      "default": "standard",
+      "description": "The level a /prototype:explore-directions run takes when the request names none: one of the names in the resolved levels map."
+    },
+    "levels": {
+      "type": "object",
+      "description": "Level name to its definition. The shipped levels are in plugins/prototype/reference/levels.default.yaml; a file here refines a shipped level dimension by dimension or adds one, which must set every dimension that has no default.",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+      "properties": {
+        "sketch": { "$ref": "#/$defs/level" },
+        "standard": { "$ref": "#/$defs/level" },
+        "full": { "$ref": "#/$defs/level" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/level" }
+    }
+  },
+  "$defs": {
+    "level": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "variants": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "How many variants a run on one screen plans."
+        },
+        "screens": {
+          "type": "string",
+          "enum": ["one", "flow"],
+          "description": "one: the run narrows to one screen. flow: a small set of screens in one flow is one run."
+        },
+        "states": {
+          "type": "string",
+          "enum": ["core", "planned"],
+          "description": "core: populated and empty only. planned: every state the screen has."
+        },
+        "extra_states": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["narrow-viewport", "dark-scheme", "reduced-motion"] },
+          "maxItems": 3,
+          "description": "States each variant also builds, each a copy of the populated state under that condition."
+        },
+        "evidence": {
+          "type": "string",
+          "enum": ["per-variant", "per-state"],
+          "description": "per-variant: one handover screenshot per variant. per-state: one more per state."
+        },
+        "offers": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["review-mode", "real-stack"] },
+          "maxItems": 2,
+          "description": "The offers a run may make when their condition holds."
+        },
+        "phrases": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "maxItems": 10,
+          "description": "Phrases a request uses to ask for this level's size of run, besides naming the level. Never a word a screen's content would use."
+        }
+      }
+    }
+  }
+}

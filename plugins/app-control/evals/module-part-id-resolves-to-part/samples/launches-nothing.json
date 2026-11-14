@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -a .claude/skills/control-repo/features/testing"
+          }
+        }
+      ],
+      "why": "listed the feature folder and started nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 app/session.py"
+          }
+        }
+      ],
+      "why": "ran the hub's Launch command"
+    }
+  ]
+}

@@ -324,6 +324,20 @@ fi
 out="$(run --check)"
 expect "--check passes on generated HTML copies" 0 $? "$out"
 
+# --- a CSS copy takes a block-comment header at the top ------------------------
+fixture
+printf 'body { color: red; }\n' >"$root/lib/style.css"
+printf 'lib/style.css plugins/alpha/ref/style.css\n' >"$root/scripts/shared-copies.txt"
+run >/dev/null
+want=$'/* GENERATED from lib/style.css by scripts/sync-shared-copies.sh. Do not edit this copy:\n   edit the canonical source, then rerun the script. */\nbody { color: red; }'
+if [[ "$(cat "$root/plugins/alpha/ref/style.css")" == "$want" ]]; then
+  pass "a CSS copy opens with a block-comment header"
+else
+  bad "a CSS copy opens with a block-comment header" "got: $(cat "$root/plugins/alpha/ref/style.css")"
+fi
+out="$(run --check)"
+expect "--check passes on a generated CSS copy" 0 $? "$out"
+
 # --- --print-manifest publishes one block per canonical ------------------------
 fixture
 printf 'lib/b.sh plugins/beta/hooks/b.sh\n' >>"$root/scripts/shared-copies.txt"

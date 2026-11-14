@@ -8,7 +8,7 @@
 # commit made with GITHUB_TOKEN holds every run on it at action_required
 # (#5786), and check-changelog-fragments.sh --check-required exempts a pull
 # request of verified Dependabot commits. This script supplies the fragment
-# after the merge. .github/workflows/dependabot-fragments.yml runs it on main and
+# after the merge. .github/workflows/release-generate-dependabot-changelog-fragments.yml runs it on main and
 # lands its output through a pull request of its own.
 #
 # It walks every first-parent commit on <ref> (default HEAD) that Dependabot

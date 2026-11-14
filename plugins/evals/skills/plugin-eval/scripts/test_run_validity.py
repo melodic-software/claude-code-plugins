@@ -17,7 +17,10 @@ structural lines of its kept traces, with no answer text:
                         all but self-lookup-allowed.jsonl; network-denied.jsonl
                         is a hand-written Bash call whose result reports a
                         sandbox network denial, in the shape a real trace gives
-                        it, with its host and a made-up command
+                        it, with its host and a made-up command; IF6xuu.jsonl
+                        is cut from a recorded playbooks run (Claude Code
+                        2.1.325) whose Skill call returned a failed
+                        pre-computed command, its ids replaced by placeholders
 
 The other tests copy a fixture into a temporary directory and change one field.
 
@@ -519,12 +522,13 @@ class RunValidityTest(unittest.TestCase):
         result.write_text(json.dumps(data), encoding="utf-8")
         proc = self.run_script(result, "--runs", "1")
         self.assertVerdict(proc, "INVALID", 1)
-        self.assertIn("1 run never started or had no sandbox", proc.stdout)
+        self.assertIn("check skill loaded: FAIL (the skill failed to load in 1 run)", proc.stdout)
         self.assertIn(
-            "  case measurable-criterion, with-arm run 1: a skill's pre-computed"
-            " command failed (%s)" % trace,
+            "  case measurable-criterion, with-arm run 1: a slash-invoked skill's"
+            " pre-computed command failed (%s)" % trace,
             proc.stdout,
         )
+        self.assertIn("check session started: PASS", proc.stdout)
 
     def test_a_forked_run_whose_tool_result_quotes_the_pre_command_failure_passes(self):
         quoted = {"type": "tool_result", "tool_use_id": "t1", "content": (
@@ -892,9 +896,92 @@ class RunValidityTest(unittest.TestCase):
         proc = self.run_script(result, "--runs", "1")
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn(
-            "  case measurable-criterion, without-arm run 1: a skill's pre-computed"
-            " command failed (%s)" % trace,
+            "  case measurable-criterion, without-arm run 1: a slash-invoked skill's"
+            " pre-computed command failed (%s)" % trace,
             proc.stdout,
+        )
+
+    def skill_load_trace(self, name, content):
+        """A trace whose one Skill call gets content back as an error result."""
+        trace = self.dir / name
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + json.dumps({"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": "s1", "name": "Skill",
+                 "input": {"skill": "evals:methodology"}}]}}) + "\n"
+            + json.dumps({"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "s1", "is_error": True,
+                 "content": content}]}}) + "\n"
+            + '{"type":"assistant","message":{"content":[{"type":"text","text":"x"}]}}\n'
+            '{"type":"result","subtype":"success","is_error":false,"num_turns":3}\n',
+            encoding="utf-8",
+        )
+        return trace
+
+    def test_a_fired_run_whose_skill_call_failed_to_load_is_invalid(self):
+        # #16146: the Skill grader saw the call, so skill fired passed, but the
+        # load aborted on the skill's pre-computed command. Hand-written with the
+        # tool_use_error wrapper; traces/IF6xuu.jsonl holds a recorded run, whose
+        # result has no wrapper.
+        trace = self.skill_load_trace(
+            "skill-load.jsonl",
+            "<tool_use_error>Shell command permission check failed for pattern"
+            " \"!`command`\": Permission to use Bash has been denied.</tool_use_error>",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["with"][0].update(tracePath=str(trace), turns=3)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "  case measurable-criterion, with-arm run 1: its Skill call returned a"
+            " failed pre-computed command (%s)" % trace,
+            proc.stdout,
+        )
+        self.assertIn("1 of the fired runs failed to load the skill", proc.stdout)
+        verdict = proc.stdout.strip().splitlines()[-1]
+        self.assertIn(
+            "the skill failed to load in 1 run, its pre-computed command failed"
+            " (case measurable-criterion)",
+            verdict,
+        )
+        self.assertNotIn("did not fire", verdict)
+
+    def test_a_skill_call_that_loaded_passes_skill_loaded(self):
+        trace = self.skill_load_trace("loaded.jsonl", "Launching skill: evals:methodology")
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["with"][0].update(tracePath=str(trace), turns=3)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertIn("check skill loaded: PASS", proc.stdout)
+
+    def test_a_recorded_skill_call_that_failed_to_load_is_invalid(self):
+        # The recorded case had no skill-fired grader, so only skill loaded can
+        # catch the failure.
+        result = self.clean()
+        case = result["cases"][1]
+        row = case["arms"]["with"][0]
+        for owner in (case, row):
+            owner["graders"] = [g for g in owner["graders"] if g["name"] != "skill-fired"]
+        row.update(tracePath="traces/IF6xuu.jsonl", turns=3)
+        proc = self.run_script(self.write(result), "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertEqual(
+            [line for line in proc.stdout.splitlines() if line.startswith("check ") and ": FAIL" in line],
+            ["check skill loaded: FAIL (the skill failed to load in 1 run)"],
+            proc.stdout,
+        )
+        self.assertIn(
+            "  case measurable-criterion, with-arm run 1: its Skill call returned a"
+            " failed pre-computed command (%s)" % (TRACES / "IF6xuu.jsonl"),
+            proc.stdout,
+        )
+        self.assertIn(
+            "the skill failed to load in 1 run, its pre-computed command failed"
+            " (case measurable-criterion)",
+            proc.stdout.strip().splitlines()[-1],
         )
 
     def test_a_denial_seen_only_as_a_tool_result_is_counted(self):

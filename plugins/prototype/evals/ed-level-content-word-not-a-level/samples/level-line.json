@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "level: standard (default)\nPlan: /profile, HTML mockup, variants A to C, states populated, empty, loading, error.",
+      "why": "default level above the plan"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "level: full (prompt)\nPlan: /profile, HTML mockup, variants A to E.",
+      "why": "full read from a content word"
+    },
+    {
+      "answer": "level: sketch (prompt)\nPlan: /profile, HTML mockup, variants A and B.",
+      "why": "sketch read from quick-add"
+    }
+  ]
+}

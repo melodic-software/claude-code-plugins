@@ -99,7 +99,8 @@ load_registry() {
 
 # render <canonical>: the generated copy's bytes, on stdout. A shell, Python or
 # JavaScript copy takes a two-line comment header after any shebang; a Markdown
-# copy takes the same header as an HTML comment after any frontmatter block; an
+# copy takes the same header as an HTML comment after any frontmatter block; a CSS
+# copy takes it as a block comment at the top; an
 # HTML copy takes it as an HTML comment after a leading doctype line, which a
 # browser needs first to stay out of quirks mode. JSON has no comment syntax, so
 # a JSON copy is the canonical's bytes unchanged; shared-copies.txt and --check
@@ -108,6 +109,12 @@ render() {
   local src="$1" prefix first="" close=""
   case "$src" in
   *.json)
+    cat "$src"
+    return 0
+    ;;
+  *.css)
+    printf '/* GENERATED from %s by %s. Do not edit this copy:\n' "$src" "$self"
+    printf '   edit the canonical source, then rerun the script. */\n'
     cat "$src"
     return 0
     ;;

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines, trustedSplitChild } from "./admit.mjs";
 import { heldRefusalText, HOLD_ORDER, strongestReason } from "./admit.mjs";
+import { WRITTEN_STATUS_REREADS, WRITTEN_STATUS_WAIT_MS } from "./admit.mjs";
 import { parseReason, PERSON_REASONS } from "../lib/stop-reason.mjs";
 import { recordBody } from "../lib/admission-record.mjs";
 import { fileURLToPath } from "node:url";
@@ -2489,6 +2490,60 @@ describe("admit() with the Work status field", () => {
     const fake = fakeGitHub({ issue: feature, parent: { ...parentOf(), repository_url: "https://api.github.com/repos/o/other" } });
     const args = withStatus(fake, { 7: { state: "ready" }, 3: { state: "needs-human" } });
     assert.equal((await admit(args)).outcome, "admitted");
+  });
+
+  // apply-verdict wrote ready seconds before admission read the field, which
+  // still answered `stale` for the first `missed` reads: no Work status event
+  // listed yet (unset), or the state before the write.
+  describe("a field read that missed this run's ready write", () => {
+    const UNSET = { state: "ready", nodes: [] };
+    const behind = (fake, stale, missed) => {
+      const before = withFields(fake.github, { 7: stale });
+      const after = withFields(fake.github, { 7: { state: "ready" } });
+      let reads = 0;
+      // A field read is its REST value, then its events: both from one read.
+      return async (method, path, body, ...rest) => {
+        const events = method === "POST" && path === "/graphql" && /IssueFieldAddedEvent/.test(body?.query ?? "");
+        const read = events ? ++reads : reads + 1;
+        return (read <= missed ? before : after)(method, path, body, ...rest);
+      };
+    };
+    const argsOf = (fake, github, extra = {}) => ({
+      ...goArgs({ ...fake, github }),
+      github,
+      statusOf: statusReader({ github, repository: "o/r", limit: ADMISSION_STATUS_READS, config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} }),
+      ...extra,
+    });
+
+    test("with no written state, an issue whose read lists no Work status event yet is skipped", async () => {
+      const fake = fakeGitHub({ issue: issueOf({ labels: [] }) });
+      const result = await admit(argsOf(fake, behind(fake, UNSET, 1)));
+      assert.deepEqual(result, { outcome: "skipped", reasons: [`no ${READY}`] });
+      assert.deepEqual(writes(fake.calls), []);
+    });
+
+    test("admission reads the field again until it shows the written state, then admits", async () => {
+      for (const stale of [UNSET, { state: "needs-triage" }]) {
+        const fake = fakeGitHub({ issue: issueOf({ labels: [] }) });
+        const waits = [];
+        const result = await admit(argsOf(fake, behind(fake, stale, 2), { wrote: "ready", sleep: async (ms) => waits.push(ms) }));
+        assert.equal(result.outcome, "admitted", JSON.stringify(stale));
+        assert.deepEqual(waits, [WRITTEN_STATUS_WAIT_MS, 2 * WRITTEN_STATUS_WAIT_MS], JSON.stringify(stale));
+      }
+    });
+
+    test("a field that never shows the written state fails admission by name after the last reread, with no write", async () => {
+      const fake = fakeGitHub({ issue: issueOf({ labels: [] }) });
+      const waits = [];
+      await assert.rejects(admit(argsOf(fake, behind(fake, UNSET, Infinity), { wrote: "ready", sleep: async (ms) => waits.push(ms) })), (error) => {
+        const seconds = (WRITTEN_STATUS_WAIT_MS * (2 ** WRITTEN_STATUS_REREADS - 1)) / 1000;
+        assert.equal(error.name, "StatusReadError");
+        assert.equal(error.message, `#7's Work status could not be read: it read unset, not the \`ready\` this run wrote, on ${WRITTEN_STATUS_REREADS + 1} reads over ${seconds} s`);
+        return true;
+      });
+      assert.equal(waits.length, WRITTEN_STATUS_REREADS);
+      assert.deepEqual(writes(fake.calls), []);
+    });
   });
 });
 

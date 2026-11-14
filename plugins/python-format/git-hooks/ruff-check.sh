@@ -152,14 +152,7 @@ if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
   ruff check --fix --no-unsafe-fixes "${common[@]}" -- "${targets[@]}" >/dev/null 2>&1 || :
   ruff format "${common[@]}" -- "${targets[@]}" >/dev/null 2>&1 || :
 
-  rewritten=()
-  while IFS= read -r -d '' f; do
-    rewritten+=("$f")
-  done < <(git --literal-pathspecs diff --name-only -z -- "${files[@]}")
-  if ((${#rewritten[@]})); then
-    printf '%s\n' "${rewritten[@]}"
-    git --literal-pathspecs add -- "${rewritten[@]}"
-  fi
+  checks_restage "${files[@]}"
 fi
 
 checks_changed_lines

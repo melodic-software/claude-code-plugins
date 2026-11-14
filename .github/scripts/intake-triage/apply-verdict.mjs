@@ -577,9 +577,12 @@ const QUEUE_LABELS = new Set([READY, NEEDS_TRIAGE, CONFIRMED]);
 
 // `setStatus(number, state, {fields})` (write-status.mjs statusWriter's
 // `set`) writes the Work status verdictStatus gives over `statusConfig`
-// (models.issue-status; null writes none); a failed write throws. `statusOf`
-// (read-status.mjs statusReader), when given, decides the issue's label names
-// and its status history; without it, its own labels and REST events.
+// (models.issue-status; null writes none); a failed write throws, and
+// `admitIssue(verdict, {wrote})` gets the state written or found in place, which
+// admission reads until the field shows it (admit.mjs writtenLabels).
+// `statusOf` (read-status.mjs statusReader), when given, decides the issue's
+// label names and its status history; without it, its own labels and REST
+// events.
 export async function run({ env, github, dimensionsConfig, fieldSetters, admitIssue, noteSplit, setStatus = async () => {}, statusConfig = null, statusOf, log = console.log }) {
   if (env.KILL_SWITCH !== "proceed") {
     log("apply-verdict: the kill switch did not answer proceed; nothing read or written");
@@ -767,7 +770,8 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   let admission = waits ? { outcome: EDGE_MISSING, reasons: [`blocked-by edge ${missedEdges(edges.missed).join("; ")}`] } : null;
   if (plan.ready && admitIssue && !waits) {
     try {
-      admission = await admitIssue({ ...verdict, dimensions: plan.dimensions, writtenAt: comment.updated_at });
+      const wrote = ["written", "unchanged"].includes(stateWrite?.outcome) ? stateWrite.state : undefined;
+      admission = await admitIssue({ ...verdict, dimensions: plan.dimensions, writtenAt: comment.updated_at }, { wrote });
     } catch (error) {
       admission = admissionError(error);
     }
@@ -1032,7 +1036,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       // Read only when admitting or noting a split, so a malformed rules
       // file stops those and not the verdict.
       const rules = () => loadRules(`${env.BASE_PATH}/.github/actions/resolve-config/admission-rules.json`);
-      const admitIssue = (verdict) =>
+      const admitIssue = (verdict, { wrote } = {}) =>
         admit({
           setStatus,
           listing,
@@ -1040,6 +1044,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           repository,
           number: Number(env.ISSUE_NUMBER),
           verdict,
+          wrote,
           rules: rules(),
           humans,
           appId: logins.get(LANES_APP_LOGIN),

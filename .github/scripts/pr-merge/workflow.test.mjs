@@ -4,7 +4,7 @@
 // full run of main per 30 minutes, and no wait on the run), GitHub's
 // concurrency rules (a group holds one running and one pending job, and a
 // newer pending job replaces the older one unless `queue: max` is set), and
-// the rule babysit_postmerge.py and post-merge-demotion-alert.yml share: a
+// the rule babysit_postmerge.py and post-merge-file-demotion-issues.yml share: a
 // cancelled full run counts as red, unless it never started, so no running
 // pr-require-checks run may be cancelled by concurrency.
 import assert from "node:assert/strict";
@@ -64,7 +64,7 @@ test("dispatch-full-run ends once it dispatches: no wait on the run it started",
       "Log the API budget at the end",
     ],
   );
-  assert.doesNotMatch(dispatch, /sleep 180|actions\/runs\/\$RUN_ID|post-merge-demotion-alert\.yml\/dispatches/);
+  assert.doesNotMatch(dispatch, /sleep 180|actions\/runs\/\$RUN_ID|post-merge-file-demotion-issues\.yml\/dispatches/);
   const timeout = Number(/\n {4}timeout-minutes: (\d+)\n/.exec(dispatch)[1]);
   assert.ok(timeout <= 10, `timeout-minutes ${timeout}`);
 });

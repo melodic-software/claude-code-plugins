@@ -3,6 +3,36 @@
 All notable changes to the `javascript-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.7] - 2026-11-14
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: the changed-line ranges no longer read an added line starting `++ b/` as a file header, so findings in the hunks after it stay with their real file.
+
+## [2.0.6] - 2026-11-14
+
+### Fixed
+
+- **The pre-commit check re-stages the files Biome rewrites without putting their paths on git's command line.** With many staged JavaScript, TypeScript or JSON files, that list could pass the 32,767-character Windows command-line limit, and the rewritten files were then left unstaged. The shared `check-lib.sh` helper `checks_restage` now lists the unstaged changes once and gives `git add` the paths on stdin, which needs git 2.25 or later. A failed git call there now fails the hook instead of passing.
+
+## [2.0.5] - 2026-11-14
+
+### Fixed
+
+- The pre-commit and pre-push checks now test the changed files for binary content with a fixed number of processes instead of three per file. Each check reads the index, or each pushed tip, through one listing and one `git cat-file --batch`, and reads work tree files with no extra process. On Windows, a commit that staged a few hundred files spent minutes starting git once per file. A file still counts as binary only when its first 8,000 bytes hold a NUL byte, whatever its attributes say. Installed hooks report drift until reinstalled.
+
+## [2.0.4] - 2026-11-14
+
+### Fixed
+
+- A merge commit no longer formats or lints the files the merge takes unchanged from another parent: the pre-commit file list skips a path whose staged entry equals a merge head's. Installed hooks report drift until reinstalled. A merge the old hook already formatted keeps those files listed; restore them from the merge head or redo the merge.
+
+## [2.0.3] - 2026-11-14
+
+### Fixed
+
+- The shared hook library's command reader now says, when shfmt rejects text a guard lifted out of the command and named with `HOOK_BPS_SPAN`, which guard refused, that shfmt's `line:col` counts from the start of that text rather than the command, and the text's first 60 characters. Its own second readings (a backtick's unescaped text, a joined here-doc body) name themselves the same way. A refusal of the command itself reads as before.
+
 ## [2.0.2] - 2026-11-14
 
 ### Changed

@@ -181,9 +181,14 @@ export function resolveMediaArtifacts(files, videoId) {
  * @param {AcquireDeps} deps
  * @param {string} url
  * @param {string} workDir
- * @param {{ mode: AcquisitionMode, source: SourceAcquisitionDeclarations, sleepSubtitlesSec?: number }} pass
+ * @param {{ mode: AcquisitionMode, source: SourceAcquisitionDeclarations, sleepSubtitlesSec?: number, downloadSection?: string|null }} pass
  */
-async function runAcquirePass(deps, url, workDir, { mode, source, sleepSubtitlesSec }) {
+async function runAcquirePass(
+  deps,
+  url,
+  workDir,
+  { mode, source, sleepSubtitlesSec, downloadSection = null },
+) {
   const { spawn, listFiles } = deps;
   const env = process.env;
   const outputTemplate = path.join(workDir, "%(id)s.%(ext)s");
@@ -196,6 +201,7 @@ async function runAcquirePass(deps, url, workDir, { mode, source, sleepSubtitles
       env,
       authOverride,
       source,
+      downloadSection,
     });
   const spawnResult = await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
     cwd: workDir,
@@ -241,12 +247,13 @@ function captionsOnlyPass(source) {
  * @param {string} workDir
  * @param {string} videoId
  * @param {SourceAcquisitionDeclarations} source
+ * @param {string|null} downloadSection - bounds the video pass; captions stay whole
  * @returns {Promise<
  *   {ok: true, artifacts: MediaArtifacts, acquireMetrics: object, captionError: string} |
  *   {ok: false, error: string, acquireMetrics: object}
  * >}
  */
-async function acquireFullStaged(deps, url, workDir, videoId, source) {
+async function acquireFullStaged(deps, url, workDir, videoId, source, downloadSection) {
   const { sleep = sleepMs } = deps;
   const videoStarted = Date.now();
 
@@ -262,7 +269,7 @@ async function acquireFullStaged(deps, url, workDir, videoId, source) {
 
   const throttle = deps.withThrottle ?? withAcquireThrottle;
   const videoPass = await throttle(() =>
-    runAcquirePass(deps, url, workDir, { mode: "video-only", source }),
+    runAcquirePass(deps, url, workDir, { mode: "video-only", source, downloadSection }),
   );
   if (!videoPass.spawnResult.success) {
     return failStaged(videoPass.detail || "yt-dlp video-only pass failed");
@@ -295,15 +302,24 @@ async function acquireFullStaged(deps, url, workDir, videoId, source) {
 
 /**
  * @param {string} url
- * @param {{workDir: string, mode?: AcquisitionMode, source?: SourceAcquisitionDeclarations, videoId?: string, captionWaitDeadline?: string|null}} options -
+ * @param {{workDir: string, mode?: AcquisitionMode, source?: SourceAcquisitionDeclarations, videoId?: string, captionWaitDeadline?: string|null, downloadSection?: string|null}} options -
  *   `videoId` is the URL-claim id the adapter derived (`matchUrl`); this driver
  *   never re-derives it. `captionWaitDeadline` is the deadline a held queue row
- *   recorded, so the caption wait stays bounded across runs.
+ *   recorded, so the caption wait stays bounded across runs. `downloadSection`
+ *   (`*<from>-<to>`) bounds the media download to a time range; captions and
+ *   info.json still cover the whole video.
  * @param {Partial<AcquireDeps>} [deps]
  */
 export async function acquireYouTubeMedia(
   url,
-  { workDir, mode = "full", source = {}, videoId, captionWaitDeadline = null },
+  {
+    workDir,
+    mode = "full",
+    source = {},
+    videoId,
+    captionWaitDeadline = null,
+    downloadSection = null,
+  },
   deps = {},
 ) {
   const started = Date.now();
@@ -332,7 +348,14 @@ export async function acquireYouTubeMedia(
   let captionError = "";
 
   if (mode === "full") {
-    const staged = await acquireFullStaged(mergedDeps, url, workDir, videoId, source);
+    const staged = await acquireFullStaged(
+      mergedDeps,
+      url,
+      workDir,
+      videoId,
+      source,
+      downloadSection,
+    );
     acquireMetrics = staged.acquireMetrics;
     if (!staged.ok) {
       return failVideo(staged.error);
@@ -341,7 +364,7 @@ export async function acquireYouTubeMedia(
     captionError = staged.captionError;
   } else {
     const single = await throttle(() =>
-      runAcquirePass(mergedDeps, url, workDir, { mode, source }),
+      runAcquirePass(mergedDeps, url, workDir, { mode, source, downloadSection }),
     );
     artifacts = resolveMediaArtifacts(single.files, videoId);
     if (!single.spawnResult.success) {

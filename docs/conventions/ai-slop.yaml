@@ -34,9 +34,9 @@
 # regression surfaces as soon as it lands: a full-corpus scan on 2026-09-28 found the densest
 # file at 1.6 for rule-ai-vocabulary and 0.2 for rule-copulative-avoidance (files with at least
 # three hits), so 2.0 fires on nothing today. Re-measure before lowering further. The
-# rule_allowed_paths entry is still load-bearing: without it the deepening research's
-# vocabulary.md and interface-design.md fire rule-ai-vocabulary, because they discuss those
-# words.
+# rule_allowed_paths entries are still load-bearing: without them the architecture
+# vocabulary.md and the deepening research's interface-design.md fire rule-ai-vocabulary,
+# because they discuss those words.
 thresholds:
   ai_vocabulary: 2.0
   copulative_avoidance: 2.0
@@ -47,6 +47,7 @@ em_dash_allowed_paths:
 rule_allowed_paths:
   rule-ai-vocabulary:
     - "plugins/architecture/skills/improve/research/deepening/**"
+    - "plugins/architecture/reference/vocabulary.md"
 excluded_paths:
   - "plugins/*/skills/*/vendor/**"
   - "plugins/ai-slop/skills/audit/evals/fixtures/**"

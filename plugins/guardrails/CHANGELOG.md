@@ -3,6 +3,51 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.5] - 2026-11-14
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: the changed-line ranges no longer read an added line starting `++ b/` as a file header, so the hunks after it stay with their real file and the pre-push content scan still judges them.
+- `reference-verify.sh` reads the lines a copied file adds with the same hunk parse, so an added `++ b/` line in a copy no longer moves the later hunks to another path.
+
+## [3.4.4] - 2026-11-14
+
+### Fixed
+
+- The `pre-commit-content` and `pre-push-content` git hooks now scan a regular file that a commit turns from a symlink or a submodule, on its whole content (in a merge, on the lines the merge adds). Before, the scans skipped this type change, so a secret or machine path added that way passed. A regular file turned into a symlink is still not scanned as content.
+
+## [3.4.3] - 2026-11-14
+
+### Changed
+
+- Shared `check-lib.sh` synced where this plugin carries it: it gains `checks_restage`, which no guardrails hook calls.
+
+## [3.4.2] - 2026-11-14
+
+### Fixed
+
+- The pre-commit and pre-push checks now test the changed files for binary content with a fixed number of processes instead of three per file. Each check reads the index, or each pushed tip, through one listing and one `git cat-file --batch`, and reads work tree files with no extra process. On Windows, a commit that staged a few hundred files spent minutes starting git once per file. A file still counts as binary only when its first 8,000 bytes hold a NUL byte, whatever its attributes say. Installed hooks report drift until reinstalled.
+
+## [3.4.1] - 2026-11-14
+
+### Changed
+
+- The shared check library reads the merge heads once per run. No behavior change for these hooks: the pre-commit content scan does not list files through the library's file list. Installed hooks report drift until reinstalled.
+
+### Fixed
+
+- `block-root-delete-target` no longer refuses a python or node program fed on a quoted heredoc (`python3 - <<'EOF'`, `node - <<'EOF'`) because a backtick or `$(` span in its strings holds a word like "form" and a paren. Such a span is still read when it holds a `$`, a glob, brace, pipe or redirection character, a backslash other than `\n`, `\t` or `\r`, or a deleter, shell or eval word at the start of a word, also after the shell joins quoted pieces (`r""m`); any other heredoc shape is scanned as before.
+
+## [3.4.0] - 2026-11-14
+
+### Added
+
+- **A repository or user can choose which guards deny the call when they crash ([#15992](https://github.com/melodic-software/claude-code-plugins/issues/15992)).** The new `deny_on_crash` option (comma-separated guard names, empty by default), or a `deny_on_crash` list in a repository's `docs/conventions/guardrails.yaml` at its local `origin/HEAD`, names `PreToolUse` guards whose crash denies the tool call. Such a guard exits as a block, and its "guard did not run" notice says the call was denied and how to take the guard off the list. A guard neither layer names still allows the call with the notice, as before. An unknown name, `all` and `*` included, is ignored and reported in the crash notice. The setting is read only when a guard crashes, so a call that does not crash starts no extra process.
+
+### Fixed
+
+- When `block-root-delete-target` cannot parse a substitution or here-doc body, or a program a shell reads, that it lifted out of the command, its refusal now names the guard, says that shfmt's `line:col` counts from the start of that body rather than the command, and shows the body's first 60 characters. The shared command reader's own second readings (a backtick's unescaped text, a joined here-doc body) name themselves the same way. A refusal of the command itself reads as before.
+
 ## [3.3.3] - 2026-11-14
 
 ### Changed

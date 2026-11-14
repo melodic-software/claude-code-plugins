@@ -1,6 +1,6 @@
 ---
-description: "A slice at Phase 4 in a repository whose default branch sets verification: standard in docs/conventions/knowledge.yaml: Phase 4 pins, runs the standing gates and dispatches verifier A as a fresh-context agent. Needs --scaffold --allow-tools Bash Write Edit Agent."
-tags: [docpage-digest, setting, verification-level, scaffold]
+description: "A slice at Phase 4 in a repository whose default branch sets verification: standard in docs/conventions/knowledge.yaml: Phase 4 pins, runs the standing gates and dispatches verifier A as a fresh-context agent. Needs --scaffold --allow-tools Bash Write Edit Agent. The fixture URL is a placeholder the sandbox cannot reach, so verifier A's live re-fetch is denied and reported as not replayed."
+tags: [docpage-digest, setting, verification-level, scaffold, no-network]
 runs: 3
 max_turns: 60
 timeout_seconds: 1200

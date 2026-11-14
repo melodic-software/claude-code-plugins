@@ -348,7 +348,7 @@ function pushArtifactAndFloorChecks(checks, slice) {
  * @param {WatchOutcomeSlice} slice
  */
 function pushSessionCoverageChecks(checks, slice) {
-  const { durationSec, windows, promotedTs, visualGapsBody, floors, sessions } = slice;
+  const { windows, promotedTs, visualGapsBody, floors, sessions } = slice;
   const dens = densificationCoverage({
     windows,
     promotedTimestampsSec: promotedTs,
@@ -366,7 +366,8 @@ function pushSessionCoverageChecks(checks, slice) {
   // A logged talking-head-only gap stands in for the frame the synthesis contract rejects.
   const talkingHeadOnly = parseTalkingHeadOnlySessions(visualGapsBody);
   const sessionFrameCounts = sessions.map((session) => {
-    const end = session.endSec ?? durationSec;
+    // Open-ended: runs past every frame (a ranged slice's frames sit beyond `durationSec`).
+    const end = session.endSec ?? Number.POSITIVE_INFINITY;
     const gapLogged = talkingHeadOnly.has(session.name.trim().toLowerCase());
     const promoted = promotedTs.filter((ts) => ts >= session.startSec && ts <= end).length;
     return {

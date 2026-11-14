@@ -212,8 +212,10 @@ plan planning,testing
 # answers what a complexity, size, duplication, coverage, CRAP, or type-debt
 # number can and cannot say; it owns the cross-metric caveats and points at
 # mutation-testing:principles for fault detection rather than restating it.
-# The namespace supplies the domain in all three.
-principles code-metrics,mutation-testing,tdd
+# architecture:principles defines the module-design vocabulary (Ousterhout's
+# deep modules, Feathers' seam) that architecture findings use. The namespace
+# supplies the domain in all four.
+principles architecture,code-metrics,mutation-testing,tdd
 
 # Settled name (#5835): explainer-video is a new plugin, not a Manim backend
 # inside animation. animation:produce makes a hand-drawn film from style packs

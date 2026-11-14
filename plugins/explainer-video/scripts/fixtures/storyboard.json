@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "title": "Retry the artifact upload",
+  "chapters": [
+    {"id": "why", "title": "Why"},
+    {"id": "change", "title": "The change"},
+    {"id": "risk", "title": "Risk"}
+  ],
+  "moments": [
+    {"id": "title", "chapter": "why", "template": "title", "data": {"subtitle": "A walkthrough for reviewers"},
+     "narration": "", "covers": []},
+    {"id": "flow", "chapter": "why", "template": "diagram",
+     "data": {"nodes": [{"label": "Build", "detail": "writes dist/"}, {"label": "Upload", "detail": "fails on a 502"},
+                        {"label": "Release", "detail": "never starts"}],
+              "note": "One transient error stops the whole release."},
+     "narration": "A single failed upload stops the release today. This change retries it.", "covers": []},
+    {"id": "hunk", "chapter": "change", "template": "code-hunk",
+     "data": {"path": "scripts/upload.py", "lines": [
+       {"n": 41, "kind": " ", "text": "def upload(path, url):"},
+       {"n": 42, "kind": "-", "text": "    return post(path, url)"},
+       {"n": 42, "kind": "+", "text": "    for delay in (1, 2, 4):"},
+       {"n": 43, "kind": "+", "text": "        if (r := post(path, url)).ok or r.status < 500:"},
+       {"n": 44, "kind": "+", "text": "            return r"},
+       {"n": 45, "kind": "+", "text": "        sleep(delay)"},
+       {"n": 46, "kind": "+", "text": "    return post(path, url)"}]},
+     "narration": "The upload now tries up to four times. It waits one, two and four seconds between tries, and only retries server errors.",
+     "covers": ["scripts/upload.py"]},
+    {"id": "compare", "chapter": "change", "template": "before-after",
+     "data": {"before": {"label": "Before", "lines": ["502 on upload", "release job fails"]},
+              "after": {"label": "After", "lines": ["502 on upload", "retry after 1 s", "release continues"]}},
+     "narration": "So a brief outage costs a few seconds instead of a failed release.", "covers": []},
+    {"id": "risks", "chapter": "risk", "template": "risk-map",
+     "data": {"rows": [{"area": "Client errors", "level": "low", "note": "never retried"},
+                       {"area": "Job length", "level": "medium", "note": "up to seven extra seconds"}]},
+     "narration": "Client errors still fail at once. The worst case adds seven seconds to the job.", "covers": []},
+    {"id": "rest", "chapter": "risk", "template": "also-changed",
+     "data": {"files": [{"path": "tests/test_upload.py", "summary": "covers the retry and the no-retry cases"},
+                        {"path": "CHANGELOG.md", "summary": "one line"}]},
+     "narration": "The tests cover both paths, and the changelog has one new line.",
+     "covers": ["tests/test_upload.py", "CHANGELOG.md"]}
+  ]
+}

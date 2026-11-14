@@ -48,6 +48,23 @@ to set these keys, checked against
 | Key | Values | Default | What it controls |
 |---|---|---|---|
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/explainer-video:produce` dispatches its fresh-context frame judge on the delivery render: `light` and `off` skip it and report the frames as not independently judged. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
+| `stitcher` | `ffmpeg`, or a command with `{inputs}` and `{out}` | `ffmpeg` | The stills renderer's final encode; a command receives `stitch.json` (frames with seconds, audio, captions) and writes the MP4. Read from the default branch only, since it runs a command. |
+| `frame_stylesheet` | a repository-relative CSS path | the bundled `frames.css` | The stills frames' look. The file and its content are read from the default branch only. The renderer sets the frame size and pads the bottom 24% for captions; keep content out of it. |
+| `upload_limit_mb` | a number over 0 | `10` | Over it, a stills video splits at chapter starts; it is never recompressed or cut. |
+
+## Stills renderer
+
+`scripts/stills.py` turns a `storyboard.json` into one video of held 3840x2160 frames: each
+moment's frame comes from an escaping HTML template captured with Playwright for Python's Chromium
+(installed on the first stills render), narration is rebuilt in video time and loudness-normalized,
+captions are burned in (GitHub's player shows no soft captions) and kept as a soft track and
+`captions.srt`, and the video is encoded once at CRF 18. Every hold's frame must reach luma SSIM
+0.999 against its source above the caption band. The narration, frame text and screenshot sidecars
+pass a secret and machine-data scan before anything renders
+([ADR 0107](../../docs/adr/0107-scan-every-media-upload-and-online-voice-request-against-a-fixed-floor.md)).
+`manifest.json` lists the files a caller may publish. The shared media code is
+[`lib/media-render`](../../lib/media-render), vendored here
+([ADR 0103](../../docs/adr/0103-write-the-shared-media-library-in-python-with-ffmpeg-by-subprocess.md)).
 
 ## Narration
 

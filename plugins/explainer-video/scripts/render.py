@@ -36,6 +36,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import media_encode
+import media_loudness
 import narration
 
 DEFAULTS = json.loads(Path(__file__).with_name('defaults.json').read_text(encoding='utf-8'))
@@ -249,10 +251,7 @@ def extract(movie, t, path):
 
 def mux(video, audio, captions, out):
     """The silent render's video, unchanged, with the narration as AAC and the captions as an MP4 text track."""
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(video), '-i', str(audio), '-i', str(captions),
-                    '-map', '0:v:0', '-map', '1:a:0', '-map', '2:s:0', '-c:v', 'copy', '-c:a', 'aac',
-                    '-c:s', 'mov_text', '-metadata:s:s:0', 'language=eng', str(out)],
-                   check=True, capture_output=True)
+    media_encode.mux(video, audio, captions, out, profile='explainer-manim')
 
 
 def probe_file(path):
@@ -261,51 +260,24 @@ def probe_file(path):
          str(path)], check=True, capture_output=True, text=True).stdout)
 
 
-def _loudnorm(target, measured=None):
-    f = (f'loudnorm=I={target["integrated_lufs"]}:TP={target["limiter_true_peak_dbtp"]}'
-         f':LRA={target["loudness_range_lu"]}')
-    if measured:
-        f += (f':measured_I={measured["input_i"]}:measured_TP={measured["input_tp"]}'
-              f':measured_LRA={measured["input_lra"]}:measured_thresh={measured["input_thresh"]}'
-              f':offset={measured["target_offset"]}:linear=true')
-    return f + ':print_format=json'
-
-
-def _loudnorm_json(stderr):
-    """The JSON block loudnorm prints last on stderr."""
-    return json.loads(stderr[stderr.rindex('{'):stderr.rindex('}') + 1])
-
-
 def measure_loudness(path, target=LOUDNESS):
     """loudnorm's first pass over the first audio stream: input_i (LUFS), input_tp (dBTP), input_lra, input_thresh,
     target_offset, as strings."""
-    r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', str(path), '-map', '0:a:0', '-af',
-                        _loudnorm(target), '-f', 'null', '-'], check=True, capture_output=True, text=True)
-    return _loudnorm_json(r.stderr)
+    return media_loudness.measure(path, target)
 
 
 def normalize(wav, out, measured, target=LOUDNESS):
     """loudnorm's second pass, linear when the measured audio allows it: returns its normalization_type. loudnorm
     falls back to dynamic on its own, so the caller measures the result again."""
-    r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-y', '-i', str(wav), '-af', _loudnorm(target, measured),
-                        '-ar', '48000', str(out)], check=True, capture_output=True, text=True)
-    return _loudnorm_json(r.stderr).get('normalization_type')
+    return media_loudness.normalize(wav, out, measured, target)
 
 
-def _levels(measured):
-    return {'integrated_lufs': float(measured['input_i']), 'true_peak_dbtp': float(measured['input_tp'])}
+_levels = media_loudness.levels
 
 
 def loudness_defects(measured, target=LOUDNESS):
     """The delivered file's integrated loudness against the target and its true peak against the ceiling."""
-    integrated, true_peak = float(measured['input_i']), float(measured['input_tp'])
-    defects = []
-    if abs(integrated - target['integrated_lufs']) > target['tolerance_lu']:
-        defects.append(f'integrated loudness {integrated:.1f} LUFS is more than {target["tolerance_lu"]} LU from the '
-                       f'{target["integrated_lufs"]} LUFS target')
-    if true_peak > target['true_peak_max_dbtp']:
-        defects.append(f'true peak {true_peak:.1f} dBTP is over the {target["true_peak_max_dbtp"]} dBTP ceiling')
-    return defects
+    return media_loudness.defects(measured, target)
 
 
 def still_spans(path, duration, stills=STILLS):
@@ -398,7 +370,7 @@ def main(argv=None):
             mode = normalize(narrated['wav'], normalized, source)
             mux(silent, normalized, captions, final)
             delivered = measure_loudness(final)
-        except (subprocess.CalledProcessError, ValueError) as e:
+        except (subprocess.CalledProcessError, media_encode.EncodeError, ValueError) as e:
             reason = getattr(e, 'stderr', None) or str(e)
             reason = (reason.decode(errors='replace') if isinstance(reason, bytes) else reason).strip()
             sys.stderr.write(f'explainer-video: ffmpeg could not normalize or mux the narration: {reason}\n')

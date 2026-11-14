@@ -38,6 +38,24 @@
       }
     },
     {
+      "id": "ffmpeg",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:narrate"],
+      "detect": { "any": ["ffmpeg"] },
+      "degrade": "Without ffmpeg the edge-tts backend cannot turn its MP3 into narration.wav, so a --backend-chain run moves on to the next backend. kokoro needs no ffmpeg.",
+      "install": { "docs": "https://ffmpeg.org/download.html", "brew": "ffmpeg", "winget": "Gyan.FFmpeg", "apt": "ffmpeg" }
+    },
+    {
+      "id": "openai-api-key",
+      "kind": "env",
+      "need": "optional",
+      "for": ["skill:narrate"],
+      "detect": { "name": "OPENAI_API_KEY" },
+      "degrade": "Without OPENAI_API_KEY the paid openai backend of a --backend-chain run is skipped as unavailable; the free backends need no key. The key stays in your environment: the plugin never stores, prints or logs it.",
+      "install": { "docs": "https://platform.openai.com/api-keys" }
+    },
+    {
       "id": "elevenlabs-api-key",
       "kind": "env",
       "need": "optional",

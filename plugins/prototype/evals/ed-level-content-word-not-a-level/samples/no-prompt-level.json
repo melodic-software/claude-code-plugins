@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "node /p/lib/prototype-settings.mjs resolve --option ''", "description": "x"}}],
+      "why": "no --prompt and no --argument"
+    },
+    {
+      "answer": [],
+      "why": "no resolver call at all; resolver-ran owns that failure"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "node /p/lib/prototype-settings.mjs resolve --option '' --prompt full", "description": "x"}}],
+      "why": "full read from the user's full name"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "node /p/lib/prototype-settings.mjs resolve --option '' --prompt sketch", "description": "x"}}],
+      "why": "sketch read from quick-add"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "node /p/lib/prototype-settings.mjs resolve --option '' --argument full", "description": "x"}}],
+      "why": "an argument the invocation never gave"
+    }
+  ]
+}

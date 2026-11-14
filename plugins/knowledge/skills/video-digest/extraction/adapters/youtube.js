@@ -9,6 +9,7 @@ import { YOUTUBE_BOT_CHALLENGE_PATTERNS } from "../acquisition/acquire-yt-dlp-au
 import { YT_DLP_SKIP_TRANSLATED_SUBS } from "../acquisition/build-yt-dlp-args.js";
 import { findPinnedComment } from "../acquisition/video-metadata.js";
 import { deduplicateHarvestedLinks, linksFromText } from "../harvesting/harvest-links.js";
+import { downloadSectionSpec } from "../lib/time-range.js";
 import { createAcquisitionEnvelope, createSourceAdapter } from "./adapter-contract.js";
 
 /** @import { VideoMetadata } from '../acquisition/video-metadata.js' */
@@ -95,6 +96,7 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
   capabilities: {
     comments: true,
     browserCookieFallback: true,
+    timeRange: true,
   },
 
   /**
@@ -139,6 +141,7 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
         source: adapterSourceDeclarations(adapter),
         videoId: extractVideoId(url) ?? undefined,
         captionWaitDeadline: context.captionWaitDeadline ?? null,
+        downloadSection: context.timeRange ? downloadSectionSpec(context.timeRange) : null,
       },
       context.deps ?? {},
     );

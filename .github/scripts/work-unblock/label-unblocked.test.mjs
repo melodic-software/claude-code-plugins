@@ -18,6 +18,7 @@ import { createJobLogReader } from "./job-log.mjs";
 import { codeDigest } from "./verdict-carry.mjs";
 import { ADMISSION_RECORD_MARKER } from "../lib/admission-record.mjs";
 import {
+  admissionUndecided,
   breakerComment,
   budgetLatch,
   checkCloser,
@@ -163,6 +164,7 @@ function world({
   openIssues = [],
   searchIncomplete = false,
   fieldValues = {},
+  labelsOf = {},
   specs = {},
   parents = {},
   subIssues = {},
@@ -272,6 +274,10 @@ function world({
     if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/issue-field-values$/))) {
       return fieldValues[match[1]] ?? [];
     }
+    // write-status.mjs's label read before an agent-ready write.
+    if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
+      return listed((labelsOf[match[1]] ?? []).map((name) => ({ name })));
+    }
     if (method === "POST" && route.match(/\/issues\/\d+\/comments$/) && String(body?.body).startsWith(ADMISSION_RECORD_MARKER)) {
       return {};
     }
@@ -287,7 +293,7 @@ function world({
     if (method === "POST" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
       return [];
     }
-    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|admission-deferred|status%3A%20ready|status%3A%20confirmed|needs-owner-decision|needs-reporter-info|host-run)$/)) {
+    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|needs-triage|admission-deferred|status%3A%20ready|status%3A%20confirmed|needs-owner-decision|needs-reporter-info|host-run)$/)) {
       return [];
     }
     if (method === "DELETE" && route.match(/\/issues\/(\d+)\/issue-field-values\/\d+$/)) {
@@ -4451,7 +4457,7 @@ test("the workflows match a re-runner by id: the dispatch lane refuses a re-run,
     const end = text.indexOf("\n      - name: ", start + 1);
     return text.slice(start, end < 0 ? undefined : end);
   };
-  const dispatch = step("eval-browser-dispatch.yml", "Check the dispatcher is a trusted human");
+  const dispatch = step("pr-run-plugin-evals.yml", "Check the dispatcher is a trusted human");
   assert.match(dispatch, /^ {10}if \[ "\$GITHUB_RUN_ATTEMPT" != 1 \]; then\n {12}echo "::error::rerun-refused: [^\n]*"\n {12}exit 1\n {10}fi$/m);
   assert.ok(dispatch.indexOf("GITHUB_RUN_ATTEMPT") < dispatch.indexOf("jq -e"), "the re-run refusal comes before the list check");
   assert.doesNotMatch(dispatch, /triggering_actor|TRIGGERING_ACTOR/);
@@ -4920,7 +4926,7 @@ test("a label in a span's last second has its whole window from that span's one 
   assert.ok(shared.calls.every((call) => call.includes(`created=${encodeURIComponent("2026-10-16T10:00:00Z..2026-10-16T11:10:00Z")}`)), shared.calls.join("\n"));
 });
 
-// A red-main fix issue post-merge-demotion-alert.yml reopens on a repeat
+// A red-main fix issue post-merge-file-demotion-issues.yml reopens on a repeat
 // failure keeps agent-ready, but the reopen ran on that workflow's
 // GITHUB_TOKEN, which starts no lane run. The sweep finds it by the issue's
 // first body line and the workflow's recurrence comment, both
@@ -4959,8 +4965,8 @@ const relabeled = (n, id = 801) => [
   ...restarted(n),
 ];
 
-test("post-merge-demotion-alert still posts the recurrence comment and the fix-issue marker this sweep matches", () => {
-  const alert = readFileSync(join(HERE, "../../workflows/post-merge-demotion-alert.yml"), "utf8");
+test("post-merge-file-demotion-issues still posts the recurrence comment and the fix-issue marker this sweep matches", () => {
+  const alert = readFileSync(join(HERE, "../../workflows/post-merge-file-demotion-issues.yml"), "utf8");
   assert.ok(alert.includes(`note="${RECURRENCE_PREFIX.replace("`", "\\`")}`), "the recurrence comment's opening words changed");
   assert.ok(alert.includes('fix_marker="<!-- post-merge-fix check=$check -->"'), "the fix issue's first line changed");
 });
@@ -6220,9 +6226,9 @@ test("a person's hold set after the read of a ready issue stops its admission at
 test("a limit-stopped issue's restart through the Work status writer clears the field, then sets agent-ready; a person's hold stops it", async (t) => {
   const logs = [];
   t.mock.method(console, "log", (line) => logs.push(String(line)));
-  const restartOf = async (state, nodes) => {
+  const restartOf = async (state, nodes, labels = []) => {
     const fake = withFieldHistory(
-      world({ openReady: [ready(30)], comments: { 30: [note(), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")] }, events: { 30: [added("2026-10-16T05:00:00Z")] }, fieldValues: { 30: [workRow(state)] } }),
+      world({ openReady: [ready(30)], comments: { 30: [note(), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")] }, events: { 30: [added("2026-10-16T05:00:00Z")] }, fieldValues: { 30: [workRow(state)] }, labelsOf: { 30: labels } }),
       { 30: nodes },
     );
     const github = async (method, path, body, ...rest) => {
@@ -6239,6 +6245,19 @@ test("a limit-stopped issue's restart through the Work status writer clears the 
   const cleared = `DELETE /repos/${REPO}/issues/30/issue-field-values/${STATUS_CONFIG["field-id"]}`;
   const set = `POST /repos/${REPO}/issues/30/issue-field-values ${JSON.stringify({ issue_field_values: [{ field_id: STATUS_CONFIG["field-id"], value: "agent-ready" }] })}`;
   assert.deepEqual(await restartOf("agent-ready", [fieldEvent(GRAPH_APP, "agent-ready", null, 1)]), [cleared, set], "the field is cleared, then set to agent-ready");
+  // #16000 and #16001: an issue form's needs-triage left beside the field's
+  // agent-ready made the token broker refuse every run; the re-fire takes it
+  // off first, so the run it starts gets its token (#16149).
+  assert.deepEqual(
+    await restartOf("agent-ready", [fieldEvent(GRAPH_APP, "agent-ready", null, 1)], ["needs-triage", "area: security"]),
+    [`DELETE /repos/${REPO}/issues/30/labels/needs-triage`, cleared, set],
+    "needs-triage comes off before the restart; area: security stays",
+  );
+  assert.deepEqual(
+    await restartOf("agent-ready", [fieldEvent(GRAPH_APP, "agent-ready", null, 1)], ["needs-triage", "needs-human"]),
+    [],
+    "a hold label: no label removed, no clear and no set, so no run the broker refuses",
+  );
   assert.deepEqual(await restartOf("needs-owner-decision", [fieldEvent(GRAPH_OWNER, "needs-owner-decision", null, 1)]), [], "a person's hold: no clear and no set");
   assert.ok(logs.includes("label-unblocked: #30 left as is: its Work status is now needs-owner-decision"), logs.join("\n"));
   // A person moved it off agent-ready (not a hold) after the listing: still no clear and no set.
@@ -7152,13 +7171,14 @@ test("a status: ready issue added by neither a listed human nor the lanes App is
   assert.equal(fieldReadsOf(calls, 27), 0);
 });
 
-test("a status: ready issue with a hold or refuse label, an open blocker or an open sub-issue is not read", async (t) => {
+test("a status: ready issue with a hold or refuse label, or an open blocker or sub-issue off its UTC hour, is not read", async (t) => {
   t.mock.method(console, "log", () => {});
+  // NOW is 12:00 UTC: neither 62 nor 61 is in the rotation slot.
   const skipped = [
     ...["needs-human", "needs-owner-decision", "needs-reporter-info", "provenance: untrusted", "host-run", "duplicate", "do-not-merge"].map((hold, i) =>
       readyIssue(40 + i, { labels: [...READY_LABELS, hold] }),
     ),
-    readyIssue(60, { issue_dependencies_summary: { blocked_by: 1, total_blocked_by: 1 } }),
+    readyIssue(62, { issue_dependencies_summary: { blocked_by: 1, total_blocked_by: 1 } }),
     readyIssue(61, { sub_issues_summary: { total: 2, completed: 1 } }),
   ];
   const { github, calls } = readyWorld({ items: [...skipped, readyIssue(26)] });
@@ -7532,6 +7552,43 @@ test("the sweep rewrites the split-pending comment of an open-sub-issue parent w
   assert.equal(await sweep({ github }), 0);
   assert.deepEqual(writes(calls), [refreshed("sub-issue #41 is open")]);
   assert.ok(!calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/37/`)));
+});
+
+test("admissionUndecided: no admission comment, or one older than the newest status: ready add, is undecided, and events are read only beside a comment", async () => {
+  const bot = LANES_BOT.login;
+  const ready = [labelAdd("status: ready", LANES_BOT, "2026-10-16T07:00:00Z")];
+  let reads = 0;
+  const events = async () => {
+    reads += 1;
+    return ready;
+  };
+  const decision = (user, updated_at) => ({ ...admissionNote("x"), user, updated_at });
+  assert.equal(await admissionUndecided({ comments: [note()], events, bot }), true);
+  assert.equal(reads, 0);
+  assert.equal(await admissionUndecided({ comments: [decision(LANES_BOT, "2026-10-16T06:59:59Z")], events, bot }), true);
+  assert.equal(await admissionUndecided({ comments: [decision(LANES_BOT, "2026-10-16T07:00:00Z")], events, bot }), false);
+  assert.equal(await admissionUndecided({ comments: [decision(OWNER, "2026-10-16T08:00:00Z")], events, bot }), true);
+});
+
+// Intake's admission can leave an issue at status: ready undecided, and an
+// open blocker keeps it out of the rules above: on its UTC hour it goes to
+// them while no admission comment is newer than its newest status: ready add.
+test("a status: ready issue with an open blocker no admission decided gets the rules' wait on its UTC hour; a decided one is not read", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const why = "blocker #10 is not closed by a listed human or a merge";
+  const blocked = (number) => readyIssue(number, { issue_dependencies_summary: { blocked_by: 1, total_blocked_by: 1 } });
+  // NOW is 12:00 UTC: 36 and 60 are in the rotation slot, 37 is not.
+  const { github, calls } = readyWorld({
+    items: [blocked(36), blocked(60), blocked(37)],
+    extra: {
+      blockedBy: { 36: [issue(10)], 60: [issue(10)], 37: [issue(10)] },
+      comments: { 36: [note()], 60: [{ ...admissionNote(why), updated_at: "2026-10-16T08:00:00Z" }], 37: [note()] },
+    },
+  });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [`POST /repos/${REPO}/issues/36/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: ${why}.` })}`]);
+  assert.ok(!calls.includes(`GET /repos/${REPO}/issues/60`), "60's admission comment is newer than its status: ready");
+  assert.ok(!calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/37`)), "37 is off its hour");
 });
 
 test("a close runs the close path and lists no closed issues", async () => {

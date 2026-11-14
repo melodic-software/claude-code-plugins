@@ -93,12 +93,12 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
         self.assertEqual(len(FLOOR.classes), 143)
         self.assertEqual(
             digest(f"{g}\t{c}" for g, c in FLOOR.classes),
-            "edd604b7d6c39e3d22638d037a41fe0b1eda8630ffbe73c22df5918acf9856c7",
+            "02927bcdb9d65fa8ff6e3f39b0b4a8cd6cc5d7dec8c22a26f916ff6620051ea4",
         )
 
     def test_each_clearing_route_keeps_its_globs(self):
         pins = {
-            FLOOR.high: "50995e04145f91f762b167347702d4482afdd1a9d51410a6db7054574c6182c6",
+            FLOOR.high: "5768c814efe93757013ec87f302b7bdb174f6ab38eb2ed5060e0756bb81ef49f",
             FLOOR.review: "5e078de0b611b3a80fcbe0c1849a0c4b15ba21a6e977919aa40d0c21511cb03a",
             FLOOR.author_review: "3d4a1b8fb32242f93fa18fd50035d3e4c0cdf325faae46a83767007616c17a27",
         }

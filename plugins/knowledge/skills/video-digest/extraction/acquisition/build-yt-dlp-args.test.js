@@ -86,6 +86,35 @@ describe("buildYtDlpArgs", () => {
     expect(args).toContain("--remux-video");
   });
 
+  it("bounds the media download to a section only when media is downloaded", () => {
+    const ranged = buildYtDlpArgs(URL, {
+      mode: "video-only",
+      outputTemplate: OUTPUT,
+      workDir: WORK_DIR,
+      env: {},
+      downloadSection: "*1:00:00-1:20:00",
+    });
+    expect(ranged[ranged.indexOf("--download-sections") + 1]).toBe("*1:00:00-1:20:00");
+    expect(ranged.indexOf("--download-sections")).toBeLessThan(ranged.indexOf("--"));
+
+    const captionsOnly = buildYtDlpArgs(URL, {
+      mode: "captions-only",
+      outputTemplate: OUTPUT,
+      workDir: WORK_DIR,
+      env: {},
+      downloadSection: "*1:00:00-1:20:00",
+    });
+    expect(captionsOnly).not.toContain("--download-sections");
+
+    const unranged = buildYtDlpArgs(URL, {
+      mode: "video-only",
+      outputTemplate: OUTPUT,
+      workDir: WORK_DIR,
+      env: {},
+    });
+    expect(unranged).not.toContain("--download-sections");
+  });
+
   it("skips video download in transcript mode", () => {
     const args = buildYtDlpArgs(URL, {
       mode: "transcript",

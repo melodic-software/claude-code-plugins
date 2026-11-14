@@ -19,6 +19,7 @@ import {
 
 import { primaryEntry } from "../adapters/adapter-contract.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
+import { cuesInVideoTime, describeTimeRange } from "../lib/time-range.js";
 import { detectAsrCapability, runAsrTranscription } from "./asr-transcribe.js";
 import { buildRepairLexicon, repairCues } from "./proper-noun-repair.js";
 import { resolveTranscriptStrategy } from "./transcript-strategy.js";
@@ -234,6 +235,8 @@ export function buildTranscriptText(vttText, isAutoCaption, { repairLexicon = nu
  * @param {readonly string[]} [options.transcriptFiles] - slice-relative
  *   transcript paths actually written (default: the primary `source/transcript.txt`)
  * @param {boolean} [options.noVideoEntries] - the acquisition produced 0 entries
+ * @param {import('../lib/time-range.js').TimeRange|null} [options.timeRange] - the
+ *   range a ranged watch acquired; recorded under the source line
  * @param {{ writeFile?: typeof fs.writeFile }} [io]
  * @returns {Promise<string>} the README path
  */
@@ -245,6 +248,7 @@ export async function writeSliceReadme(
     sourceUrl,
     transcriptFiles = ["source/transcript.txt"],
     noVideoEntries = false,
+    timeRange = null,
   },
   { writeFile = fs.writeFile } = {},
 ) {
@@ -258,12 +262,15 @@ export async function writeSliceReadme(
       .map((file) => `- \`${file}\` — cleaned timestamped transcript (\`[M:SS]\` paragraphs)\n`)
       .join("");
   }
+  const rangeLine = timeRange
+    ? `Range: ${describeTimeRange(timeRange)} (every timestamp in this slice is full-video time)\n`
+    : "";
   const readmePath = path.join(sliceDir, "README.md");
   const readme = `# ${videoTitle}
 
 Video id: \`${videoId}\`
 Source: ${sourceUrl}
-
+${rangeLine}
 ## Artifacts
 
 ${transcriptLines}- \`key-frames/\` — curated visual frames (Phase 5+)
@@ -352,6 +359,10 @@ export function transcriptFilename(entryIndex, primaryEntryIndex) {
  *   pipeline override; wins over the adapter default
  * @param {readonly HarvestedLink[]} [options.harvestedLinks] - harvested links
  *   feeding the proper-noun repair lexicon
+ * @param {import('../lib/time-range.js').TimeRange|null} [options.timeRange] - the
+ *   range a ranged watch acquired: recorded in the README, and ASR cues (timed from
+ *   the ranged media's start) get its start added so every stamp is full-video time.
+ *   Captions already cover the whole video in full-video time.
  * @param {object} [io]
  * @param {typeof fs.readFile} [io.readFile]
  * @param {typeof fs.writeFile} [io.writeFile]
@@ -370,6 +381,7 @@ export async function writeEnvelopeTranscriptArtifacts(
     transcriptStrategy = "captions",
     strategyOverride = null,
     harvestedLinks = [],
+    timeRange = null,
   },
   {
     readFile = fs.readFile,
@@ -434,11 +446,12 @@ export async function writeEnvelopeTranscriptArtifacts(
         });
         continue;
       }
-      const repaired = repairCues(asr.cues, repairLexicon);
+      const asrCues = timeRange ? cuesInVideoTime(asr.cues, timeRange.fromSec) : asr.cues;
+      const repaired = repairCues(asrCues, repairLexicon);
       const transcript = formatTranscript(repaired.cues);
       built = {
         transcript,
-        sourceCues: asr.cues.map(toWatchCue),
+        sourceCues: asrCues.map(toWatchCue),
         cueCount: repaired.cues.length,
         paragraphCount: countParagraphs(transcript),
         cleanedAutoCaptions: false,
@@ -486,6 +499,7 @@ export async function writeEnvelopeTranscriptArtifacts(
         path.relative(sliceDir, entry.transcriptPath).split(path.sep).join("/"),
       ),
       noVideoEntries: entries.length === 0,
+      timeRange,
     },
     { writeFile },
   );

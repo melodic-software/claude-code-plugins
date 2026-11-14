@@ -66,11 +66,12 @@ fi
 # names its first parent, so content_scan reads the files it changes from
 # there, and other_parents names the rest, so a file a merge takes whole from
 # another parent (one judged whole, past the ranges) is not judged again. A
-# file a later parent holds as a symlink or a submodule counts every line as
-# added against it. The ranges keep a binary file's rows, unread: content_scan
-# judges a file holding a NUL byte whole before it reads any range.
+# file any parent holds as a symlink or a submodule counts every line as added
+# against it (T); content_scan judges only a regular file, so a file turned
+# into a symlink is not read. The ranges keep a binary file's rows, unread:
+# content_scan judges a file holding a NUL byte whole before it reads any range.
 commit_ranges() {
-  local c=$1 p first="" k=0 filter=ACMR
+  local c=$1 p first="" k=0
   local -a ids=() parents=()
   read -r -a ids < <(git rev-list --parents -n 1 "$c" -- 2>/dev/null)
   ((${#ids[@]} > 1)) && parents=("${ids[@]:1}")
@@ -78,10 +79,9 @@ commit_ranges() {
   for p in "${parents[@]}"; do
     printf '%s %s\n' "$p" "$c" >"$CHECKS_TMP/push-ranges"
     : >"$CHECKS_TMP/ranges"
-    checks_added_ranges "$CHECKS_TMP/ranges" "$filter"
+    checks_added_ranges "$CHECKS_TMP/ranges" ACMRT
     if ((k++ == 0)); then
       first="$p"
-      filter=ACMRT
       mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.all"
       continue
     fi

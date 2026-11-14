@@ -3,6 +3,83 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.14.0] - 2026-11-14
+
+### Added
+
+- `/source-control:pull-request media` takes `--scan-pattern <regex>` (repeatable): the leak scan also refuses those patterns, the `reviewer-media` convention's `scan.extra_patterns`. It adds to the floor and never replaces it; a pattern that does not compile refuses with exit 5.
+
+### Fixed
+
+- The pull-request monitor's poll script can be armed in auto mode. Auto mode's safety check denied the inline Monitor `command` because the script ran `rm` on a stderr temp file. The script now keeps that stderr in a shell variable and runs no `rm`. The rate-limit stop, snapshot re-arm and review-thread read work as before (#16201).
+
+## [11.13.1] - 2026-11-14
+
+### Changed
+
+- The linkage gates' block message and status text name the `check-contract` step, as do the plugin README, the `/source-control:pull-request` create reference and the `/source-control:setup` convention interview.
+
+### Removed
+
+- `pr-body-linkage-gate` and `pr-linkage-mcp-gate` no longer gate on a workflow that uses the contract composite's old path; they gate only where a workflow uses `.github/actions/pr-require-checks/check-contract`, which every consumer now pins.
+
+## [11.13.0] - 2026-11-14
+
+### Added
+
+- `ready` hands the pull request to `/review:reviewer-media` last, on the confirmed head, and `monitor` hands it over at entry and after each round's push, so a request label added after `ready` is honored. Neither hand-off gates anything.
+- `media shows --facts <file>` prints the commit a pull request's reviewer-media section shows, read from a `view` facts file with no forge call, so a caller never parses the section itself.
+- `view` reports `isCrossRepository`, `true` when the head is in a fork or a fork since deleted.
+
+### Changed
+
+- `media claim` refuses (exit 3, `failed`) a head commit that already has its failure comment from the signed-in account or a bot account, so no caller builds on it again.
+
+## [11.12.0] - 2026-11-14
+
+### Added
+
+- `/source-control:pull-request media <pr> --manifest <file>` places a produced reviewer walkthrough in a marked `## Reviewer media` section near the top of the PR body: the video on top, then the contact sheet, chapter start times and screenshots in collapsed sections. It rewrites only the text between `<!-- reviewer-media:start -->` and `<!-- reviewer-media:end -->`, attaches only the files the producer's `manifest.json` lists with `gh pr edit --attach`, and links the Actions artifact with its expiry date when it cannot attach. It posts nothing on a leak-scan hit, a screenshot with no frame-text sidecar, a claim held by another run, a body that changed under the edit, or no way to host the media.
+- `media claim` removes the request label and writes a claim line for the head commit before a build; `media fail` releases the claim, adds the failure label and posts one failure comment per commit, and changes nothing when another run holds the claim; label names come from flags and `false` turns one off.
+- Every file `media` uploads is bound to the producer's scan: the staged copy must match its manifest `sha256`, and each screenshot names its own frame-text sidecar with `sidecar_sha256`. An edit a person makes to the body while the upload runs is kept, also when `media` runs under a GitHub App or Actions token.
+- `push-branch.sh` marks a reviewer-media section that shows an older commit `Out of date: shows commit <sha>` once a push succeeds, finding the PR by its head branch; `monitor` and `ready` make the same check.
+- `prerequisites.json` declares Python 3.11+ as optional for the pull-request skill.
+
+## [11.11.4] - 2026-11-14
+
+### Fixed
+
+- The pr-merge lane sorts a Dependabot pull request that carries a lanes App `[dependabot skip]` commit to tier `review`, so it merges on the App's `verdict=merge` marker at the current head instead of being refused for the App's own commit.
+
+## [11.11.3] - 2026-11-14
+
+### Fixed
+
+- `/source-control:babysit-prs`: the merge gate, the review evidence and the cost-hold read accept the review lanes' checks under ci-workflows' Title Case job names, `<caller> / Status` for pr-review-cli.yml and `<caller> / Claude` for pr-review.yml and pr-review-security.yml, beside the earlier `review-status`, `claude-review-status` and `security-review` names, so neither lane reads as not succeeded once those jobs are renamed. `Status` and `Claude` are shared by both lanes, so each counts only under the lane's own callers. The `/source-control:pull-request` merge script and the gate docs name the same checks.
+
+## [11.11.2] - 2026-11-14
+
+### Fixed
+
+- **`read-pre-ready.sh` fails closed on a `pre_ready` list holding an empty item or a key with no value.** The shared YAML parser emits no record for `why: []`, `note:` or a bare `-`, so such a list was honored; now every step runs and the report names the reason. The reader also keeps each item's fields in an array it creates fresh, so an inherited `item_<n>_step` or `item_<n>_enabled` in the environment can no longer fill a missing value.
+- **`read-pre-ready.sh` and `read-prep-audits.sh` read a list at a uniform base indent or after a byte-order mark**, as the parser does. The empty-item and empty-value check lives once in `lib/base-file.sh` (`base_file_list_check`), which both readers call.
+
+## [11.11.1] - 2026-11-14
+
+### Fixed
+
+- `/source-control:babysit-prs`: the merge gate, the review evidence and the cost-hold read accept the review lanes' checks under the synced callers' display names, `PR Review Security / security-review` and `PR Review / claude-review-status`, beside `pr-review-security / security-review` and `pr-review / claude-review-status`, so a repository whose caller job carries a display name no longer reads its security review as not succeeded and never arms auto-merge. The `/source-control:pull-request` merge script and the gate docs name the same checks.
+
+## [11.11.0] - 2026-11-14
+
+### Added
+
+- **A `prep_audits` list in `docs/conventions/source-control.yaml` sets the audit `/source-control:pull-request prep` runs for each change class.** Each `{class, enabled, skill}` item turns the `markdown`, `renames`, `skills`, `rules` or `tests` audit off (`enabled: false`) or, except for `tests`, replaces it with a named skill that receives the class's changed files. It is read at the default branch, never the working tree, through `scripts/read-prep-audits.sh`, and a missing key, another base branch or a list the reader cannot trust runs every default audit. The comment pass and `security` are not configurable here.
+
+### Fixed
+
+- The shared hook library's command reader now says, when shfmt rejects text a guard lifted out of the command and named with `HOOK_BPS_SPAN`, which guard refused, that shfmt's `line:col` counts from the start of that text rather than the command, and the text's first 60 characters. Its own second readings (a backtick's unescaped text, a joined here-doc body) name themselves the same way. A refusal of the command itself reads as before.
+
 ## [11.10.1] - 2026-11-14
 
 ### Changed

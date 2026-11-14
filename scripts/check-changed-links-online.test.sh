@@ -130,4 +130,17 @@ out="$(run STUB_DUMP=$'https://kept.test/a\nhttps://moved.test/m#f' -- --list "$
 grep -qx 'docs/guide/a.md' "$TMP_ROOT/dump-args" && [[ $out == 'https://moved.test/m#f' ]]
 check $? "a moved and edited file's added link is kept" "out=$out args=$(cat "$TMP_ROOT/dump-args")"
 
+# A link to this repository's base branch is skipped only when its path exists
+# at HEAD: it resolves once the change merges.
+g branch -f trunk
+printf 'Own [adr](https://github.com/o/r/blob/trunk/docs/guide/a.md#x), [gone](https://github.com/o/r/blob/trunk/docs/gone.md).\n' >>"$repo/docs/guide/a.md"
+g commit -q -am self
+dump=$'https://github.com/o/r/blob/trunk/docs/guide/a.md#x\nhttps://github.com/o/r/blob/trunk/docs/gone.md'
+out="$(run SELF_REPO=o/r STUB_DUMP="$dump" -- --list trunk)"
+[[ $out == 'https://github.com/o/r/blob/trunk/docs/gone.md' ]]
+check $? "a base-branch link to a file present at HEAD is skipped; a missing one is kept" "out=$out"
+out="$(run SELF_REPO=other/r STUB_DUMP="$dump" -- --list trunk)"
+[[ $out == "$(LC_ALL=C sort <<<"$dump")" ]]
+check $? "a link to another repository is kept" "out=$out"
+
 test_harness::report

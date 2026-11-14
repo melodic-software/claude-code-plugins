@@ -8,7 +8,8 @@
 # remote's lines and files a merge brings in and a deletion do not block; a merge's own
 # conflict resolution is judged, in a file another parent holds as a symlink
 # too, and its git process count does not grow with the other side's diff; a
-# NUL file is judged whole; a declined entry checks nothing; --worktree
+# NUL file is judged whole; a symlink a commit turns into a regular file is
+# judged whole and the reverse is not judged; a declined entry checks nothing; --worktree
 # covers uncommitted files; and through the plugin's vendored installer a real
 # `git push` of a dossier/<key>-<slug> branch (the dossier_branch_prefix
 # default) to a bare remote fails on a planted token and passes once that
@@ -263,6 +264,20 @@ merge="$(pcommit "$(printf 'token=%s' "$FAKE_GHP" | ptree 100644 t.txt)" "$p1" "
 expect "a symlink target turned into a regular file with the same bytes is judged" \
   "1|t.txt:1: secret or credential pattern: GitHub PAT (commit $(short "$merge"))
 $HINT" "$(push_check "$merge" "$ZERO")"
+
+# A commit that turns its first parent's symlink into a regular file adds every
+# line of it; one that turns a regular file into a symlink adds no content.
+new_repo
+seed="$(git -C "$REPO" rev-parse HEAD)"
+link="$(pcommit "$(printf 'elsewhere' | ptree 120000 t.txt)" "$seed")"
+retyped="$(pcommit "$(printf 'clean\ntoken=%s\n' "$FAKE_GHP" | ptree 100644 t.txt)" "$link")"
+expect "a pushed commit that turns a symlink into a regular file is judged whole" \
+  "1|t.txt:2: secret or credential pattern: GitHub PAT (commit $(short "$retyped"))
+$HINT" "$(push_check "$retyped" "$ZERO")"
+file="$(pcommit "$(printf 'clean\n' | ptree 100644 t.txt)" "$seed")"
+retyped="$(pcommit "$(printf 'token=%s' "$FAKE_GHP" | ptree 120000 t.txt)" "$file")"
+expect "a pushed commit that turns a regular file into a symlink is not judged" "0|" \
+  "$(push_check "$retyped" "$ZERO")"
 
 b0="$(pcommit "$(printf 'MZ\0base\n' | ptree 100644 n.bin)" "$seed")"
 b1="$(pcommit "$(printf 'MZ\0one\n' | ptree 100644 n.bin)" "$b0")"

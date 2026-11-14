@@ -57,6 +57,7 @@ import {
  * @property {number} [maxFrameGapSec] - the coverage plan's maximum gap between timed frames for
  *   this run when `--max-frame-gap-sec` set it, recorded at watch start so recovery reuses it;
  *   absent, recovery derives the duration default the run used
+ * @property {WatchTimeRange} [timeRange] - set only on a ranged watch (`--from`/`--to`)
  * @property {import('./duration-mismatch.js').DurationMismatch} [durationMismatch] - set only
  *   when the metadata duration and the probed media duration differ by more than the
  *   threshold; absent when they agree
@@ -76,6 +77,21 @@ import {
  * @property {string} [tempSession.framesDir]
  * @property {string} [tempSession.contactSheetsDir]
  * @property {string} [tempSession.acquiredAt]
+ */
+
+/**
+ * The range a ranged watch acquired. Every stamp the slice stores is full-video time:
+ * the pipeline adds `offsetSec` to the times measured on the ranged media.
+ *
+ * @typedef {Object} WatchTimeRange
+ * @property {number} fromSec - range start, full-video seconds
+ * @property {number|null} toSec - range end, full-video seconds; null when open-ended
+ * @property {number} offsetSec - added to every media-time stamp (equals `fromSec`)
+ * @property {'keyframe'} cut - the cut is not forced to `fromSec`, so the media can begin
+ *   before it (see `lib/time-range.js` for where to read the cut behavior live)
+ * @property {number|null} [offsetErrorSec] - how far, at most, a media-time stamp plus
+ *   `offsetSec` can sit after the true full-video time: the media's length beyond the
+ *   range. Set once the media is probed; null when a duration was unknown
  */
 
 export const WATCH_STATE_FILENAME = "watch.json";
@@ -113,6 +129,8 @@ const MARKABLE_PHASES = /** @type {(keyof WatchPhases)[]} */ ([
  * @param {Record<string, unknown>} [meta.sourceMetadata] - `source:`-prefixed
  *   envelope metadata subset; persisted only when non-empty
  * @param {number} [meta.maxFrameGapSec] - the run's effective maximum frame gap
+ * @param {import('../lib/time-range.js').TimeRange|null} [meta.timeRange] - a ranged
+ *   watch's range; persisted as {@link WatchTimeRange}
  * @returns {WatchState}
  */
 export function createWatchState({
@@ -123,6 +141,7 @@ export function createWatchState({
   target,
   sourceMetadata,
   maxFrameGapSec,
+  timeRange = null,
 }) {
   return {
     videoId,
@@ -131,6 +150,16 @@ export function createWatchState({
     title,
     ...(target ? { target } : {}),
     ...(maxFrameGapSec === undefined ? {} : { maxFrameGapSec }),
+    ...(timeRange
+      ? {
+          timeRange: {
+            fromSec: timeRange.fromSec,
+            toSec: timeRange.toSec,
+            offsetSec: timeRange.fromSec,
+            cut: /** @type {const} */ ("keyframe"),
+          },
+        }
+      : {}),
     ...(sourceMetadata && Object.keys(sourceMetadata).length > 0 ? { sourceMetadata } : {}),
     status: "pending",
     phases: /** @type {WatchPhases} */ (

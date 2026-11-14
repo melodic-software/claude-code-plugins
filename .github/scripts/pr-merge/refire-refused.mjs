@@ -467,8 +467,9 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     if (!tagAbsent) {
       throw new Error("a tag named main exists, or its absence could not be read; nothing pushed");
     }
-    const tip = await github("GET", `/repos/${repo}/git/ref/heads/main`);
-    const mainSha = tip?.ref === "refs/heads/main" ? tip.object?.sha : undefined;
+    // MAIN_TIP_SHA is the step's git ls-remote of refs/heads/main.
+    const tip = SHA.test(env.MAIN_TIP_SHA ?? "") ? null : await github("GET", `/repos/${repo}/git/ref/heads/main`);
+    const mainSha = tip === null ? env.MAIN_TIP_SHA : tip?.ref === "refs/heads/main" ? tip.object?.sha : undefined;
     if (!SHA.test(String(mainSha))) {
       throw new Error("main's tip has no commit SHA");
     }

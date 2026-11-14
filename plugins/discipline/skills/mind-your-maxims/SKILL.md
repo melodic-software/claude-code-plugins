@@ -83,7 +83,7 @@ mid-session corrector can score.
 - **Verification level.** Resolve it once with
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill mind-your-maxims --file docs/conventions/discipline.yaml`
   and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):
-  `light` and `off` skip the method doc's step 2 and step 3 subagents, as it says.
+  `light` and `off` skip the method doc's step 2 and step 3 subagents, as it says, and the final reply then carries the line `verification: skipped (<level>)` verbatim, such as `verification: skipped (light)`.
 
 ## Gotchas
 

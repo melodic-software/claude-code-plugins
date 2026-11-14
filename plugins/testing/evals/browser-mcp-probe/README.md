@@ -1,7 +1,7 @@
 # browser-mcp-probe
 
 Environment probe for the MCP path of the browser lane
-(`.github/workflows/eval-browser-dispatch.yml`). `playwright-cli` cannot run inside
+(`.github/workflows/pr-run-plugin-evals.yml`). `playwright-cli` cannot run inside
 `claude plugin eval` Bash on Linux (ADR 0056, Findings, 2026-10-11), so this case drives Chromium
 through the Playwright MCP server instead. Each grader records one fact; the score is not a quality
 measure.
@@ -18,7 +18,7 @@ measure.
 
 ## Run it on the lane
 
-Dispatch `eval-browser-dispatch` on the default branch with:
+Dispatch `pr-run-plugin-evals` on the default branch with:
 
 | Input | Value |
 |---|---|

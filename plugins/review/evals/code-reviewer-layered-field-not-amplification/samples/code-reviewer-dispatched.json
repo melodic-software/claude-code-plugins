@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Code review",
+            "prompt": "Review the branch against the base SHA in .review-base.",
+            "subagent_type": "review:code-reviewer"
+          }
+        }
+      ],
+      "why": "the plugin's code reviewer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Review",
+            "prompt": "Review the branch.",
+            "subagent_type": "code-reviewer"
+          }
+        }
+      ],
+      "why": "unprefixed agent name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "reviewed on the invoking thread"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Review",
+            "prompt": "Review the branch.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "a general-purpose agent, not the code reviewer"
+    }
+  ]
+}

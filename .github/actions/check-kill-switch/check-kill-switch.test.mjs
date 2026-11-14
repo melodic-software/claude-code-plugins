@@ -292,8 +292,8 @@ test("a failed budget read proceeds", async () => {
 // existing work (reviews, merges, verdicts, post-model writes, model legs that
 // take over a handed-off turn) and check the switches only.
 const GATES = {
-  "eval-browser-dispatch.yml": { eval: "switch", "eval-subscription": "switch", "eval-fallback": "switch" },
-  "eval-hill-climb-pass.yml": { pass: "switch", "pass-subscription": "switch", "pass-fallback": "switch" },
+  "pr-run-plugin-evals.yml": { eval: "switch", "eval-subscription": "switch", "eval-fallback": "switch" },
+  "maintenance-measure-skill-edit-pass.yml": { pass: "switch", "pass-subscription": "switch", "pass-fallback": "switch" },
   "intake-reenter.yml": { reenter: "start" },
   "intake-triage.yml": {
     "kill-switch": "start",
@@ -320,7 +320,7 @@ const GATES = {
   "maintenance-monitor-signals.yml": { monitor: "start" },
   "maintenance-reconcile-lost-runs.yml": { reconcile: "start" },
   "maintenance-tidy-code-upkeep.yml": { gate: "start", model: "switch", "model-subscription": "switch", "model-fallback": "switch", "push-branches": "switch", publish: "switch" },
-  "post-merge-demotion-alert.yml": { "report-red-main": "switch" },
+  "post-merge-file-demotion-issues.yml": { "report-red-main": "switch" },
   "post-merge-test-mutation.yml": { prep: "start" },
   "pr-feedback-dispatch.yml": { "post-verify-notes": "switch", dispatch: "switch", "rerun-ci-status": "switch" },
   "pr-merge.yml": { "post-merge-dispatch": "switch", merge: "switch", "enable-auto-merge": "switch" },

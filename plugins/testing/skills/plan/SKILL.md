@@ -67,14 +67,18 @@ Classify each changed file:
 | Parser, decoder or handler whose input is untrusted (request bodies, uploaded files, hook or webhook payloads, CLI arguments from another process) | Fuzz target: generated and mutated inputs fed to the entry point, asserting no crash, hang, unbounded resource use or failure other than the documented rejection, with a seed corpus of valid inputs; a parser matching the property row too gets both |
 | Client of a service whose provider will run the verification, or an endpoint another service consumes | Consumer-driven contract test: the consumer records the requests it sends and the responses it relies on, and the provider's build verifies it still meets them. A public third-party API's provider runs none: plan its canned responses per `testing:test-value` (if enabled) instead |
 
-Leave out each fuzz-target or contract-test section whose row no changed code matches, and do not
-list it under "Not testing".
-
 ### 2. Generate the test plan
 
-For each change area, produce the plan below. Test names follow the project's documented pattern;
-when undocumented, mirror the ecosystem's idiom (the PascalCase placeholders are illustrative,
-.NET/xUnit):
+When step 1 found no changed file in the range, nothing is planned: say there is nothing to
+classify and end there, skipping the rest of this process and the Output suggestions, with no
+template section and no test type named as considered or skipped.
+
+For each change area, produce the plan below. Omit a fuzz-target or contract-test section when no
+changed code matches its row: do not print it empty, write it as "none", or list it under "Not
+testing".
+
+Test names follow the project's documented pattern; when undocumented, mirror the ecosystem's
+idiom (the PascalCase placeholders are illustrative, .NET/xUnit):
 
 ```markdown
 ## Test Plan for [branch/PR description]
@@ -96,10 +100,10 @@ when undocumented, mirror the ecosystem's idiom (the PascalCase placeholders are
 ### Pins (if replacing or migrating behavior)
 - [ ] {Behavior pinned} — {recorded corpus, comparator, intentional-differences ledger}
 
-### Fuzz targets (if code whose input is untrusted changed)
+### Fuzz targets (only if code whose input is untrusted changed; otherwise omit this section)
 - [ ] {Entry point} — {input shape, seed corpus, what must not happen: crash, hang, unbounded memory}
 
-### Contract tests (if a service client or consumed endpoint changed)
+### Contract tests (only if a service client or consumed endpoint changed; otherwise omit this section)
 - [ ] {Consumer} → {provider interaction} — {requests sent, response fields relied on, where the provider verifies it}
 
 ### E2E verification (if UI/API changes)

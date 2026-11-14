@@ -19,6 +19,9 @@
 #   entry-reason       an entry point line ends `not driven` with no reason
 #   drive-result       a step under a feature README's `## Drive` (a list item at the line start,
 #                      with its indented lines) has no `Result:` or nothing after it
+#   part-duplicate     two lines under a feature README's `## Parts` name the same part, so the
+#                      id `<module>/<part>` matches neither; the contract's "Feature files" says
+#                      how a line names a part
 #   link               a relative Markdown link in any .md file resolves to nothing
 #   shared-use         a `shared/<item>` is named by fewer than two feature files
 #   shared-why         a `shared/<item>` has no `Why shared: <reason>` line (in its README.md
@@ -139,6 +142,21 @@ drive_steps() {
     { if (step != "") print step; step = "" }
     END { if (step != "") print step }'
 }
+# Part names under `## Parts`, one per line: a list item's leading code span, bold id, or word
+# followed by `:`, with the markup and a trailing `.` or `:` dropped. A line that starts otherwise
+# names no part.
+part_names() {
+  section_lines "$1" Parts | awk '
+    !sub(/^([-*+]|[0-9]+[.)])[[:space:]]+/, "") { next }
+    {
+      name = ""
+      if (match($0, /^`[^`[:space:]]+`/)) name = substr($0, 2, RLENGTH - 2)
+      else if (match($0, /^\*\*[^*[:space:]]+\*\*/)) name = substr($0, 3, RLENGTH - 4)
+      else if (match($0, /^[^`*:[:space:]]+:/)) name = substr($0, 1, RLENGTH - 1)
+      sub(/[.:]$/, "", name)
+      if (name != "") print name
+    }'
+}
 
 declare -A features=() indexed=()
 while IFS= read -r f; do features["$f"]=readme; done < <(cd "$dir" && find features -mindepth 2 -type f -name README.md 2>/dev/null | LC_ALL=C sort)
@@ -248,6 +266,10 @@ for f in "${feature_list[@]}"; do
   while IFS= read -r step; do
     [[ "$step" =~ Result:[[:space:]]*[^[:space:]] ]] || finding drive-result "$f" "$step"
   done < <(drive_steps "$dir/$f")
+
+  while IFS= read -r part; do
+    finding part-duplicate "$f" "## Parts names $part more than once"
+  done < <(part_names "$dir/$f" | LC_ALL=C sort | uniq -d)
 done
 
 # Relative links in every Markdown file of the control skill.

@@ -80,6 +80,51 @@ describe("acceptForEnqueue rejection wording", () => {
   });
 });
 
+describe("acquire time range", () => {
+  const workDir = "/tmp/fake-work";
+
+  /** @param {import('../lib/time-range.js').TimeRange|null} timeRange */
+  const videoPassArgs = async (timeRange) => {
+    /** @type {string[][]} */
+    const spawnedArgs = [];
+    await adapter.acquire(WATCH_URL, {
+      workDir,
+      mode: "full",
+      timeRange,
+      deps: {
+        withThrottle: (/** @type {() => Promise<unknown>} */ fn) => fn(),
+        sleep: async () => {},
+        spawn: async (/** @type {string} */ _command, /** @type {string[]} */ args) => {
+          spawnedArgs.push(args);
+          return { success: true, code: 0, signal: null, stdout: "", stderr: "", timedOut: false };
+        },
+        listFiles: async () => [
+          `${workDir}/7zZy1QTvokM.mp4`,
+          `${workDir}/7zZy1QTvokM.en.en-orig.vtt`,
+          `${workDir}/7zZy1QTvokM.info.json`,
+        ],
+        readFile: async (/** @type {string} */ filePath) =>
+          filePath.endsWith(".info.json")
+            ? JSON.stringify({ id: "7zZy1QTvokM", title: "Driver Video" })
+            : "WEBVTT\n\n",
+      },
+    });
+    return spawnedArgs.filter((args) => !args.includes("--skip-download"));
+  };
+
+  it("maps the context's time range to the video pass's download section", async () => {
+    const passes = await videoPassArgs({ fromSec: 3600, toSec: 4800 });
+    expect(passes).toHaveLength(1);
+    expect(passes[0][passes[0].indexOf("--download-sections") + 1]).toBe("*1:00:00-1:20:00");
+  });
+
+  it("downloads the whole video without a time range", async () => {
+    const passes = await videoPassArgs(null);
+    expect(passes).toHaveLength(1);
+    expect(passes[0]).not.toContain("--download-sections");
+  });
+});
+
 describe("harvestLinks", () => {
   it("harvests description, chapter, and pinned-comment links with dedupe", () => {
     const links = adapter.harvestLinks({

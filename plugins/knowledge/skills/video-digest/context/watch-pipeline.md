@@ -43,7 +43,7 @@ On resume: if companion is unmarked, run 0b before vision even when CLI phases a
 ## CLI bootstrap
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/run-watch.js "<url>" [--skip-research] [--target <repo>] [--max-frame-gap-sec <sec>]
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/run-watch.js "<url>" [--skip-research] [--target <repo>] [--max-frame-gap-sec <sec>] [--from <h:mm:ss>] [--to <h:mm:ss>]
 ```
 
 Pass an explicit `--target <repo>` through from the invoking `watch <url> --target <repo>` command.
@@ -55,6 +55,22 @@ is extracted; without it the run uses the duration-tier default from `maxFrameGa
 (`extraction/watching/compute-coverage-plan.js`). The effective value is recorded in
 `coverage-plan.json`, and a passed value also in `watch.json` (`state.maxFrameGapSec`);
 `run-watch.js --recover` plans with the recorded value, or derives the same default without one.
+
+Pass `--from <h:mm:ss>` and `--to <h:mm:ss>` through from the invoking `watch <url>` command. Each
+is optional (`m:ss` and plain seconds also parse), and together they download only that range of the video, through yt-dlp `--download-sections`. YouTube only: any
+other source refuses them. Captions and metadata still cover the whole video. Frames are sampled
+from the ranged media, and the pipeline adds the range's start to every frame time, densification
+window and timeline entry, and to ASR cues, so every stamp in the slice is full-video time. We do
+not force the cut to `--from`, so the media can begin before it, and `offsetErrorSec` records how
+far. Where the cut lands is read live: `--download-sections` and `--force-keyframes-at-cuts` in
+yt-dlp's [download options](https://github.com/yt-dlp/yt-dlp#download-options), and `-ss` in
+ffmpeg's [main options](https://ffmpeg.org/ffmpeg.html#Main-options). `watch.json` `timeRange`
+records `fromSec`, `toSec` (null when open-ended), `offsetSec`, `cut: "keyframe"` and
+`offsetErrorSec`: how much longer the media is than the range, the most a stamp can sit after
+its true time (null when a duration was unknown). Each timed frame's `timestampErrorSec` grows
+by the same amount. The slice `README.md` names the range, and the duration-mismatch check is
+skipped. The slice key stays the video id, so a ranged run shares the whole video's slice
+directory. `--recover` refuses a ranged slice; re-run `run-watch.js` with the same range instead.
 
 Runs acquire (retry + throttle) → transcript → dynamic coverage watching → metadata link harvest.
 Writes:

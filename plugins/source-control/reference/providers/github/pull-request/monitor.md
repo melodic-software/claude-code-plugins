@@ -72,9 +72,18 @@ fi
 last_comment_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 prev_threads=""
 poll=0
-err=$(mktemp)  # stderr of every later gh call, checked for a rate limit each poll
-trap 'rm -f "$err"' EXIT  # every exit removes it
-trap 'exit 143' INT TERM HUP  # a signal then ends the script through the EXIT trap, in bash and zsh alike
+errs=""  # stderr of every later read this poll, checked for a rate limit at its end
+# read_into CMD...: the command's stdout into out, its stderr appended to errs;
+# returns the command's status. The stderr comes first in the capture, since
+# the command has exited before printf writes the \037 marker, status and stdout.
+read_into() {
+  local all rest
+  all=$( { out=$("$@"); printf '\037%s:%s' "$?" "$out"; } 2>&1 )
+  errs+=${all%%$'\037'*}
+  rest=${all#*$'\037'}
+  out=${rest#*:}
+  return "${rest%%:*}"
+}
 
 while true; do
   # Terminal state check — exit watch if PR closed/merged. REST, like the
@@ -104,15 +113,17 @@ while true; do
   checks_ok=1
   [ -n "${head_sha:-}" ] || checks_ok=0
   if [ "$checks_ok" -eq 1 ]; then
-    if wf_raw=$(gh api --paginate "repos/$OWNER/$REPO/actions/runs?head_sha=$head_sha&per_page=100" \
-      --jq '.workflow_runs[] | {(.check_suite_id | tostring): "\(.name)/\(.event)"}' 2>>"$err"); then
-      wf=$(printf '%s\n' "$wf_raw" | jq -s -c 'add // {}') || checks_ok=0
+    if read_into gh api --paginate "repos/$OWNER/$REPO/actions/runs?head_sha=$head_sha&per_page=100" \
+      --jq '.workflow_runs[] | {(.check_suite_id | tostring): "\(.name)/\(.event)"}'; then
+      wf=$(printf '%s\n' "$out" | jq -s -c 'add // {}') || checks_ok=0
     else checks_ok=0; fi
   fi
   if [ "$checks_ok" -eq 1 ]; then
-    runs_raw=$(gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/check-runs?per_page=100" 2>>"$err") || checks_ok=0
-    stat_raw=$(gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/status?per_page=100" \
-      --jq "$b"' .statuses[] | "\(.context): \(.state | b)"' 2>>"$err") || checks_ok=0
+    read_into gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/check-runs?per_page=100" || checks_ok=0
+    runs_raw=$out
+    read_into gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/status?per_page=100" \
+      --jq "$b"' .statuses[] | "\(.context): \(.state | b)"' || checks_ok=0
+    stat_raw=$out
   fi
   if [ "$checks_ok" -eq 1 ]; then
     run_rows=$(printf '%s\n' "$runs_raw" | jq -s -r --argjson wf "$wf" "$b"' [.[].check_runs[] | {k: "\(.name)/\($wf[.check_suite.id | tostring] // "")", name, t: (.started_at // ""), s: (if .status == "completed" then .conclusion else .status end)}] | group_by(.k) | map(max_by(.t))[] | "\(.name): \(.s | b)"') || checks_ok=0
@@ -151,20 +162,20 @@ while true; do
   # the failed poll window and never emit them.
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   fetch_ok=1
-  if out=$(gh api --paginate "repos/$OWNER/$REPO/issues/$PR_NUMBER/comments?since=$last_comment_ts&per_page=100" \
-    --jq '.[] | "COMMENT \(.user.login): \(.body[:80])"' 2>>"$err"); then
+  if read_into gh api --paginate "repos/$OWNER/$REPO/issues/$PR_NUMBER/comments?since=$last_comment_ts&per_page=100" \
+    --jq '.[] | "COMMENT \(.user.login): \(.body[:80])"'; then
     printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . || true
   else fetch_ok=0; fi
-  if out=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments?since=$last_comment_ts&per_page=100" \
-    --jq '.[] | "INLINE-COMMENT \(.user.login): \(.body[:80])"' 2>>"$err"); then
+  if read_into gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments?since=$last_comment_ts&per_page=100" \
+    --jq '.[] | "INLINE-COMMENT \(.user.login): \(.body[:80])"'; then
     printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . || true
   else fetch_ok=0; fi
   # Reviews API has no `since` param — filter client-side on submitted_at.
   # Client-side filtering makes pagination required: an unpaginated read
   # returns the 30 OLDEST reviews, so on a PR past that count the new ones
   # this poll exists to catch are exactly the ones never fetched.
-  if out=$(gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" \
-    --jq ".[] | select(.submitted_at > \"$last_comment_ts\") | \"REVIEW \(.user.login) [\(.state)]: \(.body[:80])\"" 2>>"$err"); then
+  if read_into gh api --paginate "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" \
+    --jq ".[] | select(.submitted_at > \"$last_comment_ts\") | \"REVIEW \(.user.login) [\(.state)]: \(.body[:80])\""; then
     printf '%s\n' "$out" | tr -d '\r' | grep --line-buffered . || true
   else fetch_ok=0; fi
   [ "$fetch_ok" -eq 1 ] && last_comment_ts="$now"
@@ -174,7 +185,8 @@ while true; do
   # GraphQL call, so it runs every 4th poll (about 4 minutes) and emits
   # when the unresolved count, or THREADS_UNPROVEN, changes.
   if [ $((poll % 4)) -eq 0 ]; then
-    cur_threads=$(bash "<scripts-dir>/source-control-review-threads" "$OWNER/$REPO#$PR_NUMBER" 2>>"$err" \
+    read_into bash "<scripts-dir>/source-control-review-threads" "$OWNER/$REPO#$PR_NUMBER"
+    cur_threads=$(printf '%s\n' "$out" \
       | awk 'NR == 1 && /^THREADS_(OK|BLOCKED) unresolved=/ { sub(/.*unresolved=/, ""); sub(/[^0-9].*/, ""); print }')
     cur_threads=${cur_threads:-THREADS_UNPROVEN}
     if [ "$cur_threads" != "$prev_threads" ]; then
@@ -182,19 +194,22 @@ while true; do
       prev_threads="$cur_threads"
     fi
   fi
-  if grep -qiE 'rate limit|HTTP 429' "$err"; then
-    echo "RATE-LIMITED — watch stopped: $(grep -iE -m1 'rate limit|HTTP 429' "$err")"
+  if grep -qiE 'rate limit|HTTP 429' <<<"$errs"; then
+    echo "RATE-LIMITED — watch stopped: $(grep -iE -m1 'rate limit|HTTP 429' <<<"$errs")"
     exit 2
   fi
-  : >"$err"
+  errs=""
   poll=$((poll + 1))
 
   sleep "$INTERVAL"
 done
 ```
 
+Keep the script free of `rm`: an auto-mode session's safety check denied the inline `command`
+while it ran `rm` on a stderr temp file (issue #16201). The reads' stderr collects in `errs`.
 Its state check and CI block (the `head_sha` read through `cur_checks`) also run standalone, with
-`OWNER`, `REPO`, `PR_NUMBER`, and `err` set, as the REST read of a PR's checks; `cur_checks` is valid only when `checks_ok` is 1. The bucket mapping and the
+`OWNER`, `REPO`, and `PR_NUMBER` set and `read_into` defined, as the REST read of a PR's checks;
+`cur_checks` is valid only when `checks_ok` is 1. The bucket mapping and the
 latest-per-name/workflow/event dedupe follow gh's `pkg/cmd/pr/checks/aggregate.go`.
 
 ## Why polling uses REST

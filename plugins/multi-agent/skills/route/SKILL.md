@@ -1,6 +1,6 @@
 ---
 description: "Model and effort per agent role (orchestrator, worker, verifier, retrieval) for a multi-agent run, resolved through the bundled defaults and the user, team and personal override config layers into fenced JSON with single-agent and fan-out variants and the layer behind each value; fan-out stays off frontier models unless config opts in. Use when asked 'which model for the subagents', 'route the roles', 'what effort should the workers use', 'roles for the workflow args', 'model routing' or 'is fan-out on Fable', or before a skill launches a workflow that takes args.roles."
-argument-hint: "<role|all> [workload] [session=<alias>]"
+argument-hint: "<<role>|all> [workload] [session=<alias>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -16,7 +16,7 @@ read it when a note or a user question concerns a key, a layer or the guard.
 
 ## Arguments
 
-- `<role|all>`: one of `orchestrator`, `worker`, `verifier`, `retrieval`, or
+- `<<role>|all>`: one of `orchestrator`, `worker`, `verifier`, `retrieval`, or
   `all` for the whole map.
 - `[workload]`: optional, the second bare argument; applies the role's
   `workloads.<w>` keys. The bundled layer declares `code`, `research` and

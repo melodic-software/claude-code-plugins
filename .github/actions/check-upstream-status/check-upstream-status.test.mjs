@@ -138,7 +138,7 @@ test("the script fails open with exit 0 when no page can be reached", () => {
 const workflow = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const GATE = "./.base/.github/actions/check-upstream-status";
 const GATED_WORKFLOWS = [
-  "eval-browser-dispatch.yml",
+  "pr-run-plugin-evals.yml",
   "intake-triage.yml",
   "pr-feedback-dispatch.yml",
   "pr-review-hosted.yml",

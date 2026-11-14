@@ -192,15 +192,8 @@ if [[ "$CHECKS_MODE" == pre-commit ]]; then
     run_biome "$CHECKS_TMP/write" --write || :
   done
 
-  rewritten=()
   if ((${#tree[@]})); then
-    while IFS= read -r -d '' f; do
-      rewritten+=("$f")
-    done < <(git --literal-pathspecs diff --name-only -z -- "${tree[@]}")
-  fi
-  if ((${#rewritten[@]})); then
-    printf '%s\n' "${rewritten[@]}"
-    git --literal-pathspecs add -- "${rewritten[@]}"
+    checks_restage "${tree[@]}"
   fi
 fi
 

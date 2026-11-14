@@ -109,7 +109,7 @@ and a failed dispatch leaves the issue with no `status:` label for a re-run or t
 milestone in `admission-rules.json`'s `cordoned-milestones` keeps an issue parked. It never adds `agent-ready`, and it holds the job's own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
 
 Anyone outside the organization who writes on an issue or pull request is flagged for a person by
-[`security-outside-actor.yml`](../../../.github/workflows/security-outside-actor.yml), a scripted
+[`intake-label-outside-actor-activity.yml`](../../../.github/workflows/intake-label-outside-actor-activity.yml), a scripted
 workflow with no model, secret or kill switch. It runs on an issue or pull request opened, edited
 or reopened, a pull request synchronized (`pull_request_target` for a pull request), on a
 comment, review or diff comment created, submitted or edited, and on `security: outside-actor`
@@ -547,7 +547,9 @@ when it is also the exact version the manifest pins, instead of a model turn
 `install-script-pin` row, which checks the pin against the manifest's version as Dependabot set
 it, not the lockfile; it posts no round marker, and the new head is reviewed as any other.
 `check-catalog` fails `ci-status` while the pin and the lockfile disagree, so a Dependabot bump
-of the CLI sorts `review` and reaches this step.
+of the CLI sorts `review` and reaches this step. Once the pin lands, its lanes App commit keeps
+the pull request `review` in both lanes, so the pr-merge lane merges it only on a `verdict=merge`
+marker at the new head.
 
 `pr-unblock`'s `fix-ci` runs in separate jobs of `pr-unblock.yml`, so no model holds a write token:
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
@@ -1273,7 +1275,7 @@ the rules that only tighten in
   `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`. A record is a state marker, never lane
   work: no record is sent to intake triage, since the fix issues carry the work, and its text keeps
   the fix-issue rule (each newly failing check by job name only, never a gate's annotation title or
-  a revert command). `post-merge-demotion-alert.yml` files a red-main record (signal `schedule` or
+  a revert command). `post-merge-file-demotion-issues.yml` files a red-main record (signal `schedule` or
   `dispatch`) with no label, since it clears itself (below), unless a failing check got no fix
   issue (over the cap or outside the charset), which labels it `needs-human`; it labels a canary or revert record
   `needs-human`, since a green main clears neither; each keeps the label until it lifts (below).
@@ -1350,7 +1352,7 @@ the rules that only tighten in
   history, read from main's full history. A revert commit any revert record already lists, in any
   state, is skipped, so a commit is filed once and never again after a person closes its record. A
   reverted commit whose pull request cannot be read is an unproven revert and files the record. The wrapper finds these issues by author (the agent identity
-  or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
+  or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-file-demotion-issues.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
   labeled as a record of its signal is: a full-run one carries no label unless a failing check got
@@ -1720,7 +1722,7 @@ the rules that only tighten in
   demotes nothing, the window counts as verified (its `max-in-flight` slots free), and the suite
   is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, with no label
   and no assignee, filed by the agent identity's `--remediate` (whose issue starts intake triage)
-  or by post-merge-demotion-alert.yml (which locks it and dispatches intake triage for it), so a
+  or by post-merge-file-demotion-issues.yml (which locks it and dispatches intake triage for it), so a
   lane picks it up. While that issue is open
   and younger than `merge.quarantine-days` (default 7, at most 30), the suite's out-of-set failures
   demote nothing; after that they demote again, even when the suite was already failing before the
@@ -2348,8 +2350,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   opens with `Bump <name> from <a> to <b>` for that entry's name and version, never from the PR
   title. When both read, they must name the same dependencies and agree on which are major.
 - **Tier `review`.** Anything else, including anything unreadable (a SHA version, an unparsed
-  title), every update to a [review-only dependency](#review-only-dependencies), and an npm or
-  pip update whose [registry provenance](#registry-provenance) changed. The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
+  title), every update to a [review-only dependency](#review-only-dependencies), a pull request
+  carrying a lanes App commit, and an npm or pip update whose
+  [registry provenance](#registry-provenance) changed. The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
   when the newest round marker the lanes App posted on it
   (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
   names the current head with `verdict=merge`. A marker from any other author is ignored. The
@@ -2532,7 +2535,7 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
   write, and the arm goes on. Each arm makes at most one comment write, and a head gets at most
   one comment unless anyone other than the lanes App edited its record; there is no write when the head's record already
   holds the line or a rating. Its `issue_comment` event starts
-  `security-outside-actor` and `intake-reenter` runs whose jobs skip a bot's comment, as they do
+  `intake-label-outside-actor-activity` and `intake-reenter` runs whose jobs skip a bot's comment, as they do
   for the pin. Nothing reads the record back: no gate, hold or rung. Not while
   `merge.report-only` is true.
 - **Telemetry.** The rating run writes one `pr-merge-risk` lane-outcome record (outcome, class,
@@ -3186,8 +3189,9 @@ them on every `pull_request` run, contract-only runs included:
   ci-status's merge-holds step still fails on the veto comment until a later comment by the same
   member lifts it, so the veto holds before the label lands and if the label is removed.
 - **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
-  head must have a successful status job (`PR Review / review-status`,
-  `PR Review Security / review-status`; the lower-case caller on a head tested before the rename)
+  head must have a successful status job (`PR Review / Status`, `PR Review Security / Status`;
+  the lower-case caller on a head tested before the rename, and `review-status` for `Status` on
+  a run from before the job's Title Case name; each counts only as the whole name)
   whose `Apply the hold` step ran. A summary-mode run or
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
   the cause named. A lane a kill switch stopped (the switch was on when the review run started)
@@ -3539,7 +3543,7 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 |---|---|---|
 | `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
 | Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
-| Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
+| Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `release-generate-dependabot-changelog-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
 ## Models
@@ -3779,7 +3783,7 @@ with its default.
 | `refire-queue-per-slot` | 2 | Kill-switch re-fires' queue target per issue-lane slot (`SLOTS`, the effective lane level `lane-level-value.mjs` reads): a sweep re-fires breaker-stranded issues, oldest first, only until the unfinished work-resolve-issue runs reach this times `SLOTS`, within `restarts-per-run`. At most 10. |
 | `stale-queued-minutes` | 60 | Minutes after it was created past which a work-resolve-issue run still at status `queued` is left out of the unfinished runs `refire-queue-per-slot` counts: its first job never got a runner, so GitHub lost it and it never starts. The sweep logs how many it left out. A reopened fix issue's in-flight check also ignores such a run when it names no issue; one that names the issue still holds it. At most 1440. |
 | `sweep-gap-minutes` | 15 | Minutes after a full work-unblock sweep (a run that uploaded `work-unblock-verdicts`) finished during which the sweep a finished work-resolve-issue run starts skips its work and requests no lane token. A scheduled sweep or an issue close never skips; a read that fails runs the sweep. 0 turns it off; at most 60. |
-| `readmit-per-run` | 20 | Open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on, oldest updated first; at most 100. Only an issue that reaches the rules counts: a hold or refuse label, an open blocker or sub-issue, a `status: ready` neither a listed human nor the lanes App added, or a standing `agent-ready` removal leaves it out uncounted. |
+| `readmit-per-run` | 20 | Open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on, oldest updated first; at most 100. Only an issue that reaches the rules counts: a hold or refuse label, an open blocker or sub-issue (outside its once-a-day check while no admission decided it), a `status: ready` neither a listed human nor the lanes App added, or a standing `agent-ready` removal leaves it out uncounted. |
 | `parent-rescan-per-run` | 5 | Open issues whose every sub-issue is completed and whose number is the UTC hour modulo 24 that one work-unblock sweep reads to close a finished split parent, oldest updated first; at most 100. A parent whose last sub-issue closed outside the sweep window closes on its hour; one that stays open logs why. |
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs and the failed or `not-applicable` `fix-ci` runs across base moves one head gets, and the red or held `fix-docs` runs in the run listing that one PR gets. |
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. Also the most immediate re-fires `report-outcome` makes of runs that stopped on stale workflow files, since a person last added `agent-ready` or a run last reported; past it, work-unblock's sweep re-fires them. |
@@ -3907,7 +3911,9 @@ revisited; any other is left as is with a warning annotation, since re-admitting
 `admission-deferred`, a held one stays deferred, and any other loses it. After the closed issues,
 the sweep runs intake's admission rules on the open `status: ready` issues in no queue (neither
 `agent-ready` nor `admission-deferred`, no hold or refuse label, no open blocker or sub-issue), at
-most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does, with one
+most `limits.readmit-per-run` of them, oldest updated first. One with an open blocker or sub-issue
+goes to the rules too, once a day on the sweep whose UTC hour is its number modulo 24, while no
+lanes App admission comment is newer than its newest `status: ready`. Either way the sweep writes as intake does, with one
 exception: a refusal whose only reason is done-when items an unattended lane run cannot perform
 beside items it can (no trusted `host-run`, no paid eval) parks at Work status needs-triage, not
 confirmed, since refine.mjs splits those items off only inside an intake run. Before that write it
@@ -3960,7 +3966,7 @@ count as queued work:
 | work-unblock's restarts, re-fires and relabels (remove and re-add on an admitted issue) | No: they re-run work already admitted |
 | A person adding the label by hand | No |
 | A person-run skill: `/work-items:triage`, `/work-items:decompose`, `/work-items:attend-queue`, `/work-items:track` | No: a person's account, their call |
-| `post-merge-demotion-alert.yml` red-main fix issues | No: it files them unlabeled and reopens one on a repeat failure keeping the `agent-ready` a person gave it, which work-unblock relabels; guardrail work |
+| `post-merge-file-demotion-issues.yml` red-main fix issues | No: it files them unlabeled and reopens one on a repeat failure keeping the `agent-ready` a person gave it, which work-unblock relabels; guardrail work |
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
 and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause or hold;
@@ -4185,7 +4191,7 @@ reading every pull request merged from `--since` to today, a day per search.
 
 When a full `pr-require-checks` run on `main` (scheduled or dispatched) fails, the
 `report-red-main` job of
-[`post-merge-demotion-alert.yml`](../../../.github/workflows/post-merge-demotion-alert.yml) applies
+[`post-merge-file-demotion-issues.yml`](../../../.github/workflows/post-merge-file-demotion-issues.yml) applies
 this rule after the alert job has filed its post-merge record. It runs no model; its scripts and
 tests are in
 [`.github/scripts/post-merge-demotion-alert/`](../../../.github/scripts/post-merge-demotion-alert/).

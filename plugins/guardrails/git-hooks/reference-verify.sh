@@ -114,14 +114,24 @@ changed_lines() {
     printf '%s\n' "$d" >>"$CHECKS_TMP/copies"
   done < <(checks_diff --name-status -C --diff-filter=C -z 2>/dev/null)
   [[ -s "$CHECKS_TMP/copies" ]] || return 0
-  checks_diff -U0 --text -C --diff-filter=C --src-prefix=a/ --dst-prefix=b/ 2>/dev/null |
+  # The hunk parse is checks_added_ranges' own: see its comment.
+  checks_diff -U0 --text -C --diff-filter=C --src-prefix=a/ --dst-prefix=b/ --inter-hunk-context=0 2>/dev/null |
     awk '
+      left > 0 || right > 0 {
+        c = substr($0, 1, 1)
+        if (c == " ") { left--; right--; next }
+        if (c == "-") { left--; next }
+        if (c == "+") { right--; next }
+        if (c == "\\") next
+      }
       /^\+\+\+ / { path = substr($0, 5); sub(/\t$/, "", path); if (path ~ /^b\//) path = substr(path, 3); else path = ""; next }
-      /^@@ / && path != "" {
+      /^@@ / {
+        split($2, o, ",")
+        left = (o[2] == "") ? 1 : o[2] + 0
         split($3, n, ",")
         start = substr(n[1], 2) + 0
-        count = (n[2] == "") ? 1 : n[2] + 0
-        if (count > 0) printf "%s\t%d\t%d\n", path, start, start + count - 1
+        right = (n[2] == "") ? 1 : n[2] + 0
+        if (path != "" && right > 0) printf "%s\t%d\t%d\n", path, start, start + right - 1
       }' >"$CHECKS_TMP/ranges.copy"
   # A failed stage fails the hook and keeps the lib's ranges, which judge a
   # copy whole: short ranges would drop findings. A diff stopped by SIGPIPE

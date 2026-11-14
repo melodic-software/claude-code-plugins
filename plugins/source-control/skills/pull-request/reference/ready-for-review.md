@@ -594,9 +594,20 @@ per the
 [review-digest convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/review-digest.md):
 `off` does nothing, `offer` offers the digest when a trigger fires, and `always` builds it.
 
+Before the hand-off, run `python3 "<skill-dir>/scripts/media.py" stale "$PR_NUMBER" --repo <owner>/<repo>`,
+so a reviewer-media section that shows a commit older than the head this phase published says so
+([media.md](media.md), "Stale media"). It does nothing on a body with no such section, and a
+failure is reported, never a reason to undo the flip.
+
 The digest gates nothing: no step of this phase or of [readiness.md](readiness.md) reads it. A
 skip, an unanswered offer, or a skill that does not resolve all go on to 2.5.7; a reader who
 accepts the offer later gets the digest then.
+
+Last, on the confirmed head: when `/review:reviewer-media` resolves in this session, invoke it on
+the pull request with `--handoff` and the same blast radius. Its
+[reviewer-media convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/reviewer-media.md)
+decides whether media are built, and the request label counts. Like the digest it gates nothing:
+its outcome is one report line, and a failure never undoes the flip.
 
 ## 2.5.7 Report
 

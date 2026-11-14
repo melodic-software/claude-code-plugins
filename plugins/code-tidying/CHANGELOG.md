@@ -3,6 +3,24 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.4] - 2026-11-14
+
+### Fixed
+
+- A Dependabot bump of `tree-sitter`, a tree-sitter grammar or `pygments` no longer fails Test Bash. The eval seed (`evals/fixtures/comment-tooling-seed.sh`) used to install from its own copy of those pins, and `comment-tooling-pins.test.sh` failed whenever the copy and `.github/requirements-ci.txt` differed. Dependabot moves only the CI file, so every such bump failed until someone moved the copy by hand. The seed now reads the `pygments` and `tree-sitter*` requirement blocks, hashes included, from `.github/requirements-ci.txt` when it runs, and the copy (`comment-tooling.requirements.txt`) is gone. `comment-tooling-pins.test.sh` now checks that the seed installs exactly those blocks, and that a `tree-sitter` pin changed in the CI file alone reaches the seed. Running the seed outside a full checkout of this repository now fails with a message naming the missing file.
+
+## [0.46.3] - 2026-11-14
+
+### Changed
+
+- The comment-tooling eval seed installs `tree-sitter` 0.26.1, the version `.github/requirements-ci.txt` pins.
+
+## [0.46.2] - 2026-11-14
+
+### Changed
+
+- The verification level reader now reads the team file through the shared default-branch reader, `lib/default-branch-file.sh`, which this plugin now carries; levels and messages are unchanged.
+
 ## [0.46.1] - 2026-11-14
 
 ### Changed

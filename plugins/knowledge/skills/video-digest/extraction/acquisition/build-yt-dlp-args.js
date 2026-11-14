@@ -141,6 +141,8 @@ export function resolveYtDlpAuthArgs(
  * @param {NodeJS.ProcessEnv} [options.env] - env for auth flags (defaults to process.env)
  * @param {YtDlpAuthOverride} [options.authOverride] - per-invocation cookie override
  * @param {YtDlpSourceOptions} [options.source] - adapter-declared flags; omitted fields push nothing
+ * @param {string|null} [options.downloadSection] - `--download-sections` value
+ *   (`*<from>-<to>`) bounding the media download; ignored when no media is downloaded
  * @returns {string[]}
  */
 export function buildYtDlpArgs(
@@ -153,6 +155,7 @@ export function buildYtDlpArgs(
     env = process.env,
     authOverride = {},
     source = {},
+    downloadSection = null,
   },
 ) {
   /** @type {string[]} */
@@ -205,6 +208,9 @@ export function buildYtDlpArgs(
     args.push("--skip-download");
   } else {
     args.push("-f", YT_DLP_VIDEO_FORMAT, "--remux-video", "mp4");
+    if (downloadSection) {
+      args.push("--download-sections", downloadSection);
+    }
   }
 
   args.push(

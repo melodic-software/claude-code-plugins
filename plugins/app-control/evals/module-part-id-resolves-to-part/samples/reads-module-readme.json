@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-repo/features/testing/README.md"
+          }
+        }
+      ],
+      "why": "read the module's feature file, where the run-e2e part is listed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-repo/SKILL.md"
+          }
+        }
+      ],
+      "why": "read only the hub and stopped for want of a features/testing/run-e2e file"
+    }
+  ]
+}

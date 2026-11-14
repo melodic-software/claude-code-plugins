@@ -317,23 +317,38 @@ def is_unarmed_status(check: dict[str, Any]) -> bool:
 # share. `PR Review / review-status` and `PR Review Security / review-status`
 # are the callers' display names; the lower-case callers are a head tested
 # before the rename, or a repository whose caller job has no display name.
-# `pr-review-security / security-review` is the caller of pr-review-security.yml,
+# `pr-review-security / security-review` is the caller of pr-review-security.yml
+# (`PR Review Security / security-review` under its display name),
 # `security-review / security-review` the previous one, and
 # `claude-security-review-status` the job of a pin that predates the fold.
-# Old and new callers run side by side while repos migrate. Every matching
-# check must succeed.
+# ci-workflows names these jobs in Title Case: pr-review-cli.yml's status job
+# `Status`, and both pr-review.yml's and pr-review-security.yml's job `Claude`.
+# Both segments are shared by the two lanes, so each counts only as a whole
+# name under the lane's own callers (`pr-review-no-bots` is the sandbox's
+# pr-review.yml caller). Old and new callers and job names run side by side
+# while repos migrate. Every matching check must succeed.
 AI_REVIEW_CHECKS = {
     "claude-review-status": (
         "claude-review-status",
         "PR Review / review-status",
         "pr-review / review-status",
+        "PR Review / Status",
+        "pr-review / Status",
+        "PR Review / Claude",
+        "pr-review / Claude",
+        "pr-review-no-bots / Claude",
     ),
     "claude-security-review-status": (
         "claude-security-review-status",
         "security-review / security-review",
         "pr-review-security / security-review",
+        "PR Review Security / security-review",
         "PR Review Security / review-status",
         "pr-review-security / review-status",
+        "PR Review Security / Status",
+        "pr-review-security / Status",
+        "PR Review Security / Claude",
+        "pr-review-security / Claude",
     ),
 }
 

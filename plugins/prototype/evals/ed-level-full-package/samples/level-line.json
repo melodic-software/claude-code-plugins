@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "level: full (prompt)\nPlan: /settings/account, HTML mockup, variants A to E, states populated, empty, error, narrow-viewport, dark-scheme, reduced-motion.",
+      "why": "report line above the plan"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "level: standard (default)\nPlan: /settings/account, HTML mockup, variants A to C.",
+      "why": "the default level"
+    },
+    {
+      "answer": "Using the full level. Plan: /settings/account, HTML mockup, variants A to E.",
+      "why": "no report line"
+    }
+  ]
+}

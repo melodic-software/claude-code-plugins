@@ -1,5 +1,38 @@
 # Changelog for the PR pipeline convention
 
+## [10.2.6] - 2026-11-14
+
+### Changed
+
+- The convention names the renamed workflows `post-merge-file-demotion-issues.yml`,
+  `intake-label-outside-actor-activity.yml`, `release-generate-dependabot-changelog-fragments.yml`,
+  `pr-run-plugin-evals.yml` and `maintenance-measure-skill-edit-pass.yml`.
+
+## [10.2.5] - 2026-11-14
+
+### Fixed
+
+- Intake admission no longer skips an issue whose Work status apply-verdict set to ready seconds before. GitHub can answer an issue's field events without a write it just took, and a value no listed event set reads as unset, so admission fell back to the issue's labels, found no `status: ready` and left the issue at ready with no admission comment. Admission now reads the field again while it does not show the state apply-verdict wrote, up to three more times over 35 seconds (`WRITTEN_STATUS_REREADS` and `WRITTEN_STATUS_WAIT_MS` in `admit.mjs`). If the field still does not show it, the run fails and its summary reads `Admission: error` with what the field showed.
+- work-unblock's hourly sweep now runs the admission rules on a `status: ready` issue with an open blocker or sub-issue once a day, in the sweep whose UTC hour is the issue's number modulo 24, while no lanes App admission comment is newer than its newest `status: ready`. Before, the sweep never read such an issue, so one that intake's admission skipped stayed undecided. Each such issue in the hour's slot costs one comments read, shared with the split-parent comment refresh, plus an events read (REST, and the GraphQL field events when the Work status is configured) when it has an admission comment. An undecided one then takes the admission reads the sweep already makes for an issue with no blocker, and is decided again the next day when that decision leaves its admission comment unchanged or posts none.
+
+## [10.2.4] - 2026-11-14
+
+### Fixed
+
+- A Dependabot pull request carrying a lanes App commit, such as the claude-code install-script pin, is tier `review` in both lanes, and the pr-merge lane merges it only on a `verdict=merge` marker at the new head.
+
+## [10.2.3] - 2026-11-14
+
+### Fixed
+
+- Every Work status write of agent-ready (intake admission, work-unblock's sweep admission, and the lanes App's restarts and re-fires, all through write-status.mjs) now reads the issue's labels first and removes each status label of another state in models.issue-status, such as the `needs-triage` an issue form adds. The lanes token broker reads labels and refuses the issue lane's token while the issue carries any status label but agent-ready. A field write never removed that label, so the run started, took a lease and was refused as `untrusted-actor`. A hold label (`needs-human`, `needs-owner-decision`, `needs-reporter-info`, `needs-spec`) stays on: the write answers held and starts no run. A label read or removal that fails stops the write, so agent-ready is never set while a status label is still on the issue. Each agent-ready write costs one label read plus one removal per leftover label. Writes of any other state cost nothing more. The broker is unchanged.
+
+## [10.2.2] - 2026-11-14
+
+### Fixed
+
+- ci-status's review-lanes and cost-hold steps, merge-holds.mjs and clear-escalations.mjs accept each review lane's status job under pr-review-cli.yml's Title Case name, `PR Review / Status` and `PR Review Security / Status` (and the caller job ids' `pr-review / Status`, `pr-review-security / Status`), beside `review-status`, so neither lane reads as missing once ci-workflows renames the job. The triage sweep reads the intake reusable's apply job as `Intake Triage / Apply` as well as its earlier `-apply` name.
+
 ## [10.2.1] - 2026-11-14
 
 ### Fixed

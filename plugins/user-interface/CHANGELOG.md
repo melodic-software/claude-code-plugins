@@ -3,6 +3,12 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.11] - 2026-11-14
+
+### Fixed
+
+- The should-it-animate frequency gate now reads `animation.skip_frequency` at every site that states it (`reference/animation/catalog.md`, `/user-interface:write-animation` step 2 and the audit motion lane's severity list), in uses per day, in place of a fixed number or "many times an hour", so changing the setting changes the gate.
+
 ## [0.27.10] - 2026-11-14
 
 ### Changed

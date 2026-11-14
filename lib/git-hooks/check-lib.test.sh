@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Contract tests for lib/git-hooks/check-lib.sh against real git repositories:
-# the staged and worktree file sets, changed-line ranges, the partly staged
-# test, the checks.skipmissing key reaching a hook through `git -c`, agent and
+# the staged and worktree file sets, a merge's own file set with its fallback,
+# changed-line ranges with the binary test and its launch count, the partly staged test, the re-stage of a rewrite, the checks.skipmissing key reaching a hook through `git -c`, agent and
 # human missing-tool messages, the pre-push range with its fallbacks, set -e
 # tolerance, and a bash 3.2 syntax lint. Expected values come from the
 # check-placement contract's runtime table.
@@ -69,6 +69,27 @@ expect "filter keeps a finding on a changed line only" \
   'a.txt:4: x' \
   "$(in_repo "$R" pre-commit 'checks_changed_lines; printf "a.txt:1: x\na.txt:4: x\nother:4: x\n" | checks_filter_findings')"
 
+# An added line whose text starts "++ b/" prints as "+++ b/other" inside its
+# hunk; a removed "-- a/" line prints as "--- a/". Neither is a file header, so
+# the later hunks stay with the real file.
+new_repo; H="$REPO"
+printf 'one\ntwo\n-- a/old\nfour\nfive\nsix\n' >"$H/f.txt"
+git -C "$H" add f.txt
+git -C "$H" commit -q -m seed
+printf 'one\n++ b/other\nfour\nfive\nsecret\n' >"$H/f.txt"
+printf 'x\n' >"$H/g.txt"
+git -C "$H" add f.txt g.txt
+expect "pre-commit ranges: an added '++ b/' line is content, not a file header" \
+  $'f.txt\t2\t2\nf.txt\t5\t5\ng.txt\t1\t1' \
+  "$(in_repo "$H" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
+expect "filter: a finding after an added '++ b/' line stays with the real file" \
+  'f.txt:5: x' \
+  "$(in_repo "$H" pre-commit 'checks_changed_lines; printf "f.txt:5: x\nother:5: x\n" | checks_filter_findings')"
+git -C "$H" config diff.interHunkContext 5
+expect "pre-commit ranges: a diff.interHunkContext setting fuses no hunks" \
+  $'f.txt\t2\t2\nf.txt\t5\t5\ng.txt\t1\t1' \
+  "$(in_repo "$H" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
+
 # --- partly-staged --------------------------------------------------------------
 printf 'one\nTWO\nthree\nfour\nfive\n' >"$R/a.txt"
 expect "partly-staged: a file with unstaged changes is detected" yes \
@@ -123,6 +144,78 @@ printf 'loose\0bin\n' >"$B/loose.dat"
 expect "worktree ranges: an untracked binary file is dropped" no \
   "$(in_repo "$B" pre-commit 'checks_changed_lines; grep -q "^loose.dat" "$CHECKS_TMP/ranges" && echo yes || echo no' --worktree)"
 
+# The staged heads are read in one stream: the 8000-byte boundary, a blob that
+# ends in a NUL, two paths sharing one blob and a large blob between text files
+# must each be judged on its own bytes; a \001 byte and a text blob of exactly
+# 8000 bytes are text, and so is a UTF-8 file, whose multibyte characters must
+# not shift the byte count for the blobs after it, while bytes above \177 beside
+# a NUL are binary. A symlink is not a regular file, so its lines stay even when
+# its target text holds a NUL.
+new_repo; E="$REPO"
+printf 'text\n' >"$E/a.txt"
+{ printf '%*s' 7999 '' | tr ' ' a; printf '\0\nmore\n'; } >"$E/edge.dat"
+{ printf '%*s' 8000 '' | tr ' ' a; printf '\0\n'; } >"$E/late.txt"
+printf 'x\n\0' >"$E/endnul.dat"
+printf 'tw\0in\n' >"$E/twin1.dat"
+cp "$E/twin1.dat" "$E/twin2.dat"
+{ printf '\0'; printf '%*s' 20000 '' | tr ' ' b; printf '\n'; } >"$E/big.dat"
+printf 'last\n' >"$E/z.txt"
+printf 'ctl\001x\n' >"$E/ctl.txt"
+{ printf '%*s' 7999 '' | tr ' ' c; printf '\n'; } >"$E/exact.txt"
+printf '\143af\303\251 \342\202\254\n' >"$E/utf8.txt"
+printf 'hi\303\251\377\0\n' >"$E/high.dat"
+git -C "$E" add .
+link_blob="$(printf 'tar\0get' | git -C "$E" hash-object -w --stdin)"
+git -C "$E" update-index --add --cacheinfo "120000,$link_blob,link"
+expect "pre-commit ranges: each staged head is judged on its own first 8000 bytes" \
+  $'a.txt\t1\t1\nctl.txt\t1\t1\nexact.txt\t1\t1\nlate.txt\t1\t1\nlink\t1\t1\nutf8.txt\t1\t1\nz.txt\t1\t1' \
+  "$(in_repo "$E" pre-commit 'checks_changed_lines; LC_ALL=C sort "$CHECKS_TMP/ranges"')"
+
+# The binary test reads every path with a fixed number of processes, so the
+# launches do not grow with the number of changed paths.
+LOGSHIMS="$WORK/logshims"
+mkdir "$LOGSHIMS"
+for t in awk cat git tr; do
+  printf '#!/bin/sh\necho %s >>"$LAUNCH_LOG"\nexec %s "$@"\n' "$t" "$(command -v "$t")" >"$LOGSHIMS/$t"
+  chmod +x "$LOGSHIMS/$t"
+done
+launches() { # <repo> <event> [args...] -> the awk, cat, git and tr launches of checks_changed_lines
+  local repo="$1" event="$2" log="$WORK/launch.log"
+  shift 2
+  : >"$log"
+  PATH="$LOGSHIMS:$PATH" LAUNCH_LOG="$log" in_repo "$repo" "$event" 'checks_changed_lines' "$@" >/dev/null 2>&1
+  grep -c . "$log"
+}
+many_paths() { # <count>: a repo whose second commit adds <count> text files and a binary, also left staged
+  new_repo
+  local i
+  printf 'seed\n' >"$REPO/seed.txt"
+  git -C "$REPO" add seed.txt
+  git -C "$REPO" commit -q -m seed
+  for ((i = 1; i <= $1; i++)); do printf 'line %s\n' "$i" >"$REPO/f$i.txt"; done
+  printf 'b\0in\n' >"$REPO/bin.dat"
+  git -C "$REPO" add .
+}
+push_head() { # <repo>: commit what is staged and print its pre-push record from the seed commit
+  git -C "$1" commit -q -m many
+  printf 'refs/heads/main %s refs/heads/main %s\n' "$(git -C "$1" rev-parse HEAD)" "$(git -C "$1" rev-parse HEAD~1)"
+}
+many_paths 3; FEW="$REPO"
+many_paths 40; MANY="$REPO"
+expect "pre-commit: the binary test's launches do not grow with the path count" \
+  "$(launches "$FEW" pre-commit)" "$(launches "$MANY" pre-commit)"
+expect "pre-commit: with 40 text files, every text file keeps its line and the binary drops" "40|no" \
+  "$(in_repo "$MANY" pre-commit 'checks_changed_lines; printf "%s|" "$(grep -c . "$CHECKS_TMP/ranges")"; grep -q "^bin.dat" "$CHECKS_TMP/ranges" && echo yes || echo no')"
+expect "worktree: the binary test's launches do not grow with the path count" \
+  "$(launches "$FEW" pre-commit --worktree)" "$(launches "$MANY" pre-commit --worktree)"
+FEW_PUSH="$(push_head "$FEW")"
+MANY_PUSH="$(push_head "$MANY")"
+expect "pre-push: the binary test's launches do not grow with the path count" \
+  "$(printf '%s\n' "$FEW_PUSH" | launches "$FEW" pre-push origin url)" \
+  "$(printf '%s\n' "$MANY_PUSH" | launches "$MANY" pre-push origin url)"
+expect "pre-push: with 40 text files, every text file keeps its line and the binary drops" "40|no" \
+  "$(printf '%s\n' "$MANY_PUSH" | in_repo "$MANY" pre-push 'checks_changed_lines; printf "%s|" "$(grep -c . "$CHECKS_TMP/ranges")"; grep -q "^bin.dat" "$CHECKS_TMP/ranges" && echo yes || echo no' origin url)"
+
 # --- a merge being committed ------------------------------------------------------
 # Pre-commit counts only the lines the merge adds against every parent: a line
 # or a file the merged branch holds is not a changed line, a resolved line is.
@@ -145,6 +238,85 @@ expect "pre-commit ranges in a merge: only the lines no parent holds" $'a.txt\t2
   "$(in_repo "$M" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
 expect "worktree ranges in a merge: every line added against HEAD" $'a.txt\t2\t3\ns.txt\t1\t1' \
   "$(in_repo "$M" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' --worktree)"
+
+# --- the files a merge being committed changes --------------------------------------
+# Pre-commit lists only the paths whose staged entry differs from every parent:
+# a file the merged branch adds, edits, renames or re-modes, taken unchanged, is
+# not this commit's. A failure while listing them lists every staged path. Its
+# own repo, so $M stays mid-merge for the failing-awk case below.
+new_repo; G="$REPO"
+printf 'seed\n' >"$G/seed.txt"
+printf 'rename me\n' >"$G/r.txt"
+printf '#!/bin/sh\n' >"$G/m.sh"
+git -C "$G" add seed.txt r.txt m.sh
+git -C "$G" commit -q -m seed
+git -C "$G" checkout -q -b side
+printf 'side\n' >"$G/s.txt"
+printf 'inherited\n' >"$G/i.txt"
+git -C "$G" mv r.txt rr.txt
+chmod +x "$G/m.sh"
+git -C "$G" add s.txt i.txt
+git -C "$G" add --chmod=+x m.sh
+git -C "$G" commit -q -m side
+git -C "$G" checkout -q main
+printf 'main\n' >"$G/main.txt"
+git -C "$G" add main.txt
+git -C "$G" commit -q -m main
+git -C "$G" merge -q --no-commit side >/dev/null 2>&1
+printf 'side\nresolved\n' >"$G/s.txt"
+git -C "$G" add s.txt
+expect "merge fixture: the merge is in progress, not fast-forwarded" yes \
+  "$([[ -f "$G/.git/MERGE_HEAD" ]] && echo yes)"
+expect "pre-commit files in a merge: only the paths that differ from every parent" 's.txt' \
+  "$(in_repo "$G" pre-commit 'checks_files' | nul_list)"
+expect "pre-commit files in a merge: nothing on stderr" "" \
+  "$(in_repo "$G" pre-commit 'checks_files' 2>&1 >/dev/null)"
+MERGE_ALL=$'i.txt\nm.sh\nrr.txt\ns.txt'
+MERGE_FALLBACK='failed while listing the paths this merge changes, so every staged path is checked'
+merge_fallback() { # <snippet that breaks a tool> -> "<list>|<stderr>"
+  local list
+  list="$(in_repo "$G" pre-commit "$1; checks_files" 2>"$WORK/merge.err" | nul_list)"
+  printf '%s|%s' "$list" "$(cat "$WORK/merge.err")"
+}
+expect "a failing git in a merge lists every staged path, with one line naming git" \
+  "$MERGE_ALL|checks: git $MERGE_FALLBACK" \
+  "$(merge_fallback 'git() { case " $* " in *" --no-renames "*) return 2 ;; esac; command git "$@"; }')"
+expect "a failing sort in a merge lists every staged path, with one line naming sort" \
+  "$MERGE_ALL|checks: sort $MERGE_FALLBACK" \
+  "$(merge_fallback 'sort() { [[ "$1" == -z ]] && return 2; command sort "$@"; }')"
+expect "a sort that exits 0 without sorting lists every staged path, with one line naming sort" \
+  "$MERGE_ALL|checks: sort $MERGE_FALLBACK" \
+  "$(merge_fallback 'sort() { cat "$2"; }')"
+expect "a failing tool in a merge leaves the hook's exit status alone" "0" \
+  "$(in_repo "$G" pre-commit 'sort() { return 2; }; checks_files >/dev/null; exit 0' 2>/dev/null; echo $?)"
+mkdir "$G/sub"
+expect "pre-commit files in a merge: the same list from a subdirectory" 's.txt' \
+  "$(in_repo "$G/sub" pre-commit 'checks_files' | nul_list)"
+expect "worktree files in a merge: every path changed against HEAD" "$MERGE_ALL" \
+  "$(in_repo "$G" pre-commit 'checks_files' --worktree | nul_list | sort)"
+git -C "$G" commit -q --no-edit
+expect "pre-commit files after the merge commits: nothing on stderr" "" \
+  "$(in_repo "$G" pre-commit 'checks_files' 2>&1 >/dev/null)"
+
+# An octopus merge: a path equal to either head is not listed.
+git -C "$G" checkout -q -b o1
+printf 'o1\n' >"$G/o1.txt"
+git -C "$G" add o1.txt
+git -C "$G" commit -q -m o1
+git -C "$G" checkout -q -b o2 main
+printf 'o2\n' >"$G/o2.txt"
+git -C "$G" add o2.txt
+git -C "$G" commit -q -m o2
+git -C "$G" checkout -q main
+printf 'main again\n' >"$G/main.txt"
+git -C "$G" commit -q -am main2
+git -C "$G" merge -q --no-commit o1 o2 >/dev/null 2>&1
+printf 'o2\nresolved\n' >"$G/o2.txt"
+git -C "$G" add o2.txt
+expect "octopus fixture: MERGE_HEAD names both heads" 2 \
+  "$(grep -c . "$G/.git/MERGE_HEAD" 2>/dev/null)"
+expect "pre-commit files in an octopus merge: only the path that differs from both heads" 'o2.txt' \
+  "$(in_repo "$G" pre-commit 'checks_files' | nul_list)"
 
 # --- a failing tool fails the hook ------------------------------------------------
 # A tool that crashes while the lib reads the changed lines or filters findings
@@ -190,6 +362,61 @@ expect "tools that all succeed pass through the shims unchanged" $'a.txt:1: x\n0
 expect "a failing awk narrowing a merge to its own lines fails the hook" \
   "1|checks: awk exited 2 while listing the lines the merge adds, so this change was not fully checked; fix that failure, then commit again" \
   "$(in_repo_failing "$M" pre-commit 'NR == FNR' 'checks_changed_lines; exit 0')"
+expect "a failing git cat-file in the binary test fails the hook" \
+  "1|checks: git exited 2 while testing the changed files for binary content, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$F" pre-commit 'cat-file --batch' 'checks_changed_lines; exit 0')"
+expect "a failing awk in the binary test fails the hook" \
+  "1|checks: awk exited 2 while testing the changed files for binary content, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$F" pre-commit 'blob_end' 'checks_changed_lines; exit 0')"
+
+# --- re-staging a rewrite ----------------------------------------------------------
+# Windows caps a command line at 32,767 characters, so checks_restage must never
+# put the file list on git's argv. Every path below ends in .txt, and the stub
+# git fails any call whose arguments hold more than two of them, with or
+# without `--`, so a long list cannot pass by luck.
+ARGV_SHIMS="$WORK/argv-shims"
+mkdir "$ARGV_SHIMS"
+# shellcheck disable=SC2016 # $@, $a and $n expand when the stub runs
+printf '#!/bin/sh\nn=0\nfor a in "$@"; do\n  case "$a" in *.txt) n=$((n + 1)) ;; esac\ndone\nif [ "$n" -gt 2 ]; then echo "git: $n paths on argv" >&2; exit 2; fi\nexec %s "$@"\n' \
+  "$(command -v git)" >"$ARGV_SHIMS/git"
+chmod +x "$ARGV_SHIMS/git"
+new_repo; S="$REPO"
+printf 'old\n' >"$S/outside.txt"
+git -C "$S" add outside.txt
+git -C "$S" commit -q -m seed
+set_paths=(-lead.txt "a b.txt" r1.txt r2.txt same.txt)
+rewrote=(-lead.txt "a b.txt" r1.txt r2.txt)
+# An LF in a name is Linux-only; Git for Windows cannot create one.
+lf_name=$'lf\nname.txt'
+if printf 'x\n' >"$S/$lf_name" 2>/dev/null; then
+  set_paths+=("$lf_name")
+  rewrote=(-lead.txt "a b.txt" "$lf_name" r1.txt r2.txt)
+fi
+for f in "${set_paths[@]}"; do
+  printf 'x\n' >"$S/$f"
+done
+git -C "$S" add -- "${set_paths[@]}"
+for f in "${rewrote[@]}"; do
+  printf 'formatted\n' >"$S/$f"
+done
+printf 'unstaged edit\n' >"$S/outside.txt"
+expect "the argv stub refuses a long path list" 2 \
+  "$(PATH="$ARGV_SHIMS:$PATH" git -C "$S" add -- "${rewrote[@]}" 2>/dev/null; echo $?)"
+expect "restage: prints the rewritten paths, none on argv" "$(printf '%s\n' "${rewrote[@]}")"$'\n|0' \
+  "$(PATH="$ARGV_SHIMS:$PATH" in_repo "$S" pre-commit 'checks_restage "$@"; echo "|$?"' "${set_paths[@]}")"
+expect "restage: stages the rewritten paths and leaves other unstaged edits" 'outside.txt' \
+  "$(git -C "$S" diff --name-only -z | nul_list)"
+expect "restage: the index holds the rewrite" 'formatted' "$(git -C "$S" show ':-lead.txt')"
+expect "restage: nothing rewritten prints and stages nothing" '|0' \
+  "$(in_repo "$S" pre-commit 'checks_restage same.txt; echo "|$?"')"
+printf 'again\n' >"$S/r1.txt"
+expect "a failing git add in checks_restage fails the hook" \
+  "1|checks: git exited 2 while staging the rewritten files, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$S" pre-commit 'pathspec-file-nul' 'checks_restage r1.txt; exit 0')"
+# --ignore-submodules=all is carried only by checks_restage's own git diff.
+expect "a failing git diff in checks_restage fails the hook" \
+  "1|checks: git exited 2 while listing the rewritten files, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$S" pre-commit 'ignore-submodules=all' 'checks_restage r1.txt; exit 0')"
 
 # --- missing tool and skip-propagation ------------------------------------------
 new_repo; H="$REPO"
@@ -274,6 +501,25 @@ expect "pre-push ranges: a binary file in the pushed commit is dropped" $'f.txt\
   "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$bin_sha" "$zero" | in_repo "$P" pre-push 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' origin url)"
 git -C "$P" reset -q --hard "$topic_sha"
 rm -f "$P/p.dat"
+# Each pushed tip is read: a path one ref makes text and another makes binary
+# drops, and a binary only the second ref adds drops beside its text file.
+git -C "$P" switch -q -c tip1 "$base_sha"
+printf 'one\n' >"$P/one.txt"
+printf 'text here\n' >"$P/shared.dat"
+git -C "$P" add one.txt shared.dat
+git -C "$P" commit -q -m tip1
+tip1_sha="$(git -C "$P" rev-parse HEAD)"
+git -C "$P" switch -q -c tip2 "$base_sha"
+printf 'two\n' >"$P/two.txt"
+printf 'tw\0o\n' >"$P/two.dat"
+printf 'bin\0here\n' >"$P/shared.dat"
+git -C "$P" add two.txt two.dat shared.dat
+git -C "$P" commit -q -m tip2
+tip2_sha="$(git -C "$P" rev-parse HEAD)"
+expect "pre-push ranges: each pushed tip's bytes decide" $'one.txt\t1\t1\ntwo.txt\t1\t1' \
+  "$(printf 'refs/heads/tip1 %s refs/heads/tip1 %s\nrefs/heads/tip2 %s refs/heads/tip2 %s\n' "$tip1_sha" "$base_sha" "$tip2_sha" "$base_sha" |
+    in_repo "$P" pre-push 'checks_changed_lines; LC_ALL=C sort "$CHECKS_TMP/ranges"' origin url)"
+git -C "$P" switch -q topic
 
 git -C "$P" remote set-head origin -d >/dev/null
 expect "pre-push: without <remote>/HEAD, ls-remote --symref finds the default branch" "$base_sha $topic_sha" \

@@ -32,12 +32,14 @@ const MIN_CANDIDATES_PER_SESSION = 3;
 
 /**
  * @param {number|null} ts
- * @param {{ startSec: number, endSec?: number | null }} session an open-ended session runs to the video's end
- * @param {number} durationSec
+ * @param {{ startSec: number, endSec?: number | null }} session an open-ended session runs to the
+ *   media's end, past every frame (a ranged slice's frames sit beyond `selection.durationSec`)
  * @returns {boolean}
  */
-function inSession(ts, session, durationSec) {
-  return ts != null && ts >= session.startSec && ts <= (session.endSec ?? durationSec);
+function inSession(ts, session) {
+  return (
+    ts != null && ts >= session.startSec && ts <= (session.endSec ?? Number.POSITIVE_INFINITY)
+  );
 }
 
 /**
@@ -57,7 +59,6 @@ export function listPromotionCandidates(sliceDir) {
     throw new Error(`no session parsed from research/claim-inventory.md: ${SESSION_FORMAT_HINT}`);
   }
   const byFile = indexSelectedFrames(selection);
-  const durationSec = selection.durationSec;
 
   /** @type {Map<string, PromotionCandidate>} */
   const candidates = new Map();
@@ -68,7 +69,7 @@ export function listPromotionCandidates(sliceDir) {
       const frame = byFile[cell.frame];
       if (!frame) continue;
       const ts = frame.timestampSec ?? null;
-      const session = sessions.find((s) => inSession(ts, s, durationSec))?.name ?? "unknown";
+      const session = sessions.find((s) => inSession(ts, s))?.name ?? "unknown";
 
       const existing = candidates.get(cell.frame);
       const score = frame.priorityScore ?? 0;
@@ -89,15 +90,13 @@ export function listPromotionCandidates(sliceDir) {
   const triaged = [...candidates.values()];
 
   for (const session of sessions) {
-    const triagedCount = triaged.filter((c) =>
-      inSession(c.timestampSec, session, durationSec),
-    ).length;
+    const triagedCount = triaged.filter((c) => inSession(c.timestampSec, session)).length;
     if (triagedCount < MIN_CANDIDATES_PER_SESSION) {
       const extras = selection.selectedFrames
         .filter(
           (f) =>
             Number.isFinite(f.timestampSec) &&
-            inSession(f.timestampSec, session, durationSec) &&
+            inSession(f.timestampSec, session) &&
             !candidates.has(f.file),
         )
         .sort((a, b) => b.priorityScore - a.priorityScore)

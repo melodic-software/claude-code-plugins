@@ -3,6 +3,38 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.2.0] - 2026-11-14
+
+### Added
+
+- The `reviewer-media` convention gains `scan.extra_patterns`: Python regexes the secret and machine-data scan also refuses, such as a private codename. `/review:reviewer-media` passes each one as `--scan-pattern` to the renderer, the voice and `/source-control:pull-request media`. The list is add-only: a personal override adds to the team's patterns instead of replacing them, and nothing lowers the built-in floor. While a pattern does not compile, the skill skips before claiming the head and names it, so fixing the team file lets the next run build.
+
+## [9.1.0] - 2026-11-14
+
+### Added
+
+- `/review:reviewer-media <pr>` builds a narrated walkthrough for a pull request's reviewers: it decides whether the pull request needs one, builds a storyboard from `/review:explain-change`'s digest, checks that every changed file appears in a moment, has `/explainer-video:produce` render it, and hands the manifest to `/source-control:pull-request media`. A build that fails twice records one failure for that commit.
+- The `reviewer-media` convention (`docs/conventions/reviewer-media.yaml`, `schemas/reviewer-media.schema.json`): `policy` (`never`, `on-request` by default, `when-selected`, `always`), the three label names, the voice chain and voices, the upload limit and the artifact retention. The team file is read from the pull request's base commit only; `voice_command` and `allow_unattended_paid_voice` are team-only. A fork's pull request gets media only through the request label or a direct run, and posted media are rebuilt only when the changes since them cross a review-digest trigger.
+- `/review:explain-change` names `/review:reviewer-media` under Related and Next. The review-digest defaults, layers and triggers move from its `digest-policy.mjs` into `lib/review-digest.mjs`, which both skills import; `digest-policy.mjs` behaves as before.
+
+## [9.0.2] - 2026-11-14
+
+### Fixed
+
+- `architecture-guardian`, `doc-drift-detector`, `ecosystem-specialist`, `ci-log-auditor` and `lane-verifier` now have a turn budget. Each stops gathering 7 or 8 turns before its turn cap, works in a stated order, and ends its report by naming what it did not reach. A `lane-verifier` that runs out of turns rejects a candidate only with evidence that refutes it. Before, an agent that hit its cap mid-gather could return nothing to its caller. `turn-budget.test.sh` now checks every review agent with a turn cap, except `stage-normalizer` and `brief-reviewer`, which are exempt.
+
+## [9.0.1] - 2026-11-14
+
+### Fixed
+
+- `security-reviewer` no longer stops at its 30-turn cap with no report: it now has a turn budget (stop gathering by turn 22), opens its report with a `Criteria read:` line and closes it with a `Coverage:` line. With a findings path, it and `code-reviewer` write an early checkpoint ending `Coverage: in progress` to that path and replace it with the final report. Callers treat a partial-marked result, a missing file or a `Coverage: in progress` file as incomplete: `reviewer-handback.md` and quality-gate self and security modes resume the reviewer once and otherwise report a partial gate, and a caller never writes a reply over a checkpoint. The fanout-sweep extractor judges `code-reviewer` and `security-reviewer` reports by their `Coverage:` line: anything but `Coverage: all changed files reviewed`, a checkpoint's `Coverage: in progress` included, or no such line, keeps the findings and adds a record naming what was not reached, and `Coverage: none, change set unresolved` is recorded as no result and never resumed, in the extractor, quality-gate self and security modes, and the main-thread Stage 0 in `findings-normalization.md`. It also reads the findings file of a leaf that returned nothing, and takes a `persistence: by-value` reply over the file.
+
+## [9.0.0] - 2026-11-14
+
+### Changed
+
+- The bundled enforcement-ladder copy is now 3.0.0: five tiers, with a new Tier 3 Verification (`runtime-verification`, and `formal-verification` as opt-in) between static analysis and guidance, so Guidance is now tier 4 and Human only tier 5. The rung id `semgrep-rule` is renamed `syntax-pattern-rule` and is read as an alias, with a printed notice, through 3.x. `custom-analyzer` and `architecture-test` are defined by capability, and the ladder adds a Proportion section and an Order of work section.
+
 ## [8.7.0] - 2026-11-14
 
 ### Changed

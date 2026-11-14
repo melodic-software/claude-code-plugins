@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "level: sketch (team)\nPlan: /orders, HTML mockup, variants A and B, states populated, empty.",
+      "why": "report line names the team layer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "level: standard (default)\nPlan: /orders, HTML mockup, variants A to C.",
+      "why": "the team file was not read"
+    },
+    {
+      "answer": "Your team config sets sketch. Plan: /orders, HTML mockup, variants A and B.",
+      "why": "no report line"
+    }
+  ]
+}
