@@ -21,6 +21,7 @@ VALID_YAML='tracker:
   config:
     lease_ttl_hours: 24'
 HOME_YAML="docs/conventions/work-items.yaml"
+HOME_RESOLVER="$WIT_HOME_RESOLVER"
 
 # home_binding <dir>: a git repository at <dir> bound by the default home's YAML.
 home_binding() {
@@ -561,5 +562,91 @@ write_binding "$IYAML" 'tracker:
   provider: jira'
 ERR="$(wit_read_binding "$IYAML" 2>&1 >/dev/null)"
 assert_contains "a YAML parse error names the file and line" "$ERR" "$IYAML: line 3"
+
+# --- wayfind-labels: the prefix and human-gated label, failing closed on the home ---
+
+WAYFIND_YAML='tracker:
+  schema_version: "1.0"
+  provider: github
+  config:
+    lease_ttl_hours: 24
+    wayfind_label_prefix: "decide:"
+    role_labels:
+      human-gated: owner-call'
+DISPATCHER="$SCRIPT_DIR/../work-item-tracker.sh"
+
+# run_wayfind_labels <root>: the dispatcher verb at <root>; stdout to OUT, exit to RC.
+run_wayfind_labels() {
+  OUT="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$1" bash "$DISPATCHER" wayfind-labels 2>/dev/null)"
+  RC=$?
+}
+
+WREPO="$(yaml_repo wayfind-default-home)"
+run_wayfind_labels "$WREPO"
+assert_eq "wayfind-labels, no binding → exit 0" "0" "$RC"
+assert_eq "wayfind-labels, no binding → both defaults" \
+  '{"schema_version":"1.0","prefix":"wayfind:","prefix_source":"default","human_gated":"needs-human","human_gated_source":"default"}' "$OUT"
+write_binding "$WREPO/$HOME_YAML" "$WAYFIND_YAML"
+run_wayfind_labels "$WREPO"
+assert_eq "wayfind-labels, default home → the binding's labels" \
+  '{"schema_version":"1.0","prefix":"decide:","prefix_source":"binding","human_gated":"owner-call","human_gated_source":"binding"}' "$OUT"
+write_binding "$WREPO/$HOME_YAML" "$VALID_YAML"
+run_wayfind_labels "$WREPO"
+assert_eq "wayfind-labels, a binding without the keys → defaults" \
+  '{"schema_version":"1.0","prefix":"wayfind:","prefix_source":"default","human_gated":"needs-human","human_gated_source":"default"}' "$OUT"
+
+WPREPO="$(yaml_repo wayfind-relocated-home)"
+mkdir -p "$WPREPO/config/team"
+# shellcheck disable=SC2016 # the backticks are the pointer grammar, not a command substitution
+printf '%s\n' '<!-- BEGIN GENERATED: convention-home -->' 'Conventions live in `config/team`.' '<!-- END GENERATED: convention-home -->' >"$WPREPO/AGENTS.md"
+write_binding "$WPREPO/config/team/work-items.yaml" "$WAYFIND_YAML"
+run_wayfind_labels "$WPREPO"
+assert_eq "wayfind-labels, relocated home → exit 0" "0" "$RC"
+assert_eq "wayfind-labels, relocated home → the binding's labels" "decide: owner-call" "$(jq -r '.prefix + " " + .human_gated' <<<"$OUT")"
+
+write_binding "$WREPO/$HOME_YAML" 'tracker:
+  schema_version: "1.0"
+  provider: github
+  config:
+    lease_ttl_hours: 24
+    wayfind_label_prefix: [decide]'
+run_wayfind_labels "$WREPO"
+assert_eq "wayfind-labels, a non-string prefix → exit 3" "3" "$RC"
+assert_eq "wayfind-labels, a non-string prefix → nothing on stdout" "" "$OUT"
+
+# assert_wayfind_refuses <root> <resolver exit> <what>: the resolver exits as named at
+# <root>, and the verb refuses with nothing on stdout.
+assert_wayfind_refuses() {
+  bash "$HOME_RESOLVER" --root "$1" >/dev/null 2>&1
+  assert_eq "resolver exits $2 on $3" "$2" "$?"
+  run_wayfind_labels "$1"
+  assert_eq "wayfind-labels refuses on $3 (resolver exit $2) → exit 3" "3" "$RC"
+  assert_eq "wayfind-labels refuses on $3 (resolver exit $2) → nothing on stdout" "" "$OUT"
+}
+
+WBROKEN="$(yaml_repo wayfind-broken-pointer)"
+write_binding "$WBROKEN/$HOME_YAML" "$WAYFIND_YAML"
+# shellcheck disable=SC2016 # the backticks are markdown, not an expansion
+write_binding "$WBROKEN/AGENTS.md" '<!-- BEGIN GENERATED: convention-home -->
+Team conventions live in `docs/missing`.
+<!-- END GENERATED: convention-home -->'
+assert_wayfind_refuses "$WBROKEN" 3 "a pointer to a missing directory"
+ERR="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$WBROKEN" bash "$DISPATCHER" wayfind-labels 2>&1 >/dev/null)"
+assert_contains "wayfind-labels on a broken pointer passes the resolver's message through" "$ERR" "docs/missing"
+
+WDECLINED="$(yaml_repo wayfind-declined)"
+write_binding "$WDECLINED/$HOME_YAML" "$WAYFIND_YAML"
+write_binding "$WDECLINED/AGENTS.md" '<!-- BEGIN GENERATED: convention-home -->
+declined
+<!-- END GENERATED: convention-home -->'
+assert_wayfind_refuses "$WDECLINED" 4 "a declined home"
+
+WLOOSE="$TEST_TMPDIR/wayfind-loose"
+mkdir -p "$WLOOSE/docs/conventions"
+write_binding "$WLOOSE/$HOME_YAML" "$WAYFIND_YAML"
+assert_wayfind_refuses "$WLOOSE" 5 "a root outside a git work tree"
+
+(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$WREPO" bash "$DISPATCHER" wayfind-labels --bogus >/dev/null 2>&1)
+assert_eq "wayfind-labels takes no arguments → exit 2" "2" "$?"
 
 [[ $FAILED -eq 0 ]] || exit 1

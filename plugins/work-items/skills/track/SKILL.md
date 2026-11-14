@@ -10,7 +10,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. `[stats|list|add|start|done|due|recheck|search|audit|publish-plan|link|view|edit|changes|labels|help] [args]`. The default action is stats.
+Arguments: `$ARGUMENTS`. `[stats|list|add|start|done|due|recheck|search|audit|publish-plan|link|view|edit|changes|labels|wayfind-labels|help] [args]`. The default action is stats.
 
 ## Shared tracker context
 
@@ -57,7 +57,7 @@ For the multi-step actions (`add`, `start`, `done`, `recheck`), copy the matchin
 ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 "Memory-tier writes" owns the slug and the self-ignore guard).
 Tick each step as completed. Single-action reads (`stats`, `list`, `search`, `due`, `view`, `changes`,
-`labels`), `audit` and `edit` don't need a checklist.
+`labels`, `wayfind-labels`), `audit` and `edit` don't need a checklist.
 
 ## Next
 
@@ -85,6 +85,7 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 | `edit` | Change an item's title, body or labels, add a blocked-by edge, or comment | [actions/edit.md](actions/edit.md) |
 | `changes` | Change requests the tracker links as closing an item | [actions/changes.md](actions/changes.md) |
 | `labels` | The live label set, or which named labels are missing | [actions/labels.md](actions/labels.md) |
+| `wayfind-labels` | The wayfind label prefix and human-gated label the binding sets | [actions/wayfind-labels.md](actions/wayfind-labels.md) |
 | `help` | Show the action table above | *(inline)* |
 
 If `$ARGUMENTS` is empty, run `stats` (the default dashboard). If the action is unknown, show the
