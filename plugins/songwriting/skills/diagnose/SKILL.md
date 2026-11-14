@@ -59,7 +59,7 @@ No action → route on completion stage (partway draft → `demo`; near-complete
   writer may skip any box, but a skip names a reason; silent skips are not OK.
 - The rubric's passes are **not** skippable: they are the writer's standing rule for every
   candidate, not choice points offered to him. Run the countable passes as commands, per the rubric
-  row of `/songwriting:co-write`'s hard gate (syllables from `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh syllables <word>`, repeats from a
+  row of [line-emission-gate](../../context/line-emission-gate.md) (syllables from `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh syllables <word>`, repeats from a
   word-frequency count), and let that gate's skeptic row test the judgment passes from a fresh
   context, at the level
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin songwriting --skill diagnose`
