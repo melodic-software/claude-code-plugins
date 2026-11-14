@@ -610,8 +610,12 @@ assert_eq "fail on broken markers still posts the failure comment" "1" \
 # An installation token or GITHUB_TOKEN gets 403 from GET /user.
 NO_USER_DIR="$TEST_TMPDIR/stubs-no-user"
 mkdir -p "$NO_USER_DIR"
-printf '#!/usr/bin/env bash\n[[ "$1 $2" != "api user" ]] || { echo "HTTP 403" >&2; exit 1; }\n[[ ! -f "$MEDIA_GH_STATE/no-viewer" || "$1 $2" != "api graphql" ]] || { echo "HTTP 403" >&2; exit 1; }\nexec "%s/gh" "$@"\n' \
-  "$STUB_DIR" >"$NO_USER_DIR/gh"
+cat >"$NO_USER_DIR/gh" <<'STUB_EOF'
+#!/usr/bin/env bash
+[[ "$1 $2" != "api user" ]] || { echo "HTTP 403" >&2; exit 1; }
+[[ ! -f "$MEDIA_GH_STATE/no-viewer" || "$1 $2" != "api graphql" ]] || { echo "HTTP 403" >&2; exit 1; }
+exec "$(dirname "$0")/../stubs/gh" "$@"
+STUB_EOF
 chmod +x "$NO_USER_DIR/gh"
 media_no_user() {
   OUT=$(MEDIA_GH_STATE="$S" PATH="$NO_USER_DIR:$STUB_DIR:$PATH" python3 -B "$SCRIPT" "$@" 2>&1)
