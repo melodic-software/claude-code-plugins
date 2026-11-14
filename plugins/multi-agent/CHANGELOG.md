@@ -3,6 +3,16 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.1] - 2026-11-14
+
+### Changed
+
+- The verification level reader now reads the team file through the shared default-branch reader, `lib/default-branch-file.sh`, which this plugin now carries; levels and messages are unchanged.
+
+### Fixed
+
+- `route`'s argument hint marks the role as a placeholder, `<<role>|all>`, so `all` is the only literal choice and the generated skill cheat sheet lists only `all` as its action.
+
 ## [3.0.0] - 2026-11-13
 
 ### Changed

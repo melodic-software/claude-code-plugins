@@ -3,6 +3,18 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.1] - 2026-11-14
+
+### Changed
+
+- The verification level reader now reads the team file through `lib/default-branch-file.sh`; levels and messages are unchanged.
+- `lib/default-branch-file.sh` reads the last fetched copy of the default branch when the fetch fails, and says it may be stale, instead of exiting 2; the stills settings still never come from the working tree.
+
+### Fixed
+
+- `/explainer-video:produce`'s Related section names only what each related skill does today; it no longer describes
+  `/education:illustrate` or the reviewer-media skill as callers of the stills renderer.
+
 ## [2.1.0] - 2026-11-14
 
 ### Added
