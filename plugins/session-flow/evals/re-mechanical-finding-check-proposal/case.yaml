@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: re-mechanical-finding-check-proposal
+description: 'Session-mode mechanical finding: twice this session the agent imported the banned moment library in src/ and the user corrected it to date-fns. ESLint already runs in CI but bans no import, so no existing check is unwired. A check could decide the mistake, so /session-flow:retro session routes it to /corrections:codify (a stand-in is loaded) as a check proposal and proposes no CLAUDE.md, AGENTS.md or rules-file line for it. It asks before acting: no Write, no Edit. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [retro, session, check-first, approval-gate, must-not]
+plugins: ["../..", "corrections-stub"]
+expected_outcome: 'The report finds that the repeated moment import is a mistake a check could decide, and its Phase 3 recommendation for that finding hands it to /corrections:codify as a check proposal (a lint rule such as no-restricted-imports, or a hook), not as a new prose line. No row proposes a CLAUDE.md, AGENTS.md or .claude/rules/ line about moment or date-fns. Phase 4 lists the recommendations and asks which to execute; the run writes and edits no file.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:retro session. Twice this session you imported moment in src/report.ts, and both times I had to tell you this repo uses date-fns and moment is banned. The corrections plugin is installed. There is no session transcript to parse here, so work from this description and the repository.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: routes-to-codify
+    type: regex
+    pattern: '^(?![^\n]*\b(?:no need to|don''t|do not|not needed|skip|without)\b[^\n]{0,25}corrections:codify)(?![^\n]*corrections:codify\b[`*]*[^\n]{0,20}\b(?:is not|isn''t|not|no longer) (?:needed|necessary|required)\b)[^\n]*corrections:codify\b'
+    flags: 'mi'
+    arm: with-only
+  - name: check-not-prose-rule
+    type: llm
+    focus: last_message
+    criteria: "The reply is a retrospective on a session where the agent twice imported the moment library in src/report.ts and the user corrected it to date-fns each time. Judge only how the reply proposes to stop that mistake recurring. Judge what the reply says, not whether it is true. PASS only if both hold. First, the reply proposes a check for it: a lint rule (for example ESLint no-restricted-imports or a restricted dependency), a hook, a CI step or a test that fails on a moment import, or a hand-off of the mistake to /corrections:codify to pick and prove such a check. Any wording counts. Second, the reply proposes no CLAUDE.md, AGENTS.md or .claude/rules/ line about moment or date-fns: no row, bullet or sentence recommends adding or editing such a line, as the fix or alongside the check, a pointer that the check exists included. Saying a prose line was considered and not proposed, or that the check makes a prose line unnecessary, is not a proposal. A recommendation about another finding may name CLAUDE.md. FAIL if the reply proposes no check for the moment import; proposes only a CLAUDE.md, AGENTS.md or rules-file line for it; proposes such a line in addition to the check; or proposes a memory entry as the only fix. Do not judge severity labels, scores, other findings, or what the reply says it will do next."
+    arm: with-only
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-bash-writes
+    type: tool_used
+    tool: 'Bash'
+    input_match: '(?:^|[^>&0-9=-])>>?[ \t]*(?!/dev/null\b|&|\d)[^\s|&;]|\btee\b|\bsed\b[^|;&]*[ \t]-[a-zA-Z]*i|\bperl\b[^|;&]*[ \t]-[a-zA-Z]*i|\bpython3?\b[^|;&]*[ \t]-c\b[^|;&]*(?:write|unlink|remove|rmtree|rename)|\|[ \t]*(?:bash|zsh|sh)\b|(?:"command":"|[;&|(]|\\n|\bxargs\b)[ \t]*(?:(?:command|exec|sudo(?:[ \t]+-\S+)*|env|nohup)[ \t]+)*(?:touch|mkdir|rm|mv|cp|truncate|install|dd|ln|chmod|unlink|patch)[ \t]|(?:\b|(?<=\\n))git(?:[ \t]+(?:-C[ \t]+(?:\\"[^"]*?\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?|-[A-Za-z]))*[ \t]+(?:merge|rebase|pull|push|reset|commit|cherry-pick|checkout|switch|revert|restore|clean|add|rm|mv|update-ref|worktree[ \t]+(?:add|remove|move|prune)|stash(?![ \t]+(?:list|show)\b))\b(?!-)'
+    min: 0
+    max: 0
+    arm: both
