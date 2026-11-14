@@ -47,6 +47,12 @@ expect_both 'a shell here-doc beside a redirect-only one and a pattern here-doc 
 # Every body is read as the shell's script; a harmless pair stays allowed.
 expect_both 'a shell here-doc inside a command-start !(…) blocks' 2 --command $'!(bash <<A\nrm -rf /\nA\n)'
 expect_both 'a shell here-doc beside a harmless one is allowed' 0 --command $'cat <<A\ndocs\nA\nbash <<B\necho hi\nB'
+# A body bash runs that shfmt rejects is refused, and the refusal names this
+# guard and says the text was lifted, so its line:col is not the command's.
+guard_invoke --command $'bash <<\'EOF\'\necho "`the form check (x)`"\nEOF'
+assert_exit "a shell here-doc shfmt rejects is refused" 2 "$GUARD_RC"
+assert_contains "the refusal names the guard" "$GUARD_ERR" "block-root-delete-target"
+assert_contains "the refusal says the text was lifted" "$GUARD_ERR" "lifted"
 expect_both 'rm -rf /* blocks' 2 --command 'rm -rf /*'
 expect_both 'rm -rf "//" blocks' 2 --command 'rm -rf "//"'
 
