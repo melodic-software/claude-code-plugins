@@ -1,5 +1,6 @@
 import unittest
 
+import media_captions
 import media_timeline as mt
 
 HOLD = {'min_seconds': 3.0, 'seconds_per_word': 0.3, 'extra_seconds': 1.0}
@@ -86,6 +87,21 @@ class TimelineTest(unittest.TestCase):
         self.assertEqual([round(h['end'] - h['start'], 3) for h in tl['holds']], [3.0, 3.0])
         self.assertEqual(len(tl['words']['words']), 5)
         self.assertEqual(tl['words']['words'][2]['start'], 3.0)
+
+    def test_title_without_a_narration_field_lays_out(self):
+        b = board()
+        del b['moments'][0]['narration']
+        tl = mt.timeline(mt.parse(b), None, HOLD)
+        self.assertEqual(round(tl['holds'][0]['end'] - tl['holds'][0]['start'], 3), 3.0)
+
+    def test_captions_only_gives_every_caption_its_minimum_time(self):
+        b = board()
+        b['moments'][1]['narration'] = 'Yes. Here are eight words to explain this change.'
+        tl = mt.timeline(mt.parse(b), None, HOLD, {'max_words': 8, 'min_seconds': 0.834})
+        cues = media_captions.captions(tl['words'], tl['beats'], 8, 0.834, 0.3)
+        self.assertEqual(media_captions.caption_findings(cues, 0.834, 0.3)[0], [])
+        self.assertEqual(cues[0], (0.0, 0.834, 'One two.'))
+        self.assertLessEqual(cues[-1][1], tl['duration'])
 
     def test_script_text_is_one_paragraph_per_narrated_moment(self):
         self.assertEqual(mt.script(mt.parse(board())), 'One two.\n\nThree four five.\n')

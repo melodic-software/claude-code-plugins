@@ -4,17 +4,20 @@
 
 parse(data) -> board, or StoryboardError naming the moment and the rule it breaks.
 script(board) -> narration script: one paragraph per narrated moment, for speech's narrate.py.
-timeline(board, words, hold) -> {'holds', 'chapters', 'audio', 'words', 'beats', 'duration'}:
+timeline(board, words, hold, cue) -> {'holds', 'chapters', 'audio', 'words', 'beats', 'duration'}:
   holds    [{'id', 'start', 'end'}] in video time, one per moment;
   audio    the narration rebuilt in video time: ('narration', from_s, to_s) slices of narration.wav and
            ('silence', seconds) for a moment with no narration, or [] with no narration at all;
   words    words.json re-timed to video time (synthetic with no narration, so captions still show);
   beats    [(first word, count)] per narrated moment, for media_captions.captions.
-With no narration (words None) every moment holds max(min_seconds, words * seconds_per_word + extra_seconds).
-Standard library plus media_templates beside this file.
+With no narration (words None) every moment holds max(min_seconds, words * seconds_per_word + extra_seconds), longer
+when cue (the caption limits: max_words, min_seconds) gives each caption run its minimum time on screen.
+Standard library plus media_templates and media_captions beside this file.
 """
+import math
 from pathlib import PurePosixPath, PureWindowsPath
 
+import media_captions
 from media_templates import TEMPLATES
 
 
@@ -78,10 +81,21 @@ def _chapters(board, holds):
     return out
 
 
-def timeline(board, words, hold=None):
+def _synthetic(para, t, cue, per_word):
+    """Made-up word timings from t: each caption run stays up for at least cue['min_seconds']."""
+    out = []
+    for run in media_captions.cue_runs([{'word': w} for w in para], cue['max_words']) if cue else [para]:
+        step = max(per_word, math.ceil(cue['min_seconds'] / len(run) * 1000) / 1000) if cue else per_word
+        for w in run:
+            out.append({'word': w['word'] if cue else w, 'start': round(t, 3), 'end': round(t + step, 3)})
+            t += step
+    return out, t
+
+
+def timeline(board, words, hold=None, cue=None):
     hold = hold or {'min_seconds': 3.0, 'seconds_per_word': 0.3, 'extra_seconds': 1.0}
     moments = board['moments']
-    paras = [m['narration'].split() for m in moments]
+    paras = [m.get('narration', '').split() for m in moments]
     narrated = [i for i, p in enumerate(paras) if p]
     holds, audio, out_words, beats, t = [], [], [], [], 0.0
     firsts, bounds = [], []
@@ -111,9 +125,9 @@ def timeline(board, words, hold=None):
                 audio.append(('silence', round(length, 3)))
             elif paras[i]:
                 beats.append((len(out_words), len(paras[i])))
-                for n, w in enumerate(paras[i]):
-                    s = t + n * hold['seconds_per_word']
-                    out_words.append({'word': w, 'start': round(s, 3), 'end': round(s + hold['seconds_per_word'], 3)})
+                made, end = _synthetic(paras[i], t, cue, hold['seconds_per_word'])
+                out_words += made
+                length = max(length, end - t + hold['extra_seconds'])
         holds.append({'id': m['id'], 'start': round(t, 3), 'end': round(t + length, 3)})
         t += length
     duration = round(t, 3)

@@ -33,14 +33,18 @@ def _balanced(sentence, limit):
     return runs
 
 
+def cue_runs(words, max_words):
+    """One beat's words split into caption runs: each sentence into the fewest balanced runs of at most max_words."""
+    return [r for s in _sentences(words) for r in _balanced(s, max_words)]
+
+
 def captions(record, beats, max_words, min_seconds, seconds_per_word):
     """[(start, end, text)] for record {'words', 'duration'} and beats [(first word, word count)]. A run whose time
     before the next run starts is under min_seconds joins a neighbor in its beat when the two fit in max_words. Each
     cue then stays up for min_seconds and seconds_per_word a word, as far as the next cue's start (the narration's
     end for the last) allows."""
     words = record['words']
-    beat_runs = [[r for s in _sentences(words[first:first + count]) for r in _balanced(s, max_words)]
-                 for first, count in beats]
+    beat_runs = [cue_runs(words[first:first + count], max_words) for first, count in beats]
     starts = [b[0][0]['start'] for b in beat_runs if b] + [record['duration']]
     for j, runs in enumerate(beat_runs):
         i = 0

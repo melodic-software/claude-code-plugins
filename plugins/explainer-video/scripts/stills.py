@@ -186,7 +186,7 @@ def main(argv=None):
     stylesheet = a.stylesheet.read_text(encoding='utf-8') if a.stylesheet else None
     try:
         words = None if a.no_audio else json.loads((a.narration / 'words.json').read_text(encoding='utf-8'))
-        tl = media_timeline.timeline(board, words, DEFAULTS['captions_only_hold'])
+        tl = media_timeline.timeline(board, words, DEFAULTS['captions_only_hold'], DEFAULTS['captions'])
     except (OSError, ValueError, KeyError) as e:
         return fail(2, f'the narration in {a.narration} is unusable: {e}')
     steps = []
