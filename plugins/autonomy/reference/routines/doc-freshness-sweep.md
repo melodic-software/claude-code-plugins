@@ -61,7 +61,7 @@ class has two output shapes:
 4. **Higher-risk axes.** Docs are not the structural/config files the `C4` axis names,
    and the access scope is repo, not the external-watch access class the provenance axis
    (`C5`) keys on. Neither fires.
-5. **Composition.** When multiple portions match, the highest-risk class governs the posture
+5. **Composition.** When multiple portions match, the highest-risk work class governs the posture
    actually enabled: advisory-only deployment runs as `C1`; enabling the docs-change path
    composes to `C3`, and the whole enabled posture is governed by the `C3` row (its
    verification stack and human merge included).

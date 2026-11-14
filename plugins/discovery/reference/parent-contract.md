@@ -552,7 +552,7 @@ cost defect for the same reason; how it resolves is at the pointer.
 *Decision.* `research-verifier` grades outcome-gate rows 4, 7, 12 and 14, the rows the producer may
 not grade, so it is a verdict lane and pins `model: opus` and `effort: high`; `explorer`,
 mechanical preparation, stays on `sonnet` at `effort: medium`. *Pointer:*
-[docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md), "Model tiers" (the verdict rule
+[docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md), "Capability tiers" (the verdict rule
 in its ladder) and "Effort tiers" (consequential-output lanes pin `high`; the pinned-agents
 record). *Recheck trigger:* an edit to the
 philosophy's tier rule, lane rule, or pinned-agents record.

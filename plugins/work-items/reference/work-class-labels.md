@@ -1,6 +1,6 @@
 # Work-class labels
 
-The `work-class:` labels record an item's risk class (C1 to C4). No work-items skill stamps,
+The `work-class:` labels record an item's work class (C1 to C4). No work-items skill stamps,
 reads or gates on them: triage, the work-loop drain, the attended queue and setup ignore them, and
 an item may carry one or none. CI intake no longer applies one; a shared intake reusable may still
 print a proposed class in its triage comment, and nothing applies or reads it. C5 is marked on the provenance axis, with `provenance: untrusted`. Of the class and

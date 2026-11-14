@@ -49,7 +49,7 @@ The row is derived through the catalog's mapping rules, never hand-assigned:
 3. **Provenance axis, two postures.** Upstream release notes and changelogs are
    attacker-writable external content. A wave posture whose breakage judgment reasons
    over them matches the untrusted-provenance rule, and overlapping matches compose to
-   the highest-risk class, so that posture derives `C5` (`L3` floor, human merge always).
+   the highest-risk work class, so that posture derives `C5` (`L3` floor, human merge always).
    The mechanical-only posture, manifest bump plus CI verdict with no external prose in the
    reasoning loop, keeps the `C2` derivation.
 
