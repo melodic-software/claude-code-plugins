@@ -28,6 +28,27 @@ warning on installed-vs-pinned drift; inert when absent), `gates`, `notes`. Plac
 `anchor`), `<project-dir>` (each root from `project-discovery`), `$REPO_ROOT`
 (`git rev-parse --show-toplevel`).
 
+## Covered ecosystems
+
+No closed list decides which ecosystem ids a run accepts. An id is **covered** when any of these
+holds:
+
+- **Recorded.** A `<id>.yaml` or `<id>.local.yaml` exists at any rung-1 layer (user-global, team
+  or personal override), whatever the id.
+- **Inferred this run.** Rung 2 inferred a command surface for the id from the repo's build files
+  in this run. The report names each inferred id with the globs inferred for it, on one line per
+  id: `Inferred <id>: globs <glob>, <glob>`.
+- **Bundled.** A bundled portable default ships for the id.
+
+Before detection or `all`, look for build files of ecosystems that are neither recorded nor bundled
+(a `Cargo.toml`, a `Gemfile`, a `pom.xml`) and run rung 2 for each id they point to, so an inferred
+id joins the set before any glob is matched. Detection, `all`, an ecosystem filter and the
+files-outside-every-ecosystem rule all read this set.
+
+A filter naming an id that none of these covers goes to rung 3: ask for its command and offer
+`/toolchain:setup` to record it. With nobody to ask, run nothing for it and report
+`<id>: no record and nothing to infer it from`.
+
 ## Resolution per ecosystem (four rungs)
 
 Resolve each ecosystem independently, in order; stop at the first rung that yields a command surface:
