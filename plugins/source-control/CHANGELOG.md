@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.14.0] - 2026-11-14
+
+### Added
+
+- `/source-control:pull-request media` takes `--scan-pattern <regex>` (repeatable): the leak scan also refuses those patterns, the `reviewer-media` convention's `scan.extra_patterns`. It adds to the floor and never replaces it; a pattern that does not compile refuses with exit 5.
+
+### Fixed
+
+- The pull-request monitor's poll script can be armed in auto mode. Auto mode's safety check denied the inline Monitor `command` because the script ran `rm` on a stderr temp file. The script now keeps that stderr in a shell variable and runs no `rm`. The rate-limit stop, snapshot re-arm and review-thread read work as before (#16201).
+
 ## [11.13.1] - 2026-11-14
 
 ### Changed

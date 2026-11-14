@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.18.12] - 2026-11-14
+
+### Fixed
+
+- plugin-eval's GitHub Actions row links the renamed `pr-run-plugin-evals.yml` workflow.
+
 ## [0.18.11] - 2026-11-14
 
 ### Fixed

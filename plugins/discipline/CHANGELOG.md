@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.28.4] - 2026-11-14
+
+### Changed
+
+- At verification level `standard`, `script-the-deterministic-work` and `use-your-skills` now accept a review skill that runs in its own context, as well as a fresh-context subagent, as the confirmation of a clean audit; running the change's own code or tests, or re-reading it inline, does not count.
+
 ## [0.28.3] - 2026-11-14
 
 ### Changed
