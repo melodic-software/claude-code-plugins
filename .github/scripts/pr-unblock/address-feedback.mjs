@@ -2151,7 +2151,7 @@ export async function main(argv, env, { api, actions, log = (line) => console.lo
     });
   };
   if (command === "select" && env.VERIFY_PASS_HEAD) {
-    // A pass-only round (pr-feedback-dispatch.yml after a pr-verify pass):
+    // A pass-only round (pr-dispatch-feedback.yml after a pr-verify pass):
     // only the stale fail-note threads, for the reply job to resolve; no
     // thread for a model, so the round's model jobs and its neutral checks
     // stay off. With nothing to resolve (as on a rerun after the notes were

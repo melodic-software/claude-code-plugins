@@ -120,7 +120,7 @@ fresh attempt (`capped_close`), and address-feedback and fix-ci start no
 round on a pull request at `verify:repeated-fail` (pr-unblock
 verify-cap.mjs). A
 `verify:fail` or `verify:earlier-fail` only waits:
-pr-feedback-dispatch.yml posts a FAIL's notes on the pull request as review
+pr-dispatch-feedback.yml posts a FAIL's notes on the pull request as review
 comments for an address-feedback round, whose push gives a head the verifier
 judges again. Any read that fails refuses
 (`verify:unreadable`). The repository's artifacts are listed once per

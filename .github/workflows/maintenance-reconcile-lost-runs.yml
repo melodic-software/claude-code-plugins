@@ -48,7 +48,7 @@ name: Maintenance Reconcile Lost Runs
 # pr-require-checks run failed only in ci-status with its note of that stop, is
 # re-run once, recorded, once neither the lanes switch, the lane's own switch
 # nor the upstream gate would stop it again; its completion re-runs ci-status
-# (pr-feedback-dispatch.yml rerun-ci-status). One lane per head per pass, and a
+# (pr-dispatch-feedback.yml rerun-ci-status). One lane per head per pass, and a
 # place under the cap, whatever the run's age up to GitHub's 30 days.
 #
 # An intake-triage run an issue event started whose first attempt failed only

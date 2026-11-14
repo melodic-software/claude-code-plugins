@@ -391,7 +391,7 @@ expect "a newer run whose review jobs are not listed yet is pending" 1 "'$CODE_C
 export RUN_11 RUNS_CODE_LATER
 RUN_11="$(run 11 $CODE in_progress)"
 expect "a review still running at the cap fails pending, naming the automatic re-run" 1 \
-  "has not finished on $HEAD (https://github.com/o/r/actions/runs/11). ci-status waited 480s for it; pr-feedback-dispatch re-runs ci-status"
+  "has not finished on $HEAD (https://github.com/o/r/actions/runs/11). ci-status waited 480s for it; pr-dispatch-feedback re-runs ci-status"
 if [[ "$(grep -cxF 'api repos/o/r/actions/runs/11' "$TMP_ROOT/log")" == 8 ]]; then
   ok "the wait reads the waiting run once a poll, 8 polls at most"
 else

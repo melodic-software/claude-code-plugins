@@ -2046,7 +2046,7 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                 result = score(_input(files=(_file(path),)))
                 self.assertEqual(f"high-path:{path}" in _codes(result), want)
         # ci-status, and the job-token dispatchers of gated workflows, are in.
-        for name in ("pr-require-checks", "intake-reenter", "pr-feedback-dispatch"):
+        for name in ("pr-require-checks", "intake-reenter", "pr-dispatch-feedback"):
             self.assertIn(f".github/workflows/{name}.yml", self.gate())
         self.assertLess(held_count, len(found))
 

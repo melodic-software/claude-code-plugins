@@ -679,7 +679,7 @@
       "reason": "Read by the run it dispatched; 1 day is the minimum.",
       "scan": "upload",
       "uploads": [
-        ".github/workflows/pr-feedback-dispatch.yml#dispatch"
+        ".github/workflows/pr-dispatch-feedback.yml#dispatch"
       ]
     },
     "pr-feedback-deferred-*": {
@@ -690,7 +690,7 @@
       "reason": "Read by the next half-hourly tick; 1 day is the minimum.",
       "scan": "upload",
       "uploads": [
-        ".github/workflows/pr-feedback-dispatch.yml#post-verify-notes"
+        ".github/workflows/pr-dispatch-feedback.yml#post-verify-notes"
       ]
     },
     "pr-feedback-deferral": {
@@ -709,7 +709,7 @@
       "reason": "Read by the re-run it records; 1 day is the minimum.",
       "scan": "upload",
       "uploads": [
-        ".github/workflows/pr-feedback-dispatch.yml#rerun-ci-status"
+        ".github/workflows/pr-dispatch-feedback.yml#rerun-ci-status"
       ]
     },
     "pr-unblock-dispatched-*": {

@@ -57,7 +57,7 @@
 //      dispatches again.
 //
 // A pass-only round is the exception: when pr-verify passed the PR's current
-// head, pr-feedback-dispatch.yml sends pr-unblock.yml with verify-pass-head,
+// head, pr-dispatch-feedback.yml sends pr-unblock.yml with verify-pass-head,
 // and the select job lists in run.json's stale_notes the open fail-note
 // threads from earlier heads (address-feedback.mjs staleVerifyNotes), and
 // those at the passing head when its superseded_head names that head (the

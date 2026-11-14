@@ -115,7 +115,7 @@ on:
       dispatcher-run-id:
         description: >-
           On a workflow_dispatch sent by github-actions[bot], the
-          pr-unblock-dispatch.yml or pr-feedback-dispatch.yml run that sent
+          pr-unblock-dispatch.yml or pr-dispatch-feedback.yml run that sent
           it; empty otherwise.
         required: false
         type: string
@@ -180,7 +180,7 @@ on:
         default: ""
       expected-upstream-head:
         description: >-
-          For a job after pr-unblock's model job on a pr-feedback-dispatch.yml
+          For a job after pr-unblock's model job on a pr-dispatch-feedback.yml
           dispatch, that job's head-sha output: the gate accepts the review of
           that head while the PR is at it or at pushed-commit. The broker gets
           it too. Empty otherwise.
@@ -788,12 +788,12 @@ jobs:
           triggering-actor: ${{ github.triggering_actor }}
           # A dispatch from github-actions[bot] proceeds only when it names a
           # pr-unblock-dispatch.yml run on the default branch, or a
-          # pr-feedback-dispatch.yml run whose recorded review run reviewed the
+          # pr-dispatch-feedback.yml run whose recorded review run reviewed the
           # PR's current head, that sent it to pr-unblock.yml; any other run
           # passes no id and the bot stays unlisted.
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
           dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
-          run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml
+          run-dispatcher-workflow: .github/workflows/pr-dispatch-feedback.yml
           run-dispatcher-upstreams: >-
             .github/workflows/pr-review-hosted.yml
             .github/workflows/pr-review-security-hosted.yml

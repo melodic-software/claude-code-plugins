@@ -31,7 +31,7 @@ const LANE = "pr-unblock.yml";
 const UNBLOCK = ".github/workflows/pr-unblock.yml";
 const WRITER = ".github/workflows/pr-run-activity-write.yml";
 const ACTIONS_BOT = { id: 41898282, login: "github-actions[bot]" };
-const FILES = [UNBLOCK, WRITER, ".github/workflows/pr-unblock-dispatch.yml", ".github/workflows/pr-feedback-dispatch.yml"];
+const FILES = [UNBLOCK, WRITER, ".github/workflows/pr-unblock-dispatch.yml", ".github/workflows/pr-dispatch-feedback.yml"];
 const MAIN_BLOBS = Object.fromEntries(FILES.map((file) => [file, BLOB]));
 
 const pr = (number, { user = OWNER, draft = false, repo = REPO, ref = `fix/${number}` } = {}) => ({
