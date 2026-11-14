@@ -15,9 +15,10 @@
 #   default-branch-file.sh --path <path>       any repository-relative file (letters, digits, . _ / -,
 #                                              no leading / or -, no ..)
 #
-# Exit 0: the file's content on stdout, then `default-branch-file: <path> at origin/<branch>, commit <sha>`
-#         on stderr.
+# Exit 0: the file's content on stdout.
 # Exit 1: the default branch has no such file.
+# Both end stderr with `default-branch-file: <path> at origin/<branch>, commit <sha>`, plus `; the fetch
+# failed, so the last fetched copy may be stale` when the fetch failed and an earlier fetch is read.
 # Exit 2: the default branch could not be read; the reason is on stderr. The caller uses its defaults,
 #         never the working tree's copy.
 set -uo pipefail
@@ -60,9 +61,10 @@ branch="${branch#refs/heads/}"
 if [[ ! "$branch" =~ ^[A-Za-z0-9._/-]+$ || "$branch" == -* || "$branch" == *..* ]]; then
   stop 2 "origin's default branch name '$branch' is not a safe name"
 fi
+stale=""
 # An explicit destination, so a single-branch clone's narrowed refspec still updates the ref.
 git -C "$root" fetch --quiet origin "+refs/heads/$branch:refs/remotes/origin/$branch" >/dev/null 2>&1 ||
-  stop 2 "the fetch of origin/$branch failed"
+  stale="; the fetch failed, so the last fetched copy may be stale"
 sha="$(git -C "$root" rev-parse --verify --quiet --end-of-options "refs/remotes/origin/$branch^{commit}")" ||
   stop 2 "origin/$branch has not been fetched"
 
@@ -76,6 +78,7 @@ if [[ -n "$plugin" ]]; then
   esac
   file="$home/$plugin.yaml"
 fi
-git -C "$root" cat-file -e "$sha:$file" 2>/dev/null || stop 1 "$file is not on origin/$branch, commit $sha"
+at="$file at origin/$branch, commit $sha$stale"
+git -C "$root" cat-file -e "$sha:$file" 2>/dev/null || stop 1 "$at"
 git -C "$root" show --end-of-options "$sha:$file" || stop 2 "$file could not be read at commit $sha"
-printf 'default-branch-file: %s at origin/%s, commit %s\n' "$file" "$branch" "$sha" >&2
+printf 'default-branch-file: %s\n' "$at" >&2

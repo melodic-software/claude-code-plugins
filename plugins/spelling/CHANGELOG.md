@@ -3,6 +3,12 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.7] - 2026-11-14
+
+### Fixed
+
+- A merge commit no longer formats or lints the files the merge takes unchanged from another parent: the pre-commit file list skips a path whose staged entry equals a merge head's. Installed hooks report drift until reinstalled. A merge the old hook already formatted keeps those files listed; restore them from the merge head or redo the merge.
+
 ## [2.0.6] - 2026-11-14
 
 ### Fixed

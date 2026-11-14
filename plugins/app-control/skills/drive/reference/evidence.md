@@ -31,7 +31,7 @@ as an argument, so `report.md` and `report.json` carry the same mark once they h
 ## report.md
 
 For a person. It lists, in order: the mode and the control skill (or the line
-`No control skill: drive used <fallback>.`), the launch record, what `ready` found and its exit status, each step with its action, entry
+`No control skill: drive used <fallback>.`), the `resolved:` line naming the feature file and any part, the launch record, what `ready` found and its exit status, each step with its action, entry
 point, stated result and observed text side by side, and artifact paths (a capture step also names the process, by pid, name,
 start time and command line, and the exact command run), then each `Budget:` measure with its value and threshold, capability gaps, `blocked:` lines and cleanup. It
 records what was done and seen. It rates nothing and says nothing about whether a change works.
@@ -45,6 +45,7 @@ For a job. One object with these fields:
 | `app` | The app's name |
 | `control_skill` | The control skill used, by full name and source, such as `control-shop (project: .claude/skills/control-shop/SKILL.md)`, or `harness-ops:control-claude-code (plugin: <folder>/skills/control-claude-code/SKILL.md)`, or `null` |
 | `fallback` | What drive used when `control_skill` is `null`, else `null` |
+| `resolved` | `file` (the feature file the id resolved to, relative to the skill's base directory) and `part` (the part name, or `null` when the id named the file itself); `null` when the run drove no feature |
 | `mode` | `interactive` or `unattended` |
 | `trusted_root` | The real path of `--trusted-root <dir>` when the run had it, else `null` |
 | `launch` | A list with one entry per process this run launched, one per app: `app`, `pid`, `uid`, `start_time` (the integer the process table gives, compared exactly), `command_line` (a display form) and `command_line_sha256` (over the raw command line bytes, on Linux every byte of `/proc/<pid>/cmdline` as read, trailing NUL included); an empty list when the run launched nothing. A record written as one object, as earlier runs wrote it, reads as a list of one |

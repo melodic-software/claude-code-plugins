@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.0] - 2026-11-14
+
+### Added
+
+- `/implementation:implement` now applies the consuming repository's own idioms for the language a
+  block is written in when it makes a type decision. It finds the idioms file through the plugin's
+  new copy of the ecosystem-resolution steps (`reference/ecosystem-resolution.md`), where the
+  record is the standards index row whose Applies-when clues match the block's files, and names
+  the file wherever a decision follows it. When the repository declares none, the run reports
+  `language idioms: none declared for <language>` and applies the type rules alone. The plugin
+  ships no idioms file and reads no language page another plugin ships.
+
 ## [0.42.0] - 2026-11-14
 
 ### Changed

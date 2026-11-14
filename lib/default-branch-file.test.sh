@@ -57,6 +57,21 @@ printf 'body{content:"x"}\n' >"$repo/style.css"
 assert_eq "the working tree's copy never applies" "body{}" "$(run --path style.css)"
 
 assert_eq "a file the default branch lacks exits 1" 1 "$(code --path missing.css)"
+sha="$(g -C "$repo" rev-parse refs/remotes/origin/main)"
+last() { CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" "$@" 2>&1 >/dev/null | tail -n 1; }
+assert_eq "a missing file still names the commit read" \
+  "default-branch-file: missing.css at origin/main, commit $sha" "$(last --path missing.css)"
+
+# A fetch that fails reads the last fetched copy and says so. Origin's main moves to a commit whose tree
+# names a blob origin does not have: ls-remote still answers, but the fetch cannot send the commit, so
+# refs/remotes/origin/main stays on the last fetched one on every git version.
+tree="$(printf '100644 blob %s\tx\n' 1111111111111111111111111111111111111111 | g -C "$dir/origin.git" mktree --missing)"
+next="$(g -C "$dir/origin.git" commit-tree "$tree" -p "$sha" -m next)"
+g -C "$dir/origin.git" update-ref refs/heads/main "$next"
+assert_eq "a failed fetch reads the last fetched copy" "body{}" "$(run --path style.css)"
+assert_eq "a failed fetch is named as possibly stale" \
+  "default-branch-file: style.css at origin/main, commit $sha; the fetch failed, so the last fetched copy may be stale" \
+  "$(last --path style.css)"
 assert_eq "a parent step in --path exits 2" 2 "$(code --path ../style.css)"
 assert_eq "an absolute --path exits 2" 2 "$(code --path /etc/passwd)"
 assert_eq "no arguments exit 2" 2 "$(code)"

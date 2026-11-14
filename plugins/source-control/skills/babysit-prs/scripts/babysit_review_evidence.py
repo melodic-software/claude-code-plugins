@@ -56,7 +56,9 @@ from babysit_risk import Floor, LONG_LINE_BYTES, LaneEvidence, glob_match
 # lower-case caller is a head tested before the rename, or a repository whose
 # caller job has no display name. The last two are the names ci-workflows'
 # pr-review.yml and pr-review-security.yml give it, under the caller's display
-# name and its job id.
+# name and its job id. The Title Case names ci-workflows gives the same jobs
+# (`Status`, `Claude`) follow; the first name stays an old one, since
+# babysit_gh.py keys its lane-run cache on its last segment.
 LANES: dict[str, tuple[str, tuple[str, ...]]] = {
     "claude-review": (
         ".github/workflows/pr-review-hosted.yml",
@@ -65,6 +67,10 @@ LANES: dict[str, tuple[str, tuple[str, ...]]] = {
             "pr-review / review-status",
             "PR Review / claude-review-status",
             "pr-review / claude-review-status",
+            "PR Review / Status",
+            "pr-review / Status",
+            "PR Review / Claude",
+            "pr-review / Claude",
         ),
     ),
     "claude-security-review": (
@@ -74,6 +80,10 @@ LANES: dict[str, tuple[str, tuple[str, ...]]] = {
             "pr-review-security / review-status",
             "PR Review Security / security-review",
             "pr-review-security / security-review",
+            "PR Review Security / Status",
+            "pr-review-security / Status",
+            "PR Review Security / Claude",
+            "pr-review-security / Claude",
         ),
     ),
 }
