@@ -897,4 +897,5 @@ lib/redact.py plugins/explainer-video/scripts/redact.py
 lib/media-render/media_scan.py plugins/speech/scripts/media_scan.py
 lib/redact.py plugins/speech/scripts/redact.py
 plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json plugins/speech/vendor/gitleaks/gitleaks-rules.json
+lib/media-render/media_encode.py plugins/pixel-art/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/animation/scripts/media_encode.py
