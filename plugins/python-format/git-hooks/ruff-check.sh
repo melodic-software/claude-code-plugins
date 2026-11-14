@@ -113,12 +113,15 @@ targets=()
 if ((${#files[@]})); then
   argfile=".git/ruff-args.$$"
   [[ -d .git ]] || argfile="$(git rev-parse --git-path "ruff-args.$$")" || exit 1
-  # The EXIT trap checks_init set, plus the argfile's removal.
+  # The EXIT trap checks_init set, as checks_finish does it, with the argfile
+  # removed in the same rm launch as CHECKS_TMP, so the argfile costs no extra
+  # process. Keep it in step with checks_finish in check-lib.sh.
   # shellcheck disable=SC2329  # invoked by name, from the EXIT trap
   finish() {
-    local status=$?
-    rm -f -- "$argfile"
-    checks_finish "$status"
+    local status=$? failed=0
+    [[ -e "$CHECKS_TMP/tool-failed" ]] && failed=1
+    rm -rf -- "$CHECKS_TMP" "$argfile"
+    ((status != 0 || !failed))
   }
   trap 'finish || exit 1' EXIT
   listed=()
