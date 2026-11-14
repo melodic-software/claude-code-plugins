@@ -894,5 +894,5 @@ lib/media-render/media_verify.py plugins/explainer-video/scripts/media_verify.py
 lib/media-render/media_templates/__init__.py plugins/explainer-video/scripts/media_templates/__init__.py
 lib/media-render/media_templates/frames.css plugins/explainer-video/scripts/media_templates/frames.css
 lib/redact.py plugins/explainer-video/scripts/redact.py
-lib/media-render/media_scan.py plugins/source-control/lib/media_scan.py
-lib/redact.py plugins/source-control/lib/redact.py
+lib/media-render/media_scan.py plugins/source-control/tools/reviewer-media/lib/media_scan.py
+lib/redact.py plugins/source-control/tools/reviewer-media/lib/redact.py

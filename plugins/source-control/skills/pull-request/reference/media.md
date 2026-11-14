@@ -102,7 +102,7 @@ owns them.
      screenshot needs its frame-text sidecar `<screenshot>.txt` beside it, not empty. A missing
      one refuses with exit 6.
    - **Leak scan.** The rendered section, each chapter title as the manifest wrote it and each
-     screenshot sidecar go through the secret and machine-data floor (`<plugin-root>/lib/media_scan.py`). A
+     screenshot sidecar go through the secret and machine-data floor (`<plugin-root>/tools/reviewer-media/lib/media_scan.py`). A
      hit, or a scan that cannot run, refuses with exit 5 before any upload; the report names the
      source and the kind, never the matched text.
    - **Hosting.** The files are attached to the PR body with `gh pr edit --attach`, as the
