@@ -15,7 +15,7 @@ graders:
     target: last_message
   - name: png-silent
     type: regex
-    pattern: '\blogo\.png\b[^\n.;]{0,80}?\b(?:skip\w*|warn\w*|FAIL\w*|unclassified|(?:ignore[ds]?|ignoring)|no (?:matching )?ecosystem|outside (?:every|any) ecosystem|not (?:linted|covered|matched|classified|claimed))\b|\b(?:skip\w*|warn\w*|FAIL\w*|unclassified|(?:ignore[ds]?|ignoring))\b[^\n.;]{0,80}?\blogo\.png\b|\b(?:not linted|outside (?:every|any) ecosystem)\b[^\n]{0,120}?\blogo\.png\b'
+    pattern: '\blogo\.png\b[^\n.;]{0,80}?\b(?:skip\w*|warn\w*|FAIL\w*|unclassified|(?:ignore[ds]?|ignoring)|no (?:matching )?ecosystem|outside (?:every|any) ecosystem|not (?:linted|covered|matched|classified|claimed)|binary|nothing to (?:lint|check))\b|\b(?:skip\w*|warn\w*|FAIL\w*|unclassified|(?:ignore[ds]?|ignoring))\b[^\n.;]{0,80}?\blogo\.png\b|\b(?:not linted|outside (?:every|any) ecosystem)\b[^\n]{0,120}?\blogo\.png\b'
     flags: i
     match: not_contains
     target: last_message

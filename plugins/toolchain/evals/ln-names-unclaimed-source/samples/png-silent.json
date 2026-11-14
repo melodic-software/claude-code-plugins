@@ -17,6 +17,10 @@
     {
       "answer": "assets/logo.png: skipped (no ecosystem matches it)",
       "why": "noise for the image"
+    },
+    {
+      "answer": "- **assets/logo.png:** binary, so there was nothing to lint.",
+      "why": "a note that the image is binary"
     }
   ]
 }
