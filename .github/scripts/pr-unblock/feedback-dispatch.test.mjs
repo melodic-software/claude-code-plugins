@@ -2382,10 +2382,10 @@ function recoveryApi({ runs = [lostRun()], jobs = { 600: startedJobs }, finished
   return api;
 }
 
-test("a tick with no lost pr-dispatch-feedback.yml run in the window makes one run listing for recovery and dispatches nothing", async (t) => {
+test("a tick with no lost pr-dispatch-feedback.yml run in the window makes one run listing per file name for recovery and dispatches nothing", async (t) => {
   const api = recoveryApi({ runs: [lostRun({ conclusion: "success" }), lostRun({ id: 601, status: "in_progress", conclusion: null }), lostRun({ id: 602, conclusion: "skipped" })] });
   const { output } = await sweepMain(t, api, TICK, NOW);
-  assert.equal(api.listings.length, 1);
+  assert.equal(api.listings.length, 2);
   assert.deepEqual(api.jobReads, []);
   assert.equal(api.pullReads, 1, "only the sweep of released heads lists the PRs");
   assert.deepEqual(api.calls.dispatch, []);
@@ -2837,10 +2837,31 @@ test("the recovery leaves a head the sweep has capped alone", async (t) => {
 test("the recovery lists only runs created within the lookback window, and an older lost run is not counted", async (t) => {
   const api = recoveryApi({ runs: [lostRun({ created_at: "2026-10-16T13:59:59Z" })] });
   const { output } = await sweepMain(t, api, TICK, NOW);
-  assert.deepEqual(api.listings, [{ workflow: ".github/workflows/pr-dispatch-feedback.yml", since: "2026-10-16T14:00:00Z" }]);
+  assert.deepEqual(api.listings, [
+    { workflow: ".github/workflows/pr-dispatch-feedback.yml", since: "2026-10-16T14:00:00Z" },
+    { workflow: ".github/workflows/pr-feedback-dispatch.yml", since: "2026-10-16T14:00:00Z" },
+  ]);
   assert.deepEqual(api.jobReads, []);
   assert.deepEqual(api.calls.dispatch, []);
   assert.equal(output, "");
+});
+
+test("a lost run listed under the file's earlier name is recovered, and that listing failing leaves the rest recovered", async (t) => {
+  const earlier = ".github/workflows/pr-feedback-dispatch.yml";
+  const api = recoveryApi();
+  api.listRecentRuns = async (workflow) => (workflow === earlier ? [lostRun({ path: earlier })] : []);
+  await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.jobReads, [600]);
+  assert.equal(api.calls.dispatch.length, 1);
+
+  const broken = recoveryApi();
+  broken.listRecentRuns = async (workflow) => {
+    if (workflow === earlier) throw new Error("GET runs returned 404");
+    return [lostRun()];
+  };
+  await sweepMain(t, broken, TICK, NOW);
+  assert.deepEqual(broken.jobReads, [600]);
+  assert.equal(broken.calls.dispatch.length, 1);
 });
 
 test("a failed recovery listing is a warning, and the tick ends green", async (t) => {

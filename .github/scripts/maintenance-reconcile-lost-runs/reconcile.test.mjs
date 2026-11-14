@@ -2066,8 +2066,9 @@ test("passed heads whose spec nobody touched since their checks ran cost one Gra
     // listings for each of pr-verify and pr-review-main, one repository-wide
     // listing for each of the other seven statuses, one held-run listing
     // for each of pr-verify and pr-review-main, one intake listing, one
-    // stopped-verdict listing and the one pre-filter query.
-    assert.equal(reads.length, 1 + numbers.length + 2 * 2 + 7 + 2 + 1 + 1 + 1);
+    // stopped-verdict listing per dispatcher file name and the one
+    // pre-filter query.
+    assert.equal(reads.length, 1 + numbers.length + 2 * 2 + 7 + 2 + 1 + 2 + 1);
   });
 });
 

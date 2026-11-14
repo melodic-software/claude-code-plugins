@@ -302,6 +302,8 @@ const isIntakeLabelJob = (job) => INTAKE_LABEL_JOBS.some((name) => String(job?.n
 // A job that failed at any other step (a refused dequeue, a verdict name no
 // reader takes) is a red for a person, never re-run here.
 export const VERDICT_DISPATCH = ".github/workflows/pr-dispatch-feedback.yml";
+// A run keeps the path it started from: one from before the file was renamed.
+export const PREVIOUS_VERDICT_DISPATCH = ".github/workflows/pr-feedback-dispatch.yml";
 // post-verify-notes names it on a run from before the rename.
 export const VERDICT_JOBS = new Set(["Post Verify Notes", "post-verify-notes"]);
 export const VERDICT_STOP_STEP = "Stop on the kill switch";
@@ -523,7 +525,7 @@ const isLostAgain = (r, since) => r.status === "completed" && LOST.has(r.conclus
 const isFailedIntake = (r, since) =>
   r.path === INTAKE && r.event === "issues" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isStoppedVerdict = (r, since) =>
-  r.path === VERDICT_DISPATCH && r.event === "workflow_run" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
+  (r.path === VERDICT_DISPATCH || r.path === PREVIOUS_VERDICT_DISPATCH) && r.event === "workflow_run" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isLostLane = (r, since) =>
   r.event === "workflow_run" &&
   r.head_branch === "main" &&
@@ -1528,7 +1530,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   let stopped = [];
   try {
     const listed = await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(VERDICT_DISPATCH)}/runs?created=${created}&status=failure`, LANE_RUN_PAGES);
-    stopped = listed.filter((r) => isStoppedVerdict(r, since)).sort(byAge);
+    // The earlier file has no runs to list once they age out or are deleted.
+    const earlier = await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(PREVIOUS_VERDICT_DISPATCH)}/runs?created=${created}&status=failure`, LANE_RUN_PAGES).catch(() => []);
+    stopped = listed.concat(earlier).filter((r) => isStoppedVerdict(r, since)).sort(byAge);
   } catch (error) {
     noteFailure(VERDICT_DISPATCH, error);
   }
