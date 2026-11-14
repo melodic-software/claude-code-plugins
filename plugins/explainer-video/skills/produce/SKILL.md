@@ -163,7 +163,11 @@ write markup from it, and never edit its text to get past a check.
    contact sheet before calling it done.
 
 `manifest.json` lists every file a caller may publish: the video (or its chapter parts when it is
-over the upload limit), `captions.srt` and the contact sheets. `oversize` names a video that cannot
+over the upload limit), `captions.srt`, the contact sheets and the screenshots. The video, each
+part and each contact sheet carry the `sha256` of their final bytes; each screenshot entry is
+`{path, sha256, sidecar, sidecar_sha256}`, its image and the sidecar text the scan read both
+copied under `<dir>/screenshots/`. Every path is relative to `<dir>`; publish a file only while
+its bytes still match its digest. `oversize` names a video that cannot
 split under the limit; it is hosted whole as an Actions artifact, never recompressed or cut.
 
 ## Related
