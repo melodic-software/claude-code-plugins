@@ -337,6 +337,24 @@ assert_exit "post after the head moved still posts" 0 "$RC"
 assert_contains "media built for an older head carry the stale line" "$(block_of "$S/body")" \
   "Out of date: shows commit $HEAD1"
 
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+printf 'echo %s >"%s/head"\n' "$HEAD2" "$S" >"$S/view-hook-2"
+media post 7 --manifest "$M1/manifest.json" --run-id run-1
+assert_exit "post when the head moves before the write still posts" 0 "$RC"
+assert_contains "a head that moved before the write gets the stale line" "$(block_of "$S/body")" \
+  "Out of date: shows commit $HEAD1"
+
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+printf 'echo %s >"%s/head"\n' "$HEAD2" "$S" >"$S/write-hook-1"
+media post 7 --manifest "$M1/manifest.json" --run-id run-1
+assert_exit "post when the head moves during the upload still posts" 0 "$RC"
+assert_contains "a head that moved during the upload gets the stale line" "$(block_of "$S/body")" \
+  "Out of date: shows commit $HEAD1"
+assert_not_contains "a head that moved during the upload leaves no posted line" "$(block_of "$S/body")" \
+  "<!-- reviewer-media:posted"
+assert_contains "the stale section keeps the uploaded video" "$(block_of "$S/body")" \
+  "https://github.com/user-attachments/assets/video.mp4"
+
 # --- hosting -------------------------------------------------------------------
 reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
 printf 'FLAGS\n  -b, --body string   Set the new body.\n' >"$S/help"
@@ -588,6 +606,58 @@ assert_eq "fail on broken markers makes no body edit" "0" "$(body_edits)"
 assert_contains "fail on broken markers still adds the failure label" "$(cat "$S/labels")" "$FAILED_LABEL"
 assert_eq "fail on broken markers still posts the failure comment" "1" \
   "$(find "$S/comments" -type f | wc -l | tr -d ' ')"
+
+# An installation token or GITHUB_TOKEN gets 403 from GET /user.
+NO_USER_DIR="$TEST_TMPDIR/stubs-no-user"
+mkdir -p "$NO_USER_DIR"
+printf '#!/usr/bin/env bash\n[[ "$1 $2" != "api user" ]] || { echo "HTTP 403" >&2; exit 1; }\n[[ ! -f "$MEDIA_GH_STATE/no-viewer" || "$1 $2" != "api graphql" ]] || { echo "HTTP 403" >&2; exit 1; }\nexec "%s/gh" "$@"\n' \
+  "$STUB_DIR" >"$NO_USER_DIR/gh"
+chmod +x "$NO_USER_DIR/gh"
+media_no_user() {
+  OUT=$(MEDIA_GH_STATE="$S" PATH="$NO_USER_DIR:$STUB_DIR:$PATH" python3 -B "$SCRIPT" "$@" 2>&1)
+  RC=$?
+}
+
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+media_no_user fail 7 --run-id run-1 --reason build-failed
+assert_exit "fail with a token that cannot read /user exits 0" 0 "$RC"
+assert_eq "fail with a token that cannot read /user still posts the failure comment" "1" \
+  "$(find "$S/comments" -type f | wc -l | tr -d ' ')"
+media_no_user fail 7 --run-id run-1 --reason build-failed
+assert_eq "its own earlier failure comment still counts without /user" "1" \
+  "$(find "$S/comments" -type f | wc -l | tr -d ' ')"
+
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+: >"$S/no-viewer"
+printf '<!-- reviewer-media:failed %s -->\n' "$HEAD1" >"$S/comments/0"
+echo "media-bot User" >"$S/authors/0"
+media_no_user fail 7 --run-id run-1 --reason build-failed
+assert_exit "fail with no identity lookup at all exits 0" 0 "$RC"
+assert_eq "with no identity, a person-type marker comment does not count" "2" \
+  "$(find "$S/comments" -type f | wc -l | tr -d ' ')"
+cmp -s "$S/body" "$PLAIN"
+assert_exit "with no identity, fail still releases its claim" 0 "$?"
+
+reset "$PLAIN" "$HEAD1"
+: >"$S/no-viewer"
+printf '<!-- reviewer-media:failed %s -->\n' "$HEAD1" >"$S/comments/0"
+echo "media-lane[bot] Bot" >"$S/authors/0"
+media_no_user fail 7 --run-id run-1 --reason build-failed
+assert_eq "with no identity, a bot marker comment still counts" "1" \
+  "$(find "$S/comments" -type f | wc -l | tr -d ' ')"
+
+# A run whose claim another run took over records nothing against that run's head.
+reset "$TEST_TMPDIR/other-claim.md" "$HEAD2"
+cp "$S/labels" "$TEST_TMPDIR/labels-before"
+media fail 7 --run-id run-1 --reason build-failed
+assert_exit "fail when another run holds the claim exits 3" 3 "$RC"
+assert_contains "the refusal names the claim" "$OUT" "claim"
+cmp -s "$S/body" "$TEST_TMPDIR/other-claim.md"
+assert_exit "fail under another run's claim leaves the body as it was" 0 "$?"
+assert_eq "fail under another run's claim changes no label" "$(cat "$TEST_TMPDIR/labels-before")" "$(cat "$S/labels")"
+assert_eq "fail under another run's claim posts no comment" "0" \
+  "$(find "$S/comments" -type f | wc -l | tr -d ' ')"
+assert_not_contains "fail under another run's claim makes no edit call" "$(cat "$S/calls")" "pr edit"
 
 # --- markers --------------------------------------------------------------------
 printf '%s\n' 'Closes #12' '' "$START" 'orphan' '' '## Summary' '' 'x' >"$TEST_TMPDIR/broken.md"

@@ -540,6 +540,15 @@ class Forge:
             ) from None
         return viewer, [n for n in nodes if isinstance(n, dict) and "id" in n]
 
+    def viewer(self) -> str | None:
+        """The signed-in login, or None when the token cannot name its account."""
+        try:
+            proc = self.gh("api", "graphql", "-f", "query={viewer{login}}", check=False)
+            login = json.loads(proc.stdout)["data"]["viewer"]["login"]
+        except (Refusal, ValueError, KeyError, TypeError):
+            return None
+        return login if proc.returncode == 0 and isinstance(login, str) else None
+
     def can_attach(self) -> bool:
         return "--attach" in self.gh("pr", "edit", "--help", check=False).stdout
 
@@ -696,18 +705,24 @@ def _post(
         )
 
     nl = newline_of(first["body"])
-    stale = first["headRefOid"] != media.head
     name = a.artifact_name or f"reviewer-media-{forge.pr}-{media.head}"
     body_file = staged / "body.md"
     for hosting in hostings:
-        section = render(
-            media,
-            hosting,
-            stale,
-            artifact_line_of(a.artifact_url, name, a.retention_days, hosting, media),
-            nl,
+        artifact_line = artifact_line_of(
+            a.artifact_url, name, a.retention_days, hosting, media
         )
-        scan = media_scan.scan({"section": section, **media.unrendered})
+        # Both variants are built and scanned now, so the head read just before the write picks one.
+        sections = {
+            stale: render(media, hosting, stale, artifact_line, nl)
+            for stale in (False, True)
+        }
+        scan = media_scan.scan(
+            {
+                "section": sections[False],
+                "stale section": sections[True],
+                **media.unrendered,
+            }
+        )
         if not scan.ok:
             found = (
                 "; ".join(f"{f['source']}: {f['kind']}" for f in scan.findings)
@@ -727,7 +742,8 @@ def _post(
                 "changed",
                 "the body outside the markers, or the claim, changed while the section was built",
             )
-        body_file.write_bytes(join(parts, section, now["body"]).encode("utf-8"))
+        stale = now["headRefOid"] != media.head
+        body_file.write_bytes(join(parts, sections[stale], now["body"]).encode("utf-8"))
         args = ["--body-file", str(body_file)]
         if hosting is Hosting.ATTACH:
             for asset in attachable:
@@ -749,6 +765,19 @@ def _post(
         if done.returncode == 0:
             after, theirs = keep_their_edit(forge, seen, after, media.head)
             expected = theirs or expected
+            moved = split(after["body"])
+            if (
+                after["headRefOid"] != media.head
+                and status_of(moved.block).state is State.POSTED
+            ):
+                forge.write_body(
+                    join(
+                        moved,
+                        as_stale(moved.block or "", newline_of(after["body"])),
+                        after["body"],
+                    )
+                )
+                after, stale = forge.read(), True
         written = split(after["body"])
         local = [
             asset.name
@@ -814,9 +843,15 @@ def cmd_fail(a: argparse.Namespace, forge: Forge) -> int:
     except Refusal as refusal:
         parts, broken = None, refusal
     held = status_of(parts.block).claim if parts else None
-    mine = held is not None and held[1] == a.run_id
-    head = held[0] if mine else pr["headRefOid"]
-    if parts and mine:
+    if held and held[1] != a.run_id:
+        raise Refusal(
+            3,
+            "claim",
+            f"run {held[1]} holds the claim for commit {held[0]}; nothing was recorded",
+        )
+    head = held[0] if held else pr["headRefOid"]
+    login = forge.viewer()
+    if parts and held:
         forge.write_body(
             join(parts, without_claim(parts.block or "", newline_of(body)), body)
         )
@@ -828,7 +863,6 @@ def cmd_fail(a: argparse.Namespace, forge: Forge) -> int:
         )
     )
     marker = f"<!-- reviewer-media:failed {head} -->"
-    login = forge.gh("api", "user", "--jq", ".login").stdout.strip()
     listed = forge.gh(
         "api",
         "--paginate",
@@ -839,7 +873,7 @@ def cmd_fail(a: argparse.Namespace, forge: Forge) -> int:
     # Only this account's or a bot's comment counts, so nobody else can suppress the failure comment.
     if any(
         isinstance(c, dict)
-        and (c.get("login") == login or c.get("type") == "Bot")
+        and ((login and c.get("login") == login) or c.get("type") == "Bot")
         and marker in str(c.get("body") or "")
         for c in _json_values(listed)
     ):

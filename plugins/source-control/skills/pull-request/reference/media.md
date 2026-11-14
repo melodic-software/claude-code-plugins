@@ -66,7 +66,7 @@ For reviewers: a narrated walkthrough of this change. Watch it before the diff.
 | `--manifest <file>` | The producer's `manifest.json`. Its `video`, `parts`, `contact_sheet` and `screenshots` entries name the only files this action may attach; each must be a file inside the manifest's own directory and carry `sha256`, the lowercase hex SHA-256 of the file the producer scanned. Each `screenshots` entry is an object `{path, sha256, sidecar, sidecar_sha256}`: `sidecar` names that screenshot's own frame-text file inside the manifest's directory, never shared with another screenshot |
 | `--run-id <id>` | The id of this run, the same value on `claim`, the post and `fail`: the Actions run id, else any token unique to the run |
 | `--artifact-url <url>` | Optional: the github.com link to the Actions artifact that holds the media |
-| `--retention-days <n>` | Optional, with `--artifact-url`: the days the artifact is kept, 1 to 90, default 30 |
+| `--retention-days <n>` | Optional, with `--artifact-url`: the days the artifact is kept, default 30. We accept 1 to 90 so that media artifacts always expire within 90 days and add no storage billing; that cap is our decision, not GitHub's limit. GitHub's own limits: [retention period settings](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#configuring-the-retention-period-for-checks-workflow-runs-commit-statuses-artifacts-and-logs-in-your-repository) |
 | `--no-attach` | Optional: link the artifact only, uploading nothing |
 | `--label-requested`, `--label-posted`, `--label-failed <name>` | The label names, default `reviewer-media: requested`, `reviewer-media: posted` and `reviewer-media: failed`; `false` turns one off. A caller that resolved the `reviewer-media` convention passes its `labels.*` and `artifact_retention_days` values here |
 
@@ -124,7 +124,8 @@ owns them.
      that repair write is not restored: exit 3, check the body by hand. It then reads the body
      back and exits 1 when the section does not read back as posted.
    - Media built for a commit the PR has since moved past are still posted, with the
-     `Out of date` line.
+     `Out of date` line. The head is read again right before the write, and once more after the
+     upload: a head that moved during the upload gets the `Out of date` line written then.
    - Last, it adds the posted label and removes the request and failure labels.
 
 Exit codes: 0 done; 1 a `gh` call failed or the read-back did not match; 2 usage or an unusable
@@ -160,8 +161,11 @@ It removes this run's claim line (and the whole block when the claim was all it 
 request label for the failure label, and posts one comment naming the commit, the reason code and
 the run link. A commit that already has that comment, posted by the account `gh` is signed in as
 or by a bot account, gets no second one, so a caller that finds it does not run again on that
-commit; the same marker in anyone else's comment does not count. On a body with broken markers it
-edits no body, still swaps the labels and posts the comment, and exits 3. `<code>` is a short lower-case code such as `build-failed`,
+commit; the same marker in anyone else's comment does not count. The signed-in account is read
+through GraphQL `viewer` before anything changes; when the token cannot name it, only a bot
+account's comment counts. When another run holds the claim, `fail` changes no body, label or
+comment and exits 3, leaving that run's claim, commit and labels to it. On a body with broken
+markers it edits no body, still swaps the labels and posts the comment, and exits 3. `<code>` is a short lower-case code such as `build-failed`,
 `no-host` or `scan`.
 
 ## Report
