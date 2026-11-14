@@ -1,4 +1,4 @@
-name: Security Outside Actor
+name: Intake Label Outside Actor Activity
 
 # Flags an issue or pull request when someone outside the organization opens
 # or edits it, or comments or reviews on it. Outside actors are the security

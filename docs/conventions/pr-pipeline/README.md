@@ -109,7 +109,7 @@ and a failed dispatch leaves the issue with no `status:` label for a re-run or t
 milestone in `admission-rules.json`'s `cordoned-milestones` keeps an issue parked. It never adds `agent-ready`, and it holds the job's own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
 
 Anyone outside the organization who writes on an issue or pull request is flagged for a person by
-[`security-outside-actor.yml`](../../../.github/workflows/security-outside-actor.yml), a scripted
+[`intake-label-outside-actor-activity.yml`](../../../.github/workflows/intake-label-outside-actor-activity.yml), a scripted
 workflow with no model, secret or kill switch. It runs on an issue or pull request opened, edited
 or reopened, a pull request synchronized (`pull_request_target` for a pull request), on a
 comment, review or diff comment created, submitted or edited, and on `security: outside-actor`
@@ -1275,7 +1275,7 @@ the rules that only tighten in
   `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`. A record is a state marker, never lane
   work: no record is sent to intake triage, since the fix issues carry the work, and its text keeps
   the fix-issue rule (each newly failing check by job name only, never a gate's annotation title or
-  a revert command). `post-merge-demotion-alert.yml` files a red-main record (signal `schedule` or
+  a revert command). `post-merge-file-demotion-issues.yml` files a red-main record (signal `schedule` or
   `dispatch`) with no label, since it clears itself (below), unless a failing check got no fix
   issue (over the cap or outside the charset), which labels it `needs-human`; it labels a canary or revert record
   `needs-human`, since a green main clears neither; each keeps the label until it lifts (below).
@@ -1352,7 +1352,7 @@ the rules that only tighten in
   history, read from main's full history. A revert commit any revert record already lists, in any
   state, is skipped, so a commit is filed once and never again after a person closes its record. A
   reverted commit whose pull request cannot be read is an unproven revert and files the record. The wrapper finds these issues by author (the agent identity
-  or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
+  or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-file-demotion-issues.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
   labeled as a record of its signal is: a full-run one carries no label unless a failing check got
@@ -1722,7 +1722,7 @@ the rules that only tighten in
   demotes nothing, the window counts as verified (its `max-in-flight` slots free), and the suite
   is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, with no label
   and no assignee, filed by the agent identity's `--remediate` (whose issue starts intake triage)
-  or by post-merge-demotion-alert.yml (which locks it and dispatches intake triage for it), so a
+  or by post-merge-file-demotion-issues.yml (which locks it and dispatches intake triage for it), so a
   lane picks it up. While that issue is open
   and younger than `merge.quarantine-days` (default 7, at most 30), the suite's out-of-set failures
   demote nothing; after that they demote again, even when the suite was already failing before the
@@ -2535,7 +2535,7 @@ Merge-Risk: unrated reason=<pending|no-run|no-rating|invalid|unreadable|over-bud
   write, and the arm goes on. Each arm makes at most one comment write, and a head gets at most
   one comment unless anyone other than the lanes App edited its record; there is no write when the head's record already
   holds the line or a rating. Its `issue_comment` event starts
-  `security-outside-actor` and `intake-reenter` runs whose jobs skip a bot's comment, as they do
+  `intake-label-outside-actor-activity` and `intake-reenter` runs whose jobs skip a bot's comment, as they do
   for the pin. Nothing reads the record back: no gate, hold or rung. Not while
   `merge.report-only` is true.
 - **Telemetry.** The rating run writes one `pr-merge-risk` lane-outcome record (outcome, class,
@@ -3543,7 +3543,7 @@ Which GitHub identity each workflow in `.github/workflows/` writes as. GitHub's 
 |---|---|---|
 | `GITHUB_TOKEN` (`github-actions[bot]`) | every workflow not named below, and the reads and check runs of those that are | Its writes start no workflow run, a dispatch aside, which the lane sweep's digest and the monitoring lane rely on so their own issues start no lane; it has its own per-repository API quota ([ADR 0085](../../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)) |
 | Lanes App `melodic-automation-lanes`, minted per job by the broker (`.github/actions/request-lane-token`) | `pr-merge.yml`, `pr-run-activity-write.yml` (which the write jobs of `pr-unblock`, `pr-refine` and `work-resolve-issue` call), `intake-triage.yml`, `work-unblock.yml`, `upstream-apply-changelog.yml`, `maintenance-tidy-code-upkeep.yml`, `maintenance-measure-skill-edit.yml` | Its pushes, labels and auto-merge arms must start the next lane's runs, which a `GITHUB_TOKEN` write does not; one App identity also lets the person tests tell a lane from a person ([lane write identity](../loop-lane/README.md#lane-write-identity)) |
-| Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `dependabot-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
+| Release App `melodic-release` (`PLUGIN_RELEASE_APP_PRIVATE_KEY`, `actions/create-github-app-token`) | `release-publish-plugins.yml`, `release-generate-dependabot-changelog-fragments.yml` | A pull request `GITHUB_TOKEN` opens or updates gets its `pull_request` runs only after approval, and these pull requests need theirs unattended |
 | Owner token | none | Only the owner's own sessions use it; the babysit scripts count its calls as the `owner-token` API pool |
 
 ## Models
@@ -3966,7 +3966,7 @@ count as queued work:
 | work-unblock's restarts, re-fires and relabels (remove and re-add on an admitted issue) | No: they re-run work already admitted |
 | A person adding the label by hand | No |
 | A person-run skill: `/work-items:triage`, `/work-items:decompose`, `/work-items:attend-queue`, `/work-items:track` | No: a person's account, their call |
-| `post-merge-demotion-alert.yml` red-main fix issues | No: it files them unlabeled and reopens one on a repeat failure keeping the `agent-ready` a person gave it, which work-unblock relabels; guardrail work |
+| `post-merge-file-demotion-issues.yml` red-main fix issues | No: it files them unlabeled and reopens one on a repeat failure keeping the `agent-ready` a person gave it, which work-unblock relabels; guardrail work |
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
 and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause or hold;
@@ -4191,7 +4191,7 @@ reading every pull request merged from `--since` to today, a day per search.
 
 When a full `pr-require-checks` run on `main` (scheduled or dispatched) fails, the
 `report-red-main` job of
-[`post-merge-demotion-alert.yml`](../../../.github/workflows/post-merge-demotion-alert.yml) applies
+[`post-merge-file-demotion-issues.yml`](../../../.github/workflows/post-merge-file-demotion-issues.yml) applies
 this rule after the alert job has filed its post-merge record. It runs no model; its scripts and
 tests are in
 [`.github/scripts/post-merge-demotion-alert/`](../../../.github/scripts/post-merge-demotion-alert/).

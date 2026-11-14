@@ -2000,7 +2000,7 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
 // TLS handshake timeout, before the request left), "502" or "limited" (a
 // 429). The send replaces dispatch-full-run's wait step (efficiency plan item
 // 7(b)): GITHUB_TOKEN started the full run, so it raises no workflow_run
-// event, and post-merge-demotion-alert.yml hears of a red one only from here.
+// event, and post-merge-file-demotion-issues.yml hears of a red one only from here.
 const ALERT_SHA = "0123456789abcdef0123456789abcdef01234567";
 // main's tip, and the run of pr-merge.yml's post-merge-dispatch on it that a
 // trusted pr-merge-alerted-<id> record comes from (babysit_postmerge.py
@@ -2017,7 +2017,7 @@ const ALERT_SENDER = {
   head_repository: { full_name: "o/r" },
 };
 const alertSend = (id, sha = ALERT_SHA) =>
-  `api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=${id} -f inputs[head-sha]=${sha}`;
+  `api -X POST repos/o/r/actions/workflows/post-merge-file-demotion-issues.yml/dispatches -f ref=main -f inputs[run-id]=${id} -f inputs[head-sha]=${sha}`;
 const runAlert = ({ runs = [], firsts = {}, jobs = {}, sent = {}, post = ["ok"], listing, python } = {}) => {
   const dir = tempDir("pr-merge-alert-");
   try {
@@ -2069,7 +2069,7 @@ if [ "$2" = -X ]; then
   p=(${[post].flat().join(" ")}); s=$(($(cat "${dir}/posts" 2>/dev/null || echo 0) + 1)); echo "$s" >"${dir}/posts"
   case "\${p[$((s - 1))]:-\${p[-1]}}" in
     ok) head 'HTTP/2.0 204 No Content\\r\\n\\r\\n'; exit 0 ;;
-    unsent) echo 'Post "https://api.github.com/repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches": net/http: TLS handshake timeout' >&2; exit 1 ;;
+    unsent) echo 'Post "https://api.github.com/repos/o/r/actions/workflows/post-merge-file-demotion-issues.yml/dispatches": net/http: TLS handshake timeout' >&2; exit 1 ;;
     502) head 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n{}\\n'; echo "gh: Server Error (HTTP 502)" >&2; exit 1 ;;
     limited) head 'HTTP/2.0 429 Too Many Requests\\r\\nRetry-After: 60\\r\\n\\r\\n{"message": "Too many requests"}\\n'; echo "gh: Too Many Requests (HTTP 429)" >&2; exit 1 ;;
   esac
@@ -2125,7 +2125,7 @@ jq -r "$filter" <<<"$v"
   }
 };
 
-test("a red full run is sent to post-merge-demotion-alert.yml once, by its run id and head SHA, and recorded", () => {
+test("a red full run is sent to post-merge-file-demotion-issues.yml once, by its run id and head SHA, and recorded", () => {
   const run = runAlert({ runs: [{ id: 41, conclusion: "failure" }] });
   assert.equal(run.status, 0, run.out);
   assert.deepEqual(run.sends, [alertSend(41)]);
@@ -2259,7 +2259,7 @@ test("an alert send that never left is sent again after a jittered wait, at most
   const spent = runAlert({ runs: [{ id: 41, conclusion: "failure" }], post: ["unsent"] });
   assert.equal(spent.status, 0, spent.out);
   assert.equal(spent.sends.length, 3);
-  assert.match(spent.out, /::warning::could not send run 41 to post-merge-demotion-alert\.yml after 3 attempt\(s\); the next run tries again/);
+  assert.match(spent.out, /::warning::could not send run 41 to post-merge-file-demotion-issues\.yml after 3 attempt\(s\); the next run tries again/);
   assert.equal(spent.record, "");
   // A send that may have reached GitHub is not sent again.
   const answered = runAlert({ runs: [{ id: 41, conclusion: "failure" }], post: ["502", "ok"] });
@@ -2271,7 +2271,7 @@ test("a rate-limited read or send stops red with the stop as the job's output, s
   const send = runAlert({ runs: [{ id: 41, conclusion: "failure" }, { id: 42, conclusion: "failure" }], post: ["limited"] });
   assert.equal(send.status, 1, send.out);
   assert.deepEqual(send.sends, [alertSend(41)]);
-  assert.match(send.out, /::error title=GitHub rate limit::the send of run 41 to post-merge-demotion-alert\.yml was rate limited/);
+  assert.match(send.out, /::error title=GitHub rate limit::the send of run 41 to post-merge-file-demotion-issues\.yml was rate limited/);
   assert.match(send.output, /^rate-limited=true$/m);
   assert.match(send.output, /^stop=/m);
   const read = runAlert({ runs: [{ id: 41, conclusion: "failure" }], sent: { 41: "limited" } });

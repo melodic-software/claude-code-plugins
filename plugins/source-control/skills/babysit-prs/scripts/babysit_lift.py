@@ -2,7 +2,7 @@
 """Lift evidence for canary, revert and read-back demotion records.
 
 `canary-block` and `revert-block` print the lift block
-(`babysit_merge_policy.lift_block`) that post-merge-demotion-alert.yml writes
+(`babysit_merge_policy.lift_block`) that post-merge-file-demotion-issues.yml writes
 into a record it files: the lines the silent-revert canary attributes to a
 culprit in the pushed commits (`scripts/check-silent-revert.sh`'s
 DELETED_SINK), or the lines the revert commits deleted. Exit 0 with the block

@@ -10,7 +10,7 @@ import path from "node:path";
 import process from "node:process";
 import { test } from "node:test";
 
-const text = readFileSync(new URL("../../workflows/post-merge-demotion-alert.yml", import.meta.url), "utf8");
+const text = readFileSync(new URL("../../workflows/post-merge-file-demotion-issues.yml", import.meta.url), "utf8");
 const job = text.slice(text.indexOf("\n  report-red-main:\n"), text.indexOf("\n  close-cleared:\n"));
 
 test("the report job runs only after the alert, for a failed full run on main", () => {

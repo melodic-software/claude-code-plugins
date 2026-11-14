@@ -1,4 +1,4 @@
-// eval-hill-climb-pass.yml and eval-browser-dispatch.yml pick each leg's
+// maintenance-measure-skill-edit-pass.yml and pr-run-plugin-evals.yml pick each leg's
 // credential through ci-workflows' select-model-credential, fetched at the pin
 // the workflows name. A leg's handoff comes from eval-handoff.mjs (its
 // handoffReason, the rule run-claude-cli's lane.cjs applies), so this truth
@@ -19,8 +19,8 @@ import { workflowText } from "../lib/workflow-text.mjs";
 import { handoffReason } from "./eval-handoff.mjs";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
-const HILL = read("eval-hill-climb-pass.yml");
-const BROWSER = read("eval-browser-dispatch.yml");
+const HILL = read("maintenance-measure-skill-edit-pass.yml");
+const BROWSER = read("pr-run-plugin-evals.yml");
 const S = await loadSelect(selectPin(HILL, BROWSER));
 
 const KEY = "MAINTENANCE_CLAUDE_API_KEY";
@@ -64,7 +64,7 @@ const BROWSER_EVENT =
 // left its outputs unwritten.
 const WORKFLOWS = [
   {
-    file: "eval-hill-climb-pass.yml",
+    file: "maintenance-measure-skill-edit-pass.yml",
     wf: cached(workflowText(HILL)),
     gate: "gate",
     legs: ["pass", "pass-subscription", "pass-fallback"],
@@ -78,7 +78,7 @@ const WORKFLOWS = [
     },
   },
   {
-    file: "eval-browser-dispatch.yml",
+    file: "pr-run-plugin-evals.yml",
     wf: cached(workflowText(BROWSER)),
     gate: "eval-key-credit",
     legs: ["eval", "eval-subscription", "eval-fallback"],

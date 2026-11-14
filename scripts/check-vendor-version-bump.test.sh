@@ -210,7 +210,7 @@ else
 fi
 rm -rf "$f"
 
-# A verified Dependabot change set needs no fragment: dependabot-fragments.yml
+# A verified Dependabot change set needs no fragment: release-generate-dependabot-changelog-fragments.yml
 # writes it after the merge. A gh stub answers the signature lookup with
 # $GH_ANSWER, as in check-changelog-fragments.test.sh.
 base_fixture f

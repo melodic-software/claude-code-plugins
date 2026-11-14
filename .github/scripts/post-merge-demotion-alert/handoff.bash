@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2154 # the Actions runner sets GITHUB_REPOSITORY
 # The hand-off of fix and quarantine issues to intake triage, which both the
-# retry step and the filing step of post-merge-demotion-alert.yml source. The
+# retry step and the filing step of post-merge-file-demotion-issues.yml source. The
 # hourly triage sweep skips github-actions[bot] issues and a re-run takes the
 # existing-record path, so a failed hand-off is recorded in a hidden marker
 # comment and retry_undelivered, before each alert run files, retries it:

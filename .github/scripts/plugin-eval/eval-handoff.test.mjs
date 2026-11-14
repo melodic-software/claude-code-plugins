@@ -65,7 +65,7 @@ test("the first stream that hands off decides, else the first stop class is kept
 // a pin bump that reshapes judgeLeg's return (failureClass, resets, the last
 // message's api_error_status) or isCreditStop fails here. The three paths are
 // the legs' sparse checkout.
-const workflowPins = ["eval-hill-climb-pass.yml", "eval-browser-dispatch.yml"].flatMap((name) => [
+const workflowPins = ["maintenance-measure-skill-edit-pass.yml", "pr-run-plugin-evals.yml"].flatMap((name) => [
   ...readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8").matchAll(/repository: melodic-software\/ci-workflows\n\s+ref: ([0-9a-f]{40})/g),
 ].map((m) => m[1]));
 const PIN = workflowPins[0];
@@ -80,7 +80,7 @@ for (const path of CLASSIFIER_FILES) {
 const real = loadLauncher(ROOT);
 
 test("the files eval-handoff loads are the eval legs' sparse checkout", () => {
-  for (const name of ["eval-hill-climb-pass.yml", "eval-browser-dispatch.yml"]) {
+  for (const name of ["maintenance-measure-skill-edit-pass.yml", "pr-run-plugin-evals.yml"]) {
     const sparse = [...readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8").matchAll(/sparse-checkout: \|\n((?: {12}\S+\n)+)/g)]
       .filter(([block]) => block.includes("run-claude-cli/lane.cjs"))
       .map(([, block]) => block.trim().split(/\s+/));

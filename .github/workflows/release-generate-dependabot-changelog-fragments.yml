@@ -1,4 +1,4 @@
-name: Dependabot Fragments
+name: Release Generate Dependabot Changelog Fragments
 
 # Changelog fragments for merged Dependabot updates (ADR 0048). A Dependabot pull
 # request gets no commit for a plugin in fragment mode: a commit made with
@@ -149,7 +149,7 @@ jobs:
             echo
             while IFS= read -r path; do echo "- \`$path\`"; done <<<"$want"
             echo
-            echo "No linked issue: written by \`.github/workflows/dependabot-fragments.yml\`."
+            echo "No linked issue: written by \`.github/workflows/release-generate-dependabot-changelog-fragments.yml\`."
           } >"$body"
           if [ -z "$number" ]; then
             number="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "$title" --body-file "$body" | grep -o '[0-9]*$')"

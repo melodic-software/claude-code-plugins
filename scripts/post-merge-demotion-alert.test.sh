@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: .github/scripts/post-merge-demotion-alert/newer-green.bash
 # Runs the `File or comment on the demotion issue` step body of
-# .github/workflows/post-merge-demotion-alert.yml under the shell Actions gives
+# .github/workflows/post-merge-file-demotion-issues.yml under the shell Actions gives
 # a step with no `shell:` (bash -e), against a stub `gh`.
 #
 # The step files the demotion record the babysit post-merge check and the
@@ -22,13 +22,13 @@
 # enqueued: the step hands the record through its outputs to the
 # `File the revert demotion issue` step of the file-revert job, which run_step
 # runs next against the same stub.
-# test-scope: .github/workflows/post-merge-demotion-alert.yml
+# test-scope: .github/workflows/post-merge-file-demotion-issues.yml
 # test-scope: .github/scripts/post-merge-demotion-alert/failing-checks.mjs .github/scripts/post-merge-demotion-alert/red-main.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKFLOW="$ROOT/.github/workflows/post-merge-demotion-alert.yml"
+WORKFLOW="$ROOT/.github/workflows/post-merge-file-demotion-issues.yml"
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"

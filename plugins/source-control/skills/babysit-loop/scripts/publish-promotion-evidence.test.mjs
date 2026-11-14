@@ -844,7 +844,7 @@ test("a run count that changes between page reads refuses, though one deletion w
 
 // The alert workflow's record: first body line `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`,
 // filed by github-actions[bot], a repeat failure commented as `The post-merge check found this
-// failure again: <run>/attempts/<n>` (.github/workflows/post-merge-demotion-alert.yml).
+// failure again: <run>/attempts/<n>` (.github/workflows/post-merge-file-demotion-issues.yml).
 const AGAIN = (at, login) => issueComment(`The post-merge check found this failure again: https://github.com/${REPO}/actions/runs/9/attempts/2`, at, login);
 
 test("a demotion issue filed inside the window, open or closed, is a gate-failure on every cell at its creation", () => {
