@@ -57,6 +57,21 @@ printf 'body{content:"x"}\n' >"$repo/style.css"
 assert_eq "the working tree's copy never applies" "body{}" "$(run --path style.css)"
 
 assert_eq "a file the default branch lacks exits 1" 1 "$(code --path missing.css)"
+sha="$(g -C "$repo" rev-parse refs/remotes/origin/main)"
+last() { CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" "$@" 2>&1 >/dev/null | tail -n 1; }
+assert_eq "a missing file still names the commit read" \
+  "default-branch-file: missing.css at origin/main, commit $sha" "$(last --path missing.css)"
+
+# A fetch that fails reads the last fetched copy and says so: a reference-transaction hook refuses the update.
+mkdir -p "$TEST_TMPDIR/hooks"
+printf '#!/bin/sh\nexit 1\n' >"$TEST_TMPDIR/hooks/reference-transaction"
+chmod +x "$TEST_TMPDIR/hooks/reference-transaction"
+g -C "$repo" config core.hooksPath "$TEST_TMPDIR/hooks"
+assert_eq "a failed fetch reads the last fetched copy" "body{}" "$(run --path style.css)"
+assert_eq "a failed fetch is named as possibly stale" \
+  "default-branch-file: style.css at origin/main, commit $sha; the fetch failed, so the last fetched copy may be stale" \
+  "$(last --path style.css)"
+g -C "$repo" config --unset core.hooksPath
 assert_eq "a parent step in --path exits 2" 2 "$(code --path ../style.css)"
 assert_eq "an absolute --path exits 2" 2 "$(code --path /etc/passwd)"
 assert_eq "no arguments exit 2" 2 "$(code)"

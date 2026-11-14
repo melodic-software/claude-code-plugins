@@ -186,6 +186,17 @@ rc=0
 CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_eq "a usage error still exits 0" 0 "$rc"
 
+# A failed fetch keeps the team's level from the last fetched copy, named as possibly stale, rather than
+# dropping to the light default: a reference-transaction hook refuses the fetch's ref update.
+repo=$(fixture stale $'verification: strict\n')
+mkdir -p "$TEST_TMPDIR/hooks"
+printf '#!/bin/sh\nexit 1\n' >"$TEST_TMPDIR/hooks/reference-transaction"
+chmod +x "$TEST_TMPDIR/hooks/reference-transaction"
+g -C "$repo" config core.hooksPath "$TEST_TMPDIR/hooks"
+assert_eq "a failed fetch keeps the last fetched level" \
+  "verification: strict ($F verification $(at "$repo"); the fetch failed, so the last fetched copy may be stale)" \
+  "$(run "$repo")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

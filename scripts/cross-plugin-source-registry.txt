@@ -756,6 +756,14 @@ lib/read-verification.sh
 # duplication audit: the root canonical and the copies.
 lib/read-verification.sh -> plugins/*/lib/read-verification.sh
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/default-branch-file.sh.
+lib/default-branch-file.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/default-branch-file.sh -> plugins/*/lib/default-branch-file.sh
+
 # No dedicated check: accepted. Eval scaffolds refuse a write outside the run home with the
 # same guard. Canonical copy: plugins/animation/evals/fixtures/scaffold-guard.sh.
 evals/fixtures/scaffold-guard.sh
