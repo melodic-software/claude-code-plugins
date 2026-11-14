@@ -459,4 +459,46 @@ write_sheet "$tree" "no markers here"
 assert_fails "a sheet with no markers fails, naming the BEGIN GENERATED pair first" "$tree" \
   "is missing the cheatsheet markers ($GEN_START ... $GEN_END or $OLD_START ... $OLD_END)"
 
+# --- review and pull-request skill map -------------------------------------------
+# map_config <tree> <skill key> <posts> <basis>: fixture config plus one map row.
+map_config() {
+  cat >>"$1/scripts/cheatsheet-config.mjs" <<EOF
+export const REVIEW_PR_MAP_HEADING = "Review map";
+export const REVIEW_PR_AUDIENCES = ["author", "reviewer"];
+export const REVIEW_PR_POSTS = ["yes", "no"];
+export const REVIEW_PR_MAP = [
+  { skill: "$2", job: "Fixture job", audience: ["author", "reviewer"], posts: "$3", basis: "$4" },
+];
+EOF
+}
+
+mk_tree tree
+write_skill "$tree" alpha mapped 'workflow-stage: plan' 'summary: Fixture skill mapped to the plan stage'
+printf 'It never posts to the PR.\n' >>"$tree/plugins/alpha/skills/mapped/SKILL.md"
+map_config "$tree" alpha/mapped no "It never posts to the PR."
+run_gen "$tree"
+sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
+if [[ "$CODE" -eq 0 && "$sheet" == *"## Review map"* && "$sheet" == *"- [Review map](#review-map)"* &&
+  "$sheet" == *"| Fixture job | author, reviewer | no |"* ]]; then
+  ok "map row renders with skill link, job, audience and posts"
+else
+  fail "map row (exit=$CODE: $OUT)"
+fi
+rm -rf "$tree"
+
+mk_tree tree
+map_config "$tree" alpha/mapped no "A quote the skill does not contain"
+assert_fails "a map row whose basis quote is gone fails naming the skill" "$tree" \
+  "review map: alpha/mapped no longer contains its basis quote"
+
+mk_tree tree
+map_config "$tree" alpha/missing no "x"
+assert_fails "a map row naming no listed skill fails" "$tree" \
+  'review map: "alpha/missing" is not a listed skill'
+
+mk_tree tree
+map_config "$tree" alpha/mapped maybe "x"
+assert_fails "a map row with an unknown posts value fails" "$tree" \
+  'review map: alpha/mapped has unknown posts value "maybe"'
+
 test_harness::report

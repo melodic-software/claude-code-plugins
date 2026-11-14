@@ -32,6 +32,10 @@ h2 { font-size: 34px; color: var(--muted); font-weight: 600; margin-bottom: 18px
 .node .label { font-weight: 700; font-size: 36px; }
 .node .detail { color: var(--muted); font-size: 28px; margin-top: 10px; }
 .arrow { font-size: 64px; color: var(--accent); }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.stack .node { max-width: none; }
+.group { display: flex; align-items: stretch; gap: 24px; flex-wrap: wrap; }
+.diagram .center { font-weight: 700; font-size: 44px; color: var(--accent); margin-bottom: 28px; }
 
 .before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
 .side { background: var(--panel); border-radius: 16px; padding: 28px 32px; }

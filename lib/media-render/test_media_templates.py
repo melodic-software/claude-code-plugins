@@ -34,6 +34,18 @@ class TemplatesTest(unittest.TestCase):
         out = self.render('code-hunk', {'lines': [{'kind': 'evil', 'text': 't'}]})
         self.assertIn('<tr class="ctx">', out)
 
+    def test_a_diagram_draws_arrows_only_in_the_flow_layout(self):
+        nodes = [{'label': 'a'}, {'label': 'b'}]
+        self.assertIn('class=arrow', self.render('diagram', {'nodes': nodes}))
+        for layout in ('stack', 'group'):
+            with self.subTest(layout):
+                out = self.render('diagram', {'nodes': nodes, 'layout': layout, 'center': HOSTILE})
+                self.assertNotIn('class=arrow', out)
+                self.assertIn(f'class="{layout}"', out)
+                self.assertIn('class="center">&lt;script&gt;', out)
+        self.assertIn('<div class="flow">', self.render('diagram', {'nodes': nodes, 'layout': 'x" onload="y'}))
+        self.assertIn('<script>', tpl.frame_text({'template': 'diagram', 'data': {'center': '<script>'}}, 't', 'c'))
+
     def test_screenshot_inlines_image_and_rejects_other_files(self):
         with tempfile.TemporaryDirectory() as d:
             Path(d, 'shot.png').write_bytes(b'\x89PNG\r\n')

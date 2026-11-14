@@ -152,8 +152,33 @@ The `markdown` format delivers the record by the same rules, with no page.
 ## Step 5. Offer the video view
 
 When `/explainer-video:produce` is in this session's skill listing, offer a narrated video of the
-record. On a yes, invoke it via the Skill tool with the record's path and no output directory; it
-decides where the video goes and keeps it out of the record's folder. When it is not listed, say in one line that the video view is
+record. On a yes, hand it the record as a storyboard, not as a topic:
+
+1. Make a fresh folder with `mktemp -d`, outside the record's folder, and write
+   `<dir>/storyboard.json` there with the Write tool (version 1, data only, the
+   [storyboard contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0102-hand-produced-video-content-to-the-producer-as-a-data-only-storyboard.md)).
+   Each template's `data` fields are those of the producer's fixture,
+   [`plugins/explainer-video/scripts/fixtures/storyboard.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/explainer-video/scripts/fixtures/storyboard.json).
+2. Start with a `title` moment from the record's title, then one moment per diagram, in the
+   record's order, with the diagram's caption as the note. Keep each kind's shape: only a `flow`
+   draws arrows, since arrows claim each step leads to the next.
+
+   | `kind` | Moment |
+   |---|---|
+   | `flow` | `diagram`, a node per step |
+   | `timeline` | `diagram`, a node per point, `when` as its detail |
+   | `stack` | `diagram` with `layout: "stack"`, a node per layer, top layer first |
+   | `hub` | `diagram` with `layout: "group"`, the hub's `center` as `center`, a node per branch |
+   | `compare` | `diagram` with `layout: "group"`, a node per column, its items as the detail |
+   | `before-after` | `before-after` |
+
+3. Narration: one plain paragraph per moment saying what the frame shows. Add every `terms` entry
+   the reader needs to the narration of the moment that first uses it.
+4. Invoke `/explainer-video:produce` via the Skill tool on `<dir>/storyboard.json` (its stills
+   renderer), with no output directory; it decides where the video goes and keeps it out of the
+   record's folder. Done when it reports the video's path; give that path to the reader.
+
+When it is not listed, say in one line that the video view is
 unavailable because the explainer-video plugin is not installed. Never install it.
 
 ## Boundaries
@@ -165,6 +190,14 @@ unavailable because the explainer-video plugin is not installed. Never install i
 - **Picking the best form for content already in the conversation** (a table, a chart, a
   code-shape sketch) is `/visualization:visualize` via the Skill tool (if installed).
 - **Ongoing coaching** is `/education:teach`.
+
+## Related
+
+- `/review:explain-change` explains one pull request as a digest; it never posts.
+- `/explainer-video:produce` renders the storyboard Step 5 writes into the narrated video.
+- `/playwright:demo-video` records a live UI flow of a web change for a pull request.
+- `/source-control:pull-request` places a finished video in a pull request description.
+- `/review:reviewer-media` builds the walkthrough video of a pull request with the same producer.
 
 ## Next
 
