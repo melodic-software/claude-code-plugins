@@ -41,7 +41,7 @@ the `standard` values; each dimension below replaces the matching rule there.
 - **`states`**: `core` plans populated and empty only; `planned` plans every state the screen has.
 - **`extra_states`**: each entry is one more planned state for every variant, the populated state
   under that condition, as an ordinary `data-screen-state` block the switcher steps to:
-  `narrow-viewport` lays the variant out at a phone width, `dark-scheme` in dark colours,
+  `narrow-viewport` lays the variant out at a phone width, `dark-scheme` in dark colors,
   `reduced-motion` with motion removed. Name them in the plan line with the other states.
 - **`evidence`**: `per-variant` captures one handover screenshot per variant; `per-state` adds one
   per planned state, extra states included.
