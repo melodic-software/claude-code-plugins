@@ -11,7 +11,7 @@ metadata:
 # Module-design vocabulary
 
 The terms, their relations and the checks live in one file,
-[reference/vocabulary.md](reference/vocabulary.md), with the source of each term. Load it and answer
+[`reference/vocabulary.md`](${CLAUDE_PLUGIN_ROOT}/reference/vocabulary.md), with the source of each term. Load it and answer
 from it, using the terms exactly; a skill that names architecture ideas loads this skill rather
 than restating them. This skill reads no repository code.
 

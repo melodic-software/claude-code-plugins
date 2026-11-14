@@ -1,7 +1,7 @@
 # Dependencies and Seams
 
 A deepening candidate is only safe to merge once its dependencies are known, because they decide how
-the merged module will be tested. Terms follow [vocabulary.md](../../../principles/reference/vocabulary.md).
+the merged module will be tested. Terms follow [vocabulary.md](../../../../reference/vocabulary.md).
 
 ## Dependency categories
 

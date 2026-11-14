@@ -144,7 +144,7 @@ to the full card.
 
 ## Wording
 
-Name things only with the [vocabulary.md](../../../principles/reference/vocabulary.md) terms and their derived forms:
+Name things only with the [vocabulary.md](../../../../reference/vocabulary.md) terms and their derived forms:
 
 | Write | Never write in its place |
 |---|---|

@@ -47,7 +47,7 @@ em_dash_allowed_paths:
 rule_allowed_paths:
   rule-ai-vocabulary:
     - "plugins/architecture/skills/improve/research/deepening/**"
-    - "plugins/architecture/skills/principles/**"
+    - "plugins/architecture/reference/vocabulary.md"
 excluded_paths:
   - "plugins/*/skills/*/vendor/**"
   - "plugins/ai-slop/skills/audit/evals/fixtures/**"

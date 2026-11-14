@@ -60,7 +60,7 @@ Four further hazards mislead an agent that edits the code, and each is judged by
 - **Importable internals:** an agent takes the shortest path that compiles and imports internals directly, which makes them part of the interface. Remedy: make internals unreachable from outside, so such an import fails the build.
 - **Hand-synced list:** two or more places list the same items and adding one means editing every list; an agent updates only the list it sees. Remedy: keep one list and derive the others, or fail the build when they disagree.
 
-Put each suspect through the **deletion test** and record one of two results: "concentrates", when removing it would pull logic now spread over its callers into one module (the candidate signal), or "moves", when the same logic would only relocate. The terms are defined in [../../principles/reference/vocabulary.md](../../principles/reference/vocabulary.md).
+Put each suspect through the **deletion test** and record one of two results: "concentrates", when removing it would pull logic now spread over its callers into one module (the candidate signal), or "moves", when the same logic would only relocate. The terms are defined in [../../../reference/vocabulary.md](../../../reference/vocabulary.md).
 
 Classify each candidate's dependencies per [../research/deepening/dependencies.md](../research/deepening/dependencies.md). The category determines testing strategy.
 
@@ -98,7 +98,7 @@ Two acceptance heuristics gate the badge:
 
 The last section of the report is the **Top recommendation**. The scaffold and the diagram patterns are in [../research/deepening/html-report.md](../research/deepening/html-report.md).
 
-Domain nouns come from the project's glossary; architecture nouns come from [../../principles/reference/vocabulary.md](../../principles/reference/vocabulary.md).
+Domain nouns come from the project's glossary; architecture nouns come from [../../../reference/vocabulary.md](../../../reference/vocabulary.md).
 
 **Durable candidate artifact.** Alongside the HTML when one is produced (or standing alone, per the carve-out above), write a machine-readable candidate list that survives the session. The HTML, when produced, is the human-readable companion, ephemeral in the temp dir. Write it to the **memory tier**: `<memory_dir>/<topic-slug>/deepening-candidates-<YYYYMMDDTHHMMSSZ>.md`, default `.work/<topic-slug>/…`. `<memory_dir>` is `.work/` unless the consuming repo's `CLAUDE.md` or `.claude/rules` declares another working-docs root. `<topic-slug>` is the scan focus the user named (a path, a subsystem or a module), whether in the invocation arguments or the conversation, else the current branch name, kebab-case. On the session's first memory-tier write, verify the memory root contains a `.gitignore` with `*`, creating it with the Write tool (announced) when absent, never with a shell redirect, and never editing the consumer's root `.gitignore`; create the topic slice directory when absent. Tell the user the path. This file, not the HTML, is the durable handoff a planning step consumes. One entry per candidate:
 
