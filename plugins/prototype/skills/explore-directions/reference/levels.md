@@ -24,9 +24,13 @@ node "<plugin-root>/lib/prototype-settings.mjs" resolve --option '<option>' [--a
 
 It prints one JSON line, the report line (`level: <name> (<layer>)`), then one `notice:` line per
 value it ignored. Print the report line and every notice as they stand, just above the plan line.
-Exit 2 is a usage error: say so in one line and run it again without the flag it names. When `node`
-is missing or the resolver fails another way, say so in one line in place of the report line and
-plan as SKILL.md describes, which is the `standard` level.
+Exit 2 is a usage error: say so in one line and run it again without the flag it names.
+
+When the resolver cannot run (`node` is missing or not runnable, or it fails another way), print
+`level: standard (default; resolver unavailable: <reason>)` in place of the report line, with the
+reason in a few words, and plan as SKILL.md describes, which is the `standard` level. Never read
+`prototype.yaml` or another settings file by hand to guess a level or its layer: a value read that
+way skips the cascade's validation and the layers above it.
 
 ## Apply the definition
 
