@@ -4171,6 +4171,56 @@ bps_refused() {
   fi
 }
 
+# bps_refusal_is <desc> <command> <label> <want>: with HOOK_BPS_SPAN set to
+# <label> (empty: unset) the reader refuses <command> (exit 2) with exactly <want>.
+bps_refusal_is() {
+  local desc="$1" out rc=0
+  out=$(
+    # shellcheck disable=SC2329  # the parse callback
+    bps_print() { :; }
+    [[ -n "$3" ]] && HOOK_BPS_SPAN=$3
+    hook::bash_parse_segments "$2" bps_print 2>&1
+  ) || rc=$?
+  if ((rc == 2)) && [[ "$out" == "$4" ]]; then
+    ok "bash_parse_segments refusal: $desc"
+  else
+    fail "bash_parse_segments refusal $desc: exit $rc, got [$out], want [$4]"
+  fi
+}
+bps_xg='an extglob pattern, which shfmt and bash do not read the same way'
+bps_refusal_is 'of the command itself keeps its wording' \
+  '@(x)#y; git reset --hard' '' \
+  "BLOCKED: the guard reads a command through shfmt and got no parse ($bps_xg), so it cannot check this call. Fix the syntax, or install shfmt and jq, then reissue the call."
+bps_refusal_is 'of a lifted span names the label and shows the span' \
+  $'@(x)#y;\x01\ngit reset --hard' 'guard-x: a body lifted from the command' \
+  "BLOCKED: the guard reads text it lifted from the command through shfmt and got no parse ($bps_xg), so it cannot check this call. Lifted text: guard-x: a body lifted from the command. A line:col in that reason counts from the start of that text, not of the command; the text begins: \"@(x)#y; git reset --hard\". Fix the syntax there, or install shfmt and jq, then reissue the call."
+bps_refusal_is 'of a lifted span caps its excerpt at 60 characters' \
+  "@(x)#y; $(printf 'a%.0s' {1..80})" 'guard-x: a body' \
+  "BLOCKED: the guard reads text it lifted from the command through shfmt and got no parse ($bps_xg), so it cannot check this call. Lifted text: guard-x: a body. A line:col in that reason counts from the start of that text, not of the command; the text begins: \"@(x)#y; $(printf 'a%.0s' {1..52})...\". Fix the syntax there, or install shfmt and jq, then reissue the call."
+# shfmt keeps `$\<newline>(` in a body as text; the joined reading opens a `$(`
+# that never closes, and its refusal names that reading.
+bps_refused 'a joined here-doc body reading names itself' \
+  $'cat <<E\n$\\\n(\nE' \
+  'an unquoted here-doc body, its backslash-newlines joined'
+# A parse a callback starts inside that reading names no reading: its text is
+# the callback's, not the joined body.
+bps_rc=0
+bps_out=$(
+  # shellcheck disable=SC2329  # the inner parse callback
+  bps_print() { :; }
+  # shellcheck disable=SC2329  # the parse callback
+  bps_reparse() {
+    [[ "$1" == bash && "${2:-}" == -c ]] && hook::bash_parse_segments "$3" bps_print
+    return 0
+  }
+  hook::bash_parse_segments $'cat <<E\n$\\\n(bash -c \'git x(\')\nE' bps_reparse 2>&1
+) || bps_rc=$?
+if ((bps_rc == 2)) && [[ "$bps_out" == 'BLOCKED: the guard reads a command through shfmt and got no parse ('* && "$bps_out" != *Lifted* ]]; then
+  ok "bash_parse_segments refusal: a callback's parse inside a second reading names no reading"
+else
+  fail "bash_parse_segments refusal: a callback's parse inside a second reading: exit $bps_rc, [$bps_out]"
+fi
+
 
 bps_bash_hit 'array assignment ) leaves a # after it literal' \
   'a=(x)#y; git reset --hard'
