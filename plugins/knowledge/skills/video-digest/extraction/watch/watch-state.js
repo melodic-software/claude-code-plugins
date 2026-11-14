@@ -87,8 +87,8 @@ import {
  * @property {number} fromSec - range start, full-video seconds
  * @property {number|null} toSec - range end, full-video seconds; null when open-ended
  * @property {number} offsetSec - added to every media-time stamp (equals `fromSec`)
- * @property {'keyframe'} cut - yt-dlp stream-copies the section, so the cut lands on the
- *   keyframe at or before `fromSec`
+ * @property {'keyframe'} cut - the cut is not forced to `fromSec`, so the media can begin
+ *   before it (see `lib/time-range.js` for where to read the cut behavior live)
  * @property {number|null} [offsetErrorSec] - how far, at most, a media-time stamp plus
  *   `offsetSec` can sit after the true full-video time: the media's length beyond the
  *   range. Set once the media is probed; null when a duration was unknown

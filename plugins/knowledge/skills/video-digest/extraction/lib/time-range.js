@@ -5,11 +5,11 @@
  * so the media file starts at the range's start. Watching runs in that media time;
  * everything the slice stores is full-video time, the range's start added back here.
  *
- * yt-dlp cuts a section with ffmpeg `-ss` before the input and `-c copy` unless
- * `--force-keyframes-at-cuts` is set, and with stream copy ffmpeg seeks to the
- * closest seek point before the start and keeps the segment between them. The media
- * can therefore begin up to one keyframe interval before `--from`, and that much
- * extra length is the error bound recorded on the offset ({@link keyframeOffsetErrorSec}).
+ * We do not force the cut to `--from` (no `--force-keyframes-at-cuts`), so the media
+ * can begin before it; the extra length is the error bound recorded on the offset
+ * ({@link keyframeOffsetErrorSec}). Where the cut lands is read live: yt-dlp's
+ * download options (https://github.com/yt-dlp/yt-dlp#download-options) and ffmpeg's
+ * `-ss` (https://ffmpeg.org/ffmpeg.html#Main-options).
  */
 
 import { formatClock } from "../watch/duration-mismatch.js";
@@ -97,7 +97,8 @@ export function describeTimeRange(range) {
  * Error bound on the range's start offset: how much longer the media is than the
  * range asked for, which is the segment a keyframe-aligned cut kept before `--from`.
  * Zero when the range starts at 0 (nothing to seek). Null when either duration is
- * unknown.
+ * unknown. A `--to` past the video's end is capped at the video duration, since the
+ * media then stops at the end of the video, not at `--to`.
  *
  * @param {TimeRange} range
  * @param {{ probedDurationSec: number|null|undefined, videoDurationSec: number|null|undefined }} durations
@@ -105,7 +106,10 @@ export function describeTimeRange(range) {
  */
 export function keyframeOffsetErrorSec(range, { probedDurationSec, videoDurationSec }) {
   if (range.fromSec === 0) return 0;
-  const endSec = range.toSec ?? videoDurationSec;
+  const endSec =
+    range.toSec !== null && isFiniteNumber(videoDurationSec)
+      ? Math.min(range.toSec, videoDurationSec)
+      : (range.toSec ?? videoDurationSec);
   if (!isFiniteNumber(endSec) || !isFiniteNumber(probedDurationSec)) return null;
   const extra = probedDurationSec - (endSec - range.fromSec);
   return Math.max(0, Math.round(extra * 1000) / 1000);

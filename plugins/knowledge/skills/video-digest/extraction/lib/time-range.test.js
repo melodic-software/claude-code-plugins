@@ -76,6 +76,21 @@ describe("keyframeOffsetErrorSec", () => {
     ).toBe(3);
   });
 
+  it("caps a --to past the video's end at the video duration", () => {
+    expect(
+      keyframeOffsetErrorSec(
+        { fromSec: 3600, toSec: 32400 },
+        { probedDurationSec: 28705, videoDurationSec: 32300 },
+      ),
+    ).toBe(5);
+    expect(
+      keyframeOffsetErrorSec(
+        { fromSec: 3600, toSec: 32400 },
+        { probedDurationSec: 28705, videoDurationSec: null },
+      ),
+    ).toBe(0);
+  });
+
   it("is zero from the start and null when a duration is unknown", () => {
     expect(
       keyframeOffsetErrorSec(
