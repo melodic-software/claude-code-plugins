@@ -297,7 +297,7 @@ out="$(check "$REPO")"
 rest="${out#*|}"
 expect "merge: a script the resolution edits is rewritten, listed, and blocks" "1|x.sh" "${out%%|*}|${rest%%|*}"
 expect "merge: the findings include the appended line" yes \
-  "$(printf '%s\n' "${rest#*|}" | grep -q '^x\.sh:5: warning: .*\[SC2164\]$' && echo yes)"
+  "$(grep -q '^x\.sh:5: warning: .*\[SC2164\]$' <<<"${rest#*|}" && echo yes)"
 
 # A PATH without one of the tools the script runs.
 bin_without() { # <dir> <tool-to-omit>
