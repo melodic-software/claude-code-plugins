@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [9.0.1] - 2026-11-14
+
+### Changed
+
+- The verification level reader now reads the team file through the shared default-branch reader, `lib/default-branch-file.sh`, which this plugin now carries; levels and messages are unchanged.
+
+- `recommend-skills`' candidate ladder now describes the generated skill cheat sheet as also carrying each skill's actions and successors, read from its `argument-hint` and `## Next` section.
+
 ## [9.0.0] - 2026-11-14
 
 ### Changed
