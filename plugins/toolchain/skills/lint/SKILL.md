@@ -215,7 +215,7 @@ Below the table, name every unclaimed changed text file (section 1, step 4) on o
 - `No ecosystem linter (cross-cutting text checks only): <path>, <path>` when cross-cutting ran in this invocation, so its row covered them;
 - `Outside every ecosystem: <path>, <path>` when it did not.
 
-Neither line changes a Status or the Overall line, and no binary file is on either. Say nothing about a binary file anywhere in the reply: no table row, no bullet, and no note that it is binary, was skipped or was ignored.
+Neither line changes a Status or the Overall line, and no binary file is on either. Say nothing about a binary file outside every ecosystem: no table row, no bullet, and no note that it is binary, was skipped or was ignored.
 
 ### 4. Fix mode notes
 
@@ -240,7 +240,7 @@ The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:ch
 - **Missing tools**: report as `skip (tool missing: <tool>)` with the install hint, not as failure, and never as done: the Overall line reads `INCOMPLETE`. Scoped to the tool the ecosystem's commands are invoked through, not every sub-tool a compound command reaches (an un-probed sub-tool's absence is a real non-zero exit, so `FAIL`; see `/toolchain:check`'s Gotchas)
 - **Opt-in unmet**: report as `skip (opt-in unmet: ...)` with the condition, not as failure and not a silent omission (e.g., dotnet with no C#-relevant `.editorconfig`)
 - **Multiple projects in same ecosystem**: run per-project (each `pyproject.toml`, each `package.json`)
-- **File outside any ecosystem**: a text file is named on one of the two unclaimed-file lines; a binary file (images, archives) gets no mention anywhere in the reply, not even to say it was skipped
+- **File outside any ecosystem**: a text file is named on one of the two unclaimed-file lines; a binary file (images, archives) outside every ecosystem gets no mention in the reply, not even to say it was skipped
 - **CWD drift**: always use absolute paths from `$REPO_ROOT`
 - **`--code-fix` over file-cap without `--all-files`**: plan + stop, never mutate
 - **`--code-fix` in non-interactive session without `--yes`**: plan + stop, never mutate
