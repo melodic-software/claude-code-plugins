@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.34.2] - 2026-11-14
+
+### Fixed
+
+- `skill-authoring` loads in sessions that grant no Bash. Its prose example of the inline injection syntax no longer puts `!` right after whitespace, where the loader read it as a command to run.
+
 ## [0.34.1] - 2026-11-14
 
 ### Changed
