@@ -1436,6 +1436,35 @@ class AutoMergeArming(unittest.TestCase):
             result["autoMerge"]["blockers"],
         )
 
+    def test_display_named_security_caller_check_satisfies_the_security_lane(
+        self,
+    ) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("PR Review / claude-review-status", "SUCCESS"),
+                _check("PR Review Security / security-review", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertTrue(result["autoMerge"]["ready"], result["autoMerge"])
+
+    def test_failing_display_named_security_caller_check_holds(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("PR Review / claude-review-status", "SUCCESS"),
+                _check("PR Review Security / security-review", "FAILURE"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertFalse(result["autoMerge"]["ready"], result["autoMerge"])
+        self.assertIn(
+            "AI review check 'claude-security-review-status' has not "
+            "succeeded on the live head",
+            result["autoMerge"]["blockers"],
+        )
+
     def test_pr_review_cli_review_status_checks_satisfy_both_lanes(self) -> None:
         result = self._evaluate(
             [
