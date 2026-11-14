@@ -490,8 +490,9 @@ function orderProblem(order, count) {
 // not thin.
 // A size split comes first (selectSizeSplit), with its own guard; `note`
 // records why a parked issue is not split. `statusOf` (read-status.mjs
-// statusReader), when given, decides the label names the needs-human check
-// reads, so a hold only the Work status field holds counts.
+// statusReader), when given, decides the label names the needs-human and
+// split checks read, so a hold or an admission park only the Work status
+// field holds counts.
 export async function selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig, statusOf, note = () => {} }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
@@ -502,8 +503,8 @@ export async function selectRefinement({ github, repository, number, humans, app
   if (!authorAdmitted(issue, humans, appId)) {
     return no("the author is neither a listed human nor the lanes App");
   }
-  const labels = labelNames(issue);
-  if ((statusOf ? await statusOf(number, labels) : labels).includes(NEEDS_HUMAN)) {
+  const labels = statusOf ? await statusOf(number, labelNames(issue)) : labelNames(issue);
+  if (labels.includes(NEEDS_HUMAN)) {
     return no(`a person holds it (${NEEDS_HUMAN})`);
   }
   const comments = await paginate(github, `${base}/comments`);

@@ -72,7 +72,10 @@
 // stands in) and runs intake's admission
 // rules on it (admit.mjs decide). It is admitted within the room only on an
 // admit verdict. A refusal gets admit.mjs's comment, `needs-owner-decision`
-// for `status: ready` when it holds for a person, else `status: confirmed`, as
+// for `status: ready` when it holds for a person, needs-triage when its one
+// reason is done-when items a lane run cannot perform beside items it can
+// (decide's `triage`: the triage sweep sends it to intake, whose refine step
+// splits them), else `status: confirmed`, as
 // intake's admit parks it; a wait on an open pull request stays deferred, and
 // one on a blocker goes back to ready, so its blocker's close admits it. One
 // the rules leave alone loses its deferral (dropDeferral) with a comment
@@ -1331,8 +1334,10 @@ async function sendToTriage({ github, repo, number, base, comments, decision, re
   return false;
 }
 
+const NEEDS_TRIAGE = "needs-triage";
+
 // The Work status a refusal's parking label (`status`) is written as.
-const refusedState = (status) => (status === NEEDS_DECISION ? "needs-owner-decision" : "confirmed");
+const refusedState = (status) => (status === NEEDS_DECISION ? "needs-owner-decision" : status === NEEDS_TRIAGE ? NEEDS_TRIAGE : "confirmed");
 
 // The lane name work-unblock's stop-reason markers carry (../lib/stop-reason.mjs).
 const UNBLOCK_LANE = "work-unblock";
@@ -1367,8 +1372,10 @@ export function lapsedReason(lapsed) {
 const decisionReason = (decision) => (decision.hold ? (decision.reason ?? "intent") : null);
 
 // The parking label of a refusal whose owner reason is `code`: needs-decision
-// when a person settles it, else status: confirmed for a park (`code` null).
-const parkingStatus = (code) => (code === null ? CONFIRMED : NEEDS_DECISION);
+// when a person settles it, else status: confirmed for a park (`code` null),
+// or needs-triage for decide's `triage` (a split only an intake run makes), so
+// the triage sweep dispatches that run.
+const parkingStatus = (code, triage = false) => (code !== null ? NEEDS_DECISION : triage ? NEEDS_TRIAGE : CONFIRMED);
 
 // Refuses a deferred issue for `reasons`: the admission comment (`comments`
 // its comments; heldText with `code`) first, then the Work status the
@@ -1401,10 +1408,11 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
     await admit({ github, repo, number, gate, deferred: true, appId, writer });
   } else if (decision.verdict === "refuse") {
     // As intake's admit: needs-decision only when a person settles a reason;
-    // any other refusal (a split, a merged Refs pull request, a manual
-    // external step beside attended, itself a hold) parks at status: confirmed.
+    // a split only an intake run makes (decide's `triage`) at needs-triage;
+    // any other refusal (a merged Refs pull request, a manual external step
+    // beside attended, itself a hold) parks at status: confirmed.
     const code = decisionReason(decision);
-    const status = parkingStatus(code);
+    const status = parkingStatus(code, decision.triage);
     if (!(await refuseDeferred({ github, repo, number, comments: facts.comments, reasons, labels: decision.attended ? [status, ATTENDED] : [status], code, writer }))) {
       console.log(`label-unblocked: #${number}, marked by a person, refused: ${reasons}`);
     }
@@ -1438,8 +1446,9 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
 // listed human nor the App added, or whose agent-ready removal stands
 // (admit.mjs admissionSettled). The writes are intake's (admit.mjs admit): an admit
 // verdict within the gate's room gets agent-ready, past it deferred;
-// a refusal parks at status: confirmed, or needs-owner-decision when it
-// holds for a person; a wait on an open pull request is set deferred. `names`
+// a refusal parks at status: confirmed, needs-owner-decision when it
+// holds for a person, or needs-triage for a split only an intake run makes
+// (decide's `triage`); a wait on an open pull request is set deferred. `names`
 // gives a listed issue's names as the Work status field decides them
 // (listedNames).
 // A born-triaged issue whose fields are not set yet (admissionDecision `fields`)
@@ -1528,7 +1537,7 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
       } else if (decision.verdict === "refuse") {
         // As intake's admit: the parking state is the one write.
         const code = decisionReason(decision);
-        if (await heldOnSet(writer, number, refusedState(parkingStatus(code)))) {
+        if (await heldOnSet(writer, number, refusedState(parkingStatus(code, decision.triage)))) {
           continue;
         }
         if (decision.attended) {

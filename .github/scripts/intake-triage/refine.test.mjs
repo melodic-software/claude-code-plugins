@@ -979,6 +979,18 @@ describe("split", () => {
       assert.equal(foreign.refine, false);
     });
 
+    // Admission writes only the Work status field, so the parked state reaches
+    // refine-select as the field decides the labels, never as a label.
+    test("selects an issue parked at confirmed on the Work status field alone, and not one the App already refined", async () => {
+      const selectBy = (fake) => selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }), statusOf: fake.statusOf });
+      const fielded = fakeGitHub({ issue: held({ labels: [] }), comments: heldComments, events: [], fields: onField(APP, "confirmed") });
+      const result = await selectBy(fielded);
+      assert.equal(result.refine, true, result.reason);
+      assert.deepEqual(result.context.split.items.map(({ n }) => n), [2]);
+      const again = await selectBy(fakeGitHub({ issue: held({ labels: [] }), comments: [...heldComments, refined(BODY)], events: [], fields: onField(APP, "confirmed") }));
+      assert.deepEqual(again, { refine: false, reason: "the lanes App already refined this body" });
+    });
+
     test("the split lifts status: confirmed through the field alone and asks for re-triage", async () => {
       const fake = fakeGitHub({ issue: parked(), comments: heldComments, events: [] });
       assert.deepEqual(await apply(fake), { outcome: "split", redispatch: true });

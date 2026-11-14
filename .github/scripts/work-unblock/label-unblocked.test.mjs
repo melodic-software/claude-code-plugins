@@ -7325,6 +7325,41 @@ test("a status: ready issue in no queue refused for a manual external step parks
   ]);
 });
 
+// refine.mjs splits done-when items a lane run cannot perform only in an
+// intake run, so this sweep's refusal for that split alone parks at
+// needs-triage, where the triage sweep dispatches intake; every item
+// unrunnable is host work and parks at status: confirmed as before.
+const SPLIT_BODY = "Fix it.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Run it on a Windows 11 host.";
+const HOST_BODY = "Fix it.\n\n## Done when\n\n- [ ] Run it on a Windows 11 host.";
+
+test("a status: ready issue in no queue refused only for a partial split parks at needs-triage, born triaged or not", async (t) => {
+  t.mock.method(console, "log", () => {});
+  for (const body of [SPLIT_BODY, `${SPLIT_BODY}\n\n<!-- work-items:born-triaged -->\n`]) {
+    const { github, calls, writer } = readyWorld({ items: [readyIssue(26, { body })] });
+    assert.equal(await sweep({ github, writer, admission: admissionFor() }, PAUSING), 0);
+    const posted = writes(calls);
+    assert.equal(posted.length, 2, posted.join("\n"));
+    assert.equal(posted[0], "SET 26 needs-triage", body);
+    assert.ok(posted[1].startsWith(`POST /repos/${REPO}/issues/26/comments`) && posted[1].includes("recommended split"), posted[1]);
+  }
+});
+
+test("a status: ready issue in no queue whose every done-when item is unrunnable still parks at status: confirmed", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls, writer } = readyWorld({ items: [readyIssue(26, { body: HOST_BODY })] });
+  assert.equal(await sweep({ github, writer, admission: admissionFor() }, PAUSING), 0);
+  assert.equal(writes(calls)[0], "SET 26 confirmed");
+});
+
+test("a person's mark refused only for a partial split parks at needs-triage", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls, writer } = markedWorld({ body: SPLIT_BODY });
+  assert.equal(await sweep({ github, writer, admission: admissionFor() }, PAUSING), 0);
+  const posted = writes(calls);
+  assert.ok(posted.includes("SET 25 needs-triage"), posted.join("\n"));
+  assert.ok(!posted.includes("SET 25 confirmed"), posted.join("\n"));
+});
+
 test("a status: ready issue in no queue an open pull request is for gets admission-deferred and the wait comment", async (t) => {
   t.mock.method(console, "log", () => {});
   const { github, calls, writer } = readyWorld({ extra: { timeline: { 26: [{ ...namingPull("open"), source: { issue: { ...namingPull("open").source.issue, body: "Refs: #26" } } }] } } });
