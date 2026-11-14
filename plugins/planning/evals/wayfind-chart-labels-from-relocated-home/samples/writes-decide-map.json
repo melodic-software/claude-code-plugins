@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "/work-items:track add --label 'decide: map' --body-file map-body.md \"Map: order-history export\"",
+      "why": "matches"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/work-items:track add --label 'wayfind: map' --body-file map-body.md \"Map: order-history export\"",
+      "why": "does not match"
+    }
+  ]
+}

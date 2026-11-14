@@ -20,19 +20,22 @@ that this tracker cannot hold a map.
 Every link written into a map body, item body or comment is an absolute URL (an item's web URL,
 not a qualified ID or a bare `#<n>`).
 
+`<prefix>` and `<human-gated>` below are the labels SKILL.md "Pre-computed context" resolved from
+the tracker binding.
+
 ## Find open maps
 
-`/work-items:track list --label 'wayfind: map' --state open`. Name each map by title, ID as a
+`/work-items:track list --label '<prefix> map' --state open`. Name each map by title, ID as a
 suffix.
 
 ## Check labels (first use in a repo)
 
-`/planning:wayfind` uses its own taxonomy: `wayfind: map`, `wayfind: research|interview|design|prototype|task`
+`/planning:wayfind` uses its own taxonomy: `<prefix> map`, `<prefix> research|interview|design|prototype|task`
 (axis labels follow the colon-space grammar so label-as-code owners with a `prefix: value` convention
-can declare them verbatim), `needs-human`. At chart-mode entry, **verify** the taxonomy is present,
+can declare them verbatim), `<human-gated>`. At chart-mode entry, **verify** the taxonomy is present,
 because creating an item with an unknown label fails:
 
-`/work-items:track labels 'wayfind: map' 'wayfind: research' 'wayfind: interview' 'wayfind: design' 'wayfind: prototype' 'wayfind: task' needs-human`
+`/work-items:track labels '<prefix> map' '<prefix> research' '<prefix> interview' '<prefix> design' '<prefix> prototype' '<prefix> task' '<human-gated>'`
 
 It prints one `MISSING: <name>` line per absent label. Read the consuming repository's instructions
 and configuration for label ownership. If they declare a label-as-code source of truth, treat that
@@ -43,8 +46,8 @@ hoc.
 
 ## Create / extend the map
 
-`/work-items:track add --label 'wayfind: map' --body-file <map-body.md> "Map: <effort>"`
-(the `wayfind: map` label is what keeps the map out of triage and claimable work; a map never
+`/work-items:track add --label '<prefix> map' --body-file <map-body.md> "Map: <effort>"`
+(the `<prefix> map` label is what keeps the map out of triage and claimable work; a map never
 carries the work-items container label, which marks a spec container), adding
 `--label` for any repo program labels. Body per [`map-anatomy.md`](map-anatomy.md). Extending an
 existing map edits its body: read it with `/work-items:track view <map-id>`, change the section, and
@@ -54,11 +57,11 @@ A map is never assigned and never carries a claim label: it is a container, not 
 
 ## Create a typed decision item (a child of the map)
 
-`/work-items:track add --parent <map-id> --label 'wayfind: <research|interview|design|prototype|task>' --body-file <item-body.md> "<topic>"`
+`/work-items:track add --parent <map-id> --label '<prefix> <research|interview|design|prototype|task>' --body-file <item-body.md> "<topic>"`
 
 The body holds the question and the criteria an answer must meet, and for a `prototype` item
 whether it is logic or UI, laid out as [`map-anatomy.md`](map-anatomy.md) "Prototype item body"; it never states the type, which the label carries. Materialize the mode at creation:
-add `--label needs-human` only when the item needs the user's intent or vision, whatever its type
+add `--label '<human-gated>'` only when the item needs the user's intent or vision, whatever its type
 (SKILL.md "Readiness"). Create every item first, with no reference to another item in its body.
 
 ## Wire edges and cross-references (second pass, real ids only)
@@ -74,29 +77,29 @@ precondition for phrasing or answering the dependent decision.
 ## Compute the frontier
 
 `frontier = open ∧ zero OPEN blockers ∧ unassigned` (in non-interactive sessions, also
-`∧ NOT needs-human`):
+`∧ NOT <human-gated>`):
 
 Read the map body with `/work-items:track view <map-id>` and list every child with
 `/work-items:track list --parent <map-id>`; open a child's body with `view` only when the step at
 hand needs it. Keep the items that are open, have no assignee, and have
 `blocked_by_count - blocked_by_wont_do_count == 0`, ordered by creation (ascending item number);
-in a non-interactive session also drop items labeled `needs-human`. Derive it here rather than with `/work-items:track
+in a non-interactive session also drop items labeled `<human-gated>`. Derive it here rather than with `/work-items:track
 frontier`, whose count keeps a blocker closed as not planned blocking: a wayfind blocker closed as
 moot or out of scope no longer gates its dependent, so the dependent rejoins the frontier. The same
 listing, closed items included, serves the map hygiene checks.
 
 ## Claim a frontier item (the `work-items` claim model, one model across both)
 
-Before claiming a `needs-human` item, count the map's open children that carry `needs-human`, do
-not carry `wayfind: research`, and are assigned to the session identity (the person the claim
+Before claiming a `<human-gated>` item, count the map's open children that carry `<human-gated>`, do
+not carry `<prefix> research`, and are assigned to the session identity (the person the claim
 would assign), from the same listing; other assignees' items do not count. At `wayfind_hitl_concurrency` or more, do not claim it.
-Two sessions can both pass that count before either claims, so once a `needs-human` claim
+Two sessions can both pass that count before either claims, so once a `<human-gated>` claim
 succeeds, list the children again and recount. Over the limit, rank the counted claims by claim
 order: read each one's active lease comment id (a counted item with no lease comment yet ranks
 last), and the `wayfind_hitl_concurrency` earliest ids keep the slots. When yours is not among
 them, back off: `release` the lease with the `lease_comment_id` the claim returned (on exit `6`
 the lease waits out its TTL), clear your assignee, and pick again from the frontier (no other
-`needs-human` item while the slots stay full). This holds because a claimant recounts only after
+`<human-gated>` item while the slots stay full). This holds because a claimant recounts only after
 posting its own lease, so the later of two claimants always sees the earlier lease and is the one
 that backs off; an earlier claim never needs to recheck.
 

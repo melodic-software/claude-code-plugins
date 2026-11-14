@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.1.1] - 2026-11-14
+
+### Fixed
+
+- **`/work-items:triage` shapes an unstructured bug report without the `bugs` plugin.** It calls `/bugs:write` only when `bugs` is installed; otherwise it shapes the report inline into the same five fields and says once what `bugs` would add.
+
 ## [15.1.0] - 2026-11-13
 
 ### Added

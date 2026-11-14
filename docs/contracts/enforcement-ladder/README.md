@@ -1,5 +1,5 @@
 ---
-enforcement-ladder: 2.1.1
+enforcement-ladder: 3.0.0
 ---
 
 # Enforcement ladder
@@ -15,7 +15,7 @@ backticks instead. `scripts/shared-copies.txt` lists the copies.
 
 ## Rungs
 
-Four tiers, strongest first. Inside a tier the rungs run strongest first too, and cost only breaks
+Five tiers, strongest first. Inside a tier the rungs run strongest first too, and cost only breaks
 ties. A rung id in backticks is a value skills write into proposals and stubs; a rung without an id
 is named in prose only.
 
@@ -47,18 +47,22 @@ a row says otherwise, the same command runs at edit time and in CI, which is the
 | Compiler or type settings | a stricter compiler or type-checker option (nullable reference types, `strict` mode, warnings as errors) that rejects the mistake at build time | edit time and CI |
 | `editorconfig-severity` | raise the severity of a setting `.editorconfig` already supports | edit time and CI |
 | `analyzer-pack-rule` | turn on, or raise the severity of, a diagnostic an installed analyzer pack or linter already defines | edit time and CI |
-| `custom-analyzer` | write a Roslyn analyzer for a project-specific invariant in C# | edit time and CI |
-| `semgrep-rule` | write a Semgrep rule for a syntactic pattern in any language | edit time and CI |
-| `architecture-test` | a test over the dependency graph or the module layout (which module may reference which, which namespace belongs to which layer), such as ArchUnitNET for .NET or dependency-cruiser for JavaScript and TypeScript | edit time and CI |
+| `custom-analyzer` | write an analyzer the compiler or linter runs, for a project-specific invariant no installed pack checks | edit time and CI |
+| `syntax-pattern-rule` | write a rule that matches a pattern in the syntax tree of the source, such as a dangerous call, an injection sink or a secret shape, with a matcher that can cover more than one language | edit time and CI |
+| `architecture-test` | a test over the dependency graph or the module layout (which module may reference which, which namespace belongs to which layer), written with the repository's own architecture-test library | edit time and CI |
 | Tests | a unit, integration or end-to-end test that fails when the behavior is wrong | edit time and CI |
 | `harness-setting` | a Claude Code setting that blocks the action: permission deny rules, skill frontmatter flags | edit time |
 | `action-guard` | a Claude Code hook on an action no file check sees, such as a force-push or a write outside the tree | edit time |
-| `scaffold` | a template or generator that produces the right shape, the last rung before prose | edit time |
+| `scaffold` | a template or generator that produces the right shape, the last static-analysis rung | edit time |
+
+Alias: `semgrep-rule` is read as `syntax-pattern-rule`, with a printed notice, through 3.x.
+A skill that meets the old id, in a consumer's instructions or a stub, takes it as the new id and
+prints a notice naming the rename. The alias is removed in 4.0.0.
 
 The four linter rungs (`editorconfig-severity`, `analyzer-pack-rule`, `custom-analyzer`,
-`semgrep-rule`) sit between the compiler settings and `architecture-test`, cheapest first. Which CI
-lane runs a check and how its result reaches the required status check belongs to the PR pipeline
-convention
+`syntax-pattern-rule`) sit between the compiler settings and `architecture-test`, cheapest first.
+Which CI lane runs a check and how its result reaches the required status check belongs to the PR
+pipeline convention
 (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md>);
 this ladder only says where a check runs. A git hook or a CI job is a place a check runs, not a
 rung. A hook on code content is the same check as a linter rule or a test, so it takes that rung's
@@ -66,7 +70,25 @@ place in the table; a hook on an action is an `action-guard`.
 `/harness-config:audit-automation-gaps` decides whether an `action-guard` earns its place, when
 that skill is available.
 
-### Tier 3: Guidance
+### Tier 3: Verification
+
+A machine runs the built system, or checks a model of it, and shows that a stated property holds.
+Tests, property-based tests included, stay on the static-analysis tier with the other
+deterministic checks that block a change. A verification rung runs the built system as its user
+meets it, or checks every state a model can reach.
+
+1. **`runtime-verification`**: the agent or a check runs the built application through the
+   interface its user uses, follows each feature's path, and records evidence that the feature
+   works and its invariants hold: output, a screenshot or a recording. A reviewer reads that
+   evidence rather than the diff alone. It runs at edit time, before the change is reviewed, and in
+   CI where the application can run there.
+2. **`formal-verification`** (opt-in): a model of the system's states, or a proof about one
+   algorithm, that a machine checks against every reachable state or input, such as a model
+   checker over a state machine or a proof assistant over an algorithm. It is one more layer, not a
+   replacement for the tiers above. A skill places a rule here only when the repository's project
+   instructions opt in to formal verification; otherwise it skips this rung.
+
+### Tier 4: Guidance
 
 A model reads it and nothing blocks. Because nothing checks these rungs, state the rule where the
 reader meets it and put an example of the mistake beside it.
@@ -80,10 +102,27 @@ reader meets it and put an example of the mistake beside it.
 3. **`skill`**: a procedure loaded on demand. Add the procedure to an existing skill first; a new
    skill is the last resort.
 
-### Tier 4: Human only
+### Tier 5: Human only
 
 1. **`human-review`**: the last rung id. Project docs a person applies: background a reader needs
    but no one enforces. It is where a concern lands when no rung above can hold it.
+
+### Proportion
+
+Most of a repository's enforcement belongs on the strongest tiers. The codebase and static
+analysis hold the most rules, verification holds fewer, and guidance and human review hold the
+least. The proportion is a direction, not a target: no share or count is set. A repository whose
+rules sit mostly on guidance moves a rule up the ladder when it recurs after it was loaded, as "A
+recurring correction" below says.
+
+### Order of work
+
+Before automating a loop (an agent making changes with no person at each step), work in this
+order: lint first, so a check blocks new cases of a bad pattern; clean up the old cases the lint
+reports; strengthen verification, so a change's result is shown rather than assumed; then
+automate. Automation repeats what the loop already produces, so a step skipped before it is
+repeated with every run. `/toolchain:ratchet` blocks new cases while old ones remain, when that
+skill is available.
 
 ### Where boundary rules live
 
@@ -103,8 +142,8 @@ own:
 
 ## Guardrail criterion
 
-A finding earns a deterministic rung (tier 1 or 2) only if all eight hold. This section is the one
-place the readers point to for the question.
+A finding earns a deterministic rung (the codebase or static-analysis tier) only if all eight hold.
+This section is the one place the readers point to for the question.
 
 1. It can be decided without reasoning: a machine reaches the same verdict every time.
 2. It recurs past the threshold, or once if it is policy-class (a rule the repository states as

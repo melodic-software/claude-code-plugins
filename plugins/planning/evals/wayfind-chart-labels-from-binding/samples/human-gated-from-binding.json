@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "'Decide what the digest promises a first-time reader': decide: interview, owner-call. 'Pick the digest batching window': decide: design.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "'Decide what the digest promises a first-time reader': decide: interview, needs-human. 'Pick the digest batching window': decide: design.",
+      "why": "breaks the rule"
+    }
+  ]
+}

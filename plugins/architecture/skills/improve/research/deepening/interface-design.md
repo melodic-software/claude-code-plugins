@@ -7,7 +7,7 @@ shallow interface, once callers depend on it, stays for years.
 
 Each section below is written for whoever reads its output: the user reads the framing, each
 subagent reads a brief, and the parent reads the returns and decides. The running example is the
-tax case from [vocabulary.md](vocabulary.md): the checkout page, the invoice export and the refund
+tax case from [vocabulary.md](../../../../reference/vocabulary.md): the checkout page, the invoice export and the refund
 job each look up rates, round and apply exemptions on their own, and the candidate is one deep
 `TaxCalculator`.
 
@@ -46,7 +46,7 @@ subagent; it is not the framing from section 1 passed along:
 | Files and how they are coupled | `checkout/tax.ts`, `export/invoice-tax.ts` and `refunds/recalc.ts`, and which of them share the rounding helper |
 | Dependency category | `ports-and-adapters` for the rates service, `in-process` for the exemption list |
 | What the seam hides | Rate lookup, rounding and exemption rules |
-| Names to use | The [vocabulary.md](vocabulary.md) terms, plus the project's glossary terms when it keeps a glossary; with one name list, the returns can be compared term for term |
+| Names to use | The [vocabulary.md](../../../../reference/vocabulary.md) terms, plus the project's glossary terms when it keeps a glossary; with one name list, the returns can be compared term for term |
 
 **Write the comparison note before any return arrives.** In the dispatch turn, the parent writes
 down which of the three axes in section 4 counts most for this candidate and what result on that
