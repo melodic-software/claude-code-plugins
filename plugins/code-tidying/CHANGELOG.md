@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.3] - 2026-11-14
+
+### Changed
+
+- The comment-tooling eval seed installs `tree-sitter` 0.26.1, the version `.github/requirements-ci.txt` pins.
+
 ## [0.46.2] - 2026-11-14
 
 ### Changed
