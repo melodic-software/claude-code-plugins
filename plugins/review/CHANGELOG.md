@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.0.2] - 2026-11-14
+
+### Fixed
+
+- `architecture-guardian`, `doc-drift-detector`, `ecosystem-specialist`, `ci-log-auditor` and `lane-verifier` now have a turn budget. Each stops gathering 7 or 8 turns before its turn cap, works in a stated order, and ends its report by naming what it did not reach. A `lane-verifier` that runs out of turns rejects a candidate only with evidence that refutes it. Before, an agent that hit its cap mid-gather could return nothing to its caller. `turn-budget.test.sh` now checks every review agent with a turn cap, except `stage-normalizer` and `brief-reviewer`, which are exempt.
+
 ## [9.0.1] - 2026-11-14
 
 ### Fixed
