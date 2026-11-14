@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Live defect, reproduced in Phase 1.5 (not a security defect; /bugs:write is not installed, so the report is here):\n\n**Title:** Parcel quotes add the fuel surcharge twice\n**Steps to reproduce:** call QuoteService().quote({\"postcode\": \"B12 4QT\", \"weight_kg\": 2}).\n**Expected:** 6.75 (3.00 x 2 + 0.75). **Actual:** 7.50.\n**Fix:** parcels/quote_service.py, QuoteService.quote: drop the second FUEL_SURCHARGE; RateTable.price already adds it.\n\nCandidates:\n\n## Quote path\n- recommendation: Strong\n- shallow-signal: three one-step classes (reproduced); the double surcharge stays here as evidence.\n\n## LabelPrinter\n- recommendation: Worth exploring\n- runtime-claim: dead code, confirmed: nothing imports labels/label_printer.py. Dead code is not a defect.\n\nTop recommendation: Quote path. Which candidate should we explore?",
+      "why": "separate report with steps, expected against actual and fix location; dead code not a defect; asks the question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Quote path\n- recommendation: Strong\n- note: the fuel surcharge is added twice, so quotes run 0.75 high.\n\n## LabelPrinter\n- recommendation: Worth exploring\n\nWhich candidate should we explore?",
+      "why": "defect only inside the card, no reproduction or expected against actual"
+    },
+    {
+      "answer": "Defects found:\n1. Double fuel surcharge: quote a 2 kg zone B parcel, expected 6.75, actual 7.50, fix QuoteService.quote.\n2. LabelPrinter is a bug: dead code nothing imports.\n\nWhich candidate should we explore?",
+      "why": "reports the dead-code claim as a defect"
+    }
+  ]
+}

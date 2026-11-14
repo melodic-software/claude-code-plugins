@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Invoicing path\n- recommendation: Strong\n- evidence: Any-typed parameters, a discarded exception and a hard-coded rate; not assessed here.\n\nWhich candidate should we explore?",
+      "why": "evidence only, no report"
+    },
+    {
+      "answer": "No live defect was reproduced. Which candidate should we explore?",
+      "why": "says no defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bug: InvoiceStore.save swallows write errors. Steps to reproduce: make invoices.jsonl read-only and issue an invoice.",
+      "why": "a bug report for a review-class problem"
+    },
+    {
+      "answer": "Expected the save to raise, actual result is a silent pass.",
+      "why": "expected against actual"
+    }
+  ]
+}

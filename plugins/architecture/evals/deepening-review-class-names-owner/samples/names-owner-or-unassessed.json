@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The typing belongs to /code-metrics:audit type-debt and the rest to /review:quality-gate code.",
+      "why": "names the owners"
+    },
+    {
+      "answer": "These were seen and not assessed: neither owning plugin is installed.",
+      "why": "seen and not assessed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Finding 2 (medium): InvoiceStore.save swallows every exception.",
+      "why": "a finding of its own, no owner"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Invoicing path\n- recommendation: Strong\n- shallow-signal: InvoiceService.issue, TaxCalc.apply and InvoiceStore.save each do one step (reproduced).\n- evidence: Any-typed parameters throughout, InvoiceStore.save discards every exception, a 0.20 tax rate in TaxCalc.apply.\n\nThose last three are review-class problems, not module shape: they were seen and not assessed here (the code-metrics and review plugins are not installed).\n\nTop recommendation: Invoicing path. Which candidate should we explore?",
+      "why": "evidence on the candidate, seen and not assessed, asks the question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Invoicing path (Strong)\n\n## Finding: swallowed exception (High)\nInvoiceStore.save hides write failures; invoices are lost silently.\n\n## Finding: Any typing (Medium)\n\nWhich candidate should we explore?",
+      "why": "separate findings with severities, no owner named"
+    },
+    {
+      "answer": "## Invoicing path\n- recommendation: Strong\n- evidence: Any typing, a discarded exception, a hard-coded tax rate.\n\nWhich candidate should we explore?",
+      "why": "names no owner and does not say they were not assessed"
+    }
+  ]
+}
