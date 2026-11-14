@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Contract tests for pydeps.py, render.py and narration.py. The check functions and the installer need only the
-# standard library and always run; the mux test needs ffmpeg and ffprobe. The real renders need ManimCE, ffmpeg and ffprobe and skip without them, so
+# Contract tests for pydeps.py, render.py, narration.py and stills.py. The check functions and the installer need only the
+# standard library and always run; the mux test needs ffmpeg and ffprobe; the stills renders need ffmpeg, ffprobe and
+# Playwright for Python with its Chromium. The real renders need ManimCE, ffmpeg and ffprobe and skip without them, so
 # EXPLAINER_VIDEO_REQUIRE_DEPS=1 fails the run instead: run it through the launcher, which puts the installed set
 # on the path, e.g. `python3 pydeps.py run -- -m unittest test_explainer_video_render` from this directory.
-# test-scope: plugins/explainer-video/skills/*/SKILL.md plugins/explainer-video/skills/*.py plugins/explainer-video/scripts/* plugins/explainer-video/hooks/*.sh plugins/explainer-video/requirements.txt
+# test-scope: plugins/explainer-video/skills/*/SKILL.md plugins/explainer-video/skills/*.py plugins/explainer-video/scripts/* plugins/explainer-video/hooks/*.sh plugins/explainer-video/requirements.txt plugins/explainer-video/vendor/gitleaks/*
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
@@ -13,4 +14,4 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
-exec python3 -B -m unittest test_explainer_video_pydeps test_explainer_video_render test_explainer_video_narration -q
+exec python3 -B -m unittest test_explainer_video_pydeps test_explainer_video_render test_explainer_video_narration test_explainer_video_stills -q
