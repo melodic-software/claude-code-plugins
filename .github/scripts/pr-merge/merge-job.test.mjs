@@ -2685,3 +2685,34 @@ test("a gate stopped on a server error hold is named so, and no later candidate 
   const limited = runHeld("Run the merge gate on each candidate", steps, { stop: `* ${HOLD}\n`, cause: `* ${HOLD} limit\n` });
   assert.match(limited.stdout, /^::error title=GitHub rate limit::PR #7's gate stopped on a GitHub rate limit; no later candidate is gated this run$/m);
 });
+
+// main's tip each job already resolves with git ls-remote reaches the steps
+// whose scripts would read it again over REST (git/ref/heads/main); a step
+// after the gate, which may have merged, resolves it again, and each
+// candidate's gate gets it as its own gate starts.
+test("the steps that read main's tip get the one the job resolved, not a REST re-read", () => {
+  const passed = (block, id) => assert.ok(block.includes(`\n          MAIN_TIP_SHA: \${{ steps.${id}.outputs.sha }}\n`), block.split("\n")[0]);
+  const post = stepsOf(jobBlock("post-merge-dispatch"));
+  for (const name of ["Check earlier lane merges", "Send a red full run to the demotion alert"]) passed(step(name, post), "tip");
+  for (const name of ["Check earlier lane merges", "Record a failed lane merge", "Settle verified lane merges"]) passed(step(name), "tip");
+  for (const name of ["Re-fire lane runs refused as workflow-modified", "Clear escalations whose reason no longer holds"]) passed(step(name), "late-tip");
+  const late = steps.findIndex((s) => s.name === "Resolve main's tip after the gate");
+  assert.ok(late > steps.findIndex((s) => s.name === "Run the merge gate on each candidate"), "resolved again after the gate");
+  assert.ok(late < steps.findIndex((s) => s.name === "Re-fire lane runs refused as workflow-modified"));
+  assert.match(step("Resolve main's tip after the gate"), /\n {8}continue-on-error: true\n/);
+  assert.match(runScript("Resolve main's tip after the gate"), /ls-remote "https:\/\/github\.com\/\$GITHUB_REPOSITORY\.git" "refs\/heads\/\$TIP_BRANCH"/);
+  const gate = runScript("Run the merge gate on each candidate");
+  assert.match(gate, /tip=\$\(timeout 60 git -C "\$RUNNER_TEMP" ls-remote "https:\/\/github\.com\/\$GITHUB_REPOSITORY\.git" refs\/heads\/main \|/);
+  assert.match(gate, /\n {2}MAIN_TIP_SHA=\$tip "\.base\/\$SCRIPT" /);
+  const arm = stepsOf(jobBlock("enable-auto-merge"));
+  for (const name of ["Check whether a full run covers the newest lane merge", "Keep the last sweep's report only while nothing it read has moved", "Arm and disarm auto-merge"]) passed(step(name, arm), "tip");
+});
+
+// A PR-scoped arm run's Python reads take the default branch from the event
+// (babysit_merge_policy.DEFAULT_BRANCH_ENV) instead of reading repos/<repo>.
+test("enable-auto-merge's gate-reader steps take the default branch from the event", () => {
+  const arm = stepsOf(jobBlock("enable-auto-merge"));
+  for (const name of ["Check whether a full run covers the newest lane merge", "Keep the last sweep's report only while nothing it read has moved", "Arm and disarm auto-merge"]) {
+    assert.ok(step(name, arm).includes("\n          BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}\n"), name);
+  }
+});
