@@ -455,5 +455,74 @@ assert_eq "the follow-up reply is recorded as written" '{"thread":"PRRT_a","disp
 run record PRRT_b "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "the other thread, not marked, still refuses follow-up" 1 "$?"
 
+# sections and record-body: replacement text only for a section the select job
+# offered, once per round, beside the replies.
+setup
+body_file() {
+  printf '%s' "$1" >"$STUB/scratch/body.json"
+}
+assert_eq "sections prints [] when the round offers none" "[]" "$(run sections | jq -c .)"
+body_file '{"sections":[{"heading":"Verification","text":"Ran the suite."}]}'
+run record-body "$STUB/scratch/body.json" >/dev/null 2>&1
+assert_exit "record-body is refused when the round offers no section" 1 "$?"
+jq '.body_sections = [{"heading":"Summary","text":"Old."},{"heading":"Verification","text":"Old run."}]' \
+  "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+assert_eq "sections prints the offered headings" "Summary Verification" "$(run sections | jq -r 'map(.heading) | join(" ")')"
+for bad in \
+  '{"sections":[{"heading":"Related","text":"x"}]}' \
+  '{"sections":[{"heading":"Verification","text":""}]}' \
+  '{"sections":[{"heading":"Verification","text":"x"},{"heading":"Verification","text":"y"}]}' \
+  '{"sections":[{"heading":"Verification","text":"x <!-- m -->"}]}' \
+  "{\"sections\":[{\"heading\":\"Verification\",\"text\":\"leaks $TOKEN\"}]}" \
+  '{"sections":[{"heading":"Verification","text":"x","extra":1}]}' \
+  '{"sections":[]}'; do
+  body_file "$bad"
+  run record-body "$STUB/scratch/body.json" >/dev/null 2>&1
+  assert_exit "record-body refuses $bad" 1 "$?"
+done
+assert_eq "the refused body records append nothing" 0 "$(recorded)"
+body_file '{"sections":[{"heading":"Verification","text":"Ran the suite.\nLeft out: nothing"}]}'
+run record-body "$STUB/scratch/body.json" >/dev/null 2>&1
+assert_exit "record-body records text for an offered section" 0 "$?"
+assert_eq "the body record is one replies line holding only body_sections" \
+  '{"body_sections":[{"heading":"Verification","text":"Ran the suite.\nLeft out: nothing"}]}' "$(jq -c . "$STUB/replies.jsonl")"
+run record-body "$STUB/scratch/body.json" >/dev/null 2>&1
+assert_exit "a second body record in the round is refused" 1 "$?"
+disposition '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"Guarded."}'
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a reply still records beside the body record" 0 "$?"
+
+# The replies file has one 49152-byte cap (the read runner's carry step): the
+# body record never costs a reply.
+REPLIES_CAP=49152
+filler() {
+  jq -nc --arg note "$(printf 'n%.0s' $(seq 1 "$1"))" '{thread:"PRRT_fill",disposition:"UNCERTAIN",evidence:[],fix_sha:"",note:$note}' >>"$STUB/replies.jsonl"
+}
+setup
+jq '.body_sections = [{"heading":"Verification","text":"Old run."}]' "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+filler $((REPLIES_CAP - 200))
+body_file "{\"sections\":[{\"heading\":\"Verification\",\"text\":\"$(printf 'v%.0s' {1..300})\"}]}"
+run record-body "$STUB/scratch/body.json" >/dev/null 2>&1
+assert_exit "record-body refuses a record that would pass the replies cap" 1 "$?"
+assert_eq "the refused body record leaves the replies file as it was" 1 "$(recorded)"
+setup
+jq '.body_sections = [{"heading":"Verification","text":"Old run."}]' "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+body_file "{\"sections\":[{\"heading\":\"Verification\",\"text\":\"$(printf 'v%.0s' {1..3000})\"}]}"
+run record-body "$STUB/scratch/body.json" >/dev/null 2>&1
+filler $((REPLIES_CAP - $(wc -c <"$STUB/replies.jsonl") - 120))
+disposition '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"Guarded at src/a.js:2 before the read."}'
+out=$(run record PRRT_a "$STUB/scratch/d.json" 2>&1)
+assert_exit "a reply that would pass the cap beside the body record still records" 0 "$?"
+assert_eq "the body record yields to the reply" 0 "$(jq -s 'map(select(has("body_sections"))) | length' "$STUB/replies.jsonl")"
+assert_eq "the reply is recorded" 1 "$(jq -s 'map(select(.thread == "PRRT_a")) | length' "$STUB/replies.jsonl")"
+size=$(wc -c <"$STUB/replies.jsonl")
+assert_eq "the replies file stays within the cap" 1 "$((size <= REPLIES_CAP))"
+assert_contains "the tool says the body record was dropped" "$out" "body sections were dropped"
+setup
+filler $((REPLIES_CAP - 120))
+disposition '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"Guarded at src/a.js:2 before the read."}'
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a reply that would pass the cap with no body record to yield is refused" 1 "$?"
+
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0
