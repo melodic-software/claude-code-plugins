@@ -2020,6 +2020,12 @@ test("an approval before a base merge, or its stale dismissal, lifts the hold pa
   const lifted = await run([pull(60, { files: HELD, rest: rest(60, [held]) })], trustedKyle());
   assert.deepEqual(lifted.writes, [{ mutation: "arm", id: "PR_60", head: HEAD }]);
   assert.deepEqual(lifted.notes, []);
+  // main's tip the job resolved (MAIN_TIP_SHA) stands in for the ref read.
+  const tipReads = (calls) => calls.filter(({ path }) => path === `${P}/git/ref/heads/main`).length;
+  assert.equal(tipReads(lifted.calls), 1, "with no MAIN_TIP_SHA the carry reads main's tip");
+  const given = await run([pull(65, { files: HELD, rest: rest(65, [held]) })], { ...trustedKyle(), MAIN_TIP_SHA: TIP });
+  assert.deepEqual(given.writes, [{ mutation: "arm", id: "PR_65", head: HEAD }], "the same arm");
+  assert.equal(tipReads(given.calls), 0, "no REST read of main's tip when the job passed it in");
   const evil = await run([pull(61, { files: HELD, rest: rest(61, [{ ...held, patch: "@@ -1 +1 @@\n-a\n+evil" }]) })], trustedKyle());
   assert.deepEqual(evil.writes, []);
   assert.deepEqual(evil.notes.map(({ path }) => path), [`${ISSUES}/61/comments`, `${ISSUES}/61/labels`]);

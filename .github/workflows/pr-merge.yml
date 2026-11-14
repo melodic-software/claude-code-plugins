@@ -289,6 +289,7 @@ jobs:
         id: post-merge
         if: steps.mode.outputs.live == 'true'
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
           GH_TOKEN: ${{ github.token }}
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           BABYSIT_POSTMERGE_ATTEMPTS: ${{ runner.temp }}/post-merge-attempts.json
@@ -814,6 +815,7 @@ jobs:
           && steps.dispatch.outputs.rate-limited != 'true'
           && steps.rerun.outputs.rate-limited != 'true'
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           LOOKBACK_HOURS: 6
@@ -1516,6 +1518,7 @@ jobs:
         id: post-merge
         if: steps.lane-token.outputs.token != '' && steps.candidates.outputs.listed == 'true'
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
           GH_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
@@ -1585,6 +1588,7 @@ jobs:
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
           && steps.post-merge.outputs.code == '1'
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
@@ -1628,6 +1632,7 @@ jobs:
               || steps.post-merge.outputs.code == '5')
         continue-on-error: true
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
           REPO: ${{ github.repository }}
@@ -1767,6 +1772,7 @@ jobs:
           BUDGET_MINUTES: ${{ steps.mode.outputs.gate-budget-minutes }}
           CANDIDATE_MINUTES: ${{ steps.mode.outputs.gate-candidate-minutes }}
           DEFERRED_MINUTES: ${{ steps.mode.outputs.gate-deferred-minutes }}
+          GIT_TERMINAL_PROMPT: "0"
         run: |
           set -euo pipefail
           budget=${BUDGET_MINUTES:-}
@@ -1821,7 +1827,12 @@ jobs:
             code=0
             cap=("${limit[@]}")
             [ "$was_deferred" = true ] && cap=("${ceiling[@]}")
-            ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
+            # main's tip as this candidate's gate starts, for its reads of it
+            # (MAIN_TIP_SHA); unresolved, the gate reads it over REST.
+            tip=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" refs/heads/main |
+              awk '$2 == "refs/heads/main" { print $1 }') || tip=''
+            [[ $tip =~ ^[0-9a-f]{40}$ ]] || tip=''
+            MAIN_TIP_SHA=$tip ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
               --lane-kill-switch "$KILL_SWITCH" --lane-rung-cap "$RUNG_CAP" \
               --postmerge-result "$RUNNER_TEMP/post-merge.json" "${cap[@]}" \
               --expected-head "$head" "$REPO#$number" </dev/null >"$out" 2> >(tee "$out.err" >&2) || code=$?
@@ -2166,6 +2177,31 @@ jobs:
       # address-feedback run refused that way is left to the feedback sweep,
       # which dispatches it again on main.
       # Rules: .github/scripts/pr-merge/refire-refused.mjs.
+      #
+      # main's tip again for the two steps below (MAIN_TIP_SHA), since the
+      # gate may have merged since the job's first read; unresolved, each
+      # script reads it over REST.
+      - name: Resolve main's tip after the gate
+        id: late-tip
+        if: >-
+          always() && github.event_name == 'schedule'
+          && steps.lane-token.outputs.token != ''
+          && steps.mode.outputs.report-only == 'false'
+          && steps.gate.outputs.rate-limited != 'true'
+          && steps.candidates.outputs.listed == 'true'
+        continue-on-error: true
+        timeout-minutes: 4
+        env:
+          TIP_BRANCH: main
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          until sha=$(timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$TIP_BRANCH" |
+              awk -v ref="refs/heads/$TIP_BRANCH" '$2 == ref { print $1 }') && [[ $sha =~ ^[0-9a-f]{40}$ ]]; do
+            ((++i < 3)) || { echo "::warning::the tip of $TIP_BRANCH did not resolve; the steps below read it"; exit 0; }
+            sleep "$((RANDOM % (2 * i + 1)))"
+          done
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
       - name: Re-fire lane runs refused as workflow-modified
         if: >-
           always() && github.event_name == 'schedule'
@@ -2174,6 +2210,7 @@ jobs:
           && steps.gate.outputs.rate-limited != 'true'
           && steps.candidates.outputs.listed == 'true'
         env:
+          MAIN_TIP_SHA: ${{ steps.late-tip.outputs.sha }}
           LANES_APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
@@ -2216,6 +2253,7 @@ jobs:
           && steps.candidates.outputs.listed == 'true'
         timeout-minutes: 15
         env:
+          MAIN_TIP_SHA: ${{ steps.late-tip.outputs.sha }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           # The job's own token reads a fix-ci stop's head runs and checks and
           # a lane stop's statuses (actions: read, checks: read, statuses:
@@ -2551,6 +2589,8 @@ jobs:
         continue-on-error: true
         timeout-minutes: 1
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
+          BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: uncovered-at
@@ -2705,6 +2745,8 @@ jobs:
         if: steps.lane-token.outputs.token != '' && github.event_name == 'workflow_dispatch' && inputs.pr && steps.precheck.outputs.uncovered != 'true'
         timeout-minutes: 5
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
+          BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           API_BUDGET_SCRIPT: settle-idle-tick
@@ -2826,6 +2868,8 @@ jobs:
         if: steps.lane-token.outputs.token != '' && !(github.event_name == 'workflow_dispatch' && inputs.pr && steps.keep-report.outputs.stands != 'true')
         timeout-minutes: 18
         env:
+          MAIN_TIP_SHA: ${{ steps.tip.outputs.sha }}
+          BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
