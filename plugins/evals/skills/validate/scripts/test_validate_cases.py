@@ -1073,7 +1073,44 @@ class SkillBashGrant(ValidatorTestCase):
             "context line, which needs Bash",
             result.stdout,
         )
-        self.assertIn("the run ends at 0 turns", result.stdout)
+        self.assertIn("the skill fails to load", result.stdout)
+
+    def test_prose_mention_after_whitespace_warns(self):
+        # skill-authoring's shape: a code span holding a placeholder after a
+        # space, which Claude Code ran and failed on every load (#16146).
+        self.skill(
+            "setup",
+            "---\ndescription: x\n---\n\nInline it\nwith `` !`command` `` at load.\n",
+        )
+        result = self.bash_case("Read, Skill", prompt_line="/sample:setup. Rewrite it.")
+        self.assertIn("skills/setup/SKILL.md has a pre-computed", result.stdout)
+
+    def test_prose_mention_after_another_character_does_not_warn(self):
+        # plugin-eval's shape: ``!`command` `` puts a backtick before the !, so
+        # Claude Code leaves it as text and the skill loaded in every run.
+        self.skill(
+            "setup",
+            "---\ndescription: x\n---\n\nA (``!`command` ``) line needs a writable TMPDIR.\n",
+        )
+        self.assertNotIn("pre-computed", self.bash_case("Read, Skill").stdout)
+
+    def test_a_fenced_block_warns(self):
+        self.skill("setup", "---\ndescription: x\n---\n\n```!\nnode --version\n```\n")
+        self.assertIn("pre-computed", self.bash_case("Read, Skill").stdout)
+
+    def test_a_case_yaml_tag_names_the_skill(self):
+        self.skill(
+            "setup", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n"
+        )
+        self.case(
+            "setup-check",
+            prompt="Is node there?\n",
+            case_yaml='schema_version: "1.1"\nname: setup-check\ntags: [setup]\n'
+            "execution:\n  allowed_tools: [Read, Skill]\n",
+            graders={"names-conftest": REGEX_GRADER},
+        )
+        result = self.validate_without_node()
+        self.assertIn("skills/setup/SKILL.md has a pre-computed", result.stdout)
 
     def test_a_tag_names_the_skill_too(self):
         self.skill(

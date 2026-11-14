@@ -23,11 +23,14 @@ grader with no samples is a WARN, and so is an llm or baseline grader that has
 samples, since judging them needs a paid calibration run this script never
 makes.
 
-A case whose prompt starts with `/<plugin>:<skill>`, or whose tags name a
-skill, is a WARN when that skill's SKILL.md (`<eval-dir>/../skills/<skill>/`)
-holds a pre-computed context line (!`command`) and the case's `allowed_tools`
-lacks Bash: the line needs Bash, so the slash command fails to load and the run
-ends at 0 turns.
+A case whose prompt starts with `/<plugin>:<skill>`, or whose tags (prompt.md
+or case.yaml) name a skill, is a WARN when that skill's SKILL.md
+(`<eval-dir>/../skills/<skill>/`) holds a pre-computed context line and the
+case's `allowed_tools` lacks Bash: the line needs Bash, so the skill fails to
+load. A line counts the way Claude Code reads it: !`command` with the `!` at the
+start of a line or right after whitespace, code spans included, or a line
+opening a ```! block. A !`command` right after another character, such as a
+backtick, is literal text and loads.
 
 Output is one finding per line, `<FAIL|WARN> <case>/<file>: <message>`, sorted by
 case then file. A finding about the suite as a whole carries the eval dir in
@@ -239,16 +242,21 @@ READ_ONLY_TOOLS = frozenset(
 # - Recheck trigger: a release note removes or restores a tool a case can list.
 REMOVED_TOOLS = frozenset(["TaskOutput"])
 
-# A skill's pre-computed context line (!`command`) runs through Bash when the
-# skill loads. A case that names the skill, by a leading /plugin:skill command
-# or a tag, and lacks Bash fails to load it and ends at 0 turns.
+# A skill's pre-computed context line runs through Bash when the skill loads. A
+# case that names the skill, by a leading /plugin:skill command or a tag, and
+# lacks Bash fails to load it. The inline form counts only with its ! at a line
+# start or after whitespace, so `` !`command` `` in prose runs and ``!`command`
+# `` does not; a ```! block opens a line.
 # - Pointer: when what loads a pre-computed line may have changed, fetch
 #   https://code.claude.com/docs/en/skills#inject-dynamic-context live; the
-#   observed basis is run #8635, INVALID at 0 turns.
-# - As of: 2026-11-01
-# - Recheck trigger: that section names a tool other than Bash for the line.
-PRECOMPUTED = re.compile(r"!`[^`\n]+`")
-SLASH_SKILL = re.compile(r"^\s*/(?:[\w.-]+:)?([\w.-]+)(?=[\s:,.;]|$)")
+#   observed basis is run #8635, INVALID at 0 turns, and the 2026-11-14 compare
+#   on #15707, where skill-authoring's prose `` !`command` `` failed every load
+#   and plugin-eval's ``!`command` `` loaded.
+# - As of: 2026-11-14
+# - Recheck trigger: that section names a tool other than Bash for the line,
+#   or changes where the inline form is recognized.
+PRECOMPUTED = re.compile(r"(?:^|(?<=\s))!`[^`\n]+`|^[ \t]*```!", re.MULTILINE)
+SLASH_SKILL = re.compile(r"^\s*/(?:[\w.-]+:)?([\w-]+(?:\.[\w-]+)*)(?=[\s:,.;]|$)")
 SKILL_NAME = re.compile(r"^[\w-][\w.-]*$")
 
 # (field, minimum, maximum) for the run fields the schema bounds.
@@ -1068,8 +1076,8 @@ def check_skill_bash(plugin_root, fields, prompt, tags, case, home, findings):
                     case,
                     path,
                     "skills/%s/SKILL.md has a pre-computed context line, which "
-                    "needs Bash; without it in allowed_tools the slash command "
-                    "fails to load and the run ends at 0 turns" % skill,
+                    "needs Bash; without it in allowed_tools the skill fails to "
+                    "load, so the run scores the model without the skill" % skill,
                 )
             )
             return
@@ -1828,6 +1836,7 @@ def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
             for key in ("runs", "plugins"):
                 if key in yaml_data:
                     fields[key] = (yaml_data[key], "case.yaml")
+            tags = yaml_data.get("tags")
             context = yaml_data.get("context")
             if isinstance(context, dict):
                 check_history_chain(
@@ -1896,7 +1905,9 @@ def analyze_case(case_dir, case, findings, plugin_root=None, containment=None):
                 for key in ("runs", "plugins") + EXECUTION_KEYS:
                     if key in prompt_fm:
                         fields[key] = (prompt_fm[key], "prompt.md")
-                tags = prompt_fm.get("tags")
+                prompt_tags = prompt_fm.get("tags")
+                if isinstance(prompt_tags, list):
+                    tags = prompt_tags + (tags if isinstance(tags, list) else [])
 
     if not unread:
         prompt_file = "prompt.md" if os.path.isfile(prompt_path) else "case.yaml"

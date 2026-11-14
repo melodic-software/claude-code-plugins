@@ -126,8 +126,14 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   result is not a denial.
 - A run at 0 turns whose trace holds assistant messages ran a slash-invoked `context: fork` skill
   in a forked session, and the gate lists it under `session started` without failing it. Any run
-  fails there whose trace holds a user message with a `local-command-stderr` reading `Shell command
-  failed for pattern` (a skill's pre-computed command failed), or a failed Bash result reporting a
+  fails `skill loaded` whose skill load aborted on its pre-computed command: `Shell command failed
+  for pattern` or `Shell command permission check failed for pattern` in a user message's
+  `local-command-stderr` (a slash-invoked skill) or in the result of a Skill call. The second text
+  is what a case with no Bash grant gets. The skill-fired grader passes such a run because the call
+  was made, so the gate names it as failed to load, not as unfired. In an invocation probe or a
+  `--measured-fire` case, where the call is the measure, a failed Skill call warns; a failed slash
+  command made no call and still fails. Any run fails `session started`
+  whose trace holds a failed Bash result reporting a
   read-only file system at a relative path or under the run's sandbox, in any case: the run's
   workspace or `TMPDIR` was not writable, so the score measures the sandbox, not the skill. A
   read-only path elsewhere is the sandbox working as designed and does not fail the check, nor
