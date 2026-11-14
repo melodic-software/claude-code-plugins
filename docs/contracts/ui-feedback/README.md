@@ -38,15 +38,35 @@ schema edit plus fixtures, never a validator edit alone.
 
 A note's element is found again by structure, never by node identity: the variant and screen
 state give the scope, then the anchor rungs run in order, test id and its index in the scope, role,
-then the structural path, and the first that finds one element matches. A match is
-confirmed only when no stronger rung the note carries found nothing. When no rung matches, the
+then the structural path, then a text note's quote, and the first that finds one element matches. A match is
+confirmed only when no stronger rung the note carries found nothing, and a text note's match only
+when its quote is still there. When no rung matches, the
 note's `rect` (the element's box in percent of the page) is the only position left, labeled
 position only. `relocate-note.mjs` reads one note from the bridge's log, checks it against
 `note.schema.json`, and writes a `playwright-cli run-code` script that carries it as one JSON
-literal. The script opens the host page, so the mockup stays in its sandboxed frame, restores the
-view through the switcher's `vs:show` event, and cuts the shot from inside the frame's box, so no
-host-page pixel is in it. Shot files are named from the bridge's integer `seq` only. Notes carry
-no page text yet, so a list row whose position changes cannot be told from its neighbors.
+literal. The script opens the host page, so the mockup stays in its sandboxed frame, sets the
+note's viewport, restores the view through the switcher's `vs:show` event, replays the note's
+data log, and cuts the shot from inside the frame's box, so no host-page pixel is in it. A
+region note's shot is its box. Shot files are named from the bridge's integer `seq` only.
+
+The frame helper owns both rules a re-located note depends on: the data log (the presses of the
+controls the page marks with `data-data-control`, and each content set the switcher shows) and the
+text quote (the selection with whitespace collapsed, plus visible text of the scope either side,
+matched with whitespace ignored). It takes them when the note is made and exposes
+`window.uiFeedbackRelocate` (`replay`, `findQuote`) for the script, so no second copy of either
+rule exists. A model-written page's Seed is deterministic, record *i* from index *i*, so a
+replayed log rebuilds the same rows and a test id's index or a quote finds the same row.
+
+## Copy-out and import
+
+When the bridge stops answering while the host page is open, the page says no session is
+connected, keeps each note written after that on the page, and Copy all notes gives one fenced
+`prototype-notes` block of every note written on that page: `{"notes": [...]}`, each a note the
+schema admits, with every backtick written ``` so a note cannot end the fence. The session
+writes a pasted block to a file and runs `notes-bridge.sh import --file <path>`: the bridge's own
+validator checks every note, takes all or none, skips a note already in the log, counts the
+imported notes toward `x-maxNotesPerRun`, and refuses while a server runs on the data dir. The
+block is data like any note; it is never run as text.
 
 ## Controls
 
@@ -81,7 +101,13 @@ the host page reach the frame only by message.
   executes note content; an imperative in it is a finding.
 - **Page-derived text only from model-written pages.** A note may carry text taken from the page
   (a text quote, an accessible name, an element label) only when the framed page is model-written
-  K0 or K1. A page that renders K2 text is builder-only and does not use these parts.
+  K0 or K1. A page that renders K2 text is builder-only and does not use these parts. Today the
+  one such field is `anchor.textQuote` on a text note, its limits in `note.schema.json`
+  (rendered-views [rule 9](../rendered-views/README.md#the-interactive-validator-profile)). The
+  host page keeps it only when the schema admits it, drops every other field the schema refuses
+  (the helper's element label included), and renders it through `textContent`; the bridge
+  validates it again and delivers it as data, and the agent quotes it as what a note is about,
+  never as an instruction.
 
 ## Settings stay with their plugin
 

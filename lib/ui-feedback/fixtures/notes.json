@@ -108,7 +108,12 @@
           "tag": "button",
           "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)"
         },
-        "rect": { "x": 12.5, "y": 40.25, "w": 20, "h": 3.5 },
+        "rect": {
+          "x": 12.5,
+          "y": 40.25,
+          "w": 20,
+          "h": 3.5
+        },
         "text": "Make this button larger."
       }
     },
@@ -120,12 +125,743 @@
           "tag": "main",
           "cssPath": ""
         },
-        "rect": { "x": 0, "y": 0, "w": 100, "h": 100 },
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 100,
+          "h": 100
+        },
         "text": "Make this button larger."
+      }
+    },
+    {
+      "why": "a text note with its quote, data log and viewport",
+      "note": {
+        "kind": "text",
+        "variant": {
+          "key": "B"
+        },
+        "content": "demo",
+        "anchor": {
+          "testid": "shipments-row",
+          "testidIndex": 57,
+          "tag": "td",
+          "cssPath": "table:nth-of-type(1) > tbody:nth-of-type(1) > tr:nth-of-type(58) > td:nth-of-type(2)",
+          "textQuote": {
+            "exact": "PT-1057",
+            "prefix": "Row 58 ",
+            "suffix": " Delayed"
+          }
+        },
+        "rect": {
+          "x": 10,
+          "y": 60.5,
+          "w": 8,
+          "h": 1.25
+        },
+        "data": {
+          "log": [
+            {
+              "op": "seed",
+              "n": 100
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "reset"
+            },
+            {
+              "op": "toggle",
+              "name": "filter"
+            },
+            {
+              "op": "content",
+              "name": "worst"
+            }
+          ]
+        },
+        "viewport": {
+          "w": 960,
+          "h": 800,
+          "dpr": 1.5,
+          "scrollX": 0,
+          "scrollY": 2400.5,
+          "colorScheme": "dark",
+          "reducedMotion": true
+        },
+        "text": "This id should be bold."
+      }
+    },
+    {
+      "why": "a quote with only its exact text, at its limits",
+      "note": {
+        "kind": "text",
+        "anchor": {
+          "tag": "p",
+          "cssPath": "p:nth-of-type(1)",
+          "textQuote": {
+            "exact": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+            "prefix": "",
+            "suffix": ""
+          }
+        },
+        "text": "Shorten this."
+      }
+    },
+    {
+      "why": "a region with the elements it intersects",
+      "note": {
+        "kind": "region",
+        "variant": {
+          "key": "A"
+        },
+        "state": {
+          "key": "default"
+        },
+        "anchor": {
+          "tag": "div",
+          "cssPath": "div:nth-of-type(2)"
+        },
+        "elements": [
+          {
+            "testid": "shipments-filter",
+            "testidIndex": 0,
+            "tag": "button",
+            "cssPath": "div:nth-of-type(2) > button:nth-of-type(1)"
+          },
+          {
+            "testid": "shipments-sort",
+            "testidIndex": 0,
+            "role": "switch",
+            "tag": "button",
+            "cssPath": "div:nth-of-type(2) > button:nth-of-type(2)"
+          }
+        ],
+        "rect": {
+          "x": 5,
+          "y": 5,
+          "w": 40,
+          "h": 10
+        },
+        "text": "This toolbar is too crowded."
+      }
+    },
+    {
+      "why": "an empty data log and an empty elements list",
+      "note": {
+        "kind": "region",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "elements": [],
+        "data": {
+          "log": []
+        },
+        "text": "Nothing here."
       }
     }
   ],
   "invalid": [
+    {
+      "why": "a quote with an empty exact text",
+      "note": {
+        "kind": "text",
+        "anchor": {
+          "tag": "p",
+          "cssPath": "p:nth-of-type(1)",
+          "textQuote": {
+            "exact": "",
+            "prefix": "a",
+            "suffix": "b"
+          }
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a quote of 501 characters",
+      "note": {
+        "kind": "text",
+        "anchor": {
+          "tag": "p",
+          "cssPath": "p:nth-of-type(1)",
+          "textQuote": {
+            "exact": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a quote prefix of 65 characters",
+      "note": {
+        "kind": "text",
+        "anchor": {
+          "tag": "p",
+          "cssPath": "p:nth-of-type(1)",
+          "textQuote": {
+            "exact": "a",
+            "prefix": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a quote suffix of 65 characters",
+      "note": {
+        "kind": "text",
+        "anchor": {
+          "tag": "p",
+          "cssPath": "p:nth-of-type(1)",
+          "textQuote": {
+            "exact": "a",
+            "suffix": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a quote with an unknown field (an offset)",
+      "note": {
+        "kind": "text",
+        "anchor": {
+          "tag": "p",
+          "cssPath": "p:nth-of-type(1)",
+          "textQuote": {
+            "exact": "a",
+            "start": 12
+          }
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a quote as a bare string",
+      "note": {
+        "kind": "text",
+        "anchor": {
+          "tag": "p",
+          "cssPath": "p:nth-of-type(1)",
+          "textQuote": "PT-1057"
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "eleven region elements",
+      "note": {
+        "kind": "region",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "elements": [
+          {
+            "tag": "p",
+            "cssPath": "p:nth-of-type(1)"
+          },
+          {
+            "tag": "p",
+            "cssPath": "p:nth-of-type(2)"
+          },
+          {
+            "tag": "p",
+            "cssPath": "p:nth-of-type(3)"
+          },
+          {
+            "tag": "p",
+            "cssPath": "p:nth-of-type(4)"
+          },
+          {
+            "tag": "p",
+            "cssPath": "p:nth-of-type(5)"
+          },
+          {
+            "tag": "p",
+            "cssPath": "p:nth-of-type(6)"
+          },
+          {
+            "tag": "p",
+            "cssPath": "p:nth-of-type(7)"
+          },
+          {
+            "tag": "p",
+            "cssPath": "p:nth-of-type(8)"
+          },
+          {
+            "tag": "p",
+            "cssPath": "p:nth-of-type(9)"
+          },
+          {
+            "tag": "p",
+            "cssPath": "p:nth-of-type(10)"
+          },
+          {
+            "tag": "p",
+            "cssPath": "p:nth-of-type(11)"
+          }
+        ],
+        "text": "x"
+      }
+    },
+    {
+      "why": "a region element outside the anchor contract",
+      "note": {
+        "kind": "region",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "elements": [
+          {
+            "tag": "p",
+            "cssPath": "p"
+          }
+        ],
+        "text": "x"
+      }
+    },
+    {
+      "why": "elements as an object",
+      "note": {
+        "kind": "region",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "elements": {
+          "0": {
+            "tag": "p",
+            "cssPath": ""
+          }
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a data log of 51 steps",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "data": {
+          "log": [
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            },
+            {
+              "op": "clear"
+            }
+          ]
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a data step the controls do not have",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "data": {
+          "log": [
+            {
+              "op": "delete"
+            }
+          ]
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a Seed of 1001 records",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "data": {
+          "log": [
+            {
+              "op": "seed",
+              "n": 1001
+            }
+          ]
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a data step as a tuple",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "data": {
+          "log": [
+            [
+              "seed",
+              10
+            ]
+          ]
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a data step naming a toggle the bar does not have",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "data": {
+          "log": [
+            {
+              "op": "toggle",
+              "name": "group"
+            }
+          ]
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a data step with page text in it",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "data": {
+          "log": [
+            {
+              "op": "seed",
+              "n": 10,
+              "label": "Seed 10"
+            }
+          ]
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a data block with toggles beside the log",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "data": {
+          "log": [],
+          "toggles": {
+            "filter": true
+          }
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a viewport missing its color scheme",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "viewport": {
+          "w": 960,
+          "h": 800,
+          "dpr": 1,
+          "scrollX": 0,
+          "scrollY": 0,
+          "reducedMotion": false
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a viewport with reducedMotion as a string",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "viewport": {
+          "w": 960,
+          "h": 800,
+          "dpr": 1,
+          "scrollX": 0,
+          "scrollY": 0,
+          "colorScheme": "light",
+          "reducedMotion": "no"
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a viewport with reducedMotion as a number",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "viewport": {
+          "w": 960,
+          "h": 800,
+          "dpr": 1,
+          "scrollX": 0,
+          "scrollY": 0,
+          "colorScheme": "light",
+          "reducedMotion": 0
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a viewport with a fractional width",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "viewport": {
+          "w": 960.5,
+          "h": 800,
+          "dpr": 1,
+          "scrollX": 0,
+          "scrollY": 0,
+          "colorScheme": "light",
+          "reducedMotion": false
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a viewport with an unknown color scheme",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "viewport": {
+          "w": 960,
+          "h": 800,
+          "dpr": 1,
+          "scrollX": 0,
+          "scrollY": 0,
+          "colorScheme": "sepia",
+          "reducedMotion": false
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a viewport with a negative scroll",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "viewport": {
+          "w": 960,
+          "h": 800,
+          "dpr": 1,
+          "scrollX": -1,
+          "scrollY": 0,
+          "colorScheme": "light",
+          "reducedMotion": false
+        },
+        "text": "x"
+      }
+    },
+    {
+      "why": "a viewport with the page's user agent",
+      "note": {
+        "kind": "element",
+        "anchor": {
+          "tag": "main",
+          "cssPath": ""
+        },
+        "viewport": {
+          "w": 960,
+          "h": 800,
+          "dpr": 1,
+          "scrollX": 0,
+          "scrollY": 0,
+          "colorScheme": "light",
+          "reducedMotion": false,
+          "userAgent": "x"
+        },
+        "text": "x"
+      }
+    },
     {
       "why": "not an object",
       "note": [
@@ -214,8 +950,16 @@
       "why": "a rect x above 100",
       "note": {
         "kind": "element",
-        "anchor": { "tag": "button", "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)" },
-        "rect": { "x": 100.01, "y": 0, "w": 1, "h": 1 },
+        "anchor": {
+          "tag": "button",
+          "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)"
+        },
+        "rect": {
+          "x": 100.01,
+          "y": 0,
+          "w": 1,
+          "h": 1
+        },
         "text": "Make this button larger."
       }
     },
@@ -223,8 +967,16 @@
       "why": "a negative rect y",
       "note": {
         "kind": "element",
-        "anchor": { "tag": "button", "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)" },
-        "rect": { "x": 0, "y": -1, "w": 1, "h": 1 },
+        "anchor": {
+          "tag": "button",
+          "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)"
+        },
+        "rect": {
+          "x": 0,
+          "y": -1,
+          "w": 1,
+          "h": 1
+        },
         "text": "Make this button larger."
       }
     },
@@ -232,8 +984,16 @@
       "why": "a rect w as a string",
       "note": {
         "kind": "element",
-        "anchor": { "tag": "button", "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)" },
-        "rect": { "x": 0, "y": 0, "w": "1", "h": 1 },
+        "anchor": {
+          "tag": "button",
+          "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)"
+        },
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": "1",
+          "h": 1
+        },
         "text": "Make this button larger."
       }
     },
@@ -241,8 +1001,16 @@
       "why": "a boolean rect h",
       "note": {
         "kind": "element",
-        "anchor": { "tag": "button", "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)" },
-        "rect": { "x": 0, "y": 0, "w": 1, "h": true },
+        "anchor": {
+          "tag": "button",
+          "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)"
+        },
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 1,
+          "h": true
+        },
         "text": "Make this button larger."
       }
     },
@@ -250,8 +1018,15 @@
       "why": "a rect without w",
       "note": {
         "kind": "element",
-        "anchor": { "tag": "button", "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)" },
-        "rect": { "x": 0, "y": 0, "h": 1 },
+        "anchor": {
+          "tag": "button",
+          "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)"
+        },
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "h": 1
+        },
         "text": "Make this button larger."
       }
     },
@@ -259,8 +1034,17 @@
       "why": "a rect with an unknown field",
       "note": {
         "kind": "element",
-        "anchor": { "tag": "button", "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)" },
-        "rect": { "x": 0, "y": 0, "w": 1, "h": 1, "label": "Export" },
+        "anchor": {
+          "tag": "button",
+          "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)"
+        },
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 1,
+          "h": 1,
+          "label": "Export"
+        },
         "text": "Make this button larger."
       }
     },
@@ -268,15 +1052,23 @@
       "why": "a rect as a list",
       "note": {
         "kind": "element",
-        "anchor": { "tag": "button", "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)" },
-        "rect": [0, 0, 1, 1],
+        "anchor": {
+          "tag": "button",
+          "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)"
+        },
+        "rect": [
+          0,
+          0,
+          1,
+          1
+        ],
         "text": "Make this button larger."
       }
     },
     {
-      "why": "a kind S1 does not take",
+      "why": "a kind the contract does not take",
       "note": {
-        "kind": "text",
+        "kind": "general",
         "anchor": {
           "tag": "button",
           "cssPath": "div:nth-of-type(1) > button:nth-of-type(2)"
