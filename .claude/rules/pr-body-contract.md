@@ -1,6 +1,6 @@
 # PR body contract
 
-The `pr-contract` step inside `CI Status` fails a pull request on a
+The `check-contract` step inside `CI Status` fails a pull request on a
 non-Conventional-Commits title or a `do-not-merge` label, and, in repositories
 that enable it, on a body line that would start with the word `committer` after
 the 72-column squash wrap, which breaks the squash commit's signature: reword
