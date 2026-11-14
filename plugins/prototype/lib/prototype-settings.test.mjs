@@ -149,6 +149,13 @@ describe("the shipped data", () => {
     assert.deepEqual(r.notices, []);
   });
 
+  it("ships only multi-word phrases, none a bare content word", () => {
+    const shipped = Object.values(run(project()).phrases).flat();
+    assert.ok(shipped.length > 0);
+    for (const phrase of shipped) assert.ok(phrase.trim().split(/\s+/).length >= 2, `phrase ${JSON.stringify(phrase)} is one word`);
+    for (const word of ["full", "everything", "quick", "sketch", "just two"]) assert.equal(shipped.includes(word), false, word);
+  });
+
   it("makes standard the run the skill text describes", () => {
     const r = run(project());
     assert.deepEqual(r.definition, { variants: 3, screens: "flow", states: "planned", extra_states: [], evidence: "per-state", offers: ["review-mode", "real-stack"], phrases: [] });

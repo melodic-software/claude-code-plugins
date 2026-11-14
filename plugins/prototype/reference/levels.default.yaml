@@ -9,7 +9,7 @@ levels:
     extra_states: []
     evidence: per-variant
     offers: []
-    phrases: [sketch, quick, just two]
+    phrases: [a quick sketch, a rough sketch, just a sketch]
   standard:
     variants: 3
     screens: flow
@@ -25,4 +25,4 @@ levels:
     extra_states: [narrow-viewport, dark-scheme, reduced-motion]
     evidence: per-state
     offers: [review-mode, real-stack]
-    phrases: [the full package, full, everything]
+    phrases: [the full package, the full treatment]

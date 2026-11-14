@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "level: standard (default)\nPlan: /profile, HTML mockup, variants A to C, states populated, empty, loading, error.\n- A Identity card (layout)\n- B Sidebar profile (navigation)\n- C Status-first feed (hierarchy)",
+      "why": "three named variants"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "level: full (prompt)\nPlan: /profile, HTML mockup, variants A to E, states populated, empty, narrow-viewport.\n- A Identity card\n- B Sidebar profile\n- C Status-first feed\n- D Split view\n- E Tabs",
+      "why": "five variants"
+    },
+    {
+      "answer": "Plan: /profile, HTML mockup.\n- A Identity card\n- B Sidebar profile",
+      "why": "two variants"
+    }
+  ]
+}

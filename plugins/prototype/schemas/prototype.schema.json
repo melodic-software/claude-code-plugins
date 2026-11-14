@@ -66,7 +66,7 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1, "maxLength": 40 },
           "maxItems": 10,
-          "description": "Words in a request that select this level, besides its name."
+          "description": "Phrases a request uses to ask for this level's size of run, besides naming the level. Never a word a screen's content would use."
         }
       }
     }
