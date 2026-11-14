@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "From one pull request (#512): rename tmp2 to a name that says what it holds."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Seen once, not routed: rename tmp2 (PR 512)."
+    }
+  ]
+}

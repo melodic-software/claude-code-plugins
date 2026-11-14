@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: codify-reviews-single-pr-no-threshold
+description: 'With --pr the distinct-PR threshold does not apply: a lesson from the one chosen PR goes on, labeled as from one PR, and waits for approval.'
+tags: [codify]
+plugins: ["../.."]
+expected_outcome: 'The rename-tmp2 lesson from PR 512 goes on through the rungs, labeled as from one pull request, not listed as seen once, and its proposal waits for the person''s approval.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify reviews --pr 512 This run has no forge access: the review-comments read''s output for PR 512 is in review-comments.jsonl, so read that file instead of calling the read.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 720
+graders:
+  - name: labeled-one-pr
+    type: 'regex'
+    pattern: '(?:one|single|1) (?:pull request|PR)[\s\S]{0,300}(?:tmp2|512)|(?:tmp2|512)[\s\S]{0,300}(?:one|single|1) (?:pull request|PR)'
+    flags: 'i'
+    arm: 'both'
+  - name: awaits-approval
+    type: 'regex'
+    pattern: 'approv'
+    flags: 'i'
+    arm: 'both'
+  - name: names-no-forge-cli
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\bgh\b'
+    min: 0
+    max: 0
+    arm: 'both'
