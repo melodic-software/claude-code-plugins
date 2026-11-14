@@ -88,9 +88,10 @@ q="[\"']?"
 
 base_file_records || fail_closed "$BASE_FILE_REASON"
 
-seen=$'\n' max=-1
+seen=$'\n' max=-1 records=0
 while IFS=$'\t' read -r key val; do
   case "$key" in prep_audits | prep_audits.*) ;; *) continue ;; esac
+  ((records += 1))
   [[ "$key" != prep_audits ]] || fail_closed "prep_audits is not a list"
   rest="${key#prep_audits.}"
   idx="${rest%%.*}"
@@ -114,13 +115,19 @@ while IFS=$'\t' read -r key val; do
   ((idx <= max)) || max=$idx
 done <<<"$BASE_FILE_RECORDS"
 
-((max >= 0)) || emit default
-
-# The parser drops quoting, so a quoted enabled is found in the key's own lines.
+# The parser drops quoting and emits no record for an empty value or an empty
+# item, so those are found in the key's own lines.
 block=$(awk -v q="$q" '
   $0 ~ "^" q "prep_audits" q "[[:space:]]*:" { inside = 1; next }
   inside && /^[^[:space:]#-]/ { inside = 0 }
   inside' <<<"$doc")
+(($(grep -cE '^[[:space:]]*-([[:space:]]|$)' <<<"$block") == max + 1)) ||
+  fail_closed "prep_audits holds an empty item"
+(($(grep -cE "^[[:space:]]*(-[[:space:]]+)?${q}[A-Za-z0-9_.-]+${q}[[:space:]]*:([[:space:]]|\$)" <<<"$block") == records)) ||
+  fail_closed "prep_audits item has a key with no value"
+
+((max >= 0)) || emit default
+
 grep -qE "(^|[[:space:]{,-])${q}enabled${q}[[:space:]]*:[[:space:]]*[\"']" <<<"$block" &&
   fail_closed "an enabled value in prep_audits is quoted, not a boolean"
 
