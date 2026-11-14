@@ -7,16 +7,18 @@ badge-acceptance heuristics in front of each agent while it is still forming its
 
 Assemble one briefing per subagent. Each briefing has five parts: vocabulary primer, friction
 checklist, dependency categories, badge-acceptance heuristics, and the per-candidate return schema
-with its stopping point. The examples below use the tax case from [vocabulary.md](vocabulary.md);
+with its stopping point. The examples below use the tax case from [vocabulary.md](../../../principles/reference/vocabulary.md);
 a real briefing names the agent's own area instead.
 
 ## 1. Vocabulary primer
 
-The agent names what it finds with the eight terms defined in [vocabulary.md](vocabulary.md), in
+The agent names what it finds with the eight terms defined in [vocabulary.md](../../../principles/reference/vocabulary.md), in
 that file's order: **module, interface, implementation, seam, adapter, depth, leverage, locality**.
 The same file lists the words the agent must not use in their place (*component*, *service*,
 *boundary*) and the reading of depth it must not adopt (a count of implementation lines against
-interface lines). Add the project's own glossary terms when the project keeps a glossary. A report
+interface lines). Copy those definitions and exclusions into the primer: a scan agent may lack the
+Skill tool and cannot load `/architecture:principles` itself. Add the project's own glossary terms
+when the project keeps a glossary. A report
 built from agents that each picked their own words cannot be compared candidate to candidate.
 
 ## 2. Friction checklist
@@ -63,7 +65,7 @@ must change? A "no" confirms the hazard, and the candidate cites the test in `sh
 
 Run the **deletion test** on anything that looks shallow, and record the result in the schema's
 `deletion-verdict` field: `concentrates` is the candidate signal and `moves` marks a pass-through,
-with both results defined in [vocabulary.md](vocabulary.md) and Phase 1.
+with both results defined in [vocabulary.md](../../../principles/reference/vocabulary.md) and Phase 1.
 
 When judging whether an area is tested, a suite that skips because a required tool is missing is
 not a pass, and a stub standing in for the tool is not the tool. Report such an area as unverified,
