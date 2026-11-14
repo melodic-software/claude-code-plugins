@@ -195,13 +195,13 @@
       "id": 16,
       "name": "self-mode-large-change-set-criteria-and-coverage-lines",
       "prompt": "/review:quality-gate self\n\nI just finished a large change: 11 modified and 6 untracked files across two modules (the api module and the worker module). Self-review it before I open the PR.",
-      "expected_output": "The self lens runs the reviewer worker over the large change set. The worker report opens with a `Criteria read:` line naming the criteria docs it read (or `none present`, or `skipped: <reason>`) and ends with a `Coverage:` line naming the changed files it did not reach, or `all changed files reviewed`. If a worker return lacks either line, the Coverage line names unreached files, or the Criteria read line names unread criteria, the orchestrator labels the gate partial and dispatches the worker once more or dispatches a fresh worker for the criteria lens; it never reports the gate as clean.",
+      "expected_output": "The self lens runs the reviewer worker over the large change set. The worker report opens with a `Criteria read:` line naming the criteria docs it read (or `none present`, or `skipped: <reason>`) and ends with a `Coverage:` line naming the changed files it did not reach, or `all changed files reviewed`. If a worker return lacks either line, the Coverage line names unreached files, or the Criteria read line names unread criteria, the orchestrator labels the gate partial and resumes the worker once with a write-now instruction, or dispatches a fresh worker for the criteria lens; it never reports the gate as clean.",
       "files": [],
       "expectations": [
         "The worker report opens with a `Criteria read:` line naming the criteria docs read, `none present`, or `skipped: <reason>`",
         "The worker report ends with a `Coverage:` line naming the changed files not reached, or `all changed files reviewed`",
         "When a worker return lacks the Criteria read line or the Coverage line, the Coverage line names unreached files (for example `Coverage: api/foo.ts, worker/bar.ts`), the Criteria read line names unread criteria, or the Criteria read line silently omits a criteria source the shared inputs resolved, the orchestrator labels the gate partial",
-        "On a partial return the orchestrator dispatches the worker once more or dispatches a fresh worker for the criteria lens, rather than accepting the return as is",
+        "On a partial return the orchestrator resumes the worker once with a write-now instruction, or dispatches a fresh worker for the criteria lens, rather than accepting the return as is",
         "A partial gate is never presented as a clean pass, and the findings artifact names what was missed"
       ]
     },
@@ -209,11 +209,11 @@
       "id": 17,
       "name": "self-mode-worker-returns-no-report-is-partial-gate",
       "prompt": "/review:quality-gate self\n\nThe reviewer worker for my 17-file change came back with only a short message saying it ran out of turns and no findings table. Finish the self review.",
-      "expected_output": "A worker return with no report is a partial gate. The orchestrator dispatches the worker once more for the report or dispatches a fresh worker for the criteria lens; if the gate is still partial, the verdict and the findings artifact say the gate is partial and name what was missed. It does not treat the empty return as no findings.",
+      "expected_output": "A worker return with no report is a partial gate. When the orchestrator holds the worker's agent ID it resumes the worker once with a write-now instruction for the report; without the ID it reports the gate partial. It never dispatches a fresh worker from zero for the missing report. If the gate is still partial, the verdict and the findings artifact say the gate is partial and name what was missed. It does not treat the empty return as no findings.",
       "files": [],
       "expectations": [
         "Treats a worker return with no report as a partial gate, not as a clean pass",
-        "Dispatches the worker once more for the report or dispatches a fresh worker for the criteria lens",
+        "Resumes the worker once with a write-now instruction when it holds the worker's agent ID, and otherwise reports the gate partial; never dispatches a fresh worker from zero for the missing report",
         "If still partial, the verdict and findings artifact state the gate is partial and name what was missed",
         "Does not present the gate as clean or report no findings on the strength of the empty return"
       ]
@@ -433,6 +433,32 @@
       "expectations": [
         "Output routes the quick zero-dependency pass to the bundled /code-review skill instead of running this mode's convention-aware reviewers",
         "Output gives the reason: project-standards grounding is not the point of the request"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "security-mode-reviewer-returns-no-report-is-partial-gate",
+      "prompt": "/review:quality-gate security\n\nThe security reviewer for my 22-file change came back with no report and no handback block, and no findings file exists at the path I gave it. Finish the security review.",
+      "expected_output": "A security reviewer return with no report and no findings file is a partial gate. When the orchestrator holds the reviewer's agent ID it resumes the same reviewer once with a write-now instruction to write what it has to the same findings path and end it with a Coverage line; without the ID it reports the gate partial. It never dispatches a fresh reviewer from zero. If the return is still incomplete, the verdict and the findings artifact say the gate is partial and name what was missed. It never reports the gate as clean.",
+      "files": [],
+      "expectations": [
+        "Treats a security reviewer return with no report and no findings file as a partial gate, not as a clean pass",
+        "Resumes the same reviewer once with a write-now instruction when it holds the reviewer's agent ID, and otherwise reports the gate partial; never dispatches a fresh reviewer from zero",
+        "If still incomplete, the verdict and findings artifact state the gate is partial and name what was missed",
+        "Does not present the gate as clean or report no findings on the strength of the empty return"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "security-mode-checkpoint-file-in-progress-is-partial-gate",
+      "prompt": "/review:quality-gate security\n\nThe security reviewer for my change set wrote its findings file, but the file's last line reads `Coverage: in progress` and the reply had no handback block. Finish the security review.",
+      "expected_output": "A findings file whose Coverage line reads `Coverage: in progress` is a checkpoint, not a final report, so the gate is partial. When the orchestrator holds the reviewer's agent ID it resumes the same reviewer once with a write-now instruction to replace the checkpoint with its final report at the same path; without the ID it reports the gate partial with the checkpoint's findings. It never dispatches a fresh reviewer from zero and never overwrites the checkpoint with the reply. If the file still reads in progress, or its Coverage line names unreached files, the verdict and the findings artifact say the gate is partial, carry the checkpoint's findings, and name what was missed. It never reports the gate as clean.",
+      "files": [],
+      "expectations": [
+        "Treats a findings file ending `Coverage: in progress` as an incomplete checkpoint, not as a final report",
+        "Resumes the same reviewer once with a write-now instruction when it holds the reviewer's agent ID, and otherwise reports the gate partial with the checkpoint's findings; never dispatches a fresh reviewer from zero and never overwrites the checkpoint with the reply",
+        "If still incomplete, the verdict and findings artifact state the gate is partial, keep the checkpoint's findings, and name what was missed",
+        "Does not present the gate as clean while the Coverage line is anything other than `all changed files reviewed`"
       ]
     }
   ]
