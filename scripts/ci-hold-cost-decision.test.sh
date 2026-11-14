@@ -164,8 +164,8 @@ LANE='{"login":"github-actions[bot]","id":41898282,"type":"Bot"}'
 APP="{\"login\":\"melodic-automation-lanes[bot]\",\"id\":$APP_ID,\"type\":\"Bot\"}"
 OWNER="{\"login\":\"owner\",\"id\":$OWNER_ID,\"type\":\"User\"}"
 STRANGER='{"login":"someone","id":42,"type":"User"}'
-CODE_CHECK='PR Review / review-status'
-SEC_CHECK='PR Review Security / review-status'
+CODE_CHECK='PR Review / Status'
+SEC_CHECK='PR Review Security / Status'
 # The names a head tested before the rename shows: the caller job ids.
 OLD_CODE_CHECK='pr-review / review-status'
 OLD_SEC_CHECK='pr-review-security / review-status'
@@ -635,16 +635,26 @@ for lane in "pr-review-hosted.yml $OLD_CODE_CHECK" "pr-review-security-hosted.ym
   decided "$HEAD" 2026-10-23T13:12:00Z cost "${lane%% *}" "${lane#* }"
   expect "a cost notice from a head tested before the rename, under '${lane#* }', decides its head" yes yes yes
 done
+# pr-review-cli.yml's status job before its Title Case name, under the callers'
+# display names, and its Title Case name under the caller job ids.
+for lane in 'pr-review-hosted.yml PR Review / review-status' 'pr-review-security-hosted.yml PR Review Security / review-status' \
+  'pr-review-hosted.yml pr-review / Status' 'pr-review-security-hosted.yml pr-review-security / Status'; do
+  nodecided
+  decided "$HEAD" 2026-10-23T13:12:00Z cost "${lane%% *}" "${lane#* }"
+  expect "a cost notice under '${lane#* }' decides its head" yes yes yes
+done
 nodecided
 decided "$HEAD" 2026-10-23T13:12:00Z cost pr-review-hosted.yml "$OLD_SEC_CHECK"
 expect "the other lane's status job id in this lane's workflow decides nothing" no no no "covering this head"
-# The status job names pr-review-cli.yml gave before it named both review-status.
-for lane in 'pr-review-hosted.yml pr-review / claude-review-status' 'pr-review-security-hosted.yml pr-review-security / security-review'; do
+# The status job names pr-review-cli.yml gave before it named both review-status,
+# and the Title Case name pr-review.yml and pr-review-security.yml give theirs.
+for lane in 'pr-review-hosted.yml pr-review / claude-review-status' 'pr-review-security-hosted.yml pr-review-security / security-review' \
+  'pr-review-hosted.yml pr-review / Claude' 'pr-review-security-hosted.yml pr-review-security / Claude'; do
   nodecided
   decided "$HEAD" 2026-10-23T13:12:00Z cost "${lane%% *}" "${lane#* }"
   expect "a cost notice from the retired status job name '${lane#* }' decides nothing" no no no "covering this head"
 done
-for name in 'other / review-status' 'review-status'; do
+for name in 'other / review-status' 'review-status' 'other / Status' 'Status'; do
   nodecided
   decided "$HEAD" 2026-10-23T13:12:00Z cost pr-review-hosted.yml "$name"
   expect "a notice from a job named '$name' decides nothing" no no no "covering this head"

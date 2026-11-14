@@ -848,7 +848,12 @@ segment under any caller, e.g. `review /` or `pr-review /`) and the security lan
 `security-review / security-review`, `PR Review Security / security-review` or
 `pr-review-security / security-review` (matched by its
 whole name, never by the job segment alone; every name holds while old and new callers coexist),
-plus any `claude-security-review-status` check the rollup carries. Their names are
+plus any `claude-security-review-status` check the rollup carries. ci-workflows' Title Case job
+names count too, each only as a whole name, since both lanes share the segment: the review lane's
+`PR Review / Status`, `pr-review / Status`, `PR Review / Claude`, `pr-review / Claude` or
+`pr-review-no-bots / Claude`, and the security lane's `PR Review Security / Status`,
+`pr-review-security / Status`, `PR Review Security / Claude` or `pr-review-security / Claude`.
+Their names are
 `<caller job name> / <reusable job name>`: the caller's display name, or its job id where it sets
 none, from the caller components synced from standards, then the ci-workflows reusable's job.
 

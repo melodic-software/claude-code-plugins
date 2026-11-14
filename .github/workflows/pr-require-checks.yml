@@ -5857,8 +5857,9 @@ jobs:
           # started before the decision.
           notices='[]' vetted='' ran='[]'
           # Each lane's status job names, `|`-separated: its caller job's
-          # display name over pr-review-cli.yml's status job, then the caller
-          # job id, the name a head tested before the rename shows.
+          # display name over pr-review-cli.yml's status job `Status`, then the
+          # caller job id, the name a head tested before the rename shows, then
+          # both over the job's earlier name `review-status`.
           while read -r file checks; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
             ran=$(jq -nc --argjson ran "$ran" --arg repo "$repo" --argjson decided "$decided_at" '$ran + [[inputs.workflow_runs[]
@@ -5889,8 +5890,8 @@ jobs:
             done < <(jq -nr --arg repo "$repo" --argjson since "$since" --argjson decided "$decided_at" '[inputs.workflow_runs[]
               | select(.head_repository.full_name == $repo)
               | select((.updated_at | fromdateiso8601) > $since or (.created_at | fromdateiso8601) < $decided) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
-          done <<<'pr-review-hosted.yml PR Review / review-status|pr-review / review-status
-          pr-review-security-hosted.yml PR Review Security / review-status|pr-review-security / review-status'
+          done <<<'pr-review-hosted.yml PR Review / Status|pr-review / Status|PR Review / review-status|pr-review / review-status
+          pr-review-security-hosted.yml PR Review Security / Status|pr-review-security / Status|PR Review Security / review-status|pr-review-security / review-status'
           # The decided head: the sha of the newest cost notice before the
           # decision that names its own run's head; none when two heads share
           # that time.
@@ -7331,11 +7332,12 @@ jobs:
           # .github/standards/trusted-actors/trusted-actors.json lists them.
           exempt_author_ids='49699333 337859524 300666570'
           # Each lane's status job names, `|`-separated: its caller job's
-          # display name over pr-review-cli.yml's status job, the one the
-          # messages below name, then the caller job id, the name a head
-          # tested before the rename shows.
-          lanes='pr-review-hosted.yml claude-review PR Review / review-status|pr-review / review-status
-          pr-review-security-hosted.yml claude-security-review PR Review Security / review-status|pr-review-security / review-status'
+          # display name over pr-review-cli.yml's status job `Status`, the one
+          # the messages below name, then the caller job id, the name a head
+          # tested before the rename shows, then both over the job's earlier
+          # name `review-status`.
+          lanes='pr-review-hosted.yml claude-review PR Review / Status|pr-review / Status|PR Review / review-status|pr-review / review-status
+          pr-review-security-hosted.yml claude-security-review PR Review Security / Status|pr-review-security / Status|PR Review Security / review-status|pr-review-security / review-status'
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the head '$HEAD_SHA' is not a commit SHA."
             exit 1
