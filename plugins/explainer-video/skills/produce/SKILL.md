@@ -179,6 +179,8 @@ split under the limit; it is hosted whole as an Actions artifact, never recompre
 ## Related
 
 - `/education:illustrate` offers a video view through this skill.
+- `/review:reviewer-media` builds a pull request's reviewer storyboard from that digest and hands
+  it here, then hands the manifest to `/source-control:pull-request media`.
 - `/review:explain-change` writes a pull request digest; a `storyboard.json` built from one renders
   here through the stills renderer.
 - `/playwright:demo-video` records a live UI flow; this skill renders still frames and diagrams.
