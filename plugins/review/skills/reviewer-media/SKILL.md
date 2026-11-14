@@ -28,14 +28,21 @@ Make a fresh directory under the OS temp directory (`mktemp -d`), never in the w
 it `<dir>`. Read the facts with `/source-control:pull-request view <pr> --out <dir>/facts.json`,
 via the Skill tool, and the commit its reviewer-media section shows with
 `/source-control:pull-request media shows --facts <dir>/facts.json`, which prints a sha or nothing.
-Then:
+Then check the renderer, on a direct run and on `--handoff` alike:
+
+1. Look for `explainer-video:produce` in this session's skill list. When it is absent, pass
+   `--producer-unavailable` below: a build then reports `skip` with reason
+   `producer-unavailable` before step 2, so no head is claimed that nothing could finish.
+2. Look for `speech:narrate` there too. Its absence does not stop the build, since step 5 renders
+   captions-only when no voice produced audio; say in the report that narration is unavailable.
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/decide.mjs" [--requested] [--shown <sha>] [--policy <policy>] [--blast-radius <level>] < <dir>/facts.json
+"${CLAUDE_SKILL_DIR}/scripts/decide.mjs" [--requested] [--producer-unavailable] [--shown <sha>] [--policy <policy>] [--blast-radius <level>] < <dir>/facts.json
 ```
 
 - `--requested` when a reader invoked this skill; `--handoff` means `ready` or `monitor` handed the
   pull request over, so leave it off.
+- `--producer-unavailable` when check 1 found no `/explainer-video:produce`.
 - `--shown` with the sha `media shows` printed, left off when it printed nothing.
 - `--policy` only when the reader passed it; `--blast-radius` when a plan or
   `/review:quality-gate downstream` assessed one.

@@ -7,7 +7,7 @@
 // the working tree, then an untracked personal override, which can never set a team-only key. The
 // thresholds are the review-digest triggers (lib/review-digest.mjs).
 //
-//   decide.mjs [--requested] [--shown <sha>] [--policy <policy>] [--blast-radius <level>] < facts.json
+//   decide.mjs [--requested] [--producer-unavailable] [--shown <sha>] [--policy <policy>] [--blast-radius <level>] < facts.json
 // Prints one JSON object. Exit 0 decided, 2 usage or unreadable facts.
 
 import { execFileSync } from "node:child_process";
@@ -50,7 +50,9 @@ const at = (object, parts) => parts.reduce((o, k) => o?.[k], object);
 
 /**
  * @param {{isDraft?: boolean, isCrossRepository?: boolean, headRefOid?: string, labels?: ({name?: string}|string)[], files?: object[]}} facts
- * @param {{requested: boolean, shown: string | null, delta: {files: object[]} | null}} options
+ * @param {{requested: boolean, shown: string | null, delta: {files: object[]} | null, producerUnavailable?: boolean}} options
+ *   `producerUnavailable`: the session cannot run /explainer-video:produce, so a build skips before claiming the
+ *   head, which nothing could then finish; a stale note needs no renderer and is still written
  * @param {typeof DEFAULTS} config resolved values
  * @param {(facts: object, whole: boolean) => string[]} triggersOf the review-digest triggers that fire for a set
  *   of facts; `whole` is false for the delta since posted media, which an assessment of the whole pull request
@@ -60,7 +62,9 @@ const at = (object, parts) => parts.reduce((o, k) => o?.[k], object);
  */
 export function decide(facts, options, config, triggersOf, badPatterns = []) {
   const result = choose(facts, options, config, triggersOf);
-  return result.action === "build" && badPatterns.length ? { ...result, action: "skip", reason: "invalid-scan-pattern" } : result;
+  if (result.action !== "build") return result;
+  if (options.producerUnavailable) return { ...result, action: "skip", reason: "producer-unavailable" };
+  return badPatterns.length ? { ...result, action: "skip", reason: "invalid-scan-pattern" } : result;
 }
 
 function choose(facts, { requested, shown, delta }, config, triggersOf) {
@@ -161,10 +165,11 @@ function deltaOf(root, from, to) {
 // ------------------------------------------------------------ CLI
 
 function parseArgs(argv) {
-  const opts = { requested: false, shown: null, policy: null, blastRadius: "" };
+  const opts = { requested: false, producerUnavailable: false, shown: null, policy: null, blastRadius: "" };
   for (let i = 0; i < argv.length; i += 1) {
     const [flag, next] = [argv[i], argv[i + 1]];
     if (flag === "--requested") opts.requested = true;
+    else if (flag === "--producer-unavailable") opts.producerUnavailable = true;
     else if (flag === "--shown" && (next === "" || isSha(next))) [opts.shown, i] = [next || null, i + 1];
     else if (flag === "--policy" && POLICIES.includes(next)) [opts.policy, i] = [next, i + 1];
     else if (flag === "--blast-radius" && LEVELS.includes(next?.toUpperCase())) [opts.blastRadius, i] = [next.toUpperCase(), i + 1];
@@ -176,7 +181,7 @@ function parseArgs(argv) {
 function main(argv) {
   const opts = parseArgs(argv);
   if (!opts) {
-    process.stderr.write(`usage: decide.mjs [--requested] [--shown <sha>] [--policy ${POLICIES.join("|")}] [--blast-radius ${LEVELS.join("|")}] < facts.json\n`);
+    process.stderr.write(`usage: decide.mjs [--requested] [--producer-unavailable] [--shown <sha>] [--policy ${POLICIES.join("|")}] [--blast-radius ${LEVELS.join("|")}] < facts.json\n`);
     return 2;
   }
   let facts;
@@ -199,7 +204,7 @@ function main(argv) {
   const delta = opts.shown && opts.shown !== facts.headRefOid ? deltaOf(root, opts.shown, facts.headRefOid) : null;
   const bad = invalidPatterns(config["scan.extra_patterns"].value);
   for (const i of bad) warnings.push(`reviewer-media: scan.extra_patterns[${i}] is not a valid Python regular expression; nothing is built until it is fixed`);
-  const result = decide(facts, { requested: opts.requested, shown: opts.shown, delta }, valuesOf(config), triggersOf, bad);
+  const result = decide(facts, { requested: opts.requested, shown: opts.shown, delta, producerUnavailable: opts.producerUnavailable }, valuesOf(config), triggersOf, bad);
   process.stdout.write(`${JSON.stringify({ ...result, head: facts.headRefOid ?? null, config, warnings }, null, 2)}\n`);
   return 0;
 }
