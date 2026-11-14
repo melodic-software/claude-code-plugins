@@ -1,6 +1,6 @@
 ---
 description: "Clean up low-value tests in one folder, or plan a repo as per-project batches: reads /testing:audit findings, its judge pass's FLAG verdicts and the tests the user names as flaky, has a fresh-context classifier pick quarantine, rewrite, delete, merge or keep per test, rewrites by default, and deletes or merges only with a stated no-contract reason and the user's yes on each item. A mutation gate records the mutants the tests kill before any edit and replays them after, blocking the batch when a kill is lost. An attended run commits the batch once it is shown; an unattended one does not. Use when: the user wants an existing suite of tautological, vacuous or low-value tests cleaned up ('clean up these tests', 'prune the useless tests in this folder', 'clean up the whole repo's tests', 'fix the tests audit flagged'), or audit findings need acting on rather than reporting. Needs the mutation-testing plugin set up, or --cannot-fail-only, which deletes only skeptic-cleared tests that cannot fail."
-argument-hint: "<folder|repo root> [--max <n>] [--flaky <test> ...] [--cannot-fail-only]"
+argument-hint: "<<folder>|<repo root>> [--max <n>] [--flaky <test> ...] [--cannot-fail-only]"
 user-invocable: true
 disable-model-invocation: false
 metadata:

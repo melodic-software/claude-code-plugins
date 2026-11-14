@@ -2,8 +2,9 @@
 
 // Generates the stage-grouped skill cheat sheet block in
 // docs/skill-cheat-sheet.md from each in-scope SKILL.md's `metadata:`
-// frontmatter (`workflow-stage`, `summary`, `cadence`) plus the hand-curated
-// grouping layer in scripts/cheatsheet-config.mjs.
+// frontmatter (`workflow-stage`, `summary`, `cadence`), its `argument-hint`
+// (the Actions column) and its `## Next` section (the Next column), plus the
+// hand-curated grouping layer in scripts/cheatsheet-config.mjs.
 // Sibling of generate-catalog.mjs: the block between the markers is
 // generated, never hand-edited; run with no argument to rewrite it, with
 // --check to fail on drift (CI gate). --root <dir> points every input and the
@@ -14,7 +15,8 @@
 // must name existing plugins/skills; stage and cadence values must be in the
 // config enums; `cadence` is required with `workflow-stage:
 // operator` and forbidden otherwise; summaries must pass the shared guard
-// (plain YAML scalar, <=100 codepoints). Swept values are plain scalars, and
+// (plain YAML scalar, <=100 codepoints). A `## Next` token naming no skill is
+// rendered as written; scripts/check-next-graph.py fails on it. Swept values are plain scalars, and
 // this reader takes the literal text after the key: it strips a trailing
 // `#`-comment but never strips quotes, because a quoted value is a rejection
 // here rather than a value to unwrap. skill-quality's
@@ -86,9 +88,13 @@ function readCheatsheetMeta(path) {
   if (lines[0]?.trim() !== "---") return {};
   const values = {};
   const raw = {};
+  let argumentHint;
   let inMetadata = false;
-  for (let i = 1; i < lines.length && lines[i].trim() !== "---"; i++) {
+  let i = 1;
+  for (; i < lines.length && lines[i].trim() !== "---"; i++) {
     const line = lines[i];
+    const hint = line.match(/^argument-hint:\s*(.*)$/);
+    if (hint) argumentHint = unquote(hint[1].trim());
     if (/^metadata:\s*$/.test(line)) {
       inMetadata = true;
       continue;
@@ -112,7 +118,75 @@ function readCheatsheetMeta(path) {
       values[m[1]] = m[2].replace(/\s+#.*$/, "").trim();
     }
   }
-  return { values, raw };
+  return {
+    values,
+    raw,
+    actions: actionWords(argumentHint ?? ""),
+    successors: successorTokens(lines.slice(i + 1)),
+  };
+}
+
+function unquote(value) {
+  if (/^".*"$/.test(value)) return value.slice(1, -1).replace(/\\(.)/g, "$1");
+  if (/^'.*'$/.test(value)) return value.slice(1, -1).replace(/''/g, "'");
+  return value;
+}
+
+// The actions are the bare-word alternatives of the hint's first bracketed
+// group: `[audit|fix] [target]` yields audit and fix, and a required
+// `<fetch|diff>` group's choices are read the same way. Only a lone `<name>` is
+// a placeholder, so `<<role>|all>` yields all. Flags, `key=value` choices and
+// multi-word alternatives are not actions; a group with no `|` is an argument, and one led by a flag and its value
+// (`[--output a|b]`) chooses that flag's value, so neither yields actions. A
+// group whose first choice is a bare flag (`[--ledger|fix]`) still yields fix.
+function actionWords(hint) {
+  const open = hint.search(/[[<]/);
+  if (open === -1) return [];
+  const alternatives = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of hint.slice(open)) {
+    if (ch === "[" || ch === "<") {
+      depth++;
+      if (depth === 1) continue;
+    } else if (ch === "]" || ch === ">") {
+      depth--;
+      if (depth === 0) break;
+    } else if (ch === "|" && depth === 1) {
+      alternatives.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  alternatives.push(current);
+  if (alternatives.length < 2) return [];
+  const bare = alternatives.map((alt) => {
+    let text = alt;
+    for (let prev; prev !== text; ) {
+      prev = text;
+      text = text.replace(/[[<][^[\]<>]*[\]>]/g, "");
+    }
+    return text.replace(/…|\.\.\./g, "").trim().split(/\s+/);
+  });
+  const [lead, leadValue] = bare[0];
+  const flagLed = lead.startsWith("-") && leadValue !== undefined && !leadValue.startsWith("-");
+  if (flagLed || bare.some(([first]) => first.includes("="))) return [];
+  const words = bare
+    .filter(([first, ...rest]) => /^[a-z][a-z0-9-]*$/.test(first) && rest.every((t) => t.startsWith("-")))
+    .map(([first]) => first);
+  return [...new Set(words)];
+}
+
+// The `/plugin:skill` tokens of the body's `## Next` section, in order.
+function successorTokens(bodyLines) {
+  const start = bodyLines.findIndex((l) => l.trim() === "## Next");
+  if (start === -1) return [];
+  const end = bodyLines.findIndex((l, j) => j > start && /^#{1,2} /.test(l));
+  const text = bodyLines.slice(start + 1, end === -1 ? undefined : end).join("\n");
+  const tokens = [...text.matchAll(/(?<![\w./:-])\/([a-z0-9][a-z0-9-]*):([a-z0-9][a-z0-9-]*)/g)]
+    .map((m) => `${m[1]}/${m[2]}`);
+  return [...new Set(tokens)];
 }
 
 // --- Enforcement ------------------------------------------------------------
@@ -260,15 +334,17 @@ for (const stage of STAGES) {
   toc.push(`- [${stage.heading}](#${slugify(stage.heading)})`);
   const operator = stage.slug === "operator";
   const header = operator
-    ? "| Skill | Plugin | Cadence | What it does |\n| --- | --- | --- | --- |"
-    : "| Skill | Plugin | What it does |\n| --- | --- | --- |";
+    ? "| Skill | Plugin | Cadence | What it does | Actions | Next |\n| --- | --- | --- | --- | --- | --- |"
+    : "| Skill | Plugin | What it does | Actions | Next |\n| --- | --- | --- | --- | --- |";
   const body = rows
     .map((s) => {
       const link = `[\`/${s.plugin}:${s.skill}\`](../plugins/${s.plugin}/skills/${s.skill}/SKILL.md)`;
       const id = `\`${installName.get(s.plugin)}\``;
+      const actions = s.meta.actions.map((a) => `\`${a}\``).join(", ");
+      const next = s.meta.successors.map((t) => `\`/${t.replace("/", ":")}\``).join(", ");
       return operator
-        ? `| ${link} | ${id} | ${s.cadence} | ${cell(s.summary)} |`
-        : `| ${link} | ${id} | ${cell(s.summary)} |`;
+        ? `| ${link} | ${id} | ${s.cadence} | ${cell(s.summary)} | ${actions} | ${next} |`
+        : `| ${link} | ${id} | ${cell(s.summary)} | ${actions} | ${next} |`;
     })
     .join("\n");
   sections.push(`## ${stage.heading}\n\n${header}\n${body}`);
