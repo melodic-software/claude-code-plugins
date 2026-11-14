@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { isEscalationReply } from "./address-feedback.mjs";
-import { followUpBullet, main, publish, renderReply, undisposedLines, withFollowUp } from "./publish-feedback.mjs";
+import { gateLines, sectionRefusal } from "./address-feedback.mjs";
+import { followUpBullet, main, publish, refreshedBody, renderReply, takeBodyRecord, undisposedLines, withFollowUp } from "./publish-feedback.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
@@ -2037,4 +2039,176 @@ test("followUpBullet leaves no comment marker when markers are nested inside eac
     assert.doesNotMatch(bullet, /<!--|-->/, advisory);
   }
   assert.equal(followUpBullet("<!<!---- x ---->>", "L"), "- Pre-existing (advisory): ` x ` ([thread](L))");
+});
+
+// Q545: after a round whose fix landed, the reply job puts the body sections
+// the model job recorded in place, and drops that refresh alone when the text
+// could reach a line a gate reads.
+const BODY = [
+  "No related issue: an owner decision",
+  "",
+  "## Summary",
+  "",
+  "Adds the parser.",
+  "",
+  "## Verification",
+  "",
+  "Ran the unit suite.",
+  "Left out: end-to-end",
+  "",
+  "## Related",
+  "",
+  "Refs: #5",
+  "",
+  "Generated with Claude Code",
+  "",
+].join("\n");
+const VERIFICATION_TEXT = "\nRan the unit suite.\nLeft out: end-to-end\n";
+const offeredRun = (sections = [{ heading: "Verification", sha256: createHash("sha256").update(VERIFICATION_TEXT).digest("hex") }]) =>
+  JSON.stringify({ ...RUN, threads: [RUN.threads[0]], body_sections: sections });
+const bodyLine = (sections) => JSON.stringify({ body_sections: sections });
+const validFix = () => reply({ disposition: "VALID", note: "Guarded the null case." });
+const NEW_VERIFICATION = "Ran the unit suite and the null-case test.\nLeft out: nothing";
+const dropLine = (api) => api.markers()[0][2].split("\n").find((line) => line.startsWith("The body refresh was dropped:"));
+
+test("a landed fix puts the recorded Verification text in place and leaves every other byte of the body", async () => {
+  const api = fakeApi({ prBody: BODY });
+  const result = await run(api, lines(validFix(), { body_sections: [{ heading: "Verification", text: NEW_VERIFICATION }] }), offeredRun());
+  assert.equal(result.escalationReason, "");
+  assert.equal(api.prBody(), BODY.replace("Ran the unit suite.\nLeft out: end-to-end", "Ran the unit suite and the null-case test.\nLeft out: nothing"));
+  assert.equal(api.posted().length, 1, "the reply still posts");
+  const order = api.calls.map((call) => call[0]).filter((kind) => ["body", "reply"].includes(kind));
+  assert.deepEqual(order, ["reply", "body"], "the body is refreshed after the replies");
+  assert.equal(dropLine(api), undefined);
+});
+
+test("section text holding a line a gate reads, or a shape a reader takes, drops the refresh and keeps the round", async () => {
+  for (const [text, why] of [
+    ["Hold: wait for the vendor", "a line a gate reads"],
+    ["> Draft: still open", "a line a gate reads"],
+    ["Closes #9", "a line a gate reads"],
+    ["Fixes https://github.com/o/r/issues/9", "a line a gate reads"],
+    ["Refs: #3", "a line a gate reads"],
+    ["Siblings: #4, #6", "a line a gate reads"],
+    ["Merge-Risk: max=LOW", "a line a gate reads"],
+    ["No related issue: none", "a line a gate reads"],
+    ["Please do not\nmerge yet.", "a line a gate reads"],
+    ["Ran it.\n## Follow-ups", "a line a gate reads"],
+    ["Ran it.\n## Notes", "a heading line"],
+    ["Ran it.\n```\nnpm test", "a code fence"],
+    ["Pre-existing (advisory): add a test", "the follow-up sweep's marker"],
+    ["Set the committer name.", "the word committer"],
+    ["Thanks @someone for the report.", "an @-mention"],
+    ["Ran it. <!-- marker -->", "a control character, an HTML comment or a token"],
+    ["x".repeat(4001), "text over the size cap"],
+  ]) {
+    assert.equal(sectionRefusal(text), why, text);
+    const api = fakeApi({ prBody: BODY });
+    const result = await run(api, lines(validFix(), { body_sections: [{ heading: "Verification", text }] }), offeredRun());
+    assert.equal(result.escalationReason, "", text);
+    assert.equal(api.prBody(), BODY, `the body is left as it was: ${text}`);
+    assert.equal(api.posted().length, 1, `the reply still posts: ${text}`);
+    assert.equal(dropLine(api), `The body refresh was dropped: the text holds ${why}.`, text);
+  }
+  for (const text of ["Ran `@types/node` checks.", "Mail a@b.example about it.", "Fixed the parser; see the closing notes."]) {
+    assert.equal(sectionRefusal(text), null, text);
+  }
+});
+
+test("a section a person changed since the select job read it, or one it did not offer, is left as it is", async () => {
+  const edited = BODY.replace("Left out: end-to-end", "Left out: end-to-end, staging");
+  const changed = fakeApi({ prBody: edited });
+  await run(changed, lines(validFix(), { body_sections: [{ heading: "Verification", text: NEW_VERIFICATION }] }), offeredRun());
+  assert.equal(changed.prBody(), edited);
+  assert.equal(dropLine(changed), "The body refresh was dropped: a section changed since the select job read it.");
+  const unoffered = fakeApi({ prBody: BODY });
+  await run(unoffered, lines(validFix(), { body_sections: [{ heading: "Summary", text: "Adds the parser and a guard." }] }), offeredRun());
+  assert.equal(unoffered.prBody(), BODY);
+  assert.equal(dropLine(unoffered), "The body refresh was dropped: it names a section the select job did not offer.");
+});
+
+test("with no fix landed, pr_body_refresh off, or a malformed record, the body is left and the replies still post", async () => {
+  const unfixed = fakeApi({ prBody: BODY });
+  await run(unfixed, lines(reply(), { body_sections: [{ heading: "Verification", text: NEW_VERIFICATION }] }), offeredRun());
+  assert.equal(unfixed.prBody(), BODY, "an INCORRECT reply lands no fix");
+  assert.equal(dropLine(unfixed), undefined);
+
+  const off = fakeApi({ prBody: BODY });
+  await run(off, lines(validFix(), { body_sections: [{ heading: "Verification", text: NEW_VERIFICATION }] }), JSON.stringify({ ...RUN, threads: [RUN.threads[0]] }));
+  assert.equal(off.prBody(), BODY);
+  assert.equal(dropLine(off), "The body refresh was dropped: the select job offered no body section.");
+
+  const twice = fakeApi({ prBody: BODY });
+  const record = { body_sections: [{ heading: "Verification", text: NEW_VERIFICATION }] };
+  const result = await run(twice, lines(validFix(), record, record), offeredRun());
+  assert.equal(result.escalationReason, "");
+  assert.equal(twice.posted().length, 1);
+  assert.equal(twice.prBody(), BODY);
+  assert.equal(dropLine(twice), "The body refresh was dropped: the body record is malformed.");
+});
+
+test("takeBodyRecord leaves the reply lines byte for byte and refuses a record of the wrong shape", () => {
+  const replyText = lines(reply());
+  assert.deepEqual(takeBodyRecord(replyText), { replyText, record: null });
+  assert.deepEqual(takeBodyRecord(`${replyText}\n${bodyLine([{ heading: "Fix", text: "x" }])}`), { replyText, record: { sections: [{ heading: "Fix", text: "x" }] } });
+  for (const sections of [[], [{ heading: "Fix" }], [{ heading: "Fix", text: "x" }, { heading: "Fix", text: "y" }], "Fix", [{ heading: "Fix", text: "x", extra: 1 }]]) {
+    assert.deepEqual(takeBodyRecord(bodyLine(sections)).record, { refusal: "the body record is malformed" }, JSON.stringify(sections));
+  }
+});
+
+test("refreshedBody keeps CRLF line endings and refuses a result that drops a gate line", () => {
+  const crlf = "## Verification\r\n\r\nOld.\r\n\r\n## Related\r\n";
+  const hash = (text) => createHash("sha256").update(text).digest("hex");
+  assert.deepEqual(refreshedBody(crlf, [{ heading: "Verification", text: "New." }], [{ heading: "Verification", sha256: hash("\r\nOld.\r\n\r") }]), {
+    body: "## Verification\r\n\r\nNew.\r\n\r\n## Related\r\n",
+  });
+  const gated = "## Verification\n\nRefs: #5\n\n## End\n";
+  assert.deepEqual(refreshedBody(gated, [{ heading: "Verification", text: "New." }], [{ heading: "Verification", sha256: hash("\nRefs: #5\n") }]), {
+    refusal: "it would change a line a gate reads",
+  });
+});
+
+// The CI list (address-feedback.mjs gateLines) and the attended one
+// (check-gate-lines.sh) must name the same lines: the reply job's job holds
+// only .github/scripts, so it cannot run the plugin's script.
+test("gateLines names exactly the lines check-gate-lines.sh names", (t) => {
+  const corpus = [
+    "Hold: wait",
+    "  hold: indented",
+    "> Draft: quoted",
+    "Siblings: #1, #2",
+    "MERGE-RISK: max=LOW",
+    "Refs: #5",
+    "relates to: #6",
+    "No related issue: reason",
+    "no linked issue here",
+    "Please don't merge yet",
+    "please do not merge",
+    "Closes #7",
+    "this fixes o/r#8 too",
+    "resolved: #9",
+    "## Summary",
+    "Plain prose about holds and drafts.",
+    "Refsx: #1",
+    "- Hold: in a bullet",
+    "## Follow-ups",
+    "",
+    "- Pre-existing (advisory): `x`",
+    "## Related",
+    "fixes the parser",
+  ].join("\n");
+  const dir = tempDir("gate-lines-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(join(dir, "empty"), "");
+  writeFileSync(join(dir, "body"), corpus);
+  const script = fileURLToPath(new URL("../../../plugins/source-control/skills/pull-request/scripts/check-gate-lines.sh", import.meta.url));
+  let out = "";
+  try {
+    execFileSync("bash", [script, join(dir, "empty"), join(dir, "body")], { encoding: "utf8" });
+  } catch (error) {
+    out = error.stdout;
+  }
+  const named = out.split("\n").filter((line) => line.startsWith("added: ")).map((line) => line.slice("added: ".length)).sort();
+  assert.deepEqual(gateLines(corpus), named);
+  assert.ok(named.length >= 14, "the corpus exercises the list");
 });
