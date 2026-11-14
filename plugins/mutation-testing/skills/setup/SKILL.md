@@ -70,7 +70,10 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    in the `principles` skill's `tooling.md`, not FAIL.
 2. **Tool present and runnable**. Invoke the tool's own version command. Absent → FAIL with the
    install line for this ecosystem. Present but erroring → FAIL quoting the error; a tool that
-   installs but cannot start is the common case and is worth distinguishing.
+   installs but cannot start is the common case and is worth distinguishing. A configured `tool`
+   id with no shipped adapter (probe 6) has no version command or install line to offer, and the
+   audit refuses to run it even once installed: report this probe and probe 3 as not run, pointing
+   to probe 6, rather than guessing a command or naming an install.
 3. **Test runner supported**. Confirm the project's runner is one the tool drives. Report the
    detected runner and the tool's support status. Unsupported → FAIL; this blocks every later step,
    so report it before anything about scores. A supported runner also gets an INFO row naming what
