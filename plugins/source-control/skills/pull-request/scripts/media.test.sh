@@ -540,7 +540,7 @@ assert_exit "stale on a section for an older head exits 0" 0 "$RC"
 assert_eq "the posted line becomes the stale line" "Out of date: shows commit $HEAD1" \
   "$(grep -- "$HEAD1" "$S/body")"
 assert_eq "stale leaves every line outside the markers" "$(outside_of "$FIXTURE")" "$(outside_of "$S/body")"
-assert_contains "stale keeps the media" "$(block_of "$S/body")" "https://github.com/user-attachments/assets/video.mp4"
+assert_contains "stale keeps the media" "$(block_of "$S/body")" "https://example.com/user-attachments/assets/video.mp4"
 
 reset "$FIXTURE" "$HEAD1"
 media stale 7 --head "$HEAD1"

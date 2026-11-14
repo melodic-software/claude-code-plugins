@@ -7,12 +7,12 @@ For reviewers: a narrated walkthrough of this change. Watch it before the diff.
 
 <!-- reviewer-media:posted 1111111111111111111111111111111111111111 -->
 
-https://github.com/user-attachments/assets/video.mp4
+https://example.com/user-attachments/assets/video.mp4
 
 <details>
 <summary>Contact sheet</summary>
 
-![Contact sheet 1](https://github.com/user-attachments/assets/sheet-1.png)
+![Contact sheet 1](https://example.com/user-attachments/assets/sheet-1.png)
 
 </details>
 
