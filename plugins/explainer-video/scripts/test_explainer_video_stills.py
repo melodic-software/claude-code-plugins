@@ -166,6 +166,22 @@ class Renders(unittest.TestCase):
             self.assertEqual(entry['sha256'], hashlib.sha256(data).hexdigest(), f'{entry["path"]} digest')
             self.assertEqual(entry['bytes'], len(data), f'{entry["path"]} size')
 
+    def test_each_chapter_part_of_a_split_video_names_the_sha256_of_its_bytes(self):
+        r, whole = self.silent
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        limit_mb = (whole / 'video.mp4').stat().st_size * 0.8 / 10 ** 6   # under the whole video, over any one chapter
+        out = self.dir / 'split'
+        r = run('--storyboard', BOARD, '--out', out, '--no-audio', '--upload-limit-mb', limit_mb)
+        self.assertIn(r.returncode, (0, 1), r.stdout + r.stderr)
+        m = self.manifest(out)
+        self.assertIsNone(m['oversize'])
+        self.assertGreaterEqual(len(m['parts']), 2, 'the video was not split at chapter starts')
+        for part in m['parts']:
+            self.assertFalse(Path(part['path']).is_absolute(), part['path'])
+            data = (out / part['path']).read_bytes()
+            self.assertEqual(part['bytes'], len(data), f'{part["path"]} size')
+            self.assertEqual(part['sha256'], hashlib.sha256(data).hexdigest(), f'{part["path"]} digest')
+
     def test_each_screenshot_is_published_with_its_own_scanned_sidecar_inside_the_output(self):
         board = json.loads(BOARD.read_text(encoding='utf-8'))
         src = self.dir / 'shots'
