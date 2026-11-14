@@ -920,8 +920,9 @@ class RunValidityTest(unittest.TestCase):
 
     def test_a_fired_run_whose_skill_call_failed_to_load_is_invalid(self):
         # #16146: the Skill grader saw the call, so skill fired passed, but the
-        # load aborted on the skill's pre-computed command. Hand-written in the
-        # shape the issue quotes; a recorded trace is still owed.
+        # load aborted on the skill's pre-computed command. Hand-written with the
+        # tool_use_error wrapper; traces/IF6xuu.jsonl holds a recorded run, whose
+        # result has no wrapper.
         trace = self.skill_load_trace(
             "skill-load.jsonl",
             "<tool_use_error>Shell command permission check failed for pattern"
