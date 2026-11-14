@@ -170,7 +170,10 @@ file), so the patch holds only fixes.
 
 ## Not in this mode
 
-No comment, review, label or push, and no network fetch the checks themselves do not make.
+No comment, review, label or push, and no network fetch the checks themselves do not make. No
+pull request body edit: a `fix-ci` round's push job rewrites no body section, unlike an
+`address-feedback` round ([comments-ci.md](comments-ci.md#body-sections)) and an attended run
+([monitor.md](monitor.md) §3.3.2 step 5).
 
 ## Report
 

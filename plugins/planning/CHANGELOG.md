@@ -3,6 +3,46 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.0] - 2026-11-14
+
+### Added
+
+- **Two design-time defaults in `reference/design-principles.md`.** **Errors**: shape an operation
+  so its ordinary cases cannot fail, and fail at once and visibly on a broken invariant or a
+  defect. **Make illegal states unrepresentable**: model data so invalid combinations cannot be
+  built.
+
+### Changed
+
+- **DIP** no longer says the high-level policy owns the abstraction; its cited source states no
+  ownership.
+- **Coupling and cohesion** is reworded to the definitions in Yourdon and Constantine's
+  *Structured Design*, adds that dependencies between modules form no cycle, and cites that book
+  and Martin's package principles in place of a profile page that carries no definition.
+- **Information hiding** says that encapsulation is a means, and **Deep modules** says where
+  unavoidable complexity goes (inside the module).
+- **Reuse first** labels its ask-the-user clause as this plugin's own policy.
+
+- `/planning:plan` flags change amplification at plan time: when the files-affected list shows one
+  logical change spread over many sites, the plan says so and proposes moving the repeated
+  knowledge behind one module first, or records why not.
+
+## [5.0.3] - 2026-11-13
+
+### Changed
+
+- Standards contract 1.1.5 (`reference/standards-contract.md`): planning and implementing skills
+  also read the repository's review-criteria index, `docs/review/README.md` when present, and load
+  only the files its rows match to the change.
+
+## [5.0.2] - 2026-11-13
+
+### Changed
+
+- The prototype page's pin helper, `shared/web/proto-pin.js`, is now a generated copy of the
+  shared `lib/ui-feedback/proto-pin.js`. Its `pinned` message also carries a structural anchor
+  that the prototype page ignores; the page behaves as before.
+
 ## [5.0.1] - 2026-11-13
 
 ### Changed

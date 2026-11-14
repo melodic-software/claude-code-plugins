@@ -356,7 +356,8 @@ for whether it is flagged. Pointer: what each field loads, runs, grants, or stor
 Exclude pre-existing issues, linter-catchable noise, and generic security advice
 without a concrete exploitable path in this diff. Each finding gives the file and
 line, why it is wrong, and that exploit path: the input or request that shows it
-failing. Committable suggestion fences
+failing. When a finding is one of several of the same class in the diff, name the class and
+each place it occurs, so the fix covers every instance. Committable suggestion fences
 (GitHub `suggestion` code blocks) only when the suggestion alone fully fixes the
 anchored finding. A `manifest <field>: flag` line is exempt from this bar: it counts as a finding
 with or without an exploit path.

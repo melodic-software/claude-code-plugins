@@ -3,6 +3,14 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.0] - 2026-11-14
+
+### Changed
+
+- `/implementation:implement` reads the repository's review-criteria index before the first edit,
+  as the standards contract's "Review-criteria index" paragraph directs, loading only the rows the
+  paths it will edit touch.
+
 ## [0.41.0] - 2026-11-13
 
 ### Changed

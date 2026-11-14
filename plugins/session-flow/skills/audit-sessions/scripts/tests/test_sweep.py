@@ -975,6 +975,77 @@ def test_tickets_refuse_a_bad_pattern_and_the_kept_or_session_modes(data_dir):
     assert not (data_dir / "audit-sessions" / "reports").exists()
 
 
+def test_pr_finds_sessions_by_link_or_head_branch_on_either_side(data_dir):
+    lane = keyed("lane", "2026-09-04T10:00:00Z", "2026-09-04T11:00:00Z", output=5)
+    lane["entrypoints"] = ["sdk-cli"]
+    lane["prs_sub"] = [{"repo": "O/R", "number": 12}]
+    linked = keyed("linked", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", prs=[("o/r", 12)], output=3)
+    linked["entrypoints"] = ["cli"]
+    orchestrator = keyed("orch", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", branches=["main"], output=7)
+    orchestrator["branches_sub"] = ["feat/x"]
+    # Matched on both sides: the main transcript's match wins, so no `-sub` entry repeats it.
+    on_branch = keyed("on-branch", "2026-09-03T10:00:00Z", "2026-09-03T11:00:00Z", branches=["feat/x"], prs=[("o/r", 12)])
+    on_branch["branches_sub"] = ["feat/x"]
+    on_branch["prs_sub"] = [{"repo": "o/r", "number": 12}]
+    write_store(
+        data_dir,
+        linked,
+        orchestrator,
+        on_branch,
+        lane,
+        keyed("other-pr", "2026-09-05T10:00:00Z", "2026-09-05T11:00:00Z", prs=[("o/r", 13), ("o/other", 12)]),
+    )
+    result = sweep(data_dir, "--pr", "12", "--repo", "o/r", "--branch", "feat/x")
+    assert result.returncode == 0, result.stdout + result.stderr
+    env = envelope(result)
+    assert env["schema"] == "audit-sessions.pr/v1"
+    rows = [(s["session_id"], s["matched_by"], s["class"]) for s in env["data"]["sessions"]]
+    assert rows == [
+        ("linked", ["pr"], "interactive"),
+        ("orch", ["branch-sub"], "unknown"),
+        ("on-branch", ["pr", "branch"], "unknown"),
+        ("lane", ["pr-sub"], "automated"),
+    ]
+    assert env["data"]["window"]["sessions"] == 5
+    without_branch = envelope(sweep(data_dir, "--pr", "12", "--repo", "o/r"))["data"]["sessions"]
+    assert [s["session_id"] for s in without_branch] == ["linked", "on-branch", "lane"]
+    md = sweep(data_dir, "--pr", "12", "--repo", "o/r", "--format", "md")
+    assert md.returncode == 0 and "| `linked` | interactive |" in md.stdout
+
+
+def test_pr_matches_the_head_branch_only_in_the_requested_repository(data_dir):
+    other = keyed("other-repo", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", branches=["feat/x"])
+    other["repo_identity"] = "github.com/other/unrelated"
+    other_sub = keyed("other-sub", "2026-09-01T12:00:00Z", "2026-09-01T13:00:00Z")
+    other_sub["repo_identity"] = "github.com/other/unrelated"
+    other_sub["branches_sub"] = ["feat/x"]
+    other_linked = keyed("other-linked", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", branches=["feat/x"], prs=[("o/r", 812)])
+    other_linked["repo_identity"] = "github.com/other/unrelated"
+    unknown = keyed("no-identity", "2026-09-03T10:00:00Z", "2026-09-03T11:00:00Z", branches=["feat/x"])
+    unknown["repo_identity"] = None
+    same = keyed("same-repo", "2026-09-04T10:00:00Z", "2026-09-04T11:00:00Z", branches=["feat/x"])
+    write_store(data_dir, other, other_sub, other_linked, unknown, same)
+    env = envelope(sweep(data_dir, "--pr", "812", "--repo", "O/R", "--branch", "feat/x"))
+    rows = [(s["session_id"], s["matched_by"]) for s in env["data"]["sessions"]]
+    assert rows == [
+        ("other-linked", ["pr"]),
+        ("no-identity", ["branch"]),
+        ("same-repo", ["branch"]),
+    ], "a branch name matches no session whose repository is known to be another one"
+
+
+def test_pr_refuses_a_missing_or_malformed_repo_and_the_kept_or_session_modes(data_dir):
+    write_store(data_dir, keyed("s1", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", prs=[("o/r", 1)]))
+    assert sweep(data_dir, "--pr", "1").returncode == 2
+    assert sweep(data_dir, "--repo", "o/r").returncode == 2
+    assert sweep(data_dir, "--pr", "1", "--repo", "o r").returncode == 2
+    assert sweep(data_dir, "--pr", "0", "--repo", "o/r").returncode == 2
+    assert sweep(data_dir, "--pr", "1", "--repo", "o/r", "--write-report").returncode == 2
+    assert sweep(data_dir, "--pr", "1", "--repo", "o/r", "--session", "s1").returncode == 2
+    assert sweep(data_dir, "--pr", "1", "--repo", "o/r", "--tickets", "x").returncode == 2
+    assert not (data_dir / "audit-sessions" / "reports").exists()
+
+
 def test_records_without_prs_or_edits_sweep_cleanly(data_dir):
     write_store(
         data_dir,

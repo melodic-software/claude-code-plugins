@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "acme/billing#512: rename tmp2 to a name that says what it holds."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "PR 512: rename tmp2."
+    }
+  ]
+}

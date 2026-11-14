@@ -5,8 +5,12 @@
 # (reference/config.md), docs/conventions when none is bound or it was declined.
 #
 # Usage: settings.sh [<dir>]
+#        settings.sh --keep-list <value>
 #
 #   <dir>  a directory inside the repository; default: the current directory.
+#   --keep-list  check one comment_keep_list value from another layer (userConfig)
+#                against the current directory's repository, printing its key line
+#                with the layer userConfig, or its invalid line.
 #
 # Prints one line per key, tab-separated, and exits 0:
 #   <key><TAB><value><TAB><file>        the file that supplied the value
@@ -21,12 +25,19 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$HERE/../../../lib"
 READER="$LIB/parse-concern-value.sh"
-KEYS=(comment_posture comment_edit_scope encode_constraints_unattended class_c_max_lines apply_local_renames)
+KEYS=(comment_posture comment_keep_list comment_edit_scope encode_constraints_unattended class_c_max_lines apply_local_renames)
 
-if (($# > 1)); then
-  echo "settings: usage: settings.sh [<dir>]" >&2
+usage() {
+  echo "settings: usage: settings.sh [<dir>] | settings.sh --keep-list <value>" >&2
   exit 2
+}
+keep_list=""
+if [[ "${1:-}" == --keep-list ]]; then
+  (($# == 2)) && [[ -n "$2" ]] || usage
+  keep_list="$2"
+  set --
 fi
+(($# > 1)) || [[ "${1:-}" == -* ]] && usage
 dir="${1:-.}"
 
 valid() {
@@ -37,12 +48,28 @@ valid() {
   encode_constraints_unattended:true | encode_constraints_unattended:false) return 0 ;;
   apply_local_renames:true | apply_local_renames:false) return 0 ;;
   class_c_max_lines:*) [[ "$2" =~ ^[0-9]+$ ]] && (($2 >= 1 && $2 <= 40)) ;;
+  comment_keep_list:default) return 0 ;;
+  comment_keep_list:/* | comment_keep_list:..) return 1 ;;
+  comment_keep_list:../* | comment_keep_list:*/.. | comment_keep_list:*/../*) return 1 ;;
+  comment_keep_list:*) [[ -f "$root/$2" && ! -L "$root/$2" ]] && inside_root "$root/$2" ;;
   *) return 1 ;;
   esac
 }
 
+# A symlinked directory on the way would carry the path outside the repository.
+inside_root() {
+  local parent real_root
+  parent="$(cd "$(dirname "$1")" 2>/dev/null && pwd -P)" || return 1
+  real_root="$(cd "$root" && pwd -P)" || return 1
+  [[ "$parent" == "$real_root" || "$parent" == "$real_root/"* ]]
+}
+
 unset_all() {
   local key
+  if [[ -n "$keep_list" ]]; then
+    printf 'comment_keep_list\tinvalid\tuserConfig: %s (%s)\n' "$keep_list" "$1"
+    exit 0
+  fi
   for key in "${KEYS[@]}"; do printf '%s\tunset\t%s\n' "$key" "$1"; done
   exit 0
 }
@@ -53,6 +80,15 @@ fi
 home="$(cd "$HOME" 2>/dev/null && pwd -P)" || home="$HOME"
 if [[ "$home" == "$root" || "$home" == "${root%/}/"* ]]; then
   unset_all "repository root is \$HOME or an ancestor of it"
+fi
+
+if [[ -n "$keep_list" ]]; then
+  if valid comment_keep_list "$keep_list"; then
+    printf 'comment_keep_list\t%s\tuserConfig\n' "$keep_list"
+  else
+    printf 'comment_keep_list\tinvalid\tuserConfig: %s\n' "$keep_list"
+  fi
+  exit 0
 fi
 
 conventions="$(bash "$LIB/resolve-convention-home.sh" --root "$root" 2>/dev/null)"

@@ -373,7 +373,9 @@ worth preserving. Present as a table, or "no candidates. Session work was self-c
 ## Phase 4: Act (with user approval)
 
 Group Phase 3 recommendations by action type, then **explicitly ask the user** which items to
-execute. Do not proceed without their response.
+execute. Do not proceed without their response. Applying a change without that approval becomes
+allowed only where an evaluation set scores the changed surface and the change does not lower its
+score; until such a set exists for a surface, every change to it waits for the person.
 
 - **Personal (not committed):** proposed auto-memory entries, created only on approval
 - **Project (already validated this session):** rule/instruction-file updates codifying what

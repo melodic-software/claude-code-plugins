@@ -32,7 +32,8 @@ assert_eq() {
 }
 
 # The stub: logs its arguments, fails when a fail-<key> marker exists, and
-# otherwise prints the fixture for the request; a pr list reads prs-<limit>.json
+# otherwise prints the fixture for the request (one-<n>.json for a read of PR
+# <n> itself); a pr list reads prs-<limit>.json
 # when that fixture exists, else prs.json.
 STUB_BIN="$TEST_TMPDIR/bin"
 mkdir -p "$STUB_BIN"
@@ -48,6 +49,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
   '  case "$a" in' \
   '  repos/*/pulls/*/comments) n="${a%/comments}"; key="comments-${n##*/}" ;;' \
   '  repos/*/pulls/*/reviews) n="${a%/reviews}"; key="reviews-${n##*/}" ;;' \
+  '  repos/*/pulls/*) key="one-${a##*/}" ;;' \
   '  number=*) key="threads-${a#number=}" ;;' \
   '  esac' \
   '  [[ "$key" == prs && "$prev" == --limit && -f "$FIX/prs-$a.json" ]] && key="prs-$a"' \
@@ -139,8 +141,39 @@ assert_eq "--repo: exit 0" 0 "$RC"
 assert_eq "--repo: no repo view call" 0 "$(grep -c 'repo view' "$F/calls.log")"
 assert_eq "--repo: passed to pr list" 1 "$(grep -c -- 'pr list .*--repo o/r' "$F/calls.log")"
 
+# --pr reads that one PR: no pr list, and only its rows. PR 11 merged, so its
+# author alice's own comments and review (no time stamp) are dropped.
+printf '%s\n' '{"number":11,"user":{"login":"alice"},"merged_at":"2026-09-01T00:00:00Z"}' >"$F/one-11.json"
+: >"$F/calls.log"
+run "$F" --pr 11 --repo o/r
+assert_eq "--pr: exit 0" 0 "$RC"
+assert_eq "--pr: the four kept rows of PR 11 only (101, 104, 108, carol's review)" '[11]:4' "$(q '[.[].pr] | unique'):$(q 'length')"
+assert_eq "--pr: no pr list and no repo view call" 0 "$(grep -c -e 'pr list' -e 'repo view' "$F/calls.log")"
+assert_eq "--pr: reads the PR itself" 1 "$(grep -cx 'api repos/o/r/pulls/11' "$F/calls.log")"
+touch "$F/fail-one-11"
+run "$F" --pr 11 --repo o/r
+assert_eq "--pr: a failed read of the PR exits 2 with empty stdout" "2:" "$RC:$OUT"
+rm -f "$F/fail-one-11"
+
+# An open PR has no merge time, so its author's comments are always dropped.
+O="$TEST_TMPDIR/open-pr"
+mkdir -p "$O"
+cp "$F/repo.json" "$O/"
+printf '%s\n' '{"number":71,"user":{"login":"ann"},"merged_at":null}' >"$O/one-71.json"
+printf '%s\n' '[
+  {"id":1,"in_reply_to_id":null,"user":{"login":"ann","type":"User"},"author_association":"OWNER","path":"a.ts","line":1,"created_at":"2026-09-02T00:00:00Z","body":"author on her open PR"},
+  {"id":2,"in_reply_to_id":null,"user":{"login":"carol","type":"User"},"author_association":"MEMBER","path":"a.ts","line":2,"created_at":"2026-09-02T00:00:00Z","body":"reviewer on the open PR"}
+]' >"$O/comments-71.json"
+printf '[]\n' >"$O/reviews-71.json"
+cp "$F/threads-12.json" "$O/threads-71.json"
+run "$O" --pr 71
+assert_eq "open PR: exit 0" 0 "$RC"
+assert_eq "open PR: only the reviewer's comment, labeled human" '[{"pr":71,"source":"human","body":"reviewer on the open PR"}]' \
+  "$(q '[.[] | {pr, source, body}]')"
+
 # Usage errors: exit 2, nothing on stdout, and no gh call.
-for bad in "--prs 1" "--prs 201" "--prs abc" "--prs 2 --repo o/r/x" "--prs 2 --repo o;r/x" "--prs" "--bogus"; do
+for bad in "--prs 1" "--prs 201" "--prs abc" "--prs 2 --repo o/r/x" "--prs 2 --repo o;r/x" "--prs" "--bogus" \
+  "--pr 11 --prs 2" "--pr 0" "--pr abc" "--pr 1;2" "--pr"; do
   : >"$F/calls.log"
   # shellcheck disable=SC2086 # split the case into its arguments on purpose
   run "$F" $bad

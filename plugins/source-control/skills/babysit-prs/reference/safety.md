@@ -936,7 +936,7 @@ standalone invocation, `/source-control:pull-request`. The one thing that does i
 whose auto-merge an App turned off; a person's disarm keeps it off.
 
 A push by a writer leaves an auto-merge armed (by a person, or before this rule), and the new head
-would merge on `ci-status` alone.
+would merge on `CI Status` alone.
 Verified 2026-09-26 against GitHub's [Automatically merging a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request),
 which disables auto-merge only when "someone without write permissions pushes new changes to the
 head branch or switches the base branch". Recheck when that page names another event that disables
