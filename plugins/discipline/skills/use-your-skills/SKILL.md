@@ -57,7 +57,7 @@ The discipline, at each of the three surfaces where skills apply:
 
 ## Audit. What to look for
 
-Name concrete, located findings (per the method doc's step 2, self-audit; on load-bearing work a fresh-context subagent confirms a clean result):
+Name concrete, located findings (per the method doc's step 2, self-audit; on load-bearing work a fresh-context subagent, or a review skill that runs in its own context, confirms a clean result, a declared delta: either one audits the work without this context's reasoning. Running the change's code or tests is this audit's own work and re-reading it inline is self-audit, so neither confirms):
 
 - a multi-step or specialized task carried by hand where a skill in the
   listing already owns that exact procedure;
@@ -77,7 +77,7 @@ discipline, recommend the `skills:` preload.
 Resolve the verification level once with
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discipline --skill use-your-skills --file docs/conventions/discipline.yaml`
 and report its line ([levels](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/verification-level/README.md)):
-`light` and `off` skip the method doc's step 2 and step 3 subagents, as it says, and the final reply then carries the line `verification: skipped (<level>)` verbatim, such as `verification: skipped (light)`.
+`light` and `off` skip the method doc's step 2 and step 3 subagents, as it says, and the review skill that would stand in for one, and the final reply then carries the line `verification: skipped (<level>)` verbatim, such as `verification: skipped (light)`.
 
 ## Out of scope. Routed, not owned
 
