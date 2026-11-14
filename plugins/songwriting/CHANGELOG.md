@@ -3,6 +3,12 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.2] - 2026-11-14
+
+### Changed
+
+- The line-emission hard gate and its skeptic dispatch rules live in `context/line-emission-gate.md`, which `/songwriting:co-write` and `/songwriting:diagnose` both link. `diagnose` named the gate without a path before, so it had to search the plugin for it.
+
 ## [2.0.1] - 2026-11-14
 
 ### Changed
