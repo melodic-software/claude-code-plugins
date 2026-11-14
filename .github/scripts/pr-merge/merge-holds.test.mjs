@@ -1275,6 +1275,23 @@ test("an approval of an earlier head lifts a hold path over a later base merge, 
   }
 });
 
+test("liftersOf takes main's tip the caller already resolved, and reads it only for another base or no tip", async () => {
+  const humans = new Set([5]);
+  const tipReads = (world) => world.reads.filter((path) => path.includes("/git/ref/")).length;
+  const given = liftWorld({});
+  assert.deepEqual(await holdsModule.liftersOf(given.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP }), { lifters: ["owner-person"] });
+  assert.equal(tipReads(given), 0, "no REST read of main's tip when the caller passed it in");
+  assert.ok(given.reads.includes(`/repos/owner/repo/compare/${TIP}...${OLD}`), given.reads.join(" "));
+  for (const [name, world, mainTip] of [
+    ["no tip", liftWorld({}), undefined],
+    ["a tip that is not a commit SHA", liftWorld({}), "main"],
+    ["a base other than main", liftWorld({ base: "release", defaultBranch: "release" }), TIP],
+  ]) {
+    assert.deepEqual(await holdsModule.liftersOf(world.github, REPO, 99, HEAD, humans, undefined, { mainTip }), { lifters: ["owner-person"] }, name);
+    assert.equal(tipReads(world), 1, `${name}: one read of the base's tip`);
+  }
+});
+
 // The owner's decision on #10596: a trusted person's label removal lifts no
 // hold path, at the head or before a base merge, and a dismissed approval
 // never counts, even one GitHub dismissed as stale on a push. The lanes App

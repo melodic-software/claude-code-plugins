@@ -11219,6 +11219,60 @@ class BaseTipsRemembered(unittest.TestCase):
         self.assertEqual(self.reads(), 3)
 
 
+class PassedMainTip(unittest.TestCase):
+    """main's tip the workflow step resolved with git ls-remote (MAIN_TIP_SHA)
+    answers `_GreenMain.main_tip` and the approval and decision carries'
+    tip with no REST read, for its own repository (GITHUB_REPOSITORY) and
+    main only; anything else reads `git/ref/heads/<branch>` as before."""
+
+    OTHER = "b" * 40
+
+    def setUp(self) -> None:
+        self.gh = GhFake().install(self)
+        for branch in ("main", "release"):
+            self.gh.rest[f"repos/{REPO}/git/ref/heads/{branch}"] = {"object": {"sha": self.OTHER}}
+
+    def env(self, **values: str) -> None:
+        patcher = mock.patch.dict(os.environ, values)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def reads(self) -> list[list[str]]:
+        return [c for c in self.gh.calls if "/git/ref/" in c[-1]]
+
+    def test_the_passed_tip_answers_with_no_read(self) -> None:
+        self.env(MAIN_TIP_SHA=SHA, GITHUB_REPOSITORY=REPO)
+        self.assertEqual(policy._GreenMain("owner", "repo").main_tip(), SHA)
+        self.assertEqual(policy.carry_base_tip("owner", "repo", "main"), SHA)
+        self.assertEqual(self.reads(), [])
+
+    def test_one_judgment_sees_one_tip_of_main(self) -> None:
+        self.env(MAIN_TIP_SHA=SHA, GITHUB_REPOSITORY=REPO)
+        with policy.base_tips_remembered():
+            self.assertEqual(policy.carry_base_tip("owner", "repo", "main"), SHA)
+            self.assertEqual(policy.remembered_base_tip("owner", "repo", "main"), SHA)
+        self.assertEqual(self.reads(), [])
+        with policy.base_tips_remembered():
+            self.assertEqual(policy.remembered_base_tip("owner", "repo", "main"), self.OTHER)
+            self.assertEqual(policy.carry_base_tip("owner", "repo", "main"), self.OTHER)
+        self.assertEqual(len(self.reads()), 1)
+
+    def test_another_branch_repository_or_value_reads_the_ref(self) -> None:
+        for branch, values in (
+            ("release", {"MAIN_TIP_SHA": SHA, "GITHUB_REPOSITORY": REPO}),
+            ("main", {"MAIN_TIP_SHA": SHA, "GITHUB_REPOSITORY": "owner/other"}),
+            ("main", {"MAIN_TIP_SHA": "main", "GITHUB_REPOSITORY": REPO}),
+            ("main", {"MAIN_TIP_SHA": "", "GITHUB_REPOSITORY": REPO}),
+        ):
+            with self.subTest(branch=branch, values=values):
+                self.gh.calls.clear()
+                with mock.patch.dict(os.environ, values):
+                    self.assertEqual(policy.carry_base_tip("owner", "repo", branch), self.OTHER)
+                    if branch == "main":
+                        self.assertEqual(policy._GreenMain("owner", "repo").main_tip(), self.OTHER)
+                self.assertEqual(len(self.reads()), 2 if branch == "main" else 1)
+
+
 class CachedPullRequest(unittest.TestCase):
     """`cached_pull_request` serves a record the caller already read only for
     the same repository, number and head; anything else is None, so the
