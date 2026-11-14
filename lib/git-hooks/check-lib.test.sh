@@ -141,7 +141,7 @@ cp "$E/twin1.dat" "$E/twin2.dat"
 printf 'last\n' >"$E/z.txt"
 printf 'ctl\001x\n' >"$E/ctl.txt"
 { printf '%*s' 7999 '' | tr ' ' c; printf '\n'; } >"$E/exact.txt"
-printf 'caf\303\251 \342\202\254\n' >"$E/utf8.txt"
+printf '\143af\303\251 \342\202\254\n' >"$E/utf8.txt"
 printf 'hi\303\251\377\0\n' >"$E/high.dat"
 git -C "$E" add .
 link_blob="$(printf 'tar\0get' | git -C "$E" hash-object -w --stdin)"
