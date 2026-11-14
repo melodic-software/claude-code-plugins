@@ -179,7 +179,7 @@ Reference other skills by name. Claude invokes them if installed. A plugin can a
 ## Precomputed context (Melodic Software addition)
 
 Deterministic, read-only context a skill needs on every invocation can be inlined at load time
-with `` !`command` `` / ` ```! ` [dynamic-context injection](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+with ``!`command` `` / ` ```! ` [dynamic-context injection](https://code.claude.com/docs/en/skills#inject-dynamic-context)
 instead of a per-invocation tool call. For when that pays off, and the permission-grant, fallback
 and `shell:` conventions we pin, see [`reference/precompute-context.md`](reference/precompute-context.md).
 
