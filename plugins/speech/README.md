@@ -33,6 +33,15 @@ it; the plugin never installs, downloads or ships it.** The plugin also avoids t
 that bundle it (`espeakng-loader`) or wrap it under the GPL (`phonemizer`): it runs your
 `espeak-ng` command directly.
 
+## The backend chain
+
+`narrate.py --backend-chain edge-tts,kokoro` tries the named backends in order and lets one of
+them voice the whole script: `edge-tts` (Microsoft's free read-aloud endpoint, through the pinned
+`edge-tts` package and ffmpeg), `kokoro`, `openai` and `elevenlabs` (paid, only with
+`--allow-paid-voice`) and `command` (your own command line, with `{script}` and `{out}`). Before
+any of the online ones the script passes a secret and machine-data scan; a hit stops the run with
+nothing sent. Retries, the timeout, exit codes and `voice.json` are in `narrate.py`'s docstring.
+
 ## The elevenlabs backend (optional, third-party)
 
 `scripts/elevenlabs.py` sends the script text to the [ElevenLabs](https://elevenlabs.io) REST API at
