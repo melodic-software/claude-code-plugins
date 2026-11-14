@@ -53,7 +53,7 @@ OTHER_SHA = "5" * 40
 FORK_SHA = "f" * 40
 TIP_SHA = "a" * 40
 RUN_URL = f"https://github.com/{REPO}/actions/runs"
-# Phase 12's failure note (post-merge-demotion-alert.yml `again=`).
+# Phase 12's failure note (post-merge-file-demotion-issues.yml `again=`).
 AGAIN = "The post-merge check found this failure again: "
 
 
@@ -2860,7 +2860,7 @@ class Baseline(CheckCase):
 
 
 class AlertRerun(CheckCase):
-    """post-merge-demotion-alert.yml re-runs a red full run once under
+    """post-merge-file-demotion-issues.yml re-runs a red full run once under
     GITHUB_TOKEN, so attempt 2's triggering actor is github-actions[bot]. That
     one re-run is judged like the wrapper's; a re-run of a run the bot itself
     started, like a person's, still cannot clear attempt 1."""

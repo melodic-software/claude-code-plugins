@@ -143,10 +143,10 @@
       "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
       "scan": "upload"
     },
-    "key-credit-stop-eval-browser-dispatch.yml-eval": {
+    "key-credit-stop-pr-run-plugin-evals.yml-eval": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/eval-browser-dispatch.yml eval-key-credit's \"Read the key's credit history\" step runs ci-workflows select-model-credential's start call (check-key-credit's gate), which reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers"
+        ".github/workflows/pr-run-plugin-evals.yml eval-key-credit's \"Read the key's credit history\" step runs ci-workflows select-model-credential's start call (check-key-credit's gate), which reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers"
       ],
       "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
       "scan": "upload"
@@ -154,7 +154,7 @@
     "key-credit-stop-maintenance-measure-skill-edit.yml-pass": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/eval-hill-climb-pass.yml gate's \"Read the key's credit history\" step runs ci-workflows select-model-credential's start call (check-key-credit's gate), which reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers; the name carries maintenance-measure-skill-edit.yml because a called workflow's github context is its caller's"
+        ".github/workflows/maintenance-measure-skill-edit-pass.yml gate's \"Read the key's credit history\" step runs ci-workflows select-model-credential's start call (check-key-credit's gate), which reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers; the name carries maintenance-measure-skill-edit.yml because a called workflow's github context is its caller's"
       ],
       "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
       "scan": "upload"
@@ -772,7 +772,7 @@
     "eval-browser-*": {
       "retention-days": 3,
       "readers": [
-        ".github/workflows/eval-browser-dispatch.yml a person reading a manual eval run's results"
+        ".github/workflows/pr-run-plugin-evals.yml a person reading a manual eval run's results"
       ],
       "reason": "Manual inspection only; no workflow reads it after the run. A person reads a dispatched eval's results soon after starting it, and 3 days covers a weekend.",
       "scan": "upload"
@@ -796,7 +796,7 @@
     "eval-hill-climb-edit-*": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/eval-hill-climb-pass.yml same run",
+        ".github/workflows/maintenance-measure-skill-edit-pass.yml same run",
         ".github/workflows/maintenance-measure-skill-edit.yml push-branch, same run"
       ],
       "reason": "Read by its own run; 1 day is the minimum.",

@@ -357,7 +357,7 @@ class CloseLifted(unittest.TestCase):
 
     def test_a_field_repository_close_removes_a_legacy_label(self) -> None:
         # A record filed before the repository set models.issue-status still
-        # carries the label; post-merge-demotion-alert.yml removes it on close.
+        # carries the label; post-merge-file-demotion-issues.yml removes it on close.
         gh = Gh({9: REVERT}, [merged_pull()])
         self.assertEqual(self.run_close(gh, status=object()), 1)
         self.assertEqual(

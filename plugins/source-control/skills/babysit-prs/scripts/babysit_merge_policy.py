@@ -140,7 +140,7 @@ BODY_MERGE_HOLD_RE = re.compile(
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
 # `pr-verify-failed` is pr-verify's FAIL on a person's pull request, which
 # ci-status enforces only in the merge queue: held here, it is never queued.
-# `security: outside-actor` is security-outside-actor.yml's flag on an item
+# `security: outside-actor` is intake-label-outside-actor-activity.yml's flag on an item
 # someone outside the organization wrote on, which only a person removes.
 MERGE_HOLD_LABELS = (
     "do-not-merge",
@@ -910,7 +910,7 @@ class PipelineConfig:
     # default branch stop demoting (`babysit_postmerge`). Absent, or anything
     # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
     quarantine_days: int = QUARANTINE_DAYS
-    # `red-main.confirm-wait-minutes`: minutes post-merge-demotion-alert.yml
+    # `red-main.confirm-wait-minutes`: minutes post-merge-file-demotion-issues.yml
     # waits for the re-run of a red full run pr-merge dispatched
     # (`babysit_postmerge`). Absent, or anything but a whole number from 0 to
     # `MAX_CONFIRM_WAIT_MINUTES`, is `CONFIRM_WAIT_MINUTES`.

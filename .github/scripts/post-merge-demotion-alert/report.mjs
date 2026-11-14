@@ -1,4 +1,4 @@
-// post-merge-demotion-alert.yml's red-main report: after a scheduled or
+// post-merge-file-demotion-issues.yml's red-main report: after a scheduled or
 // dispatched pr-require-checks run on main failed, wait for its one re-run,
 // confirm the red, pin the culprit merge, decide whether the bot may revert
 // it, and report that in the step summary and, for a confirmed red, as one
@@ -311,7 +311,7 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
     const created = await call("POST", `/repos/${repo}/issues`, {
       title: "Red-main revert decisions (dry-run log)",
       type: "Task",
-      body: `${LOG_MARKER}\n\nOne comment per confirmed red full run on main: the culprit post-merge-demotion-alert.yml's report job pinned, the evidence runs, and the revert it would open. A run that reports nothing notes any unreported reds here. docs/conventions/pr-pipeline/README.md, "Red main", states the rule. The job writes nothing else while \`red-main.dry-run\` is true.`,
+      body: `${LOG_MARKER}\n\nOne comment per confirmed red full run on main: the culprit post-merge-file-demotion-issues.yml's report job pinned, the evidence runs, and the revert it would open. A run that reports nothing notes any unreported reds here. docs/conventions/pr-pipeline/README.md, "Red main", states the rule. The job writes nothing else while \`red-main.dry-run\` is true.`,
     });
     target = created.number;
   }

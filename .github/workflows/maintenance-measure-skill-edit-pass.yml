@@ -1,4 +1,4 @@
-name: Eval Hill Climb Pass
+name: Maintenance Measure Skill Edit Pass
 
 # One measuring pass of maintenance-measure-skill-edit.yml: `claude plugin eval` on one
 # plugin's deterministic-only suite (deterministic-suite.mjs), filtered to one
@@ -8,7 +8,7 @@ name: Eval Hill Climb Pass
 #
 # Every pass runs the same way, so the a/a pair measures the noise pass b
 # faces. Pass b runs model-written skill text beside the eval credential, so
-# every pass takes eval-browser-dispatch.yml's pull request posture: a
+# every pass takes pr-run-plugin-evals.yml's pull request posture: a
 # root-owned managed policy denies the eval's reads of process and runner
 # state, a probe proves it before any case runs, env scrub stays on, and no
 # tool is granted beyond the read-only set. Console output, which can carry
@@ -27,7 +27,7 @@ name: Eval Hill Climb Pass
 # select-model-credential; the gate job's start call skips the key after a
 # recent credit stop.
 #
-# The pass uploads only what eval-browser-dispatch.yml uploads, its result
+# The pass uploads only what pr-run-plugin-evals.yml uploads, its result
 # (per-case scores and grader verdicts), with summarize.mjs's summary (its
 # health lines read from the kept traces) and run-validity.py's bash ran and
 # verdict lines, after a credential scan, under a manifest whose SHA-256 is
@@ -246,7 +246,7 @@ jobs:
         if: steps.credential.outputs.present == 'true'
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
 
-      # eval-browser-dispatch.yml's pull request policy, for the same reason:
+      # pr-run-plugin-evals.yml's pull request policy, for the same reason:
       # the eval's Read, Glob and Grep run without the Bash sandbox, and pass b
       # runs model-written skill text.
       - name: Deny the eval's reads of process and runner state
@@ -316,7 +316,7 @@ jobs:
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
-      # eval-browser-dispatch.yml's probe: the job stops unless the result
+      # pr-run-plugin-evals.yml's probe: the job stops unless the result
       # records each of the four reads as denied, or if it holds the credential.
       # A probe that the credential's own stop ended hands off instead
       # (eval-handoff.mjs), so the next leg runs the pass. A session that ends
@@ -371,7 +371,7 @@ jobs:
           esac
 
       # Identical flags on every pass. TMPDIR sits outside /tmp, as in
-      # eval-browser-dispatch.yml.
+      # pr-run-plugin-evals.yml.
       - name: Run the pass
         id: eval
         if: steps.probe.outcome == 'success' && steps.probe.outputs.handoff != 'true'

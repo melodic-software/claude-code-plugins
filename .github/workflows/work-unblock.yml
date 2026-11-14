@@ -58,7 +58,7 @@ name: Work Unblock
 # back to intake triage. A Refs PR merging or closing unmerged also lifts a
 # needs-human refs-hold already on the issue for it; report-outcome does not
 # set that hold, so only an existing one is lifted.
-# It also relabels a red-main fix issue post-merge-demotion-alert.yml reopened
+# It also relabels a red-main fix issue post-merge-file-demotion-issues.yml reopened
 # on a repeat failure: that reopen keeps agent-ready but, made with the
 # workflow's GITHUB_TOKEN, starts no run. Matched by the issue's
 # `<!-- post-merge-fix check=... -->` first line and the workflow's

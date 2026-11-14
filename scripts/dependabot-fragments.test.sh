@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Unit tests for dependabot-fragments.sh, driven through its CLI against a
 # throwaway repository whose history holds Dependabot squash merges.
-# test-scope: .github/workflows/dependabot-fragments.yml .github/dependabot.yml
+# test-scope: .github/workflows/release-generate-dependabot-changelog-fragments.yml .github/dependabot.yml
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -120,7 +120,7 @@ rm -rf "$f"
 # filter covers every one: each manifest in every plugins/ directory
 # .github/dependabot.yml names must match a `paths:` pattern. A directory or
 # manifest the filter misses waits for the safety-net schedule.
-wf="$SELF_DIR/../.github/workflows/dependabot-fragments.yml"
+wf="$SELF_DIR/../.github/workflows/release-generate-dependabot-changelog-fragments.yml"
 patterns=()
 mapfile -t patterns < <(awk '/^  push:/{p=1; next} p && /^  [a-z_]+:/{p=0} p && /^      - /{sub(/^      - /, ""); gsub(/\x27/, ""); print}' "$wf")
 dirs=()

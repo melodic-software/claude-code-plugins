@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Starts the @playwright/mcp version the root package.json locks, on the
-# Chromium that .github/workflows/eval-browser-dispatch.yml installs under
+# Chromium that .github/workflows/pr-run-plugin-evals.yml installs under
 # /opt/pw. The eval's env allowlist drops PLAYWRIGHT_BROWSERS_PATH, so the
 # browser is pinned by path, as browser-probe/scaffold.sh does. File access is
 # unrestricted, like browser-probe's configs, so the canary step measures the
