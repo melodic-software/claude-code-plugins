@@ -48,7 +48,7 @@ built end to end through every layer it needs, to clean internal quality (clear 
 its seam, no cruft). This is a default the user can override with any style. While it is the only
 slice it is a two-way door; once other slices build on the style, changing it is a one-way door,
 so record it then with an ADR prompt. Unattended, record the slice as a captured assumption in its
-thread with a recheck trigger, never as `blocked`. Stumble: agents on greenfield work pick an
+thread with a revisit trigger, never as `blocked`. Stumble: agents on greenfield work pick an
 architecture style by habit and build a full layered skeleton before any slice runs end to end; the
 interview recorded no style decision for design to read.
 
