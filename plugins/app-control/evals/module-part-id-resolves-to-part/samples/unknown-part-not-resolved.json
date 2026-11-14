@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "resolved: testing/run-e2e -> features/testing/README.md, part run-e2e\nblocked: testing/no-such-part matched nothing; looked for features/testing/no-such-part/README.md, features/testing/no-such-part.md and the ## Parts of features/testing/README.md",
+      "why": "only the known id has a resolved line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "resolved: testing/no-such-part -> features/testing/README.md, part run-e2e",
+      "why": "resolved the unknown id to some other part"
+    }
+  ]
+}

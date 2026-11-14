@@ -20,9 +20,9 @@
 #   drive-result       a step under a feature README's `## Drive` (a list item at the line start,
 #                      with its indented lines) has no `Result:` or nothing after it
 #   part-duplicate     two lines under a feature README's `## Parts` name the same part, so the
-#                      id `<feature>/<part>` matches neither; the contract's "Feature files" says
+#                      id `<module>/<part>` matches neither; the contract's "Feature files" says
 #                      how a line names a part
-#   link              a relative Markdown link in any .md file resolves to nothing
+#   link               a relative Markdown link in any .md file resolves to nothing
 #   shared-use         a `shared/<item>` is named by fewer than two feature files
 #   shared-why         a `shared/<item>` has no `Why shared: <reason>` line (in its README.md
 #                      for a folder, in the file for a file, after an optional comment marker)

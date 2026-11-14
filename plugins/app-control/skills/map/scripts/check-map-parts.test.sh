@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for check-map.sh's part-duplicate rule: an id `<feature>/<part>` must name one Parts line.
+# Tests for check-map.sh's part-duplicate rule: an id `<module>/<part>` must name one Parts line.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG

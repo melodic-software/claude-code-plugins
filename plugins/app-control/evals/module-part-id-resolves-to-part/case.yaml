@@ -6,7 +6,7 @@ expected_outcome: "Drive reads the control-repo skill, finds no features/testing
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/app-control:drive repo testing/run-e2e --unattended --out ./evidence. Only resolve the feature id and say which file and which part it resolved to. Then resolve the id testing/no-such-part the same way and say what happens. Launch nothing and run nothing."
+  prompt: "/app-control:drive repo testing/run-e2e --unattended --out ./evidence, then /app-control:drive repo testing/no-such-part --unattended --out ./evidence-2. Launch nothing and run nothing; stop each run once its feature id is resolved, and show its report lines."
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]
   max_turns: 20
   timeout_seconds: 600
@@ -20,7 +20,18 @@ graders:
   - name: names-file-and-part
     type: regex
     flags: i
-    pattern: 'run-e2e[\s\S]{0,120}features/testing/README\.md|features/testing/README\.md[\s\S]{0,120}run-e2e'
+    pattern: 'resolved:\s*`?testing/run-e2e`?\s*->\s*`?([^\s`,]*/)?features/testing/README\.md`?,\s*part\s+`?run-e2e\b'
+    arm: both
+  - name: unknown-part-blocked
+    type: regex
+    flags: i
+    pattern: 'blocked:[^\n]*features/testing/no-such-part/README\.md[^\n]*features/testing/no-such-part\.md[^\n]*Parts'
+    arm: both
+  - name: unknown-part-not-resolved
+    type: regex
+    flags: i
+    match: not_contains
+    pattern: 'resolved:\s*`?testing/no-such-part'
     arm: both
   - name: launches-nothing
     type: tool_used
