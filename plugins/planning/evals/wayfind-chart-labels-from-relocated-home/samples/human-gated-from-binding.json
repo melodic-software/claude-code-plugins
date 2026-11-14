@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "'Decide what the export keeps after an account closes': decide: interview, owner-call. 'Pick the export file format': decide: design.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "'Decide what the export keeps after an account closes': decide: interview, needs-human. 'Pick the export file format': decide: design.",
+      "why": "breaks the rule"
+    }
+  ]
+}
