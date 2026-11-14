@@ -11,9 +11,25 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > \\\"interview-data/staging/r1/B.html\\\" <<'HTML'\\n<!doctype html>\\n<html><head><title>x</title></head><body><p>plain</p></body></html>\\nHTML\",\"description\":\"x\"}}]}}",
       "why": "page written with Bash"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/ed-build-Q1w2E3/A.src.html\",\"content\":\"<!doctype html>\\n<html lang=\\\"en\\\"><head><meta charset=\\\"utf-8\\\"><title>A</title></head><body><!--@BAR@--></body></html>\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node /tmp/ed-build-Q1w2E3/assemble.mjs /tmp/ed-build-Q1w2E3 interview-data/staging/r1\",\"description\":\"x\"}}]}}",
+      "why": "doctype source in a scratch dir, assembled into staging by a script"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/ed-build-Q1w2E3/build.mjs\",\"content\":\"import { writeFileSync } from 'node:fs';\\nconst out = process.argv[2];\\nfor (const k of ['A','B']) writeFileSync(`${out}/${k}.html`, `<!doctype html>\\\\n<html lang=\\\"en\\\"><head><title>${k}</title></head><body></body></html>\\\\n`);\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node /tmp/ed-build-Q1w2E3/build.mjs interview-data/staging/r1 && ls interview-data/staging/r1\",\"description\":\"x\"}}]}}",
+      "why": "build script template writes the snapshots into staging"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/ed-build-Q1w2E3/A.html\",\"content\":\"<!doctype html>\\n<html lang=\\\"en\\\"><head><meta charset=\\\"utf-8\\\"><title>A</title></head><body><!--@BAR@--></body></html>\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cp /tmp/ed-build-Q1w2E3/A.html interview-data/staging/r1/A.html\",\"description\":\"x\"}}]}}",
+      "why": "doctype page copied into staging"
     }
   ],
   "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
     {
       "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"Each snapshot starts with <!doctype html>\"}]}}",
       "why": "tool result carrying the marker"
@@ -25,6 +41,14 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"interview-data/staging/r1/A.html\",\"content\":\"<html><body>no doctype</body></html>\"}}]}}",
       "why": "page written without the marker"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/ed-build-Q1w2E3/check.mjs\",\"content\":\"const h = readFileSync(process.argv[2], 'utf8');\\nconsole.log(h.startsWith(\\\"<!doctype html>\\\"));\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node /tmp/ed-build-Q1w2E3/check.mjs interview-data/staging/r1/A.html\",\"description\":\"x\"}}]}}",
+      "why": "doctype only inside a check script, not a page"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/ed-build-Q1w2E3/A.html\",\"content\":\"<!doctype html>\\n<html lang=\\\"en\\\"><head><meta charset=\\\"utf-8\\\"><title>A</title></head><body><!--@BAR@--></body></html>\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"ls /tmp/ed-build-Q1w2E3\",\"description\":\"x\"}}]}}",
+      "why": "doctype page written to scratch and never staged"
     }
   ]
 }

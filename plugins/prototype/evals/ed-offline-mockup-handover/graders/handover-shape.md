@@ -5,7 +5,11 @@ arm: both
 ---
 PASS only if the final message is a handover that (1) gives a file:// path to the
 mockup; (2) lists every variant on its own line with its key, a name describing its direction
-(not "Option A" or "Variant 1") and its states; (3) says no screenshots were captured or that
+(not "Option A" or "Variant 1") and its states, where the states sit on that variant's own line:
+named there, or referred to there ("same five states as A") once an earlier variant's line has
+named them. States given only once for all variants, outside the variant lines ("Every variant
+has the same states: ...", a "States:" bullet, the plan line or the key help), fail (2), however
+complete the list; (3) says no screenshots were captured or that
 Playwright was unavailable, or pairs each variant with screenshot paths; (4) gives one tradeoff
 row or entry per variant saying when it is the right choice and what it costs, without
 recommending one as the favorite; (5) includes a fill-in reply template with direction: and

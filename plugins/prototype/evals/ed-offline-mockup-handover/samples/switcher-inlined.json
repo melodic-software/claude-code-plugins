@@ -7,9 +7,33 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > \\\"$RUN/index.html\\\" <<'HTML'\\n<!doctype html>\\n<html><head><style>.vs-highlight{outline:2px solid}</style></head><body></body></html>\\nHTML\",\"description\":\"x\"}}]}}",
       "why": "page written with Bash"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/explore-directions.html\",\"content\":\"<!doctype html>\\n<html><head><title>x</title></head><body><p>plain</p>\\nSWITCH_HERE\\n</body></html>\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd \\\"$RUN\\\" && node -e 'const fs=require(\\\"fs\\\");const sw=fs.readFileSync(\\\"$PLUGIN/skills/explore-directions/assets/variant-switcher.html\\\",\\\"utf8\\\");const h=fs.readFileSync(\\\"explore-directions.html\\\",\\\"utf8\\\");fs.writeFileSync(\\\"explore-directions.html\\\",h.replace(\\\"SWITCH_HERE\\\",()=>sw))'\",\"description\":\"x\"}}]}}",
+      "why": "placeholder page, then node splices the bundled asset in"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd \\\"$RUN\\\" && node -e 'const fs=require(\\\"fs\\\");const sw=fs.readFileSync(process.argv[1],\\\"utf8\\\");let h=fs.readFileSync(\\\"explore-directions.html\\\",\\\"utf8\\\");fs.writeFileSync(\\\"explore-directions.html\\\",h.replace(\\\"SWITCH_HERE\\\",()=>sw))' $PLUGIN/skills/explore-directions/assets/variant-switcher.html 2>&1\",\"description\":\"x\"}}]}}",
+      "why": "node splice with the asset path after the script"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 -c \\\"p='explore-directions.html';s=open(p).read();sw=open('$PLUGIN/skills/explore-directions/assets/variant-switcher.html').read();open(p,'w').write(s.replace('SWITCH_HERE',sw))\\\"\",\"description\":\"x\"}}]}}",
+      "why": "python splice of the bundled asset"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd \\\"$RUN\\\" && { cat head.part; cat $PLUGIN/skills/explore-directions/assets/variant-switcher.html; printf '</body>\\\\n</html>\\\\n'; } > explore-directions.html\",\"description\":\"x\"}}]}}",
+      "why": "page assembled by concatenating parts around the asset"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"f=\\\"$RUN/explore-directions.html\\\"; cat $PLUGIN/skills/explore-directions/assets/variant-switcher.html >> \\\"$f\\\" && printf '</body></html>\\\\n' >> \\\"$f\\\"\",\"description\":\"x\"}}]}}",
+      "why": "asset appended to the page"
     }
   ],
   "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
     {
       "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\".vs-highlight { outline: 2px solid; }\"}]}}",
       "why": "tool result carrying the marker"
@@ -21,6 +45,18 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/index.html\",\"content\":\"<!doctype html>\\n<html><head><title>x</title></head><body><p>plain</p></body></html>\\n\"}}]}}",
       "why": "page written without the marker"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/explore-directions.html\",\"content\":\"<!doctype html>\\n<html><head><title>x</title></head><body><p>plain</p>\\nSWITCH_HERE\\n</body></html>\\n\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat $PLUGIN/skills/explore-directions/assets/variant-switcher.html | head -40\",\"description\":\"x\"}}]}}",
+      "why": "placeholder page, asset only read"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -c vs-highlight $PLUGIN/skills/explore-directions/assets/variant-switcher.html 2>/dev/null; wc -c $PLUGIN/skills/explore-directions/assets/variant-switcher.html 2>&1\",\"description\":\"x\"}}]}}",
+      "why": "asset searched with stderr redirects, nothing written"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node -e 'const s=require(\\\"fs\\\").readFileSync(\\\"$PLUGIN/skills/explore-directions/assets/variant-switcher.html\\\",\\\"utf8\\\");console.log(s.length>0, [1].map(x=>x))'\",\"description\":\"x\"}}]}}",
+      "why": "asset read by node, no write"
     }
   ]
 }

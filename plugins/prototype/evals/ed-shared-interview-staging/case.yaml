@@ -1,9 +1,9 @@
 schema_version: "1.1"
 name: ed-shared-interview-staging
-description: "Base shared-interview contract: output goes under the interview's data dir in staging/<run>/, never a mktemp directory, with a manifest.json carrying a top-level lookAt and one HTML snapshot per variant starting with a doctype."
+description: "Base shared-interview contract: output goes under the interview's data dir in staging/<run>/, never in a mktemp or system temp directory (a scratch build directory elsewhere is allowed), with a manifest.json carrying a top-level lookAt and one HTML snapshot per variant starting with a doctype."
 tags: [explore-directions, hard]
 runs: 3
-expected_outcome: "The agent writes interview-data/staging/<run>/manifest.json with a top-level lookAt and one HTML snapshot per variant starting with <!doctype html> in that folder, runs no mktemp, and hands over the manifest path."
+expected_outcome: "The agent writes interview-data/staging/<run>/manifest.json with a top-level lookAt and one HTML snapshot per variant starting with <!doctype html> in that folder (written directly or assembled there by a build script), stages none of it in a mktemp or temp directory, and hands over the manifest path."
 context:
   scaffold_script: scaffold.sh
 execution:

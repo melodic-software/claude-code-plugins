@@ -1,32 +1,42 @@
 {
   "pass": [
     {
-      "answer": [],
-      "why": "none"
+      "answer": "",
+      "why": "no tool calls"
     },
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "mkdir -p interview-data/staging/r1"
-          }
-        }
-      ],
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"mkdir -p interview-data/staging/r1\",\"description\":\"x\"}}]}}",
       "why": "mkdir"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"mkdir -p interview-data/staging/r1 && d=$(mktemp -d \\\"${TMPDIR:-/tmp}/ed-build-XXXXXX\\\"); echo \\\"$d\\\"\",\"description\":\"x\"}}]}}",
+      "why": "scratch build dir from mktemp, staging under the data dir"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"d=$(mktemp -d \\\"${TMPDIR:-/tmp}/explore-directions-src-XXXXXX\\\"); echo \\\"$d\\\"\",\"description\":\"x\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/work/proj/interview-data/staging/r1/manifest.json\",\"content\":\"{\\\"lookAt\\\":\\\"the form\\\",\\\"variants\\\":[]}\"}}]}}",
+      "why": "scratch dir in temp, manifest written into staging"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > interview-data/staging/r1/manifest.json <<'JSON'\\n{\\\"lookAt\\\":\\\"the form\\\",\\\"variants\\\":[]}\\nJSON\",\"description\":\"x\"}}]}}",
+      "why": "manifest written into staging with Bash"
     }
   ],
   "fail": [
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "d=$(mktemp -d \"${TMPDIR:-/tmp}/explore-directions-XXXXXX\"); echo \"$d\""
-          }
-        }
-      ],
-      "why": "mktemp"
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"d=$(mktemp -d \\\"${TMPDIR:-/tmp}/staging-XXXXXX\\\"); echo \\\"$d\\\"\",\"description\":\"x\"}}]}}",
+      "why": "mktemp makes the staging directory"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"d=$(mktemp -d interview-data/r-XXXXXX)\",\"description\":\"x\"}}]}}",
+      "why": "mktemp run folder inside the data dir"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/manifest.json\",\"content\":\"{\\\"lookAt\\\":\\\"the form\\\",\\\"variants\\\":[]}\"}}]}}",
+      "why": "manifest written into a temp directory"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > \\\"$d/manifest.json\\\" <<'JSON'\\n{\\\"lookAt\\\":\\\"x\\\"}\\nJSON\",\"description\":\"x\"}}]}}",
+      "why": "manifest redirected into the mktemp directory"
     }
   ]
 }
