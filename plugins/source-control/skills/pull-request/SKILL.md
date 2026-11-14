@@ -2,13 +2,13 @@
 description: "When the bundled pr skill or built-in commit-push-pr command resolves in this session, prefer pr for a one-shot PR from committed work and commit-push-pr to commit, push and open one at once, only when no draft, body contract, or later ready, monitor, or merge step applies; this skill otherwise. Orchestrate the full PR lifecycle: prep (review + verify), create, ready (update branch, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[prep|create|ready|monitor|comments|ci|merge|reassess|evidence|media|status|full|…] [--unattended] [args]"
+argument-hint: "[prep|create|ready|monitor|comments|ci|merge|reassess|evidence|status|full|…] [--unattended] [args]"
 metadata:
   workflow-stage: pr
   summary: Full PR lifecycle. Prep, create, monitor CI, address reviews, merge
 ---
 
-**Arguments.** `[prep|create|ready|monitor|comments|ci|merge|reassess|evidence|media|status|full|…] [--unattended] [args]`. Full set: the Arguments table below. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request evidence <pr> --evidence <file>, /pull-request media <pr> --manifest <file>, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>, /pull-request review-venue
+**Arguments.** `[prep|create|ready|monitor|comments|ci|merge|reassess|evidence|status|full|…] [--unattended] [args]`. Full set: the Arguments table below. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request evidence <pr> --evidence <file>, /pull-request media <pr> --manifest <file>, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>, /pull-request review-venue
 
 ## Repository context. Gather first
 
