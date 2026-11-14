@@ -92,6 +92,17 @@ check_fail_closed "a trailing empty list item" \
 check_fail_closed "an only, empty list item" \
   $'pre_ready:\n  -\n' "pre_ready holds an empty item"
 
+# The parser accepts a uniform base indent and a byte-order mark, so the text scan must too.
+VERIFY_ONLY_OFF=$'source\tconfig\nbase-merge\tenabled\nplan-evidence\tenabled\ncode-review\tenabled\nsecurity-review\tenabled\nverify\tdisabled\nevidence\tenabled'
+out=$(read_doc $'  pr_open_state: ready\n  pre_ready:\n    - step: verify\n      enabled: false\n  other: 1\n')
+assert_eq "a document indented two spaces is read" "$VERIFY_ONLY_OFF" "$out"
+out=$(read_doc $'\xef\xbb\xbfpre_ready:\n  - step: verify\n    enabled: false\n')
+assert_eq "a byte-order mark before the key is read" "$VERIFY_ONLY_OFF" "$out"
+check_fail_closed "a trailing empty item under a two-space base indent" \
+  $'  pre_ready:\n    - step: verify\n      enabled: false\n    -\n' "pre_ready holds an empty item"
+check_fail_closed "an empty value under a two-space base indent" \
+  $'  pre_ready:\n    - step: verify\n      enabled: false\n      why: []\n' "pre_ready item has a key with no value"
+
 # Names the reader uses inside must not be read from the environment it inherits.
 out=$(printf 'pre_ready:\n  - step: verify\n' | env item_0_enabled=false bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
 assert_eq "an inherited item_0_enabled does not fill a missing enabled value" \

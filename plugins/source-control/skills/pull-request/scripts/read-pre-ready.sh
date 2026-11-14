@@ -105,10 +105,9 @@ base_file_records || fail_closed "$BASE_FILE_REASON"
 # A fresh array, so nothing inherited from the environment reads as an item.
 unset ITEM
 declare -A ITEM=()
-seen=$'\n' max=-1 records=0
+seen=$'\n' max=-1
 while IFS=$'\t' read -r key val; do
   case "$key" in pre_ready | pre_ready.*) ;; *) continue ;; esac
-  ((records += 1))
   [[ "$key" != pre_ready ]] || fail_closed "pre_ready is not a list"
   rest="${key#pre_ready.}"
   idx="${rest%%.*}"
@@ -127,16 +126,7 @@ while IFS=$'\t' read -r key val; do
   ((idx <= max)) || max=$idx
 done <<<"$BASE_FILE_RECORDS"
 
-# The parser emits no record for an empty value or an empty item, so those are
-# found in the key's own lines.
-block=$(awk -v q="$q" '
-  $0 ~ "^" q "pre_ready" q "[[:space:]]*:" { inside = 1; next }
-  inside && /^[^[:space:]#-]/ { inside = 0 }
-  inside' <<<"$doc")
-(($(grep -cE '^[[:space:]]*-([[:space:]]|$)' <<<"$block") == max + 1)) ||
-  fail_closed "pre_ready holds an empty item"
-(($(grep -cE "^[[:space:]]*(-[[:space:]]+)?${q}[A-Za-z0-9_.-]+${q}[[:space:]]*:([[:space:]]|\$)" <<<"$block") == records)) ||
-  fail_closed "pre_ready item has a key with no value"
+base_file_list_check pre_ready || fail_closed "$BASE_FILE_REASON"
 
 ((max >= 0)) || emit default " "
 

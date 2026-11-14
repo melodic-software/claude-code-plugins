@@ -15,6 +15,12 @@
 #       Both of the above, then BASE_FILE_VALUE holds <key>'s value and
 #       BASE_FILE_HAS is 1 when the file sets it. A key nested under <key> reads
 #       as "(not a single value)".
+#   base_file_list_check <key>
+#       For a top-level list of mappings under <key>, sets BASE_FILE_BLOCK to the
+#       list's own lines and compares its items and keys with the parsed
+#       records, since the parser emits no record for an empty item or a key
+#       with no value. Returns 1 with BASE_FILE_REASON set on a mismatch. Run
+#       after base_file_records.
 
 BASE_FILE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=convention-key.sh
@@ -66,6 +72,38 @@ base_file_records() {
   if ! BASE_FILE_RECORDS="$(LC_ALL=C awk -f "$BASE_FILE_LIB_DIR/yaml-subset.awk" <<<"$BASE_FILE_DOC")"; then
     BASE_FILE_STATE=failed
     BASE_FILE_REASON="$CONVENTION_KEY_YAML_REL does not parse: $(awk -F '\t' '$1 == "error" { print "line " $2 ": " $3 }' <<<"$BASE_FILE_RECORDS")"
+    return 1
+  fi
+}
+
+base_file_list_check() {
+  local key="$1" q="[\"']?" items=-1 keys records
+  # The parser's own normalization: a CR before each line end, a byte-order
+  # mark, and the base indent of the first content line.
+  BASE_FILE_BLOCK=$(LC_ALL=C awk -v key="$key" -v q="$q" '
+    { sub(/\r$/, "") }
+    NR == 1 { sub(/^\357\273\277/, "") }
+    /^[ \t]*(#.*)?$/ { if (inside) print; next }
+    !based { match($0, /^[ \t]*/); base = substr($0, 1, RLENGTH); based = 1 }
+    substr($0, 1, length(base)) == base { $0 = substr($0, length(base) + 1) }
+    $0 ~ "^" q key q "[ \t]*:" { inside = 1; next }
+    inside && /^[^ \t#-]/ { inside = 0 }
+    inside' <<<"$BASE_FILE_DOC")
+  records=$(awk -F '\t' -v key="$key" 'index($1, key ".") == 1 { n++ } END { print n + 0 }' <<<"$BASE_FILE_RECORDS")
+  while IFS=$'\t' read -r k _; do
+    [[ "$k" == "$key".* ]] || continue
+    k="${k#"$key".}"
+    k="${k%%.*}"
+    [[ "$k" =~ ^[0-9]+$ ]] || continue
+    ((k <= items)) || items=$k
+  done <<<"$BASE_FILE_RECORDS"
+  if (($(grep -cE '^[[:space:]]*-([[:space:]]|$)' <<<"$BASE_FILE_BLOCK") != items + 1)); then
+    BASE_FILE_REASON="$key holds an empty item"
+    return 1
+  fi
+  keys=$(grep -cE "^[[:space:]]*(-[[:space:]]+)?${q}[A-Za-z0-9_.-]+${q}[[:space:]]*:([[:space:]]|\$)" <<<"$BASE_FILE_BLOCK")
+  if ((keys != records)); then
+    BASE_FILE_REASON="$key item has a key with no value"
     return 1
   fi
 }
