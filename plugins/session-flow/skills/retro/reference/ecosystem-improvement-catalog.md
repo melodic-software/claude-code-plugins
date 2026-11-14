@@ -27,12 +27,18 @@ banned API, a file written in the wrong place, a step skipped before a commit.
   as "When to propose a check" under [Owner skills](#owner-skills) says. Otherwise, when the
   `corrections` plugin is installed, the row hands the finding to
   `/corrections:codify "<the mistake>"`, which counts it, applies the ladder's guardrail
-  criterion, picks the strongest rung that can decide it and proves the check. Without it, a
-  finding that meets the whole "Guardrail criterion" takes the [Hooks](#hooks) section's format
-  and names the strongest rung of the ladder copy that can decide it; one that fails the
-  criterion goes on to the placement decision tree, since the ladder keeps it on the guidance
-  tier. Give a finding that gets a check row no CLAUDE.md, `AGENTS.md` or rules-file row, a
-  pointer to the check included: the check replaces the line.
+  criterion, picks the strongest rung that can decide it and proves the check. Without it, judge
+  the finding on the "Guardrail criterion" items a retro can settle from the finding itself: item
+  1 (decidable without reasoning), item 2 (it recurs, by the rule "When to propose a check" under
+  [Owner skills](#owner-skills) gives for when the plugin is missing) and item 7 (no stronger rung
+  already covers it). A finding that meets those three takes the [Hooks](#hooks) section's format
+  and names the strongest rung of the ladder copy that can decide it. Items 3-6 and 8 (precision,
+  a message naming the fix, proof on a planted violation, the same command at edit time and in
+  CI, a kill switch) describe a check that exists, and a retro proposes a check without writing
+  or proving one, so the row lists them as requirements the proposed check must meet. A finding
+  that fails item 1, 2 or 7 goes on to the placement decision tree, since the ladder keeps it on
+  the guidance tier. Give a finding that gets a check row no CLAUDE.md, `AGENTS.md` or rules-file
+  row, a pointer to the check included: the check replaces the line.
 - **No**: go on to the placement decision tree below.
 
 ## Placement Decision Tree
@@ -155,9 +161,11 @@ Include: which settings file (user/project), the specific setting key, proposed 
 ## CLAUDE.md / Rules
 
 Recommend a CLAUDE.md or rules-file line only when no rung above guidance in the ladder copy can
-decide the finding: [Check first](#check-first) answered no, or the finding fails the ladder's
-guardrail criterion. A prose line is the ladder's guidance
-tier, which nothing checks, so a finding a check could decide goes to a check instead.
+decide the finding: [Check first](#check-first) answered no, or the finding fails item 1, 2 or 7
+of the ladder's guardrail criterion, the items a retro judges from the finding itself. Items 3-6
+and 8 are requirements on the proposed check, so failing only those admits no prose line. A prose
+line is the ladder's guidance tier, which nothing checks, so a finding a check could decide goes
+to a check instead.
 
 Conventions and guidelines that should be documented.
 
