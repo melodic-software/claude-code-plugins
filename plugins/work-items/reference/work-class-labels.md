@@ -52,7 +52,7 @@ only when the lane's launch prompt explicitly opts the sweep into writing it.
 "Admission gate", which binds whether or not the `autonomy` plugin is enabled). No other class
 floors an item, and neither does a missing class. The autonomous-eligible role label
 (default `agent-ready`) asserts the opposite, so **an item must never carry both**. Applying
-that role label to a C5 item is a triage defect, not an operator override: no label
+that role label to a C5 item is a triage defect, not an operator override, and no label
 lifts the floor.
 
 Enforcement, so the rule is not merely written down:
