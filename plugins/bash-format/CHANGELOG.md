@@ -3,6 +3,16 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.5] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+### Fixed
+
+- The pre-commit check now passes the staged shell scripts to ShellCheck in batches, each kept under 24,000 characters of paths. Before, one call took every path. Windows caps a command line at 32,767 characters, so there a commit with several hundred shell scripts could not launch ShellCheck and was blocked. Findings from every batch are still reported, and a ShellCheck failure in any batch still blocks.
+
 ## [1.1.4] - 2026-11-13
 
 ### Changed

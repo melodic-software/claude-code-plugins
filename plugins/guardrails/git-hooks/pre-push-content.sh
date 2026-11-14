@@ -13,14 +13,14 @@
 # the same scan (content-scan.sh, installed beside it as an asset with the
 # pattern libraries) on every pushed ref, whatever its name.
 #
-# The ranges come from the check lib: one per pushed ref, a new branch from its
-# merge-base with the remote's default branch, a deletion skipped. Each commit
-# in a range is judged on its own, on the lines it adds to its parent, so a
-# secret one commit adds and a later commit of the same push removes still
-# blocks: the push would publish it in history. A merge is judged on the lines
-# it adds against every parent, which are its conflict resolution. A commit
-# one of the remote's tracking refs holds is on the remote already and is not
-# judged again.
+# The pushed ranges come from the check lib: one per pushed ref, a new branch
+# from its merge-base with the remote's default branch, a deletion skipped.
+# Each commit in a range is judged on its own, on the lines it adds to its
+# parent (commit_ranges), so a secret one commit adds and a later commit of the
+# same push removes still blocks: the push would publish it in history. A merge
+# is judged on the lines it adds against every parent, which are its conflict
+# resolution. A commit one of the remote's tracking refs holds is on the remote
+# already and is not judged again.
 #
 # Findings print as "<path>:<line>: <message> (commit <id>)" on stderr and
 # exit 1; the fix is to rewrite the named commit. A text tool or git command
@@ -65,23 +65,29 @@ fi
 # against every parent (a root commit, against the empty tree), push-ranges
 # names its first parent, so content_scan reads the files it changes from
 # there, and other_parents names the rest, so a file a merge takes whole from
-# another parent (one judged whole, past the ranges) is not judged again.
+# another parent (one judged whole, past the ranges) is not judged again. A
+# file a later parent holds as a symlink or a submodule counts every line as
+# added against it. The ranges keep a binary file's rows, unread: content_scan
+# judges a file holding a NUL byte whole before it reads any range.
 commit_ranges() {
-  local c=$1 p first="" k=0
+  local c=$1 p first="" k=0 filter=ACMR
   local -a ids=() parents=()
   read -r -a ids < <(git rev-list --parents -n 1 "$c" -- 2>/dev/null)
   ((${#ids[@]} > 1)) && parents=("${ids[@]:1}")
   ((${#parents[@]})) || parents=("$CHECKS_EMPTY_TREE")
   for p in "${parents[@]}"; do
     printf '%s %s\n' "$p" "$c" >"$CHECKS_TMP/push-ranges"
-    checks_changed_lines
+    : >"$CHECKS_TMP/ranges"
+    checks_added_ranges "$CHECKS_TMP/ranges" "$filter"
     if ((k++ == 0)); then
       first="$p"
+      filter=ACMRT
       mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.all"
       continue
     fi
     # Keep only the lines this parent's diff adds too.
-    checks_intersect_ranges "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.all" >"$CHECKS_TMP/ranges.both"
+    checks_intersect_ranges "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.all" >"$CHECKS_TMP/ranges.both" ||
+      checks_tool_failed awk "$?" 'listing the lines the merge adds'
     mv "$CHECKS_TMP/ranges.both" "$CHECKS_TMP/ranges.all"
   done
   mv "$CHECKS_TMP/ranges.all" "$CHECKS_TMP/ranges"
