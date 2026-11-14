@@ -18,7 +18,8 @@
 #     GHPOST_BODY_SRC (the file a text was read from, else "") and
 #     GHPOST_BODY_KIND (`file` a body file's content, `command` the whole
 #     command, `word` a posting segment's word, `attach` a literal `--attach`
-#     operand of `gh pr|issue`, posted in part and judged like a `word`, `aux`
+#     operand of `gh pr|issue` under the Bash tool, posted in part and judged
+#     like a `word`, `aux`
 #     a here-string or a file fed through `cat` or `<`), in the order a caller
 #     should judge them.
 #     GHPOST_PATHS lists every file path the command names, so a caller can
@@ -35,8 +36,9 @@
 # paths resolve against <cwd>. A `bash -c`/`sh -c` operand and an `eval` are
 # read as commands, and so is the command after `--` in a script wrapper
 # (`bash gate.sh run KEY -- CMD +++ CMD`, `./wrap.sh ... -- CMD`), split on
-# bare `+++` words. A `gh pr|issue` `--attach` operand is its own kind when the
-# shell passes it on unchanged and no flag before it takes it as a value.
+# bare `+++` words. Under the Bash tool, a `gh pr|issue` `--attach` operand is
+# its own kind when the shell passes it on unchanged and no flag before it
+# takes it as a value; under PowerShell it stays a `word`.
 #
 # GraphQL counts as a write only when the query text names a mutation.
 
@@ -281,17 +283,15 @@ ghpost::_wrapper() {
 # ghpost::_literal_operand <word>: 0 when the shell passes <word> on as
 # written. The tokenizer does no brace, glob or IFS expansion, and an operand
 # like `{./x.png,--body=TEXT}` or `./x.png$IFS--body=TEXT` really posts a body,
-# so a word that could expand (on PowerShell, also an array or subexpression)
-# is not one.
+# so a word that could expand is not one.
 ghpost::_literal_operand() {
-  [[ "$1" != *[\$\`\{*?[]* ]] || return 1
-  [[ "$GHPOST_TOOL" != PowerShell || "$1" != *[,\(@]* ]]
+  [[ "$1" != *[\$\`\{*?[]* ]]
 }
 
 # hook::bash_parse_segments callback: one segment's argv words.
 # shellcheck disable=SC2329  # invoked through hook::bash_parse_segments
 ghpost::segment() {
-  local j cmd form="" dq=0
+  local j cmd form=""
   # What stdin and here-strings feed this segment: read only when it posts,
   # which is judged after the whole parse, so record them now.
   for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
@@ -370,14 +370,6 @@ ghpost::segment() {
   gh)
     case "${1-}" in
     pr | issue)
-      # PowerShell's legacy native argument passing does not escape a `"`
-      # inside a word, so the word can split or join later words, an
-      # `--attach` operand included: then no operand is kept apart.
-      if [[ "$GHPOST_TOOL" == PowerShell ]]; then
-        for j in "$@"; do
-          [[ "$j" == *'"'* ]] && dq=1
-        done
-      fi
       local group="$1"
       shift
       while [[ "${1-}" == -R || "${1-}" == --repo ]]; do
@@ -445,14 +437,15 @@ ghpost::segment() {
     # without `=` before `--attach` may take it as its value, so then nothing
     # is captured: `--body --attach=X` posts the word, and with `--body
     # --attach X`, X stays a word judged whole. A joined `--attach=X` is
-    # captured only after a literal word, non-empty on PowerShell, since a
-    # word that vanishes or splits at run time (`--body $E --attach=X`) can
-    # leave a flag right before it. The spaced form needs no such check: there
-    # the flag takes `--attach` and X is a positional argument, which gh
-    # rejects or reads as the PR or issue selector, posting it neither way.
-    # On PowerShell, a `"` in any word of the segment (`dq`) keeps every
-    # operand whole.
-    if ((!dq)) && [[ "$form" == gh-pr-* || "$form" == gh-issue-* ]]; then
+    # captured only after a literal word, since a word that vanishes or splits
+    # at run time (`--body $E --attach=X`) can leave a flag right before it.
+    # The spaced form needs no such check: there the flag takes `--attach` and
+    # X is a positional argument, which gh rejects or reads as the PR or issue
+    # selector, posting it neither way. Nothing is captured under the
+    # PowerShell tool: its argument passing to a native command (quoting,
+    # empty strings, `--%`) can change the words gh receives, so every word is
+    # judged whole.
+    if [[ "$GHPOST_TOOL" != PowerShell ]] && [[ "$form" == gh-pr-* || "$form" == gh-issue-* ]]; then
       if ((attach)); then
         attach=0
         if ghpost::_literal_operand "$w"; then
@@ -463,8 +456,7 @@ ghpost::segment() {
         case "$w" in
         --attach) attach=1 ;;
         --attach=*)
-          if ghpost::_literal_operand "$before" && [[ "$GHPOST_TOOL" != PowerShell || -n "$before" ]] &&
-            ghpost::_literal_operand "${w#--attach=}"; then
+          if ghpost::_literal_operand "$before" && ghpost::_literal_operand "${w#--attach=}"; then
             GHPOST_ATTACH+=("${w#--attach=}")
             continue
           fi

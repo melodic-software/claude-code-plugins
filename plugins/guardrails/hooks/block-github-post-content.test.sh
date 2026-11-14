@@ -134,8 +134,15 @@ quiet "attach beside a body in a variable" "gh pr comment 5340 --body \"\$X\" --
 quiet "attach in a gate.sh wrapper" "bash ./gate.sh run k -- gh pr comment 1 --body ok --attach $AHP/a.png"
 quiet "attach in bash -c" "bash -c 'gh pr comment 1 --body ok --attach $AHP/a.png'"
 quiet "attach on pr review" "gh pr review 5340 --body ok --attach $AHP/a.png"
-quiet "attach of a single-quoted Windows home operand" "gh pr edit 5340 --body 'ok' --attach '$AWP\\a.png'" PowerShell
-quiet "attach of a Windows home operand with alt text" "gh pr edit 5340 --body 'ok' --attach '$AWP\\a.png#shot'" PowerShell
+# Under the PowerShell tool every --attach operand is judged whole: its
+# argument passing to a native command can change the words gh receives. These
+# pin that fail-closed behavior for a Windows home source path.
+deny "PowerShell attach judged whole: single-quoted Windows home operand" "gh pr edit 5340 --body 'ok' --attach '$AWP\\a.png'" path PowerShell
+deny "PowerShell attach judged whole: Windows home operand with alt text" "gh pr edit 5340 --body 'ok' --attach '$AWP\\a.png#shot'" path PowerShell
+deny "PowerShell attach judged whole: doubled-quote escape in an earlier word" "gh pr comment 1 --body \"a\"\"b\" --repo o/r --attach='$AWP\\x.png'" path PowerShell
+deny "PowerShell attach judged whole: stop-parsing token with an environment variable" "\$env:X='t --body'; gh issue create --% --title %X% --attach='$AWP\\x.png'" path PowerShell
+deny "PowerShell attach judged whole: quote arriving through a variable" "\$q='a\"b'; gh pr comment 1 --body \$q --repo o/r --attach='$AWP\\x.png'" path PowerShell
+deny "PowerShell attach judged whole: word ending in a backslash" "gh pr comment 1 --body 'x y\\' --repo o/r --attach='$AWP\\x.png'" path PowerShell
 PROJ="$TEST_TMPDIR/proj"
 mkdir -p "$PROJ/evidence"
 git init -q "$PROJ"
