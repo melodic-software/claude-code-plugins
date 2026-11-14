@@ -25,7 +25,7 @@
     "pr_body_refresh": {
       "type": "boolean",
       "default": true,
-      "description": "When true, a /source-control:pull-request run that pushes a change making an open pull request's body stale (what changed, verification, the Left out: line) rewrites those sections in place, so the body describes the current head. false leaves the body as it was."
+      "description": "When true, a /source-control:pull-request run, or a pr-unblock address-feedback round, that pushes a change making an open pull request's body stale (what changed, verification, the Left out: line) rewrites those sections in place, so the body describes the current head. false leaves the body as it was."
     },
     "sync_stale_base": {
       "type": "boolean",

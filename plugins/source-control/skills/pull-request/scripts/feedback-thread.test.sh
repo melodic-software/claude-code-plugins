@@ -455,5 +455,42 @@ assert_eq "the follow-up reply is recorded as written" '{"thread":"PRRT_a","disp
 run record PRRT_b "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "the other thread, not marked, still refuses follow-up" 1 "$?"
 
+# sections and record-body: replacement text only for a section the select job
+# offered, once per round, beside the replies.
+setup
+body_file() {
+  printf '%s' "$1" >"$STUB/scratch/body.json"
+}
+assert_eq "sections prints [] when the round offers none" "[]" "$(run sections | jq -c .)"
+body_file '{"sections":[{"heading":"Verification","text":"Ran the suite."}]}'
+run record-body "$STUB/scratch/body.json" >/dev/null 2>&1
+assert_exit "record-body is refused when the round offers no section" 1 "$?"
+jq '.body_sections = [{"heading":"Summary","text":"Old."},{"heading":"Verification","text":"Old run."}]' \
+  "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+assert_eq "sections prints the offered headings" "Summary Verification" "$(run sections | jq -r 'map(.heading) | join(" ")')"
+for bad in \
+  '{"sections":[{"heading":"Related","text":"x"}]}' \
+  '{"sections":[{"heading":"Verification","text":""}]}' \
+  '{"sections":[{"heading":"Verification","text":"x"},{"heading":"Verification","text":"y"}]}' \
+  '{"sections":[{"heading":"Verification","text":"x <!-- m -->"}]}' \
+  "{\"sections\":[{\"heading\":\"Verification\",\"text\":\"leaks $TOKEN\"}]}" \
+  '{"sections":[{"heading":"Verification","text":"x","extra":1}]}' \
+  '{"sections":[]}'; do
+  body_file "$bad"
+  run record-body "$STUB/scratch/body.json" >/dev/null 2>&1
+  assert_exit "record-body refuses $bad" 1 "$?"
+done
+assert_eq "the refused body records append nothing" 0 "$(recorded)"
+body_file '{"sections":[{"heading":"Verification","text":"Ran the suite.\nLeft out: nothing"}]}'
+run record-body "$STUB/scratch/body.json" >/dev/null 2>&1
+assert_exit "record-body records text for an offered section" 0 "$?"
+assert_eq "the body record is one replies line holding only body_sections" \
+  '{"body_sections":[{"heading":"Verification","text":"Ran the suite.\nLeft out: nothing"}]}' "$(jq -c . "$STUB/replies.jsonl")"
+run record-body "$STUB/scratch/body.json" >/dev/null 2>&1
+assert_exit "a second body record in the round is refused" 1 "$?"
+disposition '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"Guarded."}'
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a reply still records beside the body record" 0 "$?"
+
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0
