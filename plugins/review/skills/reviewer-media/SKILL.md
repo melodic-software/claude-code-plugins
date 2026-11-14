@@ -65,9 +65,10 @@ no digest, call step 7 with reason `no-digest`.
 
 ## 4. The storyboard
 
-Write `<out>/storyboard.json` (version 1, data only, the
+Write `<dir>/storyboard.json` (version 1, data only, the
 [storyboard contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0102-hand-produced-video-content-to-the-producer-as-a-data-only-storyboard.md)),
-`<out>` being `--out` or a fresh directory under `<dir>`. Each template's `data` fields are those
+never inside the render folder: the renderer owns that folder and refuses one it did not start.
+The render folder `<out>` is `--out`, else `<dir>/render`, and does not exist yet. Each template's `data` fields are those
 of the producer's fixture,
 [`plugins/explainer-video/scripts/fixtures/storyboard.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/explainer-video/scripts/fixtures/storyboard.json).
 Three chapters, in reading order:
@@ -88,7 +89,7 @@ hears once. Never read code aloud symbol by symbol, never name a secret, a home 
 Then check coverage:
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/completeness.mjs" --storyboard <out>/storyboard.json --facts <dir>/facts.json
+"${CLAUDE_SKILL_DIR}/scripts/completeness.mjs" --storyboard <dir>/storyboard.json --facts <dir>/facts.json
 ```
 
 Exit 1 lists each uncovered file: add it to a moment's `covers` (the `also-changed` moment when
@@ -96,8 +97,8 @@ nothing else shows it) and run it again. Never drop a file to pass.
 
 ## 5. Render
 
-Run `/explainer-video:produce` via the Skill tool on `<out>/storyboard.json` (its stills
-renderer), with `--head-sha` the facts' `headRefOid`, `--upload-limit-mb` from `config`, and for
+Run `/explainer-video:produce` via the Skill tool on `<dir>/storyboard.json` (its stills
+renderer), rendering into `<out>` (`--out <out>`), with `--head-sha` the facts' `headRefOid`, `--upload-limit-mb` from `config`, and for
 its narration step the settings from `config`: `voice_chain` as `--backend-chain`, each `voices` entry as
 `--voice <backend>:<voice>`, `voice_command` as `--command`. Pass `--allow-paid-voice` only when
 `allow_unattended_paid_voice` is `true`, or when the reader in this session said yes to that

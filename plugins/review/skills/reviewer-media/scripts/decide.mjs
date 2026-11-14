@@ -16,7 +16,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readLayers } from "../../../lib/config-cascade.mjs";
-import { LEVELS, baseReader, isSha, resolveDigestConfig, triggers } from "../../../lib/review-digest.mjs";
+import { LEVELS, baseReader, isSha, projectRootOf, resolveDigestConfig, triggers } from "../../../lib/review-digest.mjs";
 import { findRoot, personalOverrideApplies } from "../../../lib/view-settings.mjs";
 
 const PLUGIN = "reviewer-media";
@@ -49,7 +49,9 @@ const at = (object, parts) => parts.reduce((o, k) => o?.[k], object);
  * @param {{isDraft?: boolean, isCrossRepository?: boolean, headRefOid?: string, labels?: ({name?: string}|string)[], files?: object[]}} facts
  * @param {{requested: boolean, shown: string | null, delta: {files: object[]} | null}} options
  * @param {typeof DEFAULTS} config resolved values
- * @param {(facts: object) => string[]} triggersOf the review-digest triggers that fire for a set of facts
+ * @param {(facts: object, whole: boolean) => string[]} triggersOf the review-digest triggers that fire for a set
+ *   of facts; `whole` is false for the delta since posted media, which an assessment of the whole pull request
+ *   (its blast radius) does not describe
  */
 export function decide(facts, { requested, shown, delta }, config, triggersOf) {
   const out = (action, reason, fired = []) => ({ action, reason, triggers: fired, shown });
@@ -65,11 +67,11 @@ export function decide(facts, { requested, shown, delta }, config, triggersOf) {
   if (facts.isDraft) return out("skip", "draft");
   if (shown) {
     if (!delta) return out("stale", "delta-unknown");
-    const fired = triggersOf(delta);
+    const fired = triggersOf(delta, false);
     return fired.length ? out("build", "rebuild", fired) : out("stale", "small-delta");
   }
   if (config.policy === "always") return out("build", "always");
-  const fired = triggersOf(facts);
+  const fired = triggersOf(facts, true);
   return fired.length ? out("build", "selected", fired) : out("skip", "under-thresholds");
 }
 
@@ -87,7 +89,7 @@ function gitOut(root, args) {
 export function resolveConfig(root, baseOid) {
   const warnings = [];
   const config = Object.fromEntries(LEAVES.map((parts) => [parts.join("."), { value: at(DEFAULTS, parts), source: "default" }]));
-  if (!root || !gitOut(root, ["rev-parse", "--is-inside-work-tree"])) return { config, warnings };
+  if (!projectRootOf(root)) return { config, warnings };
   const base = baseReader(root, baseOid, warnings);
   const team = { path: `${base.ref}:${TEAM_YAML}`, text: base.read(TEAM_YAML) };
   const { layers } = readLayers({ plugin: PLUGIN, projectRoot: root, schema: SCHEMA, teamOnly: TEAM_ONLY, team, userHome: homedir() });
@@ -165,7 +167,7 @@ function main(argv) {
   if (opts.policy) config.policy = { value: opts.policy, source: "argument" };
   const digest = resolveDigestConfig(facts.baseRefOid);
   warnings.push(...digest.warnings);
-  const triggersOf = (f) => triggers(f, opts.blastRadius, digest.config).triggers;
+  const triggersOf = (f, whole) => triggers(f, whole ? opts.blastRadius : "", digest.config).triggers;
   const delta = opts.shown && opts.shown !== facts.headRefOid ? deltaOf(root, opts.shown, facts.headRefOid) : null;
   const result = decide(facts, { requested: opts.requested, shown: opts.shown, delta }, valuesOf(config), triggersOf);
   process.stdout.write(`${JSON.stringify({ ...result, head: facts.headRefOid ?? null, config, warnings }, null, 2)}\n`);

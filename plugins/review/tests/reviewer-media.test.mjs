@@ -72,6 +72,14 @@ describe("the decision", () => {
     const whole = run(big, { policy: "when-selected", shown: OLD, delta: { files: quiet.files } });
     assert.equal(whole.action, "stale");
   });
+  test("the whole pull request's blast radius never rebuilds media for a small delta", () => {
+    const { root, base } = repoWith(null);
+    writeFileSync(join(root, "a.md"), "two\n");
+    git(root, "commit", "-q", "-am", "small");
+    const head = git(root, "rev-parse", "HEAD");
+    const result = cli(root, { ...quiet, headRefOid: head, baseRefOid: base }, "--shown", base, "--policy", "when-selected", "--blast-radius", "HIGH");
+    assert.deepEqual([result.action, result.reason], ["stale", "small-delta"]);
+  });
   test("an unknown delta gets the stale note, never an unasked rebuild", () => {
     assert.equal(run(big, { policy: "always", shown: OLD }).reason, "delta-unknown");
   });

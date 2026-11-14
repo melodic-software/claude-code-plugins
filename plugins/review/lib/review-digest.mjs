@@ -90,10 +90,15 @@ export function baseReader(root, baseOid, warnings) {
 }
 
 /** Team and personal override apply only inside a working tree that is not home or above it. */
+/** The root a team or personal override layer may come from, or null: never home, above it, or outside a working tree. */
+export function projectRootOf(root) {
+  return root && !within(real(homedir()), real(root)) && git(root, ["rev-parse", "--is-inside-work-tree"]) ? root : null;
+}
+
 function layerPaths(root, userFile, teamFiles, personalOverrideFile) {
   const home = real(homedir());
   const user = join(home, ".claude", userFile);
-  if (!root || within(home, real(root)) || !git(root, ["rev-parse", "--is-inside-work-tree"])) {
+  if (!projectRootOf(root)) {
     return { user, root: null, team: [], personalOverride: null };
   }
   const notUser = (p) => real(p) !== real(user);
