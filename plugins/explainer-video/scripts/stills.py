@@ -13,7 +13,8 @@ spare time by entry count -> captions (burned and soft) -> narration rebuilt in 
 encode (profile reviewer-stills, or --stitcher) -> verify streams, size, blank frames and luma SSIM of every frame
 against its source -> contact sheets -> split at chapter starts when over the upload limit -> DIR/manifest.json, the
 list of files a caller may publish. A frame whose content lies outside it or over its header, or that is held under
-its reading minimum, is a defect.
+its reading minimum, is a defect. A narrated moment held past its paragraph longer than silent_hold.report_over_seconds
+is a SILENT line and a manifest silent_holds entry, not a defect.
 
 --stitcher: a command with {inputs} (DIR/stitch.json: frames with seconds, audio, captions) and {out}; absent or
 'ffmpeg' is the built-in reviewer-stills encode. --scan-pattern (repeatable): a regex the scan also refuses
@@ -188,6 +189,21 @@ def moment_minimums(board, frames):
     return [round(sum(f['minimum'] for f in frames if f['id'] == m['id']), 3) for m in board['moments']]
 
 
+def silent_holds(board, tl, needs, over):
+    """Narrated moments held more than `over` seconds past their paragraph's slice of the narration, because their
+    frames need longer: [{'id', 'past_s', 'needs_s', 'narration_s'}]. A report, never a defect."""
+    spans = iter(e for e in tl['audio'] if e[0] == 'narration')
+    out = []
+    for m, h, need in zip(board['moments'], tl['holds'], needs):
+        if not m['narration'].strip():
+            continue
+        _, a0, a1 = next(spans)
+        past = (h['end'] - h['start']) - (a1 - a0)
+        if past > over:
+            out.append({'id': m['id'], 'past_s': round(past, 3), 'needs_s': need, 'narration_s': round(a1 - a0, 3)})
+    return out
+
+
 def frame_holds(holds, frames):
     """Each frame's span of its moment's hold: its minimum, plus the hold's spare time shared by entry count. A
     hold shorter than its frames' minimums (never made by timeline) is split by entry count alone, and quality()
@@ -330,8 +346,11 @@ def _run(argv):
     try:
         frames = frames_of(board, chapters, out, stylesheet, base)
         steps.append('capture')
+        needs = moment_minimums(board, frames)
         tl = media_timeline.timeline(board, words, DEFAULTS['captions_only_hold'], DEFAULTS['captions'],
-                                     minimum=moment_minimums(board, frames))
+                                     minimum=needs)
+        silent = silent_holds(board, tl, needs, DEFAULTS['silent_hold']['report_over_seconds']) \
+            if words is not None and needs else []
         frames = frame_holds(tl['holds'], frames)
         limits = DEFAULTS['captions']
         cues = media_captions.captions(tl['words'], tl['beats'], limits['max_words'], limits['min_seconds'],
@@ -389,6 +408,7 @@ def _run(argv):
                    'seconds': round(time.monotonic() - started, 1)},
         'quality': {'frames': rows, 'min_luma_ssim': min(r['luma_ssim'] for r in rows), 'loudness': loudness,
                     'caption_flags': flags},
+        'silent_holds': silent,
         'defects': defects, 'status': 'defect' if defects else 'pass'}
     (out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
     print(f'{manifest["status"].upper()}: {video} ({tl["duration"]} s, {vstream.get("width")}x{vstream.get("height")}, '
@@ -397,6 +417,9 @@ def _run(argv):
         print(f'DEFECT: {d}')
     for f in flags:
         print(f'FLAG: {f}')
+    for s in silent:
+        print(f'SILENT: moment {s["id"]} holds {s["past_s"]:.1f} s past its narration '
+              f'(frames need {s["needs_s"]:.1f} s, narration {s["narration_s"]:.1f} s)')
     if oversize:
         print(f'OVERSIZE: {oversize}; host the whole video as an Actions artifact instead')
     return 1 if defects else 0

@@ -92,6 +92,9 @@ Three chapters, in reading order:
 
 Narration: one paragraph per moment, saying what that frame shows, in plain words a reviewer
 hears once. Never read code aloud symbol by symbol, never name a secret, a home path or a machine.
+A paragraph should take about as long to speak as its frames take to read: a dense code hunk or a
+long file list needs more words, or splitting into smaller moments, or the video holds it in
+silence.
 
 Then check coverage:
 
@@ -112,6 +115,12 @@ both the renderer and the narration. Pass `--allow-paid-voice` only when
 `allow_unattended_paid_voice` is `true`, or when the reader in this session said yes to that
 paid voice. A narration exit that means no voice produced audio, per `/speech:narrate`'s exit
 list, renders captions-only and says why.
+
+Each `SILENT:` line the render prints names a moment held in silence past its paragraph. Lengthen
+that moment's narration, or split it into smaller moments, still saying only what each frame
+shows; run the step 4 coverage check again, then render once more. After that one retry, post
+with the pauses left and list each remaining `SILENT:` line in the report. A `SILENT:` line is
+not a failure for step 7.
 
 ## 6. Post
 
