@@ -306,8 +306,13 @@ export const AGGREGATE_STEP = "Aggregate lane results";
 // The ci-status step that runs ci-workflows' check-contract (title,
 // `do-not-merge` label, issue linkage), and the one error line its run.sh
 // writes for the label, whose name pr-require-checks.yml leaves the default.
+// A run prints the line of the check-contract release its repository pins, so
+// a release that still prefixes its messages `pr-contract:` reports
+// OLD_DO_NOT_MERGE_LINE.
 export const CONTRACT_STEP = "Check the pull-request contract";
-export const DO_NOT_MERGE_LINE = "pr-contract: this PR carries the 'do-not-merge' label; remove it to merge.";
+export const DO_NOT_MERGE_LINE = "check-contract: this PR carries the 'do-not-merge' label; remove it to merge.";
+export const OLD_DO_NOT_MERGE_LINE = "pr-contract: this PR carries the 'do-not-merge' label; remove it to merge.";
+const DO_NOT_MERGE_LINES = [DO_NOT_MERGE_LINE, OLD_DO_NOT_MERGE_LINE];
 // What merge-holds.mjs `holds` writes after each hold an approving review of
 // the head lifts, and the line the runner adds for the step's failing exit.
 export const PERSON_LIFT = "; an approving review of this head by a person on the trusted-actor list lifts it";
@@ -334,7 +339,7 @@ export const errorLines = (log) =>
 // jobs only ci-status failed, its failed steps are HOLD_STEP, CONTRACT_STEP or
 // both, the lanes aggregate succeeded, and every error that job logged is one
 // of `number`'s holds an approval lifts (at least one when HOLD_STEP failed),
-// DO_NOT_MERGE_LINE (exactly once when CONTRACT_STEP failed, never otherwise)
+// a DO_NOT_MERGE_LINES line (exactly once when CONTRACT_STEP failed, never otherwise)
 // or a failed step's exit. ci-status still fails, so such a head never merges
 // unapproved or labeled; the verdict a judgment writes lifts no hold path and
 // no label. A read that fails, a job or step list cut short, or any other
@@ -382,7 +387,7 @@ async function heldOnly(readLog, { ciId, names }, number) {
     const errors = errorLines(await readLog(ciId));
     const reasons = errors.filter((line) => line !== STEP_EXIT);
     const person = reasons.filter((line) => personHoldLine(line, number));
-    const label = reasons.filter((line) => line === DO_NOT_MERGE_LINE);
+    const label = reasons.filter((line) => DO_NOT_MERGE_LINES.includes(line));
     return (
       errors.length - reasons.length === names.length &&
       person.length + label.length === reasons.length &&
