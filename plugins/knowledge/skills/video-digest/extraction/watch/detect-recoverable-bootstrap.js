@@ -76,6 +76,16 @@ export function detectRecoverableBootstrap(sliceDir) {
     };
   }
 
+  // Recovery samples the media without the range's offset, so it would write media-time stamps.
+  if (watch.timeRange) {
+    return {
+      recoverable: false,
+      reason:
+        "ranged slice (watch.json timeRange): --recover does not apply the range offset; re-run run-watch.js with the same --from/--to",
+      watchingComplete: false,
+    };
+  }
+
   const { workDir, framesDir, contactSheetsDir } = resolveTempSession(watch.tempSession ?? {});
 
   const hasWork = workDirComplete(workDir);
