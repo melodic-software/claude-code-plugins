@@ -599,6 +599,7 @@ conformance.
 | `multi-agent` | later layer | per-key |
 | `multi-agent` (`verification`) | the team file at the default branch; a skill entry over the plugin value; an invalid value resolves `standard`, no value `light` | per-key |
 | `review-digest` | later layer; `--policy` over every layer | per-key (lists replace) |
+| `reviewer-media` | later layer; `--policy` over every layer | per-key (lists replace) |
 | `playbooks` | later layer | per-key |
 | `playbooks` (`verification`) | the team file at the default branch; a skill entry over the plugin value; an invalid value resolves `standard`, no value `light` | per-key |
 | `implementation` | `true` in any layer (policy floor) | per-key |
