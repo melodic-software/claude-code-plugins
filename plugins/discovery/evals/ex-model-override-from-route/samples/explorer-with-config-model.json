@@ -1,0 +1,51 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "discovery:explorer",
+            "description": "Explore slugify",
+            "prompt": "Explore the following: how slugify is implemented and tested",
+            "model": "opus"
+          }
+        }
+      ],
+      "why": "explorer spawned on the model the config layer set"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "discovery:explorer",
+            "description": "Explore slugify",
+            "prompt": "Explore the following: how slugify is implemented and tested"
+          }
+        }
+      ],
+      "why": "no model passed, so the pin wins over the configured override"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "discovery:explorer",
+            "description": "Explore slugify",
+            "prompt": "Explore the following: how slugify is implemented and tested",
+            "model": "sonnet"
+          }
+        }
+      ],
+      "why": "the pin's model, not the configured one"
+    },
+    {
+      "answer": [],
+      "why": "no dispatch"
+    }
+  ]
+}
