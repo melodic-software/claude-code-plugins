@@ -4,6 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.34.3] - 2026-11-14
+
+### Changed
+
+- `/playbooks:fable-5`: the smallest change named in the outcome restatement is the smallest one
+  that removes the cause. A patch that hides the symptom is not a candidate, however small.
+
 ## [0.34.2] - 2026-11-14
 
 ### Fixed

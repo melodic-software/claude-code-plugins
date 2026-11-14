@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.1.2] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now says the install `--config` rerun takes the scope `claude plugin list` reports for the plugin, with a `project` or `local` rerun run from the project that install lives in, and passes `user` only when the working directory is the home directory and the list labels the plugin both `user` and `project`.
+
 ## [3.1.1] - 2026-11-14
 
 ### Fixed
