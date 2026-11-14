@@ -417,12 +417,13 @@ checks_files() {
 # starts "++ b/" (printed "+++ b/") is never read as a file header.
 # --inter-hunk-context=0 overrides a diff.interHunkContext setting that would
 # fuse hunks and widen a range over unchanged lines. --text keeps a `-diff`
-# attribute from hiding a text file's hunks.
+# attribute from hiding a text file's hunks. LC_ALL=C reads each line byte-wise,
+# so a non-UTF-8 content line (a UTF-16 or ANSI file) draws no multibyte warning.
 checks_added_ranges() {
   local raw="$1" filter="$2"
   shift 2
   checks_diff "$@" -U0 --text --diff-filter="$filter" --src-prefix=a/ --dst-prefix=b/ --inter-hunk-context=0 2>/dev/null |
-    awk '
+    LC_ALL=C awk '
       left > 0 || right > 0 {
         c = substr($0, 1, 1)
         if (c == " ") { left--; right--; next }
