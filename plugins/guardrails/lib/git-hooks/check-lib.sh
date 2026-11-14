@@ -414,19 +414,33 @@ checks_files() {
 # <file>; in pre-commit, <rev> diffs the index against that commit instead of
 # HEAD. Hunk headers read "@@ -a[,b] +c[,d] @@"; d defaults to 1 and d=0 adds
 # nothing. Paths come from "+++ b/<path>", where git appends a tab to a name
-# holding a space; a name git still quotes is skipped. --text keeps a `-diff`
-# attribute from hiding a text file's hunks.
+# holding a space; a name git still quotes is skipped. Each hunk's b old-side
+# and d new-side lines are consumed as content, so an added line whose text
+# starts "++ b/" (printed "+++ b/") is never read as a file header.
+# --inter-hunk-context=0 overrides a diff.interHunkContext setting that would
+# fuse hunks and widen a range over unchanged lines. --text keeps a `-diff`
+# attribute from hiding a text file's hunks. LC_ALL=C reads each line byte-wise,
+# so a non-UTF-8 content line (a UTF-16 or ANSI file) draws no multibyte warning.
 checks_added_ranges() {
   local raw="$1" filter="$2"
   shift 2
-  checks_diff "$@" -U0 --text --diff-filter="$filter" --src-prefix=a/ --dst-prefix=b/ 2>/dev/null |
-    awk '
+  checks_diff "$@" -U0 --text --diff-filter="$filter" --src-prefix=a/ --dst-prefix=b/ --inter-hunk-context=0 2>/dev/null |
+    LC_ALL=C awk '
+      left > 0 || right > 0 {
+        c = substr($0, 1, 1)
+        if (c == " ") { left--; right--; next }
+        if (c == "-") { left--; next }
+        if (c == "+") { right--; next }
+        if (c == "\\") next
+      }
       /^\+\+\+ / { path = substr($0, 5); sub(/\t$/, "", path); if (path ~ /^b\//) path = substr(path, 3); else path = ""; next }
-      /^@@ / && path != "" {
+      /^@@ / {
+        split($2, o, ",")
+        left = (o[2] == "") ? 1 : o[2] + 0
         split($3, n, ",")
         start = substr(n[1], 2) + 0
-        count = (n[2] == "") ? 1 : n[2] + 0
-        if (count > 0) printf "%s\t%d\t%d\n", path, start, start + count - 1
+        right = (n[2] == "") ? 1 : n[2] + 0
+        if (path != "" && right > 0) printf "%s\t%d\t%d\n", path, start, start + right - 1
       }' >>"$raw"
   # Short ranges would drop findings, so a failed diff or awk fails the hook.
   # A diff stopped by SIGPIPE (141) means awk stopped first, and awk reports.
