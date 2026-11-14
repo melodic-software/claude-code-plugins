@@ -187,7 +187,7 @@ test("select reads CI Status's superseded note, not its ci-status alias's red", 
 test("select keeps a superseded-looking ci-status red unless only the marker for this head explains it", async () => {
   for (const annotations of [
     { 9: [EXIT, superseded(OTHER)] },
-    { 9: [EXIT, superseded(HEAD), { annotation_level: "failure", message: "pr-contract: the title is not a Conventional Commit" }] },
+    { 9: [EXIT, superseded(HEAD), { annotation_level: "failure", message: "check-contract: the title is not a Conventional Commit" }] },
     { 9: [EXIT, NOTICE] },
     { 9: [] },
     {},

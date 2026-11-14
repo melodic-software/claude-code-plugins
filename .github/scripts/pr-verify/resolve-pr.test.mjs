@@ -23,7 +23,7 @@ import { createHash } from "node:crypto";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, closing, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, OLD_DO_NOT_MERGE_LINE, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, closing, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, takeReads } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
@@ -824,18 +824,6 @@ test("a run that failed only on do-not-merge, alone or beside a hold an approval
   assert.equal(await held(`${contractLog(DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`, failing(CONTRACT_STEP, HOLD_STEP)), "ok");
 });
 
-// A run prints the label line of the check-contract release its repository
-// pins, so a release that prefixes its messages `pr-contract:` is judged the
-// same way, and the two lines together are still two label lines.
-test("a run held by do-not-merge under the earlier message prefix is judged the same way", async () => {
-  assert.equal(await held(contractLog(OLD_DO_NOT_MERGE_LINE), failing(CONTRACT_STEP)), "ok");
-  assert.equal(await held(`${contractLog(OLD_DO_NOT_MERGE_LINE)}\r\n${logOf(PATH_HOLD)}`, failing(CONTRACT_STEP, HOLD_STEP)), "ok");
-  assert.equal(await held(contractLog(OLD_DO_NOT_MERGE_LINE, DO_NOT_MERGE_LINE), failing(CONTRACT_STEP)), "not-a-passing-run");
-  assert.equal(await held(contractLog(OLD_DO_NOT_MERGE_LINE, OLD_DO_NOT_MERGE_LINE), failing(CONTRACT_STEP)), "not-a-passing-run");
-  assert.equal(await held(contractLog(OLD_DO_NOT_MERGE_LINE.replace("do-not-merge", "hold")), failing(CONTRACT_STEP)), "not-a-passing-run");
-  assert.equal(await held(contractLog(OLD_DO_NOT_MERGE_LINE, "pr-contract: the PR title does not follow Conventional Commits"), failing(CONTRACT_STEP)), "not-a-passing-run");
-});
-
 // A run reports its own commit's step names, so a held run from before the
 // hold step's rename still reports the earlier name.
 test("a held run that still reports the hold step's earlier name is judged the same way", async () => {
@@ -848,7 +836,7 @@ test("a held run that still reports the hold step's earlier name is judged the s
 });
 
 test("a contract failure other than do-not-merge, or a label line its step does not account for, starts nothing", async () => {
-  const TITLE = "pr-contract: the PR title does not follow Conventional Commits";
+  const TITLE = "check-contract: the PR title does not follow Conventional Commits";
   const cases = {
     "a title failure beside the label": [contractLog(DO_NOT_MERGE_LINE, TITLE), failing(CONTRACT_STEP)],
     "a title failure alone": [contractLog(TITLE), failing(CONTRACT_STEP)],
