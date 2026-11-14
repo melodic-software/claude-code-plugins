@@ -25,6 +25,8 @@ PROFILES = {
                         'video': ['-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-tune', 'stillimage',
                                   '-pix_fmt', 'yuv420p', '-movflags', '+faststart'],
                         'audio': ['-c:a', 'aac', '-b:a', '128k', '-ac', '1'], 'subtitle': _SOFT},
+    # pixel-art's scene capture: the browser's WebM copied as recorded, the scene's looped WAV as Opus.
+    'pixel-art-webm': {'video': ['-c:v', 'copy'], 'audio': ['-c:a', 'libopus']},
 }
 
 
