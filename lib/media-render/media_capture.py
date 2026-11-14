@@ -4,14 +4,17 @@ capture(pages, width=1920, height=1080, scale=2, concurrency=4) -> [Path]
   pages: [(html text, out png)]. Each page loads with JavaScript off and no network beyond data: URIs, waits for
   fonts, and is shot at width x height CSS pixels times scale (3840x2160 by default).
 CaptureError when Playwright is missing; ChromiumMissing (a CaptureError) when its Chromium is not downloaded yet.
-Both name INSTALL, the one install command.
+Both name the install command; install() runs it (INSTALL_ARGS after the Python executable).
 """
 import asyncio
 import importlib.util
+import subprocess
+import sys
 from pathlib import Path
 
 
-INSTALL = 'python -m playwright install --only-shell chromium'
+INSTALL_ARGS = ('-m', 'playwright', 'install', '--only-shell', 'chromium')
+INSTALL = 'python ' + ' '.join(INSTALL_ARGS)
 
 
 class CaptureError(RuntimeError):
@@ -46,6 +49,11 @@ async def _capture(pages, width, height, scale, concurrency):
             return await asyncio.gather(*(_shoot(browser, h, o, width, height, scale, gate) for h, o in pages))
         finally:
             await browser.close()
+
+
+def install(timeout):
+    """Download Playwright's Chromium headless shell for this Python."""
+    subprocess.run([sys.executable, *INSTALL_ARGS], check=True, timeout=timeout)
 
 
 def capture(pages, width=1920, height=1080, scale=2, concurrency=4):

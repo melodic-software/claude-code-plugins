@@ -1,6 +1,6 @@
 """stills.py end to end on fixtures/storyboard.json. The refusals need only the standard library; the renders need
 ffmpeg, ffprobe and Playwright for Python with its Chromium, and skip without them unless
-EXPLAINER_VIDEO_REQUIRE_DEPS=1, which fails instead."""
+EXPLAINER_VIDEO_REQUIRE_DEPS=1 or MEDIA_RENDER_REQUIRE_DEPS=1, which fails instead."""
 import importlib.util
 import json
 import os
@@ -15,7 +15,8 @@ HERE = Path(__file__).resolve().parent
 STILLS = HERE / 'stills.py'
 BOARD = HERE / 'fixtures' / 'storyboard.json'
 HAVE_DEPS = importlib.util.find_spec('playwright') is not None and all(shutil.which(t) for t in ('ffmpeg', 'ffprobe'))
-REQUIRE = os.environ.get('EXPLAINER_VIDEO_REQUIRE_DEPS') == '1'
+# The same dependencies as lib/media-render's suite, so CI's MEDIA_RENDER_REQUIRE_DEPS also makes a gap fail.
+REQUIRE = '1' in (os.environ.get('EXPLAINER_VIDEO_REQUIRE_DEPS'), os.environ.get('MEDIA_RENDER_REQUIRE_DEPS'))
 
 
 def run(*args):
@@ -106,7 +107,7 @@ class Renders(unittest.TestCase):
     def setUpClass(cls):
         if not HAVE_DEPS:
             if REQUIRE:
-                raise AssertionError('EXPLAINER_VIDEO_REQUIRE_DEPS=1 but Playwright, ffmpeg or ffprobe is missing')
+                raise AssertionError('a REQUIRE_DEPS variable is 1 but Playwright, ffmpeg or ffprobe is missing')
             raise unittest.SkipTest('Playwright for Python, ffmpeg or ffprobe not installed')
         cls.dir = Path(tempfile.mkdtemp())
         script = run('--storyboard', BOARD, '--out', cls.dir / 'probe', '--no-audio')

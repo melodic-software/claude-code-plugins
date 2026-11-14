@@ -118,12 +118,14 @@ def page(moment, board_title, chapter_title, position, size, band, stylesheet=No
 
 
 def frame_text(moment, board_title, chapter_title):
-    """Every string a frame shows (for media_scan), without markup; a screenshot's text is its sidecar's."""
+    """Every string a frame can show (for media_scan), without markup; a screenshot's text is its sidecar's. Keys
+    are included: a mistyped field renders through str(), keys and all."""
     out = [board_title, chapter_title]
 
     def walk(v):
         if isinstance(v, dict):
             for k, x in v.items():
+                out.append(str(k))
                 if k not in ('image', 'sidecar'):
                     walk(x)
         elif isinstance(v, list):

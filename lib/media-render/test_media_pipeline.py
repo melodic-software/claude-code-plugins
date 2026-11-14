@@ -37,6 +37,9 @@ def needs(flag, what):
 
 
 class PureTest(unittest.TestCase):
+    def test_concat_file_escapes_a_quote(self):
+        self.assertEqual(media_encode.concat_file("it's.png"), "file 'it'\\''s.png'")
+
     def test_concat_list_repeats_the_last_frame(self):
         text = media_encode.concat_list([('/x/a.png', 1.5), ('/x/b.png', 2)])
         self.assertEqual(text.splitlines()[1:], ["file 'a.png'", 'duration 1.500', "file 'b.png'", 'duration 2.000',
@@ -130,6 +133,20 @@ class FfmpegTest(unittest.TestCase):
         cmd = f'"{sys.executable}" -c "import shutil,sys; shutil.copy(sys.argv[1], sys.argv[-1])" {{inputs}} {{out}}'
         media_encode.stitcher(cmd, [self.frames[0]], out)
         self.assertEqual(out.read_bytes(), self.frames[0].read_bytes())
+
+    def test_stitcher_runs_in_the_output_folder(self):
+        work = self.dir / 'work'
+        work.mkdir()
+        out = work / 'out.txt'
+        cmd = f'"{sys.executable}" -c "import os,sys; open(sys.argv[-1], \'w\').write(os.getcwd())" {{out}}'
+        media_encode.stitcher(cmd, [], out)
+        self.assertEqual(Path(out.read_text()).resolve(), work.resolve())
+
+    def test_contact_sheet_reads_a_folder_with_a_quote_in_its_name(self):
+        quoted = self.dir / "it's"
+        quoted.mkdir()
+        frames = [shutil.copy(f, quoted / f.name) for f in self.frames]
+        self.assertEqual(len(media_sheet.sheets([Path(f) for f in frames], quoted / 's')), 1)
 
 
 @needs(HAVE_PLAYWRIGHT, 'Playwright for Python')

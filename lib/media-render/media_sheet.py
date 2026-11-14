@@ -18,7 +18,7 @@ def _tile(pngs, out, columns):
     rows = math.ceil(len(pngs) / columns)
     work = Path(out).parent
     listing = work / f'{Path(out).stem}.ffconcat'
-    listing.write_text('ffconcat version 1.0\n' + ''.join(f"file '{Path(p).resolve()}'\n" for p in pngs),
+    listing.write_text('ffconcat version 1.0\n' + ''.join(media_encode.concat_file(Path(p).resolve()) + '\n' for p in pngs),
                        encoding='utf-8')
     try:
         media_encode.run(['-f', 'concat', '-safe', '0', '-i', listing, '-vf', f'tile={columns}x{rows}:padding=16',

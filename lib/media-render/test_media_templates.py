@@ -56,7 +56,14 @@ class TemplatesTest(unittest.TestCase):
 
     def test_frame_text_lists_shown_strings_but_not_file_paths(self):
         text = tpl.frame_text({'data': {'image': 'shot.png', 'sidecar': 's.txt', 'caption': 'Login page'}}, 'T', 'C')
-        self.assertEqual(text.splitlines(), ['T', 'C', 'Login page'])
+        self.assertIn('Login page', text.splitlines())
+        self.assertNotIn('shot.png', text)
+        self.assertNotIn('s.txt', text)
+
+    def test_frame_text_includes_keys_a_mistyped_field_would_render(self):
+        moment = {'template': 'diagram', 'data': {'note': {'ghp_KEYTOKEN': 1}}}
+        self.assertIn('ghp_KEYTOKEN', tpl.page(moment, 't', 'c', (1, 1), SIZE, 0.24))
+        self.assertIn('ghp_KEYTOKEN', tpl.frame_text(moment, 't', 'c'))
 
 
 if __name__ == '__main__':

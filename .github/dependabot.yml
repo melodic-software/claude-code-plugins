@@ -309,8 +309,12 @@ updates:
   # Version updates skip manim, so bump it by hand with Rule P1's command. Dependabot's pip-compile
   # cannot resolve it: manimpango has no Linux wheel, and building its metadata needs pangocairo.
   # update-types leaves security updates on; a bare ignore would stop those too.
+  # lib/media-render's lock pins the same playwright (CI fails when the pins differ), so both
+  # directories share this entry and the playwright group bumps them in one pull request.
   - package-ecosystem: pip
-    directory: /plugins/explainer-video
+    directories:
+      - /plugins/explainer-video
+      - /lib/media-render
     labels:
       - dependencies
     schedule:
@@ -325,24 +329,10 @@ updates:
           - "version-update:semver-minor"
           - "version-update:semver-patch"
     groups:
-      pip-minor-patch:
+      playwright:
+        group-by: dependency-name
         patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-  # lib/media-render's lock (playwright), which CI installs for the media suites. explainer-video
-  # carries the library and pins the same playwright; CI fails when the two pins differ.
-  - package-ecosystem: pip
-    directory: /lib/media-render
-    labels:
-      - dependencies
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    cooldown:
-      default-days: 3
-    groups:
+          - "playwright"
       pip-minor-patch:
         patterns:
           - "*"

@@ -11,7 +11,6 @@ blank(png) -> True when the frame's gray levels span under BLANK_RANGE.
 """
 import json
 import re
-import subprocess
 
 import media_encode
 
@@ -19,10 +18,9 @@ BLANK_RANGE = 8
 
 
 def probe(path):
-    return json.loads(subprocess.run(
-        ['ffprobe', '-v', 'error', '-show_entries',
-         'format=duration:stream=codec_type,codec_name,pix_fmt,width,height,duration', '-of', 'json', str(path)],
-        check=True, capture_output=True, text=True).stdout)
+    return json.loads(media_encode.probe(
+        ['-show_entries', 'format=duration:stream=codec_type,codec_name,pix_fmt,width,height,duration', '-of', 'json',
+         path]))
 
 
 def stream_defects(info, expected_s, fps, audio, subtitle):
@@ -50,10 +48,9 @@ def frame_at(video, t, out):
 def luma_ssim(source_png, frame_png, top=1.0):
     """top: the share of the height compared, from the top (leaves out a burned-caption band)."""
     crop = f'crop=iw:trunc(ih*{top}/2)*2:0:0,' if top < 1.0 else ''
-    r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', str(frame_png), '-i', str(source_png),
-                        '-lavfi', f'[0:v]{crop}format=yuv444p[a];[1:v]{crop}format=yuv444p[b];[a][b]ssim',
-                        '-f', 'null', '-'],
-                       check=True, capture_output=True, text=True)
+    r = media_encode.run(['-i', frame_png, '-i', source_png,
+                          '-lavfi', f'[0:v]{crop}format=yuv444p[a];[1:v]{crop}format=yuv444p[b];[a][b]ssim',
+                          '-f', 'null', '-'], report=True)
     m = re.search(r'SSIM Y:([\d.]+)', r.stderr)
     if not m:
         raise media_encode.EncodeError('ffmpeg ssim printed no Y value')
@@ -61,6 +58,5 @@ def luma_ssim(source_png, frame_png, top=1.0):
 
 
 def blank(png):
-    gray = subprocess.run(['ffmpeg', '-v', 'error', '-i', str(png), '-vf', 'scale=64:36,format=gray', '-f', 'rawvideo',
-                           '-'], check=True, capture_output=True).stdout
+    gray = media_encode.run(['-i', png, '-vf', 'scale=64:36,format=gray', '-f', 'rawvideo', '-'], text=False).stdout
     return not gray or max(gray) - min(gray) < BLANK_RANGE

@@ -3,7 +3,9 @@
 """ffmpeg by subprocess, through named encode profiles (ADR 0103). Standard library only.
 
 PROFILES   one named argument set per caller: a moved plugin keeps its own arguments under its own name.
-run(args, cwd=None)                              ffmpeg -v error -y ARGS; EncodeError carries ffmpeg's stderr.
+run(args, cwd=None, report=False, text=True)     ffmpeg -v error -y ARGS (report: -hide_banner -nostats, for
+                                                 filters that print to stderr); EncodeError carries stderr.
+probe(args)                                      ffprobe -v error ARGS -> stdout; EncodeError as run.
 mux(video, audio, captions, out, profile)        a finished video stream with narration and a soft caption track.
 assemble_audio(wav, segments, out)               narration slices and silences, in order, as one WAV.
 stills(frames, out, profile, audio, srt, ass, cwd) held frames -> one video, keyframe per frame, captions burned
@@ -30,12 +32,22 @@ class EncodeError(RuntimeError):
     pass
 
 
-def run(args, cwd=None):
-    argv = ['ffmpeg', '-v', 'error', '-y', *map(str, args)]
-    r = subprocess.run(argv, cwd=cwd, capture_output=True, text=True)
+def _check(r, tool):
     if r.returncode:
-        raise EncodeError(f'ffmpeg exited {r.returncode}: {r.stderr.strip()[-2000:]}')
+        err = r.stderr if isinstance(r.stderr, str) else r.stderr.decode('utf-8', 'replace')
+        raise EncodeError(f'{tool} exited {r.returncode}: {err.strip()[-2000:]}')
     return r
+
+
+def run(args, cwd=None, report=False, text=True):
+    level = ['-hide_banner', '-nostats'] if report else ['-v', 'error']
+    return _check(subprocess.run(['ffmpeg', *level, '-y', *map(str, args)], cwd=cwd, capture_output=True,
+                                 text=text), 'ffmpeg')
+
+
+def probe(args):
+    return _check(subprocess.run(['ffprobe', '-v', 'error', *map(str, args)], capture_output=True, text=True),
+                  'ffprobe').stdout
 
 
 def mux(video, audio, captions, out, profile='explainer-manim'):
@@ -58,12 +70,17 @@ def assemble_audio(wav, segments, out):
     return run(['-i', wav, '-filter_complex', graph, '-map', '[a]', '-c:a', 'pcm_s16le', out])
 
 
+def concat_file(path):
+    """One ffconcat `file` line, its quote escaped the way the concat demuxer reads it."""
+    return "file '" + str(path).replace("'", "'\\''") + "'"
+
+
 def concat_list(frames):
     """ffconcat text for [(png, seconds)]; the last frame is listed twice so its duration holds."""
     lines = ['ffconcat version 1.0']
     for png, seconds in frames:
-        lines += [f"file '{Path(png).name}'", f'duration {seconds:.3f}']
-    lines.append(f"file '{Path(frames[-1][0]).name}'")
+        lines += [concat_file(Path(png).name), f'duration {seconds:.3f}']
+    lines.append(concat_file(Path(frames[-1][0]).name))
     return '\n'.join(lines) + '\n'
 
 
@@ -93,12 +110,12 @@ def stills(frames, out, profile='reviewer-stills', audio=None, srt=None, ass=Non
 def stitcher(command, inputs, out):
     """A consumer's stitcher command (config `stitcher: {command}`), split with shlex: {inputs} becomes one
     argument per input path and {out} the output path, each substituted after the split, so no path is re-parsed;
-    the command runs without a shell."""
+    the command runs without a shell, in out's folder, so a relative path never reaches the checkout's files."""
     argv = [part.replace('{out}', str(out)) for part in shlex.split(command)]
     if '{inputs}' in argv:
         k = argv.index('{inputs}')
         argv[k:k + 1] = [str(i) for i in inputs]
-    r = subprocess.run(argv, capture_output=True, text=True)
+    r = subprocess.run(argv, cwd=Path(out).parent, capture_output=True, text=True)
     if r.returncode:
         raise EncodeError(f'stitcher {argv[0]} exited {r.returncode}: {r.stderr.strip()[-2000:]}')
     return r

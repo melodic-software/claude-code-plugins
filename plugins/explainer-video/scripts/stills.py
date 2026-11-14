@@ -88,7 +88,7 @@ def capture(board, chapters, out, stylesheet, base):
     except media_capture.ChromiumMissing:
         pass
     sys.stderr.write('explainer-video stills: installing Playwright\'s Chromium (first stills render only)\n')
-    subprocess.run([sys.executable, *media_capture.INSTALL.split()[1:]], check=True, timeout=CHROMIUM_INSTALL_S)
+    media_capture.install(CHROMIUM_INSTALL_S)
     return media_capture.capture(pages, FRAMES['width'], FRAMES['height'], FRAMES['scale'])
 
 

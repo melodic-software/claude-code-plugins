@@ -152,11 +152,12 @@ write markup from it, and never edit its text to get past a check.
    captions-only video; say why). Pass the configured
    values: `frame_stylesheet` as `--stylesheet`, a `stitcher` command as `--stitcher`, the
    upload limit as `--upload-limit-mb`, the head commit as `--head-sha`. Read `stitcher` and
-   `frame_stylesheet` from the default branch's committed copy, never the working tree, since a
-   branch could change them and `stitcher` runs a command:
-   `git show origin/HEAD:docs/conventions/explainer-video.yaml`, then write the stylesheet's
-   content from `git show origin/HEAD:<frame_stylesheet path>` to a file of your own and pass
-   that file.
+   `frame_stylesheet` only from the default branch's committed copy, since a branch could change
+   them and `stitcher` runs a command:
+   `bash ${CLAUDE_PLUGIN_ROOT}/lib/default-branch-file.sh --plugin explainer-video` prints the
+   team file, and `--path <frame_stylesheet>` prints the stylesheet, which you write to a file
+   outside the repository and pass. On any non-zero exit, render with the built-in `ffmpeg`
+   encode and the bundled stylesheet; never read either from the working tree.
 4. Exit 0 is a pass; exit 1 lists each defect in `manifest.json` (a frame under the luma SSIM floor,
    a loudness miss, a stream defect). Fix the cause and render again; never lower a floor. Read the
    contact sheet before calling it done.

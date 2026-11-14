@@ -1,6 +1,6 @@
 # GENERATED from lib/media-render/media_loudness.py by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-"""Two-pass ffmpeg loudnorm against a caller's target. Standard library only.
+"""Two-pass ffmpeg loudnorm against a caller's target. Standard library and media_encode only.
 
 target: {'integrated_lufs', 'limiter_true_peak_dbtp', 'loudness_range_lu', 'tolerance_lu', 'true_peak_max_dbtp'}.
 measure(path, target) -> loudnorm's first-pass JSON (strings) for the first audio stream.
@@ -8,7 +8,8 @@ normalize(wav, out, measured, target) -> normalization_type of the second pass (
 defects(measured, target) -> integrated loudness off target or true peak over the ceiling.
 """
 import json
-import subprocess
+
+import media_encode
 
 
 def _filter(target, measured=None):
@@ -27,14 +28,12 @@ def _json(stderr):
 
 
 def measure(path, target):
-    r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-i', str(path), '-map', '0:a:0', '-af',
-                        _filter(target), '-f', 'null', '-'], check=True, capture_output=True, text=True)
+    r = media_encode.run(['-i', path, '-map', '0:a:0', '-af', _filter(target), '-f', 'null', '-'], report=True)
     return _json(r.stderr)
 
 
 def normalize(wav, out, measured, target):
-    r = subprocess.run(['ffmpeg', '-hide_banner', '-nostats', '-y', '-i', str(wav), '-af', _filter(target, measured),
-                        '-ar', '48000', str(out)], check=True, capture_output=True, text=True)
+    r = media_encode.run(['-i', wav, '-af', _filter(target, measured), '-ar', '48000', out], report=True)
     return _json(r.stderr).get('normalization_type')
 
 

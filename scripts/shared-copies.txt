@@ -747,6 +747,7 @@ lib/read-verification.sh plugins/explainer-video/lib/read-verification.sh
 lib/config-root.sh plugins/explainer-video/lib/config-root.sh
 lib/yaml-subset.awk plugins/explainer-video/lib/yaml-subset.awk
 lib/resolve-convention-home.sh plugins/explainer-video/lib/resolve-convention-home.sh
+lib/default-branch-file.sh plugins/explainer-video/lib/default-branch-file.sh
 lib/read-verification.sh plugins/architecture/lib/read-verification.sh
 lib/config-root.sh plugins/architecture/lib/config-root.sh
 lib/yaml-subset.awk plugins/architecture/lib/yaml-subset.awk
