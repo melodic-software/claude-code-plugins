@@ -8,7 +8,7 @@ import { linesDigest, renderSplitRecord, SCOPE_PREFIX, SIZE_SPLIT_MARKER, SPLIT_
 import { applySizeDecline, applySizeSplit, partitionProblem, SIZE_DECLINE_MARKER, sizeSplitPending, sizeSplitSettings, splitDigest, subsetProblem } from "./refine.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
-import { ADMIT_MARKER, refinementExact, refusalText, splitItemsLine, unrunnableCriteria, unrunnableReason, withoutItems } from "./admit.mjs";
+import { ADMIT_MARKER, heldRefusalText, refinementExact, refusalText, splitItemsLine, unrunnableCriteria, unrunnableReason, withoutItems } from "./admit.mjs";
 import { MARKER, UNRECORDED, VERDICT_MARKER } from "./apply-verdict.mjs";
 import { DECISION_REPLY, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitOf, titleLine, validateOutput } from "./refine.mjs";
 
@@ -989,6 +989,25 @@ describe("split", () => {
       assert.deepEqual(result.context.split.items.map(({ n }) => n), [2]);
       const again = await selectBy(fakeGitHub({ issue: held({ labels: [] }), comments: [...heldComments, refined(BODY)], events: [], fields: onField(APP, "confirmed") }));
       assert.deepEqual(again, { refine: false, reason: "the lanes App already refined this body" });
+    });
+
+    test("applies the split to an issue parked at confirmed on the Work status field alone", async () => {
+      const fake = fakeGitHub({ issue: held({ labels: [] }), comments: heldComments, events: [], fields: onField(APP, "confirmed") });
+      assert.deepEqual(await applyRefinement({ github: fake.github, repository: "o/r", number: 7, appId: APP, rules, output: validateOutput(SPLIT, new Set(), { count: 3, items: [{ n: 2 }] }), context, setStatus: fake.setStatus, statusOf: fake.statusOf, log: () => {} }), { outcome: "split", redispatch: true });
+      assert.deepEqual(
+        writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`),
+        ["STATUS #7 needs-triage", "POST /repos/o/r/issues/7/comments"],
+      );
+    });
+
+    // A paid eval holds for the owner (admit.mjs heldRefusalText), so a
+    // field-only needs-owner-decision with that comment is no split.
+    test("does not split a paid-eval hold that exists only on the Work status field", async () => {
+      const PAID = `- [ ] With exactly one row the line reads one question.\n- [ ] Run \`claude plugin eval\` on the suite in Azure and record the delta.`;
+      const comments = [laneComment("none"), appComment(heldRefusalText(unrunnableReason(unrunnableCriteria(PAID, "- [ ] ", webHosts)), "cost"))];
+      const fake = fakeGitHub({ issue: held({ body: PAID, labels: [] }), comments, events: [], fields: onField(APP, "needs-owner-decision") });
+      const result = await selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }), statusOf: fake.statusOf });
+      assert.deepEqual(result, { refine: false, reason: "not thin, and no done-when items to split off" });
     });
 
     test("the split lifts status: confirmed through the field alone and asks for re-triage", async () => {
