@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.2.2] - 2026-11-14
+
+### Fixed
+
+- Reviewer media no longer posts a walkthrough with long silent pauses unnoticed: each moment's
+  narration is sized to its frames' reading time, and a `SILENT:` moment from the render is
+  lengthened or split and rendered once more, with any pause left named in the report.
+
 ## [9.2.1] - 2026-11-14
 
 ### Fixed

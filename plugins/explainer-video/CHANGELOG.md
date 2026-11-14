@@ -3,6 +3,14 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.0] - 2026-11-14
+
+### Added
+
+- The stills renderer reports each narrated moment held in silence more than 3 seconds past its
+  paragraph, because its frames need longer to read: a `SILENT:` line and a `silent_holds` entry
+  in `manifest.json`. It is a report, not a defect; the exit code is unchanged.
+
 ## [2.4.2] - 2026-11-14
 
 ### Fixed
