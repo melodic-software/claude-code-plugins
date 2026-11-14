@@ -492,5 +492,37 @@ disposition '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"Guarde
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a reply still records beside the body record" 0 "$?"
 
+# The replies file has one 49152-byte cap (the read runner's carry step): the
+# body record never costs a reply.
+REPLIES_CAP=49152
+filler() {
+  jq -nc --arg note "$(printf 'n%.0s' $(seq 1 "$1"))" '{thread:"PRRT_fill",disposition:"UNCERTAIN",evidence:[],fix_sha:"",note:$note}' >>"$STUB/replies.jsonl"
+}
+setup
+jq '.body_sections = [{"heading":"Verification","text":"Old run."}]' "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+filler $((REPLIES_CAP - 200))
+body_file "{\"sections\":[{\"heading\":\"Verification\",\"text\":\"$(printf 'v%.0s' {1..300})\"}]}"
+run record-body "$STUB/scratch/body.json" >/dev/null 2>&1
+assert_exit "record-body refuses a record that would pass the replies cap" 1 "$?"
+assert_eq "the refused body record leaves the replies file as it was" 1 "$(recorded)"
+setup
+jq '.body_sections = [{"heading":"Verification","text":"Old run."}]' "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+body_file "{\"sections\":[{\"heading\":\"Verification\",\"text\":\"$(printf 'v%.0s' {1..3000})\"}]}"
+run record-body "$STUB/scratch/body.json" >/dev/null 2>&1
+filler $((REPLIES_CAP - $(wc -c <"$STUB/replies.jsonl") - 120))
+disposition '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"Guarded at src/a.js:2 before the read."}'
+out=$(run record PRRT_a "$STUB/scratch/d.json" 2>&1)
+assert_exit "a reply that would pass the cap beside the body record still records" 0 "$?"
+assert_eq "the body record yields to the reply" 0 "$(jq -s 'map(select(has("body_sections"))) | length' "$STUB/replies.jsonl")"
+assert_eq "the reply is recorded" 1 "$(jq -s 'map(select(.thread == "PRRT_a")) | length' "$STUB/replies.jsonl")"
+size=$(wc -c <"$STUB/replies.jsonl")
+assert_eq "the replies file stays within the cap" 1 "$((size <= REPLIES_CAP))"
+assert_contains "the tool says the body record was dropped" "$out" "body sections were dropped"
+setup
+filler $((REPLIES_CAP - 120))
+disposition '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"Guarded at src/a.js:2 before the read."}'
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a reply that would pass the cap with no body record to yield is refused" 1 "$?"
+
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0

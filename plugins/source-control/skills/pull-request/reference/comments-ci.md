@@ -130,6 +130,8 @@ verification it describes, its `Left out:` line), write its new text and record 
 ```
 
 Rewrite only the stale sections, keep what still holds, and describe the head your fixes produce.
+The record shares the replies' size cap and never costs a reply: `record-body` refuses text that
+does not fit beside the replies, and a later `record` that needs the room drops it, saying so.
 Each `text` is 1-4000 characters of plain prose and lists, without the heading line. The reply
 job puts the text in place only after the fix lands, and drops the whole refresh, leaving the
 body as it was, when any text holds:

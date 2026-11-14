@@ -154,6 +154,31 @@ scratch_file() {
   printf '%s\n' "$real"
 }
 
+# The replies file's cap, as the read runner carries it and the reply job
+# reads it (publish-feedback.mjs LIMITS.bytes): a larger file posts nothing.
+replies_cap=49152
+
+# The replies file's size in bytes with line $1 appended.
+size_with() {
+  local now=0
+  [[ -f $log_file ]] && now=$(wc -c <"$log_file")
+  echo $((now + $(printf '%s\n' "$1" | wc -c)))
+}
+
+# Appends reply line $1, dropping a recorded body record first when the line
+# would not fit beside it: the body record never costs a reply.
+append_reply() {
+  local note=""
+  if (($(size_with "$1") > replies_cap)) && [[ -f $log_file ]] && grep -q '^{"body_sections":' "$log_file"; then
+    grep -v '^{"body_sections":' "$log_file" >"$log_file.next" || true
+    mv -- "$log_file.next" "$log_file"
+    note="; the body sections were dropped to make room for it"
+  fi
+  (($(size_with "$1") <= replies_cap)) || die 1 "the replies would pass their $replies_cap-byte cap; shorten the note and record again"
+  printf '%s\n' "$1" >>"$log_file"
+  printf '%s' "$note"
+}
+
 cmd_sections() {
   jq '.body_sections // []' "$threads_file"
 }
@@ -182,8 +207,11 @@ cmd_record_body() {
     | select((map(.heading) | unique | length) == length)
     | {body_sections: map({heading, text})}' "$real") ||
     die 1 "the body file does not match the template: sections, 1-8 of them, each a heading sections lists once and text of 1-4000 characters with no control characters, HTML comments or tokens"
-  jq -c . <<<"$d" >>"$log_file"
-  echo "recorded the body sections; the reply job puts them in place after this run when the fix lands"
+  d=$(jq -c . <<<"$d")
+  (($(size_with "$d") <= replies_cap)) ||
+    die 1 "the body sections would pass the replies' $replies_cap-byte cap; nothing is recorded"
+  printf '%s\n' "$d" >>"$log_file"
+  echo "recorded the body sections; the reply job puts them in place after this run when the fix lands, and a reply that needs their room drops them"
 }
 
 cmd_record() {
@@ -264,8 +292,9 @@ cmd_record() {
     done
   fi
 
-  jq -c . <<<"$d" >>"$log_file"
-  echo "recorded $disposition for $id; the reply job posts it after this run"
+  local note
+  note=$(append_reply "$(jq -c . <<<"$d")")
+  echo "recorded $disposition for $id; the reply job posts it after this run$note"
 }
 
 case ${1:-} in
