@@ -44,6 +44,7 @@ run builds on it again.
 | `voice_command` | none | team-only: the `command` backend's template, `{script}` in and `{out}` WAV out |
 | `allow_unattended_paid_voice` | `false` | team-only: lets an unattended run use `openai` or `elevenlabs` |
 | `ui_paths` | none | globs; a changed path matching one adds screenshot moments |
+| `scan.extra_patterns` | none | Python regexes the secret and machine-data scan also refuses (a private codename, an internal host), passed as `--scan-pattern` to the renderer, the voice and the `media` action. One that does not compile fails the scan |
 | `upload_limit_mb` | `10` | `stills.py --upload-limit-mb` |
 | `artifact_retention_days` | `30` | the Actions artifact's retention and `media --retention-days`, 1 to 90 |
 
@@ -58,7 +59,9 @@ layer replacing an earlier one key by key:
    that commit is not in the clone, the layer is skipped with a warning. An invalid value is named
    and the default stands;
 3. personal override: `docs/conventions/reviewer-media.local.yaml`, applied only when untracked.
-   It never sets a team-only key: one runs a command, the other spends money.
+   It never sets a team-only key: one runs a command, the other spends money. Its
+   `scan.extra_patterns` add to the team's list instead of replacing it, so it can only make the
+   scan stricter.
 
 An explicit `--policy` argument beats every layer.
 
@@ -73,7 +76,8 @@ job that runs the skill (through Claude Code) on a pull request:
 2. uploads the folder with `actions/upload-artifact`, `retention-days` set to
    `artifact_retention_days`;
 3. runs `/source-control:pull-request media <pr> --manifest "$RUNNER_TEMP/reviewer-media/manifest.json" --run-id "$GITHUB_RUN_ID" --artifact-url <url> --retention-days <days> --no-attach`
-   with `--label-requested`, `--label-posted` and `--label-failed` set from that `config`,
+   with `--label-requested`, `--label-posted` and `--label-failed` set from that `config`, one
+   `--scan-pattern` per `scan.extra_patterns` entry,
    `<url>` being the upload step's `artifact-url` output.
 
 The job needs `pull-requests: write` and `issues: write` (labels and the failure comment) and

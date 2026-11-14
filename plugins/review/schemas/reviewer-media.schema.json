@@ -52,6 +52,18 @@
       "minimum": 1,
       "maximum": 10000
     },
+    "scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "extra_patterns": {
+          "description": "Python regular expressions the secret and machine-data scan also refuses, such as private project names. Add-only: the personal override adds to the team's list, and nothing lowers the built-in floor. One that does not compile fails the scan.",
+          "type": "array",
+          "maxItems": 64,
+          "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+        }
+      }
+    },
     "artifact_retention_days": {
       "description": "Days an Actions artifact holding the media is kept, 1 to 90, so media never add storage billing.",
       "type": "integer",

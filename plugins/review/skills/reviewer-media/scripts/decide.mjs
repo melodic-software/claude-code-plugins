@@ -26,6 +26,8 @@ const LOCAL_YAML = `docs/conventions/${PLUGIN}.local.yaml`;
 const POLICIES = SCHEMA.properties.policy.enum;
 /** Keys only the team file sets: one runs a command, the other spends money. */
 const TEAM_ONLY = ["voice_command", "allow_unattended_paid_voice"];
+/** Lists a later layer adds to instead of replacing: a personal override can make the scan stricter, never looser. */
+const ADD_ONLY = ["scan.extra_patterns"];
 
 export const DEFAULTS = Object.freeze({
   policy: "on-request",
@@ -35,6 +37,7 @@ export const DEFAULTS = Object.freeze({
   voice_command: "",
   allow_unattended_paid_voice: false,
   ui_paths: Object.freeze([]),
+  scan: Object.freeze({ extra_patterns: Object.freeze([]) }),
   upload_limit_mb: 10,
   artifact_retention_days: 30,
 });
@@ -98,7 +101,14 @@ export function resolveConfig(root, baseOid) {
     if (layer.name === "local" && (!existsSync(localPath) || !personalOverrideApplies(root, localPath, warnings))) continue;
     warnings.push(...layer.errors);
     const source = layer.name === "team" ? `team ${team.path}` : `personal-override ${LOCAL_YAML}`;
-    for (const [key, value] of Object.entries(layer.values)) if (key in config) config[key] = { value, source };
+    for (const [key, value] of Object.entries(layer.values)) {
+      if (!(key in config)) continue;
+      const prior = config[key];
+      config[key] =
+        ADD_ONLY.includes(key) && prior.source !== "default"
+          ? { value: [...new Set([...prior.value, ...value])], source: `${prior.source} + ${source}` }
+          : { value, source };
+    }
   }
   return { config, warnings };
 }
