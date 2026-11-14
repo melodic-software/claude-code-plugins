@@ -1037,8 +1037,8 @@ check "--preflight in a lane: says why" "$(grep -c 'refused in a lane' "$LOG/err
 check "--preflight in a lane: prints no target" "$OUT" ""
 check "--preflight in a lane: lane-push.sh did not run" "$(lane_dest)" "NONE"
 
-# Stale reviewer media: after a push, a reviewer-media section that shows an
-# older commit gets `Out of date: shows commit <sha>` (../reference/media.md).
+# Stale reviewer media: a push marks a reviewer-media section that shows an
+# older commit `Out of date: shows commit <sha>` (../reference/media.md).
 # The gh stand-in keeps the PR body in a file and answers media.py's read with
 # it; media.py runs from the plugin copy.
 if command -v python3 >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then

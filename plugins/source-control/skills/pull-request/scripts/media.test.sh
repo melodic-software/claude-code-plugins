@@ -77,11 +77,12 @@ case "$1 $2" in
           exit 1
         }
         name=$(basename "$a")
-        sha256sum <"$a" | cut -d' ' -f1 >>"$S/attached"
+        cksum <"$a" >>"$S/attached"
         case "$name" in
-          *.mp4) sed -i -E "s|^!\[[^]]*\]\(\./${name}\)(\r?)\$|https://github.com/user-attachments/assets/${name}\1|" "$S/body.new" ;;
-          *) sed -i -E "s|\]\(\./${name}\)|](https://github.com/user-attachments/assets/${name})|" "$S/body.new" ;;
+          *.mp4) sed -E "s|^!\[[^]]*\]\(\./${name}\)\$|https://github.com/user-attachments/assets/${name}|" "$S/body.new" >"$S/body.tmp" ;;
+          *) sed -E "s|\]\(\./${name}\)|](https://github.com/user-attachments/assets/${name})|" "$S/body.new" >"$S/body.tmp" ;;
         esac
+        mv "$S/body.tmp" "$S/body.new"
       done
       mv "$S/body.new" "$S/body"
     fi
@@ -126,7 +127,8 @@ reset() {
   printf '%s\n' "$REQUESTED" "$POSTED" "$FAILED_LABEL" bug >"$S/known-labels"
   echo 0 >"$S/views"
   printf 'FLAGS\n      --attach file   Attach an image or video file\n' >"$S/help"
-  : >"$S/calls" >"$S/attached"
+  : >"$S/calls"
+  : >"$S/attached"
 }
 
 OUT=""
@@ -152,7 +154,7 @@ media_dir() {
     scan: {status: "pass", floor_rules: 1}, encode: {profile: "reviewer-stills", steps: []}}' >"$1/manifest.json"
 }
 
-sums() { for f in "$@"; do sha256sum <"$f" | cut -d' ' -f1; done; }
+sums() { for f in "$@"; do cksum <"$f"; done; }
 
 # block_of <body-file>: the lines from the start marker through the end marker.
 block_of() { sed -n "/^${START}\$/,/^${END}\$/p" "$1"; }
@@ -271,7 +273,7 @@ assert_not_contains "the aborted post wrote no section" "$(cat "$S/body")" "## R
 assert_silent "the aborted post attaches nothing" "$(cat "$S/attached")"
 
 reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
-printf 'sed -i "s/run-1/run-other/" "%s/body"\n' "$S" >"$S/view-hook-2"
+printf 'sed "s/run-1/run-other/" "%s/body" >"%s/body.tmp" && mv "%s/body.tmp" "%s/body"\n' "$S" "$S" "$S" "$S" >"$S/view-hook-2"
 media post 7 --manifest "$M1/manifest.json" --run-id run-1
 assert_exit "the claim changing before the edit aborts with exit 3" 3 "$RC"
 assert_silent "a lost claim attaches nothing" "$(cat "$S/attached")"
