@@ -3,6 +3,12 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.18] - 2026-11-14
+
+### Changed
+
+- `capture.py` muxes a scene's audio into `scene.webm` through the shared media library's `pixel-art-webm` encode profile; the video is still copied as recorded and the looped audio encoded as Opus, so the output is unchanged.
+
 ## [0.7.17] - 2026-11-13
 
 ### Changed

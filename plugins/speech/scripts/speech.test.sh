@@ -25,4 +25,4 @@ if ! python3 -c 'import numpy' 2>/dev/null; then
   echo "SKIP: narrate timing suite: numpy missing (set SPEECH_REQUIRE_DEPS=1 to fail instead)" >&2
 fi
 
-exec python3 -m unittest test_narrate test_elevenlabs test_assets test_speech_pydeps -q
+exec python3 -m unittest test_narrate test_narrate_chain test_elevenlabs test_assets test_speech_pydeps -q
