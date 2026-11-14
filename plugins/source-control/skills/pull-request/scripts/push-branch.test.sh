@@ -1037,6 +1037,77 @@ check "--preflight in a lane: says why" "$(grep -c 'refused in a lane' "$LOG/err
 check "--preflight in a lane: prints no target" "$OUT" ""
 check "--preflight in a lane: lane-push.sh did not run" "$(lane_dest)" "NONE"
 
+# Stale reviewer media: after a push, a reviewer-media section that shows an
+# older commit gets `Out of date: shows commit <sha>` (../reference/media.md).
+# The gh stand-in keeps the PR body in a file and answers media.py's read with
+# it; media.py runs from the plugin copy.
+if command -v python3 >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+  cp -p "${SCRIPT_DIR}/media.py" "${SCRIPT_DIR}/media_scan.py" "${SCRIPT_DIR}/redact.py" "$PLUGIN/skills/pull-request/scripts/"
+  MEDIA="$WORKDIR/media"
+  mkdir -p "$MEDIA/bin"
+  cat >"$MEDIA/bin/gh" <<EOF
+#!/usr/bin/env bash
+[[ "\$1" == api ]] && echo example-user && exit 0
+if [[ "\$1 \$2" == "pr view" && " \$* " == *" number,url,headRefOid,body,labels "* ]]; then
+  [[ -f "$MEDIA/body" ]] || exit 1
+  jq -n --rawfile body "$MEDIA/body" '{number: 7, url: "https://github.com/example-org/app/pull/7",
+    headRefOid: "0000000000000000000000000000000000000000", body: \$body, labels: []}'
+  exit 0
+fi
+if [[ "\$1 \$2" == "pr edit" ]]; then
+  while ((\$#)); do
+    [[ "\$1" != --body-file ]] || { cp "\$2" "$MEDIA/body"; echo edit >>"$MEDIA/edits"; }
+    shift
+  done
+  exit 0
+fi
+exit 1
+EOF
+  chmod +x "$MEDIA/bin/gh"
+  OLD_SHA=1111111111111111111111111111111111111111
+  # media_body <shown-sha>: a PR body whose reviewer-media section shows that commit.
+  media_body() {
+    printf '%s\n' 'Closes #12' '' '<!-- reviewer-media:start -->' '## Reviewer media' '' \
+      "<!-- reviewer-media:posted $1 -->" '' 'https://github.com/user-attachments/assets/video.mp4' \
+      '<!-- reviewer-media:end -->' '' '## Summary' '' 'Text.' >"$MEDIA/body"
+    : >"$MEDIA/edits"
+  }
+
+  wc=$(make_clone media-stale)
+  media_body "$OLD_SHA"
+  (cd "$wc" && PATH="$MEDIA/bin:$PATH" bash "$PUSH_BRANCH") >/dev/null 2>"$LOG/err"
+  check "stale media: the push exits 0" "$?" "0"
+  check "stale media: origin received the branch" "$(has_branch "$WORKDIR/media-stale/origin")" "yes"
+  check "stale media: the section says which commit it shows" \
+    "$(grep -c "^Out of date: shows commit $OLD_SHA\$" "$MEDIA/body")" "1"
+  check "stale media: the posted line is replaced, not kept" "$(grep -c 'reviewer-media:posted' "$MEDIA/body")" "0"
+  check "stale media: every line outside the markers is kept" \
+    "$(sed '/reviewer-media:start/,/reviewer-media:end/d' "$MEDIA/body" | paste -sd'|')" "Closes #12|||## Summary||Text."
+  check "stale media: the push reports the note" "$(grep -c 'Out of date: shows commit' "$LOG/err")" "1"
+
+  wc=$(make_clone media-current)
+  media_body "$(git -C "$wc" rev-parse HEAD)"
+  (cd "$wc" && PATH="$MEDIA/bin:$PATH" bash "$PUSH_BRANCH") >/dev/null 2>&1
+  check "current media: the push exits 0" "$?" "0"
+  check "current media: a section for the pushed commit is not edited" "$(grep -c . "$MEDIA/edits")" "0"
+
+  wc=$(make_clone media-dir)
+  media_body "$OLD_SHA"
+  (cd "$WORKDIR" && PATH="$MEDIA/bin:$PATH" bash "$PUSH_BRANCH" --dir "$wc" "$BRANCH") >/dev/null 2>&1
+  check "stale media, --dir: the push exits 0" "$?" "0"
+  check "stale media, --dir: origin received the branch" "$(has_branch "$WORKDIR/media-dir/origin")" "yes"
+  check "stale media, --dir: the section says which commit it shows" \
+    "$(grep -c "^Out of date: shows commit $OLD_SHA\$" "$MEDIA/body")" "1"
+
+  wc=$(make_clone media-unread)
+  rm -f "$MEDIA/body"
+  (cd "$wc" && PATH="$MEDIA/bin:$PATH" bash "$PUSH_BRANCH") >/dev/null 2>&1
+  check "stale media, PR unread: the push still exits 0" "$?" "0"
+  check "stale media, PR unread: origin received the branch" "$(has_branch "$WORKDIR/media-unread/origin")" "yes"
+else
+  echo "SKIP: stale reviewer media cases need python3 and jq"
+fi
+
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"
 [[ $FAIL -eq 0 ]]

@@ -106,6 +106,13 @@
 # --no-sync-stale-base
 # turns it off. Off by default. A lane (below) never syncs. --check never syncs.
 #
+# Stale reviewer media: after a push on the operator path, a reviewer-media
+# section in the PR body that shows an older commit gets the line
+# `Out of date: shows commit <sha>` (media.py stale, ../reference/media.md).
+# It needs python3, reads the PR once, edits nothing when the body has no such
+# section, and never changes the push's exit status. A lane's push skips it;
+# `monitor` and `ready` make the same check.
+#
 # Exit: 0 pushed (or --check or --preflight passed); 1 refused or the push failed; 4 the
 # sync-stale-base merge conflicted and was aborted, nothing pushed.
 #
@@ -471,16 +478,30 @@ sync_stale_base() {
   exit 1
 }
 
+# stale_media_note <pushed-sha>: the stale reviewer media step of the header.
+stale_media_note() {
+  local out
+  [[ -n "$1" && -f "$SCRIPT_DIR/media.py" ]] || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  out=$(python3 -B "$SCRIPT_DIR/media.py" stale "${PR:-$BRANCH}" --head "$1" --quiet \
+    ${PR_BASE_REPO:+--repo "$PR_BASE_REPO"} 2>/dev/null) || return 0
+  [[ -z "$out" ]] || echo "push-branch.sh: $out" >&2
+}
+
 if [[ -n "$DIR" ]]; then
   sync_stale_base "$(pwd -P)"
-  exec git push "$PUSH_REMOTE" "HEAD:refs/heads/$BRANCH"
+  git push "$PUSH_REMOTE" "HEAD:refs/heads/$BRANCH" || exit
+  stale_media_note "$(git rev-parse HEAD 2>/dev/null)"
+  exit 0
 fi
 [[ -z "$BRANCH" ]] || sync_stale_base "$(worktree_of "$BRANCH")"
 EXISTING_REMOTE=$(git config "branch.${BRANCH}.remote" 2>/dev/null)
 EXISTING_MERGE=$(git config "branch.${BRANCH}.merge" 2>/dev/null)
 
 if [[ -z "$EXISTING_REMOTE" && -z "$EXISTING_MERGE" && "$FETCH_REMOTE" == "$PUSH_REMOTE" ]]; then
-  git push -u "$PUSH_REMOTE" "$BRANCH"
+  git push -u "$PUSH_REMOTE" "$BRANCH" || exit
 else
-  git push "$PUSH_REMOTE" "$BRANCH"
+  git push "$PUSH_REMOTE" "$BRANCH" || exit
 fi
+stale_media_note "$(git rev-parse --verify --quiet "refs/heads/$BRANCH" 2>/dev/null)"
+exit 0
