@@ -58,7 +58,9 @@ Keep the `--model-dir` argument exactly as shown, in single quotes: it carries t
 
 A producer that must not stop for want of one voice (explainer-video, reviewer media) passes
 `--backend-chain`, a comma-separated order such as `edge-tts,kokoro`. One backend voices the whole
-script; on failure the whole script goes to the next one, so voices never mix.
+script; on failure the whole script goes to the next one, so voices never mix. edge-tts sends one
+request per paragraph, so separate paragraphs with a blank line; if one paragraph fails, the whole
+script still goes to the next backend.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py" run --data-dir "${CLAUDE_PLUGIN_DATA}" -- \
