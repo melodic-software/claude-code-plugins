@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "**Rung:** `syntax-pattern-rule` (this repository's CLAUDE.md calls it `semgrep-rule`, an alias through 3.x).",
+      "why": "bold label with the current id first and the alias after it"
+    },
+    {
+      "answer": "| Field | Value |\n|---|---|\n| Rung | `syntax-pattern-rule` |\n| Scope | project rule |",
+      "why": "the rung as a table row"
+    },
+    {
+      "answer": "The strongest rung that can decide this is syntax-pattern-rule: one matcher over both services.",
+      "why": "the rung in prose"
+    },
+    {
+      "answer": "Rung: `semgrep-rule` → `syntax-pattern-rule`",
+      "why": "the rename shown as an arrow that ends on the current id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Rung: semgrep-rule",
+      "why": "keeps the old id as the rung"
+    },
+    {
+      "answer": "Rung: `semgrep-rule` (alias of `syntax-pattern-rule`)",
+      "why": "the chosen rung line leads with the old id"
+    },
+    {
+      "answer": "Notice: the rung id `semgrep-rule` in CLAUDE.md is read as `syntax-pattern-rule` (renamed in ladder 3.0.0).\nRung: shared-helper",
+      "why": "the alias notice alone; the chosen rung is another one"
+    },
+    {
+      "answer": "Rungs considered: semgrep-rule, syntax-pattern-rule, shared-helper.\nRung: instruction.",
+      "why": "a bare mention in a list of rungs; the chosen rung is instruction"
+    },
+    {
+      "answer": "Rung considered and rejected: syntax-pattern-rule. Chosen rung: instruction.",
+      "why": "the current id named only as a rejected rung"
+    },
+    {
+      "answer": "The threshold is 2 (default) and the count is 3.",
+      "why": "an answer to a different question"
+    }
+  ]
+}
