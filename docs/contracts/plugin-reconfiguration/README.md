@@ -95,8 +95,8 @@ Measured on **Claude Code 2.1.283** (sandbox probe, 2026-09-27):
   of a `user`-installed plugin added a project install record and `enabledPlugins` entry.
 - **Home directory, one file, two labels.** When the working directory is the home directory,
   project scope resolves to the same settings file as user scope, so `claude plugin list` can
-  show that one file as both `user` and `project`. Pass `user`. This is not part of the 2026-09-27
-  sandbox probe.
+  show that one file as both `user` and `project`. When it does, pass `user`. This is not part
+  of the 2026-09-27 sandbox probe.
 
 Not covered by that probe: a `sensitive` option, a same-scope `string` rerun at `local` scope,
 and same-scope `boolean` or `directory` reruns at `user` or `project` scope. Re-verify before
@@ -109,11 +109,11 @@ newer release is verified.
    uninstall is not a reconfiguration route.
 2. **Scope.** `claude plugin configure` has no scope flag and finds only an install visible from
    the working directory, so run it from the project a `project` or `local` install lives in. For
-   the `--config` rerun, pass the scope `claude plugin list` reports for the
-   plugin: a rerun at another scope adds an install record at that scope and enables the plugin
-   there (measured in both directions, user over project/local and project over user). When the
-   working directory is the home directory, project scope and user scope are the same settings
-   file, so the list can label that one file as both `user` and `project`: pass `user`.
+   the `--config` rerun, run `claude plugin list` and pass the scope it reports for the plugin,
+   from any directory, the home directory included: a rerun at another scope adds an install
+   record at that scope and enables the plugin there (measured in both directions, user over
+   project/local and project over user). When the list shows one settings file as both `user` and
+   `project` (from the home directory those are the same file), pass `user`.
 3. **Observation is next-session.** A same-session `check` can still report the old value, and
    that is not a failed write. Verify the effective value by rerunning the plugin's setup `check`
    in a **fresh session**, and never claim an unobserved change.
