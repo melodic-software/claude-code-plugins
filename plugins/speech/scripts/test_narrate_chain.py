@@ -1,6 +1,7 @@
 """narrate.py --backend-chain: whole-script fallback across voice backends, retries at 1, 2 and 4 s, the per-call
 timeout, the paid gate (exit 3), the secret floor before any online backend (exit 4), no audio at all (exit 5), and
 voice.json. Backends are fakes or the `command` backend running local commands; no test reaches a network voice."""
+import io
 import json
 import shlex
 import shutil
@@ -8,12 +9,14 @@ import sys
 import tempfile
 import time
 import unittest
+import urllib.error
 import wave
 from pathlib import Path
 from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import elevenlabs  # noqa: E402
 import narrate  # noqa: E402
 
 SCRIPT = 'First line of the script.\nSecond line, with a comma.\n\nThird paragraph — last.'
@@ -177,6 +180,84 @@ class Chain(unittest.TestCase):
         backends = {'a': backend('a', a), 'b': backend('b', b)}
         self.assertEqual(self.run_chain(['a', 'b'], backends, voices={'a': 'x', 'b': 'y'}), 0)
         self.assertEqual((set(a.calls), b.calls), ({'x'}, ['y']))
+
+
+class PaidTimeouts(unittest.TestCase):
+    """A paid backend that passes the chain timeout goes to the next backend at once: no retry of a billed call, and
+    no billed request started after the deadline. urlopen is replaced; nothing reaches the network."""
+
+    def setUp(self):
+        self.out = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.out, True)
+
+    def chain(self, name, b, timeout=narrate.DEFAULT_TIMEOUT_S):
+        slept, nxt = [], Fake()
+        code = narrate.run_chain(SCRIPT, self.out, [name, 'kokoro'], {name: b, 'kokoro': backend('kokoro', nxt)},
+                                 timeout=timeout, allow_paid=True, env={}, sleep=slept.append, scan=lambda text: [])
+        attempts = json.loads((self.out / 'voice.json').read_text(encoding='utf-8'))['attempts']
+        return code, [(a['backend'], a['status']) for a in attempts], slept, nxt.calls
+
+    def test_an_openai_socket_timeout_is_one_request_then_the_next_backend(self):
+        b = narrate.openai_backend({'OPENAI_API_KEY': 'sk-test'})
+        for error in (TimeoutError('timed out'), urllib.error.URLError(TimeoutError('timed out'))):
+            with self.subTest(error=repr(error)):
+                opens = []
+
+                def fake(req, timeout):
+                    opens.append(req.full_url)
+                    raise error
+                with mock.patch('urllib.request.urlopen', fake):
+                    code, attempts, slept, nxt = self.chain('openai', b)
+                self.assertEqual(len(opens), 1, 'a timed-out paid request is not sent again')
+                self.assertEqual(attempts, [('openai', 'timeout'), ('kokoro', 'ok')])
+                self.assertEqual((code, slept, nxt), (0, [], ['kokoro-voice']))
+
+    def elevenlabs_chain(self, post, get_seconds=0.0, timeout=0.5):
+        """The elevenlabs backend in a chain, with the subscription GET taking get_seconds and every TTS POST
+        answered by post(); returns (attempts, posts, urlopen timeouts, sleeps inside elevenlabs.py)."""
+        posts, timeouts, sleeps, wait = [], [], [], time.sleep
+
+        def fake(req, timeout):
+            timeouts.append(timeout)
+            if req.get_method() == 'GET':
+                wait(get_seconds)
+                return io.BytesIO(json.dumps({'character_count': 0, 'character_limit': 10000}).encode())
+            posts.append(time.monotonic())
+            return post()
+        data = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, data, True)
+        b = narrate.elevenlabs_backend({elevenlabs.KEY_VAR: 'sk-test'}, str(data))
+        start = time.monotonic()
+        with mock.patch('urllib.request.urlopen', fake), mock.patch.object(elevenlabs.time, 'sleep', sleeps.append):
+            _, attempts, _, _ = self.chain('elevenlabs', b, timeout)
+        return attempts, [p - start for p in posts], timeouts, sleeps
+
+    def test_a_slow_elevenlabs_quota_lookup_past_the_deadline_sends_no_tts_request(self):
+        def post():
+            raise AssertionError('a TTS request started after the deadline')
+        attempts, posts, timeouts, _ = self.elevenlabs_chain(post, get_seconds=0.8, timeout=0.3)
+        self.assertEqual(posts, [], 'no billed request starts after the deadline')
+        self.assertEqual(attempts, [('elevenlabs', 'timeout'), ('kokoro', 'ok')])
+        self.assertTrue(timeouts and max(timeouts) <= 0.3, f'each urlopen is capped by the chain timeout: {timeouts}')
+
+    def test_an_elevenlabs_rate_limit_waiting_past_the_deadline_is_not_retried(self):
+        def post():
+            raise urllib.error.HTTPError('https://api.elevenlabs.io/x', 429, 'busy', {'Retry-After': '60'},
+                                         io.BytesIO(b'{}'))
+        attempts, posts, _, sleeps = self.elevenlabs_chain(post, timeout=0.5)
+        self.assertEqual(len(posts), 1, 'a 60 s Retry-After past a 0.5 s deadline sends no second request')
+        self.assertEqual(sleeps, [], 'nothing waits through a Retry-After that ends past the deadline')
+        self.assertEqual(attempts, [('elevenlabs', 'timeout'), ('kokoro', 'ok')])
+
+    def test_elevenlabs_without_a_deadline_keeps_its_300_s_request_timeout(self):
+        timeouts = []
+
+        def fake(req, timeout):
+            timeouts.append(timeout)
+            return io.BytesIO(b'{"character_count": 0, "character_limit": 1}')
+        with mock.patch('urllib.request.urlopen', fake):
+            elevenlabs.subscription('sk-test')
+        self.assertEqual(timeouts, [300], 'the /speech:narrate path keeps its 300 s request timeout')
 
 
 class Cli(unittest.TestCase):

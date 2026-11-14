@@ -16,6 +16,7 @@
 plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
 plugins/corrections/tools/findings-buffer/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
 plugins/explainer-video/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
+plugins/speech/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
 # The fake key in the elevenlabs tests. Commit-less, so it survives the squash merge.
 # Line 21 is the key's line in its adding commit (d301b20), where a history scan
 # reports it; later commits moved it to line 24 without re-adding it.

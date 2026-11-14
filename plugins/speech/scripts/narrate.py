@@ -425,7 +425,10 @@ def openai_backend(env):
                 raise RuntimeError(f'{OPENAI_HOST} answered HTTP {e.code}') from None
             raise Unavailable(f'{OPENAI_HOST} answered HTTP {e.code}') from None
         except (urllib.error.URLError, OSError) as e:
-            raise RuntimeError(f'the request to {OPENAI_HOST} failed: {getattr(e, "reason", e)}') from None
+            reason = getattr(e, 'reason', e)
+            if isinstance(reason, TimeoutError):   # a read timeout, or one while connecting (URLError)
+                raise CallTimeout(f'{OPENAI_HOST} passed {timeout:g} s') from None
+            raise RuntimeError(f'the request to {OPENAI_HOST} failed: {reason}') from None
         if not pcm or len(pcm) % 2:
             raise RuntimeError(f'{OPENAI_HOST} returned no 16-bit PCM audio')
         wav = write_pcm_wav(out_dir / 'narration.wav', pcm)
@@ -434,11 +437,13 @@ def openai_backend(env):
 
 
 def elevenlabs_backend(env, data_flag):
-    def voice(script, out_dir, name, _timeout):
+    def voice(script, out_dir, name, timeout):
         import elevenlabs
         try:
             record = elevenlabs.narrate(script, out_dir, name, proceed=True, env=env, say=lambda *_: None,
-                                        cache=elevenlabs.cache_dir(data_flag))
+                                        cache=elevenlabs.cache_dir(data_flag), timeout=timeout)
+        except elevenlabs.TimedOut as e:
+            raise CallTimeout(str(e)) from None
         except (elevenlabs.Missing, elevenlabs.Blocked, elevenlabs.Failed, ValueError) as e:
             raise Unavailable(str(e)) from None   # elevenlabs.py already retries 429 and 5xx itself
         return out_dir / 'narration.wav', record['words']

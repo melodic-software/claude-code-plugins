@@ -781,17 +781,21 @@ reference/issue-body-contract.json
 # duplication audit: the synced canonical contract and the copies.
 docs/contracts/issue-body/contract.json -> plugins/*/reference/issue-body-contract.json
 
-# Dedicated check: scripts/sync-shared-copies.sh --check. The scan floor and its
-# redactor, vendored where media leaves the machine or text reaches an online
-# voice. Canonicals: lib/media-render/media_scan.py, lib/redact.py, and the
-# rules plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json.
+# Dedicated check: scripts/sync-shared-copies.sh --check. The scan floor,
+# vendored where media leaves the machine or text reaches an online voice.
+# Canonical: lib/media-render/media_scan.py.
 scripts/media_scan.py
+# Dedicated check: scripts/sync-shared-copies.sh --check. The scan floor's
+# redactor. Canonical: lib/redact.py.
 scripts/redact.py
+# Dedicated check: scripts/sync-shared-copies.sh --check. The rules the scan
+# floor reads. Canonical:
+# plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json.
 vendor/gitleaks/gitleaks-rules.json
 
 # No dedicated check for the speech copy: accepted, enforced by this script's
-# --check. The license that travels with the vendored gitleaks rules. Canonical
-# copy: plugins/session-flow/skills/audit-sessions/vendor/gitleaks/LICENSE-gitleaks.
+# --check. The license that travels with the vendored gitleaks rules.
+# Canonical copy: plugins/session-flow/skills/audit-sessions/vendor/gitleaks/LICENSE-gitleaks.
 vendor/gitleaks/LICENSE-gitleaks
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
