@@ -29,6 +29,14 @@ class PixelArtWebmTest(unittest.TestCase):
             '-map', '1:a', '-c:v', 'copy', '-c:a', 'libopus', '-t', '3', 'out.webm'],
             'pixel-art-webm must copy the recorded video and encode the looped WAV as Opus')
 
+    def test_run_bounds_ffmpeg_by_the_caller_timeout_and_by_none_without_one(self):
+        with mock.patch('subprocess.run') as run:
+            run.return_value.returncode = 0
+            media_encode.run(['out.webm'], timeout=30)
+            self.assertEqual(run.call_args.kwargs['timeout'], 30, 'a caller timeout reaches subprocess.run')
+            media_encode.run(['out.webm'])
+            self.assertIsNone(run.call_args.kwargs['timeout'], 'no timeout given leaves ffmpeg unbounded')
+
     def test_mux_copies_video_and_loops_opus_audio_to_the_record_length(self):
         if not HAVE_FFMPEG:
             if REQUIRE:

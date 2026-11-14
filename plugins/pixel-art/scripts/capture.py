@@ -323,7 +323,7 @@ def _mux_audio(webm, wav, seconds, work):
         media_encode.run([
             "-i", work / "scene-in.webm", "-stream_loop", "-1", "-i", work / "audio.wav",
             "-map", "0:v", "-map", "1:a", *profile["video"], *profile["audio"], "-t", seconds, out,
-        ])
+        ], timeout=max(30, seconds + 20))
         reason = "" if out.exists() and out.stat().st_size else "ffmpeg wrote no output"
     except media_encode.EncodeError as exc:
         reason = str(exc)[-300:]
