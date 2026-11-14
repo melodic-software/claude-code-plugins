@@ -238,8 +238,17 @@ work-item-tracker.sh get-statuses --field <name> <id>...
 work-item-tracker.sh status-storage [--repo <o>/<r>]
 work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
 work-item-tracker.sh add-recurrence <id> --source-link <url> --note <text>
+work-item-tracker.sh wayfind-labels
 work-item-tracker.sh capabilities
 ```
+
+`wayfind-labels` is a CORE-side read of the binding, the one place `/planning:wayfind` learns its
+labels: it prints `{schema_version, prefix, prefix_source, human_gated, human_gated_source}`, the
+`config.wayfind_label_prefix` and `config.role_labels.human-gated` values the seam resolves, each
+source `binding` or `default`. It resolves the convention home first (`wit_convention_home`) and
+fails closed: a broken pointer, a declined home, a root no home applies to, or missing shared
+copies exits `3` with nothing on stdout, as does an invalid binding or a
+`WORK_ITEM_TRACKER_BINDING` naming a missing file. A home with no binding prints both defaults.
 
 `add-recurrence` records that a signal was seen again on an item, keyed by the signal's source
 link, so a lane that sees one signal twice records it once. `--source-link` is an `http` or
@@ -428,7 +437,7 @@ frontier. Passing both is a usage error (exit `2`), not a silent drop.
 
 Adapters live at `adapters/<provider>/` as verb-per-script (`<verb>.sh`) plus a
 `capabilities.json` manifest. Adapter verb set = core public set **minus the core-derived
-`list-frontier` and `status-storage`** (`list-items` and `list-sub-items` are both core and
+`list-frontier`, `status-storage` and `wayfind-labels`** (`list-items` and `list-sub-items` are both core and
 adapter verbs: each has a native counterpart, unlike the core-derived `list-frontier`):
 
 ```text
@@ -622,6 +631,7 @@ Per-verb result objects:
 | `get-statuses` | `statuses` (item id → option name or `null`) |
 | `status-storage` | `storage` (`field` or `labels`), `field` (`"Work status"` or `null`), `reason` |
 | `add-recurrence` | `id, source_link, recorded` (bool, `false` when the link was already recorded), `reason` |
+| `wayfind-labels` | `prefix, prefix_source, human_gated, human_gated_source` (each source `binding` or `default`) |
 | `capabilities` | manifest object (see below) |
 
 ## ID grammar

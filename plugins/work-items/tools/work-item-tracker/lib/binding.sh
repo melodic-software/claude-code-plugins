@@ -54,6 +54,33 @@ wit_convention_home() {
   esac
 }
 
+# wit_wayfind_labels: the wayfind label prefix and the human-gated label the seam
+# resolves, as one JSON object naming the layer each came from (`binding` or
+# `default`). It refuses, with nothing on stdout, when wit_convention_home fails (a
+# broken pointer, a declined home, a root no home applies to, missing shared copies)
+# and when the binding is invalid. With no binding it prints the defaults.
+wit_wayfind_labels() {
+  local root binding json='{}'
+  root="$(wit_project_root)"
+  if [[ -z "$root" ]] || ! wit_convention_home "$root" >/dev/null; then
+    printf 'work-item-tracker: no convention home resolves under %s; run /work-items:setup check to see why\n' "${root:-the working directory}" >&2
+    return 1
+  fi
+  if binding="$(wit_find_binding)"; then
+    wit_read_binding "$binding" && json="$(wit_effective_binding_json "$binding")" || return 1
+  elif [[ -n "${WORK_ITEM_TRACKER_BINDING:-}" ]]; then
+    printf 'work-item-tracker: %s\n' "$(wit_no_binding_reason)" >&2
+    return 1
+  else
+    WIT_WAYFIND_PREFIX="$WIT_WAYFIND_LABEL_PREFIX"
+    WIT_HUMAN_GATED_LABEL="$WIT_DEFAULT_HUMAN_GATED_LABEL"
+  fi
+  jq -nc --argjson b "$json" --arg prefix "$WIT_WAYFIND_PREFIX" --arg gated "$WIT_HUMAN_GATED_LABEL" '
+    def layer(v): if (v // "") == "" then "default" else "binding" end;
+    {prefix: $prefix, prefix_source: layer($b.config.wayfind_label_prefix),
+     human_gated: $gated, human_gated_source: layer($b.config.role_labels["human-gated"])}'
+}
+
 # wit_yaml_mark_empty_seqs [<marker>]: stdin to stdout, line for line, with each empty
 # flow sequence in a value position (`key: []`, `- key: []`, `- []`) replaced by
 # <marker> as a double-quoted scalar. The parser prints nothing for `[]` and a record
