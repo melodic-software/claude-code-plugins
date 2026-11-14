@@ -36,6 +36,9 @@ CLASSES=(markdown renames skills rules tests)
 # tests is off-only: its judge verdicts feed prep's step 1.3.
 REPLACEABLE=" markdown renames skills rules "
 SKILL_RE='^/[a-z0-9]+(-[a-z0-9]+)*(:[a-z0-9]+(-[a-z0-9]+)*)?$'
+# Fresh arrays, so nothing inherited from the environment reads as a setting.
+unset AUDIT ITEM
+declare -A AUDIT=() ITEM=()
 
 usage() {
   echo "read-prep-audits: usage: read-prep-audits.sh --base <b> --default-branch <d> -" >&2
@@ -43,19 +46,17 @@ usage() {
 }
 
 emit() {
-  local source="$1" class var
+  local source="$1" class
   printf 'source\t%s\n' "$source"
   for class in "${CLASSES[@]}"; do
-    var="audit_$class"
-    printf '%s\t%s\n' "$class" "${!var:-default}"
+    printf '%s\t%s\n' "$class" "${AUDIT[$class]:-default}"
   done
   exit 0
 }
 
 # The reason can quote the file, so control characters become spaces.
 fail_closed() {
-  local class
-  for class in "${CLASSES[@]}"; do unset "audit_$class"; done
+  AUDIT=()
   emit "fail-closed"$'\t'"${1//[[:cntrl:]]/ }"
 }
 
@@ -111,7 +112,7 @@ while IFS=$'\t' read -r key val; do
   esac
   [[ "$seen" != *$'\n'"$key"$'\n'* ]] || fail_closed "prep_audits item $idx repeats a key"
   seen+="$key"$'\n'
-  printf -v "item_${idx}_$sub" '%s' "$val"
+  ITEM["$idx.$sub"]="$val"
   ((idx <= max)) || max=$idx
 done <<<"$BASE_FILE_RECORDS"
 
@@ -133,8 +134,7 @@ grep -qE "(^|[[:space:]{,-])${q}enabled${q}[[:space:]]*:[[:space:]]*[\"']" <<<"$
 
 classes_seen=" "
 for ((i = 0; i <= max; i++)); do
-  class_var="item_${i}_class" enabled_var="item_${i}_enabled" skill_var="item_${i}_skill"
-  class="${!class_var:-}" enabled="${!enabled_var:-}"
+  class="${ITEM["$i.class"]:-}" enabled="${ITEM["$i.enabled"]:-}"
   [[ -n "$class" ]] || fail_closed "prep_audits item $i has no class"
   [[ " ${CLASSES[*]} " == *" $class "* ]] || fail_closed "unknown class '$class' in prep_audits"
   [[ "$classes_seen" != *" $class "* ]] || fail_closed "class '$class' is listed twice in prep_audits"
@@ -144,14 +144,14 @@ for ((i = 0; i <= max; i++)); do
   '') fail_closed "class '$class' has no enabled value in prep_audits" ;;
   *) fail_closed "class '$class' has enabled '$enabled', not true or false" ;;
   esac
-  if [[ -n "${!skill_var+set}" ]]; then
-    skill="${!skill_var}"
+  if [[ -n "${ITEM["$i.skill"]+set}" ]]; then
+    skill="${ITEM["$i.skill"]}"
     [[ "$REPLACEABLE" == *" $class "* ]] || fail_closed "class '$class' cannot be replaced, only turned off"
     [[ "$enabled" == true ]] || fail_closed "class '$class' is off and also names a skill"
     [[ "$skill" =~ $SKILL_RE ]] || fail_closed "class '$class' has skill '$skill', not /<plugin>:<skill> or /<skill>"
-    printf -v "audit_$class" 'replace\t%s' "$skill"
+    AUDIT[$class]="replace"$'\t'"$skill"
   elif [[ "$enabled" == false ]]; then
-    printf -v "audit_$class" 'off'
+    AUDIT[$class]=off
   fi
 done
 

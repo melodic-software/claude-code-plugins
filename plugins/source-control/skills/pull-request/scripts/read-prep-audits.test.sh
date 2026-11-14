@@ -38,6 +38,12 @@ out=$(read_doc $'pre_ready:\n  - step: verify\n    enabled: "false"\nprep_audits
 assert_eq "a quoted enabled under another key does not fail this list" \
   $'source\tconfig\nmarkdown\tdefault\nrenames\tdefault\nskills\tdefault\nrules\toff\ntests\tdefault' "$out"
 
+# Names the reader uses inside must not be read from the environment it inherits.
+out=$(printf '' | env audit_rules=off bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
+assert_eq "an inherited audit_rules does not turn the rules audit off" $'source\tdefault\n'"$ALL_DEFAULT" "$out"
+out=$(printf 'prep_audits:\n  - class: markdown\n    enabled: true\n' | env item_0_skill=/evil:skip bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
+assert_eq "an inherited item_0_skill does not replace an enabled item" $'source\tconfig\n'"$ALL_DEFAULT" "$out"
+
 # Each untrusted shape: the source line fails closed with a reason, and every class runs its default.
 check_fail_closed() {
   local label="$1" doc="$2" reason="$3" got
