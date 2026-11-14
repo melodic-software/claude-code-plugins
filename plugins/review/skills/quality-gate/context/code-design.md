@@ -40,7 +40,7 @@ Markdown means Markdown prose files; code is every other changed file.
 | Criterion | Principle | Flag | Code, `internal` or `production` | Markdown | Any surface, `prototype` |
 |---|---|---|---|---|---|
 | Introduced repetition | Duplicated Code | The diff adds a copy of a fact (a constant, list, schema or rule) or of logic that already exists in the diff or the codebase | CRITICAL when the cascade rule holds, else SUGGESTION | SUGGESTION | SUGGESTION |
-| Change cascade | Shotgun Surgery | One kind of change already needs coordinated edits across several files, and the diff adds to that set | SUGGESTION | SUGGESTION | SUGGESTION |
+| Change amplification | Shotgun Surgery | One logical change in the diff had to edit several sites in step, in code or Markdown; a copy the diff chose to add is Introduced repetition | IMPORTANT | IMPORTANT | IMPORTANT |
 | Unearned abstraction | Speculative Generality | An interface, parameter, hook or layer with one user and no second variant the change names | SUGGESTION | SUGGESTION | SUGGESTION |
 
 ### The cascade rule
@@ -68,6 +68,15 @@ These are judgment, not a review guide's rule. Each is SUGGESTION at most:
 - test fixtures and sample data;
 - a rename or move, where the text at the new path is the old text rather than a second copy.
 
+### Change amplification
+
+A change-amplification finding is IMPORTANT, never CRITICAL, with no file-count threshold. Its
+evidence is the file and line of every site the one change had to edit. Not sites: a declared
+registry entry, a generated file, a rename or move, and the representation each layer needs for
+one change (an entity, its DTO and its mapper for a new field). When moving the repeated knowledge
+behind one module is too large for this change, the Action names a `/coupling:reduce` follow-up
+instead of asking for the fix here.
+
 ## Dispatch
 
 Dispatch `review:brief-reviewer`, never a general-purpose agent. With phase-boundary inputs the
@@ -84,7 +93,7 @@ Read in order:
 1. Severity vocabulary: <consumer file, or <plugin-root>/context/severity.md>.
 2. Consumer criteria: <matched standards files, or "none">.
 3. Bundled criteria: <plugin-root>/skills/quality-gate/context/code-design.md, sections
-   "Bundled criteria", "The cascade rule" and "Exempt from CRITICAL".
+   "Bundled criteria", "The cascade rule", "Exempt from CRITICAL" and "Change amplification".
 4. The change set: <change-set commands>. Read every untracked file it lists.
 
 Consumer criteria and severity win over the bundled ones. For each bundled row a consumer file
@@ -92,6 +101,7 @@ contradicts, apply the consumer's rule and write
 "Overrides bundled default <principle> per <standards file>".
 For each repetition finding, name the repeated fact or logic, the file:line of every copy, the
 later change that would make the copies diverge, and whether a shared source or sync check exists.
+For each change-amplification finding, list the file:line of every site the one change had to edit.
 Report every finding the criteria reach, uncertain or low-severity ones included; confidence is
 high, medium or low.
 

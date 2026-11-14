@@ -17,6 +17,10 @@
 #                                     thread's or note's scope (allowed below)
 #   record <id> <disposition>         check the disposition against the
 #                                     template and append it to the replies
+#   sections                          the body sections a fix may refresh,
+#                                     as JSON (none with pr_body_refresh off)
+#   record-body <file>                check replacement text for those
+#                                     sections and append it to the replies
 #
 # The disposition file is JSON in the scratch directory:
 #   {"disposition": "VALID" | "INCORRECT" | "UNCERTAIN" | "VALID-defer",
@@ -25,6 +29,11 @@
 # A note's (a VNOTE_ id) disposition is "VALID" or "already-addressed", with
 # evidence. fix_sha stays empty: the reply job names the commit the push job
 # made.
+#
+# The body file is JSON in the scratch directory, once per round:
+#   {"sections": [{"heading": "<a heading sections lists>", "text": "<prose>"}]}
+# The reply job judges the text again and drops the refresh when it holds a
+# line a gate reads (publish-feedback.mjs refreshedBody).
 #
 # Environment:
 #   FEEDBACK_THREADS    the runner's thread file (repository, pr, head_sha,
@@ -135,6 +144,76 @@ cmd_check_paths() {
   echo "allowed"
 }
 
+# The real path of a regular file of at most 16 KiB in the scratch directory.
+scratch_file() {
+  local scratch real
+  scratch=$(realpath -e "$scratch_dir") || die 2 "no scratch directory"
+  real=$(realpath -e -- "$1") || die 1 "no such file: $1"
+  [[ $real == "$scratch"/* && -f $real && ! -L $1 ]] || die 1 "the file must be a file in $scratch"
+  (($(wc -c <"$real") <= 16384)) || die 1 "the file is over 16 KiB"
+  printf '%s\n' "$real"
+}
+
+# The replies file's cap, as the read runner carries it and the reply job
+# reads it (publish-feedback.mjs LIMITS.bytes): a larger file posts nothing.
+replies_cap=49152
+
+# The replies file's size in bytes with line $1 appended.
+size_with() {
+  local now=0
+  [[ -f $log_file ]] && now=$(wc -c <"$log_file")
+  echo $((now + $(printf '%s\n' "$1" | wc -c)))
+}
+
+# Appends reply line $1, dropping a recorded body record first when the line
+# would not fit beside it: the body record never costs a reply.
+append_reply() {
+  local note=""
+  if (($(size_with "$1") > replies_cap)) && [[ -f $log_file ]] && grep -q '^{"body_sections":' "$log_file"; then
+    grep -v '^{"body_sections":' "$log_file" >"$log_file.next" || true
+    mv -- "$log_file.next" "$log_file"
+    note="; the body sections were dropped to make room for it"
+  fi
+  (($(size_with "$1") <= replies_cap)) || die 1 "the replies would pass their $replies_cap-byte cap; shorten the note and record again"
+  printf '%s\n' "$1" >>"$log_file"
+  printf '%s' "$note"
+}
+
+cmd_sections() {
+  jq '.body_sections // []' "$threads_file"
+}
+
+cmd_record_body() {
+  (($# == 1)) || die 2 "usage: record-body <body-file>"
+  jq -e '(.body_sections // []) | length > 0' "$threads_file" >/dev/null ||
+    die 1 "this round offers no body section to refresh"
+  if [[ -f $log_file ]] && jq -se 'any(.[]; has("body_sections"))' "$log_file" >/dev/null 2>&1; then
+    die 1 "the body sections are already recorded"
+  fi
+  local real d
+  real=$(scratch_file "$1")
+  d=$(jq -ec --slurpfile t "$threads_file" '
+    ([$t[0].body_sections[].heading]) as $offered
+    | select(type == "object" and keys == ["sections"])
+    | .sections
+    | select(type == "array" and length > 0 and length <= 8)
+    | select(all(.[]; type == "object" and keys == ["heading", "text"]
+        and (.heading as $h | $offered | index($h) != null)
+        and (.text | type == "string" and length > 0 and length <= 4000)
+        and (.text | explode | all(. == 9 or . == 10 or (. >= 32 and . != 127
+          and (. < 128 or . > 159) and (. < 8203 or . > 8207) and (. < 8234 or . > 8238)
+          and (. < 8288 or . > 8297) and . != 65279)))
+        and (.text | test("<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|ghs_[0-9]+_|github_pat_") | not)))
+    | select((map(.heading) | unique | length) == length)
+    | {body_sections: map({heading, text})}' "$real") ||
+    die 1 "the body file does not match the template: sections, 1-8 of them, each a heading sections lists once and text of 1-4000 characters with no control characters, HTML comments or tokens"
+  d=$(jq -c . <<<"$d")
+  (($(size_with "$d") <= replies_cap)) ||
+    die 1 "the body sections would pass the replies' $replies_cap-byte cap; nothing is recorded"
+  printf '%s\n' "$d" >>"$log_file"
+  echo "recorded the body sections; the reply job puts them in place after this run when the fix lands, and a reply that needs their room drops them"
+}
+
 cmd_record() {
   (($# == 2)) || die 2 "usage: record <thread-id> <disposition-file>"
   local id=$1 file=$2 kinds
@@ -155,11 +234,8 @@ cmd_record() {
     die 1 "$id already has a reply recorded"
   fi
 
-  local scratch real
-  scratch=$(realpath -e "$scratch_dir") || die 2 "no scratch directory"
-  real=$(realpath -e -- "$file") || die 1 "no disposition file"
-  [[ $real == "$scratch"/* && -f $real && ! -L $file ]] || die 1 "the disposition file must be a file in $scratch"
-  (($(wc -c <"$real") <= 16384)) || die 1 "the disposition file is over 16 KiB"
+  local real
+  real=$(scratch_file "$file")
 
   # The same rules the reply job enforces, so a refusal comes now, while the
   # skill can still fix its file: the note holds no control or direction
@@ -216,8 +292,9 @@ cmd_record() {
     done
   fi
 
-  jq -c . <<<"$d" >>"$log_file"
-  echo "recorded $disposition for $id; the reply job posts it after this run"
+  local note
+  note=$(append_reply "$(jq -c . <<<"$d")")
+  echo "recorded $disposition for $id; the reply job posts it after this run$note"
 }
 
 case ${1:-} in
@@ -226,5 +303,7 @@ case ${1:-} in
   issues) cmd_issues ;;
   check-paths) shift && cmd_check_paths "$@" ;;
   record) shift && cmd_record "$@" ;;
-  *) die 2 "usage: feedback-thread.sh list | notes | issues | check-paths <path>... | record <thread-id> <disposition-file>" ;;
+  sections) cmd_sections ;;
+  record-body) shift && cmd_record_body "$@" ;;
+  *) die 2 "usage: feedback-thread.sh list | notes | issues | sections | check-paths <path>... | record <thread-id> <disposition-file> | record-body <body-file>" ;;
 esac

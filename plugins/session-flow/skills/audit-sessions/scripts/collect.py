@@ -295,6 +295,8 @@ class SessionScan:
         self.entrypoints: set[str] = set()
         self.branches: set[str] = set()
         self.prs: set[tuple[str, int]] = set()
+        self.branches_sub: set[str] = set()
+        self.prs_sub: set[tuple[str, int]] = set()
         self.permission_modes: Counter = Counter()
         self.permission_changes = 0
         self.last_permission_mode: object = None
@@ -337,6 +339,8 @@ class SessionScan:
                     values.add(record[field])
             if isinstance(record.get("entrypoint"), str) and record["entrypoint"]:
                 self.entrypoints.add(_label(record["entrypoint"]))
+        elif isinstance(record.get("gitBranch"), str) and record["gitBranch"]:
+            self.branches_sub.add(record["gitBranch"])
         self.friction.add(record)
         handler = getattr(self, "_" + kind.replace("-", "_"), None)
         if handler is not None:
@@ -502,8 +506,8 @@ class SessionScan:
 
     def _pr_link(self, record: dict, side: str, _ts: float | None) -> None:
         repo, number = record.get("prRepository"), record.get("prNumber")
-        if side == "main" and isinstance(repo, str) and isinstance(number, int):
-            self.prs.add((repo, number))
+        if isinstance(repo, str) and isinstance(number, int):
+            (self.prs if side == "main" else self.prs_sub).add((repo, number))
 
     def _worktree_state(self, record: dict, side: str, _ts: float | None) -> None:
         branch = _obj(record.get("worktreeSession")).get("worktreeBranch")
@@ -784,6 +788,9 @@ def build_record(
         },
         "branches": sorted({scrub.key(branch) for branch in scan.branches}),
         "prs": [{"repo": repo, "number": number} for repo, number in sorted({(scrub.key(r), n) for r, n in scan.prs})],
+        # Subagent links stay apart, so ticket keys and per-PR churn keep counting the main session only.
+        "branches_sub": sorted({scrub.key(branch) for branch in scan.branches_sub}),
+        "prs_sub": [{"repo": repo, "number": number} for repo, number in sorted({(scrub.key(r), n) for r, n in scan.prs_sub})],
         "permission": {"modes": dict(scan.permission_modes), "changes": scan.permission_changes},
         "friction": scan.friction.block(scrub, excerpt_chars),
         "commands": {"slash": scrub.keys(scan.slash), "skills_model_invoked": scrub.keys(scan.skills)},

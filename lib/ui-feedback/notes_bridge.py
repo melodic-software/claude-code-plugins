@@ -25,6 +25,7 @@ prints it under session_bridge.DATA_NOTE and the session decides (docs/contracts
 
 import argparse
 import json
+import math
 import os
 import re
 import secrets
@@ -109,6 +110,8 @@ FITS = {
     "string": lambda v: isinstance(v, str),
     # JSON Schema counts 1.0 as an integer; a bool is never one.
     "integer": lambda v: is_number(v) and float(v).is_integer(),
+    # json.loads accepts NaN and Infinity; JSON Schema numbers are finite.
+    "number": lambda v: is_number(v) and math.isfinite(v),
 }
 
 

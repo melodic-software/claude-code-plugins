@@ -103,10 +103,9 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
    describes. If they now say otherwise, the comment is class A: list the lines that disagree. If
    the lines leave the question open, `/discovery:trace-intent`, run for the function or variable
    the comment names, settles it when that skill is among the available skills; a question still
-   open after that is reported as unverified and goes on to the criteria. Under `necessary` an
-   outside-constraint keep stays only when verified: the adjacent code depends on the named party and
-   nothing in this repository could remove the reason. The outside fact itself need not be provable
-   from here. Keeps under `necessary` and `none` are
+   open after that is reported as unverified and goes on to the criteria. Under `necessary` a
+   keep stays only when it meets every condition its entry in the resolved keep list sets,
+   verification included. Keeps under `necessary` and `none` are
    tested the same way. **Criterion 2 is decided on evidence, never on impression.** Under
    `explanatory`, for every class-C candidate whose content is rationale, run
    `git log -L <start>,<end>:<file>` over its own lines and check the repo's ADR or decision-log

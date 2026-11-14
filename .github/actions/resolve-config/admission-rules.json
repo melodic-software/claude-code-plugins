@@ -1,8 +1,9 @@
 {
-  "description": "What intake admission (.github/scripts/intake-triage/admit.mjs) requires before it adds agent-ready to an issue apply-verdict set to status: ready (#9212's ten criteria, owner decision Q51). Agents may change it; no floor or sync binds it (owner decision 2026-10-22).",
+  "description": "What intake admission (.github/scripts/intake-triage/admit.mjs) requires before it adds agent-ready to an issue apply-verdict set to status: ready (#9212's ten criteria, owner decision Q51). Agents may change it; no floor or sync binds it (owner decision 2026-10-22). `parent-container-labels` marks a spec container parent, which /work-items:decompose always labels needs-human, so needs-human on it does not hold its children; it must hold the tracker binding's container label (docs/conventions/work-items.yaml tracker.config.container_label, default spec-container), and a missing key reads as empty.",
   "types": ["Bug", "Task"],
   "types-under-parent": [],
   "types-parent-if-present": ["Feature"],
+  "parent-container-labels": ["spec-container"],
   "sizes": ["small", "medium"],
   "uncertainty": ["known", "knowable"],
   "refuse-labels": ["duplicate", "needs-owner-decision", "do-not-merge", "host-run", "attended"],
