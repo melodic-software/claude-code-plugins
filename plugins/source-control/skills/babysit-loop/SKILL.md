@@ -458,7 +458,7 @@ token in them would reach the Bash tool unsubstituted, with no such variable to 
 
 ## Next
 
-`/work-items:attend-queue` for the escalations this lane raised and the human queue they join.
+`/work-items:attend-queue` for the escalations this lane raised and the attended queue they join.
 
 ## Gotchas
 

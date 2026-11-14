@@ -41,7 +41,7 @@ direction, not doctrine.
 
 ## The unknowns taxonomy
 
-We ask "what are your unknowns?" before prompting, across four quadrants:
+We ask "what are your unknowns?" before prompting, across the four unknowns quadrants:
 
 - **Known knowns**: what the prompt already says.
 - **Known unknowns**: open questions you are aware of.

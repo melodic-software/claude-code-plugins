@@ -14,7 +14,7 @@ This shape is the target those stages build to.
 
 Form, location, and name are **not locked** (mini-SDLC umbrella `#513`, OPERATOR DECISION 1). This ships
 as a reference doc so the policy has one home now, reversibly: it is promotable to a `work-items`
-orchestration skill later without moving the policy. Revisit trigger: the operator ratifies the final
+orchestration skill later without moving the policy. Recheck trigger: the operator ratifies the final
 form. **If promoted to a skill, flag the naming collision** with `session-flow:orchestrate` and
 `implementation:implement-dispatch` before choosing a skill name.
 

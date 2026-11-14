@@ -241,7 +241,7 @@ fit ground:
   no network calls in any case.
 
 Until a credible option exists the skill relies only on native rendering surfaces
-and the presence-gated craft capabilities. The revisit trigger for a self-hostable,
+and the presence-gated craft capabilities. The recheck trigger for a self-hostable,
 egress-free server (a self-hosted AntV deployment being the current candidate) is
 owned by the plugin README's future-change section.
 

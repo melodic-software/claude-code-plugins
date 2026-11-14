@@ -8,7 +8,7 @@
 
 Three surfaces said which model coordinates a multi-agent run, each on its own basis:
 `plugins/multi-agent/reference/defaults.yaml` (orchestrator `model: inherit`, basis judgment),
-the loop-lane contract's model tiers (`docs/contracts/loop-lane/README.md`, Opus "Orchestrator by
+the loop-lane contract's capability tiers (`docs/contracts/loop-lane/README.md`, Opus "Orchestrator by
 default"), and the owner's user instructions (Anthropic found Fable in Opus's orchestrator place
 cost more for about the same score).
 
