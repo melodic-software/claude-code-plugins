@@ -31,6 +31,10 @@
     {
       "answer": "**Setup:** no transcript was parsed, so there are no metrics or tool counts. Auto-memory isn't in use here, the `corrections` plugin isn't installed, and the `/docs-hygiene:write-for-agents` style check for `CLAUDE.md` wasn't available.",
       "why": "unavailable, beside other missing pieces"
+    },
+    {
+      "answer": "- **Steering-file lines:** the docs-hygiene plugin isn't installed, so I had no yardstick for the CLAUDE.md lines.",
+      "why": "hand-written: names only the plugin as not installed"
     }
   ],
   "fail": [
@@ -61,6 +65,10 @@
     {
       "answer": "Judged against /docs-hygiene:write-for-agents, the first CLAUDE.md line earns no place.",
       "why": "claims the yardstick was used"
+    },
+    {
+      "answer": "| 2C Feedback regression | Auto-memory not in use. The applied-change check was not run (the `corrections` plugin is not among the available skills). |\n\n- **Steering-file yardstick:** `/docs-hygiene:write-for-agents` was not run, so I made no assessment of the `CLAUDE.md` lines.",
+      "why": "assembled from two recorded lines: the unavailable skill is corrections, and the yardstick is only said to be not run"
     }
   ]
 }
