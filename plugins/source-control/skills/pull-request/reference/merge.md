@@ -163,7 +163,7 @@ A non-zero exit from the read or the enqueue call is a hold: report the printed 
 "A conversation must be resolved" names the blocker), do not retry the enqueue, and 4.3 does not
 run. One exception: when the error says the PR is already queued, the merge call won the race;
 re-run the script once, and a `queued` read is the result. A hold with auto-merge armed also tells
-the user that a later push could merge on `ci-status` alone and offers disarming auto-merge as their option; this phase does not disarm it. Never jump the
+the user that a later push could merge on `CI Status` alone and offers disarming auto-merge as their option; this phase does not disarm it. Never jump the
 queue. Only `queued` moves on to the poll in 4.2.1; `merged` moves on to 4.3.
 
 ## 4.3 Worktree transition and next-task setup
