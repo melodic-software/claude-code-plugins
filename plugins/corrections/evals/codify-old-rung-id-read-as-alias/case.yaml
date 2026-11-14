@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: codify-old-rung-id-read-as-alias
-description: 'The repository''s CLAUDE.md still orders the old semgrep-rule id first for dangerous calls; codify reads it as the syntax-pattern-rule alias, says so, and proposes the rung under its current id. Both judges read the final reply on purpose: the report must carry the alias notice, because a notice printed mid-turn and dropped from the final report does not reach the user.'
+description: 'The repository''s CLAUDE.md still orders the old semgrep-rule id first for dangerous calls; codify reads it as the syntax-pattern-rule alias, says so, and proposes the rung under its current id. Both judges read the final reply on purpose: this case requires the notice in the final report, a stricter bar than the ladder states. The two llm graders score in a single-arm (--ablation none) run and would be indicators only in a with/without ablation run.'
 tags: [codify]
 plugins: ["../.."]
 expected_outcome: 'The reply says that semgrep-rule, the id the repository''s CLAUDE.md uses, is an alias of syntax-pattern-rule, and proposes syntax-pattern-rule as the rung. It neither refuses the old id nor keeps it as the current one, writes only under .work/codify/ and edits no file.'
@@ -14,13 +14,14 @@ execution:
 graders:
   - name: rung-is-current-id
     type: 'llm'
-    criteria: 'PASS only if the rung the reply proposes for this mistake is syntax-pattern-rule. A rung that is only listed, rejected, ruled out, named as an alternative, or named inside the alias notice does not count. FAIL if the proposed rung is semgrep-rule or any other rung, or if no rung is proposed. Judge what the reply says.'
+    criteria: 'PASS only if the rung the reply proposes for this mistake is syntax-pattern-rule. A rung that is only listed, rejected, ruled out, named as an alternative, or named inside the alias notice does not count. FAIL if the proposed rung is semgrep-rule or any other rung, or if no rung is proposed. Judge what the reply says. The rung counts even when its check is unproven or not proposed for install.'
     focus: 'last_message'
     arm: 'with-only'
   - name: says-old-id-is-alias
     type: 'llm'
     criteria: 'The final reply states, in its own words and not only inside a quoted ladder line or a copied list of rung ids, that semgrep-rule (the id this repository''s CLAUDE.md uses) is an old name or alias, and that syntax-pattern-rule is the id that replaces it. It fails when the reply never mentions semgrep-rule, treats semgrep-rule as the current id, refuses or rejects the old id as unknown, names a different replacement, or only quotes the ladder''s alias line without applying it to this repository''s instruction.'
     focus: 'last_message'
+    arm: 'with-only'
   - name: writes-only-under-work-codify
     type: 'tool_used'
     tool: 'Write'

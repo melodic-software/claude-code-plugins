@@ -14,7 +14,7 @@
     },
     {
       "answer": "Picking the rung, strongest first against this repository's order.\n\nOne matcher has to cover both the TypeScript and the Python service, so the proposal is\n`syntax-pattern-rule`, written as one rule in `.semgrep/`.",
-      "why": "hand-written: the new id in prose two lines after the word rung"
+      "why": "hand-written: the new id in prose three lines after the word rung"
     },
     {
       "answer": "### Rung\n\n`syntax-pattern-rule`: one rule over both services. Criterion items 1, 2 and 7 decided it.",
@@ -23,6 +23,10 @@
     {
       "answer": "Rung (CLAUDE.md calls it `semgrep-rule`, now an alias): `syntax-pattern-rule`.",
       "why": "hand-written: the new id after a parenthetical naming the old id"
+    },
+    {
+      "answer": "Rung: `syntax-pattern-rule`\nProof: unproven. The check exited 127 on both the old ref and the current code because semgrep did not run, so it is not proposed for install.",
+      "why": "hand-written: the new id proposed while its check is unproven and not proposed for install"
     }
   ],
   "fail": [

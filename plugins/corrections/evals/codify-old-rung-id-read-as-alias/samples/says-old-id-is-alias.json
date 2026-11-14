@@ -9,7 +9,7 @@
       "why": "alias statement beside a plugin name that holds the old id as a substring"
     },
     {
-      "answer": "Count: 3 occurrences (threshold 2, default). Rung: syntax-pattern-rule (renamed from semgrep-rule, the id CLAUDE.md still uses; consider updating that line). Proof: unproven, skipped as asked.",
+      "answer": "Count: 3 occurrences (threshold 2, default). Rung: syntax-pattern-rule (renamed from semgrep-rule, the id CLAUDE.md still uses; consider updating that line). Proof: unproven, exit 127 on both refs because semgrep did not run; not proposed for install.",
       "why": "a short parenthetical rename note is still the reply's own statement"
     },
     {
