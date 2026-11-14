@@ -72,6 +72,32 @@ def scan_texts(board, chapters, side):
     return texts
 
 
+def published(path, out):
+    """{path relative to out, bytes, sha256} of the file as it sits on disk now; call it after the last write."""
+    with open(path, 'rb') as f:
+        digest = hashlib.file_digest(f, 'sha256').hexdigest()
+        size = f.tell()
+    return {'path': str(Path(path).relative_to(out)), 'bytes': size, 'sha256': digest}
+
+
+def place_screenshots(board, base, side, out):
+    """Copy each screenshot and write the sidecar text the scan read into out/screenshots; their manifest entries."""
+    folder = out / 'screenshots'
+    entries = []
+    for k, m in enumerate(board['moments'], 1):
+        if m['template'] != 'screenshot':
+            continue
+        folder.mkdir(exist_ok=True)
+        src = media_templates.inside(base, m['data']['image'])
+        image, sidecar = folder / f'm{k:03d}{src.suffix.lower()}', folder / f'm{k:03d}.txt'
+        image.write_bytes(src.read_bytes())
+        sidecar.write_text(side[m['id']], encoding='utf-8', newline='')
+        shot, text = published(image, out), published(sidecar, out)
+        entries.append({'path': shot['path'], 'sha256': shot['sha256'], 'sidecar': text['path'],
+                        'sidecar_sha256': text['sha256']})
+    return entries
+
+
 def capture(board, chapters, out, stylesheet, base):
     """Frames at 4K. On the first stills render Playwright's Chromium is not downloaded yet: install it once
     (only stills renders need it, so a manim-only user never downloads it), then capture again."""
@@ -236,6 +262,7 @@ def _run(argv):
                 steps.append('chapter-split')
             except media_size.SizeError as e:
                 oversize = str(e)
+        shots = place_screenshots(board, base, side, out)
     except (media_encode.EncodeError, subprocess.SubprocessError, OSError, RuntimeError, ValueError) as e:
         return fail(2, f'{type(e).__name__}: {e}')
 
@@ -243,12 +270,12 @@ def _run(argv):
         return str(Path(p).relative_to(out))
     manifest = {
         'head_sha': a.head_sha, 'storyboard_sha256': hashlib.sha256(raw).hexdigest(),
-        'video': {'path': rel(video), 'bytes': video.stat().st_size, 'duration_s': tl['duration'],
-                  'width': vstream.get('width'), 'height': vstream.get('height'), 'captions': 'stitcher' if stitcher else 'burned'},
+        'video': {**published(video, out), 'duration_s': tl['duration'], 'width': vstream.get('width'),
+                  'height': vstream.get('height'), 'captions': 'stitcher' if stitcher else 'burned'},
         'captions_srt': rel(srt), 'chapters': tl['chapters'],
-        'contact_sheet': [{'path': rel(s['path']), 'bytes': s['bytes'], 'frames': s['frames']} for s in sheets],
-        'screenshots': [m['data']['image'] for m in board['moments'] if m['template'] == 'screenshot'],
-        'parts': [{**p, 'path': rel(p['path'])} for p in parts], 'oversize': oversize,
+        'contact_sheet': [{**published(s['path'], out), 'frames': s['frames']} for s in sheets],
+        'screenshots': shots,
+        'parts': [{**p, **published(p['path'], out)} for p in parts], 'oversize': oversize,
         'voice': {'backend': voice.get('backend'), 'voice': voice.get('voice')} if voice else
                  {'backend': None if a.no_audio else 'unknown', 'voice': None},
         'scan': {'status': 'pass', 'floor_rules': scan.rule_count},
