@@ -145,7 +145,7 @@ tracker binding supplies the label.
 **autonomous-eligible**
 
 The role, and final triage state, of a briefed work item an agent may claim with no person present:
-it has no open decision, or only one defaulted to a recommended answer a maintainer can veto before
+it has no open decision, or one defaulted to a recommended answer a maintainer can veto before
 merge.
 
 Shown to users as: configurable per binding (default `agent-ready`)
@@ -163,8 +163,7 @@ A work item a lane handed to a person.
 
 **operator-parked item**
 
-A work item the operator set aside for a person. Distinct from an **escalated item**, which a lane
-handed over.
+A work item the operator set aside for a person.
 
 **work class**
 
@@ -188,8 +187,7 @@ does.
 
 **CI lane**
 
-Any lane that runs as a CI workflow, inside the pull-request pipeline or not. Every pipeline lane is
-one; not every CI lane is a pipeline lane.
+Any lane that runs as a CI workflow, inside the pull-request pipeline or not.
 
 **attended queue**
 
