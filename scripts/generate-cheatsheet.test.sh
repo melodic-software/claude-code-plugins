@@ -290,7 +290,7 @@ row_of() { # row_of <tree> <plugin:skill>: the sheet row for that skill
 mk_tree tree
 write_rich_skill "$tree" alpha hinted \
   'argument-hint: "[audit|fix [<file>:<line>]|sweep --all|<target>|this branch] [--json]"' \
-  "$(printf '## Next\n\n- Findings to fix: /beta:looper --apply.\n- Nothing found: `/alpha:mapped`.\n\n## Gotchas\n\n- /alpha:setup is outside the Next section.')"
+  "$(printf '## Next\n\n- Findings to fix: /beta:looper --apply.\n- Nothing found: %s.\n\n## Gotchas\n\n- /alpha:setup is outside the Next section.' "\`/alpha:mapped\`")"
 write_rich_skill "$tree" alpha single \
   "argument-hint: '[topic]'" \
   "$(printf '## Next\n\n/alpha:hinted audit <path>, which reads the report this run wrote.')"
