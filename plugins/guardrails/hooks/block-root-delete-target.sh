@@ -6672,7 +6672,7 @@ rdt_hd_interp() {
   else
     return 1
   fi
-  [[ "$before" == *[\\\<\>\{\}\(\)]* ]] && return 1
+  [[ "$before" == *[\\\<\>\{\}\(\)]* ]] && return 1 # portability-ok: a bash case-pattern bracket of escaped characters, not a GNU grep word boundary
   # The word tests read the text as written and with its quotes removed, as
   # the shell joins `py''thon3` or `ha$''sh` into one word.
   bq="${before//\$[\'\"]/}"

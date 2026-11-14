@@ -816,7 +816,7 @@ expect_both "python span with a backslash-newline inside rm blocks" 2 --command 
 expect_both "python span with a quoted piece after a line break blocks" 2 --command "$rdt_pa"$'"""echo `true\n\'r\'m -rf / form`"""'"$rdt_pz"
 expect_both "python dollar-paren span joining a quoted piece into rm blocks" 2 --command "$rdt_pa"$'"echo $(r\'\'m -rf / form)"'"$rdt_pz"
 expect_both "python span piping a printf octal escape into sh blocks" 2 --command "$rdt_pa"$'r"echo `printf \'r\\155 -rf / form\' | sh`"'"$rdt_pz"
-expect_both "python span piping an echo -e hex escape into bash blocks" 2 --command "$rdt_pa"$'r"echo `echo -e \'r\\x6d -rf / form\' | bash`"'"$rdt_pz"
+expect_both "python span piping an echo -e hex escape into bash blocks" 2 --command "$rdt_pa"$'r"echo `echo -e \'r\\x6d -rf / form\' | bash`"'"$rdt_pz" # portability-ok: payload text fed to the guard, never run
 expect_both "python span with an ANSI-C quoted piece blocks" 2 --command "$rdt_pa"$'"echo `$\'r\'m -rf / form`"'"$rdt_pz"
 expect_both "node span joining an empty quoted piece into rm blocks" 2 --command "$rdt_ja"$'"echo `r\'\'m -rf / form`"'"$rdt_jz"
 expect_both "node span joining a single-quoted piece into rm blocks" 2 --command "$rdt_ja"$'"echo `\'r\'m -rf / form`"'"$rdt_jz"
@@ -825,7 +825,7 @@ expect_both "node span with a backslash-newline inside rm blocks" 2 --command "$
 expect_both "node span with a quoted piece after a line break blocks" 2 --command "$rdt_ja"$'`echo \\`true\n\'r\'m -rf / form\\``'"$rdt_jz"
 expect_both "node dollar-paren span joining a quoted piece into rm blocks" 2 --command "$rdt_ja"$'"echo $(r\'\'m -rf / form)"'"$rdt_jz"
 expect_both "node span piping a printf octal escape into sh blocks" 2 --command "$rdt_ja"$'"echo `printf \'r\\155 -rf / form\' | sh`"'"$rdt_jz"
-expect_both "node span piping an echo -e hex escape into bash blocks" 2 --command "$rdt_ja"$'"echo `echo -e \'r\\x6d -rf / form\' | bash`"'"$rdt_jz"
+expect_both "node span piping an echo -e hex escape into bash blocks" 2 --command "$rdt_ja"$'"echo `echo -e \'r\\x6d -rf / form\' | bash`"'"$rdt_jz" # portability-ok: payload text fed to the guard, never run
 expect_both "node span with an ANSI-C quoted piece blocks" 2 --command "$rdt_ja"$'"echo `$\'r\'m -rf / form`"'"$rdt_jz"
 # Every other way a shell builds or feeds a word sends the span to the
 # tokenizer too: a brace, glob, tilde, history or extglob character, a pipe or
