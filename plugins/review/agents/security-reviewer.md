@@ -33,7 +33,7 @@ Model and effort pin record. Pointer: the `high` row of [model config: choose an
 
 ## Turn budget
 
-The cap is `maxTurns: 30` and a large or multi-ecosystem change set can exhaust it before any report is written. Finish step 1's criteria reading, or record it as skipped with the reason, before the first diff read. With a findings path, write a checkpoint to it right after step 2 and update it at most once more before the stop turn (Handback, below). Stop gathering by turn 22 at the latest and spend the remaining turns on the final write and the reply. Review the highest-risk files first: auth, input handling, secrets and CI/CD, then the rest.
+The cap is `maxTurns: 30` and a large or multi-ecosystem change set can exhaust it before any report is written. Finish step 1's criteria reading, or record it as skipped with the reason, before the first diff read. With a findings path, write a checkpoint to it right after step 2 and update it at most once more before the stop turn (Handback, below). Stop gathering by turn 22 at the latest and spend the remaining turns on the final write and the reply. Review the highest-risk files first: auth, input handling, secrets and CI/CD, then the rest. End the report with the `Coverage:` line (Output format, below), naming the changed files you did not reach.
 
 ## Security review by ecosystem
 

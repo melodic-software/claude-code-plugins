@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
-# Offline test of the turn budget and checkpoint contract of the reviewer
-# agents that write a findings file: derives that set from the agent
-# definitions, checks each one's stated cap, stop turn and sentinel, and checks
-# that every caller of the contract names the same sentinel. Reads files only.
+# Offline test of the review agents' turn budgets and the checkpoint contract
+# of the reviewers that write a findings file: derives both sets from the agent
+# definitions, checks each capped agent's stated cap, stop turn and closing
+# not-reached line, each findings-file reviewer's sentinel, and that every
+# caller of the contract names the same sentinel. Reads files only.
 # test-scope: plugins/review/agents/*.md plugins/review/reference/reviewer-handback.md plugins/review/reference/findings-normalization.md plugins/review/skills/quality-gate/context/*.md plugins/review/workflows/fanout-sweep.js
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AGENTS="$PLUGIN_DIR/agents"
 SENTINEL='Coverage: in progress'
-# Turns kept back for the final write and the reply.
+# Turns kept back for the report: the final write, when there is one, and the reply.
 RESERVE=6
+# Capped agents that keep no Turn budget section, each with its reason.
+declare -A EXEMPT=(
+  [stage-normalizer]='a single Read-only extraction pass whose output schema the workflow enforces'
+  [brief-reviewer]='cap 60, sized by its callers'
+)
 
 FAILED=0
 pass() { printf 'PASS: %s\n' "$1"; }
@@ -28,6 +34,7 @@ assert_contains() {
 #   budget                1 when a `## Turn budget` section exists
 #   budget_cap            the integer after `maxTurns:` in that section
 #   stop                  N from `Stop gathering by turn N`
+#   reach                 1 when that section names what the agent `did not reach`
 #   sentinel              1 when the body names the checkpoint sentinel
 #   out_criteria/out_coverage  1 when Output format names `Criteria read:` / `Coverage:`
 #   never                 1 when a Handback line naming the sentinel also names `No findings.`
@@ -42,6 +49,7 @@ facts() {
     index($0, s) { print "sentinel=1" }
     sec == "Turn budget" && match($0, /maxTurns: [0-9]+/) { print "budget_cap=" substr($0, RSTART + 10, RLENGTH - 10) + 0 }
     sec == "Turn budget" && match($0, /Stop gathering by turn [0-9]+/) { print "stop=" substr($0, RSTART + 23, RLENGTH - 23) + 0 }
+    sec == "Turn budget" && index($0, "did not reach") { print "reach=1" }
     sec == "Output format" && index($0, "Criteria read:") { print "out_criteria=1" }
     sec == "Output format" && index($0, "Coverage:") { print "out_coverage=1" }
     sec == "Handback" && index($0, "Findings path:") { print "handback=1" }
@@ -54,21 +62,37 @@ get() { [[ $1 =~ (^|$'\n')$2=([^$'\n']*) ]] && printf '%s' "${BASH_REMATCH[2]}";
 # flag <facts> <key> <name>: passes when key=1.
 flag() { if [[ "$(get "$1" "$2")" == 1 ]]; then pass "$3"; else fail "$3" "not found"; fi; }
 
-# The handback set: agents that hold Write and name a `Findings path:` in Handback.
+# Facts for every agent, read once. The capped set: agents with a maxTurns, less
+# the exemptions. The handback set: agents that hold Write and name a
+# `Findings path:` in Handback.
 declare -A FACTS=()
+CAPPED=() HANDBACK=()
 for file in "$AGENTS"/*.md; do
-  f="$(facts "$file")"
-  [[ "$(get "$f" handback)" == 1 && ", $(get "$f" tools)," == *", Write,"* ]] || continue
   a="${file##*/}"
-  FACTS[${a%.md}]="$f"
+  a="${a%.md}"
+  f="$(facts "$file")"
+  FACTS[$a]="$f"
+  [[ -n "$(get "$f" cap)" && -z ${EXEMPT[$a]+x} ]] && CAPPED+=("$a")
+  [[ "$(get "$f" handback)" == 1 && ", $(get "$f" tools)," == *", Write,"* ]] && HANDBACK+=("$a")
 done
 
-names=" ${!FACTS[*]} "
+names_capped=" ${CAPPED[*]} "
+for want in code-reviewer security-reviewer architecture-guardian doc-drift-detector ecosystem-specialist ci-log-auditor lane-verifier; do
+  assert_contains "capped set holds $want" "$names_capped" " $want "
+done
+for a in "${!EXEMPT[@]}"; do
+  if [[ -n "$(get "${FACTS[$a]-}" cap)" ]]; then
+    pass "exempt $a has a maxTurns (${EXEMPT[$a]})"
+  else
+    fail "exempt $a has a maxTurns" "no capped agent named $a; drop the stale exemption"
+  fi
+done
+names=" ${HANDBACK[*]} "
 for want in code-reviewer security-reviewer; do
   assert_contains "handback set holds $want" "$names" " $want "
 done
 
-for a in "${!FACTS[@]}"; do
+for a in "${CAPPED[@]}"; do
   f="${FACTS[$a]}"
   cap="$(get "$f" cap)"
   if [[ "$(get "$f" budget)" == 1 ]]; then pass "$a has a Turn budget section"; else fail "$a has a Turn budget section" "no '## Turn budget' heading"; fi
@@ -84,6 +108,12 @@ for a in "${!FACTS[@]}"; do
   else
     fail "$a stops gathering at least $RESERVE turns below its cap" "stop turn '${stop:-none}', cap '$cap'"
   fi
+  flag "$f" reach "$a Turn budget ends the report naming what it did not reach"
+done
+
+for a in "${HANDBACK[@]}"; do
+  f="${FACTS[$a]}"
+  assert_contains "handback agent $a is in the capped set" "$names_capped" " $a "
   flag "$f" sentinel "$a names the checkpoint sentinel '$SENTINEL'"
   flag "$f" out_criteria "$a Output format names the 'Criteria read:' line"
   flag "$f" out_coverage "$a Output format names the 'Coverage:' line"
