@@ -646,7 +646,7 @@ def _code_records(
 
 
 def kind_of_text(path: str, text: str) -> str | None:
-    return kind_of(path, text.partition("\n")[0].rstrip("\r"))
+    return kind_of(path, (text.splitlines() or [""])[0])
 
 
 def scan_text(text: str, kind: str | None) -> list[Record]:

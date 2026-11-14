@@ -15,9 +15,14 @@ graders:
     target: { source: file, path: .calls.log }
   - name: txt-claimed-by-cross-cutting
     type: regex
-    pattern: '\boutside (?:every|any) ecosystem\b[^\n]{0,160}?\b(?:install|keys)\.txt\b|\b(?:install|keys)\.txt\b[^\n.;]{0,80}?\boutside (?:every|any) ecosystem\b'
-    flags: i
+    pattern: '^[^\w\n]{0,6}Outside every ecosystem[^\w\n]{0,6}:[^\n]*\b(?:install|keys)\.txt\b'
+    flags: im
     match: not_contains
+    target: last_message
+  - name: txt-cross-cutting-only
+    type: regex
+    pattern: 'cross-cutting text checks only[^\n]{0,200}?\bdocs/(?:install|keys)\.txt\b'
+    flags: i
     target: last_message
   - name: meets-expectations
     type: llm

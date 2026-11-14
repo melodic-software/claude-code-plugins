@@ -407,6 +407,13 @@ ug commit -q -m topic
 (cd "$UR" && "$PY" "$SCANNER" --diff main --unread-to "$TEST_TMPDIR/unread-diff.txt" >/dev/null)
 assert_eq "--diff names only the changed files with no kind" "new.rs" "$(cat "$TEST_TMPDIR/unread-diff.txt")"
 
+CR="$TEST_TMPDIR/cr-only"
+mkdir -p "$CR"
+printf '#!/usr/bin/env python3\rx = "sh"  # noqa: E501\r' >"$CR/tool"
+out="$(cd "$CR" && "$PY" "$SCANNER" --unread-to "$TEST_TMPDIR/unread-cr.txt" tool | summarize)"
+assert_eq "an extensionless CR-only file reads its python shebang" "tool:2 noqa E501 no" "$out"
+assert_eq "and is not named as unread" "" "$(cat "$TEST_TMPDIR/unread-cr.txt")"
+
 out="$(cd "$UNR" && "$PY" "$SCANNER" --unread-to "$TEST_TMPDIR/no-such-dir/x.txt" . 2>/dev/null)"
 assert_eq "an --unread-to file that cannot be written exits 2 with nothing on stdout" "2:" "$?:$out"
 
