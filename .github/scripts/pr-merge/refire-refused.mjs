@@ -92,7 +92,7 @@ const LANES = Object.freeze({
       ".github/workflows/pr-unblock.yml",
       WRITE_RUNNER,
       ".github/workflows/pr-unblock-dispatch.yml",
-      ".github/workflows/pr-feedback-dispatch.yml",
+      ".github/workflows/pr-dispatch-feedback.yml",
     ],
     // The jobs that call the write runner, as [display name, job id], whose
     // `run` job alone requests the lane token; the jobs API names each

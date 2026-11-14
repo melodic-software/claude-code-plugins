@@ -1615,10 +1615,10 @@ test("a floor-label run re-run since the listing is left alone", async () => {
   assert.deepEqual(failedJobReruns, []);
 });
 
-// A pr-verify verdict whose pr-feedback-dispatch run found the kill switch on:
+// A pr-verify verdict whose pr-dispatch-feedback run found the kill switch on:
 // post-verify-notes fails at its kill-switch step, posting nothing, and the
 // first pass after the switch lifts re-runs that job, which applies the verdict.
-const FEEDBACK = ".github/workflows/pr-feedback-dispatch.yml";
+const FEEDBACK = ".github/workflows/pr-dispatch-feedback.yml";
 const verdictJob = (failedStep = VERDICT_STOP_STEP, { name = "Post Verify Notes", conclusion = "failure" } = {}) => ({
   id: 4007,
   name,
@@ -1700,7 +1700,7 @@ test("a verdict run that failed anywhere but the kill-switch step, or at attempt
 });
 
 test("post-verify-notes still fails at the kill-switch step the reconciler matches, before any read", () => {
-  const job = verifyLegs("pr-feedback-dispatch.yml").find(({ name }) => name === "post-verify-notes");
+  const job = verifyLegs("pr-dispatch-feedback.yml").find(({ name }) => name === "post-verify-notes");
   const steps = legSteps(job?.body ?? "");
   const stop = steps.findIndex((s) => s.startsWith(`      - name: ${VERDICT_STOP_STEP}\n`));
   assert.ok(stop > 0, "the kill-switch stop step is in the job");
@@ -2933,10 +2933,10 @@ test("a job read that is not whole and final, or is empty, is not carried", asyn
 // head has completed, PENDING_BACKOFF_MINUTES ago or more, that ci-status is
 // re-run, recorded as attempt 2. The notes are the ones pr-require-checks.yml
 // writes (pinned below).
-const RERUN_NOTE = "ci-status waited 480s for it; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed.";
+const RERUN_NOTE = "ci-status waited 480s for it; pr-dispatch-feedback re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed.";
 const PENDING_LINE = (check = "pr-review / claude-review-status", head = sha(1), tail = RERUN_NOTE) =>
   `'${check}' has not finished on ${head} (https://github.com/${REPO}/actions/runs/201). ${tail}`;
-const MISSING_NOTE = "ci-status does not wait for a lane with no run; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed.";
+const MISSING_NOTE = "ci-status does not wait for a lane with no run; pr-dispatch-feedback re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed.";
 const MISSING_LINE = (check = "pr-review / claude-review-status", file = "pr-review-hosted.yml", head = sha(1), tail = MISSING_NOTE) =>
   `'${check}' is missing: no ${file} run on ${head} yet. ${tail}`;
 const pendingJobs = (notes = [PENDING_LINE()]) => stopJobs({ notes });
@@ -3035,7 +3035,7 @@ test("ci-status's review-lane step still writes the pending and missing notes th
 });
 
 test("the pending backoff is at least rerun-ci-status's time limit", () => {
-  const workflow = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+  const workflow = readFileSync(new URL("../../workflows/pr-dispatch-feedback.yml", import.meta.url), "utf8");
   const job = /\n {2}rerun-ci-status:\n(?:(?: {4}.*)?\n)+/.exec(workflow)?.[0] ?? "";
   const limit = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(job)?.[1]);
   assert.ok(limit > 0, "rerun-ci-status sets timeout-minutes");

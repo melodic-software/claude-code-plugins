@@ -1,7 +1,7 @@
 // Starts pr-unblock's address-feedback activity on a lanes App PR, or an
 // adopted owner PR once idle (ownerAuthored, ownerSkip), once both
 // review lanes have reviewed its current head and left an unresolved thread.
-// Run by .github/workflows/pr-feedback-dispatch.yml on workflow_run, after the
+// Run by .github/workflows/pr-dispatch-feedback.yml on workflow_run, after the
 // kill switch. From the event file it takes only the upstream run's id, path,
 // event, repositories and head SHA, which a re-run does not change, so reading
 // them back from the API would spend a call for the same values; and its
@@ -1073,7 +1073,7 @@ async function sweepStale({ api, pull, repository, appSenderId, log, settings, r
   return rest.defer ? { number, send, upstreamRunId: upstream.id } : send();
 }
 
-// pr-feedback-dispatch.yml's dispatch job timeout-minutes.
+// pr-dispatch-feedback.yml's dispatch job timeout-minutes.
 export const UNSENT_GRACE_MS = 10 * 60_000;
 
 // A head with an unresolved thread and no address-feedback check run, and no
@@ -1250,7 +1250,7 @@ async function sweepRefused(context) {
 }
 
 // This file's workflow, whose lost runs the tick recovers.
-export const DISPATCH_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";
+export const DISPATCH_WORKFLOW = ".github/workflows/pr-dispatch-feedback.yml";
 
 // The workflow's job that dispatches, by its display name, or by its id
 // (`dispatch`) on a run started before the rename; a loss of its other jobs

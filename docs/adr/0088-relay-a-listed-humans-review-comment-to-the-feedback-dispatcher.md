@@ -12,7 +12,7 @@
 ## Context
 
 address-feedback applies a listed human's reply on a thread the lane escalated, but nothing
-started the lane when that reply was posted. `pr-feedback-dispatch.yml` runs on the completion of a
+started the lane when that reply was posted. `pr-dispatch-feedback.yml` runs on the completion of a
 review, pr-verify, tick, pr-merge, pr-unblock or approval-relay run, and the gate and the broker
 accepted its dispatch only through a `pull_request` review run its record names. An owner's reply
 waited for the next review round, the next tick's fix-request sweep, or a hand dispatch.
@@ -22,7 +22,7 @@ waited for the next review round, the next tick's fix-request sweep, or a hand d
 1. **An unprivileged relay.** [`pr-review-comment-relay.yml`](../../.github/workflows/pr-review-comment-relay.yml)
    runs on `pull_request_review_comment` (`created` only) with `permissions: {}`, no checkout, no
    secret and no event field in a step. Its job's condition skips a bot's comment, a fork's PR and
-   a branch the lanes App opens no PR from, only to save runners. `pr-feedback-dispatch.yml` lists
+   a branch the lanes App opens no PR from, only to save runners. `pr-dispatch-feedback.yml` lists
    it under `workflow_run.workflows`; no new dispatcher is added.
 2. **The dispatcher admits it from GitHub-set run facts.** Its dispatch job runs for a successful
    relay run on a lane branch of this repository whose actor is a `User`.

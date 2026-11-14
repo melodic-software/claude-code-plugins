@@ -140,7 +140,7 @@ const GATE = "./.base/.github/actions/check-upstream-status";
 const GATED_WORKFLOWS = [
   "pr-run-plugin-evals.yml",
   "intake-triage.yml",
-  "pr-feedback-dispatch.yml",
+  "pr-dispatch-feedback.yml",
   "pr-review-hosted.yml",
   "pr-review-main.yml",
   "pr-review-security-hosted.yml",

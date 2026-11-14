@@ -6286,7 +6286,7 @@ test("pr-unblock.yml: review-dependency-select reads the slot with the read runn
   assert.deepEqual(stepSecrets(select), []);
 });
 
-// The pr-feedback-dispatch.yml trust reaches the read gate only for a
+// The pr-dispatch-feedback.yml trust reaches the read gate only for a
 // review-threads call, which alone passes the select job's feedback context,
 // and a feedback context with any other prepare mode fails red.
 test("pr-run-activity-read.yml: the gate admits a feedback dispatch only for a review-threads call", () => {
@@ -6294,7 +6294,7 @@ test("pr-run-activity-read.yml: the gate admits a feedback dispatch only for a r
   const steps = read.jobs.run.steps;
   const gate = steps.find((step) => step.id === "gate").with;
   // evaluate() refuses a dotted path literal, so the expressions are matched whole.
-  assert.equal(gate["run-dispatcher-workflow"], "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-feedback-dispatch.yml' || '' }}");
+  assert.equal(gate["run-dispatcher-workflow"], "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-dispatch-feedback.yml' || '' }}");
   assert.equal(
     gate["run-dispatcher-upstreams"],
     "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}",
@@ -6452,7 +6452,7 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   assert.equal(upload.with.name, "feedback-context-${{ github.run_attempt }}");
 });
 
-test("pr-run-activity-read.yml: a pr-feedback-dispatch.yml dispatch passes the trigger gate on the same terms as the write runner's", () => {
+test("pr-run-activity-read.yml: a pr-dispatch-feedback.yml dispatch passes the trigger gate on the same terms as the write runner's", () => {
   const gateOf = (file) => workflow(file).jobs.run.steps.find((s) => s.id === "gate").with;
   const read = gateOf("pr-run-activity-read.yml");
   const write = gateOf("pr-run-activity-write.yml");

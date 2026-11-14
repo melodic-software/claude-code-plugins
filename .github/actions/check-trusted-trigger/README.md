@@ -120,7 +120,7 @@ condition 1 and the actor and author parts of condition 2).
 
   Each record name is read only for its own dispatcher event.
 
-  Feedback dispatch stays person-only: a `pr-feedback-dispatch.yml` run re-run by
+  Feedback dispatch stays person-only: a `pr-dispatch-feedback.yml` run re-run by
   `github-actions[bot]` fails the `kind: human` re-runner rule above, so the lost-run reconciler
   never re-runs one. The half-hourly sweep in `.github/scripts/pr-unblock/feedback-dispatch.mjs`
   recovers a run an outage lost with a fresh attempt-1 run, which this check already trusts.
@@ -220,7 +220,7 @@ condition 1 and the actor and author parts of condition 2).
   `untrusted-actor`. This run's own re-runner is then checked as above.
 
   `ci-status-rerun-workflow` adds a second recorder for the upstream run only:
-  `pr-feedback-dispatch.yml`'s `rerun-ci-status` job, which uploads
+  `pr-dispatch-feedback.yml`'s `rerun-ci-status` job, which uploads
   `rerun-ci-status-<run id>-<attempt>-<head_sha>` immediately before it re-runs a ci-status job,
   naming the attempt that re-run starts. Its upstream is a completed review run or a completed
   `pr-review-approved.yml` relay of an approval by a listed human. A github-actions[bot] upstream at attempt 2 or later is

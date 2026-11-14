@@ -1,5 +1,5 @@
 // The job if: gates that keep a pipeline workflow from starting a runner that
-// could only skip or fail: pr-feedback-dispatch.yml on a review run GitHub
+// could only skip or fail: pr-dispatch-feedback.yml on a review run GitHub
 // skipped (a draft) or cancelled (a newer push superseded it). And the gates
 // of pr-unblock.yml's address-feedback and review-dependency jobs, which a
 // skipped subscription call or a forged model-call output must not turn.
@@ -84,8 +84,8 @@ const LANE_BRANCH = "work-resolve-issue/issue-12-345-1";
 // verify, sweep or pr-merge case below also shows the relay clause admits none.
 const RELAY_ON = { "github.event.workflow_run.actor.type": "User" };
 
-test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled review run", () => {
-  const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
+test("pr-dispatch-feedback.yml starts no runner for a skipped or cancelled review run", () => {
+  const gate = jobIf("pr-dispatch-feedback.yml", "dispatch");
   const runs = (conclusion, event = "pull_request", posted = "", branch = LANE_BRANCH, passed = "", rerun = {}) =>
     evaluate(gate, {
       "github.ref": "refs/heads/main",
@@ -125,8 +125,8 @@ test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled revie
   assert.equal(runs("success", "workflow_run", "a".repeat(40), "main", "", { "github.run_attempt": "2" }), true);
 });
 
-test("pr-feedback-dispatch.yml starts no runner for a review run off a lane branch", () => {
-  const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
+test("pr-dispatch-feedback.yml starts no runner for a review run off a lane branch", () => {
+  const gate = jobIf("pr-dispatch-feedback.yml", "dispatch");
   const prefix = /startsWith\(github\.event\.workflow_run\.head_branch, '([^']+)'\)/.exec(gate)?.[1];
   assert.ok(prefix, "the dispatch gate checks the head branch");
   const runs = (branch) =>
@@ -157,8 +157,8 @@ test("pr-feedback-dispatch.yml starts no runner for a review run off a lane bran
   }
 });
 
-test("pr-feedback-dispatch.yml sweeps only after a scheduled pr-unblock-dispatch.yml run on main of this repository", () => {
-  const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
+test("pr-dispatch-feedback.yml sweeps only after a scheduled pr-unblock-dispatch.yml run on main of this repository", () => {
+  const gate = jobIf("pr-dispatch-feedback.yml", "dispatch");
   const repo = "melodic-software/claude-code-plugins";
   const runs = (overrides = {}) =>
     evaluate(gate, {
@@ -191,8 +191,8 @@ test("pr-feedback-dispatch.yml sweeps only after a scheduled pr-unblock-dispatch
   }
 });
 
-test("pr-feedback-dispatch.yml dispatches for a relayed review comment only from a person on a lane branch of this repository", () => {
-  const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
+test("pr-dispatch-feedback.yml dispatches for a relayed review comment only from a person on a lane branch of this repository", () => {
+  const gate = jobIf("pr-dispatch-feedback.yml", "dispatch");
   const repo = "melodic-software/claude-code-plugins";
   const runs = (overrides = {}) =>
     evaluate(gate, {
@@ -233,7 +233,7 @@ test("pr-feedback-dispatch.yml dispatches for a relayed review comment only from
 // event field in a step (only the job's condition reads the event).
 test("pr-review-comment-relay.yml is a workflow_run upstream and reaches no token, secret or event text in a step", () => {
   const relay = readFileSync(new URL("../../workflows/pr-review-comment-relay.yml", import.meta.url), "utf8");
-  const dispatcher = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+  const dispatcher = readFileSync(new URL("../../workflows/pr-dispatch-feedback.yml", import.meta.url), "utf8");
   assert.equal(/^name: (.+)$/m.exec(relay)?.[1], "PR Review Comment Relay");
   const upstreams = dispatcher.match(/\n    workflows: \[([^\]]*)\]\n/)[1].split(",").map((name) => name.trim());
   assert.ok(upstreams.includes("PR Review Comment Relay"));
@@ -264,23 +264,23 @@ test("pr-review-comment-relay.yml starts a runner only for a person's comment on
 
 // The relay's round passes the dispatch job's kill switch and upstream status
 // checks like every other upstream: the dispatch step runs behind both.
-test("pr-feedback-dispatch.yml dispatches only behind the kill switch, for a relayed round too", () => {
-  const block = jobBlock("pr-feedback-dispatch.yml", "dispatch");
+test("pr-dispatch-feedback.yml dispatches only behind the kill switch, for a relayed round too", () => {
+  const block = jobBlock("pr-dispatch-feedback.yml", "dispatch");
   const at = block.findIndex((line) => line.trim() === "- name: Dispatch address-feedback");
   assert.notEqual(at, -1);
   const gate = ifAt(block, block.findIndex((line, i) => i > at && /^ {8}if: /.test(line)), 8);
   assert.match(gate, /steps\.kill\.outputs\.proceed == 'true'/);
 });
 
-// A needs-human unlabel reaches pr-feedback-dispatch.yml only through this
+// A needs-human unlabel reaches pr-dispatch-feedback.yml only through this
 // run's completion, so dropping the type strands a head the human gate skipped.
 test("pr-merge.yml wakes on a pull request's unlabeled event", () => {
   const text = readFileSync(new URL("../../workflows/pr-merge.yml", import.meta.url), "utf8");
   assert.match(text, /\n {2}pull_request_target:.*\n {4}types: \[unlabeled\]\n/);
 });
 
-test("pr-feedback-dispatch.yml decides a lane branch's head again after a pull_request_target run of pr-merge.yml, whatever its conclusion", () => {
-  const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
+test("pr-dispatch-feedback.yml decides a lane branch's head again after a pull_request_target run of pr-merge.yml, whatever its conclusion", () => {
+  const gate = jobIf("pr-dispatch-feedback.yml", "dispatch");
   const repo = "melodic-software/claude-code-plugins";
   const runs = (overrides = {}) =>
     evaluate(gate, {
@@ -310,12 +310,12 @@ test("pr-feedback-dispatch.yml decides a lane branch's head again after a pull_r
   ]) {
     assert.equal(runs(overrides), false, label);
   }
-  const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+  const text = readFileSync(new URL("../../workflows/pr-dispatch-feedback.yml", import.meta.url), "utf8");
   assert.match(text, /\n    workflows: \[[^\]]*\bPR Merge\b[^\]]*\]\n/, "PR Merge is a workflow_run upstream");
 });
 
-test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of main", () => {
-  const gate = jobIf("pr-feedback-dispatch.yml", "post-verify-notes");
+test("pr-dispatch-feedback.yml posts verifier notes only for a pr-verify run of main", () => {
+  const gate = jobIf("pr-dispatch-feedback.yml", "post-verify-notes");
   const repo = "melodic-software/claude-code-plugins";
   const runs = (overrides = {}) =>
     evaluate(gate, {
@@ -343,8 +343,8 @@ test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of 
 
 // Every same-repository PR's completed review re-runs its head's ci-status,
 // whatever the branch: ci-status needs both review lanes on the head.
-test("pr-feedback-dispatch.yml re-runs ci-status for a completed review run of a same-repository PR only", () => {
-  const gate = jobIf("pr-feedback-dispatch.yml", "rerun-ci-status");
+test("pr-dispatch-feedback.yml re-runs ci-status for a completed review run of a same-repository PR only", () => {
+  const gate = jobIf("pr-dispatch-feedback.yml", "rerun-ci-status");
   const repo = "melodic-software/claude-code-plugins";
   const runs = (overrides = {}) =>
     evaluate(gate, {
@@ -375,8 +375,8 @@ test("pr-feedback-dispatch.yml re-runs ci-status for a completed review run of a
 
 // A relayed approval changes what ci-status reads, so it re-runs it too. A
 // pr-unblock run does not: ci-status reads no pr-unblock/* status.
-test("pr-feedback-dispatch.yml re-runs ci-status after a relayed review, not a pr-unblock dispatch on main", () => {
-  const gate = jobIf("pr-feedback-dispatch.yml", "rerun-ci-status");
+test("pr-dispatch-feedback.yml re-runs ci-status after a relayed review, not a pr-unblock dispatch on main", () => {
+  const gate = jobIf("pr-dispatch-feedback.yml", "rerun-ci-status");
   const repo = "melodic-software/claude-code-plugins";
   const base = {
     "github.ref": "refs/heads/main",
@@ -408,7 +408,7 @@ test("pr-feedback-dispatch.yml re-runs ci-status after a relayed review, not a p
   assert.equal(review({ "github.event.workflow_run.event": "pull_request" }), false);
   assert.equal(review({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
   assert.equal(review({ "github.ref": "refs/heads/feat/x" }), false);
-  const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+  const text = readFileSync(new URL("../../workflows/pr-dispatch-feedback.yml", import.meta.url), "utf8");
   const upstreams = text.match(/\n    workflows: \[([^\]]*)\]\n/)[1].split(",").map((name) => name.trim());
   assert.ok(upstreams.includes("PR Review Approved"), "PR Review Approved is a workflow_run upstream");
   assert.ok(!upstreams.includes("PR Unblock"), "PR Unblock is no workflow_run upstream");
@@ -1169,8 +1169,8 @@ test("every read-runner lane starts its fallback call only on its handoff jobs' 
 // post-verify-notes takes a pass or pass-notes verdict as well as a fail, by
 // write-verdict.mjs NAME's grammar: `-i` is a fail's alone. A verdict-shaped
 // name its filter drops fails the run.
-test("pr-feedback-dispatch.yml: post-verify-notes reads the names write-verdict.mjs NAME allows, pass names included", () => {
-  const step = jobBlock("pr-feedback-dispatch.yml", "post-verify-notes").join("\n").split("\n      - name: ").find((text) => text.startsWith("Download the verdict"));
+test("pr-dispatch-feedback.yml: post-verify-notes reads the names write-verdict.mjs NAME allows, pass names included", () => {
+  const step = jobBlock("pr-dispatch-feedback.yml", "post-verify-notes").join("\n").split("\n      - name: ").find((text) => text.startsWith("Download the verdict"));
   assert.ok(step, "the download step");
   const listFilter = /listed=\$\(jq -r '([^']+)' <<<"\$listing"\)/.exec(step)?.[1];
   const nameFilter = /names=\$\(jq -Rr '([^']+)' <<<"\$listed"\)/.exec(step)?.[1];
@@ -1200,8 +1200,8 @@ test("pr-feedback-dispatch.yml: post-verify-notes reads the names write-verdict.
   }
 });
 
-test("pr-feedback-dispatch.yml: a newer completion at a head queues behind a pending one, never cancels it", () => {
-  const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+test("pr-dispatch-feedback.yml: a newer completion at a head queues behind a pending one, never cancels it", () => {
+  const text = readFileSync(new URL("../../workflows/pr-dispatch-feedback.yml", import.meta.url), "utf8");
   const block = /\nconcurrency:\n((?: {2}.*\n)+)/.exec(text);
   assert.ok(block, "the workflow sets top-level concurrency");
   assert.match(block[1], /^ {2}cancel-in-progress: false$/m);
@@ -1232,7 +1232,7 @@ function stepScript(step) {
 // carries no verdict; the reconciler re-runs that run itself. Only a run that
 // finished, and so may hold a verdict, is recorded by failing this job.
 test("post-verify-notes fails at the kill switch only for a pr-verify run that succeeded", () => {
-  const step = stepBlock("pr-feedback-dispatch.yml", "post-verify-notes", "Stop on the kill switch");
+  const step = stepBlock("pr-dispatch-feedback.yml", "post-verify-notes", "Stop on the kill switch");
   const gate = ifAt(step, step.findIndex((line) => /^ {8}if: /.test(line)), 8);
   const fails = (proceed, conclusion) => evaluate(gate, { "steps.kill.outputs.proceed": proceed, "github.event.workflow_run.conclusion": conclusion });
   assert.equal(fails("false", "success"), true);
@@ -1242,7 +1242,7 @@ test("post-verify-notes fails at the kill switch only for a pr-verify run that s
 });
 
 test("post-verify-notes names a deferred verdict exactly as recoverDeferred reads it", () => {
-  const script = stepScript(stepBlock("pr-feedback-dispatch.yml", "post-verify-notes", "Name the deferred verdict"));
+  const script = stepScript(stepBlock("pr-dispatch-feedback.yml", "post-verify-notes", "Name the deferred verdict"));
   const dir = mkdtempSync(join(tmpdir(), "deferred-name-"));
   try {
     for (const [fail, pass, verdict] of [["a".repeat(40), "", "fail"], ["", "b".repeat(40), "pass"]]) {
