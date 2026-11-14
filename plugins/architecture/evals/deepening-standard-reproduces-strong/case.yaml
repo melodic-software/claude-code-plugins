@@ -11,8 +11,8 @@ execution:
 graders:
   - name: no-skip-token
     type: regex
-    pattern: 'verification[*_`\\]*:[*_`\s\\]*skipped'
-    flags: 'i'
+    pattern: '^[ \t>*`-]*phase-1\.5[*_`\\]*:[*_` \t\\]*verification[*_`\\]*:[*_` \t\\]*skipped'
+    flags: 'im'
     match: 'not_contains'
     target: 'last_message'
   - name: phase-counts
