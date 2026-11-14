@@ -129,6 +129,8 @@ End the file with two lines: `phase-1.5: downgraded=<n> dropped=<n> corrected=<n
 
 The candidate keeps the defect as evidence for the refactor.
 
+**Review-class problems belong to the skills that own them.** A scan also sees problems that are not about module shape: types that opt out of checking, errors caught and discarded, a hard-coded value that should be read from data. Keep each as evidence on the candidate it belongs to, add no finding or badge for it, and name the owning skill once in the reply: `/code-metrics:audit type-debt` (if that plugin is installed) for typing, `/review:quality-gate code` (if that plugin is installed) for the rest. Without either plugin, say that these were seen and not assessed.
+
 Phase 2 proposes no interfaces. Once the report is written, the reply opens with the decision now up to the user, names the top recommendation, gives the report path (when one was written) and the artifact path, and asks: "Which candidate should we explore?"
 
 ## Phase 3: Interview loop on selected candidates
