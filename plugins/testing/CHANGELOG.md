@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.3] - 2026-11-14
+
+### Changed
+
+- `/testing:setup check` names a detected test-file language it has no lint check for, with a
+  `NONE` line that is not a finding, instead of passing over it.
+
 ## [5.0.2] - 2026-11-14
 
 ### Changed
