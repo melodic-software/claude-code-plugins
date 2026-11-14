@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.1] - 2026-11-14
+
+### Changed
+
+- The shared check library reads the merge heads once per run. No behavior change for this hook, which reads the staged diff directly. Installed hooks report drift until reinstalled.
+
 ## [1.2.0] - 2026-11-13
 
 ### Changed

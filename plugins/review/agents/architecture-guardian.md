@@ -48,6 +48,10 @@ it resolves to under a given session model is read live from the pointer below.
    state that committed changes were not reviewed.
 3. Map which architectural layer or module each changed file belongs to.
 
+## Turn budget
+
+The cap is `maxTurns: 30` and a large change set can exhaust it before any report is written. Stop gathering by turn 22 at the latest and spend the remaining turns writing the report. Review dependency-direction and project-reference changes first, then the rest. End the report by naming the changed files you did not reach, or by stating that every changed file was reviewed.
+
 ## What to review
 
 Review against whichever architectural patterns the code actually uses. Apply them contextually, not dogmatically. Half-applied patterns are worse than no pattern.

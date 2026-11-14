@@ -208,7 +208,13 @@
       "description": "Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Default 2. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block.",
       "default": 2,
       "min": 1
+    },
+    "deny_on_crash": {
+      "type": "string",
+      "title": "Guards that deny the call when they crash",
+      "description": "Comma-separated guard names (e.g. block-dangerous-git) whose crash denies the tool call instead of allowing it with the guard-did-not-run notice. Empty, the default, lets every crashed guard allow with the notice. An unknown name is reported and ignored. Team-file layer: README Option details.",
+      "default": ""
     }
   },
-  "version": "3.3.0"
+  "version": "3.4.1"
 }

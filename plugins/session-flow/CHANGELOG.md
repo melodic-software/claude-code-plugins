@@ -1,5 +1,39 @@
 # Changelog: session-flow plugin
 
+## [9.0.2] - 2026-11-14
+
+### Fixed
+
+- `/session-flow:retro session` judges each line it assesses in `CLAUDE.md`, `AGENTS.md` or a rules file against `/docs-hygiene:write-for-agents`. When that skill is not available, the report now says so whenever it assesses such a line, a no-op row or a judgment call included; before, only a finding triggered it. The `says-no-yardstick` grader of the `re-session-noop-steering-line` eval looks for this statement, and no measured run had made it.
+
+- `retro` session mode reads the score history with one Read tool call of its own and treats a missing file or a denied read as no history, instead of checking that the file exists through Bash. A `claude plugin eval` run no longer reads INVALID because the sandbox denied a chained `ls` of the plugin's data directory.
+
+## [9.0.1] - 2026-11-14
+
+### Changed
+
+- The verification level reader now reads the team file through the shared default-branch reader, `lib/default-branch-file.sh`, which this plugin now carries; levels and messages are unchanged.
+
+- `recommend-skills`' candidate ladder now describes the generated skill cheat sheet as also carrying each skill's actions and successors, read from its `argument-hint` and `## Next` section.
+
+## [9.0.0] - 2026-11-14
+
+### Changed
+
+- The bundled enforcement-ladder copy is now 3.0.0: five tiers, with a new Tier 3 Verification (`runtime-verification`, and `formal-verification` as opt-in) between static analysis and guidance, so Guidance is now tier 4 and Human only tier 5. The rung id `semgrep-rule` is renamed `syntax-pattern-rule` and is read as an alias, with a printed notice, through 3.x. `custom-analyzer` and `architecture-test` are defined by capability, and the ladder adds a Proportion section and an Order of work section.
+
+### Fixed
+
+- **`continue-in-background` drafts a completion condition without the `planning` plugin.** It calls `/planning:draft-goal-condition` only when `planning` is installed; otherwise it drafts the condition inline and says once what `planning` would add.
+
+## [8.3.0] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+- **`audit-sessions pr` hands over that pull request's own review comments.** It now calls `/corrections:codify reviews --pr <n> --repo <owner/repo>` for an open or merged PR in any repository, in place of the last merged PRs of the current checkout. For a PR outside the current checkout's repository that action lists the lessons and proposes nothing.
+
 ## [8.2.0] - 2026-11-13
 
 ### Added

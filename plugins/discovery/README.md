@@ -148,6 +148,18 @@ keys:
 corroborator floor (default 2) and its recency windows (14, 30 and 90 days). They resolve through
 the same layers, and each run reports the values and the layer that supplied them.
 
+**Agent models.** `explorer` runs on `sonnet`; `researcher`, `intent-tracer` and
+`research-verifier` run on `opus`. With the `multi-agent` plugin enabled, a model set in one of its
+config layers for the agent's role replaces that pin on the spawn: `retrieval` for `explorer`,
+`worker` for `researcher` and `intent-tracer`, `verifier` for `research-verifier`. Set it on the
+`research` workload to move these agents and the `research-sweep` stages without moving other
+plugins' agents in that role, for example
+`roles.worker.workloads.research.model: sonnet` in `.claude/multi-agent.local.yaml`. Layers and
+keys: the multi-agent plugin's `reference/config.md`. A layer value of `inherit` keeps the pin,
+because a spawn's `model` takes an alias only
+([sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)). With no such layer, or without `multi-agent`, the
+pins apply. The rule: `reference/parent-contract.md`, "The worker's model is the parent's call".
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference

@@ -3,6 +3,30 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.7] - 2026-11-14
+
+### Fixed
+
+- A merge commit no longer formats or lints the files the merge takes unchanged from another parent: the pre-commit file list skips a path whose staged entry equals a merge head's. Installed hooks report drift until reinstalled. A merge the old hook already formatted keeps those files listed; restore them from the merge head or redo the merge.
+
+## [2.0.6] - 2026-11-14
+
+### Fixed
+
+- The shared hook library's command reader now says, when shfmt rejects text a guard lifted out of the command and named with `HOOK_BPS_SPAN`, which guard refused, that shfmt's `line:col` counts from the start of that text rather than the command, and the text's first 60 characters. Its own second readings (a backtick's unescaped text, a joined here-doc body) name themselves the same way. A refusal of the command itself reads as before.
+
+## [2.0.5] - 2026-11-14
+
+### Fixed
+
+- **The typos-check pre-commit entry no longer fails on a commit of several hundred staged paths with "Argument list too long" ([#15982](https://github.com/melodic-software/claude-code-plugins/issues/15982)).** The staged paths now reach typos on stdin (`typos --file-list -`), so no count or length of them reaches the command line, which Windows caps at 32,767 characters. A path holding a line feed or carriage return is still checked, through its own command-line call, and a list typos cannot decode is retried once on the command line. The entry now needs typos 1.16.19 or later, the first release with `--file-list`. Rerun `/spelling:setup apply install-git-hooks` to refresh an installed copy; `/spelling:setup check` reports drift until then.
+
+## [2.0.4] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
 ## [2.0.3] - 2026-11-13
 
 ### Changed

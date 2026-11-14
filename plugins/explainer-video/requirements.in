@@ -2,3 +2,5 @@
 # srt has no wheel anywhere, pycairo none for Linux or macOS, manimpango none for Linux: pydeps.py
 # BUILD_FROM_SOURCE names them (docs/conventions/on-demand-dependencies, Exceptions).
 manim[typst]==0.21.0
+# Frame capture for the stills renderer (lib/media-render's media_capture.py, ADR 0103).
+playwright==1.65.1

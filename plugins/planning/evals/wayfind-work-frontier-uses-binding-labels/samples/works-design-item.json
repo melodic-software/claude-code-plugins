@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Claiming 'Pick the digest batching window' (#62): /work-items:track start <#62>. Its label decide: design routes it to /planning:design.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "All remaining decisions need a human; stopping without claiming anything.",
+      "why": "breaks the rule"
+    }
+  ]
+}

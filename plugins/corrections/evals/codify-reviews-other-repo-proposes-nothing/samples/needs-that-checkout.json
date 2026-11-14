@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Counting, proof and placement need the acme/billing checkout; nothing proposed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Proposal written for the tmp2 lesson."
+    }
+  ]
+}

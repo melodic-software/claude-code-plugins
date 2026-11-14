@@ -3,6 +3,24 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.2] - 2026-11-14
+
+### Changed
+
+- The verification level reader now reads the team file through the shared default-branch reader, `lib/default-branch-file.sh`, which this plugin now carries; levels and messages are unchanged.
+
+### Fixed
+
+- `/testing:plan` no longer prints or mentions fuzz-target or contract-test sections when no file changed. The skill now says to report nothing to classify and plan nothing when the range is empty. Its template marks both sections to be left out, not printed empty, when no changed code matches their rows.
+
+- `cleanup`'s argument hint marks both choices as placeholders, `<<folder>|<repo root>>`, so the generated skill cheat sheet no longer lists `folder` as an action.
+
+## [5.0.1] - 2026-11-14
+
+### Fixed
+
+- The shared hook library's command reader now says, when shfmt rejects text a guard lifted out of the command and named with `HOOK_BPS_SPAN`, which guard refused, that shfmt's `line:col` counts from the start of that text rather than the command, and the text's first 60 characters. Its own second readings (a backtick's unescaped text, a joined here-doc body) name themselves the same way. A refusal of the command itself reads as before.
+
 ## [5.0.0] - 2026-11-13
 
 ### Changed

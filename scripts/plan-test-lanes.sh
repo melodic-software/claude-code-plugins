@@ -17,7 +17,9 @@
 #                             speech suites), inventory, duckdb, visualcheck, browser
 #                             (the shared-page UI and alignment suites, which drive Chromium), lefthook
 #                             (the guardrails remote's end-to-end suite), demovideo (the
-#                             demo-video shell suite: its locked requirements and ffmpeg)
+#                             demo-video shell suite: its locked requirements and ffmpeg), mediarender
+#                             (the media-render and explainer-video suites: lib/media-render's locked
+#                             Playwright for Python and its Chromium)
 #   node_packages             the Node packages to install and test, space-separated
 #   windows_jobs              the pr-test-platforms.yml jobs to run, a JSON list
 #   windows_steps             the pr-test-platforms.yml steps to run, a JSON list of the keys
@@ -397,6 +399,7 @@ pack() {
         if (p ~ /^plugins\/planning\/shared\/tests\/(ui|align)-[a-z]\.test\.sh$/) s = s " browser"
         if (p == "plugins/guardrails/git-hooks/lefthook-remote.test.sh") s = s " lefthook"
         if (p == "plugins/playwright/skills/demo-video/scripts/demo-video.test.sh") s = s " demovideo"
+        if (p == "lib/media-render/media-render.test.sh" || p == "plugins/explainer-video/scripts/explainer-video.test.sh") s = s " mediarender"
         return s
       }
       {
@@ -425,7 +428,7 @@ pack() {
           for (k in w) if (w[k] != "") has[best, w[k]] = 1
         }
         legsj = ""; planj = ""; needsj = ""; loads = ""
-        nt = split("animation inventory duckdb visualcheck browser lefthook demovideo", toolchain, " ")
+        nt = split("animation inventory duckdb visualcheck browser lefthook demovideo mediarender", toolchain, " ")
         for (l = 0; l < legs; l++) {
           s = ""
           for (k = 1; k <= nt; k++) if ((l, toolchain[k]) in has) s = s " " toolchain[k]

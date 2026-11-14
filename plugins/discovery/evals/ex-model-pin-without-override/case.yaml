@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: ex-model-pin-without-override
+description: "With multi-agent enabled and no config layer, route reports every role from the bundled layer, so the explorer spawn passes no model and the definition's sonnet pin applies. multi-agent-stub stands in for the multi-agent plugin and prints that bundled map. A run needs --scaffold --allow-tools Bash,Edit,Write and --ablation none, because the baseline arm cannot dispatch the agent."
+tags: [explore, agent-model, multi-agent]
+plugins: ["../..", "multi-agent-stub"]
+runs: 3
+expected_outcome: "The skill runs /multi-agent:route, sees no basis of config for the retrieval role, and dispatches discovery:explorer with no model parameter."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
+  max_turns: 40
+  timeout_seconds: 1200
+graders:
+  - name: route-consulted
+    type: tool_used
+    tool: Skill
+    input_match: '"skill":"(?:multi-agent:)?route"'
+    min: 1
+    arm: with-only
+  - name: explorer-without-model
+    type: tool_used
+    tool: Agent
+    input_match: '^(?=.*"subagent_type":"discovery:explorer")(?!.*"model":)'
+    min: 1
+    arm: with-only

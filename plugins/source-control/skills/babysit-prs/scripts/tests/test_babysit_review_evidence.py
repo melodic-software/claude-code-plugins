@@ -408,16 +408,40 @@ class StatusJobNameTests(Base):
         for name, lane in {
             "PR Review / review-status": "claude-review",
             "pr-review / review-status": "claude-review",
+            "PR Review / claude-review-status": "claude-review",
             "pr-review / claude-review-status": "claude-review",
             "PR Review Security / review-status": "claude-security-review",
             "pr-review-security / review-status": "claude-security-review",
+            "PR Review Security / security-review": "claude-security-review",
             "pr-review-security / security-review": "claude-security-review",
+            "PR Review / security-review": "",
             "other / review-status": "",
             "review-status": "",
+            "PR Review / Status": "claude-review",
+            "pr-review / Status": "claude-review",
+            "PR Review / Claude": "claude-review",
+            "pr-review / Claude": "claude-review",
+            "PR Review Security / Status": "claude-security-review",
+            "pr-review-security / Status": "claude-security-review",
+            "PR Review Security / Claude": "claude-security-review",
+            "pr-review-security / Claude": "claude-security-review",
+            "other / Status": "",
+            "other / Claude": "",
+            "Status": "",
+            "Claude": "",
             None: "",
         }.items():
             with self.subTest(job=name):
                 self.assertEqual(ev.lane_of_job(name), lane)
+
+    def test_the_lane_run_cache_key_stays_on_the_old_status_job_segment(
+        self,
+    ) -> None:
+        # babysit_gh.py keys its lane-run cache on the first name's last
+        # segment, so the Title Case names come after an old one.
+        for lane, (_, jobs) in ev.LANES.items():
+            with self.subTest(lane=lane):
+                self.assertEqual(jobs[0].rsplit(" / ", 1)[-1], "review-status")
 
 
 class LostEvidenceTests(Base):

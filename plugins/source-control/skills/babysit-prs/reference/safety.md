@@ -845,9 +845,15 @@ The AI review checks are the review lane's `PR Review / review-status` (`pr-revi
 review-status` on a head tested before the rename) or `claude-review-status` (matched by that job
 segment under any caller, e.g. `review /` or `pr-review /`) and the security lane's
 `PR Review Security / review-status`, `pr-review-security / review-status`,
-`security-review / security-review` or `pr-review-security / security-review` (matched by its
+`security-review / security-review`, `PR Review Security / security-review` or
+`pr-review-security / security-review` (matched by its
 whole name, never by the job segment alone; every name holds while old and new callers coexist),
-plus any `claude-security-review-status` check the rollup carries. Their names are
+plus any `claude-security-review-status` check the rollup carries. ci-workflows' Title Case job
+names count too, each only as a whole name, since both lanes share the segment: the review lane's
+`PR Review / Status`, `pr-review / Status`, `PR Review / Claude`, `pr-review / Claude` or
+`pr-review-no-bots / Claude`, and the security lane's `PR Review Security / Status`,
+`pr-review-security / Status`, `PR Review Security / Claude` or `pr-review-security / Claude`.
+Their names are
 `<caller job name> / <reusable job name>`: the caller's display name, or its job id where it sets
 none, from the caller components synced from standards, then the ci-workflows reusable's job.
 
@@ -936,7 +942,7 @@ standalone invocation, `/source-control:pull-request`. The one thing that does i
 whose auto-merge an App turned off; a person's disarm keeps it off.
 
 A push by a writer leaves an auto-merge armed (by a person, or before this rule), and the new head
-would merge on `ci-status` alone.
+would merge on `CI Status` alone.
 Verified 2026-09-26 against GitHub's [Automatically merging a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request),
 which disables auto-merge only when "someone without write permissions pushes new changes to the
 head branch or switches the base branch". Recheck when that page names another event that disables

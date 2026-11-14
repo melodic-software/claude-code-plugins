@@ -3,6 +3,50 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.1] - 2026-11-14
+
+### Changed
+
+- The shared check library reads the merge heads once per run. No behavior change for these hooks: the pre-commit content scan does not list files through the library's file list. Installed hooks report drift until reinstalled.
+
+### Fixed
+
+- `block-root-delete-target` no longer refuses a python or node program fed on a quoted heredoc (`python3 - <<'EOF'`, `node - <<'EOF'`) because a backtick or `$(` span in its strings holds a word like "form" and a paren. Such a span is still read when it holds a `$`, a glob, brace, pipe or redirection character, a backslash other than `\n`, `\t` or `\r`, or a deleter, shell or eval word at the start of a word, also after the shell joins quoted pieces (`r""m`); any other heredoc shape is scanned as before.
+
+## [3.4.0] - 2026-11-14
+
+### Added
+
+- **A repository or user can choose which guards deny the call when they crash ([#15992](https://github.com/melodic-software/claude-code-plugins/issues/15992)).** The new `deny_on_crash` option (comma-separated guard names, empty by default), or a `deny_on_crash` list in a repository's `docs/conventions/guardrails.yaml` at its local `origin/HEAD`, names `PreToolUse` guards whose crash denies the tool call. Such a guard exits as a block, and its "guard did not run" notice says the call was denied and how to take the guard off the list. A guard neither layer names still allows the call with the notice, as before. An unknown name, `all` and `*` included, is ignored and reported in the crash notice. The setting is read only when a guard crashes, so a call that does not crash starts no extra process.
+
+### Fixed
+
+- When `block-root-delete-target` cannot parse a substitution or here-doc body, or a program a shell reads, that it lifted out of the command, its refusal now names the guard, says that shfmt's `line:col` counts from the start of that body rather than the command, and shows the body's first 60 characters. The shared command reader's own second readings (a backtick's unescaped text, a joined here-doc body) name themselves the same way. A refusal of the command itself reads as before.
+
+## [3.3.3] - 2026-11-14
+
+### Changed
+
+- **pre-commit-content finds the files a merge takes unchanged from another parent with one git diff per parent, instead of one git process per file.**
+
+### Fixed
+
+- **pre-push-content no longer takes minutes on a pushed merge whose diff against a parent touches many files ([#15980](https://github.com/melodic-software/claude-code-plugins/issues/15980)).** It ran git several times for every file in each parent's diff, and the remote could close the connection and fail the push while the hook ran. It now reads only the files the merge changes against every parent, one git process each, plus a fixed number of diffs per parent. A non-merge commit's files cost one git process each instead of three. A file holding a NUL byte is still judged whole for secrets.
+- **pre-push-content now judges the lines a merge adds in a file that a parent other than the first holds as a symlink or a submodule.** Those lines were dropped before they were judged.
+- **pre-commit-content and pre-push-content now judge a merged file whose bytes equal another parent's but whose mode differs.** Such a file was skipped as taken whole from that parent. A regular file that a merge makes from another parent's symlink, holding the link's target text, is now judged like any other file the merge changes. A file judged whole (one holding a NUL byte, or whose name holds a quote, a backslash or a control character) is now judged when only its mode differs from that parent's.
+
+## [3.3.2] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+## [3.3.1] - 2026-11-14
+
+### Fixed
+
+- **block-github-post-content no longer blocks a `gh pr|issue` `--attach` file run through the Bash tool for the directory it sits in ([#15979](https://github.com/melodic-software/claude-code-plugins/issues/15979)).** gh uploads the file and posts only its alt text or base name, so under the Bash tool a home path or the project root in the operand's directory is no longer judged. The alt text, the base name, and every other word are still judged, and a secret anywhere in the operand still blocks. A home path right after the `#` (`--attach './x.png#<home path>'`) now blocks too. An operand the shell could expand, one after a dash flag without `=`, and a joined `--attach=<path>` after a word the shell could expand are still judged whole, since a flag left right before the joined word would post it. Under the PowerShell tool every `--attach` operand is still judged whole, because PowerShell's argument passing to native commands can change what gh receives.
+
 ## [3.3.0] - 2026-11-13
 
 ### Added

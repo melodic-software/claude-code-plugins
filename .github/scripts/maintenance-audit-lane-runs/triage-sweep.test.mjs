@@ -16,6 +16,7 @@ import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { readRouting } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { ADMIT_MARKER, retriageNote } from "../intake-triage/admit.mjs";
+import { splitHandBack } from "../work-unblock/label-unblocked.mjs";
 import { HUMAN_ID, mirroredStatusOf, OPTION, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { issuesByStatus } from "../../actions/resolve-config/resolve-config.mjs";
@@ -873,6 +874,19 @@ test("a run from before the job rename, its jobs named by id, is classified the 
   }
 });
 
+test("a deferred triage counts as transient under the reusable's Title Case apply job and its earlier name, never under another job", async () => {
+  const renamed = (name) => DEFERRED.map((j) => (j.name === "Intake Triage / claude-intake-triage-apply" ? { ...j, name } : j));
+  for (const name of ["Intake Triage / Apply", "intake-triage / Apply", "Intake Triage / claude-intake-triage-apply"]) {
+    const result = await sweep(transientRuns(renamed(name), { 221: NOTES.deferred }));
+    assert.deepEqual([result.dispatched, result.handed], [[1], []], name);
+  }
+  for (const name of ["Intake Triage / Status", "Other / Apply", "Apply"]) {
+    const gh = transientRuns(renamed(name), { 221: NOTES.deferred });
+    await sweep(gh);
+    assert.ok(!gh.writes[1]?.body.body.includes("22~"), name);
+  }
+});
+
 test("a run whose apply failed for a reason a retry does not clear counts", async () => {
   for (const message of ["POST /repos/o/r/issues/1/labels failed with status 403", "admission failed: the rules file does not parse"]) {
     const gh = transientRuns(FAILED_500, { 220: [note("failure", "Process completed with exit code 1."), note("failure", message)] });
@@ -1087,8 +1101,11 @@ const intakeBack = (user, at) => ({ id: 7, user, body: "<!-- work-resolve-issue 
 // A pushback that may name a security risk marks its intake comment `security`.
 const securityBack = (user, at) => ({ id: 7, user, body: "<!-- work-resolve-issue outcome=intake security run=9 -->\nThe work-resolve-issue lane stopped on this issue (`pushback-means`).", created_at: at });
 
+// work-unblock's hand-back before it parks a split refusal at needs-triage.
+const splitBack = (user, at) => ({ id: 8, user, body: splitHandBack("- [ ] Line 3 says nineteen.\n- [ ] Run it on a Windows 11 host."), created_at: at });
+
 test("a lanes App hand-back newer than the state comment starts a new cycle of dispatches in the same comment", async () => {
-  for (const [filed, back] of [[null, handBack], [HANDED, handBack], [null, intakeBack], [HANDED, intakeBack], [null, securityBack]]) {
+  for (const [filed, back] of [[null, handBack], [HANDED, handBack], [null, intakeBack], [HANDED, intakeBack], [null, securityBack], [null, splitBack], [HANDED, splitBack]]) {
     const gh = fakeGitHub({
       issues: [issue(1)],
       comments: { 1: [stateAt([11, 22], filed, "2026-10-17T06:00:00Z"), back(LANES, "2026-10-18T08:00:00Z")] },

@@ -3,6 +3,12 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1] - 2026-11-14
+
+### Fixed
+
+- **`/app-control:drive` resolves an id `<module>/<part>` to a part of the module's feature file.** When the id has no feature file of its own, drive looks for the part under `## Parts` in the file `<module>` resolves to, runs that file's `## Drive` for the part, and writes which file and part it resolved; an id that matches nothing stops and names each place it looked. `/app-control:map check` adds the `part-duplicate` rule for two Parts lines that name the same part.
+
 ## [0.25.0] - 2026-11-13
 
 ### Added

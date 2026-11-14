@@ -98,6 +98,10 @@ baseline) instead of the default above.
 4. Cross-reference each factual claim against the actual code/config
 5. Report discrepancies with specific `file:line` references
 
+## Turn budget
+
+The cap is `maxTurns: 30` and a wide documentation scope can exhaust it before any table is returned. Stop gathering by turn 22 at the latest and spend the remaining turns writing the table. Audit the scope's instruction files (`CLAUDE.md`, `AGENTS.md`, project rules) first, then the other docs. End the report by naming the pages in the scope you did not reach, or by stating that every page was audited.
+
 ## Output format
 
 | Doc file | Line | Claim | Actual state | Confidence | Action |
@@ -124,9 +128,10 @@ You are a subagent and cannot ask the user questions. Flag ambiguities explicitl
 ## When you are done
 
 Your run ends with one artifact: the categorized findings table above, covering the documentation
-scope you were given. Once every page in that scope has a row or a clean result, return the table,
-and the run is over. A doc area you judge worth auditing outside that scope goes into the return as
-a named suggestion for the caller, and you do not audit it yourself.
+scope you were given. Once every page in that scope has a row or a clean result, or the stop turn
+(Turn budget, above) arrives, return the table, and the run is over. A doc area you judge worth
+auditing outside that scope goes into the return as a named suggestion for the caller, and you do
+not audit it yourself.
 
 ## Memory
 

@@ -119,7 +119,7 @@ blocks a merge whose target it cannot resolve. `--match-head-commit <sha>`, with
 literally, makes GitHub refuse the merge if the head moved. It is optional for an immediate merge
 and required with `--auto`, so auto-merge is armed only on the head the session reviewed. The pin
 does not hold after arming: a push by anyone with write access keeps auto-merge armed, and where the
-AI review checks are not required checks the new head can merge on `ci-status` alone, so an armed
+AI review checks are not required checks the new head can merge on `CI Status` alone, so an armed
 auto-merge is reported, as [confirm queue entry](#confirm-queue-entry) does. Before
 pushing to a PR with auto-merge armed, disarm it with
 `gh pr merge <pr_number> -R <owner>/<repo> --disable-auto`, and re-arm it only after the reviews
@@ -197,10 +197,16 @@ jq -e '[.[].check_runs[]] as $r
   | def lane($names): [$r[] | select(.name | IN($names[]))]
       | length > 0 and all(.status == "completed" and .conclusion == "success");
   ($r | length) == .[0].total_count
-  and lane(["PR Review / review-status", "pr-review / review-status",
-            "pr-review / claude-review-status"])
-  and lane(["PR Review Security / review-status", "pr-review-security / review-status",
-            "pr-review-security / security-review", "security-review / security-review",
+  and lane(["PR Review / Status", "pr-review / Status",
+            "PR Review / Claude", "pr-review / Claude", "pr-review-no-bots / Claude",
+            "PR Review / review-status", "pr-review / review-status",
+            "PR Review / claude-review-status", "pr-review / claude-review-status",
+            "pr-review-no-bots / claude-review-status"])
+  and lane(["PR Review Security / Status", "pr-review-security / Status",
+            "PR Review Security / Claude", "pr-review-security / Claude",
+            "PR Review Security / review-status", "pr-review-security / review-status",
+            "PR Review Security / security-review", "pr-review-security / security-review",
+            "security-review / security-review",
             "claude-security-review-status"])' <<<"$RUNS" >/dev/null \
   || { echo 'AI review not complete on the pinned head: hold' >&2; exit 1; }
 for _ in $(seq 5); do

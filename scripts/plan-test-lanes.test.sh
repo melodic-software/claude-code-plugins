@@ -223,6 +223,14 @@ is "$(key bash_plan)" '{"0":["plugins/playwright/skills/demo-video/scripts/demo-
 check "a demo-video requirements change puts the demovideo toolchain in its leg's needs" $?
 rm -rf "$repo/plugins/playwright"
 
+# The media-render and explainer-video suites capture frames with Playwright for Python.
+mk lib/media-render/media-render.test.sh "# test-scope: lib/media-render/*"
+mk plugins/explainer-video/scripts/explainer-video.test.sh "# test-scope: plugins/explainer-video/scripts/*"
+plan -- lib/media-render/media_encode.py plugins/explainer-video/scripts/stills.py
+is "$(key bash_needs)" '{"0":"mediarender"}'
+check "the media-render and explainer-video suites get the mediarender toolchain" $?
+rm -rf "$repo/lib/media-render" "$repo/plugins/explainer-video"
+
 plan -- plugins/p/p.py
 is "$(suites python)" "plugins/p/test_p.py" && is "$(key bash)" false && is "$(key python_legs)" "[0]"
 check "a Python change plans its test module on test-python, and test-bash has no work" $?

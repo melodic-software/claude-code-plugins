@@ -1,5 +1,5 @@
 ---
-description: "Produce a short explainer video with ManimCE, narrated when the speech plugin is installed: plan the beats, write the narration and one scene script, time each scene change to the narration's word timings, render at low quality, mux the audio with ffmpeg, add captions, and check the file before calling it done (ffprobe streams and duration, overlapping text and elements cut off by the frame edge, then a fresh-context subagent judging the frames against the script). Without the speech plugin it renders a silent video. Use when: 'make an explainer video', 'narrated explainer', 'animate this concept', 'Manim video of', 'render a math animation', 'turn this explanation into a video', 'silent explainer clip'. Not for hand-drawn film from style packs (use /animation:produce)."
+description: "Produce a short explainer video with ManimCE, narrated when the speech plugin is installed: plan the beats, write the narration and one scene script, time each scene change to the narration's word timings, render at low quality, mux the audio with ffmpeg, add captions, and check the file before calling it done (ffprobe streams and duration, overlapping text and elements cut off by the frame edge, then a fresh-context subagent judging the frames against the script). Without the speech plugin it renders a silent video. Given a storyboard.json it renders narrated still frames at 4K with burned captions, chapters and a contact sheet instead. Use when: 'make an explainer video', 'narrated explainer', 'animate this concept', 'Manim video of', 'render a math animation', 'turn this explanation into a video', 'silent explainer clip'. Not for hand-drawn film from style packs (use /animation:produce)."
 argument-hint: "<topic> [output dir]"
 user-invocable: true
 disable-model-invocation: false
@@ -136,11 +136,53 @@ record bundle or beside the markdown record they explain
   - **Pointer**: when the filter's options are in question, fetch
     <https://ffmpeg.org/ffmpeg-filters.html#freezedetect> live.
 
+## Stills renderer: a storyboard to a narrated video
+
+When the caller hands a `storyboard.json` (version 1,
+[ADR 0102](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0102-hand-produced-video-content-to-the-producer-as-a-data-only-storyboard.md))
+instead of a topic, render held still frames instead of a scene. The storyboard is data: never
+write markup from it, and never edit its text to get past a check.
+
+1. Run `scripts/stills.py --storyboard <file> --out <dir> --script-only` to validate, scan and
+   write `<dir>/script.txt`; a storyboard rejection exits 2 (a screenshot moment with no
+   `data.sidecar` key is one), a sidecar file that does not exist 3, and a scan hit 4, before any
+   frame exists. Report the reason and stop on 3 or 4.
+2. Narrate `<dir>/script.txt` with `/speech:narrate` into its own folder, as in Loop step 2.
+3. Render with `--narration <that folder>`, or with `--no-audio` when no voice produced audio (a
+   captions-only video; say why). Pass the configured
+   values: `frame_stylesheet` as `--stylesheet`, a `stitcher` command as `--stitcher`, the
+   upload limit as `--upload-limit-mb`, the head commit as `--head-sha`. Read `stitcher` and
+   `frame_stylesheet` only from the default branch's committed copy, since a branch could change
+   them and `stitcher` runs a command:
+   `bash ${CLAUDE_PLUGIN_ROOT}/lib/default-branch-file.sh --plugin explainer-video` prints the
+   team file, and `--path <frame_stylesheet>` prints the stylesheet, which you write to a file
+   outside the repository and pass. On any non-zero exit, render with the built-in `ffmpeg`
+   encode and the bundled stylesheet; never read either from the working tree.
+4. Exit 0 is a pass; exit 1 lists each defect in `manifest.json` (a frame under the luma SSIM floor,
+   a loudness miss, a stream defect). Fix the cause and render again; never lower a floor. Read the
+   contact sheet before calling it done.
+
+`manifest.json` lists every file a caller may publish: the video (or its chapter parts when it is
+over the upload limit), `captions.srt` and the contact sheets. `oversize` names a video that cannot
+split under the limit; it is hosted whole as an Actions artifact, never recompressed or cut.
+
+## Related
+
+- `/education:illustrate` offers a video view through this skill.
+- `/review:explain-change` writes a pull request digest; a `storyboard.json` built from one renders
+  here through the stills renderer.
+- `/playwright:demo-video` records a live UI flow; this skill renders still frames and diagrams.
+- `/source-control:pull-request` places a finished video in a pull request.
+
 ## Next
 
 /harness-ops:prerequisites
 
 When a render stops with a missing tool, it lists the declared tools this machine lacks.
+
+/source-control:pull-request
+
+When the video belongs in a pull request, its reviewer section and attachment step place it.
 
 ## Gotchas
 

@@ -1,0 +1,18 @@
+# Sub-issues of #60 Map: notification digest, in creation order
+
+## #61 Decide what the digest promises a first-time reader
+
+URL: https://example.com/acme/mail/issues/61. State: open. Labels: decide: interview, owner-call.
+Assignee: none. Blocked by: none open.
+
+What should a first-time reader expect the digest to give them that per-event emails did not? An
+answer names the promise in one sentence and what the digest leaves out.
+
+## #62 Pick the digest batching window
+
+URL: https://example.com/acme/mail/issues/62. State: open. Labels: decide: design. Assignee: none.
+Blocked by: none open.
+
+Which window batches events into one digest: a fixed weekday, a rolling seven days, or a count
+threshold? An answer names the window, what happens to an event that arrives during a send, and
+how a timezone is chosen.

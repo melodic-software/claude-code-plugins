@@ -1755,7 +1755,7 @@ jobs:
           # verify-legacy-fails.json is generated verdict data (SHAs, branch
           # names); the review revert cases' fixtures are byte copies of this
           # repository's history.
-          exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/** plugins/developer-experience/evals/sources/labels/** plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json plugins/review/evals/revert-*/fixtures/**
+          exclude: plugins/*/vendor/gitleaks/gitleaks-rules.json plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/** plugins/developer-experience/evals/sources/labels/** plugins/source-control/skills/babysit-prs/scripts/verify-legacy-fails.json plugins/review/evals/revert-*/fixtures/**
 
       # Every run scans only history the commit under test can reach, so a
       # finding on another branch cannot fail it (#3599); each branch is scanned
@@ -3603,28 +3603,28 @@ jobs:
         uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
         with:
           cache-dir: ~/.cache/ci-tools
-      # demo-video renders and probes its fixture with ffmpeg and ffprobe, which the
+      # demo-video and media-render render and probe their fixtures with ffmpeg and ffprobe, which the
       # hosted image does not carry. install-pinned-ffmpeg.sh installs both from its
       # pinned BtbN build, checked against the SHA-256 on every run. The archive is
-      # about 154 MB, so it has its own cache entry that only the demovideo leg
-      # restores and saves. The step timeout makes a stalled download fail here
+      # about 154 MB, so it has its own cache entry that only the demovideo and mediarender
+      # legs restore and save. The step timeout makes a stalled download fail here
       # instead of spending the leg.
       - name: Restore the pinned ffmpeg download
         id: ffmpeg_cache
-        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo')
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo') || contains(fromJSON(env.LEG_PLAN)[env.LEG], 'mediarender')
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools-ffmpeg
           key: ci-tools-ffmpeg-${{ runner.os }}-n8.1.3-9-g29e619e767
-      - name: Install ffmpeg for demo-video
+      - name: Install ffmpeg for demo-video and media-render
         timeout-minutes: 2
         run: |
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
-          [[ "$leg_needs" == *demovideo* ]] || exit 0
+          [[ "$leg_needs" == *demovideo* || "$leg_needs" == *mediarender* ]] || exit 0
           bash .github/scripts/lib/install-pinned-ffmpeg.sh "$HOME/.local/bin" "$HOME/.cache/ci-tools-ffmpeg"
       - name: Save the pinned ffmpeg download
-        if: github.ref == 'refs/heads/main' && contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo') && steps.ffmpeg_cache.outputs.cache-hit != 'true'
+        if: github.ref == 'refs/heads/main' && (contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo') || contains(fromJSON(env.LEG_PLAN)[env.LEG], 'mediarender')) && steps.ffmpeg_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools-ffmpeg
@@ -3654,11 +3654,14 @@ jobs:
         run: |
           # Each lock must hold every pin its requirements.in declares, so an edit to the .in
           # without regenerating the lock fails here instead of testing a stale lock.
-          for dir in plugins/animation plugins/playwright/skills/demo-video; do
+          for dir in plugins/animation plugins/playwright/skills/demo-video lib/media-render; do
             stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' "$dir/requirements.in" | sort) \
                              <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' "$dir/requirements.txt" | sort) | paste -sd ' ')
             [ -z "$stale" ] || { echo "::error::$dir/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
           done
+          # explainer-video carries lib/media-render, so both must pin the same playwright.
+          pins=$(grep -hoE '^playwright==[^ ]+' lib/media-render/requirements.in plugins/explainer-video/requirements.in | sort -u)
+          [ "$(wc -l <<<"$pins")" -eq 1 ] || { echo "::error::lib/media-render and plugins/explainer-video pin different playwright versions: $(paste -sd ' ' <<<"$pins")"; exit 1; }
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
@@ -3673,7 +3676,15 @@ jobs:
           if [[ "$leg_needs" == *demovideo* ]]; then
             requirements+=(--requirement plugins/playwright/skills/demo-video/requirements.txt)
           fi
+          if [[ "$leg_needs" == *mediarender* ]]; then
+            requirements+=(--requirement lib/media-render/requirements.txt)
+          fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
+          # The media-render and explainer-video stills suites capture frames with Playwright for Python's own
+          # Chromium build, which can differ from the Node package's.
+          if [[ "$leg_needs" == *mediarender* ]]; then
+            python -m playwright install --only-shell chromium
+          fi
           # The animation render tests and the shared-page UI suite drive the locked playwright's headless Chromium.
           if [[ "$leg_needs" == *animation* || "$leg_needs" == *browser* ]]; then
             if [[ "$PLAYWRIGHT_CACHE_HIT" == "true" ]]; then
@@ -3762,6 +3773,8 @@ jobs:
           SPEECH_REQUIRE_DEPS: '1'
           # The demo-video suite fails on a missing numpy, Pillow, ffmpeg or ffprobe here instead of skipping green.
           DEMO_VIDEO_REQUIRE_DEPS: '1'
+          # The media-render suite fails on a missing Playwright for Python, Chromium, ffmpeg or ffprobe here instead of skipping green.
+          MEDIA_RENDER_REQUIRE_DEPS: '1'
           # The inventory parser suites fail on a missing acorn here instead of skipping green.
           INVENTORY_REQUIRE_ACORN: '1'
           # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
@@ -5844,8 +5857,9 @@ jobs:
           # started before the decision.
           notices='[]' vetted='' ran='[]'
           # Each lane's status job names, `|`-separated: its caller job's
-          # display name over pr-review-cli.yml's status job, then the caller
-          # job id, the name a head tested before the rename shows.
+          # display name over pr-review-cli.yml's status job `Status`, then the
+          # caller job id, the name a head tested before the rename shows, then
+          # both over the job's earlier name `review-status`.
           while read -r file checks; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
             ran=$(jq -nc --argjson ran "$ran" --arg repo "$repo" --argjson decided "$decided_at" '$ran + [[inputs.workflow_runs[]
@@ -5876,8 +5890,8 @@ jobs:
             done < <(jq -nr --arg repo "$repo" --argjson since "$since" --argjson decided "$decided_at" '[inputs.workflow_runs[]
               | select(.head_repository.full_name == $repo)
               | select((.updated_at | fromdateiso8601) > $since or (.created_at | fromdateiso8601) < $decided) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
-          done <<<'pr-review-hosted.yml PR Review / review-status|pr-review / review-status
-          pr-review-security-hosted.yml PR Review Security / review-status|pr-review-security / review-status'
+          done <<<'pr-review-hosted.yml PR Review / Status|pr-review / Status|PR Review / review-status|pr-review / review-status
+          pr-review-security-hosted.yml PR Review Security / Status|pr-review-security / Status|PR Review Security / review-status|pr-review-security / review-status'
           # The decided head: the sha of the newest cost notice before the
           # decision that names its own run's head; none when two heads share
           # that time.
@@ -7318,11 +7332,12 @@ jobs:
           # .github/standards/trusted-actors/trusted-actors.json lists them.
           exempt_author_ids='49699333 337859524 300666570'
           # Each lane's status job names, `|`-separated: its caller job's
-          # display name over pr-review-cli.yml's status job, the one the
-          # messages below name, then the caller job id, the name a head
-          # tested before the rename shows.
-          lanes='pr-review-hosted.yml claude-review PR Review / review-status|pr-review / review-status
-          pr-review-security-hosted.yml claude-security-review PR Review Security / review-status|pr-review-security / review-status'
+          # display name over pr-review-cli.yml's status job `Status`, the one
+          # the messages below name, then the caller job id, the name a head
+          # tested before the rename shows, then both over the job's earlier
+          # name `review-status`.
+          lanes='pr-review-hosted.yml claude-review PR Review / Status|pr-review / Status|PR Review / review-status|pr-review / review-status
+          pr-review-security-hosted.yml claude-security-review PR Review Security / Status|pr-review-security / Status|PR Review Security / review-status|pr-review-security / review-status'
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the head '$HEAD_SHA' is not a commit SHA."
             exit 1

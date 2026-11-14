@@ -3,6 +3,28 @@
 All notable changes to the `python-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.5] - 2026-11-14
+
+### Fixed
+
+- A merge commit no longer formats or lints the files the merge takes unchanged from another parent: the pre-commit file list skips a path whose staged entry equals a merge head's. Installed hooks report drift until reinstalled. A merge the old hook already formatted keeps those files listed; restore them from the merge head or redo the merge.
+
+## [2.0.4] - 2026-11-14
+
+### Fixed
+
+- The shared hook library's command reader now says, when shfmt rejects text a guard lifted out of the command and named with `HOOK_BPS_SPAN`, which guard refused, that shfmt's `line:col` counts from the start of that text rather than the command, and the text's first 60 characters. Its own second readings (a backtick's unescaped text, a joined here-doc body) name themselves the same way. A refusal of the command itself reads as before.
+
+## [2.0.3] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+### Fixed
+
+- **The ruff-check pre-commit hook now passes the staged Python paths to Ruff through an argfile, a file Ruff reads its arguments from ([#15997](https://github.com/melodic-software/claude-code-plugins/issues/15997)).** Before, all the paths went on the command line. On Windows, a commit whose paths totaled more than 32,767 characters could not start Ruff: nothing was formatted, and the commit was blocked with `python-format: ruff failed:`. The hook now writes the paths one per line to a file in the git dir and passes `@<file>` to `ruff check --fix`, `ruff format` and `ruff check --no-fix`. It removes the file when it exits. A path holding a CR or LF cannot be an argfile line, so it still goes on the command line. The config's excludes (`--force-exclude`) still apply to the listed paths.
+
 ## [2.0.2] - 2026-11-13
 
 ### Changed

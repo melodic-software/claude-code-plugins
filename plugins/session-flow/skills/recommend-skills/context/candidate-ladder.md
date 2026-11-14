@@ -57,9 +57,9 @@ which states it dropped.
 
 **Rung 2's shape.** The consuming project publishes a catalog at a documented path it declares; a
 marketplace that generates one already has the right artifact shape. In the source marketplace here,
-`docs/skill-cheat-sheet.md` is generated from skill frontmatter by `scripts/generate-cheatsheet.mjs`
-and CI-enforced against drift. That is the shape to accept, since it already carries per-skill
-stage grouping and a one-line summary. Do **not** hardcode that path: the file lives outside any
+`docs/skill-cheat-sheet.md` is generated from skill frontmatter and each skill's `## Next` section by
+`scripts/generate-cheatsheet.mjs` and CI-enforced against drift. That is the shape to accept, since
+it already carries per-skill stage grouping, a one-line summary, actions and successors. Do **not** hardcode that path: the file lives outside any
 plugin directory, so a plugin copied into a cache cannot reach it, and a consuming repo will not
 have it. Resolve whatever path the project declares; if none is declared, this rung is simply absent.
 

@@ -38,7 +38,9 @@
 # suite runs on some leg whatever this file says.
 # The five block-root-delete-target*.test.sh rows split the unsplit suite's
 # 441 s main median (#12513) by each part's share of one local run, 471 s
-# unsplit against 118, 112, 94, 66 and 49 s for the parts.
+# unsplit against 118, 112, 94, 66 and 49 s for the parts. The first part's
+# 305 s main run of 2026-11-14 is split the same way between it and the -f
+# part: 88 and 45 s locally.
 .claude/hooks/cloud-bootstrap-author.test.sh 1
 .claude/hooks/cloud-bootstrap-plugins.test.sh 4
 .claude/hooks/hook-telemetry-sink.test.sh 1
@@ -264,7 +266,8 @@ plugins/guardrails/hooks/block-root-delete-target-b.test.sh 105
 plugins/guardrails/hooks/block-root-delete-target-c.test.sh 88
 plugins/guardrails/hooks/block-root-delete-target-d.test.sh 62
 plugins/guardrails/hooks/block-root-delete-target-e.test.sh 46
-plugins/guardrails/hooks/block-root-delete-target.test.sh 110
+plugins/guardrails/hooks/block-root-delete-target-f.test.sh 103
+plugins/guardrails/hooks/block-root-delete-target.test.sh 202
 plugins/guardrails/hooks/block-unresolved-pr-merge.test.sh 28
 plugins/guardrails/hooks/block-windows-drive-tmp.test.sh 10
 plugins/guardrails/hooks/cli-flag-verify.test.sh 5

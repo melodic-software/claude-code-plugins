@@ -88,11 +88,14 @@ completion condition, armed as its `/goal`. Settle it while producing the save-p
    this session, which otherwise keeps starting turns after the STOP. When the engine doc's
    condition check ("Check the condition before emitting the region") warns that the condition
    is conversation-bound, or omits the region because the goal is already met, that condition is
-   not launched: redraft it with `/planning:draft-goal-condition` and take case 2, or take
+   not launched: redraft it as case 2 drafts one and take case 2, or take
    case 3 when no checkable condition is left. Either way the report still advises `/goal clear`
    for the goal active here.
 2. **No goal applies** → draft one from the remaining work with `/planning:draft-goal-condition`
-   and write the save-point with it as a fresh goal; its on-screen goal region is the display.
+   (if the `planning` plugin is installed; otherwise draft inline a condition the transcript can
+   demonstrate, and say once that the `planning` plugin would pick the repetition lever and check
+   the draft against the documented condition limit) and write the save-point with it as a fresh
+   goal; its on-screen goal region is the display.
    Then ask the user to confirm the launch, and launch only on a yes: the request made over that
    condition is their approval to arm it. No answer this turn → no launch.
 3. **No checkable condition** (the lever check routes away from `/goal`, or the draft cannot pass
@@ -366,7 +369,7 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   `rev-parse` result, failing or `false`, and any hook whose absence is not established → state
   unknown, no launch, same fallback
 - [ ] Completion condition settled: an applying goal used (an active one → `/goal clear` advised
-  in the report), or one drafted with `/planning:draft-goal-condition`, shown as the goal region,
+  in the report), or one drafted as case 2 says, shown as the goal region,
   and launched only on the user's yes to it; a conversation-bound or already-met goal never
   launched as it stands, only redrafted (case 2) or left unlaunched (case 3); none → no launch, the message saying how to supply
   one, fallback to `/clear`-then-paste

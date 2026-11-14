@@ -3,6 +3,18 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.11] - 2026-11-14
+
+### Fixed
+
+- The should-it-animate frequency gate now reads `animation.skip_frequency` at every site that states it (`reference/animation/catalog.md`, `/user-interface:write-animation` step 2 and the audit motion lane's severity list), in uses per day, in place of a fixed number or "many times an hour", so changing the setting changes the gate.
+
+## [0.27.10] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
 ## [0.27.9] - 2026-11-13
 
 ### Changed

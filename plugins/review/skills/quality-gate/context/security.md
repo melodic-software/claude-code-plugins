@@ -23,6 +23,8 @@ Launch the `security-reviewer` agent with:
 - **Input**: the review diff base (SKILL.md "Shared inputs") or specific file paths
 - **Findings path**: per SKILL.md "Shared inputs" "Reviewer handback"; read the P1–P5 report from that file before folding it
 
+Then check the return is complete. An incomplete return per `<plugin-root>/reference/reviewer-handback.md` "Incomplete reply" (a partial-marked result, no report, a missing or empty file, or a `Coverage:` line that is missing or reads `Coverage: in progress`) is a **partial gate**. Recover it once as that section says, by resuming the agent. If it is still partial, the verdict and the findings artifact say the gate is partial and name what was missed. Only `Coverage: all changed files reviewed` can be clean; a partial gate never reads as clean. `Coverage: none, change set unresolved` is the agent declining to grade an unresolved base: the gate returned no result, never clean, and the agent is not resumed.
+
 The agent covers per-ecosystem injection/XSS/deserialization/path-traversal checks, the OWASP Top 10, security headers, and auth-specific checks (see the agent definition for the full baseline).
 
 ## Deep-scan escalation

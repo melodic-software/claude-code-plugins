@@ -1436,6 +1436,35 @@ class AutoMergeArming(unittest.TestCase):
             result["autoMerge"]["blockers"],
         )
 
+    def test_display_named_security_caller_check_satisfies_the_security_lane(
+        self,
+    ) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("PR Review / claude-review-status", "SUCCESS"),
+                _check("PR Review Security / security-review", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertTrue(result["autoMerge"]["ready"], result["autoMerge"])
+
+    def test_failing_display_named_security_caller_check_holds(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("PR Review / claude-review-status", "SUCCESS"),
+                _check("PR Review Security / security-review", "FAILURE"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertFalse(result["autoMerge"]["ready"], result["autoMerge"])
+        self.assertIn(
+            "AI review check 'claude-security-review-status' has not "
+            "succeeded on the live head",
+            result["autoMerge"]["blockers"],
+        )
+
     def test_pr_review_cli_review_status_checks_satisfy_both_lanes(self) -> None:
         result = self._evaluate(
             [
@@ -1500,6 +1529,70 @@ class AutoMergeArming(unittest.TestCase):
             mergeStateStatus="BLOCKED",
         )
         self.assertEqual(len(result["autoMerge"]["blockers"]), 2, result["autoMerge"])
+
+    def test_title_case_job_names_satisfy_both_lanes_under_each_caller(self) -> None:
+        for code, security in (
+            ("PR Review / Status", "PR Review Security / Status"),
+            ("pr-review / Status", "pr-review-security / Status"),
+            ("PR Review / Claude", "PR Review Security / Claude"),
+            ("pr-review / Claude", "pr-review-security / Claude"),
+            ("pr-review-no-bots / Claude", "pr-review-security / Claude"),
+        ):
+            with self.subTest(code=code, security=security):
+                result = self._evaluate(
+                    [
+                        _check("ci-status", None),
+                        _check(code, "SUCCESS"),
+                        _check(security, "SUCCESS"),
+                    ],
+                    mergeStateStatus="BLOCKED",
+                )
+                self.assertTrue(result["autoMerge"]["ready"], result["autoMerge"])
+
+    def test_title_case_job_names_count_only_under_their_own_lanes_callers(
+        self,
+    ) -> None:
+        hold = "AI review check {!r} has not succeeded on the live head"
+        for names, held in (
+            (("Claude", "Status"), ("claude-review-status", "claude-security-review-status")),
+            (("other / Claude", "other / Status"), ("claude-review-status", "claude-security-review-status")),
+            (("PR Review Security / Claude", "PR Review Security / Status"), ("claude-review-status",)),
+            (("PR Review / Claude", "pr-review / Status"), ("claude-security-review-status",)),
+        ):
+            with self.subTest(names=names):
+                result = self._evaluate(
+                    [
+                        _check("ci-status", None),
+                        *(_check(name, "SUCCESS") for name in names),
+                    ],
+                    mergeStateStatus="BLOCKED",
+                )
+                blockers = result["autoMerge"]["blockers"]
+                for lane in held:
+                    self.assertIn(hold.format(lane), blockers)
+
+    def test_a_failing_title_case_check_holds_its_lane_beside_a_green_old_name(
+        self,
+    ) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("PR Review / review-status", "SUCCESS"),
+                _check("PR Review / Status", "FAILURE"),
+                _check("PR Review Security / Status", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        blockers = result["autoMerge"]["blockers"]
+        self.assertIn(
+            "AI review check 'claude-review-status' has not succeeded on the live head",
+            blockers,
+        )
+        self.assertNotIn(
+            "AI review check 'claude-security-review-status' has not succeeded "
+            "on the live head",
+            blockers,
+        )
 
     def test_other_callers_security_review_job_does_not_satisfy_renamed_lane(
         self,

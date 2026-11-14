@@ -25,7 +25,9 @@
 #   checks_init <event> "$@"   set CHECKS_MODE (pre-commit, pre-push or, with
 #                              --worktree, worktree), CHECKS_EVENT, CHECKS_TMP,
 #                              and cd to the top level; returns 1 outside a repo
-#   checks_files               NUL-separated paths to check, repo-relative
+#   checks_files               NUL-separated paths to check, repo-relative; in
+#                              pre-commit while a merge is in progress, only
+#                              paths that differ from every parent
 #   checks_changed_lines       write "<path><TAB><start><TAB><end>" ranges of
 #                              added lines to $CHECKS_TMP/ranges, none for a
 #                              file whose content is binary; in pre-commit
@@ -45,7 +47,7 @@
 #   checks_has_nul <p> [<rev>] 0 when that content's first 8000 bytes hold a NUL
 #   checks_filter_findings     stdin "<path>:<line>: <message>" lines; prints
 #                              those inside a changed range
-#   When git or awk fails inside checks_changed_lines or checks_filter_findings,
+#   When git, awk or tr fails inside checks_changed_lines or checks_filter_findings,
 #   the function says so on stderr and returns non-zero, and the script then
 #   exits 1 even when it exits 0 itself: a check that saw only part of the
 #   change must not pass it.
@@ -156,8 +158,22 @@ checks_init() {
     esac
     shift
   done
-  local top
-  top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  # One rev-parse names the top level and MERGE_HEAD, whose path is relative
+  # to the starting directory, so the merge heads are read before the cd. If
+  # the combined call fails, --show-toplevel alone decides, with no merge.
+  local top out merge_file="" line
+  if out="$(git rev-parse --show-toplevel --git-path MERGE_HEAD 2>/dev/null)" && [[ "$out" == *$'\n'* ]]; then
+    top="${out%$'\n'*}"
+    merge_file="${out##*$'\n'}"
+  else
+    top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  fi
+  CHECKS_MERGE_HEADS=""
+  if [[ "$CHECKS_MODE" == pre-commit && -n "$merge_file" && -f "$merge_file" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [[ -z "$line" ]] || CHECKS_MERGE_HEADS="$CHECKS_MERGE_HEADS$line"$'\n'
+    done <"$merge_file"
+  fi
   cd "$top" || return 1
   CHECKS_TMP="$(mktemp -d "${TMPDIR:-/tmp}/checks.XXXXXX")" || return 1
   trap 'checks_finish $? || exit 1' EXIT
@@ -383,6 +399,7 @@ checks_file_text() {
 }
 
 checks_files() {
+  checks_merge_own_files && return 0
   checks_diff --name-only --diff-filter=ACMR -z
   if [[ "$CHECKS_MODE" == worktree ]]; then
     git ls-files --others --exclude-standard -z
@@ -438,17 +455,78 @@ checks_intersect_ranges() {
 # merge.
 checks_merge_heads() {
   [[ "$CHECKS_MODE" == pre-commit ]] || return 0
-  local file line
-  file="$(git rev-parse --git-path MERGE_HEAD 2>/dev/null)" || return 0
-  [[ -f "$file" ]] || return 0
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ -z "$line" ]] || printf '%s\n' "$line"
-  done <"$file"
+  printf '%s' "${CHECKS_MERGE_HEADS:-}"
 }
 
-# A file whose content the change holds is binary (checks_has_nul) is dropped
-# here, since checks_added_ranges reads every file as text: no caller then sees
-# ranges for it.
+# checks_merge_own_files: pre-commit while a merge is in progress; prints,
+# NUL-separated, the checks_files paths whose staged entry (mode and blob)
+# differs from every merge head's, and returns 0. A path is kept when it is in
+# the list against HEAD and in the list against each head, so it appears once
+# per list in the sorted union. Returns 1, printing nothing, outside a merge,
+# and after one line on stderr when a git call or the sort fails or the sort
+# did not sort: checks_files then lists every staged path, so a failure checks
+# more, never less, and never fails the hook.
+checks_merge_own_files() {
+  [[ "$CHECKS_MODE" == pre-commit && -n "${CHECKS_MERGE_HEADS:-}" ]] || return 1
+  [[ ! -e "$CHECKS_TMP/merge-fallback" ]] || return 1
+  local all="$CHECKS_TMP/merge-paths" want=1 h step=""
+  if checks_diff --name-only --diff-filter=ACMR -z >"$all" 2>/dev/null; then
+    while IFS= read -r h; do
+      [[ -n "$h" ]] || continue
+      git -c core.quotePath=false diff --cached --no-color --no-ext-diff --name-only --no-renames -z "$h" -- >>"$all" 2>/dev/null || {
+        step='git'
+        break
+      }
+      want=$((want + 1))
+    done <<<"$CHECKS_MERGE_HEADS"
+  else
+    step='git'
+  fi
+  if [[ -z "$step" ]]; then
+    LC_ALL=C sort -z "$all" >"$all.sorted" 2>/dev/null || step='sort'
+  fi
+  local -a kept=()
+  if [[ -z "$step" ]]; then
+    local LC_ALL=C p prev="" run=0
+    while IFS= read -r -d '' p; do
+      if ((run)) && [[ "$p" == "$prev" ]]; then
+        run=$((run + 1))
+        continue
+      fi
+      if ((run)); then
+        # Out of order or a run longer than the list count: the sort did not
+        # sort, so no run can be trusted.
+        if ((run > want)) || ! [[ "$prev" < "$p" ]]; then
+          step='sort'
+          break
+        fi
+        ((run < want)) || kept+=("$prev")
+      fi
+      prev="$p"
+      run=1
+    done <"$all.sorted"
+    if [[ -z "$step" ]] && ((run)); then
+      if ((run > want)); then
+        step='sort'
+      elif ((run == want)); then
+        kept+=("$prev")
+      fi
+    fi
+  fi
+  if [[ -n "$step" ]]; then
+    printf '%s: %s failed while listing the paths this merge changes, so every staged path is checked\n' "${0##*/}" "$step" >&2
+    : >"$CHECKS_TMP/merge-fallback"
+    return 1
+  fi
+  if ((${#kept[@]})); then
+    printf '%s\0' "${kept[@]}"
+  fi
+  return 0
+}
+
+# A file whose content the change holds is binary (checks_binary_paths) is
+# dropped here, since checks_added_ranges reads every file as text: no caller
+# then sees ranges for it.
 checks_changed_lines() {
   local out="$CHECKS_TMP/ranges" raw="$CHECKS_TMP/ranges.raw" rc=0 m
   : >"$raw"
@@ -472,16 +550,127 @@ checks_changed_lines() {
       printf '%s\t1\t2147483647\n' "$f" >>"$raw"
     done < <(git ls-files --others --exclude-standard -z)
   fi
-  local p s e prev="" bin=0
+  local bin="$CHECKS_TMP/binary"
+  checks_binary_paths "$raw" "$bin" || rc=1
+  awk -F '\t' -v bin="$bin" '
+    BEGIN { while ((got = (getline b < bin)) > 0) drop[b] = 1; if (got < 0) exit 2 }
+    !($1 in drop)' "$raw" >"$out" || {
+    checks_tool_failed awk "$?" 'listing the changed lines'
+    rc=1
+  }
+  return "$rc"
+}
+
+# checks_binary_paths <ranges> <out>: write to <out>, one per line, each path
+# of <ranges> that checks_has_nul finds binary where the change holds it (on
+# pre-push, at any pushed tip), with a fixed number of processes however many
+# paths there are: builtins in worktree mode, else checks_nul_blobs over the
+# index or over each pushed tip.
+checks_binary_paths() {
+  local ranges="$1" out="$2" rc=0 p prev="" l
   : >"$out"
-  while IFS=$'\t' read -r p s e; do
-    if [[ "$p" != "$prev" ]]; then
+  [[ -s "$ranges" ]] || return 0
+  case "$CHECKS_MODE" in
+  worktree)
+    while IFS=$'\t' read -r p _; do
+      [[ "$p" == "$prev" ]] && continue
       prev="$p"
-      bin=0
-      checks_change_has_nul "$p" && bin=1
-    fi
-    ((bin)) || printf '%s\t%s\t%s\n' "$p" "$s" "$e" >>"$out"
-  done <"$raw"
+      checks_worktree_has_nul "$p" && printf '%s\n' "$p" >>"$out"
+    done <"$ranges"
+    ;;
+  pre-push)
+    while read -r _ l; do
+      checks_nul_blobs "$ranges" "$out" 3 ls-tree -r "$l" || rc=1
+    done <"$CHECKS_TMP/push-ranges"
+    ;;
+  *) checks_nul_blobs "$ranges" "$out" 2 ls-files -s || rc=1 ;;
+  esac
+  return "$rc"
+}
+
+# checks_worktree_has_nul <path>: checks_has_nul for a work tree file, read
+# with builtins.
+checks_worktree_has_nul() {
+  local LC_ALL=C chunk
+  [[ -f "$1" && ! -L "$1" ]] || return 1
+  IFS= read -r -d '' -n 8000 chunk <"$1" && ((${#chunk} < 8000))
+}
+
+# checks_nul_blobs <ranges> <out> <oid field> <git listing args...>: append to
+# <out> each path of <ranges> that the listing (ls-files -s, or ls-tree -r
+# <tip>, whose oid is field 2 or 3) holds as a regular file whose blob's first
+# 8000 bytes hold a NUL. A listed name git quotes never matches, as
+# checks_added_ranges skips those names. One git cat-file --batch streams the
+# blobs, each as "<oid> blob <size>" LF <bytes> LF, so a header always has a
+# line of its own and no line holds bytes of two blobs. tr turns every NUL into
+# a \001 and every \001 and every byte above \177 into a \002, as awk cannot
+# hold a NUL and an awk that reads UTF-8 whatever the locale (the One True AWK's
+# second edition) would count a multibyte character as one; the stream is then
+# ASCII, one byte per character, so the last awk's length() counts bytes to find
+# each header and each blob's first 8000, and fails on a stream whose length
+# does not match its headers.
+checks_nul_blobs() {
+  local ranges="$1" out="$2" field="$3" sel="$CHECKS_TMP/nul-blobs"
+  shift 3
+  : >"$sel"
+  git -c core.quotePath=false "$@" </dev/null 2>/dev/null |
+    LC_ALL=C awk -v ranges="$ranges" -v sel="$sel" -v field="$field" '
+      BEGIN {
+        while ((got = (getline r < ranges)) > 0) want[substr(r, 1, index(r, "\t") - 1)] = 1
+        if (got < 0) exit 2
+      }
+      {
+        t = index($0, "\t")
+        if (!t) next
+        path = substr($0, t + 1)
+        if (!(path in want)) next
+        split(substr($0, 1, t - 1), m, " ")
+        if (m[1] !~ /^100/) next
+        print m[field] "\t" path >sel
+        if (!(m[field] in seen)) { seen[m[field]] = 1; print m[field] }
+      }
+      END { close(sel) }' |
+    git cat-file --batch 2>/dev/null |
+    LC_ALL=C tr '\0\001\200-\377' '\001\002\002' |
+    LC_ALL=C awk -F '\n' -v sel="$sel" '
+      {
+        len = length($0)
+        if (base == head_at) {
+          split($0, f, " ")
+          if (f[2] == "missing") {
+            blob = ""
+            head_at = base + len + 1
+          } else {
+            blob = f[1]
+            start = base + len + 1
+            size = f[3] + 0
+            window = start + (size < 8000 ? size : 8000)
+            blob_end = start + size
+            head_at = blob_end + 1
+          }
+        } else if (blob != "" && base < window && !(blob in bin)) {
+          i = index($0, "\001")
+          if (i && base + i - 1 < window) bin[blob] = 1
+        }
+        base += len + 1
+      }
+      END {
+        if (head_at != base) exit 2
+        while ((got = (getline r < sel)) > 0) {
+          t = index(r, "\t")
+          if (substr(r, 1, t - 1) in bin) print substr(r, t + 1)
+        }
+        if (got < 0) exit 2
+      }' >>"$out"
+  local -a st=("${PIPESTATUS[@]}")
+  local -a tools=(git awk git tr awk)
+  local i rc=0
+  for i in 0 1 2 3 4; do
+    # 141: a reader further down stopped first, and that reader reports.
+    ((st[i] == 0 || (i < 4 && st[i] == 141))) && continue
+    checks_tool_failed "${tools[i]}" "${st[i]}" 'testing the changed files for binary content'
+    rc=1
+  done
   return "$rc"
 }
 
@@ -493,20 +682,6 @@ checks_changed_lines() {
 checks_has_nul() {
   local LC_ALL=C chunk
   IFS= read -r -d '' -n 8000 chunk < <(checks_file_text "$1" "${2:-}") && ((${#chunk} < 8000))
-}
-
-# checks_change_has_nul <path>: checks_has_nul against what is checked; on
-# pre-push, each pushed commit that holds <path>.
-checks_change_has_nul() {
-  [[ "$CHECKS_MODE" == pre-push ]] || {
-    checks_has_nul "$1"
-    return
-  }
-  local b l
-  while read -r b l; do
-    checks_has_nul "$1" "$l" && return 0
-  done <"$CHECKS_TMP/push-ranges"
-  return 1
 }
 
 # A ranges file it cannot read (checks_changed_lines never ran) fails like a

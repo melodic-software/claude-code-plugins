@@ -141,9 +141,25 @@ the drift this file exists to close.
 **The worker's model is the parent's call, and it is not an envelope field.** It travels as the
 Agent tool's per-invocation `model` parameter, not as a line the agent parses, which is why it is
 named here rather than in the template above. Each worker definition pins a default model:
-`explorer` runs on `sonnet`; `researcher`, `intent-tracer` and `research-verifier` run on `opus`. The default is still to
-**pass nothing**, and then the pin applies. Supply the parameter only to override the pin for a run
-whose scope earns a different model; it replaces the pin in either direction. Every producing worker
+`explorer` runs on `sonnet`; `researcher`, `intent-tracer` and `research-verifier` run on `opus`.
+A consumer moves a worker off its pin through the multi-agent role map, by the role this table
+names:
+
+| Worker | Role |
+|---|---|
+| `explorer` | `retrieval` |
+| `researcher`, `intent-tracer` | `worker` |
+| `research-verifier` | `verifier` |
+
+When `/multi-agent:route` resolves in this session, run
+`/multi-agent:route all research session=<this session's model alias>` once per run (the deep
+tier's own call serves) and read the worker's role: its `fanout` variant on the deep tier's
+N-topic fan-out, its `single` variant for every other spawn. Pass that variant's model as `model`
+only when a consumer layer set it, meaning its basis (`basis.fanout_model` for `fanout`,
+`basis.model` for `single`) is `config`, and `omit_model` is false. Otherwise, and whenever
+`/multi-agent:route` does not resolve, **pass nothing**, and the pin applies. Pass no `effort`:
+each worker keeps its pinned level. Beyond that, supply the parameter only for a run whose scope
+earns a different model; it replaces the pin in either direction. Every producing worker
 spends `maxTurns: 40`: `researcher` and `intent-tracer` at `effort: high`, and `explorer` at
 `effort: medium`, the effort floor, because its turns go almost entirely to reading. Why 40 stays
 is the harness-facts record "`maxTurns` is set per definition, so 40 is a checkpoint, not a

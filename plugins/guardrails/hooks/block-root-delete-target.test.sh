@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Contract test for block-root-delete-target.sh (guardrails plugin), part a of 5:
-# sections 1 to 2b. The parts are block-root-delete-target.test.sh and
-# block-root-delete-target-b.test.sh to -e.test.sh; block-root-delete-target-fixtures.sh
+# Contract test for block-root-delete-target.sh (guardrails plugin), part a of 6:
+# sections 1 to 2b, less the nesting and size-budget cases of section 1 and the
+# python and node heredoc cases of section 2, which are part f. The parts are block-root-delete-target.test.sh and
+# block-root-delete-target-b.test.sh to -f.test.sh; block-root-delete-target-fixtures.sh
 # holds what they share.
 #
 # Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash JSON on
@@ -47,6 +48,12 @@ expect_both 'a shell here-doc beside a redirect-only one and a pattern here-doc 
 # Every body is read as the shell's script; a harmless pair stays allowed.
 expect_both 'a shell here-doc inside a command-start !(…) blocks' 2 --command $'!(bash <<A\nrm -rf /\nA\n)'
 expect_both 'a shell here-doc beside a harmless one is allowed' 0 --command $'cat <<A\ndocs\nA\nbash <<B\necho hi\nB'
+# A body bash runs that shfmt rejects is refused, and the refusal names this
+# guard and says the text was lifted, so its line:col is not the command's.
+guard_invoke --command $'bash <<\'EOF\'\necho "`the form check (x)`"\nEOF'
+assert_exit "a shell here-doc shfmt rejects is refused" 2 "$GUARD_RC"
+assert_contains "the refusal names the guard" "$GUARD_ERR" "block-root-delete-target"
+assert_contains "the refusal says the text was lifted" "$GUARD_ERR" "lifted"
 expect_both 'rm -rf /* blocks' 2 --command 'rm -rf /*'
 expect_both 'rm -rf "//" blocks' 2 --command 'rm -rf "//"'
 
@@ -225,123 +232,6 @@ expect_both 'quoted paren inside a substitution body blocks' 2 \
   --command "echo \"\$(printf '%s\n' ')'; rm -rf --no-preserve-root /)\""
 expect_both 'quoted paren then a root operand blocks' 2 \
   --command "echo \"\$(printf ')'; rm -rf /)\""
-
-# Nesting is capped, and the cap REFUSES rather than allows: the abort boundary
-# is fail-OPEN, so a scanner that ran out of room would answer allow on exactly
-# the payload built to exhaust it. The innermost command here is harmless, so
-# the cap is the only thing that can refuse this one.
-rdt_deep=""
-for ((rdt_d = 0; rdt_d < 40; rdt_d++)); do rdt_deep="\$($rdt_deep"; done
-rdt_deep="${rdt_deep}echo rm"
-for ((rdt_d = 0; rdt_d < 40; rdt_d++)); do rdt_deep="$rdt_deep)"; done
-expect_both 'substitution nested 40 deep is refused' 2 --command "$rdt_deep"
-
-# The depth cap bounds the NESTING, not the WORK. The tokenizer splits on
-# unquoted `(`, `)` and `;`, so a payload at the command ceiling nested to just
-# under the depth cap yields as many segments as a flat one AND a body to
-# re-tokenize per level. It ran for 40 s alone and 48 s under the dispatcher,
-# against a 60 s hook timeout, and a hook the harness cancels on that timeout is
-# cancelled WITHOUT a block: the slow path failed OPEN. A MAX_COMMAND_LEN budget
-# over the SUBSTITUTION BODIES, spent before the top-level parse, is what bounds
-# it. `timeout 20` is the backstop, and it is the only timing assertion here: a
-# hang reads as rc 124 rather than as a pass, while a wall-clock threshold on a
-# shared CI shard measures the shard rather than the guard. The bound is set
-# against a HANG, not against the refusal's own cost, which is about 5 s here;
-# 20 keeps room for a loaded shard while still catching the fail-open shape
-# this pin exists for.
-rdt_pad=""
-while ((${#rdt_pad} < 15900)); do rdt_pad+="rm -rf ./x; "; done
-rdt_big=""
-for ((rdt_d = 0; rdt_d < 32; rdt_d++)); do rdt_big="\$($rdt_big"; done
-rdt_big="${rdt_big}${rdt_pad}"
-for ((rdt_d = 0; rdt_d < 32; rdt_d++)); do rdt_big="$rdt_big)"; done
-rdt_payload="$(command_json "$rdt_big")"
-# command_json passes the command to a native jq without MSYS_NO_PATHCONV, so
-# its round trip is checked: Git Bash would rewrite a `NAME=/path` argument.
-assert_eq "the 16 KB payload carries its command verbatim" "$rdt_big" "$(jq -r .tool_input.command <<<"$rdt_payload")"
-
-for rdt_via in direct dispatched; do
-  if [[ "$rdt_via" == direct ]]; then
-    rdt_argv=(bash "$HOOK")
-  else
-    rdt_argv=(bash "$GUARD_DISPATCH" "$HOOK")
-  fi
-  rdt_rc=0
-  rdt_err="$(timeout 20 "${rdt_argv[@]}" <<<"$rdt_payload" 2>&1 >/dev/null)" || rdt_rc=$?
-  assert_exit "a 16 KB 32-deep payload is refused ($rdt_via)" 2 "$rdt_rc"
-  assert_contains "the refusal names the tokenizing budget ($rdt_via)" \
-    "$rdt_err" "substitution bodies exceed MAX_COMMAND_LEN in total"
-done
-# The budget counts SUBSTITUTION BODIES ONLY. Charging the command's own length
-# against it too refused any command past about half the ceiling that carried
-# one ordinary substitution, while leaving a flat command just under the ceiling
-# alone, which is a size limit on the wrong thing.
-rdt_ok=""
-while ((${#rdt_ok} < 8180)); do rdt_ok+="echo ok; "; done
-expect_both 'a long benign command with one rm-bearing body is allowed' 0 \
-  --command "${rdt_ok}\$(echo rm)"
-
-# SIBLING bodies cannot exhaust this budget by construction: each one's text
-# sits in the command, and the command has its own ceiling. 900 of them total
-# 13,500 characters of body text and are allowed. 1,300 total 19,500, which no
-# command under MAX_COMMAND_LEN can hold, so that payload is refused by the
-# COMMAND ceiling instead, and the message is pinned to keep the difference
-# visible. One arm each: the budget is internal to the guard, so the dispatcher
-# cannot decide it differently, and both payloads are slow to build.
-rdt_sib() {
-  local n="$1" s="echo " k
-  for ((k = 0; k < n; k++)); do s+="\$(echo rm 1234567)"; done
-  printf '%s' "$s"
-}
-expect '900 sibling rm-bearing bodies are allowed' 0 --command "$(rdt_sib 900)"
-guard_invoke --command "$(rdt_sib 1300)"
-assert_exit "1300 sibling rm-bearing bodies are refused" 2 "$GUARD_RC"
-assert_contains "1300 siblings are refused by the COMMAND ceiling, not the body budget" \
-  "$GUARD_ERR" "the command is too long to parse"
-
-# Launcher, child-shell and eval nesting is recursion in the guard. Unbounded,
-# 120 nested runusers exhausted bash's stack inside the block's telemetry, so
-# the BLOCKED message printed and the process still exited 0, and deeper ones
-# died on SIGSEGV. Past MAX_SEGMENT_DEPTH the guard refuses, and nested evals
-# are charged to the tokenizing budget so they refuse fast rather than
-# outrunning the hook timeout.
-expect_both 'runuser -u nested 120 deep is refused' 2 --command "$(rdt_rep 'runuser -u bob -- ' 120)rm -rf /"
-expect_both 'runuser -u nested 900 deep is refused' 2 --command "$(rdt_rep 'runuser -u bob -- ' 900)rm -rf /"
-expect_both 'su -s /bin/su nested 300 deep is refused' 2 \
-  --command "$(rdt_rep 'su root -s /bin/su -- ' 300)root -s /bin/rm -- -rf /"
-# rdt_timed <label> <want> <command>: one case, alone and dispatched, each under
-# a `timeout 20` backstop. A slow path reads as rc 124 rather than as a pass,
-# because a hook the harness cancels on its timeout is cancelled WITHOUT a block.
-rdt_timed() {
-  local label="$1" want="$2" payload via rc
-  local -a argv
-  payload="$(command_json "$3")"
-  assert_eq "$label (payload verbatim)" "$3" "$(jq -r .tool_input.command <<<"$payload")"
-  for via in direct dispatched; do
-    if [[ "$via" == direct ]]; then
-      argv=(bash "$HOOK")
-    else
-      argv=(bash "$GUARD_DISPATCH" "$HOOK")
-    fi
-    rc=0
-    timeout 20 "${argv[@]}" <<<"$payload" >/dev/null 2>&1 || rc=$?
-    assert_exit "$label ($via)" "$want" "$rc"
-  done
-}
-rdt_timed 'flock/eval nested 700 deep is refused inside the timeout' 2 "$(rdt_rep 'flock --wa 1 f eval ' 700)rm -rf /"
-# runuser with both -u and a non-shell -s is judged two ways at every level, so
-# the readings double per level below the depth cap. Every judged segment is
-# counted, and past the budget the guard refuses inside the timeout.
-rdt_timed 'runuser -u -s env nested 20 deep is refused' 2 "$(rdt_rep 'runuser -u x -s env -- ' 20)rm -rf ./x"
-rdt_timed 'runuser -u -s env nested 25 deep is refused' 2 "$(rdt_rep 'runuser -u x -s env -- ' 25)rm -rf ./x"
-rdt_timed 'runuser -u -s env nested 25 deep with a root delete blocks' 2 \
-  "$(rdt_rep 'runuser -u x -s env -- ' 25)rm -rf /"
-rdt_timed 'six-level mixed nesting with an ordinary delete allowed' 0 \
-  "sudo -u bob bash -c \"runuser -u x -- sh -c 'su root -c \\\"eval nice timeout 5 rm -rf ./build\\\"'\""
-expect_both 'moderate launcher nesting with an ordinary delete allowed' 0 \
-  --command "sudo nice timeout 5 runuser -u bob -- bash -c 'rm -rf ./build'"
-expect_both 'moderate launcher nesting with a root delete blocks' 2 \
-  --command "sudo nice timeout 5 runuser -u bob -- bash -c 'rm -rf /'"
 
 expect_both 'substitution nested 3 deep is still parsed' 2 \
   --command 'echo "$(echo "$(echo "$(rm -rf /)")")"'
@@ -1142,7 +1032,7 @@ expect_both 'glob: .. before the glob stays judged, inside the tree allowed' 0 "
   --command 'rm -rf plugins/../plugins/*/build'
 # The judgment is time-bounded in the parse too, but only once this arm has
 # work: a command with nothing to judge is never timed, so a slow but harmless
-# parse (the 900 sibling bodies above, near twelve seconds on a loaded runner)
+# parse (the 900 sibling bodies of part f, near twelve seconds on a loaded runner)
 # behaves as it does without the arm. Pinned in the source, since no payload
 # under MAX_COMMAND_LEN parses that slowly on a fast host.
 assert_contains "the deadline is twenty-five seconds" "$(grep -n '^RDT_DEADLINE=' "$HOOK")" "RDT_DEADLINE=25"

@@ -3186,8 +3186,9 @@ them on every `pull_request` run, contract-only runs included:
   ci-status's merge-holds step still fails on the veto comment until a later comment by the same
   member lifts it, so the veto holds before the label lands and if the label is removed.
 - **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
-  head must have a successful status job (`PR Review / review-status`,
-  `PR Review Security / review-status`; the lower-case caller on a head tested before the rename)
+  head must have a successful status job (`PR Review / Status`, `PR Review Security / Status`;
+  the lower-case caller on a head tested before the rename, and `review-status` for `Status` on
+  a run from before the job's Title Case name; each counts only as the whole name)
   whose `Apply the hold` step ran. A summary-mode run or
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
   the cause named. A lane a kill switch stopped (the switch was on when the review run started)
@@ -3907,8 +3908,14 @@ revisited; any other is left as is with a warning annotation, since re-admitting
 `admission-deferred`, a held one stays deferred, and any other loses it. After the closed issues,
 the sweep runs intake's admission rules on the open `status: ready` issues in no queue (neither
 `agent-ready` nor `admission-deferred`, no hold or refuse label, no open blocker or sub-issue), at
-most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does. A
-born-triaged issue whose filer has not yet set the Size or Uncertainty the rules refuse it for, and
+most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does, with one
+exception: a refusal whose only reason is done-when items an unattended lane run cannot perform
+beside items it can (no trusted `host-run`, no paid eval) parks at Work status needs-triage, not
+confirmed, since refine.mjs splits those items off only inside an intake run. Before that write it
+posts a hand-back comment opening with `<!-- work-unblock unparked triage -->`, once per body
+version, so the triage sweep starts a new dispatch cycle and sends the issue to intake, whose
+admission parks it at confirmed for the split. A person's `admission-deferred` mark refused that way
+parks the same. A born-triaged issue whose filer has not yet set the Size or Uncertainty the rules refuse it for, and
 nothing else, waits with no write and uses none of that cap; a person's mark on such an issue instead
 comments why it is not admitted yet and removes `admission-deferred`, so the sweep admits it once the
 fields land. If the fields never land, the triage sweep sends it to intake. Restarts, re-fires and relabels re-run issues already admitted and are never

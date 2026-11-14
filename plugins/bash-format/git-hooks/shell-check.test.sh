@@ -5,7 +5,9 @@
 # re-staged, a partly staged one is refused untouched, a ShellCheck finding blocks
 # only on a line the commit adds, a script no section governs is never rewritten
 # but is still checked, an array-subscript rewrite shfmt would make is put back,
-# --worktree reports without rewriting, a missing tool follows the skip-key rule,
+# --worktree reports without rewriting, a merge leaves a script it takes
+# unchanged from the merged branch alone, a missing tool follows the skip-key rule,
+# many staged paths reach ShellCheck in batches under Windows' command-line cap,
 # and the plugin's own vendored installer wires the entry so `git commit` runs it.
 # Expected values are the tools' documented output: a tab-indented body formats to
 # the two spaces indent_size = 2 asks for; SC2154 is "<var> is referenced but not
@@ -18,12 +20,10 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/shell-check.sh"
 PLUGIN="$(cd "$HERE/.." && pwd)"
-for tool in shfmt shellcheck jq git node; do
-  if ! command -v "$tool" >/dev/null 2>&1; then
-    echo "SKIP: $tool not on PATH -- shell-check tests skipped"
-    exit 0
-  fi
-done
+if ! command -v git >/dev/null 2>&1; then
+  echo "SKIP: git not on PATH -- shell-check tests skipped"
+  exit 0
+fi
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -69,6 +69,79 @@ SHEBANG='#!/usr/bin/env bash'
 TABBED="$SHEBANG"$'\nif true; then\n\techo hi\nfi'
 SPACED="$SHEBANG"$'\nif true; then\n  echo hi\nfi'
 HINT='bash-format: fix the findings above, or adjust the repository .shellcheckrc.'
+
+# Windows caps a command line at 32,767 characters, so a commit with many shell
+# paths must reach shellcheck in more than one call. These cases put a stub in
+# its place and need no real one: past the cap the stub fails to launch
+# with status 126, as Windows does; otherwise it logs "--" per call and each path
+# it gets, prints a finding for a *-finding.sh path and exits 2 for *-broken.sh.
+mkdir -p "$WORK/sc-stub"
+cat >"$WORK/sc-stub/shellcheck" <<'STUB'
+#!/usr/bin/env bash
+len=0
+for a in "$0" "$@"; do len=$((len + ${#a} + 1)); done
+if ((len > 32767)); then
+  echo "shellcheck: Argument list too long" >&2
+  exit 126
+fi
+while [[ $# -gt 0 && "$1" != -- ]]; do shift; done
+shift
+echo -- >>"$SC_STUB_LOG"
+rc=0
+for f in "$@"; do
+  printf '%s\n' "$f" >>"$SC_STUB_LOG"
+  case "$f" in
+  *-finding.sh)
+    printf '%s:2:1: warning: stub finding [SC2154]\n' "$f"
+    ((rc < 1)) && rc=1
+    ;;
+  *-broken.sh) rc=2 ;;
+  esac
+done
+exit "$rc"
+STUB
+chmod +x "$WORK/sc-stub/shellcheck"
+sc_stub() { # <repo> -> "<rc>|<stdout and stderr>"
+  : >"$WORK/sc.log"
+  local out
+  out="$(cd "$1" && SC_STUB_LOG="$WORK/sc.log" PATH="$WORK/sc-stub:$PATH" bash "$CHECK" 2>&1)"
+  printf '%s|%s' "$?" "$out"
+}
+# 250 paths of about 150 characters: about 37,000 in all, past the cap, while
+# each path stays under Windows' 260-character MAX_PATH once a temp dir prefixes it.
+LONG="$(printf 'd%.0s' {1..60})/$(printf 'f%.0s' {1..80})"
+new_repo NONE
+mkdir -p "$REPO/${LONG%/*}"
+for i in {1..250}; do
+  printf '#!/bin/bash\necho ok\n' >"$REPO/$LONG-$i.sh"
+done
+git -C "$REPO" add -A
+expect "many long staged paths: the hook passes" "0|" "$(sc_stub "$REPO")"
+expect "many long staged paths: shellcheck ran in more than one call" yes \
+  "$( (($(grep -cx -- -- "$WORK/sc.log") > 1)) && echo yes)"
+expect "many long staged paths: each path reached shellcheck exactly once" \
+  "$(git -C "$REPO" diff --cached --name-only | sort)" "$(grep -vx -- -- "$WORK/sc.log" | sort)"
+printf '#!/bin/bash\necho ok\n' >"$REPO/a-finding.sh"
+printf '#!/bin/bash\necho ok\n' >"$REPO/z-finding.sh"
+git -C "$REPO" add a-finding.sh z-finding.sh
+expect "a finding from the first batch and one from the last both block" "1|a-finding.sh:2: warning: stub finding [SC2154]
+z-finding.sh:2: warning: stub finding [SC2154]
+$HINT" "$(sc_stub "$REPO")"
+git -C "$REPO" rm -q --cached a-finding.sh z-finding.sh
+rm "$REPO/a-finding.sh" "$REPO/z-finding.sh"
+printf '#!/bin/bash\necho ok\n' >"$REPO/a-broken.sh"
+git -C "$REPO" add a-broken.sh
+out="$(sc_stub "$REPO")"
+expect "a first batch's status above 1 still blocks after a later batch passes" \
+  "1|bash-format: shellcheck failed:" "${out%%$'\n'*}"
+
+for tool in shfmt shellcheck jq node; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "SKIP: $tool not on PATH -- the remaining shell-check tests skipped"
+    echo "shell-check: $PASS passed, $FAIL failed"
+    exit $((FAIL > 0))
+  fi
+done
 
 new_repo
 printf '%s\n' "$TABBED" >"$REPO/a.sh"
@@ -268,6 +341,35 @@ expect "--worktree: an untracked file is checked whole" "1||a.sh:2: warning: und
 $HINT" "$(check "$REPO" --worktree)"
 rm "$REPO/a.sh"
 expect "--worktree: no uncommitted change passes" "0||" "$(check "$REPO" --worktree)"
+
+# A merge being committed: a script the merged branch brings in unchanged is
+# neither rewritten nor checked; one the resolution edits is rewritten whole.
+# main commits first so the merge cannot fast-forward.
+merge_repo() {
+  new_repo
+  git -C "$REPO" checkout -q -b side
+  printf '%s\nif true; then\n\tcd /tmp\nfi\n' "$SHEBANG" >"$REPO/x.sh"
+  git -C "$REPO" add x.sh
+  git -C "$REPO" commit -q -m side --no-verify
+  git -C "$REPO" checkout -q main
+  printf '%s\necho main\n' "$SHEBANG" >"$REPO/main.sh"
+  git -C "$REPO" add main.sh
+  git -C "$REPO" commit -q -m main --no-verify
+  git -C "$REPO" merge -q --no-commit side >/dev/null 2>&1
+}
+merge_repo
+expect "merge: the merge is in progress" yes "$([[ -f "$REPO/.git/MERGE_HEAD" ]] && echo yes)"
+expect "merge: an inherited unformatted script with a finding is not rewritten and passes" "0||" "$(check "$REPO")"
+expect "merge: the inherited script's index entry is still side's" \
+  "$(git -C "$REPO" show side:x.sh)" "$(git -C "$REPO" show :x.sh)"
+merge_repo
+printf 'cd /var\n' >>"$REPO/x.sh"
+git -C "$REPO" add x.sh
+out="$(check "$REPO")"
+rest="${out#*|}"
+expect "merge: a script the resolution edits is rewritten, listed, and blocks" "1|x.sh" "${out%%|*}|${rest%%|*}"
+expect "merge: the findings include the appended line" yes \
+  "$(grep -q '^x\.sh:5: warning: .*\[SC2164\]$' <<<"${rest#*|}" && echo yes)"
 
 # A PATH without one of the tools the script runs.
 bin_without() { # <dir> <tool-to-omit>

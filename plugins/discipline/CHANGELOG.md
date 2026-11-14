@@ -5,6 +5,18 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.28.2] - 2026-11-14
+
+### Changed
+
+- The verification level reader now reads the team file through the shared default-branch reader, `lib/default-branch-file.sh`, which this plugin now carries; levels and messages are unchanged.
+
+## [0.28.1] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
 ## [0.28.0] - 2026-11-13
 
 ### Changed

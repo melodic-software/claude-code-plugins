@@ -3,6 +3,41 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.1] - 2026-11-14
+
+### Changed
+
+- The verification level reader now reads the team file through `lib/default-branch-file.sh`; levels and messages are unchanged.
+- `lib/default-branch-file.sh` reads the last fetched copy of the default branch when the fetch fails, and says it may be stale, instead of exiting 2; the stills settings still never come from the working tree.
+
+### Fixed
+
+- `/explainer-video:produce`'s Related section names only what each related skill does today; it no longer describes
+  `/education:illustrate` or the reviewer-media skill as callers of the stills renderer.
+
+## [2.1.0] - 2026-11-14
+
+### Added
+
+- A stills renderer: `/explainer-video:produce` turns a `storyboard.json` into one narrated video of held
+  3840x2160 frames with burned captions, chapters, a contact sheet and a `manifest.json`, checked against a luma
+  SSIM floor of 0.999 per frame and scanned for secrets and machine data before anything renders. New settings:
+  `stitcher` and `frame_stylesheet` (read from the default branch only), `upload_limit_mb`. Playwright for Python joins the requirements;
+  its Chromium downloads on the first stills render.
+- A shared media library (`media_*.py`, `media_templates/`) vendored from `lib/media-render`: frame capture through
+  Playwright for Python, frame templates, storyboard timeline, captions, encode profiles, loudness, verification,
+  upload-size splitting, contact sheets and a secret and machine-data scan.
+
+### Changed
+
+- `render.py` muxes, normalizes loudness and builds captions through the shared library; output is unchanged.
+
+## [2.0.1] - 2026-11-14
+
+### Fixed
+
+- The shared hook library's command reader now says, when shfmt rejects text a guard lifted out of the command and named with `HOOK_BPS_SPAN`, which guard refused, that shfmt's `line:col` counts from the start of that text rather than the command, and the text's first 60 characters. Its own second readings (a backtick's unescaped text, a joined here-doc body) name themselves the same way. A refusal of the command itself reads as before.
+
 ## [2.0.0] - 2026-11-13
 
 ### Changed

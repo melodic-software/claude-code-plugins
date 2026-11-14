@@ -1474,9 +1474,11 @@ export const BODY_LIMITS = { text: 4000, sections: 8, record: 16384 };
 
 const asciiLower = (text) => text.replace(/[A-Z]/g, (c) => c.toLowerCase());
 const GATE_LEAD = /^[ \t>]*(?:(?:hold|draft|siblings|merge-risk|refs|relates[ \t]+to):|no[ \t]+(?:linked|related)[ \t]+issue)/;
+const HOLD_WORDING = /do(?:n[^ \t\n\v\f\r]{0,3}t|[ \t\n\v\f\r]+not)[ \t\n\v\f\r]+merge/g;
 const GATE_ANYWHERE = [
-  /do(?:n[^ \t\n\v\f\r]{0,3}t|[ \t\n\v\f\r]+not)[ \t\n\v\f\r]+merge/,
+  new RegExp(HOLD_WORDING.source),
   /(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)[ \t]*:?[ \t]*(?:[a-z0-9_.-]+\/[a-z0-9_.-]+)?#[0-9]+/,
+  /(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?):?[ \t]*https?:\/\/github\.com\/[a-z0-9_.-]+\/[a-z0-9_.-]+\/issues\/[0-9]+/,
 ];
 
 // The body lines a merge, ready or linkage gate reads, sorted:
@@ -1495,6 +1497,11 @@ export function gateLines(body) {
     }
     if (followUps ? /[^ \t]/.test(line) : GATE_LEAD.test(lower) || GATE_ANYWHERE.some((re) => re.test(lower))) {
       found.push(line);
+    }
+  }
+  for (const [match] of asciiLower(String(body ?? "").replace(/\r/g, "")).matchAll(HOLD_WORDING)) {
+    if (match.includes("\n")) {
+      found.push(`hold wording across lines: ${match.replace(/[ \t\n\v\f\r]+/g, " ")}`);
     }
   }
   return found.sort();

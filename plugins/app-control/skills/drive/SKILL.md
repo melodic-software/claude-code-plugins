@@ -101,11 +101,14 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
 7. Read no settings file. The shape a control skill follows is
    [`${CLAUDE_PLUGIN_ROOT}/reference/control-skill.md`](../../reference/control-skill.md). The report names the skill used, by its
    full name, and its source (`project` or `plugin`) with its path.
-8. Resolve `<feature>` to its file by id, where the id is `<feature>` or `<module>/<feature>`, under
-   the chosen skill's base directory (step 3; never the commands folder that holds a command
-   file): `features/<id>/README.md` when it exists, and then never open
-   the legacy `features/<id>.md`; only without that README, the legacy file. Neither exists: say so
-   and stop that feature rather than guess a file.
+8. Resolve `<feature>` by id under the chosen skill's base directory (step 3; never the commands
+   folder that holds a command file), in the contract's "Feature files" order:
+   `features/<id>/README.md` when it exists, and then never open the legacy `features/<id>.md`;
+   only without that README, the legacy file; only without either, for an id `<module>/<part>`, the
+   `## Parts` line naming `<part>` in the file `<module>` resolves to, whose `## Drive` then runs for
+   `<part>`. Report `resolved: <id> -> <file>[, part <part>]`. Nothing matches, or two Parts lines
+   name `<part>`: write `blocked:` naming each path and Parts section looked in, and stop that
+   feature.
 9. An include from an integrated app resolves through the contract's "Integrated apps", and its
    control skill is read from disk at that app's checkout like any other. A missing checkout stops
    that feature with the message that section gives. At each point its "Checkout off the pin"

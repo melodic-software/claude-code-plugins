@@ -14,7 +14,7 @@ execution:
 graders:
   - name: checking-rung
     type: 'regex'
-    pattern: 'analyzer-pack-rule|semgrep-rule|architecture-test|custom-analyzer|make-impossible'
+    pattern: 'analyzer-pack-rule|semgrep-rule|syntax-pattern-rule|architecture-test|custom-analyzer|make-impossible'
     flags: 'i'
     arm: 'both'
   - name: writes-only-under-work-codify

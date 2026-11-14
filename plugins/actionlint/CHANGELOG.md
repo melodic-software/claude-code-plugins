@@ -3,6 +3,18 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.5] - 2026-11-14
+
+### Fixed
+
+- A merge commit no longer lints the files the merge takes unchanged from another parent: the pre-commit file list skips a path whose staged entry equals a merge head's. Installed hooks report drift until reinstalled.
+
+## [1.1.4] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
 ## [1.1.3] - 2026-11-13
 
 ### Changed

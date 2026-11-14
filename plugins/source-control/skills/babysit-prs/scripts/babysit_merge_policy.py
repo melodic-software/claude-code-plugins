@@ -3632,7 +3632,9 @@ def _after(value: Any, opened: datetime | None) -> bool:
 # ci-status's cost-hold step): pr-review-cli.yml's name under the caller's
 # display name, the same under the lower-case caller (a head tested before the
 # rename, or a repository whose caller job has no display name), then the one
-# pr-review.yml and pr-review-security.yml give it. The notice's head and
+# pr-review.yml and pr-review-security.yml give it, under the caller's display
+# name and its job id, then the Title Case names ci-workflows gives the same
+# jobs (`Status`, `Claude`). The notice's head and
 # criteria, and the base branch name a compare takes, as the hold step reads it.
 REVIEW_LANES = (
     (
@@ -3640,7 +3642,12 @@ REVIEW_LANES = (
         (
             "PR Review / review-status",
             "pr-review / review-status",
+            "PR Review / claude-review-status",
             "pr-review / claude-review-status",
+            "PR Review / Status",
+            "pr-review / Status",
+            "PR Review / Claude",
+            "pr-review / Claude",
         ),
     ),
     (
@@ -3648,7 +3655,12 @@ REVIEW_LANES = (
         (
             "PR Review Security / review-status",
             "pr-review-security / review-status",
+            "PR Review Security / security-review",
             "pr-review-security / security-review",
+            "PR Review Security / Status",
+            "pr-review-security / Status",
+            "PR Review Security / Claude",
+            "pr-review-security / Claude",
         ),
     ),
 )

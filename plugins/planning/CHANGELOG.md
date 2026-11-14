@@ -3,6 +3,30 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.3] - 2026-11-14
+
+### Changed
+
+- The verification level reader now reads the team file through the shared default-branch reader, `lib/default-branch-file.sh`, which this plugin now carries; levels and messages are unchanged.
+
+## [5.1.2] - 2026-11-14
+
+### Fixed
+
+- `/planning:wayfind` reads the wayfind label prefix (`config.wayfind_label_prefix`) and the
+  human-gated label (`config.role_labels.human-gated`) from the binding file the tracker reads (the
+  `WORK_ITEM_TRACKER_BINDING` file, else `work-items.yaml` in the bound convention home) and builds
+  every label it writes or queries from them. A repository that remapped either no longer
+  gets map items under the old prefix, which `/work-items:work`'s frontier stopped excluding.
+
+- The `interview-recommendation-basis-and-flip` eval case now requires a flip condition only where one exists, matching the interview's optional `Flips if:` line; a checkable basis is still required on every recommendation, and a bare judgment basis still fails. Its samples add a passing reply that omits `Flips if:`, a failing reply whose stated flip condition names nothing checkable, and a failing reply that names an open fact but states no condition for it.
+
+## [5.1.1] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
 ## [5.1.0] - 2026-11-14
 
 ### Added

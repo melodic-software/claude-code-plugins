@@ -3,6 +3,19 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-14
+
+### Changed
+
+- The bundled enforcement-ladder copy is now 3.0.0: five tiers, with a new Tier 3 Verification (`runtime-verification`, and `formal-verification` as opt-in) between static analysis and guidance, so Guidance is now tier 4 and Human only tier 5. The rung id `semgrep-rule` is renamed `syntax-pattern-rule` and is read as an alias, with a printed notice, through 3.x. `custom-analyzer` and `architecture-test` are defined by capability, and the ladder adds a Proportion section and an Order of work section.
+- Three `/corrections:codify` eval cases accept both `semgrep-rule` and `syntax-pattern-rule`, so the suite passes whichever id codify writes during 3.x.
+
+## [0.14.0] - 2026-11-14
+
+### Added
+
+- **`codify reviews --pr <n> [--repo <owner/repo>]` mines one chosen pull request.** Open PRs are included. The `review_mining_prs` window is not read and the distinct-PR threshold does not apply: every lesson goes on, labeled as from one pull request, and its proposal still waits for the person's approval. When `--repo` is not the current checkout's repository, the lessons are listed with their repository and PR and nothing is counted, proved or proposed, since those steps need that repository's checkout. The bare `reviews` form is unchanged.
+
 ## [0.13.0] - 2026-11-13
 
 ### Changed

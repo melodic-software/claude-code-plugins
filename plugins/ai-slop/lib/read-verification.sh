@@ -24,8 +24,9 @@
 #
 # SINGLE SOURCE OF TRUTH: lib/read-verification.sh at the marketplace repo root.
 # Each copy sits beside its plugin's copies of config-root.sh,
-# resolve-convention-home.sh and yaml-subset.awk; never edit a copy. Edit the
-# source and run scripts/sync-shared-copies.sh.
+# default-branch-file.sh (which reads the team file), resolve-convention-home.sh
+# and yaml-subset.awk; never edit a copy. Edit the source and run
+# scripts/sync-shared-copies.sh.
 #
 # Usage:
 #   read-verification.sh --plugin <plugin> --skill <skill> [--file <path>]
@@ -75,59 +76,35 @@ if [[ -n "$fixed" ]] && [[ ! "$fixed" =~ ^[A-Za-z0-9._/-]+\.yaml$ || "$fixed" ==
   fallback "default; --file '$fixed' is not a repository-relative .yaml path"
 fi
 
-root="$(config_root_resolve)"
-case "$(config_root_classify "$root")" in
-home) fallback "default; team layer skipped: the root is \$HOME or an ancestor of it" ;;
-non-repo) fallback "default; team layer skipped: the root is not inside a git working tree" ;;
-*) ;;
-esac
-root="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)" ||
-  fallback "default; team layer skipped: the repository top level could not be read"
-
-symref="$(git -C "$root" ls-remote --symref origin HEAD 2>/dev/null)" ||
-  fallback "default; team layer skipped: no origin remote answered git ls-remote --symref origin HEAD"
-branch="$(awk '$1 == "ref:" && $3 == "HEAD" { print $2; exit }' <<<"$symref")"
-branch="${branch#refs/heads/}"
-[[ -n "$branch" ]] || fallback "default; team layer skipped: origin names no default branch"
-if [[ ! "$branch" =~ ^[A-Za-z0-9._/-]+$ || "$branch" == -* || "$branch" == *..* ]]; then
-  fallback "default; team layer skipped: origin's default branch name '$branch' is not a safe name"
-fi
-
-stale=""
-# An explicit destination, so a single-branch clone's narrowed refspec still
-# updates refs/remotes/origin/<branch>.
-git -C "$root" fetch --quiet origin "+refs/heads/$branch:refs/remotes/origin/$branch" >/dev/null 2>&1 ||
-  stale="; the fetch failed, so the last fetched copy may be stale"
-sha="$(git -C "$root" rev-parse --verify --quiet --end-of-options "refs/remotes/origin/$branch^{commit}")" ||
-  fallback "default; team layer skipped: origin/$branch has not been fetched"
-
-# Every read below names the commit, never a short ref a same-named tag or
-# local branch could shadow.
+# default-branch-file.sh reads the team file by commit SHA and ends stderr with
+# `default-branch-file: <file> at origin/<branch>, commit <sha>[; stale note]`.
+err="$(mktemp)" || fallback "default; team layer skipped: no temporary file for the reader"
+trap 'rm -f "$err"' EXIT
+rc=0
 if [[ -n "$fixed" ]]; then
-  file="$fixed"
+  team="$(bash "$SCRIPT_DIR/default-branch-file.sh" --path "$fixed" 2>"$err")" || rc=$?
 else
-  rc=0
-  home="$(bash "$SCRIPT_DIR/resolve-convention-home.sh" --root "$root" --ref "$sha" 2>/dev/null)" || rc=$?
-  case "$rc" in
-  0) ;;
-  1 | 4) home=docs/conventions ;;
-  *) fallback "default; team layer skipped: the convention-home pointer at origin/$branch is broken (resolve-convention-home.sh exit $rc)" ;;
-  esac
-  file="$home/$plugin.yaml"
+  team="$(bash "$SCRIPT_DIR/default-branch-file.sh" --plugin "$plugin" 2>"$err")" || rc=$?
 fi
-at="at origin/$branch, commit $sha$stale"
+line="$(tail -n 1 "$err")"
+line="${line#default-branch-file: }"
+case "$rc" in
+0 | 1) ;;
+*) fallback "default; team layer skipped: $line" ;;
+esac
+file="${line%% at origin/*}"
+at="at ${line#"$file at "}"
 
-# resolve [sha]: sets LEVEL, KEY (empty when no key set) and ERR (empty when
-# valid), from the file at <sha>, or the working tree's copy with no argument.
+# resolve team <text> | resolve worktree: sets LEVEL, KEY (empty when no key
+# set) and ERR (empty when valid), from the team file's text, or the working
+# tree's copy. The source is its own argument, so no file text selects it.
 # The value is checked as the parser records it, before any normalization, so
 # `off/` or a list is named as invalid rather than read as a level.
 resolve() {
-  local text records v k
+  local text="${2-}" records v k
   LEVEL=light KEY="" ERR=""
-  if [[ -n "${1:-}" ]]; then
-    text="$(git -C "$root" show --end-of-options "$1:$file" 2>/dev/null)" || return
-  else
-    [[ -f "$root/$file" ]] || return
+  if [[ "$1" == worktree ]]; then
+    [[ -n "$root" && -f "$root/$file" ]] || return
     text="$(<"$root/$file")"
   fi
   records="$(LC_ALL=C awk -f "$SCRIPT_DIR/yaml-subset.awk" <<<"$text" 2>/dev/null)" || {
@@ -160,12 +137,18 @@ describe() {
   fi
 }
 
-resolve "$sha"
+if ((rc == 0)); then
+  resolve team "$team"
+else
+  LEVEL=light KEY="" ERR=""
+fi
 team_level="$LEVEL"
 say "$(describe) $at)"
 
-resolve ""
+root="$(git -C "$(config_root_resolve)" rev-parse --show-toplevel 2>/dev/null)" || root=""
+resolve worktree
 if [[ "$LEVEL" != "$team_level" ]]; then
-  say "the working tree's copy gives $(describe)); the origin/$branch copy ($team_level) applied"
+  branch="${at#at origin/}"
+  say "the working tree's copy gives $(describe)); the origin/${branch%%, commit *} copy ($team_level) applied"
 fi
 exit 0

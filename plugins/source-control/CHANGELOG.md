@@ -3,6 +3,61 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.11.3] - 2026-11-14
+
+### Fixed
+
+- `/source-control:babysit-prs`: the merge gate, the review evidence and the cost-hold read accept the review lanes' checks under ci-workflows' Title Case job names, `<caller> / Status` for pr-review-cli.yml and `<caller> / Claude` for pr-review.yml and pr-review-security.yml, beside the earlier `review-status`, `claude-review-status` and `security-review` names, so neither lane reads as not succeeded once those jobs are renamed. `Status` and `Claude` are shared by both lanes, so each counts only under the lane's own callers. The `/source-control:pull-request` merge script and the gate docs name the same checks.
+
+## [11.11.2] - 2026-11-14
+
+### Fixed
+
+- **`read-pre-ready.sh` fails closed on a `pre_ready` list holding an empty item or a key with no value.** The shared YAML parser emits no record for `why: []`, `note:` or a bare `-`, so such a list was honored; now every step runs and the report names the reason. The reader also keeps each item's fields in an array it creates fresh, so an inherited `item_<n>_step` or `item_<n>_enabled` in the environment can no longer fill a missing value.
+- **`read-pre-ready.sh` and `read-prep-audits.sh` read a list at a uniform base indent or after a byte-order mark**, as the parser does. The empty-item and empty-value check lives once in `lib/base-file.sh` (`base_file_list_check`), which both readers call.
+
+## [11.11.1] - 2026-11-14
+
+### Fixed
+
+- `/source-control:babysit-prs`: the merge gate, the review evidence and the cost-hold read accept the review lanes' checks under the synced callers' display names, `PR Review Security / security-review` and `PR Review / claude-review-status`, beside `pr-review-security / security-review` and `pr-review / claude-review-status`, so a repository whose caller job carries a display name no longer reads its security review as not succeeded and never arms auto-merge. The `/source-control:pull-request` merge script and the gate docs name the same checks.
+
+## [11.11.0] - 2026-11-14
+
+### Added
+
+- **A `prep_audits` list in `docs/conventions/source-control.yaml` sets the audit `/source-control:pull-request prep` runs for each change class.** Each `{class, enabled, skill}` item turns the `markdown`, `renames`, `skills`, `rules` or `tests` audit off (`enabled: false`) or, except for `tests`, replaces it with a named skill that receives the class's changed files. It is read at the default branch, never the working tree, through `scripts/read-prep-audits.sh`, and a missing key, another base branch or a list the reader cannot trust runs every default audit. The comment pass and `security` are not configurable here.
+
+### Fixed
+
+- The shared hook library's command reader now says, when shfmt rejects text a guard lifted out of the command and named with `HOOK_BPS_SPAN`, which guard refused, that shfmt's `line:col` counts from the start of that text rather than the command, and the text's first 60 characters. Its own second readings (a backtick's unescaped text, a joined here-doc body) name themselves the same way. A refusal of the command itself reads as before.
+
+## [11.10.1] - 2026-11-14
+
+### Changed
+
+- The `pull-request` merge references and the `babysit-prs` safety reference name the required check `CI Status` where they warn that an armed auto-merge could merge on it alone.
+
+## [11.10.0] - 2026-11-14
+
+### Added
+
+- **`pull-request review-comments --pr <number>` reads one chosen pull request.** It prints the same rows as `--prs <n>` for that PR alone, open PRs included (where the PR author's own comments are always dropped), with `--repo` as before. `--prs <n>` is unchanged; passing both is a usage error.
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+### Fixed
+
+- `/source-control:pull-request`: `scripts/check-gate-lines.sh`, the attended body refresh's gate-line comparison, also counts a closing keyword followed by a full issue URL, and hold wording whose words sit on two lines (one `hold wording across lines:` entry per match), so a refresh can no longer add, drop or change either unnoticed.
+
+## [11.9.0] - 2026-11-14
+
+### Added
+
+- `comments --ci`: the review-thread tool gains `sections`, the PR body sections the round may refresh, and `record-body <file>`, which records their new text once per round. The record shares the replies file's 49152-byte cap and never costs a reply: `record-body` refuses text that does not fit, a later `record` that needs the room drops it, and `record` refuses a reply that would pass the cap even then. The reply job puts the text in place after the fix lands, and drops it when it holds a line a gate reads. `pr_body_refresh` in `docs/conventions/source-control.yaml` now also governs these rounds.
+
 ## [11.8.1] - 2026-11-14
 
 ### Changed

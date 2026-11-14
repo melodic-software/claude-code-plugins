@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "resolved: testing/run-e2e -> .claude/skills/control-repo/features/testing/README.md, part run-e2e",
+      "why": "the resolution line drive step 8 writes, with the skill-relative prefix"
+    },
+    {
+      "answer": "Report:\nresolved: `testing/run-e2e` -> `features/testing/README.md`, part `run-e2e`",
+      "why": "the same line with code spans"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No feature file exists for testing/run-e2e: features/testing/README.md lists run-e2e under Parts, but neither features/testing/run-e2e/README.md nor features/testing/run-e2e.md exists, so the feature stops.",
+      "why": "old behavior: mentions the module file near run-e2e but stops instead of resolving"
+    },
+    {
+      "answer": "blocked: no feature file for testing/run-e2e (looked for features/testing/run-e2e/README.md and features/testing/run-e2e.md)",
+      "why": "stopped without looking in the module's Parts"
+    }
+  ]
+}

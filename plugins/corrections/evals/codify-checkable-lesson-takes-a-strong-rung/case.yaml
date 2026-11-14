@@ -14,7 +14,7 @@ execution:
 graders:
   - name: strong-rung
     type: 'regex'
-    pattern: 'shared-helper|make-impossible|semgrep-rule|analyzer-pack-rule'
+    pattern: 'shared-helper|make-impossible|semgrep-rule|syntax-pattern-rule|analyzer-pack-rule'
     flags: 'i'
     arm: 'both'
   - name: slugged-home
