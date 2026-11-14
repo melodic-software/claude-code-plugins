@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Contract tests for lib/git-hooks/check-lib.sh against real git repositories:
 # the staged and worktree file sets, a merge's own file set with its fallback,
-# changed-line ranges, the partly staged test, the checks.skipmissing key reaching a hook through `git -c`, agent and
+# changed-line ranges with the binary test and its launch count, the partly staged test, the checks.skipmissing key reaching a hook through `git -c`, agent and
 # human missing-tool messages, the pre-push range with its fallbacks, set -e
 # tolerance, and a bash 3.2 syntax lint. Expected values come from the
 # check-placement contract's runtime table.
@@ -122,6 +122,78 @@ expect "pre-commit ranges: a text file with a -diff attribute is still scanned" 
 printf 'loose\0bin\n' >"$B/loose.dat"
 expect "worktree ranges: an untracked binary file is dropped" no \
   "$(in_repo "$B" pre-commit 'checks_changed_lines; grep -q "^loose.dat" "$CHECKS_TMP/ranges" && echo yes || echo no' --worktree)"
+
+# The staged heads are read in one stream: the 8000-byte boundary, a blob that
+# ends in a NUL, two paths sharing one blob and a large blob between text files
+# must each be judged on its own bytes; a \001 byte and a text blob of exactly
+# 8000 bytes are text, and so is a UTF-8 file, whose multibyte characters must
+# not shift the byte count for the blobs after it, while bytes above \177 beside
+# a NUL are binary. A symlink is not a regular file, so its lines stay even when
+# its target text holds a NUL.
+new_repo; E="$REPO"
+printf 'text\n' >"$E/a.txt"
+{ printf '%*s' 7999 '' | tr ' ' a; printf '\0\nmore\n'; } >"$E/edge.dat"
+{ printf '%*s' 8000 '' | tr ' ' a; printf '\0\n'; } >"$E/late.txt"
+printf 'x\n\0' >"$E/endnul.dat"
+printf 'tw\0in\n' >"$E/twin1.dat"
+cp "$E/twin1.dat" "$E/twin2.dat"
+{ printf '\0'; printf '%*s' 20000 '' | tr ' ' b; printf '\n'; } >"$E/big.dat"
+printf 'last\n' >"$E/z.txt"
+printf 'ctl\001x\n' >"$E/ctl.txt"
+{ printf '%*s' 7999 '' | tr ' ' c; printf '\n'; } >"$E/exact.txt"
+printf '\143af\303\251 \342\202\254\n' >"$E/utf8.txt"
+printf 'hi\303\251\377\0\n' >"$E/high.dat"
+git -C "$E" add .
+link_blob="$(printf 'tar\0get' | git -C "$E" hash-object -w --stdin)"
+git -C "$E" update-index --add --cacheinfo "120000,$link_blob,link"
+expect "pre-commit ranges: each staged head is judged on its own first 8000 bytes" \
+  $'a.txt\t1\t1\nctl.txt\t1\t1\nexact.txt\t1\t1\nlate.txt\t1\t1\nlink\t1\t1\nutf8.txt\t1\t1\nz.txt\t1\t1' \
+  "$(in_repo "$E" pre-commit 'checks_changed_lines; LC_ALL=C sort "$CHECKS_TMP/ranges"')"
+
+# The binary test reads every path with a fixed number of processes, so the
+# launches do not grow with the number of changed paths.
+LOGSHIMS="$WORK/logshims"
+mkdir "$LOGSHIMS"
+for t in awk cat git tr; do
+  printf '#!/bin/sh\necho %s >>"$LAUNCH_LOG"\nexec %s "$@"\n' "$t" "$(command -v "$t")" >"$LOGSHIMS/$t"
+  chmod +x "$LOGSHIMS/$t"
+done
+launches() { # <repo> <event> [args...] -> the awk, cat, git and tr launches of checks_changed_lines
+  local repo="$1" event="$2" log="$WORK/launch.log"
+  shift 2
+  : >"$log"
+  PATH="$LOGSHIMS:$PATH" LAUNCH_LOG="$log" in_repo "$repo" "$event" 'checks_changed_lines' "$@" >/dev/null 2>&1
+  grep -c . "$log"
+}
+many_paths() { # <count>: a repo whose second commit adds <count> text files and a binary, also left staged
+  new_repo
+  local i
+  printf 'seed\n' >"$REPO/seed.txt"
+  git -C "$REPO" add seed.txt
+  git -C "$REPO" commit -q -m seed
+  for ((i = 1; i <= $1; i++)); do printf 'line %s\n' "$i" >"$REPO/f$i.txt"; done
+  printf 'b\0in\n' >"$REPO/bin.dat"
+  git -C "$REPO" add .
+}
+push_head() { # <repo>: commit what is staged and print its pre-push record from the seed commit
+  git -C "$1" commit -q -m many
+  printf 'refs/heads/main %s refs/heads/main %s\n' "$(git -C "$1" rev-parse HEAD)" "$(git -C "$1" rev-parse HEAD~1)"
+}
+many_paths 3; FEW="$REPO"
+many_paths 40; MANY="$REPO"
+expect "pre-commit: the binary test's launches do not grow with the path count" \
+  "$(launches "$FEW" pre-commit)" "$(launches "$MANY" pre-commit)"
+expect "pre-commit: with 40 text files, every text file keeps its line and the binary drops" "40|no" \
+  "$(in_repo "$MANY" pre-commit 'checks_changed_lines; printf "%s|" "$(grep -c . "$CHECKS_TMP/ranges")"; grep -q "^bin.dat" "$CHECKS_TMP/ranges" && echo yes || echo no')"
+expect "worktree: the binary test's launches do not grow with the path count" \
+  "$(launches "$FEW" pre-commit --worktree)" "$(launches "$MANY" pre-commit --worktree)"
+FEW_PUSH="$(push_head "$FEW")"
+MANY_PUSH="$(push_head "$MANY")"
+expect "pre-push: the binary test's launches do not grow with the path count" \
+  "$(printf '%s\n' "$FEW_PUSH" | launches "$FEW" pre-push origin url)" \
+  "$(printf '%s\n' "$MANY_PUSH" | launches "$MANY" pre-push origin url)"
+expect "pre-push: with 40 text files, every text file keeps its line and the binary drops" "40|no" \
+  "$(printf '%s\n' "$MANY_PUSH" | in_repo "$MANY" pre-push 'checks_changed_lines; printf "%s|" "$(grep -c . "$CHECKS_TMP/ranges")"; grep -q "^bin.dat" "$CHECKS_TMP/ranges" && echo yes || echo no' origin url)"
 
 # --- a merge being committed ------------------------------------------------------
 # Pre-commit counts only the lines the merge adds against every parent: a line
@@ -269,6 +341,12 @@ expect "tools that all succeed pass through the shims unchanged" $'a.txt:1: x\n0
 expect "a failing awk narrowing a merge to its own lines fails the hook" \
   "1|checks: awk exited 2 while listing the lines the merge adds, so this change was not fully checked; fix that failure, then commit again" \
   "$(in_repo_failing "$M" pre-commit 'NR == FNR' 'checks_changed_lines; exit 0')"
+expect "a failing git cat-file in the binary test fails the hook" \
+  "1|checks: git exited 2 while testing the changed files for binary content, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$F" pre-commit 'cat-file --batch' 'checks_changed_lines; exit 0')"
+expect "a failing awk in the binary test fails the hook" \
+  "1|checks: awk exited 2 while testing the changed files for binary content, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$F" pre-commit 'blob_end' 'checks_changed_lines; exit 0')"
 
 # --- missing tool and skip-propagation ------------------------------------------
 new_repo; H="$REPO"
@@ -353,6 +431,25 @@ expect "pre-push ranges: a binary file in the pushed commit is dropped" $'f.txt\
   "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$bin_sha" "$zero" | in_repo "$P" pre-push 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' origin url)"
 git -C "$P" reset -q --hard "$topic_sha"
 rm -f "$P/p.dat"
+# Each pushed tip is read: a path one ref makes text and another makes binary
+# drops, and a binary only the second ref adds drops beside its text file.
+git -C "$P" switch -q -c tip1 "$base_sha"
+printf 'one\n' >"$P/one.txt"
+printf 'text here\n' >"$P/shared.dat"
+git -C "$P" add one.txt shared.dat
+git -C "$P" commit -q -m tip1
+tip1_sha="$(git -C "$P" rev-parse HEAD)"
+git -C "$P" switch -q -c tip2 "$base_sha"
+printf 'two\n' >"$P/two.txt"
+printf 'tw\0o\n' >"$P/two.dat"
+printf 'bin\0here\n' >"$P/shared.dat"
+git -C "$P" add two.txt two.dat shared.dat
+git -C "$P" commit -q -m tip2
+tip2_sha="$(git -C "$P" rev-parse HEAD)"
+expect "pre-push ranges: each pushed tip's bytes decide" $'one.txt\t1\t1\ntwo.txt\t1\t1' \
+  "$(printf 'refs/heads/tip1 %s refs/heads/tip1 %s\nrefs/heads/tip2 %s refs/heads/tip2 %s\n' "$tip1_sha" "$base_sha" "$tip2_sha" "$base_sha" |
+    in_repo "$P" pre-push 'checks_changed_lines; LC_ALL=C sort "$CHECKS_TMP/ranges"' origin url)"
+git -C "$P" switch -q topic
 
 git -C "$P" remote set-head origin -d >/dev/null
 expect "pre-push: without <remote>/HEAD, ls-remote --symref finds the default branch" "$base_sha $topic_sha" \
