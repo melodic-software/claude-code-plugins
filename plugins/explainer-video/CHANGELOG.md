@@ -3,6 +3,12 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.0] - 2026-11-14
+
+### Added
+
+- The stills renderer's `diagram` moment takes an optional `layout`: `flow` (the default) joins its nodes with arrows as before, while `stack` (layers, top first) and `group` (side by side, under an optional `center` heading) draw no arrows, so a hub, a set of layers or a comparison is no longer shown as a sequence.
+
 ## [2.3.0] - 2026-11-14
 
 ### Added
