@@ -19,8 +19,9 @@
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
 //   `types-parent-if-present` needs that parent only when it has one (Q83).
-//   A parent awaits a decision while it carries needs-human, or
-//   needs-owner-decision with a decision open
+//   A parent awaits a decision while it carries needs-human (unless it
+//   carries a `parent-container-labels` label: a spec container, which
+//   decompose marks human-gated by design), or needs-owner-decision with a decision open
 //   (parentDecisionOpen): the lanes App may not lift that label (a person
 //   set it, or its verdict holds for a flag other than intent), or the
 //   parent's newest refinement asks questions no later `**Decision
@@ -223,15 +224,25 @@ const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 export const UNTRUSTED = UNTRUSTED_LABEL;
 // Marks a standing item linked to a .github/recurring-schedule.json row.
 const RECURRING = "recurring";
+// A parent's labels that hold its children, except on a spec container, which
+// /work-items:decompose always marks human-gated: a parent carrying one of
+// the rules' `parent-container-labels`.
 const PARENT_HOLDS = new Set(["needs-human"]);
 // A body line opening with `Hold:`, as the merge gate reads one in a pull
 // request body a person wrote (pr-merge/merge-holds.mjs BODY_HOLD).
 export const BODY_HOLD = /^[^\S\r\n]*hold:/im;
-const LISTS = ["types", "types-under-parent", "types-parent-if-present", "sizes", "uncertainty", "refuse-labels", "cordoned-milestones"];
+const LISTS = ["types", "types-under-parent", "types-parent-if-present", "sizes", "uncertainty", "refuse-labels", "cordoned-milestones", "parent-container-labels"];
+// Lists a rules file may leave out, read as empty.
+const OPTIONAL_LISTS = ["parent-container-labels"];
 
 // The rules file, each list checked to hold strings.
 export function loadRules(path) {
   const rules = JSON.parse(readFileSync(path, "utf8"));
+  for (const key of OPTIONAL_LISTS) {
+    if (rules !== null && typeof rules === "object" && rules[key] === undefined) {
+      rules[key] = [];
+    }
+  }
   for (const key of LISTS) {
     if (!Array.isArray(rules?.[key]) || !rules[key].every((item) => typeof item === "string" && item !== "")) {
       throw new Error(`${path}: \`${key}\` must be a list of strings`);
@@ -1252,7 +1263,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   } else if (underParent || (rules["types-parent-if-present"].includes(type) && parent !== null)) {
     // An App-set needs-decision with no open decision does not hold
     // (parentDecisionOpen); a parent read without that fact holds.
-    const held = (label) => PARENT_HOLDS.has(label) || (DECISION_LABELS.includes(label) && parent.decisionOpen !== false);
+    const containerLabels = rules["parent-container-labels"] ?? [];
+    const container = parent !== null && names(parent.labels).some((label) => containerLabels.includes(label));
+    const held = (label) => (PARENT_HOLDS.has(label) && !container) || (DECISION_LABELS.includes(label) && parent.decisionOpen !== false);
     const parentOk = parent !== null && parent.state === "open" && humans.has(parent.user?.id) && !names(parent.holdLabels ?? parent.labels).some(held);
     if (!parentOk) {
       refuse.push(`a ${type} needs an open parent issue a listed human filed that awaits no decision`);
