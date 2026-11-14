@@ -110,8 +110,9 @@ Auto-detection algorithm:
 1. Resolve each covered ecosystem's config per [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) (consumer `.claude/ecosystems/<ecosystem>.yaml` when present, else the bundled default; a malformed consumer file warns and degrades to inference, never a hard stop). Skip any ecosystem whose resolved `enabled` is `false` (a consumer opt-out). Excluded even under `all`
 2. For each ecosystem, match its `globs` against the changed-files list
 3. Run every ecosystem with ≥1 glob match whose `opt-in` condition holds, plus cross-cutting when any text file changed. This binary run/skip treatment applies cleanly when `opt-in` describes a SINGLE condition for the whole `check-cmd` (dotnet, python): unmet → excluded from the run but still reported (see sections 2 and 3 below, `skip (opt-in unmet: ...)`; never silently omitted). When `opt-in` instead describes MULTIPLE independent per-tool conditions bundled into one opaque command string (bash's shellcheck-always/shfmt-conditional split; cross-cutting's per-tool config-file list), this rule does not apply. `check-cmd`/`fix-cmd`/`code-fix-cmd` is a single opaque string with no way to run one sub-tool's portion without the other, so run it whole and report its real output. The known atomicity limitation this leaves open is in `/toolchain:check`'s Gotchas.
+4. A changed file is unclaimed when no resolved ecosystem's `globs` match it, cross-cutting's `**` aside: that glob is never a claim by itself, whether cross-cutting runs or is disabled. A match by any other ecosystem counts, even one that is disabled or skipped for an unmet opt-in: that row already reports the consumer's choice. Collect each unclaimed text file for the report's two fixed lines (section 3). Under `all` the changed files still come from the detection paths above; an ecosystem filter skips this step. A deleted file is not named. A binary file stays quiet. Decide binary with `git ls-files --eol -c -o -- <file>`: the file is binary when Git identifies its working-tree content as not text ([`--eol`](https://git-scm.com/docs/git-ls-files#Documentation/git-ls-files.txt---eol)). A path with no working-tree content is deleted or not a regular file, never binary. One command serves a working-tree change, the branch diff and a caller-supplied changed-file list.
 
-If neither detection path yields changes and no filter specified: report "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:lint all` to check the full repo, or `/toolchain:lint <ecosystem>` for a specific filter." and stop.
+If neither detection path yields changes and no filter specified: report "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:lint all` to check the full repo, or `/toolchain:lint <ecosystem>` for a specific filter." and stop. If files changed but no ecosystem runs, print the unclaimed-file line (when it names any file) instead of the table, and stop.
 
 ### 2. Run linters per ecosystem
 
@@ -209,6 +210,13 @@ If `--code-fix` was used (and applied), note which ecosystems ran `code-fix-cmd`
 
 Show failing output below the table. Truncated to key error lines, not the full dump.
 
+Below the table, name every unclaimed changed text file (section 1, step 4) on one of two fixed lines, printed word for word even when a note elsewhere in the reply says the same thing:
+
+- `No ecosystem linter (cross-cutting text checks only): <path>, <path>` only when cross-cutting's check command executed in this invocation (its row reads `pass` or `FAIL`), so its checks covered them;
+- `Outside every ecosystem: <path>, <path>` in every other case, including a cross-cutting row that is a skip.
+
+Neither line changes a Status or the Overall line, and no binary file is on either. Say nothing about a binary file outside every ecosystem: no table row, no bullet, and no note that it is binary, was skipped or was ignored. Tool output the report shows, such as failing lines or `git diff --stat`, stays as printed.
+
 ### 4. Fix mode notes
 
 - **`--fix`:** auto-fix capability derives from a non-null `fix-cmd`. Report check-only ecosystems alongside format fixes: "Fixed formatting in dotnet, python, bash. markdownlint had no remaining auto-fixes."
@@ -224,7 +232,7 @@ After a check-mode report, record its Overall line for the tree it ran on, in it
 node "${CLAUDE_PLUGIN_ROOT}/scripts/record-result.mjs" --skill lint --dir "$REPO_ROOT" --overall '<the Overall line>'
 ```
 
-The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:check`'s record. Record nothing for `--fix` or `--code-fix`: the fix changes the tree, so the check that would count is the next check-mode run. Skip it too when an ecosystem filter narrowed the run (`all` and a caller's changed-file list do not narrow it), and when the run stopped at "No changes found". A failed record (exit 2) changes nothing in the report; say it was not recorded.
+The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:check`'s record. Record nothing for `--fix` or `--code-fix`: the fix changes the tree, so the check that would count is the next check-mode run. Skip it too when an ecosystem filter narrowed the run (`all` and a caller's changed-file list do not narrow it), and when the run stopped at "No changes found" or with no ecosystem to run. A failed record (exit 2) changes nothing in the report; say it was not recorded.
 
 ## Edge cases
 
@@ -232,7 +240,7 @@ The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:ch
 - **Missing tools**: report as `skip (tool missing: <tool>)` with the install hint, not as failure, and never as done: the Overall line reads `INCOMPLETE`. Scoped to the tool the ecosystem's commands are invoked through, not every sub-tool a compound command reaches (an un-probed sub-tool's absence is a real non-zero exit, so `FAIL`; see `/toolchain:check`'s Gotchas)
 - **Opt-in unmet**: report as `skip (opt-in unmet: ...)` with the condition, not as failure and not a silent omission (e.g., dotnet with no C#-relevant `.editorconfig`)
 - **Multiple projects in same ecosystem**: run per-project (each `pyproject.toml`, each `package.json`)
-- **File outside any ecosystem**: silently skip (no noise for binary files, images, etc.)
+- **File outside any ecosystem**: a text file is named on one of the two unclaimed-file lines; a binary file (images, archives) outside every ecosystem gets no mention in the reply, not even to say it was skipped
 - **CWD drift**: always use absolute paths from `$REPO_ROOT`
 - **`--code-fix` over file-cap without `--all-files`**: plan + stop, never mutate
 - **`--code-fix` in non-interactive session without `--yes`**: plan + stop, never mutate

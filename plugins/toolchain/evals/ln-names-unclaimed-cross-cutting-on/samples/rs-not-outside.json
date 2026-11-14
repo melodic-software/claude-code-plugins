@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No ecosystem linter (cross-cutting text checks only): src/lib.rs\n\nOverall: PASS (2 of 2 ecosystems passed)",
+      "why": "the cross-cutting-only line"
+    },
+    {
+      "answer": "src/lib.rs is outside every ecosystem's globs; only cross-cutting's text checks covered it.",
+      "why": "prose, not the outside-every-ecosystem line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| cross-cutting | pass | PASS |\n\nOutside every ecosystem: src/lib.rs",
+      "why": "contradicts the cross-cutting row"
+    },
+    {
+      "answer": "- **Outside every ecosystem:** `src/lib.rs`",
+      "why": "list item with bold label"
+    }
+  ]
+}

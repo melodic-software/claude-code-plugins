@@ -30,6 +30,10 @@ Options:
                              the option for more globs
   --exclude-from <file>      read globs from <file>, one per line (blank lines
                              ignored), in addition to any --exclude
+  --unread-to <file>         write to <file>, one per line and sorted, each text
+                             file in scope whose language the scanner has no
+                             kind for, so a caller can name what was not read;
+                             a binary file is not listed. Stdout is unchanged
   --help                     print this text
 
 Globs: `*` and `?` stay within one path segment, `**` as a whole segment spans
@@ -639,11 +643,15 @@ def _code_records(
     return [Record(lineno, kind, rules, True, reason)]
 
 
-def scan_text(path: str, text: str) -> list[Record]:
-    lines = text.splitlines()
-    kind = kind_of(path, lines[0] if lines else "")
+def kind_of_text(path: str, text: str) -> str | None:
+    return kind_of(path, (text.splitlines() or [""])[0])
+
+
+def scan_text(text: str, kind: str | None) -> list[Record]:
+    """The suppressions in `text`, read as `kind` (from kind_of_text)."""
     if kind is None or not ANY_MARKER.search(text):
         return []
+    lines = text.splitlines()
     state = LexState()
     records: list[Record] = []
     for index, line in enumerate(lines):
@@ -778,7 +786,7 @@ def exclusion_matcher(globs: list[str]):
 
 
 def inventory(
-    paths: list[str], excluded=lambda shown: False
+    paths: list[str], excluded=lambda shown: False, unread: list[str] | None = None
 ) -> list[tuple[str, Record]]:
     top = repo_top()
     if not paths:
@@ -799,8 +807,12 @@ def inventory(
                 text = decode(handle.read())
         except OSError as exc:
             raise UsageError(f"cannot read {path}: {exc.strerror}") from exc
-        if text is not None:
-            found.extend((shown, r) for r in scan_text(shown, text))
+        if text is None:
+            continue
+        kind = kind_of_text(shown, text)
+        if unread is not None and kind is None:
+            unread.append(shown)
+        found.extend((shown, r) for r in scan_text(text, kind))
     return found
 
 
@@ -832,7 +844,10 @@ def added_lines(base: str, paths: tuple[str, ...], top: str) -> set[int]:
 
 
 def changed(
-    base: str, paths: list[str], excluded=lambda shown: False
+    base: str,
+    paths: list[str],
+    excluded=lambda shown: False,
+    unread: list[str] | None = None,
 ) -> list[tuple[str, Record]]:
     top = repo_top()
     if top is None:
@@ -883,7 +898,10 @@ def changed(
         text = decode(git(["cat-file", "blob", f"HEAD:{path}"], cwd=top))
         if text is None:
             continue
-        found.extend((path, r) for r in scan_text(path, text) if r.line in lines)
+        kind = kind_of_text(path, text)
+        if unread is not None and kind is None:
+            unread.append(path)
+        found.extend((path, r) for r in scan_text(text, kind) if r.line in lines)
     return found
 
 
@@ -909,6 +927,7 @@ def parse(argv: list[str]) -> dict:
         "paths_from": None,
         "exclude_from": None,
         "exclude": [],
+        "unread_to": None,
         "paths": [],
     }
     takes_value = {
@@ -917,6 +936,7 @@ def parse(argv: list[str]) -> dict:
         "--paths-from": "paths_from",
         "--exclude-from": "exclude_from",
         "--exclude": "exclude",
+        "--unread-to": "unread_to",
     }
     i = 0
     while i < len(argv):
@@ -963,10 +983,21 @@ def main(argv: list[str]) -> int:
         listed = None
         if options["rules"] is not None:
             listed = {r.casefold() for r in read_list(options["rules"], comments=True)}
+        unread: list[str] | None = None if options["unread_to"] is None else []
         if options["diff"] is not None:
-            found = changed(options["diff"], paths, excluded)
+            found = changed(options["diff"], paths, excluded, unread)
         else:
-            found = inventory(paths, excluded)
+            found = inventory(paths, excluded, unread)
+        if unread is not None:
+            try:
+                with open(
+                    options["unread_to"], "w", encoding="utf-8", newline="\n"
+                ) as handle:
+                    handle.write("".join(f"{path}\n" for path in sorted(unread)))
+            except OSError as exc:
+                raise UsageError(
+                    f"cannot write {options['unread_to']}: {exc.strerror}"
+                ) from exc
     except UsageError as exc:
         print(f"suppression-scan.py: {exc}", file=sys.stderr)
         return 2

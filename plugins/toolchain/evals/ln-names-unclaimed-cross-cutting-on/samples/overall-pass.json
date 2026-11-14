@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Overall: PASS (2 of 2 ecosystems passed)",
+      "why": "plain line"
+    },
+    {
+      "answer": "**Overall:** PASS (2 of 2 ecosystems passed)",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Overall: INCOMPLETE (2 of 2 ecosystems passed; src/lib.rs has no ecosystem linter)",
+      "why": "the named file changed the Overall class"
+    },
+    {
+      "answer": "Overall: FAIL (src/lib.rs has no ecosystem)",
+      "why": "the named file failed the run"
+    }
+  ]
+}
