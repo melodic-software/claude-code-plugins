@@ -90,6 +90,10 @@
       "why": "\"what to post\" then a negated object before the INVALID line"
     },
     {
+      "answer": "The run is INVALID. Post the line with the delta, not this one:\n\nverdict: INVALID (2 run errors)",
+      "why": "\"post the line\" names the delta line and negates the INVALID line"
+    },
+    {
       "answer": "Don't post this line:\n\n```text\nverdict: INVALID (2 run errors; permission denials unchecked: no kept traces)\n```\n\nRerun first.",
       "why": "negated \"post this line\" before the INVALID line"
     }
