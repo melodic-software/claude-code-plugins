@@ -23,8 +23,8 @@
       "why": "claims the owner-call item, written as skill and arguments"
     },
     {
-      "answer": "{\"skill\": \"work-items:track\", \"args\": \"start <issue #61>\"}",
-      "why": "claims the owner-call item, written as JSON"
+      "answer": "**Skill:** work-items:track  **args:** start <issue #61>",
+      "why": "claims the owner-call item, written with bold labels as an issue reference"
     }
   ]
 }

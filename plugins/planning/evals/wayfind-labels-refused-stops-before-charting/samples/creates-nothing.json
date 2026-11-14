@@ -27,7 +27,7 @@
       "why": "a create after a refusal, arguments on a later line past a fence"
     },
     {
-      "answer": "{\"skill\": \"work-items:track\", \"args\": \"link 61 --blocks 62\"}",
+      "answer": "```\nSkill: work-items:track\nargs: link 61 --blocks 62\n```",
       "why": "wires an edge after a refusal"
     }
   ]

@@ -13,6 +13,10 @@
     {
       "answer": "Routing to /planning:interview.",
       "why": "wrong route"
+    },
+    {
+      "answer": "Hand-off:\n```\nSkill: planning:design-handoff\n```",
+      "why": "routes to the handoff skill, not to design"
     }
   ]
 }
