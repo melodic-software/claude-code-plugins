@@ -14,6 +14,10 @@
     },
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git show HEAD:src/duration.py\"}}]}}"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd src && for f in duration.py exporter.py; do echo \\\"=== $f\\\"; cat $f; done\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"=== duration.py\\nimport re\\n\\n_PART = re.compile(r\\\"(\\\\d+)([hms])\\\")\\n_UNIT = {\\\"h\\\": 3600, \\\"m\\\": 60, \\\"s\\\": 1}\\n\",\"is_error\":false}]}}",
+      "why": "loop that names the file before cat; the parser's body is in the tool result"
     }
   ],
   "fail": [
@@ -40,6 +44,22 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff --stat main...HEAD -- src/duration.py | head\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_1\",\"type\":\"tool_result\",\"content\":\" src/duration.py     | 11 +++++++++++\\n src/models/types.py | 12 ++++++++++++\\n\",\"is_error\":false}]}}",
       "why": "piped a stat through head; the parser body never shown"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"for f in src/duration.py; do wc -l $f; done\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"11 src/duration.py\\n\",\"is_error\":false}]}}",
+      "why": "loop that only counts lines"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"result\":\"parse_duration uses a _UNIT table; property tests for duration.py\"}",
+      "why": "reply names _UNIT without any tool output"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff --stat main...HEAD -- src/duration.py\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\" src/duration.py | 11 +++++++++++\\n\",\"is_error\":false}]}}",
+      "why": "stat of the parser file only"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Grep\",\"input\":{\"pattern\":\"def \",\"path\":\"src/duration.py\",\"output_mode\":\"files_with_matches\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"src/duration.py\",\"is_error\":false}]}}",
+      "why": "grep that lists the file name only"
     }
   ]
 }
