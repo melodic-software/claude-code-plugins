@@ -301,7 +301,7 @@
     "Ruff",
     "Windows"
   ],
-  "displayNameLevel": "warning",
+  "displayNameLevel": "error",
   "jobNameExceptions": [],
   "exemptions": [
     {
