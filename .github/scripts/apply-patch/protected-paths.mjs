@@ -1,6 +1,6 @@
 // The paths a lane patch may not change, as apply-patch.mjs refuses them.
-// No imports: admission (intake-triage/admit.mjs) loads it to refuse an issue
-// whose criteria name one of these paths before a lane run is spent on it.
+// deny-rules.mjs builds the lane model's Edit deny rules from the same
+// PATH_RULES.
 
 // A path's segments in lower case with `.`, `..` and empty segments resolved,
 // so `.GitHub/x` and `a/../.github/x` read as `.github/x`.
@@ -29,7 +29,7 @@ const LANE_GRANT_FILES = Object.freeze([".github/actions/resolve-config/lane-gra
 // .claude/agent-memory/ and .claude/agent-memory-local/ only at the root;
 // recheck with the same probe when the section changes.
 const CLAUDE_PROTECTED_DIRS = new Set([".git", ".vscode", ".idea", ".husky", ".cargo", ".devcontainer", ".yarn", ".mvn"]);
-export const CLAUDE_PROTECTED_FILES = new Set([
+const CLAUDE_PROTECTED_FILES = new Set([
   ".gitconfig",
   ".bashrc",
   ".bash_profile",
@@ -67,9 +67,9 @@ export const CLAUDE_PROTECTED_FILES = new Set([
   ".mcp.json",
   ".claude.json",
 ]);
-// A protected directory counts named bare too (`.vscode/`, `.config/git`), as
-// admission reads an issue that adds files under it; the root agent-memory
-// directories count as writable, since Markdown under them is.
+// A protected directory counts named bare too (`.vscode/`, `.config/git`); the
+// root agent-memory directories count as writable, since Markdown under them
+// is.
 const claudeDirWritable = (s, i) => s[i + 1] === "worktrees" || (i === 0 && ["agent-memory", "agent-memory-local"].includes(s[1]) && (s.length === 2 || s.at(-1).endsWith(".md")));
 const claudeProtected = (s) =>
   CLAUDE_PROTECTED_FILES.has(s.at(-1)) ||
