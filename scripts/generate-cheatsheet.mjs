@@ -134,8 +134,10 @@ function unquote(value) {
 
 // The actions are the bare-word alternatives of the hint's first bracketed
 // group: `[audit|fix] [target]` yields audit and fix. Placeholders (`<path>`),
-// flags, `key=value` choices and multi-word alternatives are not actions, and
-// a group with no `|` is an argument rather than a choice of actions.
+// flags, `key=value` choices and multi-word alternatives are not actions; a
+// group with no `|` is an argument, and one led by a flag and its value
+// (`[--output a|b]`) chooses that flag's value, so neither yields actions. A
+// group whose first choice is a bare flag (`[--ledger|fix]`) still yields fix.
 function actionWords(hint) {
   const open = hint.search(/[[<]/);
   if (open === -1) return [];
@@ -166,7 +168,9 @@ function actionWords(hint) {
     }
     return text.replace(/…|\.\.\./g, "").trim().split(/\s+/);
   });
-  if (bare.some(([first]) => first.includes("="))) return [];
+  const [lead, leadValue] = bare[0];
+  const flagLed = lead.startsWith("-") && leadValue !== undefined && !leadValue.startsWith("-");
+  if (flagLed || bare.some(([first]) => first.includes("="))) return [];
   const words = bare
     .filter(([first, ...rest]) => /^[a-z][a-z0-9-]*$/.test(first) && rest.every((t) => t.startsWith("-")))
     .map(([first]) => first);

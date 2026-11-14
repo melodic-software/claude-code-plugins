@@ -323,6 +323,26 @@ fi
 rm -rf "$tree"
 
 mk_tree tree
+write_rich_skill "$tree" alpha flagged \
+  'argument-hint: "[--output change-prep|explain] [scope]"' ""
+write_rich_skill "$tree" alpha switched \
+  'argument-hint: "[--ledger|--tools T1,T2|fix] [--unattended]"' ""
+run_gen "$tree"
+row="$(row_of "$tree" alpha:flagged)"
+if [[ "$CODE" -eq 0 && "$row" == *"Fixture row for flagged |  |  |" ]]; then
+  ok "a first group led by a flag and its value yields no actions (its value choices are not actions)"
+else
+  fail "flagged row (exit=$CODE: $OUT; row: $row)"
+fi
+row="$(row_of "$tree" alpha:switched)"
+if [[ "$row" == *"Fixture row for switched | \`fix\` |  |" ]]; then
+  ok "a first group whose first choice is a bare flag still yields its action words"
+else
+  fail "switched row: $row"
+fi
+rm -rf "$tree"
+
+mk_tree tree
 write_rich_skill "$tree" alpha hinted "" \
   "$(printf '## Next\n\n/alpha:ghost <topic>.')"
 run_gen "$tree"
