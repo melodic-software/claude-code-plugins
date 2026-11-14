@@ -547,7 +547,9 @@ when it is also the exact version the manifest pins, instead of a model turn
 `install-script-pin` row, which checks the pin against the manifest's version as Dependabot set
 it, not the lockfile; it posts no round marker, and the new head is reviewed as any other.
 `check-catalog` fails `ci-status` while the pin and the lockfile disagree, so a Dependabot bump
-of the CLI sorts `review` and reaches this step.
+of the CLI sorts `review` and reaches this step. Once the pin lands, its lanes App commit keeps
+the pull request `review` in both lanes, so the pr-merge lane merges it only on a `verdict=merge`
+marker at the new head.
 
 `pr-unblock`'s `fix-ci` runs in separate jobs of `pr-unblock.yml`, so no model holds a write token:
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
@@ -2348,8 +2350,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   opens with `Bump <name> from <a> to <b>` for that entry's name and version, never from the PR
   title. When both read, they must name the same dependencies and agree on which are major.
 - **Tier `review`.** Anything else, including anything unreadable (a SHA version, an unparsed
-  title), every update to a [review-only dependency](#review-only-dependencies), and an npm or
-  pip update whose [registry provenance](#registry-provenance) changed. The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
+  title), every update to a [review-only dependency](#review-only-dependencies), a pull request
+  carrying a lanes App commit, and an npm or pip update whose
+  [registry provenance](#registry-provenance) changed. The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
   when the newest round marker the lanes App posted on it
   (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
   names the current head with `verdict=merge`. A marker from any other author is ignored. The

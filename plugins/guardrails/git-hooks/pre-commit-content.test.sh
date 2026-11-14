@@ -7,7 +7,8 @@
 # gitignored file is judged and an untracked one is not; files judged in one
 # commit keep each file's own findings; a merge in progress is judged on the
 # lines it adds against every parent, so what the merged branch already holds
-# passes, unless the merge changes its mode; --worktree covers uncommitted and untracked files; and the plugin's vendored
+# passes, unless the merge changes its mode; a symlink turned into a regular
+# file is judged whole and the reverse is not judged; --worktree covers uncommitted and untracked files; and the plugin's vendored
 # installer wires the entry, pattern libraries included, so `git commit` runs it.
 # test-scope: plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/reference-verify.sh
@@ -341,6 +342,37 @@ git -C "$REPO" update-index --add --cacheinfo "100644,$blob,t.txt"
 printf '%s\n' "$side" >"$REPO/.git/MERGE_HEAD"
 expect "a merge: a symlink target turned into a regular file with the same bytes is judged" "1|t.txt:1: secret or credential pattern: GitHub PAT
 $HINT" "$(check "$REPO")"
+
+# A commit that turns HEAD's symlink into a regular file adds every line of it;
+# one that turns a regular file into a symlink adds no content. Built with
+# plumbing, as above.
+new_repo
+blob="$(printf 'elsewhere' | git -C "$REPO" hash-object -w --stdin)"
+git -C "$REPO" update-index --add --cacheinfo "120000,$blob,t.txt"
+git -C "$REPO" commit -q -m link --no-verify
+blob="$(printf 'clean\ntoken=%s\n' "$FAKE_GHP" | git -C "$REPO" hash-object -w --stdin)"
+git -C "$REPO" update-index --cacheinfo "100644,$blob,t.txt"
+expect "a symlink turned into a regular file is judged whole" "1|t.txt:2: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
+
+# The same type change in a merge: only what the merge adds against the other
+# parent, which holds the regular file, is judged.
+notes="$(git -C "$REPO" rev-parse HEAD:notes.md)"
+tree="$(printf '100644 blob %s\tnotes.md\n100644 blob %s\tt.txt\n' "$notes" "$blob" | git -C "$REPO" mktree)"
+side="$(git -C "$REPO" commit-tree -p "$(git -C "$REPO" rev-parse HEAD~1)" -m side "$tree")"
+blob="$(printf 'clean\ntoken=%s\nmerge adds %s\n' "$FAKE_GHP" "$FAKE_LINUX_NEW" | git -C "$REPO" hash-object -w --stdin)"
+git -C "$REPO" update-index --cacheinfo "100644,$blob,t.txt"
+printf '%s\n' "$side" >"$REPO/.git/MERGE_HEAD"
+expect "a merge: a symlink turned into a regular file is judged on what the merge adds" "1|t.txt:3: machine-specific path (Linux user path detected)
+$HINT" "$(check "$REPO")"
+
+new_repo
+printf 'clean\n' >"$REPO/t.txt"
+git -C "$REPO" add t.txt
+git -C "$REPO" commit -q -m file --no-verify
+blob="$(printf 'token=%s' "$FAKE_GHP" | git -C "$REPO" hash-object -w --stdin)"
+git -C "$REPO" update-index --cacheinfo "120000,$blob,t.txt"
+expect "a regular file turned into a symlink is not judged" "0|" "$(check "$REPO")"
 
 # A text tool that fails mid-scan (gawk's "fatal error: internal error" on a
 # large merge) blocks the commit instead of leaving content unscanned. Each case
