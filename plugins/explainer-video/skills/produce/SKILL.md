@@ -168,6 +168,12 @@ write markup from it, and never edit its text to get past a check.
    past the paragraph in silence, and a frame held under its minimum is a defect. A fit defect left is one entry too big for any frame, or a diagram or before-after moment with
    too much in it: it goes back to the storyboard. Fix the cause and render again; never lower a
    floor. Read the contact sheet before calling it done.
+   A narrated moment held past its paragraph by more than `silent_hold.report_over_seconds` in
+   `${CLAUDE_PLUGIN_ROOT}/scripts/defaults.json` (3 seconds, our judgment, as the stills
+   reporting length is) prints `SILENT: moment <id> holds <x.x> s past its narration (frames
+   need <y.y> s, narration <z.z> s)` and is listed under `silent_holds` in `manifest.json`. It is
+   a report, not a defect: the exit code stays, nothing is cut. Hand each line to the caller,
+   whose narration for that moment is too short for its frames.
 5. Your contact-sheet read is the fix loop, not the verdict. Read the `verification` level as the
    manim loop does, and copy its line into the report. At standard or strict, dispatch a
    fresh-context subagent with the paths to the contact sheets and `<dir>/script.txt`, never your

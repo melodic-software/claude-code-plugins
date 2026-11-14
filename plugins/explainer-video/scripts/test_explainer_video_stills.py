@@ -139,6 +139,27 @@ class Refusals(unittest.TestCase):
         self.assertIn('sidecar', r.stderr)
 
 
+class SilentHolds(unittest.TestCase):
+    def test_only_a_moment_held_more_than_the_threshold_past_its_paragraph_is_reported(self):
+        sys.path.insert(0, str(HERE))
+        self.addCleanup(sys.path.remove, str(HERE))
+        import media_timeline
+        import stills
+        narration = {'dense': 'One short sentence.', 'edge': 'Two words.',
+                     'covered': 'This paragraph runs long enough to cover the frame it narrates.'}
+        board = {'chapters': [{'id': 'c', 'title': 'C'}],
+                 'moments': [{'id': k, 'chapter': 'c', 'template': 'code-hunk', 'narration': v}
+                             for k, v in narration.items()]}
+        starts = [0.0, 0.5, 1.0, 2.0, 2.5] + [3.0 + 0.4 * i for i in range(11)]
+        tokens = [w for v in narration.values() for w in v.split()]
+        words = {'duration': 8.0, 'words': [{'word': w, 'start': s, 'end': s + 0.3} for w, s in zip(tokens, starts)]}
+        needs = [9.5, 4.0, 4.0]   # paragraphs span 2.0, 1.0 and 5.0 s of narration.wav
+        tl = media_timeline.timeline(board, words, minimum=needs)
+        self.assertEqual(stills.silent_holds(board, tl, needs, 3.0),
+                         [{'id': 'dense', 'past_s': 7.5, 'needs_s': 9.5, 'narration_s': 2.0}],
+                         'edge holds exactly 3.0 s past and covered not at all; neither is reported')
+
+
 class Renders(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -282,7 +303,12 @@ class Renders(unittest.TestCase):
         words = json.loads((narration / 'words.json').read_text())
         paragraph = words['words'][len(REST_NARRATION.split())]['start']
         padding = sum(row['minimum'] for row in rows) - paragraph
-        self.assertGreater(padding, 0, 'the fixture paragraph should be too short for its frames')
+        self.assertGreater(padding, 3.0, 'the fixture paragraph should leave its frames over 3 s of silence')
+        self.assertEqual([s['id'] for s in m['silent_holds']], ['rest'], 'after is covered by its paragraph')
+        self.assertAlmostEqual(m['silent_holds'][0]['past_s'], padding, delta=0.01)
+        self.assertEqual([line for line in r.stdout.splitlines() if line.startswith('SILENT:')],
+                         [f'SILENT: moment rest holds {padding:.1f} s past its narration (frames need '
+                          f'{padding + paragraph:.1f} s, narration {paragraph:.1f} s)'])
         self.assertAlmostEqual(rows[-1]['end'] - rows[0]['start'], paragraph + padding, delta=0.01)
         self.assertEqual(after[0]['start'], rows[-1]['end'])
         self.assertGreaterEqual(m['video']['duration_s'], words['duration'] + padding - 0.01)
