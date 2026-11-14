@@ -3,6 +3,14 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0] - 2026-11-14
+
+### Changed
+
+- `/verification:confirm` accepts any ecosystem id `/toolchain:check` covers as its filter (one
+  with a record, one inferred this run, or one with a bundled default) and passes it through to
+  `/toolchain:check`. Before, the list was closed and lacked `markdown` and `go`.
+
 ## [0.25.1] - 2026-11-14
 
 ### Changed
