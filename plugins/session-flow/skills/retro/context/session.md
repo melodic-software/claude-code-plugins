@@ -319,9 +319,10 @@ allows it; otherwise the row takes that section's fallback.
 | No-op in a steering file | A line in `CLAUDE.md`, `AGENTS.md` or a rules file that the model would follow without it | `/harness-config:unhobble` or `/harness-config:audit-instructions` |
 | Pointer after a long search | The session searched at length to find something | Proposes a navigation pointer in the steering file that would have led there, placed by the catalog's decision tree |
 
-**Steering-file yardstick.** A finding about a steering file (`CLAUDE.md`, `AGENTS.md`, a rules
-file) is judged against `/docs-hygiene:write-for-agents`, read through the Skill tool when it is
-among the available skills. Without it, the report says the yardstick was not available.
+**Steering-file yardstick.** Every steering-file line the report assesses (`CLAUDE.md`,
+`AGENTS.md`, a rules file), whether as a finding, a no-op row or a judgment call, is judged against
+`/docs-hygiene:write-for-agents`, read through the Skill tool when it is among the available skills.
+Without it, the report says the yardstick was not available, not only that it was not run.
 
 Present as a GFM table with a **Scope** column distinguishing:
 
@@ -435,8 +436,11 @@ Checklist of memory saved / rules edited / items queued.
 
 ### Session health score
 
-**Calibration:** read the score history (SKILL.md "Paths", `<project-slug>.md`) if it
-exists and note trends alongside this session's scores.
+**Calibration:** read the score history (SKILL.md "Paths", `<project-slug>.md`) with one Read
+tool call of its own: no Bash, no existence check first, and nothing chained with it. An eval
+sandbox denies that directory; its validity gate sets a lone denied call aside but can count one
+chained with another command against the run. A missing file or a denied read means no history
+yet, so score without trends; otherwise note trends alongside this session's scores.
 
 | Dimension | Score | Notes |
 | --- | --- | --- |
