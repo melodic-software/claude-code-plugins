@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [9.0.2] - 2026-11-14
+
+### Fixed
+
+- `/session-flow:retro session` judges each line it assesses in `CLAUDE.md`, `AGENTS.md` or a rules file against `/docs-hygiene:write-for-agents`. When that skill is not available, the report now says so whenever it assesses such a line, a no-op row or a judgment call included; before, only a finding triggered it. The `says-no-yardstick` grader of the `re-session-noop-steering-line` eval looks for this statement, and no measured run had made it.
+
+- `retro` session mode reads the score history with one Read tool call of its own and treats a missing file or a denied read as no history, instead of checking that the file exists through Bash. A `claude plugin eval` run no longer reads INVALID because the sandbox denied a chained `ls` of the plugin's data directory.
+
 ## [9.0.1] - 2026-11-14
 
 ### Changed
