@@ -434,10 +434,14 @@ ghpost::segment() {
     fi
     # gh posts an `--attach` file's alt text or base name, not its path, so a
     # literal operand is kept apart for the path check to narrow. A dash word
-    # without `=` before it may take `--attach...` as its value (`--body
-    # --attach=X` posts the word), so the word is read whole then. With
-    # `--body --attach X`, X is captured though no flag takes it: gh rejects
-    # it or reads it as the PR or issue selector, and posts it neither way.
+    # without `=` before `--attach` may take it as its value, so then nothing
+    # is captured: `--body --attach=X` posts the word, and with `--body
+    # --attach X`, X stays a word judged whole. A joined `--attach=X` is
+    # captured only after a literal word, non-empty on PowerShell, since a
+    # word that vanishes or splits at run time (`--body $E --attach=X`) can
+    # leave a flag right before it. The spaced form needs no such check: there
+    # the flag takes `--attach` and X is a positional argument, which gh
+    # rejects or reads as the PR or issue selector, posting it neither way.
     if [[ "$form" == gh-pr-* || "$form" == gh-issue-* ]]; then
       if ((attach)); then
         attach=0
@@ -449,7 +453,8 @@ ghpost::segment() {
         case "$w" in
         --attach) attach=1 ;;
         --attach=*)
-          if ghpost::_literal_operand "${w#--attach=}"; then
+          if ghpost::_literal_operand "$before" && [[ "$GHPOST_TOOL" != PowerShell || -n "$before" ]] &&
+            ghpost::_literal_operand "${w#--attach=}"; then
             GHPOST_ATTACH+=("${w#--attach=}")
             continue
           fi

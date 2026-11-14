@@ -50,8 +50,10 @@
 #
 # Blocks by design, failing closed: an `--attach` operand the shell could
 # expand (`$`, a backtick, `{`, a glob character; on PowerShell also `,`, `(`,
-# `@`) or that follows a dash flag without `=` (`--draft --attach X`) is judged
-# whole; on a Windows bash its base name splits on `/` only; and a body's
+# `@`), one that follows a dash flag without `=` (`--draft --attach X`), and a
+# joined `--attach=X` after a word that is not itself literal (`--body $E
+# --attach=X`; on PowerShell also an empty word) are judged whole; on a Windows
+# bash its base name splits on `/` only; and a body's
 # reference to the attached file's absolute path still blocks, since gh posts
 # that reference unchanged when the upload fails.
 #
