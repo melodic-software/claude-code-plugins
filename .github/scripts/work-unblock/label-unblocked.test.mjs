@@ -163,6 +163,7 @@ function world({
   openIssues = [],
   searchIncomplete = false,
   fieldValues = {},
+  labelsOf = {},
   specs = {},
   parents = {},
   subIssues = {},
@@ -272,6 +273,10 @@ function world({
     if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/issue-field-values$/))) {
       return fieldValues[match[1]] ?? [];
     }
+    // write-status.mjs's label read before an agent-ready write.
+    if (method === "GET" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
+      return listed((labelsOf[match[1]] ?? []).map((name) => ({ name })));
+    }
     if (method === "POST" && route.match(/\/issues\/\d+\/comments$/) && String(body?.body).startsWith(ADMISSION_RECORD_MARKER)) {
       return {};
     }
@@ -287,7 +292,7 @@ function world({
     if (method === "POST" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
       return [];
     }
-    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|admission-deferred|status%3A%20ready|status%3A%20confirmed|needs-owner-decision|needs-reporter-info|host-run)$/)) {
+    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|needs-triage|admission-deferred|status%3A%20ready|status%3A%20confirmed|needs-owner-decision|needs-reporter-info|host-run)$/)) {
       return [];
     }
     if (method === "DELETE" && route.match(/\/issues\/(\d+)\/issue-field-values\/\d+$/)) {
@@ -6220,9 +6225,9 @@ test("a person's hold set after the read of a ready issue stops its admission at
 test("a limit-stopped issue's restart through the Work status writer clears the field, then sets agent-ready; a person's hold stops it", async (t) => {
   const logs = [];
   t.mock.method(console, "log", (line) => logs.push(String(line)));
-  const restartOf = async (state, nodes) => {
+  const restartOf = async (state, nodes, labels = []) => {
     const fake = withFieldHistory(
-      world({ openReady: [ready(30)], comments: { 30: [note(), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")] }, events: { 30: [added("2026-10-16T05:00:00Z")] }, fieldValues: { 30: [workRow(state)] } }),
+      world({ openReady: [ready(30)], comments: { 30: [note(), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")] }, events: { 30: [added("2026-10-16T05:00:00Z")] }, fieldValues: { 30: [workRow(state)] }, labelsOf: { 30: labels } }),
       { 30: nodes },
     );
     const github = async (method, path, body, ...rest) => {
@@ -6239,6 +6244,19 @@ test("a limit-stopped issue's restart through the Work status writer clears the 
   const cleared = `DELETE /repos/${REPO}/issues/30/issue-field-values/${STATUS_CONFIG["field-id"]}`;
   const set = `POST /repos/${REPO}/issues/30/issue-field-values ${JSON.stringify({ issue_field_values: [{ field_id: STATUS_CONFIG["field-id"], value: "agent-ready" }] })}`;
   assert.deepEqual(await restartOf("agent-ready", [fieldEvent(GRAPH_APP, "agent-ready", null, 1)]), [cleared, set], "the field is cleared, then set to agent-ready");
+  // #16000 and #16001: an issue form's needs-triage left beside the field's
+  // agent-ready made the token broker refuse every run; the re-fire takes it
+  // off first, so the run it starts gets its token (#16149).
+  assert.deepEqual(
+    await restartOf("agent-ready", [fieldEvent(GRAPH_APP, "agent-ready", null, 1)], ["needs-triage", "area: security"]),
+    [`DELETE /repos/${REPO}/issues/30/labels/needs-triage`, cleared, set],
+    "needs-triage comes off before the restart; area: security stays",
+  );
+  assert.deepEqual(
+    await restartOf("agent-ready", [fieldEvent(GRAPH_APP, "agent-ready", null, 1)], ["needs-triage", "needs-human"]),
+    [],
+    "a hold label: no label removed, no clear and no set, so no run the broker refuses",
+  );
   assert.deepEqual(await restartOf("needs-owner-decision", [fieldEvent(GRAPH_OWNER, "needs-owner-decision", null, 1)]), [], "a person's hold: no clear and no set");
   assert.ok(logs.includes("label-unblocked: #30 left as is: its Work status is now needs-owner-decision"), logs.join("\n"));
   // A person moved it off agent-ready (not a hold) after the listing: still no clear and no set.

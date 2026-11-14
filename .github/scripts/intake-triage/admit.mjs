@@ -2450,8 +2450,9 @@ export function admissionsAhead(entered, number) {
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
 // status for the issue lane. `setStatus(number, state)` (write-status.mjs
 // statusWriter's `set`) writes the Work status each outcome leaves; a failed
-// write throws. No status label is added or removed: the field carries the
-// state, and its agent-ready write starts the lane run.
+// write throws. No status label is added: the field carries the state, and
+// its agent-ready write starts the lane run, after the writer removes every
+// other status label the token broker would refuse the run for.
 // `statusOf` (admissionFacts) decides the label names and status history
 // decide() reads. `listing` lists deferred issues and reads one issue's
 // status history (deferredAhead, admissionsSince). Returns {outcome, reasons};

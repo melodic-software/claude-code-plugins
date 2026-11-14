@@ -984,7 +984,8 @@ function admissionGate(status) {
 // Admits a ready issue within the gate's room: its Work status set to
 // agent-ready, which starts the lane run, unless a person's hold kept it; past
 // the room, sets it deferred unless it already reads deferred (`deferred`). No
-// status label is written. The admission record (admission-record.mjs) names
+// status label is added; the agent-ready write removes the other status
+// labels first (write-status.mjs). The admission record (admission-record.mjs) names
 // the title and body of one read right before the field write, so the run's
 // text freeze (write-issue.mjs) has an anchor; a failed read or post throws,
 // and nothing is admitted without it.
