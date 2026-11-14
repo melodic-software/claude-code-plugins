@@ -114,7 +114,8 @@ def encode(frames, fmt, fps, out):
     first = next(frames)
     h, w = first.shape[:2]
     p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{w}x{h}',
-                          '-framerate', f'{fps:g}', '-i', '-', *media_encode.PROFILES[FORMATS[fmt]]['video'], str(out)], stdin=subprocess.PIPE)
+                          '-framerate', f'{fps:g}', '-i', '-', *media_encode.PROFILES[FORMATS[fmt]]['video'], str(out)],
+                         stdin=subprocess.PIPE)
     pipe = p.stdin
     assert pipe is not None   # stdin=PIPE always opens it
     try:
