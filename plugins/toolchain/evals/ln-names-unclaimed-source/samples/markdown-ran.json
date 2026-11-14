@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "markdown check docs/guide.md\n",
+      "why": "the markdown check ran on the changed file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "nothing ran"
+    },
+    {
+      "answer": "markdown check\n",
+      "why": "ran with no file"
+    }
+  ]
+}

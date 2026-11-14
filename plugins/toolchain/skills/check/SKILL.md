@@ -80,6 +80,8 @@ It tries the remote the current branch tracks, then `origin`, then the rest, and
 
 If neither path yields changes and no `$ARGUMENTS`: report "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:check all` to verify the full repo, or `/toolchain:check <ecosystem>` for a specific ecosystem." and exit.
 
+**Files outside every ecosystem.** A changed file no resolved ecosystem's `globs` match is outside every ecosystem. A match by a lint-only surface or a disabled ecosystem still counts; cross-cutting's `**` does not. Collect each such text file for the report's `Not checked` line. A binary file stays quiet: `git diff --numstat` reports it with `-` for both line counts (for an untracked file, `git diff --no-index --numstat /dev/null <file>`). If files changed but no ecosystem runs, print the `Not checked` line (when it names any file) instead of the table, and exit.
+
 **Conversation-aware targeting.** When the conversation has been working in specific files or projects, scope the build to what was touched. The ecosystem's `anchor` is the default entry point; substitute a narrower project file when changes stay in one project. For .NET, use the specific `.csproj` for a one-project change, and the solution file when changes span projects or touch shared files (`.props`, `.targets`, the solution file).
 
 ### 1.5 Resolve each ecosystem's command surface
@@ -151,6 +153,8 @@ Use `pass`, `FAIL`, `syntax only`, a named skip, or `—` (not applicable: the c
 
 An ecosystem's Status and the Overall line read `FAIL` when any cell or fired gate failed, `INCOMPLETE` when nothing failed but an environment skip remains or an ecosystem's only filled cells are `syntax only`, and `PASS` only when none of these holds. `INCOMPLETE` names each cause with its reason (e.g. `Overall: INCOMPLETE (1 of 2 ecosystems passed; python: skip (tool missing: uv))`, or `bash: no real check ran (syntax only)`), so a caller can say exactly what stayed unverified and whether it was an environment skip. A run the install rule stopped reads `STOPPED`. A `PASS` with any `pass (flaky: N)` cell carries the summed count, as in `Overall: PASS (2 of 2 ecosystems passed; flaky: 1)`.
 
+Below the table, name every changed text file outside every ecosystem on one line: `Not checked (outside every ecosystem): <path>, <path>`. The line changes no Status and no Overall line, and no binary file is on it.
+
 When any gate fired, list each by name and outcome below the ecosystem table, with its remediation on failure. The Overall line then names both counts, pass or fail (e.g. `Overall: FAIL (0 of 2 ecosystems failed, 1 gate failed)`, `Overall: PASS (2 of 2 ecosystems passed, 1 gate passed)`), so it is clear whether a gate ran.
 
 ### 4. Record the result
@@ -161,7 +165,7 @@ After the report, record its Overall line for the tree it ran on, in its own Bas
 node "${CLAUDE_PLUGIN_ROOT}/scripts/record-result.mjs" --skill check --dir "$REPO_ROOT" --overall '<the Overall line>'
 ```
 
-The plugin's Stop hook reads it when the turn ends and warns when the line is not `PASS`, or when no result is recorded for the current tree. An edit after the run changes the tree, so the record no longer counts. A failed record (exit 2) changes nothing in the report; say it was not recorded. Skip this step when an ecosystem argument narrowed the run (a narrowed `PASS` does not cover the whole tree; `all` and a caller's changed-file list do), and when the run stopped at "No changes found".
+The plugin's Stop hook reads it when the turn ends and warns when the line is not `PASS`, or when no result is recorded for the current tree. An edit after the run changes the tree, so the record no longer counts. A failed record (exit 2) changes nothing in the report; say it was not recorded. Skip this step when an ecosystem argument narrowed the run (a narrowed `PASS` does not cover the whole tree; `all` and a caller's changed-file list do), and when the run stopped at "No changes found" or with no ecosystem to run.
 
 ## For other skills referencing /toolchain:check
 
