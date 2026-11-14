@@ -41,6 +41,7 @@
       { "name": "bump-plugin-version", "status": "in-use" },
       { "name": "check-managed-files", "status": "in-use" },
       { "name": "check-spelling", "status": "in-use" },
+      { "name": "dispatch-feedback", "status": "in-use" },
       {
         "name": "explain",
         "status": "reserved",
@@ -60,6 +61,7 @@
       { "name": "review-security", "status": "in-use" },
       { "name": "run-activity", "status": "in-use" },
       { "name": "run-checks", "status": "in-use" },
+      { "name": "run-plugin-evals", "status": "in-use" },
       { "name": "scan-dependencies", "status": "in-use" },
       {
         "name": "test-platforms",
@@ -77,6 +79,7 @@
     ],
     "post-merge": [
       { "name": "detect-silent-revert", "status": "in-use" },
+      { "name": "file-demotion-issues", "status": "in-use" },
       { "name": "select-mutation-range", "status": "in-use" },
       {
         "name": "sweep-comments",
@@ -92,6 +95,7 @@
     ],
     "release": [
       { "name": "deploy", "status": "in-use" },
+      { "name": "generate-dependabot-changelog-fragments", "status": "in-use" },
       { "name": "publish-binaries", "status": "in-use" },
       { "name": "publish-image", "status": "in-use" },
       {
@@ -122,7 +126,7 @@
       { "name": "file-upstream-drift-issues", "status": "in-use" },
       {
         "name": "measure-skill-edit",
-        "status": "reserved",
+        "status": "in-use",
         "purpose": "Measure one proposed skill edit against the merged skill on a person's dispatch, and open a draft pull request when it wins."
       },
       { "name": "monitor-signals", "status": "in-use" },
@@ -166,6 +170,7 @@
     "delete",
     "deploy",
     "detect",
+    "dispatch",
     "download",
     "enable",
     "explain",
