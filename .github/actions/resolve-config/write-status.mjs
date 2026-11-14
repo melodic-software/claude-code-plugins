@@ -13,6 +13,10 @@ export const RESTART_GAP_MS = 3000;
 
 // The statuses GitHub answers a field value that names no option with.
 const NAME_REFUSED = new Set([400, 422]);
+// The state whose write starts the issue lane.
+const AGENT_READY = "agent-ready";
+const fold = (name) => String(name).toLowerCase();
+const notFound = (error) => error?.status === 404 || /\bstatus 404\b/.test(String(error?.message ?? error));
 const titleCased = (name) => name.charAt(0).toUpperCase() + name.slice(1);
 
 // Writes `values` ({field_id, value}, each a lowercase option name) through
@@ -133,6 +137,15 @@ export async function writeState({ github, repository, number, state, config, cu
 //   writes while no trusted state is set: an unset field leaves the labels
 //   deciding (read-status.mjs statusLabels), so only a set field takes an
 //   agent-ready label off.
+// Before `set` or `restart` writes agent-ready, the issue's labels are read
+// and each status label of another state is removed (clearStatusLabels): the
+// lanes token broker reads labels, and refuses the issue lane's token while
+// the issue carries any status label but agent-ready, such as the
+// needs-triage an issue form adds, which a field write never removes. A hold
+// label stays and the write answers `{outcome: "held", state}`; a read or
+// removal that fails throws, so agent-ready is never set over a status label
+// left on, and a `set` whose field write then fails puts the removed labels
+// back.
 // A config that cannot be read makes every call throw StatusWriteError; a
 // trusted-actor list that cannot be read, every call that reads the field.
 export async function statusWriter({ env, github, repository, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
@@ -159,6 +172,61 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
       throw new StatusWriteError(`#${number}'s Work status field could not be read: ${error?.message ?? error}`, { cause: error });
     }
   };
+  // Removes each of the issue's labels that config.labels maps to a state
+  // other than agent-ready and no hold (read-status.mjs HOLD_STATES), and
+  // answers `{removed}`, the names it took off; or answers
+  // `{outcome: "held", state}` for the first hold label, removing nothing. A
+  // label already gone (404) is not on the issue; any other failure throws
+  // StatusWriteError.
+  const clearStatusLabels = async (number) => {
+    const path = `/repos/${repository}/issues/${number}/labels`;
+    let names;
+    let holds;
+    try {
+      const { paginate } = await import("../check-trusted-trigger/check-trusted-trigger.mjs");
+      ({ HOLD_STATES: holds } = await import("./read-status.mjs"));
+      names = (await paginate(github, path)).map((label) => String(label?.name ?? label));
+    } catch (error) {
+      throw new StatusWriteError(`#${number}'s labels could not be read before its agent-ready write: ${error?.message ?? error}`, { cause: error });
+    }
+    const states = Object.keys(config?.labels ?? {});
+    const stateOf = (name) => states.find((one) => config.labels[one].some((label) => fold(label) === fold(name)));
+    const stale = [];
+    for (const name of names) {
+      const one = stateOf(name);
+      if (one !== undefined && holds.includes(one)) {
+        return { outcome: "held", state: one };
+      }
+      if (one !== undefined && one !== AGENT_READY) {
+        stale.push(name);
+      }
+    }
+    const removed = [];
+    for (const name of stale) {
+      try {
+        await github("DELETE", `${path}/${encodeURIComponent(name)}`);
+        removed.push(name);
+      } catch (error) {
+        if (!notFound(error)) {
+          throw new StatusWriteError(`#${number}'s status label \`${name}\` was not removed, so agent-ready was not set: ${error?.message ?? error}`, { cause: error });
+        }
+      }
+    }
+    return { removed };
+  };
+  // Puts `removed` back on the issue after its agent-ready write failed: with
+  // no trusted field state, the labels alone carry the issue's state
+  // (read-status.mjs statusLabels). Throws `error`, naming a failed put-back.
+  const restoreAndThrow = async (number, removed, error) => {
+    if (removed.length > 0) {
+      try {
+        await github("POST", `/repos/${repository}/issues/${number}/labels`, { labels: removed });
+      } catch (putBack) {
+        throw new StatusWriteError(`${error?.message ?? error}; the status labels it removed (${removed.join(", ")}) were not put back: ${putBack?.message ?? putBack}`, { cause: error });
+      }
+    }
+    throw error;
+  };
   const set = async (number, state, { fields, keepHold, releases, from } = {}) => {
     if (failure) {
       throw failure;
@@ -177,8 +245,21 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
         return { outcome: "moved", state: now.state };
       }
     }
+    let removed = [];
+    if (state === AGENT_READY && config) {
+      const cleared = await clearStatusLabels(number);
+      if (cleared.outcome === "held") {
+        return cleared;
+      }
+      ({ removed } = cleared);
+    }
     const current = fresh ? null : (wrote.get(number) ?? fields?.[String(config?.["field-id"])]?.option);
-    const result = await writeState({ github, repository, number, state, config, current });
+    let result;
+    try {
+      result = await writeState({ github, repository, number, state, config, current });
+    } catch (error) {
+      await restoreAndThrow(number, removed, error);
+    }
     wrote.set(number, result.option);
     return result;
   };
@@ -192,7 +273,8 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
   };
   // Restarts the issue lane: clears the field, then sets agent-ready with no
   // skip, so GitHub sends the field_added that starts a run. A hold a listed
-  // human set stops it (`{outcome: "held"}`); so does a trusted state outside
+  // human set stops it (`{outcome: "held"}`), as does a hold label
+  // (clearStatusLabels, before the clear); so does a trusted state outside
   // `from` (the states the caller restarts from, null for unset), since a
   // person may have moved the issue off agent-ready after the caller's read
   // (`{outcome: "moved"}`). With no `from`, any state but a hold restarts.
@@ -206,6 +288,10 @@ export async function statusWriter({ env, github, repository, sleep = (ms) => ne
     }
     if (Array.isArray(from) && !from.includes(now.state ?? null)) {
       return { outcome: "moved", state: now.state };
+    }
+    const cleared = await clearStatusLabels(number);
+    if (cleared.outcome === "held") {
+      return cleared;
     }
     try {
       await github("DELETE", `/repos/${repository}/issues/${number}/issue-field-values/${config["field-id"]}`, undefined, FIELD_API);

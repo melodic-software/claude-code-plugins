@@ -68,12 +68,27 @@ for (const [why, answer, state, config, text] of [
 
 // A fake whose field reads `option`, last set by `setter`, and whose POSTs
 // answer with the posted state's option and set the field to it, by the lanes
-// App. `put(option, setter)` sets the field as a person would between writes.
-function fieldWorld(option, setter) {
+// App. The issue carries `labels`, which a label DELETE removes.
+// `put(option, setter)` sets the field as a person would between writes.
+function fieldWorld(option, setter, labels = []) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push([method, path, body]);
     if (method === "GET" && path.endsWith("/issue-field-values")) return option === null ? [] : [{ issue_field_id: FIELD, single_select_option: { id: option } }];
+    const labelPath = path.match(/^\/repos\/o\/r\/issues\/\d+\/labels(?:\?per_page=100&page=(\d+)|\/(.+))$/);
+    if (method === "GET" && labelPath?.[1]) return labelPath[1] === "1" ? labels.map((name) => ({ name })) : [];
+    if (method === "DELETE" && labelPath?.[2]) {
+      labels = labels.filter((name) => name !== decodeURIComponent(labelPath[2]));
+      return labels.map((name) => ({ name }));
+    }
+    if (method === "POST" && path === "/repos/o/r/issues/7/labels") {
+      labels = [...labels, ...body.labels];
+      return labels.map((name) => ({ name }));
+    }
+    if (method === "DELETE" && path === `/repos/o/r/issues/7/issue-field-values/${FIELD}`) {
+      option = null;
+      return null;
+    }
     if (method === "POST" && path === "/graphql") {
       const nodes = option === null ? [] : [{ __typename: "IssueFieldAddedEvent", value: CONFIG.options[String(option)], actor: { databaseId: setter }, issueField: { fullDatabaseId: String(FIELD) } }];
       return { data: { repository: { issue: { timelineItems: { nodes } } } } };
@@ -87,11 +102,16 @@ function fieldWorld(option, setter) {
     throw new Error(`unexpected ${method} ${path}`);
   };
   const posts = () => calls.filter(([method, path]) => method === "POST" && path.endsWith("/issue-field-values"));
+  // Each label read, label removal and field write, in order.
+  const steps = () =>
+    calls
+      .filter(([method, path]) => path.includes("/labels") || (method !== "GET" && path.includes("/issue-field-values")))
+      .map(([method, path, body]) => (body?.issue_field_values ? `${method} ${body.issue_field_values[0].value}` : `${method} ${path.replace(/^\/repos\/o\/r\/issues\/\d+/, "")}`));
   const put = (next, by) => {
     option = next;
     setter = by;
   };
-  return { github, posts, put };
+  return { github, posts, put, steps, labels: () => labels };
 }
 const writerOver = (github, env = { BASE_PATH: ROOT }, sleep = async () => {}) => statusWriter({ env, github, repository: "o/r", sleep });
 
@@ -172,6 +192,104 @@ test("statusWriter restart from agent-ready leaves a field a person moved elsewh
   assert.deepEqual(await (await writerOver(github)).restart(7, { from: ["agent-ready"] }), { outcome: "moved", state: "confirmed" });
   assert.ok(!calls.includes("DELETE"));
   assert.equal(moved.posts().length, 0);
+});
+
+// The lanes token broker refuses the issue lane's token while the issue
+// carries a status label other than agent-ready (#16149): an issue form's
+// needs-triage stayed on #16000 and #16001 after admission set the field.
+test("statusWriter set to agent-ready removes the issue's other status labels before the write, and keeps every other label", async () => {
+  const app = 337595936;
+  const formLeftover = fieldWorld(86380003, app, ["needs-triage", "area: security"]);
+  assert.equal((await (await writerOver(formLeftover.github)).set(7, "agent-ready", { keepHold: true })).outcome, "written");
+  assert.deepEqual(formLeftover.steps(), ["GET /labels?per_page=100&page=1", "DELETE /labels/needs-triage", "POST agent-ready"]);
+  assert.deepEqual(formLeftover.labels(), ["area: security"]);
+  const legacy = fieldWorld(86380004, app, ["status: ready", "Needs-Triage", "admission-deferred", "agent-ready", "area: security"]);
+  assert.equal((await (await writerOver(legacy.github)).set(7, "agent-ready", { keepHold: true })).outcome, "written");
+  assert.deepEqual(legacy.labels(), ["agent-ready", "area: security"], "every queue-state label but agent-ready comes off, in any case");
+  assert.ok(legacy.steps().includes("DELETE /labels/status%3A%20ready"), legacy.steps().join("\n"));
+  assert.equal(legacy.steps().at(-1), "POST agent-ready", "the field is written last");
+});
+
+test("statusWriter set to agent-ready over a hold label writes nothing and answers held", async () => {
+  for (const [hold, state] of [
+    ["needs-human", "needs-human"],
+    ["needs-owner-decision", "needs-owner-decision"],
+    ["needs-reporter-info", "needs-reporter-info"],
+    ["needs-spec", "needs-spec"],
+  ]) {
+    const w = fieldWorld(86380003, 337595936, ["needs-triage", hold]);
+    assert.deepEqual(await (await writerOver(w.github)).set(7, "agent-ready", { keepHold: true }), { outcome: "held", state }, hold);
+    assert.deepEqual(w.steps(), ["GET /labels?per_page=100&page=1"], `${hold}: no label removed and no field write`);
+    assert.deepEqual(w.labels(), ["needs-triage", hold], hold);
+  }
+});
+
+test("statusWriter set to agent-ready throws and writes nothing when a status label cannot be read or removed; a 404 removal counts as removed", async () => {
+  const over = (fail) => {
+    const w = fieldWorld(86380003, 337595936, ["needs-triage"]);
+    const github = async (method, path, body) => {
+      if (fail(method, path)) {
+        throw Object.assign(new Error(`${method} ${path} failed with status ${fail(method, path)}`), { status: fail(method, path) });
+      }
+      return w.github(method, path, body);
+    };
+    return { w, github };
+  };
+  for (const [why, fail, text] of [
+    ["a failed removal", (method, path) => method === "DELETE" && path.includes("/labels/") && 500, "status label `needs-triage` was not removed"],
+    ["a failed label read", (method, path) => method === "GET" && path.includes("/labels") && 502, "labels could not be read"],
+  ]) {
+    const { w, github } = over(fail);
+    await assert.rejects(
+      () => writerOver(github).then(({ set }) => set(7, "agent-ready", { keepHold: true })),
+      (error) => error instanceof StatusWriteError && error.message.includes(text),
+      why,
+    );
+    assert.equal(w.posts().length, 0, `${why}: agent-ready is not set over the label`);
+  }
+  const { w, github } = over((method, path) => method === "DELETE" && path.includes("/labels/") && 404);
+  assert.equal((await (await writerOver(github)).set(7, "agent-ready", { keepHold: true })).outcome, "written", "a label already gone");
+  assert.equal(w.posts().length, 1);
+});
+
+// With no trusted field state the labels alone carry the issue's state, so a
+// failed agent-ready write must not leave the issue with neither.
+test("statusWriter set to agent-ready puts the removed labels back when the field write fails", async () => {
+  const failing = (w, failPutBack = false) => async (method, path, body) => {
+    if (method === "POST" && path.endsWith("/issue-field-values")) throw new Error("HTTP 500");
+    if (failPutBack && method === "POST" && path.endsWith("/labels")) throw new Error("HTTP 502");
+    return w.github(method, path, body);
+  };
+  const w = fieldWorld(null, undefined, ["status: ready", "area: security"]);
+  await assert.rejects(
+    () => writerOver(failing(w)).then(({ set }) => set(7, "agent-ready", { keepHold: true })),
+    (error) => error instanceof StatusWriteError && error.message === "#7's Work status field was not set to `agent-ready`: HTTP 500",
+  );
+  assert.deepEqual(w.labels(), ["area: security", "status: ready"], "status: ready is back on");
+  assert.deepEqual(w.steps().slice(-1), ["POST /labels"]);
+  const lost = fieldWorld(null, undefined, ["status: ready"]);
+  await assert.rejects(
+    () => writerOver(failing(lost, true)).then(({ set }) => set(7, "agent-ready", { keepHold: true })),
+    (error) => error instanceof StatusWriteError && error.message.includes("HTTP 500") && error.message.includes("(status: ready) were not put back: HTTP 502"),
+  );
+});
+
+test("statusWriter restart removes the other status labels before it clears the field, and stops on a hold label", async () => {
+  const app = 337595936;
+  const w = fieldWorld(84879220, app, ["needs-triage", "area: security"]);
+  assert.equal((await (await writerOver(w.github)).restart(7, { from: ["agent-ready"] })).outcome, "written");
+  assert.deepEqual(w.steps(), ["GET /labels?per_page=100&page=1", "DELETE /labels/needs-triage", `DELETE /issue-field-values/${FIELD}`, "POST agent-ready"]);
+  const hold = fieldWorld(84879220, app, ["needs-owner-decision"]);
+  assert.deepEqual(await (await writerOver(hold.github)).restart(7, { from: ["agent-ready"] }), { outcome: "held", state: "needs-owner-decision" });
+  assert.deepEqual(hold.steps(), ["GET /labels?per_page=100&page=1"], "the field is not cleared");
+});
+
+test("statusWriter writes of any other state read and remove no label", async () => {
+  const w = fieldWorld(null, undefined, ["needs-triage"]);
+  const { set } = await writerOver(w.github);
+  assert.equal((await set(7, "ready", { keepHold: true })).outcome, "written");
+  assert.equal((await set(7, "confirmed")).outcome, "written");
+  assert.deepEqual(w.steps(), ["POST ready", "POST confirmed"]);
 });
 
 test("statusWriter leaveAgentReady writes only while the trusted field reads agent-ready", async () => {
