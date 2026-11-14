@@ -134,6 +134,9 @@ class Chain(unittest.TestCase):
     def test_the_real_scan_passes_plain_narration(self):
         self.assertEqual(narrate.scan_script('This change adds a retry to the upload step.'), [])
 
+    def test_a_scan_pattern_adds_to_the_real_floor(self):
+        self.assertEqual(narrate.scan_script('Ship it under codename BLUEJAY.', [r'\bBLUEJAY\b']), ['config-pattern'])
+
     def test_a_local_backend_runs_without_a_scan(self):
         def boom(text):
             raise AssertionError('scanned for a local backend')
@@ -269,10 +272,16 @@ class Cli(unittest.TestCase):
         self.writer = self.dir / 'writer.py'
         self.writer.write_text(WAV_WRITER, encoding='utf-8')
 
-    def main(self, *args):
-        with mock.patch.object(narrate, 'RETRY_DELAYS_S', (0, 0, 0)), mock.patch.object(narrate, 'scan_script',
-                                                                                        lambda text: []):
+    def main(self, *args, scan=lambda text, extra=(): []):
+        with mock.patch.object(narrate, 'RETRY_DELAYS_S', (0, 0, 0)), mock.patch.object(narrate, 'scan_script', scan):
             return narrate.main(['--script', str(self.script), '--out', str(self.dir / 'out'), *args])
+
+    def test_scan_patterns_reach_the_floor(self):
+        seen = []
+        template = f'{shlex.quote(sys.executable)} {shlex.quote(str(self.writer))} {{out}}'
+        self.main('--backend-chain', 'command', '--command', template, '--scan-pattern', 'A', '--scan-pattern', 'B',
+                  scan=lambda text, extra=(): seen.append(list(extra)) or [])
+        self.assertEqual(seen, [['A', 'B']])
 
     def test_a_custom_command_voices_the_script(self):
         template = f'{shlex.quote(sys.executable)} {shlex.quote(str(self.writer))} {{out}}'

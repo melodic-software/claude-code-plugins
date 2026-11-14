@@ -144,10 +144,12 @@ instead of a topic, render held still frames instead of a scene. The storyboard 
 write markup from it, and never edit its text to get past a check.
 
 1. Run `scripts/stills.py --storyboard <file> --out <dir> --script-only` to validate, scan and
-   write `<dir>/script.txt`; a storyboard rejection exits 2 (a screenshot moment with no
+   write `<dir>/script.txt`, with one `--scan-pattern <regex>` per pattern the caller passed (here
+   and in steps 2 and 3); a storyboard rejection exits 2 (a screenshot moment with no
    `data.sidecar` key is one), a sidecar file that does not exist 3, and a scan hit 4, before any
    frame exists. Report the reason and stop on 3 or 4.
-2. Narrate `<dir>/script.txt` with `/speech:narrate` into its own folder, as in Loop step 2.
+2. Narrate `<dir>/script.txt` with `/speech:narrate` into its own folder, as in Loop step 2,
+   with the same `--scan-pattern` flags.
 3. Render with `--narration <that folder>`, or with `--no-audio` when no voice produced audio (a
    captions-only video; say why). Pass the configured
    values: `frame_stylesheet` as `--stylesheet`, a `stitcher` command as `--stitcher`, the

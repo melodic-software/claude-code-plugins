@@ -14,7 +14,7 @@ import { test } from "node:test";
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const code = (text) => text.replace(/^\s*#.*$/gm, "");
 const main = read("maintenance-measure-skill-edit.yml");
-const pass = read("eval-hill-climb-pass.yml");
+const pass = read("maintenance-measure-skill-edit-pass.yml");
 // The jobs that mint a lanes App token, each its one effect (AL-Q11).
 const WRITERS = { "push-branch": "apply-skill-edit-branch", publish: "publish-skill-edit-pr" };
 const jobs = (text) =>
@@ -32,7 +32,7 @@ const step = (block, name) => {
 };
 
 test("only push-branch and publish hold id-token, each for its one lane token; every other job reads only", () => {
-  for (const [file, text] of [["maintenance-measure-skill-edit.yml", main], ["eval-hill-climb-pass.yml", pass]]) {
+  for (const [file, text] of [["maintenance-measure-skill-edit.yml", main], ["maintenance-measure-skill-edit-pass.yml", pass]]) {
     assert.match(text, /^permissions: \{\}$/m, file);
     assert.doesNotMatch(code(text), /\b(checks|statuses|actions|workflows|pull-requests|issues|contents): write\b|write-all/, file);
     for (const [name, block] of Object.entries(jobs(text))) {
@@ -42,7 +42,7 @@ test("only push-branch and publish hold id-token, each for its one lane token; e
       // The gate also reads this run's re-runner (check-trusted-trigger); a
       // key-credit gate reads only the credit-stop markers, and a pass's
       // caller grants its pass workflow's gate that read.
-      const creditGate = name === "propose-key-credit" || (file === "eval-hill-climb-pass.yml" && name === "gate");
+      const creditGate = name === "propose-key-credit" || (file === "maintenance-measure-skill-edit-pass.yml" && name === "gate");
       const reads = creditGate
         ? ["actions: read"]
         : name === "gate" || /^pass-(?:a|a2|b)$/.test(name)
@@ -90,10 +90,10 @@ test("the writes run only after a verified win, check what they carry before the
 test("pass a, a2 and b run the one pass workflow, and only pass b gets the scanned edit", () => {
   const all = jobs(main);
   for (const name of ["pass-a", "pass-a2", "pass-b"]) {
-    assert.match(all[name], /\n {4}uses: \.\/\.github\/workflows\/eval-hill-climb-pass\.yml /, name);
+    assert.match(all[name], /\n {4}uses: \.\/\.github\/workflows\/maintenance-measure-skill-edit-pass\.yml /, name);
     assert.match(all[name], new RegExp(`\\n {6}pass: ${name.slice(5)}\\n`), name);
   }
-  assert.doesNotMatch(all["pass-a"] + all["pass-a2"], /edit-/);
+  assert.doesNotMatch(all["pass-a"] + all["pass-a2"], /edit-(?!pass\.yml)/);
   assert.match(all["pass-b"], /edit-sha256: \$\{\{ needs\.scan\.outputs\.sha256 \}\}/);
   assert.match(step(pass, "Apply the edit"), /\[ "\$\{sum%% \*\}" != "\$WANT" \]/);
 });

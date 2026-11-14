@@ -1,4 +1,4 @@
-name: Eval Browser Dispatch
+name: PR Run Plugin Evals
 
 # Runs `claude plugin eval` on a fresh GitHub-hosted runner, two ways:
 #
@@ -754,7 +754,7 @@ jobs:
             # A dispatched run uploads its results, but not the traces --keep-temp
             # keeps here, so the validity verdict is read here and only its
             # count-only bash ran line (the line just before the verdict, in its exact format) and its last line are kept (its detail
-            # lines can quote a trace), as eval-hill-climb-pass.yml does.
+            # lines can quote a trace), as maintenance-measure-skill-edit-pass.yml does.
             # noise-report reads only results.json, which the upload already
             # holds. A dispatched run always scaffolds.
             if [ "$DISPATCHED" = true ]; then
@@ -870,7 +870,7 @@ jobs:
       # so its retention row claims it.
       - name: Write the key's credit-stop marker
         id: credit-marker
-        if: always() && needs.eval-key-credit.outputs.marker == 'key-credit-stop-eval-browser-dispatch.yml-eval' && steps.judge.outputs.handoff-reason == 'credit-stop'
+        if: always() && needs.eval-key-credit.outputs.marker == 'key-credit-stop-pr-run-plugin-evals.yml-eval' && steps.judge.outputs.handoff-reason == 'credit-stop'
         continue-on-error: true
         timeout-minutes: 1
         run: |
@@ -893,7 +893,7 @@ jobs:
         timeout-minutes: 1
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: key-credit-stop-eval-browser-dispatch.yml-eval
+          name: key-credit-stop-pr-run-plugin-evals.yml-eval
           path: ${{ runner.temp }}/key-credit-stop/run-id
           if-no-files-found: error
           retention-days: 1
@@ -1396,7 +1396,7 @@ jobs:
             # A dispatched run uploads its results, but not the traces --keep-temp
             # keeps here, so the validity verdict is read here and only its
             # count-only bash ran line (the line just before the verdict, in its exact format) and its last line are kept (its detail
-            # lines can quote a trace), as eval-hill-climb-pass.yml does.
+            # lines can quote a trace), as maintenance-measure-skill-edit-pass.yml does.
             # noise-report reads only results.json, which the upload already
             # holds. A dispatched run always scaffolds.
             if [ "$DISPATCHED" = true ]; then
@@ -1970,7 +1970,7 @@ jobs:
             # A dispatched run uploads its results, but not the traces --keep-temp
             # keeps here, so the validity verdict is read here and only its
             # count-only bash ran line (the line just before the verdict, in its exact format) and its last line are kept (its detail
-            # lines can quote a trace), as eval-hill-climb-pass.yml does.
+            # lines can quote a trace), as maintenance-measure-skill-edit-pass.yml does.
             # noise-report reads only results.json, which the upload already
             # holds. A dispatched run always scaffolds.
             if [ "$DISPATCHED" = true ]; then

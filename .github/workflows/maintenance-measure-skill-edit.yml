@@ -8,7 +8,7 @@ name: Maintenance Measure Skill Edit
 #   gate      no spend: a listed human on the default branch, the kill switch,
 #             upstream status, the credential, the inputs, and a suite that
 #             keeps a case once judged graders are dropped.
-#   pass-a,   the unchanged skill twice (eval-hill-climb-pass.yml), each on its
+#   pass-a,   the unchanged skill twice (maintenance-measure-skill-edit-pass.yml), each on its
 #   pass-a2   own runner, 3 runs per case per arm under --max-cost-usd 5.
 #   propose   win-test.py's baseline gates, then run-claude-cli on the key,
 #             subscription and fallback legs in turn (--restricted, read-only
@@ -41,7 +41,7 @@ name: Maintenance Measure Skill Edit
 # which refuses this caller on any event but workflow_dispatch and any actor
 # or re-runner but a listed human. No job holds a merge right, checks or
 # statuses write, or workflows. Every pass and the proposal run on the
-# maintenance role's chain, as in eval-browser-dispatch.yml: its API key, then
+# maintenance role's chain, as in pr-run-plugin-evals.yml: its API key, then
 # its subscription token, then the central fallback token, one per job or
 # step, each after the one before hands off. How to stop it: set the
 # organization or repository lanes kill-switch variable to anything but
@@ -232,7 +232,7 @@ jobs:
     permissions:
       contents: read
       actions: read # the pass's gate job lists this repository's key markers
-    uses: ./.github/workflows/eval-hill-climb-pass.yml # zizmor: ignore[self-repository]
+    uses: ./.github/workflows/maintenance-measure-skill-edit-pass.yml # zizmor: ignore[self-repository]
     with:
       plugin: ${{ needs.gate.outputs.plugin }}
       tags: ${{ needs.gate.outputs.tags }}
@@ -251,7 +251,7 @@ jobs:
     permissions:
       contents: read
       actions: read # the pass's gate job lists this repository's key markers
-    uses: ./.github/workflows/eval-hill-climb-pass.yml # zizmor: ignore[self-repository]
+    uses: ./.github/workflows/maintenance-measure-skill-edit-pass.yml # zizmor: ignore[self-repository]
     with:
       plugin: ${{ needs.gate.outputs.plugin }}
       tags: ${{ needs.gate.outputs.tags }}
@@ -907,7 +907,7 @@ jobs:
     permissions:
       contents: read
       actions: read # the pass's gate job lists this repository's key markers
-    uses: ./.github/workflows/eval-hill-climb-pass.yml # zizmor: ignore[self-repository]
+    uses: ./.github/workflows/maintenance-measure-skill-edit-pass.yml # zizmor: ignore[self-repository]
     with:
       plugin: ${{ needs.gate.outputs.plugin }}
       tags: ${{ needs.gate.outputs.tags }}

@@ -1,4 +1,4 @@
-name: Post Merge Demotion Alert
+name: Post Merge File Demotion Issues
 
 # Files the unattended-merge demotion issue when a post-merge signal fails on
 # main, so a human hears of it while no babysit lane runs. The signals are a

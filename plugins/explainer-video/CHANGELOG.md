@@ -3,6 +3,12 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.0] - 2026-11-14
+
+### Changed
+
+- The stills renderer's delivery now goes to the same fresh-context frame judge as a manim render, given the contact sheets and the narration script, when the `verification` level is `standard` or `strict`.
+
 ## [2.1.4] - 2026-11-14
 
 ### Changed

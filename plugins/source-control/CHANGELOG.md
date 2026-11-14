@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.13.1] - 2026-11-14
+
+### Changed
+
+- The linkage gates' block message and status text name the `check-contract` step, as do the plugin README, the `/source-control:pull-request` create reference and the `/source-control:setup` convention interview.
+
+### Removed
+
+- `pr-body-linkage-gate` and `pr-linkage-mcp-gate` no longer gate on a workflow that uses the contract composite's old path; they gate only where a workflow uses `.github/actions/pr-require-checks/check-contract`, which every consumer now pins.
+
+## [11.13.0] - 2026-11-14
+
+### Added
+
+- `ready` hands the pull request to `/review:reviewer-media` last, on the confirmed head, and `monitor` hands it over at entry and after each round's push, so a request label added after `ready` is honored. Neither hand-off gates anything.
+- `media shows --facts <file>` prints the commit a pull request's reviewer-media section shows, read from a `view` facts file with no forge call, so a caller never parses the section itself.
+- `view` reports `isCrossRepository`, `true` when the head is in a fork or a fork since deleted.
+
+### Changed
+
+- `media claim` refuses (exit 3, `failed`) a head commit that already has its failure comment from the signed-in account or a bot account, so no caller builds on it again.
+
 ## [11.12.0] - 2026-11-14
 
 ### Added

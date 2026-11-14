@@ -119,7 +119,7 @@ LANE_RERUN_ARTIFACT = "pr-merge-rerun-"
 # the re-run record.
 LANE_DISPATCH_EVENTS = frozenset({"schedule", "workflow_dispatch", "push"})
 LANE_RERUN_EVENTS = frozenset({"schedule", "workflow_dispatch"})
-# post-merge-dispatch also sends a red full run to post-merge-demotion-alert.yml
+# post-merge-dispatch also sends a red full run to post-merge-file-demotion-issues.yml
 # and records it in an artifact named `<prefix><run id>`, the one job and events
 # of the re-run record; `_Context.lane_alerted` reads it.
 LANE_ALERT_ARTIFACT = "pr-merge-alerted-"
@@ -151,7 +151,7 @@ _ATTEMPT_KEY = re.compile(r"[1-9][0-9]{0,15}:[1-9][0-9]{0,2}")
 # created within red-main.confirm-wait-minutes plus this, with a newly failing
 # check that demotes (`_Context.regressions`), gets that re-run even when no
 # lane merge it covers is judged (`_Context.lane_rerun_lookback`).
-# post-merge-demotion-alert.yml waits confirm-wait-minutes after such a run
+# post-merge-file-demotion-issues.yml waits confirm-wait-minutes after such a run
 # ends for it, and a later re-run changes no filing; this covers the run
 # itself (about 20 minutes) with margin (judgment).
 FULL_RUN_ALLOWANCE = timedelta(minutes=50)
@@ -186,7 +186,7 @@ MERGED_PAGE_LIMIT = 30
 # titled failure annotation (`<gate> failed`). The lane aggregator job is red
 # whenever another job is, so beside one it adds nothing; the gitleaks gate
 # scans every fetched branch on these events, so no merge into the branch can
-# turn it red. post-merge-demotion-alert.yml applies the same rule.
+# turn it red. post-merge-file-demotion-issues.yml applies the same rule.
 FAILED_CONCLUSIONS = (
     "failure",
     "timed_out",
@@ -215,7 +215,7 @@ UNATTRIBUTABLE_GATES = frozenset({"gitleaks failed"})
 # an open one older than `merge.quarantine-days` (the smaller of its value at
 # that green SHA and at the red run's, `_Context._quarantine_days`) makes it
 # demote again, as does one edited since filing (`_Context._quarantine_issues`). The
-# merge gate's own suites are never excused. post-merge-demotion-alert.yml applies the same rule through
+# merge gate's own suites are never excused. post-merge-file-demotion-issues.yml applies the same rule through
 # `--judge-run`.
 SUITE_STEPS = {
     "Run this leg's shell suites": "bash",
@@ -2097,7 +2097,7 @@ class _Context:
 
     def lane_alerted(self, run_id: int) -> bool:
         """Whether post-merge-dispatch already sent full run `run_id` to
-        post-merge-demotion-alert.yml: its `pr-merge-alerted-<id>` artifact was
+        post-merge-file-demotion-issues.yml: its `pr-merge-alerted-<id>` artifact was
         uploaded by a run `_lane_sender` accepts. A same-name artifact any
         other run uploaded is no record. A failed read raises."""
         return (
@@ -2509,7 +2509,7 @@ class _Context:
             return RERUN, f"attempt 1 {first.conclusion}; awaiting the wrapper's re-run"
         # A re-run by anyone else (a person re-running until green) cannot
         # clear a red attempt 1. Two github-actions[bot] re-runs can:
-        # post-merge-demotion-alert.yml's single re-run, which re-runs no run
+        # post-merge-file-demotion-issues.yml's single re-run, which re-runs no run
         # the bot started, and for a run the pr-merge lane dispatched, the one
         # its post-merge-dispatch job recorded. That job uploads the record
         # just after its re-run starts, so a bot attempt 2 of a lane-dispatched
@@ -3271,7 +3271,7 @@ def dispatch_full_run(repo: str, *, ref: str) -> None:
 
 def attribute(repo: str, verdict: PostMergeVerdict) -> list[int]:
     """Trigger the one `rerun-failed-jobs` on each red full run awaiting it,
-    unless another re-run (post-merge-demotion-alert.yml's) started since."""
+    unless another re-run (post-merge-file-demotion-issues.yml's) started since."""
     owner, name = _split_repo(repo)
     triggered: list[int] = []
     for rerun in verdict.reruns:
@@ -3876,7 +3876,7 @@ def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
                 ]
                 if failure.signal == SIGNAL_READ_BACK
                 else [
-                    "post-merge-demotion-alert.yml comments the content the canary found deleted;",
+                    "post-merge-file-demotion-issues.yml comments the content the canary found deleted;",
                     "the record lifts once that content is back on main, or once a pull request that",
                     "references it merges into main with that content (babysit_merge_policy.py",
                     "`_lift`), and a lane then closes it. Without that comment only a person's",
@@ -4136,7 +4136,7 @@ def _hold_record(
     owner: str, name: str, number: int, status: policy.IssueStatusConfig
 ) -> None:
     """Set record `number`'s Work status field to `NEEDS_HUMAN_STATE`
-    (`set_issue_status`), as post-merge-demotion-alert.yml does: a failed
+    (`set_issue_status`), as post-merge-file-demotion-issues.yml does: a failed
     write raises and is reported, with no label added in its place."""
     set_issue_status(f"{owner}/{name}", number, status, NEEDS_HUMAN_STATE)
 
@@ -5532,7 +5532,7 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "judge one red full run's newly failing checks (--checks-file, one "
             "per line) by suite: exit 0 when none demotes, 1 when one does "
-            "(post-merge-demotion-alert.yml); read-only unless --file-quarantine"
+            "(post-merge-file-demotion-issues.yml); read-only unless --file-quarantine"
         ),
     )
     parser.add_argument("--attempt", type=int, default=1, help="with --judge-run")
@@ -5555,7 +5555,7 @@ def main(argv: list[str] | None = None) -> int:
         metavar="RUN_ID",
         help=(
             "with --branch: exit 0 when pr-merge.yml's post-merge-dispatch on the "
-            "branch already sent full run RUN_ID to post-merge-demotion-alert.yml "
+            "branch already sent full run RUN_ID to post-merge-file-demotion-issues.yml "
             "(its pr-merge-alerted-<id> record, from a sender `_lane_sender` "
             "accepts), 4 when not, 3 unreadable; read-only"
         ),

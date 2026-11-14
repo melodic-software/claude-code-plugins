@@ -65,13 +65,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py" run --data-dir "${CLAUDE_PLUGI
   "${CLAUDE_PLUGIN_ROOT}/scripts/narrate.py" --data-dir "${CLAUDE_PLUGIN_DATA}" \
   --model-dir '${user_config.model_dir}' \
   --script <script file> --out <output folder> --backend-chain <name,...> \
-  [--voice <backend>:<voice>]... [--command '<template>'] [--timeout <s>] [--allow-paid-voice]
+  [--voice <backend>:<voice>]... [--command '<template>'] [--timeout <s>] [--allow-paid-voice] \
+  [--scan-pattern <regex>]...
 ```
 
 The backends, their default voices, the retries, the timeout and the scan are in `narrate.py`'s
 docstring. Besides `narration.wav` and `words.json` the run writes `voice.json`: the backend and
 voice that spoke, and every attempt.
 
+- Pass each `--scan-pattern` the caller hands over (a team's `scan.extra_patterns`): the scan
+  refuses those too, on top of its floor.
 - Pass `--allow-paid-voice` only after the user agreed to the paid call in this session, or when the
   caller's `allow_unattended_paid_voice` setting is true. Never add it to get past exit 3.
 - **Exit 0:** report the paths, the length, and the backend and voice from `voice.json`.

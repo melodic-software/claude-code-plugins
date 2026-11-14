@@ -472,16 +472,14 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["docs/conventions/untrusted-content/**", "gate"],
   ["docs/standards/**", "gate"],
   ["docs/review/**", "gate"],
-  [".github/workflows/dependabot-fragments.yml", "gate"],
-  [".github/workflows/eval-browser-dispatch.yml", "gate"],
-  [".github/workflows/eval-hill-climb-pass.yml", "gate"],
   [".github/workflows/intake-reenter.yml", "gate"],
   [".github/workflows/intake-triage.yml", "gate"],
   [".github/workflows/maintenance-audit-lane-runs.yml", "gate"],
+  [".github/workflows/maintenance-measure-skill-edit-pass.yml", "gate"],
   [".github/workflows/maintenance-measure-skill-edit.yml", "gate"],
   [".github/workflows/maintenance-reconcile-lost-runs.yml", "gate"],
   [".github/workflows/maintenance-tidy-code-upkeep.yml", "gate"],
-  [".github/workflows/post-merge-demotion-alert.yml", "gate"],
+  [".github/workflows/post-merge-file-demotion-issues.yml", "gate"],
   [".github/workflows/post-merge-test-mutation.yml", "gate"],
   [".github/workflows/pr-feedback-dispatch.yml", "gate"],
   [".github/workflows/pr-merge.yml", "gate"],
@@ -495,10 +493,12 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/workflows/pr-review-security-hosted.yml", "gate"],
   [".github/workflows/pr-run-activity-read.yml", "gate"],
   [".github/workflows/pr-run-activity-write.yml", "gate"],
+  [".github/workflows/pr-run-plugin-evals.yml", "gate"],
   [".github/workflows/pr-unblock-dispatch.yml", "gate"],
   [".github/workflows/pr-unblock.yml", "gate"],
   [".github/workflows/pr-verify-capture.yml", "gate"],
   [".github/workflows/pr-verify.yml", "gate"],
+  [".github/workflows/release-generate-dependabot-changelog-fragments.yml", "gate"],
   [".github/workflows/release-publish-plugins.yml", "gate"],
   [".github/workflows/upstream-apply-changelog.yml", "gate"],
   [".github/workflows/work-resolve-issue.yml", "gate"],
@@ -1644,7 +1644,7 @@ export function humanGatedLabel(tracker) {
   return typeof label === "string" && label.trim() ? label.trim() : "needs-human";
 }
 
-// The label security-outside-actor.yml puts on an item someone outside the
+// The label intake-label-outside-actor-activity.yml puts on an item someone outside the
 // organization wrote on. It holds wherever the human-gated label holds, and
 // only a person removes it: no lane or sweep takes it off.
 export const OUTSIDE_ACTOR_LABEL = "security: outside-actor";

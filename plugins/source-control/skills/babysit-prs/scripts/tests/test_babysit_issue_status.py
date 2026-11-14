@@ -1083,7 +1083,7 @@ class TheDemotionRecord(CheckCase):
         )
 
     def test_a_failed_or_mismatched_write_errors_with_no_label(self) -> None:
-        # As post-merge-demotion-alert.yml: the field write that did not land
+        # As post-merge-file-demotion-issues.yml: the field write that did not land
         # is an error, and no status label stands in for it.
         for name, field_answer in (
             ("failed", 502),

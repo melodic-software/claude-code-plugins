@@ -100,7 +100,8 @@ nothing else shows it) and run it again. Never drop a file to pass.
 Run `/explainer-video:produce` via the Skill tool on `<dir>/storyboard.json` (its stills
 renderer), rendering into `<out>` (`--out <out>`), with `--head-sha` the facts' `headRefOid`, `--upload-limit-mb` from `config`, and for
 its narration step the settings from `config`: `voice_chain` as `--backend-chain`, each `voices` entry as
-`--voice <backend>:<voice>`, `voice_command` as `--command`. Pass `--allow-paid-voice` only when
+`--voice <backend>:<voice>`, `voice_command` as `--command`, and each `scan.extra_patterns` entry as `--scan-pattern <regex>` to
+both the renderer and the narration. Pass `--allow-paid-voice` only when
 `allow_unattended_paid_voice` is `true`, or when the reader in this session said yes to that
 paid voice. A narration exit that means no voice produced audio, per `/speech:narrate`'s exit
 list, renders captions-only and says why.
@@ -111,7 +112,8 @@ Inside GitHub Actions (`GITHUB_ACTIONS` is `true`), stop here and print the mani
 workflow uploads `<out>` and posts it, per the convention's "In GitHub Actions" section.
 
 Elsewhere: `/source-control:pull-request media <pr> --manifest <out>/manifest.json --run-id <id>`
-with the same label flags as step 2 and `--retention-days <artifact_retention_days>`. Report what
+with the same label flags as step 2, `--retention-days <artifact_retention_days>` and the same
+`--scan-pattern` flags as step 5. Report what
 it reports. Its refusals (a scan hit, an unbound file, no host) are final: do not retry them.
 
 ## 7. Failure

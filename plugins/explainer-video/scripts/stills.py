@@ -2,7 +2,7 @@
 """Render a storyboard.json (ADR 0102) to a narrated video of held still frames, then check and describe it.
 
 usage: stills.py --storyboard FILE --out DIR (--narration NDIR | --no-audio | --script-only) [--stylesheet CSS]
-                 [--stitcher COMMAND] [--upload-limit-mb N] [--head-sha SHA]
+                 [--stitcher COMMAND] [--upload-limit-mb N] [--head-sha SHA] [--scan-pattern REGEX ...]
 
 Steps: parse the storyboard -> scan its narration, frame text and screenshot sidecars (ADR 0107) -> write
 DIR/script.txt -> capture each moment's frame at 3840x2160 -> lay out the holds from NDIR/words.json (speech's
@@ -12,7 +12,8 @@ blank frames and luma SSIM of every hold's frame against its source -> contact s
 when over the upload limit -> DIR/manifest.json, the list of files a caller may publish.
 
 --stitcher: a command with {inputs} (DIR/stitch.json: frames with seconds, audio, captions) and {out}; absent or
-'ffmpeg' is the built-in reviewer-stills encode.
+'ffmpeg' is the built-in reviewer-stills encode. --scan-pattern (repeatable): a regex the scan also refuses
+(scan.extra_patterns); it adds to the floor and never lowers it.
 exit codes: 0 produced and every check passed; 1 produced with a defect (manifest.json lists each); 2 nothing
 produced (bad storyboard, missing tool, capture failed); 3 a screenshot's sidecar is missing; 4 the scan found
 secret or machine data, or could not load its rules. Exits 3 and 4 write no video.
@@ -182,6 +183,7 @@ def _run(argv):
     ap.add_argument('--stitcher', help='custom stitcher command with {inputs} and {out} (stitcher)')
     ap.add_argument('--upload-limit-mb', type=float, default=DEFAULTS['upload_limit_mb'])
     ap.add_argument('--head-sha', default=None)
+    ap.add_argument('--scan-pattern', action='append', default=[], help='a regex the scan also refuses (repeatable)')
     a = ap.parse_args(argv)
     stitcher = None if a.stitcher in (None, '', 'ffmpeg') else a.stitcher
     started = time.monotonic()
@@ -196,7 +198,7 @@ def _run(argv):
         side = sidecars(board, base)
     except (FileNotFoundError, ValueError) as e:
         return fail(3, f'sidecar: {e}; a screenshot needs its frame text for the scan, so it is refused')
-    scan = media_scan.scan(scan_texts(board, chapters, side))
+    scan = media_scan.scan(scan_texts(board, chapters, side), extra=a.scan_pattern)
     if not scan.ok:
         why = 'its rules did not load' if scan.fail_closed else ', '.join(f'{f["source"]} ({f["kind"]})'
                                                                            for f in scan.findings)
