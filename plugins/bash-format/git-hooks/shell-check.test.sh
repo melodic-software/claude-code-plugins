@@ -5,7 +5,8 @@
 # re-staged, a partly staged one is refused untouched, a ShellCheck finding blocks
 # only on a line the commit adds, a script no section governs is never rewritten
 # but is still checked, an array-subscript rewrite shfmt would make is put back,
-# --worktree reports without rewriting, a missing tool follows the skip-key rule,
+# --worktree reports without rewriting, a merge leaves a script it takes
+# unchanged from the merged branch alone, a missing tool follows the skip-key rule,
 # and the plugin's own vendored installer wires the entry so `git commit` runs it.
 # Expected values are the tools' documented output: a tab-indented body formats to
 # the two spaces indent_size = 2 asks for; SC2154 is "<var> is referenced but not
@@ -268,6 +269,35 @@ expect "--worktree: an untracked file is checked whole" "1||a.sh:2: warning: und
 $HINT" "$(check "$REPO" --worktree)"
 rm "$REPO/a.sh"
 expect "--worktree: no uncommitted change passes" "0||" "$(check "$REPO" --worktree)"
+
+# A merge being committed: a script the merged branch brings in unchanged is
+# neither rewritten nor checked; one the resolution edits is rewritten whole.
+# main commits first so the merge cannot fast-forward.
+merge_repo() {
+  new_repo
+  git -C "$REPO" checkout -q -b side
+  printf '%s\nif true; then\n\tcd /tmp\nfi\n' "$SHEBANG" >"$REPO/x.sh"
+  git -C "$REPO" add x.sh
+  git -C "$REPO" commit -q -m side --no-verify
+  git -C "$REPO" checkout -q main
+  printf '%s\necho main\n' "$SHEBANG" >"$REPO/main.sh"
+  git -C "$REPO" add main.sh
+  git -C "$REPO" commit -q -m main --no-verify
+  git -C "$REPO" merge -q --no-commit side >/dev/null 2>&1
+}
+merge_repo
+expect "merge: the merge is in progress" yes "$([[ -f "$REPO/.git/MERGE_HEAD" ]] && echo yes)"
+expect "merge: an inherited unformatted script with a finding is not rewritten and passes" "0||" "$(check "$REPO")"
+expect "merge: the inherited script's index entry is still side's" \
+  "$(git -C "$REPO" show side:x.sh)" "$(git -C "$REPO" show :x.sh)"
+merge_repo
+printf 'cd /var\n' >>"$REPO/x.sh"
+git -C "$REPO" add x.sh
+out="$(check "$REPO")"
+rest="${out#*|}"
+expect "merge: a script the resolution edits is rewritten, listed, and blocks" "1|x.sh" "${out%%|*}|${rest%%|*}"
+expect "merge: the findings include the appended line" yes \
+  "$(printf '%s\n' "${rest#*|}" | grep -q '^x\.sh:5: warning: .*\[SC2164\]$' && echo yes)"
 
 # A PATH without one of the tools the script runs.
 bin_without() { # <dir> <tool-to-omit>

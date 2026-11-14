@@ -23,7 +23,9 @@
 #   checks_init <event> "$@"   set CHECKS_MODE (pre-commit, pre-push or, with
 #                              --worktree, worktree), CHECKS_EVENT, CHECKS_TMP,
 #                              and cd to the top level; returns 1 outside a repo
-#   checks_files               NUL-separated paths to check, repo-relative
+#   checks_files               NUL-separated paths to check, repo-relative; in
+#                              pre-commit while a merge is in progress, only
+#                              paths that differ from every parent
 #   checks_changed_lines       write "<path><TAB><start><TAB><end>" ranges of
 #                              added lines to $CHECKS_TMP/ranges, none for a
 #                              file whose content is binary; in pre-commit
@@ -154,8 +156,22 @@ checks_init() {
     esac
     shift
   done
-  local top
-  top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  # One rev-parse names the top level and MERGE_HEAD, whose path is relative
+  # to the starting directory, so the merge heads are read before the cd. If
+  # the combined call fails, --show-toplevel alone decides, with no merge.
+  local top out merge_file="" line
+  if out="$(git rev-parse --show-toplevel --git-path MERGE_HEAD 2>/dev/null)" && [[ "$out" == *$'\n'* ]]; then
+    top="${out%$'\n'*}"
+    merge_file="${out##*$'\n'}"
+  else
+    top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  fi
+  CHECKS_MERGE_HEADS=""
+  if [[ "$CHECKS_MODE" == pre-commit && -n "$merge_file" && -f "$merge_file" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [[ -z "$line" ]] || CHECKS_MERGE_HEADS="$CHECKS_MERGE_HEADS$line"$'\n'
+    done <"$merge_file"
+  fi
   cd "$top" || return 1
   CHECKS_TMP="$(mktemp -d "${TMPDIR:-/tmp}/checks.XXXXXX")" || return 1
   trap 'checks_finish $? || exit 1' EXIT
@@ -381,6 +397,7 @@ checks_file_text() {
 }
 
 checks_files() {
+  checks_merge_own_files && return 0
   checks_diff --name-only --diff-filter=ACMR -z
   if [[ "$CHECKS_MODE" == worktree ]]; then
     git ls-files --others --exclude-standard -z
@@ -436,12 +453,73 @@ checks_intersect_ranges() {
 # merge.
 checks_merge_heads() {
   [[ "$CHECKS_MODE" == pre-commit ]] || return 0
-  local file line
-  file="$(git rev-parse --git-path MERGE_HEAD 2>/dev/null)" || return 0
-  [[ -f "$file" ]] || return 0
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ -z "$line" ]] || printf '%s\n' "$line"
-  done <"$file"
+  printf '%s' "${CHECKS_MERGE_HEADS:-}"
+}
+
+# checks_merge_own_files: pre-commit while a merge is in progress; prints,
+# NUL-separated, the checks_files paths whose staged entry (mode and blob)
+# differs from every merge head's, and returns 0. A path is kept when it is in
+# the list against HEAD and in the list against each head, so it appears once
+# per list in the sorted union. Returns 1, printing nothing, outside a merge,
+# and after one line on stderr when a git call or the sort fails or the sort
+# did not sort: checks_files then lists every staged path, so a failure checks
+# more, never less, and never fails the hook.
+checks_merge_own_files() {
+  [[ "$CHECKS_MODE" == pre-commit && -n "${CHECKS_MERGE_HEADS:-}" ]] || return 1
+  [[ ! -e "$CHECKS_TMP/merge-fallback" ]] || return 1
+  local all="$CHECKS_TMP/merge-paths" want=1 h step=""
+  if checks_diff --name-only --diff-filter=ACMR -z >"$all" 2>/dev/null; then
+    while IFS= read -r h; do
+      [[ -n "$h" ]] || continue
+      git -c core.quotePath=false diff --cached --no-color --no-ext-diff --name-only --no-renames -z "$h" -- >>"$all" 2>/dev/null || {
+        step='git'
+        break
+      }
+      want=$((want + 1))
+    done <<<"$CHECKS_MERGE_HEADS"
+  else
+    step='git'
+  fi
+  if [[ -z "$step" ]]; then
+    LC_ALL=C sort -z "$all" >"$all.sorted" 2>/dev/null || step='sort'
+  fi
+  local -a kept=()
+  if [[ -z "$step" ]]; then
+    local LC_ALL=C p prev="" run=0
+    while IFS= read -r -d '' p; do
+      if ((run)) && [[ "$p" == "$prev" ]]; then
+        run=$((run + 1))
+        continue
+      fi
+      if ((run)); then
+        # Out of order or a run longer than the list count: the sort did not
+        # sort, so no run can be trusted.
+        if ((run > want)) || ! [[ "$prev" < "$p" ]]; then
+          step='sort'
+          break
+        fi
+        ((run < want)) || kept+=("$prev")
+      fi
+      prev="$p"
+      run=1
+    done <"$all.sorted"
+    if [[ -z "$step" ]] && ((run)); then
+      if ((run > want)); then
+        step='sort'
+      elif ((run == want)); then
+        kept+=("$prev")
+      fi
+    fi
+  fi
+  if [[ -n "$step" ]]; then
+    printf '%s: %s failed while listing the paths this merge changes, so every staged path is checked\n' "${0##*/}" "$step" >&2
+    : >"$CHECKS_TMP/merge-fallback"
+    return 1
+  fi
+  if ((${#kept[@]})); then
+    printf '%s\0' "${kept[@]}"
+  fi
+  return 0
 }
 
 # A file whose content the change holds is binary (checks_has_nul) is dropped

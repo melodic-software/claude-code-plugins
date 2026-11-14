@@ -225,8 +225,9 @@ content_scan() {
   local result=$1 i f s src sink text packed meta rest p
   # The files to judge: paths[i] names one and, outside --worktree, keeps[i]
   # is its object id in the change. The modes and object ids come from one raw
-  # diff, which lists the files checks_files does, and the sizes from one
-  # batch query, so each file costs one git process, the one that reads it out.
+  # diff, which lists every staged path (from_other_parent skips the ones
+  # another parent holds), and the sizes from one batch query, so each file
+  # costs one git process, the one that reads it out.
   paths=()
   keeps=()
   rm -rf "$CHECKS_TMP/scan"
