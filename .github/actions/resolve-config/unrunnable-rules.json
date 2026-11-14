@@ -18,7 +18,7 @@
   "rules": [
     {
       "kind": "eval",
-      "match": "eval evidence|evals? showing no loss|before[/ -]and[/ -]after (?:evals?|trigger)|\\btrigger (?:rate|score)s?\\b|claude plugin eval|measured pass|\\b(?-i:VALID) runs?\\b|\\bevals?\\b[^.;]{0,60}\\bno loss\\b|\\bno loss\\b[^.;]{0,40}\\bevals?\\b|measured before and after on the subscription",
+      "match": "eval evidence|evals? showing no loss|before(?:[/ -]and[/ -]|[/-])after (?:evals?|trigger)|\\btrigger (?:rate|score)s?\\b|claude plugin eval|measured pass|\\b(?-i:VALID) runs?\\b|\\bevals?\\b[^.;]{0,60}\\bno loss\\b|\\bno loss\\b[^.;]{0,40}\\bevals?\\b|measured before and after on the subscription",
       "unless": "claude plugin eval\\b[^,;:]*(?:--validate|\\bvalidate\\b|\\bdry[- ]run\\b|\\bno-spend\\b)"
     },
     {
