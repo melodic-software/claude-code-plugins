@@ -603,6 +603,35 @@
         "Does NOT load docs/review/routes.md, whose row the edited paths do not match",
         "Builds the job to the loaded criteria: an idempotent run through one retry wrapper"
       ]
+    },
+    {
+      "id": 45,
+      "name": "type-decision-cites-consumer-idioms-file",
+      "narration": true,
+      "prompt": "/implementation:implement feature parse the JSON body of the carrier webhook in src/webhooks/carrier.ts into a typed CarrierEvent before the handler uses it; today the handler casts `req.body as CarrierEvent`. I'm reviewing each turn; branch feat/carrier-parse, clean tree, plan approved. The repository has a tsconfig.json, no .claude/standards.yaml, and docs/standards/README.md (an index carrying the standards-contract key) with a row `| typescript | **/*.ts; TypeScript code | typescript.md |`. docs/standards/typescript.md says: parse outside input with the zod schemas under src/schemas/, write the type first and check the schema against it with `satisfies`, and never use `as` on outside data.",
+      "expected_output": "Before the block's type decision, finds the language (TypeScript, from tsconfig.json and the .ts path) and its idioms file through the plugin's ecosystem-resolution copy: the standards index row for typescript routes to docs/standards/typescript.md. It reads that file with the type rules, replaces the `as CarrierEvent` cast with a single parse at the entry point through a zod schema under src/schemas/ held to the CarrierEvent type with `satisfies`, and names docs/standards/typescript.md as the source of that decision.",
+      "files": [],
+      "expectations": [
+        "Resolves docs/standards/typescript.md as the TypeScript idioms file from the standards index row before the type decision",
+        "Names docs/standards/typescript.md as the source of the parse decision",
+        "Replaces the `as CarrierEvent` cast with one parse at the entry point through a zod schema under src/schemas/",
+        "Holds the zod schema to the CarrierEvent type with `satisfies`, as docs/standards/typescript.md directs",
+        "Does NOT read a TypeScript page shipped inside a plugin"
+      ]
+    },
+    {
+      "id": 46,
+      "name": "type-decision-no-idioms-declared-proceeds-on-neutral-rules",
+      "narration": true,
+      "prompt": "/implementation:implement fix: worker.py's batch_loop() calls `int(os.environ.get(\"MAX_BATCH\", \"50\"))` on every pass and crashes mid-run with a bare ValueError when MAX_BATCH is not a number. The approved plan's one phase adds a typed Settings record in settings.py, parsed once at startup, that batch_loop() takes instead of reading the environment. Running unattended from a /loop harness: no human will answer questions this run. Branch fix/max-batch, clean tree. The repository has a pyproject.toml, no docs/standards/ directory, no .claude/standards.yaml, and its CLAUDE.md and CONTRIBUTING.md say nothing about Python idioms.",
+      "expected_output": "Before the type decision, follows the plugin's ecosystem-resolution copy for the Python idioms file: no record (no standards index), nothing stated in CLAUDE.md or CONTRIBUTING.md, and no file implies one. Because the run is unattended it does not ask and writes no record. It reports `language idioms: none declared for Python` with what it read, then applies the type rules alone: the Settings record is built by one parse at startup that rejects a bad MAX_BATCH with an error naming the variable, and batch_loop() takes the record without parsing again.",
+      "files": [],
+      "expectations": [
+        "Reports that no Python idioms file is declared and names what it read",
+        "Does NOT ask the user or write a standards record, since the run is unattended",
+        "Does NOT read a language page shipped inside a plugin in place of the missing file",
+        "Builds Settings in one parse at startup that rejects a bad MAX_BATCH with an error naming the variable, and batch_loop() does not parse it again"
+      ]
     }
   ]
 }
