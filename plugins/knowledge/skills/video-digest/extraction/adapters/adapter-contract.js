@@ -302,6 +302,8 @@ export function primaryEntry(envelope) {
  * @property {'full'|'transcript'} mode - 'transcript' must not download media
  * @property {string|null} [captionWaitDeadline] - the caption-wait deadline a held
  *   queue row recorded; sources without a caption wait ignore it
+ * @property {import('../lib/time-range.js').TimeRange|null} [timeRange] - the part of
+ *   the media to download; only passed to an adapter declaring the `timeRange` capability
  * @property {object} [deps] - adapter-specific injectable I/O (tests only)
  */
 
@@ -356,6 +358,8 @@ export function primaryEntry(envelope) {
  * @property {boolean} [mediaOptional] - a 0-media post/URL is a well-formed
  *   metadata-only result for this source: acquisition and queue preflight pass
  *   `--ignore-no-formats-error` so yt-dlp reports metadata instead of erroring
+ * @property {boolean} [timeRange] - acquisition honors `AcquireContext.timeRange`,
+ *   downloading only that part of the media; `watch --from/--to` refuses other sources
  * @property {boolean} [contentClaim] - RESERVED, UNIMPLEMENTED: content-shaped
  *   (non-host) URL claims. Declaring `true` is rejected until implemented.
  */
@@ -419,6 +423,7 @@ const KNOWN_CAPABILITIES = Object.freeze([
   "comments",
   "browserCookieFallback",
   "mediaOptional",
+  "timeRange",
   "contentClaim",
 ]);
 const ERROR_PATTERN_CLASSES = Object.freeze(["retryable", "fatal", "loginRequired"]);

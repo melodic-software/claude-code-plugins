@@ -27,6 +27,10 @@ PROFILES = {
                         'video': ['-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-tune', 'stillimage',
                                   '-pix_fmt', 'yuv420p', '-movflags', '+faststart'],
                         'audio': ['-c:a', 'aac', '-b:a', '128k', '-ac', '1'], 'subtitle': _SOFT},
+    # animation's render.py --encode: a frame folder piped as rawvideo, one profile per delivered format.
+    'animation-mp4': {'video': ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '16']},
+    'animation-webm': {'video': ['-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-crf', '30', '-b:v', '0']},
+    'animation-gif': {'video': ['-vf', 'split[a][b];[a]palettegen[p];[b][p]paletteuse']},
     # pixel-art's scene capture: the browser's WebM copied as recorded, the scene's looped WAV as Opus.
     'pixel-art-webm': {'video': ['-c:v', 'copy'], 'audio': ['-c:a', 'libopus']},
 }

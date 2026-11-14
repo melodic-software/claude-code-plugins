@@ -126,6 +126,20 @@ describe("detectRecoverableBootstrap", () => {
     expect(detectRecoverableBootstrap(tmp).recoverable).toBe(true);
   });
 
+  it("refuses a ranged slice, whose recovery would write media-time stamps", () => {
+    const { framesDir, sheetsDir } = makeFrameAndSheetDirs();
+    const tmp = makeSliceDir({
+      phases: {},
+      timeRange: { fromSec: 3600, toSec: 4800, offsetSec: 3600, cut: "keyframe" },
+      tempSession: { workDir: makeWorkDir("captions.vtt"), framesDir, contactSheetsDir: sheetsDir },
+    });
+
+    const result = detectRecoverableBootstrap(tmp);
+    expect(result.recoverable).toBe(false);
+    expect(result.reason).toContain("--from/--to");
+    expect(formatRecoverCommand(tmp)).toBe("");
+  });
+
   it("is not recoverable when workDir is gone even if frames+sheets survive", () => {
     const { framesDir, sheetsDir } = makeFrameAndSheetDirs();
     const tmp = makeSliceDir({

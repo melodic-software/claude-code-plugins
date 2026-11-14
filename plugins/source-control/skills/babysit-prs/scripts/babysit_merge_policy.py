@@ -5510,7 +5510,8 @@ def dependabot_eligibility(
     or tier `review` with the lanes App's `verdict=merge` round marker at the
     current head (`merge_verdict`) and, under `hold_majors`
     (`merge.dependabot.majors: hold`), no major or unreadable update, where a diff beyond the manifests, lock
-    files and `uses:` repins Dependabot manages also makes the tier `review`;
+    files and `uses:` repins Dependabot manages, or a lanes App commit, also
+    makes the tier `review`;
     every commit Dependabot's (plus, after a review, the lanes App's
     `[dependabot skip]` fixes) and every push Dependabot's (or that commit's
     pusher's), never demoted, always refused; a green `ci-status` on
@@ -5576,7 +5577,10 @@ def dependabot_eligibility(
         # A dependency the standards policy lists as review-only goes to review
         # whatever its version change; an unreadable policy sends every one.
         listed = _review_only(owner, name, pr, tier.updates, paths, main_sha)
-        added = tuple(r for r in (content, *listed) if r)
+        # A lanes App fix commit, admitted above, goes to review: it merges
+        # only on a verdict at this head, as in pr-unblock's classifier.
+        lane_fix = dependabot.commits_refusal(commits)
+        added = tuple(r for r in (lane_fix, content, *listed) if r)
         # A release whose registry provenance changed goes to review; only a
         # pull request still tier `auto` spends the registry reads.
         if not added and tier.tier == dependabot.AUTO:

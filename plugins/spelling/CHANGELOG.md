@@ -3,6 +3,12 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.9] - 2026-11-14
+
+### Changed
+
+- Shared `check-lib.sh` synced where this plugin carries it: it gains `checks_restage`, which the typos entry does not call.
+
 ## [2.0.8] - 2026-11-14
 
 ### Fixed
