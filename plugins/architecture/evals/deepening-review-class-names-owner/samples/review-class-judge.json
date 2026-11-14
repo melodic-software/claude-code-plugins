@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Invoicing path\n- recommendation: Strong\n- shallow-signal: InvoiceService.issue, TaxCalc.apply and InvoiceStore.save each do one step (reproduced).\n- evidence: Any-typed parameters throughout, InvoiceStore.save discards every exception, a 0.20 tax rate in TaxCalc.apply.\n\nThose last three are review-class problems, not module shape: they were seen and not assessed here (the code-metrics and review plugins are not installed).\n\nTop recommendation: Invoicing path. Which candidate should we explore?",
+      "why": "evidence on the candidate, seen and not assessed, asks the question"
+    },
+    {
+      "answer": "## Invoicing path\n- recommendation: Strong\n- evidence: Any-typed parameters, a discarded exception, a hard-coded 0.20 rate.\n\nThe typing belongs to /code-metrics:audit type-debt and the rest to /review:quality-gate code. Neither skill is available in this session, so these were seen but not assessed.\n\nWhich candidate should we explore?",
+      "why": "names the would-be owners and says not assessed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Invoicing path (Strong)\n\n## Finding: swallowed exception (High)\nInvoiceStore.save hides write failures; invoices are lost silently.\n\n## Finding: Any typing (Medium)\n\nWhich candidate should we explore?",
+      "why": "separate findings with severities, no owner named"
+    },
+    {
+      "answer": "## Invoicing path\n- recommendation: Strong\n- evidence: Any typing, a discarded exception, a hard-coded tax rate.\n\nWhich candidate should we explore?",
+      "why": "names no owner and does not say they were not assessed"
+    },
+    {
+      "answer": "## Invoicing path\n- recommendation: Strong\n- evidence: Any typing, a discarded exception, a hard-coded tax rate.\n\nRun /code-metrics:audit type-debt for the typing and /review:quality-gate code for the rest.\n\nWhich candidate should we explore?",
+      "why": "names owners as if installed, never says the problems were not assessed"
+    }
+  ]
+}
