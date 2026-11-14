@@ -209,7 +209,9 @@ reads the file itself, through a script where the key names one below.
 - `pr_body_refresh`: `true` or `false`, whether a run that pushes to an open pull request rewrites
   the body sections the push made stale
   ([monitor.md](../skills/pull-request/reference/monitor.md#332-phase-b-fix-all-valid-findings-batch-then-single-push)
-  §3.3.2).
+  §3.3.2). The pr-unblock lane's `address-feedback` rounds read only the key in the base's
+  `docs/conventions/source-control.yaml`, where unset is `true`
+  ([comments-ci.md](../skills/pull-request/reference/comments-ci.md#body-sections)).
 
   Both resolve lowest first: the default (`post`; `true`), the `userConfig` value of the same
   name, then the key in `docs/conventions/source-control.yaml`, read with `lib/convention-key.sh`
@@ -248,6 +250,28 @@ reads the file itself, through a script where the key names one below.
   the base repository's default branch. The reader runs every step when the key is missing, the
   base is another branch, or the list cannot be trusted. Semantics and the report:
   [ready-for-review.md](../skills/pull-request/reference/ready-for-review.md#read-which-pre-flip-steps-run).
+- `prep_audits`: which audit `/source-control:pull-request prep` runs for each change class, a
+  list of `{class, enabled, skill}` mappings over `markdown`, `renames`, `skills`, `rules` and
+  `tests`; a class the list leaves out runs its default audit. `enabled: false` runs no audit for
+  the class. `enabled: true` with `skill: /<plugin>:<skill>` (or a project skill, `/<skill>`) runs
+  that skill in place of the default, with the class's changed files as its arguments; for
+  `markdown` it replaces both prose audits. `skill` is a skill name only, never arguments or a
+  shell command: a setting must not choose a script to run. Team level only, with no `userConfig`
+  option or flag, so neither a person nor an unattended run can change it per run. Read at the
+  default branch as the clone last fetched it, never the working tree or the head, by
+  `skills/pull-request/scripts/read-prep-audits.sh`, and honored only when the pull request
+  targets the default branch. The reader runs every default audit when the key is missing, the
+  base is another branch, or the list cannot be trusted (an unknown or repeated class, a missing
+  or non-boolean `enabled`, a `skill` that is not a bare skill name, on an off class, or on
+  `tests`). Three audits are not replaceable here:
+  - `tests` can be turned off but not replaced, because prep step 1.3 reads its judge verdicts.
+  - The comment pass is not listed, because it is a `code`-class step whose staged report and
+    `--pipeline --added-since` scope later prep steps read.
+  - `security` is not listed, because it runs in `ready`, where `pre_ready`'s `security-review`
+    step already governs it.
+
+  A quoted `enabled` anywhere in the file also makes `pre_ready` fail closed. Semantics and the
+  report: [prep.md](../skills/pull-request/reference/prep.md#121-the-other-classes-audits).
 - `dossier_branch_prefix`: the prefix of a dossier branch, default `dossier/`. A dossier branch
   holds an owning work item's docs, exploration notes and draft plan. Its shape is
   `dossier/<key>-<slug>`: `<key>` is the bound tracker adapter's `branch_ref` for the item (`42` on

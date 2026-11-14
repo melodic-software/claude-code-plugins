@@ -50,8 +50,8 @@ Contents: `should-it-animate`, `name-the-purpose`, `cheapest-tool`, `properties`
 Decide this first; sometimes the right result is no animation at all, and that is a success. Ask
 how often the user will trigger it:
 
-- **100+ times a day** (command menu, keyboard navigation, tab switching in a power tool) → **No
-  animation.** Speed beats smoothness.
+- **More than `animation.skip_frequency` times a day** (command menu, keyboard navigation, tab
+  switching in a power tool) → **No animation.** Speed beats smoothness.
 - **Keyboard-initiated action** (arrow-key list navigation, shortcuts, focus movement) → **Never
   animate.** Keyboard users are moving fast; animation makes the UI feel disconnected from their
   input.
@@ -73,10 +73,10 @@ A frequently seen animation costs the user its full duration on every repeat.
   that isn't plainly a mistake. Cutting a command palette's 300ms entrance to 0 is a fix; removing
   a success celebration is a decision.
 
-**Audit: Blocking.** An animation on a keyboard-initiated or 100-times-a-day action that delays
-input: an enter animation on the command palette, animated highlight movement on arrow-key
-navigation, a transition on tab switches in a tool used all day, anything animated in response to a
-keyboard shortcut.
+**Audit: Blocking.** An animation that delays input on a keyboard-initiated action or one used more
+than `animation.skip_frequency` times a day: an enter animation on the command palette, animated
+highlight movement on arrow-key navigation, a transition on tab switches in a tool used all day,
+anything animated in response to a keyboard shortcut.
 
 **Audit: Important.** The same animation when it does not delay input.
 
@@ -286,10 +286,9 @@ Two menus open from the same button. The bad one opens in 0.4s with `ease-in`, s
 `scale(0)`, and grows from its own center. The good one opens in 0.2s on a strong ease-out curve,
 from `scale(0.95)`, out of the trigger.
 
-Here's why the one on the right feels better: it uses `ease-out` as the easing, which is fast at the
-beginning and helps it feel snappy. `scale(0.95)` feels better than `scale(0)` because nothing in
-the real world appears out of nothing. The duration is `200ms` because a dropdown is used dozens of
-times a day, no need to slow the user down.
+The good one feels better for three reasons. `ease-out` is fast at the beginning, so it feels
+snappy. `scale(0.95)` keeps a visible shape, where `scale(0)` makes the menu appear out of nothing.
+And `200ms` is enough for a dropdown used dozens of times a day, with no reason to slow the user down.
 
 ## Springs: `springs`
 
@@ -551,8 +550,8 @@ feels right, then check again later.
 
 ## Feel check: `feel-check`
 
-An agent can build almost anything you ask for now. What it can't do is tell you whether the result
-is good. That part is still on you. Motion correctness can't be proven from code.
+An agent can build the animation you ask for, but it cannot tell you whether the result feels good.
+Motion correctness can't be proven from code, so that judgment stays with a person.
 
 When the result depends on feel that code cannot settle (a crossfade, a spring's bounce, an
 entering list), say so and name the check instead of guessing a value:
@@ -580,7 +579,7 @@ entering list), say so and name the check instead of guessing a value:
 | Animating every property at once | Name the exact properties |
 | An entrance from scale zero | Scale near `animation.scale.enter` with zero opacity |
 | Ease-in on an entrance or on-screen motion | `out`, or `in_out` on screen; `in` for a permanent exit |
-| Motion on a keyboard shortcut or a many-times-an-hour action | No animation |
+| Motion on a keyboard shortcut or an action used more than `animation.skip_frequency` times a day | No animation |
 | A duration over its role with no stated reason | Within the role in `animation.duration_ms` |
 | A trigger-anchored popover growing from its center | Origin at the trigger (modals exempt) |
 | A restarting keyframe on something triggered rapidly | Motion that retargets from the current value |

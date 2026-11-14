@@ -89,7 +89,7 @@ Slides 1, 2, 4 and 5 are framing.
 | 8 (1:03:26) | An inverted pyramid ranking where to invest: codebase, static analysis, verification, prose, human review at the tip | Take: the enforcement ladder ([`plugins/review/context/enforcement-ladder.md`](../../plugins/review/context/enforcement-ladder.md)) is the one representation of the pyramid (Q11): capability-named rungs, a verification tier, the proportion in words (Q12), and every skill that places enforcement held to it (C8) | [Release enforcement ladder 3.0.0 with the verification tier and capability-named rungs](https://github.com/melodic-software/claude-code-plugins/issues/15708) (open), under [Resolve ecosystem specifics from the consumer repository and align the enforcement ladder with the talk's pyramid](https://github.com/melodic-software/claude-code-plugins/issues/15703) (open) |
 | 9 (1:03:38) | The top two layers (code shape, then machine checks including tests and CI) are deterministic and constrain agents by default | Already have: the ladder's Tier 1 Codebase and Tier 2 Static analysis. Take: executed adapters stay while model-read tool choices leave skills (Q2, Q3); the contract and its review rules are merged | [docs(contracts): add the ecosystem-resolution contract, ADR 0101 and the review rules](https://github.com/melodic-software/claude-code-plugins/pull/15846) (merged); rest under [#15703](https://github.com/melodic-software/claude-code-plugins/issues/15703) |
 | 10 (1:04:02) | Verification, runtime and formal, checks invariants and whether the agent understood the intent | Take: a verification tier in third place, after codebase and static analysis (Q37), with runtime-verification and formal-verification rungs | [#15708](https://github.com/melodic-software/claude-code-plugins/issues/15708) (open) |
-| 11 (1:04:18) | Prose (rules, skills, AGENTS.md) is the layer for judgment calls only | Already have: the ladder's Tier 3 Guidance. Take: the retro asks whether a check could decide a finding before it proposes a prose rule | [Ask whether a check could decide a retro finding before proposing a prose rule](https://github.com/melodic-software/claude-code-plugins/issues/15935) (open); [pull request #15961](https://github.com/melodic-software/claude-code-plugins/pull/15961) (open, held for its eval compare) |
+| 11 (1:04:18) | Prose (rules, skills, AGENTS.md) is the layer for judgment calls only | Already have: the ladder's Guidance tier. Take: the retro asks whether a check could decide a finding before it proposes a prose rule | [Ask whether a check could decide a retro finding before proposing a prose rule](https://github.com/melodic-software/claude-code-plugins/issues/15935) (open); [pull request #15961](https://github.com/melodic-software/claude-code-plugins/pull/15961) (open, held for its eval compare) |
 
 ## 3. Code is memory (slides 12 to 16)
 
@@ -186,7 +186,7 @@ Each term from our glossary of the talk, with the row that holds its disposition
 |---|---|
 | slop | Framing |
 | trust | Slides 6, 7 and 37 |
-| the pyramid and its layers (codebase, static analysis, verification, prose, human review) | Slides 8 to 11; human review is the ladder's Tier 4 Human only, and her shrinking of review to evidence is slide 24 |
+| the pyramid and its layers (codebase, static analysis, verification, prose, human review) | Slides 8 to 11; human review is the ladder's Human only tier, and her shrinking of review to evidence is slide 24 |
 | deterministic layers | Slide 9 |
 | code is memory | Slide 12 |
 | gardening, organic architecture | Framing |

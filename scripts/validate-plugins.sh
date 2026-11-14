@@ -89,7 +89,9 @@ node "$SCRIPT_DIR/generate-marketplace.mjs" --check || exit 1
 node "$SCRIPT_DIR/generate-catalog.mjs" --check || exit 1
 # The cheatsheet generator imports scripts/cheatsheet-config.mjs from the tree it
 # checks; a byte-identical copy is this script's own code.
-if cmp -s "$SCRIPT_DIR/cheatsheet-config.mjs" scripts/cheatsheet-config.mjs ||
+# A checked tree whose generator differs expects that generator's output, so the step skips then too.
+if { cmp -s "$SCRIPT_DIR/cheatsheet-config.mjs" scripts/cheatsheet-config.mjs &&
+  cmp -s "$SCRIPT_DIR/generate-cheatsheet.mjs" scripts/generate-cheatsheet.mjs; } ||
   runs_checked_code "cheatsheet drift"; then
   node "$SCRIPT_DIR/generate-cheatsheet.mjs" --check --root . || exit 1
 fi

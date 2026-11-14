@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [8.3.0] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+- **`audit-sessions pr` hands over that pull request's own review comments.** It now calls `/corrections:codify reviews --pr <n> --repo <owner/repo>` for an open or merged PR in any repository, in place of the last merged PRs of the current checkout. For a PR outside the current checkout's repository that action lists the lessons and proposes nothing.
+
 ## [8.2.0] - 2026-11-13
 
 ### Added

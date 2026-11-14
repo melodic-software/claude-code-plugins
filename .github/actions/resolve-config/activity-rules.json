@@ -25,7 +25,7 @@
   },
   "publish-feedback": {
     "forbidden-effects": ["mutate-branch", "mutate-tracker", "merge"],
-    "never": "Writes to the branch, or posts anything but the recorded replies"
+    "never": "Writes to the branch, or posts anything but the recorded replies and body sections"
   },
   "resolve-feedback-threads": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],

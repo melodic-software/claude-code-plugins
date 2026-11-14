@@ -6,6 +6,12 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "deny_on_crash": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Guard names (the hook file name without .sh, e.g. block-dangerous-git) whose crash denies the tool call instead of allowing it with the guard-did-not-run notice. Empty (default) lets every crashed guard allow with the notice. The deny_on_crash option also names guards; a guard either layer names denies. An unknown name is reported and ignored."
+    },
     "fix_request_post": {
       "enum": ["block", "allow"],
       "default": "block",

@@ -3,6 +3,36 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.1] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+## [5.1.0] - 2026-11-14
+
+### Added
+
+- **Two design-time defaults in `reference/design-principles.md`.** **Errors**: shape an operation
+  so its ordinary cases cannot fail, and fail at once and visibly on a broken invariant or a
+  defect. **Make illegal states unrepresentable**: model data so invalid combinations cannot be
+  built.
+
+### Changed
+
+- **DIP** no longer says the high-level policy owns the abstraction; its cited source states no
+  ownership.
+- **Coupling and cohesion** is reworded to the definitions in Yourdon and Constantine's
+  *Structured Design*, adds that dependencies between modules form no cycle, and cites that book
+  and Martin's package principles in place of a profile page that carries no definition.
+- **Information hiding** says that encapsulation is a means, and **Deep modules** says where
+  unavoidable complexity goes (inside the module).
+- **Reuse first** labels its ask-the-user clause as this plugin's own policy.
+
+- `/planning:plan` flags change amplification at plan time: when the files-affected list shows one
+  logical change spread over many sites, the plan says so and proposes moving the repeated
+  knowledge behind one module first, or records why not.
+
 ## [5.0.3] - 2026-11-13
 
 ### Changed

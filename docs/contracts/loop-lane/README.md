@@ -451,15 +451,17 @@ goes to an agent session, which removes the label once it has made the change; p
 Intake admission refuses `attended` and `host-run` alike, parked at Work status confirmed, and adds
 `host-run` itself when every done-when item is one an unattended lane run cannot perform, none is a
 paid eval, and nothing else refuses, waits or holds the issue. It adds `host-run` the same way to a
-refusal that says a builder session takes it: a protected path the issue lane cannot push, or a
-size-split sub-issue whose patch is over the scan job's cap. That is the label a resolve-issue
-run's own `patch-protected-path` stop adds (`stop-routes.json`); `needs-session` stays the queue
-for pull requests pr-unblock stops on. It maps a
+size-split sub-issue whose patch is over the scan job's cap, which a builder session takes.
+Admission does not read the paths an issue names: a resolve-issue run whose change needs a path
+the issue lane cannot push stops with `patch-protected-path`, which adds `host-run`
+(`stop-routes.json`); `needs-session` stays the queue for pull requests pr-unblock stops on. It maps a
 refinement's `External state: manual (...)` line to `attended`; a resolve-issue run that reaches
 such a step stops with the `manual-external` code, which routes to `attended`
 ([Attended work](../../conventions/pr-pipeline/README.md#attended-work)). An issue that mixes
 such items with items the lane can do also parks at `status: confirmed`, with no `host-run`, for
-refine.mjs to split: no person answers a split. Every intake hold for a person
+refine.mjs to split in the same intake run; refused for that reason only by work-unblock's
+admission, outside an intake run, it parks at Work status needs-triage, so the triage sweep sends it
+to intake first: no person answers a split. Every intake hold for a person
 (`needs-owner-decision`) names its owner reason in a `stop-reason lane=intake-triage` marker.
 
 A session does not hold a pull request that a lane already judges (a Dependabot tier, the security
@@ -1070,7 +1072,7 @@ from claiming new work, the lane declines mutating work *by design*, so however 
 snapshot, no qualifying progress was available to make. The **bar** is what the hold keys on, never
 the pause window alone. A lane whose inlined floor latches that suppression in durable state stays
 barred after the pause ends, and a latch no fresh healthy snapshot ever clears would otherwise trip
-the threshold by itself. Held is not stalled: guard suppression outlasting three cycles would
+the threshold by itself. A held lane is not a stalled one, because guard suppression outlasting three cycles would
 otherwise escalate a lane for obeying the guard exactly. Only cycles the lane was free to act in are
 counted, so the detector measures a lane failing to move a queue it could have moved.
 When an increment
@@ -1123,7 +1125,7 @@ config back from its own telemetry state block, which the lane can edit. The wor
 config from its launch args only; when the stop mode (`--drain` or `--standing`) is absent it stops
 before any cycle work with a message naming the relaunch tokens, and only `shard`, `scope` and
 `ordering` fall back to their defaults. The babysit loop takes launch args, then its tracked config
-seam, then tier defaults, and logs the assumption. The interactive path may run a mini-interview and
+layer, then tier defaults, and logs the assumption. The interactive path may run a mini-interview and
 offer to persist the answer; the headless path never waits on one.
 
 **Lane-editable config and the four sandbox conditions.** Every local lane reads some config at run
@@ -1132,7 +1134,7 @@ the tracker binding (`docs/conventions/work-items.yaml`'s `tracker` mapping) fro
 admission matches on. The triage step they run reads `docs/conventions/work-items.yaml` and
 `docs/conventions/pr-pipeline.yaml` from the working tree when no `--config-ref` is given, and
 both lanes read that `work-items.yaml` for `ai_disclaimer` the same way. The
-babysit loop reads its `babysit_loop_*` keys from the `source-control` config seam's user-global,
+babysit loop reads its `babysit_loop_*` keys from the `source-control` config's user-global,
 team and local layers, and reads the team layer from the working tree when the checkout is the
 target repository. A deny rule makes such a file read-only to a lane only when at least these four
 conditions hold for that lane's session:
@@ -1253,7 +1255,7 @@ for the size of the offset a cron task gets, see
   not one of them: it is the pacing signal named above, the input deciding whether the cycle calls
   `ScheduleWakeup` with `stop: true` instead of scheduling another run at all.
 - **A fixed interval is the operator's shape for invoking a single-pass mechanic directly.** The
-  interval chosen once *is* the whole cadence policy: no per-cycle state derives a better one, so
+  interval chosen once *is* the whole cadence policy. No per-cycle state derives a better one, so
   there is nothing for the cron schedule to discard. `babysit-prs`'s documented
   `/loop 15m /source-control:babysit-prs worker --unattended` line is that shape.
 

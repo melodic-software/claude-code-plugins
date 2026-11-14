@@ -7,7 +7,7 @@
 # gitignored file is judged and an untracked one is not; files judged in one
 # commit keep each file's own findings; a merge in progress is judged on the
 # lines it adds against every parent, so what the merged branch already holds
-# passes; --worktree covers uncommitted and untracked files; and the plugin's vendored
+# passes, unless the merge changes its mode; --worktree covers uncommitted and untracked files; and the plugin's vendored
 # installer wires the entry, pattern libraries included, so `git commit` runs it.
 # test-scope: plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/reference-verify.sh
@@ -327,6 +327,19 @@ printf 'line one\nresolved\nsee %s here\n' "$FAKE_LINUX" >"$REPO/notes.md"
 printf 'token=%s\nmerge adds %s\n' "$FAKE_GHP" "$FAKE_LINUX_NEW" >"$REPO/side.txt"
 git -C "$REPO" add notes.md side.txt
 expect "a merge: a path the merge adds to a file the merged branch brings blocks" "1|side.txt:2: machine-specific path (Linux user path detected)
+$HINT" "$(check "$REPO")"
+
+# The merged branch holds t.txt as a symlink whose target text is the token, and
+# the index holds it as a regular file with those bytes. Built with plumbing, so
+# no symlink is checked out: on Windows with core.symlinks=false, an edited
+# checked-out symlink stays at 120000.
+new_repo
+blob="$(printf 'token=%s' "$FAKE_GHP" | git -C "$REPO" hash-object -w --stdin)"
+tree="$(printf '120000 blob %s\tt.txt\n' "$blob" | git -C "$REPO" mktree)"
+side="$(git -C "$REPO" commit-tree -p "$(git -C "$REPO" rev-parse HEAD)" -m side "$tree")"
+git -C "$REPO" update-index --add --cacheinfo "100644,$blob,t.txt"
+printf '%s\n' "$side" >"$REPO/.git/MERGE_HEAD"
+expect "a merge: a symlink target turned into a regular file with the same bytes is judged" "1|t.txt:1: secret or credential pattern: GitHub PAT
 $HINT" "$(check "$REPO")"
 
 # A text tool that fails mid-scan (gawk's "fatal error: internal error" on a

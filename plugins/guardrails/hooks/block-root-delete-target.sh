@@ -3465,6 +3465,8 @@ rdt_hd_prog() {
 # shellcheck disable=SC2329  # invoked from rdt_sink_check and rdt_ix_heredocs
 rdt_shell_prog() {
   local rdt_text_feed="" rdt_seg_feed=none rdt_dec_feed=0 t="$1" d
+  # shellcheck disable=SC2034  # read by hook::_bps_refuse through dynamic scope
+  local HOOK_BPS_SPAN="$RDT_BPS_SPAN"
   rdt_scanned=$((rdt_scanned + ${#t}))
   ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
   rdt_scan_substitutions "$t" nested
@@ -6531,9 +6533,15 @@ rdt_brace_rec() {
 # A body is lifted out of the command it runs in, so its stdin is not known:
 # its feed is open (PIPELINE-FED DELETES in the header).
 rdt_scanned=0
+# The label a refusal of a lifted body's parse names (hook::_bps_refuse), set
+# around the parse by rdt_scan_body and rdt_shell_prog: shfmt's line:col counts
+# from the body's start, not the command's.
+RDT_BPS_SPAN="block-root-delete-target: a substitution or heredoc body, or a program a shell reads, lifted from the command"
 rdt_scan_body() {
   local b="$1" rdt_seg_feed=open rdt_dec_feed=0 rdt_text_feed=""
   [[ -n "$b" ]] || return 0
+  # shellcheck disable=SC2034  # read by hook::_bps_refuse through dynamic scope
+  local HOOK_BPS_SPAN="$RDT_BPS_SPAN"
   case "${b,,}" in
   *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
     *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd* | *cmd*rd*) ;;

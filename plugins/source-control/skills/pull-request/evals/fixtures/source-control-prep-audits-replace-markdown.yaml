@@ -1,0 +1,7 @@
+# Eval fixture: a repository's docs/conventions/source-control.yaml whose prep_audits list replaces the markdown audit and turns off the rules audit.
+prep_audits:
+  - class: markdown
+    enabled: true
+    skill: /team-docs:prose-lint
+  - class: rules
+    enabled: false

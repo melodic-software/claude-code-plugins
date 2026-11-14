@@ -3,6 +3,30 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.3] - 2026-11-14
+
+### Changed
+
+- **pre-commit-content finds the files a merge takes unchanged from another parent with one git diff per parent, instead of one git process per file.**
+
+### Fixed
+
+- **pre-push-content no longer takes minutes on a pushed merge whose diff against a parent touches many files ([#15980](https://github.com/melodic-software/claude-code-plugins/issues/15980)).** It ran git several times for every file in each parent's diff, and the remote could close the connection and fail the push while the hook ran. It now reads only the files the merge changes against every parent, one git process each, plus a fixed number of diffs per parent. A non-merge commit's files cost one git process each instead of three. A file holding a NUL byte is still judged whole for secrets.
+- **pre-push-content now judges the lines a merge adds in a file that a parent other than the first holds as a symlink or a submodule.** Those lines were dropped before they were judged.
+- **pre-commit-content and pre-push-content now judge a merged file whose bytes equal another parent's but whose mode differs.** Such a file was skipped as taken whole from that parent. A regular file that a merge makes from another parent's symlink, holding the link's target text, is now judged like any other file the merge changes. A file judged whole (one holding a NUL byte, or whose name holds a quote, a backslash or a control character) is now judged when only its mode differs from that parent's.
+
+## [3.3.2] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+## [3.3.1] - 2026-11-14
+
+### Fixed
+
+- **block-github-post-content no longer blocks a `gh pr|issue` `--attach` file run through the Bash tool for the directory it sits in ([#15979](https://github.com/melodic-software/claude-code-plugins/issues/15979)).** gh uploads the file and posts only its alt text or base name, so under the Bash tool a home path or the project root in the operand's directory is no longer judged. The alt text, the base name, and every other word are still judged, and a secret anywhere in the operand still blocks. A home path right after the `#` (`--attach './x.png#<home path>'`) now blocks too. An operand the shell could expand, one after a dash flag without `=`, and a joined `--attach=<path>` after a word the shell could expand are still judged whole, since a flag left right before the joined word would post it. Under the PowerShell tool every `--attach` operand is still judged whole, because PowerShell's argument passing to native commands can change what gh receives.
+
 ## [3.3.0] - 2026-11-13
 
 ### Added

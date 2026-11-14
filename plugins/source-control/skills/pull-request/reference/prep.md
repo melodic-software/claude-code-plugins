@@ -40,7 +40,16 @@ Run **one** fresh-context review over the branch diff: `/review:quality-gate` un
 
 ## 1.2.1 The other classes' audits
 
-Run the audit each detected class owes, over the changed files of that class only:
+Run the audit each detected class owes, over the changed files of that class only.
+
+**Read which audit each class runs.** The `prep_audits` list in `docs/conventions/source-control.yaml` can turn a class's audit off or replace it with a skill the repository names ([config-resolution.md](../../../reference/config-resolution.md#yaml-keys-docsconventionssource-controlyaml)). Read it at the default branch, never the working tree:
+
+```bash
+git show "refs/remotes/<remote>/<default-branch>:docs/conventions/source-control.yaml" |
+  bash "<skill-dir>/scripts/read-prep-audits.sh" --base <base-branch> --default-branch <default-branch> -
+```
+
+Each class line reads `default` (run the audit below), `off` (run none), or `replace <skill>` (invoke that skill through the Skill tool with the class's changed files as its arguments, in place of the audit below; for `renames`, each renamed file's old and new path). When the named skill is not available in this session, run the default audit and report why. Put one line per detected class in the 1.6 report: the audit that ran, `off by prep_audits at <default-branch>`, or the replacement. A `fail-closed` source line runs every default audit; report its reason. The comment pass (1.4) and `security` are not in the list and always run as written.
 
 - **`markdown`**: `/ai-slop:audit` when the `ai-slop` plugin is enabled, otherwise read the changed markdown against the project's own prose rules; and `/docs-hygiene:audit-noise` when the `docs-hygiene` plugin is enabled, otherwise read it for stale citations, dead references, and conversational residue
 - **`renames`**: `/docs-hygiene:rename-references audit` when `docs-hygiene` is enabled, otherwise grep the old path and the old name for every surviving reference. The class fires only when the diff reports a rename

@@ -3,6 +3,18 @@
 All notable changes to the `rate-limits` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.2] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+## [4.0.1] - 2026-11-14
+
+### Changed
+
+- `/rate-limits:setup check` names the reader contract's row for a snapshot that is absent, stale or missing `rate_limits` as the owner of the reactive-only rule when it reports a fresh snapshot without `rate_limits`.
+
 ## [4.0.0] - 2026-11-13
 
 ### Changed

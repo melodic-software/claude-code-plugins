@@ -4,6 +4,28 @@ Notable changes to the enforcement ladder (SemVer). Renaming, removing or moving
 bump. Adding a rung, a reader's selection rule or a boundary-rule location is a minor bump.
 Wording-only clarification is a patch.
 
+## [3.0.0] - 2026-11-14
+
+The ladder becomes five tiers: a verification tier joins in third place, between static analysis
+and guidance. The reason: the pyramid in Lauren Tan's talk "All Code Is Slop (Except
+Mine)" (`docs/upstream/poteto-all-code-is-slop-talk.md`, slides 8 and 10) puts verification third, after
+the shape of the code and deterministic checks and before written rules (slide 8); verification,
+runtime and formal, checks invariants and whether the agent understood the intent (slide 10).
+Tests stay on the static-analysis tier, where the talk puts them among the deterministic checks
+(slide 9). Formal verification is opt-in: a repository chooses it for the question at hand.
+
+- Renamed: `semgrep-rule` to `syntax-pattern-rule`, named for the capability rather than the tool.
+  `semgrep-rule` stays an accepted alias, with a printed notice, through 3.x and is removed in
+  4.0.0.
+- Added: Tier 3 Verification with the `runtime-verification` and `formal-verification` (opt-in)
+  rungs.
+- Moved: Guidance from tier 3 to tier 4 and Human only from tier 4 to tier 5.
+- Changed: the `custom-analyzer` and `architecture-test` rungs are defined by capability and no
+  longer name a tool.
+- Added: the Proportion section (most enforcement on the strongest tiers, least on guidance and
+  human review, in words with no target) and the Order of work section (lint first, clean up,
+  strengthen verification, then automate).
+
 ## [2.1.1] - 2026-11-12
 
 - Clarified: the guardrail criterion's policy-class names an action that cannot be undone, exposes

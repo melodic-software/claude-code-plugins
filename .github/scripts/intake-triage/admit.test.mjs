@@ -13,12 +13,11 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 import { STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusEvents, statusReader, syntheticFrom } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
-import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, confirmedOnly, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionSettled, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
+import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, confirmedOnly, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, deferredAhead, refineDue, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionSettled, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, splitParentClosed, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
 import { readRouting } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { TRACKER_BINDING_PATH } from "../pr-merge/merge-holds.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
-import { TARGETS } from "../apply-patch/apply-patch.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./split-child.vectors.json", import.meta.url), "utf8"));
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -264,16 +263,6 @@ describe("decide", () => {
       const verdict = { ...VERDICT, writtenAt: "2026-10-20T11:00:00Z" };
       assert.deepEqual(decide(facts({ issue, events, spec, verdict })), { verdict: "admit", reasons: [] });
     });
-  });
-
-  test("an issue row in patch-rules.json that refuses no protected path fails admission closed", () => {
-    const dir = tempDir("admit-patch-rules-");
-    for (const row of [{ refuse: [] }, { refuse: ["symlink", "gitlink"] }, {}]) {
-      const path = join(dir, "patch-rules.json");
-      writeFileSync(path, JSON.stringify({ [PATCH_ROW]: row }));
-      assert.throws(() => pushRefusalsOf(path), /row refuses no protected path/, JSON.stringify(row));
-    }
-    assert.ok(issuePushRefusals().length > 0);
   });
 
   test("an untrusted-provenance label removed by neither a listed human nor the App still refuses", () => {
@@ -540,9 +529,8 @@ describe("decide", () => {
     assert.ok(!result.reasons.includes(SIZE_SPLIT_PENDING));
   });
 
-  // The title names the subject, so it is not read; a body that asks to edit
-  // a path the issue lane cannot push is refused (bodyUnpushablePaths).
-  test("admits an issue whose title names a protected path, and refuses one whose body prose asks to edit one", () => {
+  // The run's own patch-protected-path stop takes a change to such a path.
+  test("admits an issue whose title or body prose names a path the issue lane cannot push", () => {
     const titled = decide(facts({ issue: issueOf({ title: "fix .github/workflows/x.yml and docs/conventions/pr-pipeline.yaml" }) }));
     assert.deepEqual(titled, { verdict: "admit", reasons: [] });
     const result = decide(
@@ -553,11 +541,7 @@ describe("decide", () => {
         }),
       }),
     );
-    assert.deepEqual(result, {
-      verdict: "refuse",
-      reasons: ["its body or a criterion names .github/workflows/x.yml, .claude/settings.json, which the issue lane cannot push (patch-protected-path); a builder session takes it"],
-      hostRun: true,
-    });
+    assert.deepEqual(result, { verdict: "admit", reasons: [] });
   });
 
   test("admits a Feature with no parent", () => {
@@ -819,223 +803,6 @@ describe("decide", () => {
       assert.equal(readSchedule(fileURLToPath(new URL("./no-such-schedule.json", import.meta.url))), null);
       assert.equal(readSchedule(fileURLToPath(new URL("./admit.mjs", import.meta.url))), null);
       assert.ok(Array.isArray(readSchedule().items));
-    });
-  });
-
-  // apply-patch refuses these paths on the issue row (patch-rules.json), so a
-  // run for a criterion that names one ends at patch-protected-path.
-  describe("a criterion naming a path the issue lane cannot push", () => {
-    const withCriteria = (...lines) => issueOf({ body: ["## Problem", "", "Basis: `.github/workflows/a.yml:3`", "", "## Done when", "", ...lines].join("\n") });
-    const pushReason = (path) => `its body or a criterion names ${path}, which the issue lane cannot push (patch-protected-path); a builder session takes it`;
-
-    const refused = [
-      // #9398's criterion.
-      ["- [ ] The check-plugins job in .github/workflows/pr-require-checks.yml still has timeout-minutes: 3", ".github/workflows/pr-require-checks.yml"],
-      ["- [ ] `.github/workflows/x.yml:12` reads the new input.", ".github/workflows/x.yml"],
-      ["- [ ] .github/CODEOWNERS names the team.", ".github/CODEOWNERS"],
-      ["- [ ] CODEOWNERS names the team.", "CODEOWNERS"],
-      ["- [ ] .GITMODULES drops the old submodule.", ".GITMODULES"],
-      // #9113's criterion: a bare name of a workflow on disk.
-      ["- [ ] pr-require-checks.yml pins that ci-workflows release.", ".github/workflows/pr-require-checks.yml"],
-      ["- [ ] `pr-test-platforms.yml:94` reads the new output.", ".github/workflows/pr-test-platforms.yml"],
-      ["- [ ] pr-require-checks.yml is unchanged.", ".github/workflows/pr-require-checks.yml"],
-    ];
-    for (const [line, path] of refused) {
-      test(`refuses, with no hold, on ${line}`, () => {
-        const issue = withCriteria(line);
-        assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(path)], hostRun: true });
-      });
-    }
-
-    test("refuses on a path a criterion wraps onto an indented continuation line", () => {
-      const issue = withCriteria("- [ ] Update the permissions in", "  .github/workflows/a.yml for the new job.");
-      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(".github/workflows/a.yml")], hostRun: true });
-    });
-
-    test("admits a criterion whose nested bullet cites a protected path as evidence", () => {
-      for (const bullet of ["  - Basis: .github/workflows/pr-require-checks.yml:40", "  * see .github/CODEOWNERS", "  1. .gitmodules lists it"]) {
-        const issue = withCriteria("- [ ] The job times out at 3 minutes.", bullet);
-        assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] }, bullet);
-      }
-    });
-
-    const evasions = [
-      ["a case change", "- [ ] `.GitHub/Workflows/a.yml` reads the new input.", ".GitHub/Workflows/a.yml"],
-      ["a case change in .gitmodules", "- [ ] `.GITMODULES` drops the old submodule.", ".GITMODULES"],
-      ["a case change in a bare workflow name", "- [ ] PR-Require-Checks.yml pins that release.", ".github/workflows/PR-Require-Checks.yml"],
-      ["a missing leading dot", "- [ ] github/workflows/a.yml reads the new input.", "github/workflows/a.yml"],
-      ["a missing leading dot on .gitmodules", "- [ ] `vendor/gitmodules` drops the old submodule.", "vendor/gitmodules"],
-      ["fullwidth characters", "- [ ] ．github／workflows／a.yml reads the new input.", ".github/workflows/a.yml"],
-      ["zero-width characters", "- [ ] .git​hub/work⁠flows/a﻿.yml reads the new input.", ".github/workflows/a.yml"],
-      ["URL encoding", "- [ ] %2Egithub%2Fworkflows%2Fa.yml reads the new input.", ".github/workflows/a.yml"],
-      ["fullwidth percent signs", "- [ ] ％2Egithub％2Fworkflows％2Fa.yml reads the new input.", ".github/workflows/a.yml"],
-      ["zero-width characters in the task-list prefix", "​- [ ]​ .github/workflows/a.yml reads the new input.", ".github/workflows/a.yml"],
-      ["a case change in a root CODEOWNERS", "- [ ] `codeowners` names the team.", "codeowners"],
-      ["a root .gitmodules without its dot", "- [ ] `gitmodules` drops the old submodule.", "gitmodules"],
-    ];
-    for (const [name, line, path] of evasions) {
-      test(`still refuses a protected path written with ${name}`, () => {
-        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "refuse", reasons: [pushReason(path)], hostRun: true });
-      });
-    }
-
-    test("still refuses a protected path in a code fence under a criterion, past its blank and bullet-like lines", () => {
-      const issue = withCriteria("- [ ] Apply this change:", "  ```diff", "  - timeout-minutes: 3", "", "  + see .github/workflows/a.yml", "  ```");
-      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [pushReason(".github/workflows/a.yml")], hostRun: true });
-    });
-
-    const admitted = [
-      // #9137's shape.
-      "- [ ] `babysit_merge.py` merges on a green head, with tests in `tests/test_babysit_merge.py`.",
-      "- [ ] `plugins/x/cases/y/settings.json` sets the model.",
-      "- [ ] settings.json keeps its key.",
-      // #9092's: a bare .yml name no workflow on disk has.
-      "- [ ] No pr-test-macos.yml is added.",
-      "- [ ] The runner no longer writes /__w/_temp/.claude/settings.json or /__w/r/r/.base/.github/workflows/a.yml:1.",
-      // A root name in prose, outside backticks, names no file.
-      "- [ ] The codeowners check reports the missing team.",
-      "- [ ] Codeowners review is requested.",
-      "- [ ] The gitmodules parser skips comments.",
-    ];
-    for (const line of admitted) {
-      test(`admits ${line}`, () => {
-        const issue = withCriteria(line);
-        assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
-      });
-    }
-
-    // A clause that says a protected path is left alone asks for no push to it.
-    const negated = [
-      // #7540's refinement criterion.
-      "- [ ] No file under .github/workflows is edited.",
-      // #8279's 2026-10-30T15:05Z record.
-      "- [ ] `scripts/sync-hold-floor.py` reads the built-in rows plus the config rows. Run on the branch, it leaves every generated copy byte-identical to main, so the diff touches no `.github/workflows`, `.github/scripts` or `.github/trust-path-hold.json` file.",
-      "- [ ] The diff changes no .github/workflows/a.yml line.",
-      "- [ ] The fix edits no file in `.github/workflows`.",
-      "- [ ] The script does not edit .github/workflows/a.yml.",
-      "- [ ] It doesn’t touch .github/CODEOWNERS.",
-      "- [ ] The run leaves .github/workflows/a.yml unchanged.",
-      "- [ ] The script never writes to .github/workflows/a.yml.",
-      "- [ ] No changes to .github/workflows/a.yml.",
-      "- [ ] No edits to `.github/workflows`.",
-      "- [ ] No change to .gitmodules is made.",
-      "- [ ] The script MUST NOT modify .github/workflows.",
-      "- [ ] The fix should not touch .github/CODEOWNERS.",
-      "- [ ] It mustn't edit .github/workflows/a.yml.",
-      "- [ ] It shouldn’t change .gitmodules.",
-      "- [ ] The lane can't modify .github/workflows/a.yml.",
-      "- [ ] The lane cannot edit .github/workflows/a.yml.",
-      "- [ ] Do not edit .github/workflows/a.yml.",
-      "- [ ] It didn't touch .github/workflows/a.yml.",
-      "- [ ] .github/workflows/a.yml is not edited.",
-      "- [ ] `.github/CODEOWNERS` isn't modified.",
-      "- [ ] No file under .github/workflows should be edited.",
-      "- [ ] The docs change. .github/workflows/a.yml must not be modified.",
-    ];
-    for (const line of negated) {
-      test(`admits the negated ${line}`, () => {
-        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "admit", reasons: [] });
-      });
-    }
-
-    test("admits #7540: its App refinement names .github/workflows only in a negated criterion", () => {
-      const thin = issueOf({ body: "Bind the convention home." });
-      const refinement = written(APP_ACTOR, { body: `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] AGENTS.md binds docs/conventions.\n- [ ] No file under .github/workflows is edited.` });
-      assert.deepEqual(decide(facts({ issue: thin, spec: humanSpec(thin, [refinement]) })), { verdict: "admit", reasons: [] });
-    });
-
-    // The negation ends where the clause turns back to a change, and drops a
-    // path only when it negates a modification.
-    const turned = [
-      ["- [ ] No file other than .github/workflows/a.yml is edited.", ".github/workflows/a.yml"],
-      ["- [ ] No file outside .github/workflows is edited.", ".github/workflows"],
-      ["- [ ] The diff touches no docs file but edits .github/workflows/a.yml.", ".github/workflows/a.yml"],
-      ["- [ ] It does not change the tests; it edits .github/workflows/a.yml.", ".github/workflows/a.yml"],
-      ["- [ ] No file under docs is edited, and .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
-      ["- [ ] No file under docs is edited. .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
-      ["- [ ] Edit .github/workflows/a.yml so it does not change the timeout.", ".github/workflows/a.yml"],
-      // A negation with no modification verb asks for edits under the path.
-      ["- [ ] No file under `.github/workflows` references the retired action.", ".github/workflows"],
-      ["- [ ] No file under .github/workflows references X.", ".github/workflows"],
-      ["- [ ] No workflow under .github/workflows uses Y.", ".github/workflows"],
-      ["- [ ] No file under .github/workflows lists the changes.", ".github/workflows"],
-      ["- [ ] No test fails after .github/workflows/a.yml is edited.", ".github/workflows/a.yml"],
-      ["- [ ] Edit .github/workflows/a.yml and leave docs unchanged.", ".github/workflows/a.yml"],
-      // A `no` idiom affirms the change it opens.
-      ["- [ ] No doubt .github/workflows/a.yml must be edited.", ".github/workflows/a.yml"],
-      ["- [ ] No question .github/workflows/a.yml should be changed.", ".github/workflows/a.yml"],
-      // Only a bounded shape around the path drops it, never a negation and a
-      // participle that a comma or another clause separates.
-      ["- [ ] No need to wait, update .github/workflows/a.yml, the file already edited upstream.", ".github/workflows/a.yml"],
-      ["- [ ] Nothing blocks this; edit .github/workflows/a.yml once it is changed upstream.", ".github/workflows/a.yml"],
-      ["- [ ] Must not wait; edit .github/workflows/a.yml.", ".github/workflows/a.yml"],
-      ["- [ ] No changes to the docs, but edit .github/workflows/a.yml.", ".github/workflows/a.yml"],
-      ["- [ ] No changes to the docs; .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
-      ["- [ ] The lane must not change the docs but edits .github/workflows/a.yml.", ".github/workflows/a.yml"],
-      // A negated passive drops its subject only from the start of a sentence,
-      // with no modification verb before it and the participle ending it.
-      ["- [ ] .github/workflows/a.yml is not edited yet, so edit it now.", ".github/workflows/a.yml"],
-      ["- [ ] Edit .github/workflows/a.yml the docs are not edited.", ".github/workflows/a.yml"],
-      ["- [ ] A step in .github/workflows/a.yml is added and docs are not edited.", ".github/workflows/a.yml"],
-    ];
-    for (const [line, path] of turned) {
-      test(`still refuses ${line}`, () => {
-        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "refuse", reasons: [pushReason(path)], hostRun: true });
-      });
-    }
-
-    // A title names the subject, not the change: #8682 and #9054 named an
-    // existing workflow in theirs and changed only scripts.
-    test("admits an issue whose title alone names an existing workflow", () => {
-      const issue = { ...withCriteria("- [ ] Line 3 says nineteen."), title: "ci: move the macOS planning job out of pr-test-platforms.yml" };
-      assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
-    });
-
-    test("reads the row apply-patch pushes an issue lane patch under", () => {
-      assert.equal(PATCH_ROW, TARGETS.issue.row(""));
-    });
-
-    test("turns an otherwise admissible issue into a refusal that parks at status: confirmed", () => {
-      const issue = withCriteria("- [ ] Line 3 says nineteen.", "- [ ] `.gitmodules` drops the old submodule.");
-      const result = decide(facts({ issue }));
-      assert.equal(decide(facts({ issue: withCriteria("- [ ] Line 3 says nineteen.") })).verdict, "admit");
-      assert.equal(result.verdict, "refuse");
-      assert.equal(result.hold, undefined);
-      assert.deepEqual(result.reasons, [pushReason(".gitmodules")]);
-    });
-
-    // #13258: host-run queues the refusal for a host or builder session only
-    // when it is the issue's one kind of obstacle.
-    const protectedLine = "- [ ] `.gitmodules` drops the old submodule.";
-    // A deferred issue that gained needs-human is held for a person.
-    const deferredAdd = { event: "labeled", label: { name: DEFERRED }, actor: { id: APP }, created_at: "2026-10-20T09:00:00Z" };
-    const heldIssue = { ...withCriteria(protectedLine), labels: [{ name: READY }, { name: DEFERRED }, { name: "needs-human" }] };
-
-    test("carries hostRun when the protected path is the only refusal", () => {
-      assert.equal(decide(facts({ issue: withCriteria(protectedLine) })).hostRun, true);
-    });
-
-    test("carries no hostRun beside a hold for a person", () => {
-      const result = decide(facts({ issue: heldIssue, events: [deferredAdd] }));
-      assert.equal(result.verdict, "refuse");
-      assert.equal(result.hold, true);
-      assert.ok(result.reasons.includes(pushReason(".gitmodules")));
-      assert.equal(result.hostRun, undefined);
-    });
-
-    test("carries no hostRun beside a paid eval", () => {
-      const result = decide(facts({ issue: withCriteria(protectedLine, "- [ ] Run a paid eval of the skill and record the delta.") }));
-      assert.equal(result.verdict, "refuse");
-      assert.equal(result.hold, undefined, "a split no person answers parks");
-      assert.equal(result.hostRun, undefined);
-    });
-
-    test("carries no hostRun beside a refusal no host takes", () => {
-      const result = decide(facts({ issue: withCriteria(protectedLine), verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "huge" } } }));
-      assert.equal(result.verdict, "refuse");
-      assert.equal(result.reasons.length, 2);
-      assert.ok(result.reasons.includes(pushReason(".gitmodules")));
-      assert.equal(result.hostRun, undefined);
     });
   });
 
@@ -3233,6 +3000,122 @@ describe("host-run work", () => {
     await go(fake);
     assert.equal(writes(fake.calls)[0], STATUS("needs-owner-decision"));
   });
+
+  // refine.mjs splits a partial split only in an intake run whose lane comment
+  // it reads, so a sweep's refusal (no verdict written) asks for that run.
+  describe("a partial split decided with no triage verdict", () => {
+    const BORN = `${CANARY}\n\n<!-- work-items:born-triaged -->`;
+    const FRESH = { ...VERDICT, writtenAt: "2026-10-20T09:00:00Z" };
+
+    test("asks for triage, born triaged or not, with no hold and no host-run", () => {
+      for (const body of [CANARY, BORN]) {
+        const result = decide(facts({ issue: issueOf({ body }) }));
+        assert.equal(result.verdict, "refuse", body);
+        assert.equal(result.triage, true, body);
+        assert.equal(result.hold, undefined, body);
+        assert.equal(result.hostRun, undefined, body);
+      }
+    });
+
+    test("an intake run's verdict parks it at status: confirmed for refine-select, as before", async () => {
+      const issue = issueOf({ body: BORN });
+      const result = decide(facts({ issue, verdict: FRESH }));
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.triage, undefined);
+      const fake = fakeGitHub({ issue });
+      assert.equal((await admit({ ...goArgs(fake), verdict: FRESH })).status, CONFIRMED);
+      assert.equal(writes(fake.calls)[0], STATUS("confirmed"));
+    });
+
+    test("every item unrunnable, a paid eval, a host-run label or another refusal asks for no triage", () => {
+      const PAID = "- [ ] Run `claude plugin eval` on the suite in Azure and record the delta.";
+      for (const [why, input] of [
+        ["every item unrunnable", { issue: hostRun(HOST_ONLY) }],
+        ["a paid eval beside a lane item", { issue: hostRun(`- [ ] Line 3 says nineteen.\n${PAID}`) }],
+        ["a trusted host-run label", { issue: queued(CANARY), events: addedBy(HUMAN) }],
+        ["Uncertainty unknown beside it", { issue: hostRun(CANARY), verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, uncertainty: "unknown" } } }],
+        ["an open pull request", { issue: hostRun(CANARY), pulls: [5] }],
+      ]) {
+        const result = decide(facts(input));
+        assert.equal(result.verdict, "refuse", why);
+        assert.equal(result.triage, undefined, why);
+      }
+      assert.equal(decide(facts({ issue: hostRun(HOST_ONLY) })).hostRun, true);
+      assert.equal(decide(facts({ issue: hostRun(`- [ ] Line 3 says nineteen.\n${PAID}`) })).hold, true);
+    });
+  });
+});
+
+// Admission reads no path an issue names: a run whose change needs a path the
+// issue lane cannot push stops with patch-protected-path, which
+// stop-routes.json routes to host-run.
+describe("admission and the paths the issue lane cannot push", () => {
+  const withBody = (lines, labels = [{ name: READY }]) => issueOf({ body: lines.join("\n"), labels });
+  const DONE = ["## Done when", "", "- [ ] Line 3 says nineteen."];
+  // #15977's lines as filed: a prose sentence and a done-when item that name
+  // workflow files the fix does not change.
+  const SHAPE_15977 = [
+    "## Problem",
+    "",
+    "The guard refuses a valid heredoc call.",
+    "",
+    "## Runner portability",
+    "",
+    "The issue lane (`.github/workflows/work-resolve-issue.yml`) runs on `ubuntu-24.04` and installs no shfmt, typos or hyperfine; only the PR checks install a pinned shfmt (`.github/actions/setup-pinned-shfmt`).",
+    "",
+    ...DONE,
+    "- [ ] **Windows-only symptoms** are proved on Linux by the deterministic test the plan names. `pr-test-platforms.yml` runs the Windows suites a change selects.",
+  ];
+
+  test("admits a body that names workflow files only in passing, as the eight refused on 2026-11-13 did", () => {
+    assert.deepEqual(decide(facts({ issue: withBody(SHAPE_15977) })), { verdict: "admit", reasons: [] });
+    const mergeHead = withBody(["## Problem", "", "A conflicted merge leaves `.git/MERGE_HEAD` behind, so the next run reads a stale merge.", "", ...DONE]);
+    assert.deepEqual(decide(facts({ issue: mergeHead })), { verdict: "admit", reasons: [] });
+  });
+
+  test("admits a done-when item that asks to change a path the issue lane cannot push", () => {
+    for (const line of [
+      "- [ ] Raise timeout-minutes in .github/workflows/pr-require-checks.yml to 5.",
+      "- [ ] `.claude/hooks/hook-telemetry-sink.sh` sources the plugin sink.",
+      "- [ ] .github/CODEOWNERS names the team.",
+      "- [ ] `.gitmodules` drops the old submodule.",
+    ]) {
+      assert.deepEqual(decide(facts({ issue: withBody([...DONE, line]) })), { verdict: "admit", reasons: [] }, line);
+    }
+  });
+
+  const HOST_ITEM = "- [ ] Run it on a Windows 11 host.";
+  const PAID_ITEM = "- [ ] Run `claude plugin eval` on the suite in Azure and record the delta.";
+  const PATH_PROSE = ["## Fix", "", "Raise timeout-minutes in .github/workflows/pr-require-checks.yml to 5.", ""];
+  const hostAdd = [{ event: "labeled", label: { name: "host-run" }, actor: { id: HUMAN }, created_at: "2026-10-21T00:00:00Z" }];
+  const neighbors = (prose = []) => [
+    ["a host-run label a listed human added", { issue: withBody([...prose, "## Done when", "", HOST_ITEM, "- [ ] Line 3 says nineteen."], [{ name: READY }, { name: "host-run" }]), events: hostAdd }],
+    ["a paid eval", { issue: withBody([...prose, "## Done when", "", PAID_ITEM]) }],
+    ["every done-when item unrunnable", { issue: withBody([...prose, "## Done when", "", HOST_ITEM]) }],
+    ["unrunnable items beside runnable ones", { issue: withBody([...prose, "## Done when", "", HOST_ITEM, "- [ ] Line 3 says nineteen."]) }],
+  ];
+  const HOST_REASON = 'its done-when asks for what an unattended lane run cannot perform: item 1 (a run on a host the lane is not: "Run it on a Windows 11 host.")';
+  const SPLIT = "recommended split: keep the other items here as the admissible issue and move these to a child issue for the host queue (`host-run`)";
+  const PAID_REASON = 'its done-when asks for what an unattended lane run cannot perform: item 1 (a paid eval: "Run claude plugin eval on the suite in Azure and record the delta.")';
+
+  test("the host-run, paid-eval and unrunnable-criteria refusals stand as before", () => {
+    const expected = [
+      { verdict: "refuse", reasons: [`${HOST_REASON}; ${SPLIT}`, "it carries host-run"] },
+      { verdict: "refuse", reasons: [`${PAID_REASON}; no done-when item is left for the lane, so it goes to the owner, since a paid eval can bill the owner`, "its title or stated work names a charge (azure), which needs an owner decision"], hold: true, reason: "cost" },
+      { verdict: "refuse", reasons: [`${HOST_REASON}; no done-when item is left for the lane, so it goes to the host queue (\`host-run\`)`], hostRun: true },
+      { verdict: "refuse", reasons: [`${HOST_REASON}; ${SPLIT}`], triage: true },
+    ];
+    neighbors().forEach(([why, input], index) => {
+      assert.deepEqual(decide(facts(input)), expected[index], why);
+    });
+  });
+
+  test("a protected path the body names beside those refusals changes no decision", () => {
+    neighbors().forEach(([why, input], index) => {
+      const [, withPath] = neighbors(PATH_PROSE)[index];
+      assert.deepEqual(decide(facts(withPath)), decide(facts(input)), why);
+    });
+  });
 });
 
 // An issue whose status history is on the Work status field: a REST
@@ -4130,167 +4013,6 @@ describe("a refine due on a first triage", () => {
     assert.equal(refineDue(spec(NO_TASKS, 98), humans, APP, "- [ ] "), true);
     assert.equal(refineDue(spec(NO_TASKS, 99), humans, APP, "- [ ] "), false);
     assert.equal(refineDue(spec(NO_TASKS), humans, APP, "* [ ] "), false);
-  });
-});
-
-// A protected path the body's prose names is work the issue lane cannot push,
-// so admission refuses it as it does one a criterion names.
-describe("bodyUnpushablePaths", () => {
-  const names = issuePushRefusals();
-  const workflows = new Set(["pr-require-checks.yml"]);
-  const paths = (body) => bodyUnpushablePaths(body, "- [ ] ", names, workflows);
-
-  test("a protected path named in the body's prose counts", () => {
-    assert.deepEqual(paths("## Fix\n\nRaise the timeout in .github/workflows/pr-require-checks.yml to 5 minutes."), [".github/workflows/pr-require-checks.yml"]);
-    assert.deepEqual(paths("## Scope\n\nUpdate `pr-require-checks.yml` and .github/CODEOWNERS."), [".github/workflows/pr-require-checks.yml", ".github/CODEOWNERS"]);
-  });
-
-  test("an evidence line, a line citation, a code fence, a negated mention and a task item do not count", () => {
-    for (const body of [
-      "Basis: `.github/workflows/a.yml:3`",
-      "See .github/workflows/a.yml for the caller.",
-      "The step at .github/workflows/a.yml:40 calls the script.",
-      "```\n.github/workflows/a.yml\n```",
-      "No file under .github/workflows is edited.",
-      "No file under `.github/workflows`\nis edited.",
-      "- [ ] Raise the timeout in .github/workflows/a.yml.",
-    ]) {
-      assert.deepEqual(paths(body), [], body);
-    }
-  });
-
-  test("a soft-wrapped sentence reads as one, and a blank line ends it", () => {
-    assert.deepEqual(paths("Raise the timeout in\n.github/workflows/pr-require-checks.yml to 5 minutes."), [".github/workflows/pr-require-checks.yml"]);
-    assert.deepEqual(paths("Raise the timeout in .github/CODEOWNERS.\n\nNo file under .github/workflows is edited."), [".github/CODEOWNERS"]);
-  });
-
-  test("decide refuses an issue whose body prose names one, with no hold", () => {
-    const issue = issueOf({ body: `## Fix\n\nRaise the timeout in .github/workflows/pr-require-checks.yml.\n\n## Done when\n\n- [ ] The job times out at 5 minutes.` });
-    assert.deepEqual(decide(facts({ issue })), {
-      verdict: "refuse",
-      reasons: ["its body or a criterion names .github/workflows/pr-require-checks.yml, which the issue lane cannot push (patch-protected-path); a builder session takes it"],
-      hostRun: true,
-    });
-  });
-
-  // #15440's brief: its lane run stopped with patch-protected-path, since
-  // Claude Code denies every .claude/ write under the lane's dontAsk mode.
-  const BODY_15440 = [
-    "## Agent Brief",
-    "",
-    "**Type:** Task",
-    "**Summary:** Replace the repository's hand-kept copy of the telemetry sink with a shim over the harness-ops sink.",
-    "",
-    "**Desired behavior:**",
-    "`.claude/hooks/hook-telemetry-sink.sh` becomes a short shim that `source`s the plugin sink, so no extra process starts and one copy remains.",
-    "",
-    "**Files:**",
-    "- `.claude/hooks/hook-telemetry-sink.sh`",
-    "- `.claude/hooks/hook-telemetry-sink.test.sh`",
-    "",
-    "**Acceptance criteria:**",
-    "- [ ] The sink's logic exists once, in `plugins/harness-ops/hooks/hook-telemetry-sink.sh`, and the repository hook reaches it by `source`.",
-    "- [ ] The diff edits only the listed files.",
-  ].join("\n");
-
-  test("#15440's shape, naming .claude/ hooks, parks as a workflow path does", () => {
-    assert.ok(names.includes("claude-protected"));
-    assert.deepEqual(paths(BODY_15440), [".claude/hooks/hook-telemetry-sink.sh", ".claude/hooks/hook-telemetry-sink.test.sh"]);
-    assert.deepEqual(decide(facts({ issue: issueOf({ body: BODY_15440 }) })), {
-      verdict: "refuse",
-      reasons: ["its body or a criterion names .claude/hooks/hook-telemetry-sink.sh, .claude/hooks/hook-telemetry-sink.test.sh, which the issue lane cannot push (patch-protected-path); a builder session takes it"],
-      hostRun: true,
-    });
-  });
-
-  test("a bare protected directory counts, with or without its trailing slash; an unrelated directory does not", () => {
-    assert.deepEqual(paths("## Fix\n\nAdd a new configuration file under `.vscode/`."), [".vscode/"]);
-    assert.deepEqual(paths("## Fix\n\nAdd a new config under `.claude/` and an ignore file under .config/git/."), [".claude/", ".config/git/"]);
-    assert.deepEqual(paths("## Fix\n\nAdd a launch profile to `.vscode`."), [".vscode"]);
-    assert.deepEqual(paths("## Fix\n\nAdd a note under `.claude/agent-memory/`, a file under `.config/` and one under docs/vscode/."), []);
-    assert.equal(decide(facts({ issue: issueOf({ body: "## Fix\n\nAdd a new configuration file under `.vscode/`.\n\n## Done when\n\n- [ ] The file exists." }) })).verdict, "refuse");
-  });
-
-  test("a bare dot-led protected name counts only in backticks or with a path, so a home directory file in prose does not", () => {
-    assert.deepEqual(paths("## Fix\n\nTell the user to add the alias to your .bashrc, .zshrc, .profile, .gitconfig, .npmrc or .envrc."), []);
-    assert.deepEqual(paths("## Fix\n\nWrite the token to `.npmrc` and plugins/x/.envrc."), [".npmrc", "plugins/x/.envrc"]);
-    assert.deepEqual(paths("## Fix\n\nSource ~/.bashrc first."), []);
-  });
-
-  test("a home, absolute or URL path never counts, quoted or not, nor a backticked command", () => {
-    assert.deepEqual(paths("## Fix\n\nThe hook reads `~/.claude/settings.json` and ~/.claude/settings.json."), []);
-    assert.deepEqual(paths("## Fix\n\nThe runner writes `/srv/u/.vscode/x` and /srv/u/.vscode/x."), []);
-    assert.deepEqual(paths("## Fix\n\nClone `https://github.com/o/r/.git/config` or https://github.com/o/r.git/.git/HEAD."), []);
-    assert.deepEqual(paths("## Fix\n\nRun `source ~/.bashrc` and read `/etc/x/.gitconfig`."), []);
-    assert.deepEqual(paths("## Fix\n\nRun `cp x .claude/rules/a.md` once."), [".claude/rules/a.md"]);
-    assert.equal(decide(facts({ issue: issueOf({ body: "## Fix\n\nThe hook reads `~/.claude/settings.json`.\n\n## Done when\n\n- [ ] The hook logs its path." }) })).verdict, "admit");
-  });
-
-  test("a bare protected file name that is not dot-led counts, quoted or not; a .claude/worktrees/ path and a .claude-plugin/ path do not", () => {
-    assert.deepEqual(paths("## Fix\n\nAdd a pre-push job to lefthook.yml and register the server in `.mcp.json`."), [".mcp.json", "lefthook.yml"]);
-    assert.deepEqual(paths("## Fix\n\nEdit plugins/x/.claude-plugin/plugin.json and .claude/worktrees/x/README.md."), []);
-    assert.deepEqual(decide(facts({ issue: issueOf({ body: "## Fix\n\nEdit plugins/x/.claude-plugin/plugin.json.\n\n## Done when\n\n- [ ] The version is 1.2.0." }) })), { verdict: "admit", reasons: [] });
-  });
-
-  // A section that says what the work changes counts a path cited at a line;
-  // one that holds what was observed counts no path at all.
-  const SHAPE_13233 = (section) =>
-    [
-      "Refs: #6958, #12526",
-      "",
-      "## Problem",
-      "",
-      "`upstream-apply-changelog` has produced no pull request or issue since it was added.",
-      "",
-      "## Evidence",
-      "",
-      "| Run | Started | Result |",
-      "|---|---|---|",
-      "| [41760968895](https://github.com/o/r/actions/runs/41760968895) | 2026-11-04T02:28Z | `class=credit-stop` |",
-      "",
-      section,
-      "",
-      "- `.github/workflows/upstream-apply-changelog.yml:300-316` passes only `ISSUE_LANE_CLAUDE_API_KEY`, with `continue-on-error: true`.",
-      "",
-      "## Done when",
-      "",
-      "- [ ] A credit stop in this lane does not use up its daily cap.",
-      "- [ ] A credit stop shows up in the lane's records.",
-    ].join("\n");
-  const PUSH_13233 = "its body or a criterion names .github/workflows/upstream-apply-changelog.yml, which the issue lane cannot push (patch-protected-path); a builder session takes it";
-
-  test("#13233's shape, its workflow cited at a line under a fix section, parks as a criterion's path does", () => {
-    for (const section of ["## Fix", "## Proposed fix", "### Outcome", "## Expected behavior", "## Done when:"]) {
-      const issue = issueOf({ body: SHAPE_13233(section) });
-      assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [PUSH_13233], hostRun: true }, section);
-    }
-    assert.deepEqual(paths("**Severity**: low\n**Suggested fix location**: `.github/workflows/pr-require-checks.yml:40` `check-plugins`"), [".github/workflows/pr-require-checks.yml"]);
-  });
-
-  test("a body citing a workflow only under an evidence section is admitted, with or without a line", () => {
-    for (const section of ["## Evidence", "### Steps to reproduce", "## Actual behavior", "## Current behavior", "### Environment"]) {
-      assert.deepEqual(decide(facts({ issue: issueOf({ body: SHAPE_13233(section) }) })), { verdict: "admit", reasons: [] }, section);
-      assert.deepEqual(paths(`${section}\n\nThe step in .github/workflows/pr-require-checks.yml calls the script.`), [], section);
-    }
-  });
-
-  test("a done-when checkbox naming a workflow still parks beside the sections", () => {
-    const issue = issueOf({ body: SHAPE_13233("## Evidence").replace("- [ ] A credit stop in this lane", "- [ ] `.github/workflows/upstream-apply-changelog.yml` stops") });
-    assert.deepEqual(decide(facts({ issue })), { verdict: "refuse", reasons: [PUSH_13233], hostRun: true });
-  });
-
-  test("a deeper heading with no section of its own stays inside the section above it", () => {
-    const wf = [".github/workflows/pr-require-checks.yml"];
-    assert.deepEqual(paths("## Proposed fix\n\n### Option A\n\n- `.github/workflows/pr-require-checks.yml:30` drops the step."), wf);
-    assert.deepEqual(paths("## Evidence\n\n### Run 41760968895\n\nThe step in .github/workflows/pr-require-checks.yml calls it."), []);
-    // A heading at the same level or higher ends the section.
-    assert.deepEqual(paths("### Evidence\n\n## Scope\n\nThe step in .github/workflows/pr-require-checks.yml calls it."), wf);
-    assert.deepEqual(paths("## Fix\n\n## Notes\n\nThe step at .github/workflows/pr-require-checks.yml:30 calls it."), []);
-  });
-
-  test("a suggested-fix-location line counts even under an evidence section", () => {
-    assert.deepEqual(paths("## Evidence\n\n**Suggested fix location**: .github/workflows/pr-require-checks.yml"), [".github/workflows/pr-require-checks.yml"]);
-    assert.deepEqual(paths("## Current behavior\n\n- **Suggested fix location**: `.github/workflows/pr-require-checks.yml:40`"), [".github/workflows/pr-require-checks.yml"]);
   });
 });
 

@@ -79,6 +79,23 @@ fails "a hold phrase added" "- \`bats tests/\` passed." "- \`bats tests/\` passe
   "added: - \`bats tests/\` passed. Do not merge until the vendor ships."
 fails "a quoted hold line added" "Closes #42" $'Closes #42\n> hold: owner review' "added: > hold: owner review"
 
+URL_CLOSE="Closes https://github.com/o/r/issues/42"
+fails "a URL-form closing line added" "Closes #42" $'Closes #42\n'"$URL_CLOSE" "added: $URL_CLOSE"
+
+# A body with a URL-form closing line and hold wording split across lines.
+cp "$CURRENT" "$TEST_TMPDIR/base.md"
+propose "- Parses dates with the standard library." $'- Parses dates with the standard library.\n'"$URL_CLOSE"$'\n- Ship it after review; do not\nmerge before the vendor fix.'
+cp "$PROPOSED" "$CURRENT"
+fails "a changed URL-form closing line" "$URL_CLOSE" "Closes https://github.com/o/r/issues/43" "removed: $URL_CLOSE"
+fails "a removed URL-form closing line" "$URL_CLOSE" "" "removed: $URL_CLOSE"
+fails "a removed split hold" "merge before the vendor fix." "ship before the vendor fix." "removed: hold wording across lines: do not merge"
+fails "a changed split hold" "- Ship it after review; do not" "- Ship it after review; don't" "added: hold wording across lines: don't merge"
+propose "- Left out: nothing" "- Left out: the timezone table"
+run
+assert_exit "rewriting another section keeps a split hold and a URL-form closing line" 0 "$code"
+cp "$TEST_TMPDIR/base.md" "$CURRENT"
+fails "a split hold added" "- \`bats tests/\` passed." $'- `bats tests/` passed. Do not\nmerge yet.' "added: hold wording across lines: do not merge"
+
 cp "$CURRENT" "$PROPOSED"
 printf 'Hold: waiting on vendor\n' >>"$PROPOSED"
 run

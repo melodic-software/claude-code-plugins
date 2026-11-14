@@ -365,11 +365,17 @@ subscription fallback) answers them and hands on a patch and its replies,
 `publish-feedback` (a script job with no model, `publish-artifact`) posts the replies, naming the
 pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). It re-reads each
 thread against the reviewed heads the select job recorded in `run.json`, since a review lane edits
-its one marker in place when it reviews the pushed fix. No job in these rounds or in `fix-ci`
-rewrites the body sections a pushed fix makes stale: the model jobs run on the read runner and
-write nothing, and `publish-feedback` writes only its `## Follow-ups` entries to the body. An attended session does
-([`monitor.md`](../../../plugins/source-control/skills/pull-request/reference/monitor.md) §3.3.2
-step 5).
+its one marker in place when it reviews the pushed fix. `publish-feedback` also brings the body
+sections a landed fix made stale up to date, unless the base's `pr_body_refresh` is `false`: the
+select job offers the `##` sections the base's `pr_body_required_sections` lists (every one when it
+lists none) whose text holds no gate-read line, never `## Follow-ups` or the body's last section,
+and pins each by SHA-256 in `run.json`; the model job records replacement text with the
+review-thread tool; and `publish-feedback` puts it in place of an offered section still unchanged,
+leaving every other byte, or drops the refresh alone, naming why in its log and round marker, when
+any text holds a line a gate reads or the body's gate-read lines would change. Its body writes are
+those sections and its `## Follow-ups` entries. `fix-ci` rewrites no body section; an attended
+session does ([`monitor.md`](../../../plugins/source-control/skills/pull-request/reference/monitor.md)
+§3.3.2 step 5).
 
 ### Outage posture
 
@@ -1050,11 +1056,9 @@ so fix-ci and address-feedback cannot change them. No other row names these thre
 The `issue` row alone also refuses (`claude-protected`), at any depth, every path Claude Code
 denies writes to under the lanes' `dontAsk` permission mode
 ([protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths)) except
-`.gitmodules`, which has its own refusal (`gitmodules`): its run can never write one, so
-intake admission refuses an issue whose work names one before a run is spent on it. The other
-lanes also run under `dontAsk` but have no admission step to feed, and the `merge-base` and
-`shared-copies` patches carry the base's own changes, which may touch such a path, so no other row
-names it, and a rename into such a path is not `rename-into-refused`.
+`.gitmodules`, which has its own refusal (`gitmodules`): its run can never write one, so a run
+whose change needs one stops with `patch-protected-path`. No other row names `claude-protected`,
+and a rename into such a path is not `rename-into-refused`.
 The `ci-context`, `docs`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
@@ -3903,8 +3907,14 @@ revisited; any other is left as is with a warning annotation, since re-admitting
 `admission-deferred`, a held one stays deferred, and any other loses it. After the closed issues,
 the sweep runs intake's admission rules on the open `status: ready` issues in no queue (neither
 `agent-ready` nor `admission-deferred`, no hold or refuse label, no open blocker or sub-issue), at
-most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does. A
-born-triaged issue whose filer has not yet set the Size or Uncertainty the rules refuse it for, and
+most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does, with one
+exception: a refusal whose only reason is done-when items an unattended lane run cannot perform
+beside items it can (no trusted `host-run`, no paid eval) parks at Work status needs-triage, not
+confirmed, since refine.mjs splits those items off only inside an intake run. Before that write it
+posts a hand-back comment opening with `<!-- work-unblock unparked triage -->`, once per body
+version, so the triage sweep starts a new dispatch cycle and sends the issue to intake, whose
+admission parks it at confirmed for the split. A person's `admission-deferred` mark refused that way
+parks the same. A born-triaged issue whose filer has not yet set the Size or Uncertainty the rules refuse it for, and
 nothing else, waits with no write and uses none of that cap; a person's mark on such an issue instead
 comments why it is not admitted yet and removes `admission-deferred`, so the sweep admits it once the
 fields land. If the fields never land, the triage sweep sends it to intake. Restarts, re-fires and relabels re-run issues already admitted and are never

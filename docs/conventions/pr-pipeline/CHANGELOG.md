@@ -1,5 +1,29 @@
 # Changelog for the PR pipeline convention
 
+## [10.2.1] - 2026-11-14
+
+### Fixed
+
+- An issue refused only because some, not all, of its done-when items are ones an unattended lane run cannot perform now gets those items split off with no person. When work-unblock's sweep or a person's `admission-deferred` mark writes that refusal, outside an intake run, the issue parks at Work status needs-triage instead of confirmed, with a hand-back comment that starts a new triage-sweep cycle once per body version, so intake triages it and refine.mjs splits those items. refine-select now reads the parked state from the Work status field, which admission writes instead of a label, so the split also runs on an issue intake's own admission parks. A split never lifts a `needs-owner-decision` hold, a cost verdict's included. Before, such an issue sat at confirmed until someone edited its body.
+
+## [10.2.0] - 2026-11-14
+
+### Added
+
+- An `address-feedback` round whose fix lands brings the stale PR body sections up to date through `publish-feedback`, unless the base's `pr_body_refresh` is `false`. The select job offers the `##` sections `pr_body_required_sections` lists whose text holds no gate-read line, never `## Follow-ups` or the body's last section, and pins each in `run.json` by SHA-256. The model job records new text with the review-thread tool's `record-body`. `publish-feedback` replaces only an offered section that is still unchanged and leaves every other byte. It drops the refresh alone, naming why in its log and the round marker, when the text holds a gate-read line (holds, `Draft:`, closing keywords by number or URL, `Refs:`, `Relates to:`, `Siblings:`, `Merge-Risk:`, `No related issue`), a heading, a code fence, the follow-up sweep's marker, the word `committer`, an @-mention, an HTML comment or a token, or when the body's gate-read lines would change. `fix-ci` rewrites no body section.
+
+## [10.1.0] - 2026-11-14
+
+### Changed
+
+- Intake admission no longer refuses, parks or adds `host-run` to an issue because its body or a done-when item names a path the issue lane cannot push, such as a workflow, `CODEOWNERS`, `.gitmodules` or a path Claude Code protects. A mention in prose or in a criterion that changes no such file had refused fixes the lane could build. A run whose change does need such a path still stops with `patch-protected-path`, which `stop-routes.json` routes to `host-run`.
+
+## [10.0.2] - 2026-11-14
+
+### Changed
+
+- The address-feedback section states that no job in the feedback rounds or in `fix-ci` rewrites the PR body sections a pushed fix makes stale; an attended `/source-control:pull-request` session does.
+
 ## [10.0.1] - 2026-11-13
 
 ### Fixed

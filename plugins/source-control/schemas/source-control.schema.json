@@ -25,7 +25,7 @@
     "pr_body_refresh": {
       "type": "boolean",
       "default": true,
-      "description": "When true, a /source-control:pull-request run that pushes a change making an open pull request's body stale (what changed, verification, the Left out: line) rewrites those sections in place, so the body describes the current head. false leaves the body as it was."
+      "description": "When true, a /source-control:pull-request run, or a pr-unblock address-feedback round, that pushes a change making an open pull request's body stale (what changed, verification, the Left out: line) rewrites those sections in place, so the body describes the current head. false leaves the body as it was."
     },
     "sync_stale_base": {
       "type": "boolean",
@@ -299,6 +299,68 @@
             "description": "false skips the step and reports it as disabled by pre_ready at the base branch, never as passing."
           }
         }
+      }
+    },
+    "prep_audits": {
+      "type": "array",
+      "maxItems": 5,
+      "allOf": [
+        {
+          "contains": { "properties": { "class": { "const": "markdown" } }, "required": ["class"] },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": { "properties": { "class": { "const": "renames" } }, "required": ["class"] },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": { "properties": { "class": { "const": "skills" } }, "required": ["class"] },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": { "properties": { "class": { "const": "rules" } }, "required": ["class"] },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": { "properties": { "class": { "const": "tests" } }, "required": ["class"] },
+          "minContains": 0,
+          "maxContains": 1
+        }
+      ],
+      "description": "Which audit /source-control:pull-request prep runs for each change class, read at the default branch and honored only when the pull request targets it. A list of {class, enabled, skill} mappings, shaped like pre_ready. A class the list leaves out runs its default audit. Each class appears at most once; the reader runs every default audit when one repeats, names an unknown class, or the list does not parse.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["class", "enabled"],
+        "properties": {
+          "class": {
+            "enum": ["markdown", "renames", "skills", "rules", "tests"],
+            "description": "markdown: the prose audits over changed .md files. renames: the rename-reference audit. skills: the skill check over changed skills and agents. rules: the check over changed .claude/rules files. tests: the judge pass over changed tests, which can be turned off but not replaced."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "false runs no audit for the class and reports it as off by prep_audits at the default branch, never as passing."
+          },
+          "skill": {
+            "type": "string",
+            "pattern": "^/[a-z0-9]+(-[a-z0-9]+)*(:[a-z0-9]+(-[a-z0-9]+)*)?$",
+            "description": "A skill run in place of the class's default audit, with the class's changed files as its arguments. A skill name only: no arguments and no shell command."
+          }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "class": { "const": "tests" } }, "required": ["class"] },
+            "then": { "not": { "required": ["skill"] } }
+          },
+          {
+            "if": { "properties": { "enabled": { "const": false } }, "required": ["enabled"] },
+            "then": { "not": { "required": ["skill"] } }
+          }
+        ]
       }
     }
   }
