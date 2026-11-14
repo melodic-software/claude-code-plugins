@@ -35,6 +35,12 @@ class ScanTest(unittest.TestCase):
         self.assertEqual(self.scan({'m1': 'reviewed by octo-cat'}).findings, [])
         self.assertEqual(len(self.scan({'m1': 'octo ran it'}).findings), 1)
 
+    def test_a_stock_account_or_host_name_does_not_block_ordinary_words(self):
+        for user, host, text in (('root', 'buildbox-7', 'the root cause'), ('runner', 'localhost', 'the test runner'),
+                                 ('octo', 'localhost', 'served on localhost')):
+            with self.subTest(user=user, host=host):
+                self.assertEqual(ms.scan({'m1': text}, rules=RULES, host=host, user=user).findings, [])
+
     def test_missing_rules_fail_closed(self):
         r = ms.scan({'m1': 'fine'}, rules=Path('/nonexistent/rules.json'), host='h', user='u')
         self.assertTrue(r.fail_closed)

@@ -32,6 +32,22 @@ class ParseTest(unittest.TestCase):
             with self.subTest(reason), self.assertRaisesRegex(mt.StoryboardError, 'm2'):
                 mt.parse(b)
 
+    def test_a_title_may_omit_narration_but_narration_must_be_text(self):
+        b = board()
+        del b['moments'][0]['narration']
+        self.assertEqual(mt.parse(b)['moments'][0]['narration'], '')
+        b = board()
+        b['moments'][1]['narration'] = 5
+        with self.assertRaisesRegex(mt.StoryboardError, 'm2.*string'):
+            mt.parse(b)
+
+    def test_every_chapter_needs_an_id_and_a_title(self):
+        for chapter in ({'id': 'c1'}, {'id': 'c1', 'title': 7}, 'c1'):
+            b = board()
+            b['chapters'][0] = chapter
+            with self.subTest(chapter=chapter), self.assertRaisesRegex(mt.StoryboardError, 'chapter 1'):
+                mt.parse(b)
+
     def test_also_changed_needs_covers(self):
         b = board()
         b['moments'][1].update(template='also-changed', covers=[])

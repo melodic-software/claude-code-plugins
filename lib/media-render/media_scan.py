@@ -16,6 +16,10 @@ from dataclasses import dataclass, field
 import redact
 
 _LABEL = re.compile(r'<redacted:([\w.-]+)>|<email>')
+# Stock account and host names (containers, CI runners, devcontainers): ordinary words that identify no one, so
+# matching them would block narration such as "the root cause" or "the test runner".
+GENERIC = frozenset({'root', 'user', 'admin', 'administrator', 'runner', 'ubuntu', 'vscode', 'node', 'codespace',
+                     'dev', 'test', 'guest', 'localhost'})
 
 
 @dataclass
@@ -45,8 +49,8 @@ def scan(texts, rules=None, host=None, user=None, extra=()):
         user = user if user is not None else getpass.getuser()
     except (KeyError, OSError):
         user = ''
-    machine = [('hostname', _alone(host))] if host else []
-    machine += [('user-name', _alone(user))] if len(user) >= 3 else []
+    machine = [('hostname', _alone(host))] if host and host.lower() not in GENERIC else []
+    machine += [('user-name', _alone(user))] if len(user) >= 3 and user.lower() not in GENERIC else []
     machine += [('config-pattern', re.compile(p)) for p in extra]
     result = ScanResult(fail_closed=redactor.fail_closed, rule_count=redactor.rule_count)
     for source, text in texts.items():

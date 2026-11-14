@@ -84,6 +84,15 @@ class Refusals(unittest.TestCase):
         self.assertNotIn(home, r.stderr)
         self.assertFalse((self.dir / 'out' / 'video.mp4').exists())
 
+    def test_a_failure_that_produced_nothing_exits_2_not_1(self):
+        cases = {'missing storyboard': ('--storyboard', self.dir / 'nope.json', '--out', self.dir / 'a'),
+                 'out is a file': ('--storyboard', BOARD, '--out', BOARD)}
+        for reason, args in cases.items():
+            with self.subTest(reason):
+                r = run(*args, '--script-only')
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertNotIn('Traceback', r.stderr)
+
     def test_screenshot_without_sidecar_is_refused(self):
         path = self.board(lambda d: d['moments'].append({'id': 'shot', 'chapter': 'risk', 'template': 'screenshot',
                                                          'data': {'image': 'shot.png'}, 'narration': 'The page.',

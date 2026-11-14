@@ -138,6 +138,13 @@ def quality(video, frame_paths, holds):
 
 
 def main(argv=None):
+    try:
+        return _run(argv)
+    except Exception as e:   # exit 1 means a manifest lists the defects; any other failure produced nothing
+        return fail(2, f'{type(e).__name__}: {e}')
+
+
+def _run(argv):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('--storyboard', type=Path, required=True)
     ap.add_argument('--out', type=Path, required=True)

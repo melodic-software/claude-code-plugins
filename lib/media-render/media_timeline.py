@@ -35,7 +35,10 @@ def parse(data):
     if data.get('version') != 1:
         raise StoryboardError(f'storyboard version {data.get("version")!r} is not supported; this reader takes 1')
     chapters = data.get('chapters') or []
-    declared = {c.get('id') for c in chapters}
+    for n, c in enumerate(chapters, 1):
+        if not isinstance(c, dict) or not all(isinstance(c.get(k), str) and c[k] for k in ('id', 'title')):
+            raise StoryboardError(f'chapter {n}: every chapter needs a string id and title')
+    declared = {c['id'] for c in chapters}
     moments = data.get('moments') or []
     if not moments:
         raise StoryboardError('the storyboard has no moments')
@@ -52,7 +55,10 @@ def parse(data):
             raise StoryboardError(f'{where}: chapter {m.get("chapter")!r} is not declared in chapters')
         if not isinstance(m.get('data', {}), dict):
             raise StoryboardError(f'{where}: data must be an object')
-        if m['template'] != 'title' and not str(m.get('narration', '')).strip():
+        m.setdefault('narration', '')
+        if not isinstance(m['narration'], str):
+            raise StoryboardError(f'{where}: narration must be a string')
+        if m['template'] != 'title' and not m['narration'].strip():
             raise StoryboardError(f'{where}: narration is empty; only a title moment may be silent')
         if m['template'] == 'also-changed' and not m.get('covers'):
             raise StoryboardError(f'{where}: an also-changed moment must list what it covers')
