@@ -27,6 +27,14 @@
     {
       "answer": "Rung: `syntax-pattern-rule`\nProof: unproven. The check exited 127 on both the old ref and the current code because semgrep did not run, so it is not proposed for install.",
       "why": "hand-written: the new id proposed while its check is unproven and not proposed for install"
+    },
+    {
+      "answer": "Rung: `syntax-pattern-rule`\nProof: unproven, semgrep is not installed here.\nUntil it is installed, add this line to CLAUDE.md: \"Never build a shell command string from a variable; pass an argument list.\"",
+      "why": "hand-written: the new id chosen though unproven, with an interim instruction line beside it"
+    },
+    {
+      "answer": "Rung: `syntax-pattern-rule`, one rule in `.semgrep/` over both services.\nThe check replaces the CLAUDE.md line that orders `semgrep-rule` first, so remove that line in the same change.",
+      "why": "hand-written: the new id chosen, plus the removal of the replaced CLAUDE.md line that codify SKILL.md asks for"
     }
   ],
   "fail": [
@@ -61,6 +69,18 @@
     {
       "answer": "Rung: `semgrep-rule`, as CLAUDE.md orders it first for dangerous calls.",
       "why": "hand-written: the old id kept as the chosen rung"
+    },
+    {
+      "answer": "Rung: `semgrep-rule` (alias of `syntax-pattern-rule`).",
+      "why": "hand-written: the rung written under the old id with the new id only in a note beside it"
+    },
+    {
+      "answer": "Rungs, one per service:\n- services/worker (Python): `analyzer-pack-rule`, turning on ruff's S602 for shell=True.\n- services/api (TypeScript): `syntax-pattern-rule`, one rule for exec with a template string.",
+      "why": "hand-written: one rung per service, one of them not syntax-pattern-rule"
+    },
+    {
+      "answer": "Count: 1 occurrence in this session's commits (threshold 2, default). Below the threshold, so no proposal.",
+      "why": "hand-written: a count below the threshold with no rung proposed"
     }
   ]
 }

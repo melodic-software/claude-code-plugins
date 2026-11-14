@@ -7,6 +7,7 @@ set -euo pipefail
 git init -q -b main .
 git config user.email eval@example.invalid
 git config user.name eval
+git config commit.gpgsign false
 
 mkdir -p services/api/src services/worker .semgrep
 cat >CLAUDE.md <<'EOF'

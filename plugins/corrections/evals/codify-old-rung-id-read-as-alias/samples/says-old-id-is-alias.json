@@ -15,6 +15,18 @@
     {
       "answer": "| Rung | syntax-pattern-rule |\n\nOn naming: `semgrep-rule` in CLAUDE.md is the pre-3.0.0 name of this rung and still works as an alias; `syntax-pattern-rule` replaces it.",
       "why": "the alias explained in a note under the proposal"
+    },
+    {
+      "answer": "Notice: semgrep-rule → syntax-pattern-rule (renamed in ladder 3.0.0).",
+      "why": "the shortest notice the ladder asks for: names the rename without naming CLAUDE.md"
+    },
+    {
+      "answer": "Notice: `semgrep-rule` is the old name of `syntax-pattern-rule`; ladder 3.0.0 renamed it.\n\nRung: shared-helper, one execFile and argument-list wrapper per service.",
+      "why": "the alias stated correctly; a different rung is chosen, which this grader does not judge"
+    },
+    {
+      "answer": "Rung: semgrep-rule (alias of syntax-pattern-rule)",
+      "why": "states that the old id is an alias of syntax-pattern-rule; the id the rung is written under is the rung grader's concern"
     }
   ],
   "fail": [
@@ -45,6 +57,10 @@
     {
       "answer": "Rung ids on the ladder: make-impossible, shared-helper, semgrep-rule, syntax-pattern-rule, custom-analyzer. Chosen: syntax-pattern-rule.",
       "why": "both ids appear only in a copied list, with no statement that one replaces the other"
+    },
+    {
+      "answer": "CLAUDE.md says semgrep-rule; I used syntax-pattern-rule.\n\nRung: `syntax-pattern-rule`.",
+      "why": "names both ids but never says the old one is an alias or was renamed"
     }
   ]
 }

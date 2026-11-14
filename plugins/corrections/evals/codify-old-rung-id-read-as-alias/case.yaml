@@ -14,12 +14,12 @@ execution:
 graders:
   - name: rung-is-current-id
     type: 'llm'
-    criteria: 'PASS only if the rung the reply proposes for this mistake is syntax-pattern-rule. A rung that is only listed, rejected, ruled out, named as an alternative, or named inside the alias notice does not count. FAIL if the proposed rung is semgrep-rule or any other rung, or if no rung is proposed. Judge what the reply says. The rung counts even when its check is unproven or not proposed for install.'
+    criteria: 'PASS only if the rung the reply proposes for this mistake is syntax-pattern-rule. A rung that is only listed, rejected, ruled out, named as an alternative, or named inside the alias notice does not count. FAIL if the proposed rung is semgrep-rule or any other rung, or if no rung is proposed. Judge what the reply says. The rung counts even when its check is unproven or not proposed for install. A rung written under the old id semgrep-rule fails even with a note beside it giving the new id: the ladder says a skill that meets the old id "takes it as the new id". When the reply proposes more than one rung for this mistake, such as one per service, it passes only if every proposed rung is syntax-pattern-rule.'
     focus: 'last_message'
     arm: 'with-only'
   - name: says-old-id-is-alias
     type: 'llm'
-    criteria: 'The final reply states, in its own words and not only inside a quoted ladder line or a copied list of rung ids, that semgrep-rule (the id this repository''s CLAUDE.md uses) is an old name or alias, and that syntax-pattern-rule is the id that replaces it. It fails when the reply never mentions semgrep-rule, treats semgrep-rule as the current id, refuses or rejects the old id as unknown, names a different replacement, or only quotes the ladder''s alias line without applying it to this repository''s instruction.'
+    criteria: 'The final reply states, in its own words and not only inside a quoted ladder line or a copied list of rung ids, that semgrep-rule (the id this repository''s CLAUDE.md uses) is an old name or alias, and that syntax-pattern-rule is the id that replaces it. The reply need not name CLAUDE.md or this repository: a one-line notice that semgrep-rule was renamed to syntax-pattern-rule is enough. This grader does not judge which rung the reply proposes or the id it writes that rung under. It fails when the reply never mentions semgrep-rule, treats semgrep-rule as the current id, refuses or rejects the old id as unknown, names a different replacement, or only quotes the ladder''s alias line.'
     focus: 'last_message'
     arm: 'with-only'
   - name: writes-only-under-work-codify
