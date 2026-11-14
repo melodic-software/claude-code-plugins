@@ -209,7 +209,9 @@ reads the file itself, through a script where the key names one below.
 - `pr_body_refresh`: `true` or `false`, whether a run that pushes to an open pull request rewrites
   the body sections the push made stale
   ([monitor.md](../skills/pull-request/reference/monitor.md#332-phase-b-fix-all-valid-findings-batch-then-single-push)
-  §3.3.2).
+  §3.3.2). The pr-unblock lane's `address-feedback` rounds read only the key in the base's
+  `docs/conventions/source-control.yaml`, where unset is `true`
+  ([comments-ci.md](../skills/pull-request/reference/comments-ci.md#body-sections)).
 
   Both resolve lowest first: the default (`post`; `true`), the `userConfig` value of the same
   name, then the key in `docs/conventions/source-control.yaml`, read with `lib/convention-key.sh`

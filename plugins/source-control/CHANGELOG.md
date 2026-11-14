@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.8.1] - 2026-11-14
+
+### Changed
+
+- **The `prep` comment pass describes remove-comments' new default.** The step no longer says `--pipeline` sets the posture: `necessary` is now remove-comments' default in every run.
+
 ## [11.8.0] - 2026-11-14
 
 ### Added

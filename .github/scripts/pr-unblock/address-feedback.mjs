@@ -23,7 +23,8 @@
 //           changes (copy_paths, copyPathsFor), and, when a kept thread is an
 //           advisory code-review finding (advisoryFinding), the closing
 //           issues' spec text (closing_issues, linkedSpec) with that thread
-//           marked may_follow_up, and run.json, the record the
+//           marked may_follow_up, and, unless pr_body_refresh is off, the
+//           body sections a fix may refresh (refreshableSections), and run.json, the record the
 //           reply job checks the replies against, with the reviewed heads the
 //           threads were kept on (runRecord). On a PR carrying the human-gated
 //           label it keeps only threads a trusted person with write access
@@ -42,6 +43,7 @@
 // data.
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,7 +52,7 @@ import { runAsScript } from "../lib/run-main.mjs";
 import { FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBinding, withoutLaneFooters } from "../lib/lane-binding.mjs";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "../lib/retry-fetch.mjs";
-import { trackerBindingText } from "../pr-merge/merge-holds.mjs";
+import { BODY_HOLD, LANE_HOLD, refsIssue, trackerBindingText } from "../pr-merge/merge-holds.mjs";
 import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
 import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
 
@@ -1326,7 +1328,7 @@ export async function select({
       return { decision: "skip", skipReason: "awaiting-session", threads: kept };
     }
     if (earlierFailHeads.length > 0) {
-      return earlierFailRound({ api, pr, headSha, repository, appId, files, issueComments, heads, labeled, maxRounds, earlierFailHeads, readFailNotes, ci, log });
+      return { ...(await earlierFailRound({ api, pr, headSha, repository, appId, files, issueComments, heads, labeled, maxRounds, earlierFailHeads, readFailNotes, ci, log })), body: pull.body };
     }
     return { decision: "skip", skipReason: "stop-resolved", resolved: true, threads: kept };
   }
@@ -1419,6 +1421,8 @@ export async function select({
     },
     reviewedHeads: [...heads].sort(),
     ci: await ci({ headSha, files }),
+    // The body as the select read it, for refreshableSections.
+    body: pull.body,
   };
 }
 
@@ -1446,8 +1450,146 @@ export function runRecord(file, reviewedHeads, ci) {
     ...(file.verify_notes ? { verify_notes: file.verify_notes.map(({ id, head, path }) => ({ id, head, path })) } : {}),
     ...(reviewedHeads ? { reviewed_heads: reviewedHeads } : {}),
     ...(ci ? { ci } : {}),
+    ...(file.body_sections ? { body_sections: file.body_sections.map(({ heading, text }) => ({ heading, sha256: sha256(text) })) } : {}),
   };
   return `${JSON.stringify(run)}\n`;
+}
+
+const sha256 = (text) => createHash("sha256").update(text).digest("hex");
+
+// Model text the reply job posts holds tab and newline only, and no
+// direction, zero-width or byte-order mark.
+export const BAD_CHARS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/u;
+// HTML comments carry markers; token shapes from
+// docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+// and the stateless installation token (ghs_ then a JWT) from
+// https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+// whose header gh[opsur]_[A-Za-z0-9]{20} matches; this prefix check is not GitHub's recommended regex
+// (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
+export const FORBIDDEN = /<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|ghs_[0-9]+_|github_pat_/;
+
+// A body refresh's caps: code points per section, sections per round, and
+// bytes of the review-thread tool's body record.
+export const BODY_LIMITS = { text: 4000, sections: 8, record: 16384 };
+
+const asciiLower = (text) => text.replace(/[A-Z]/g, (c) => c.toLowerCase());
+const GATE_LEAD = /^[ \t>]*(?:(?:hold|draft|siblings|merge-risk|refs|relates[ \t]+to):|no[ \t]+(?:linked|related)[ \t]+issue)/;
+const GATE_ANYWHERE = [
+  /do(?:n[^ \t\n\v\f\r]{0,3}t|[ \t\n\v\f\r]+not)[ \t\n\v\f\r]+merge/,
+  /(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)[ \t]*:?[ \t]*(?:[a-z0-9_.-]+\/[a-z0-9_.-]+)?#[0-9]+/,
+];
+
+// The body lines a merge, ready or linkage gate reads, sorted:
+// plugins/source-control/skills/pull-request/scripts/check-gate-lines.sh's
+// list, which body-refresh tests in publish-feedback.test.mjs hold this to.
+export function gateLines(body) {
+  const found = [];
+  let followUps = false;
+  for (const raw of String(body ?? "").split("\n")) {
+    const line = raw.replace(/\r$/, "");
+    const lower = asciiLower(line);
+    if (/^##[ \t]+follow-ups[ \t]*$/.test(lower)) {
+      followUps = true;
+    } else if (/^#{1,2}[ \t]/.test(lower)) {
+      followUps = false;
+    }
+    if (followUps ? /[^ \t]/.test(line) : GATE_LEAD.test(lower) || GATE_ANYWHERE.some((re) => re.test(lower))) {
+      found.push(line);
+    }
+  }
+  return found.sort();
+}
+
+// What else a gate or reader takes from a body: a closing reference by URL,
+// the paused-filing sweep's marker, a squash line the pr-contract reads, a
+// mention, and the structure the section reader relies on.
+const SECTION_REFUSALS = [
+  [/^[ \t>]*#{1,2}(?:[ \t]|$)/m, "a heading line"],
+  [/^[ \t>]*(?:`{3,}|~{3,})/m, "a code fence"],
+  [/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?\s*https?:\/\/github\.com\/[^\s/]+\/[^\s/]+\/(?:issues|pull)\/\d/i, "a line a gate reads"],
+  [/pre-existing \(advisory\):/i, "the follow-up sweep's marker"],
+  [/\bcommitter\b/i, "the word committer"],
+  [/(?<![A-Za-z0-9_.`/-])@[A-Za-z0-9]/, "an @-mention"],
+];
+
+// Why section text may not enter a PR body, or null: it is empty, over the
+// cap, or holds a control character, an HTML comment, a token, a line a gate
+// reads (gateLines, the hold readers across lines, refsIssue) or a
+// SECTION_REFUSALS shape.
+export function sectionRefusal(text) {
+  const value = String(text ?? "");
+  if (value.trim() === "") {
+    return "empty text";
+  }
+  if ([...value].length > BODY_LIMITS.text) {
+    return "text over the size cap";
+  }
+  if (BAD_CHARS.test(value) || FORBIDDEN.test(value)) {
+    return "a control character, an HTML comment or a token";
+  }
+  if (gateLines(value).length > 0 || BODY_HOLD.test(value) || LANE_HOLD.test(value) || refsIssue(value) !== null) {
+    return "a line a gate reads";
+  }
+  return SECTION_REFUSALS.find(([shape]) => shape.test(value))?.[1] ?? null;
+}
+
+const FENCE_LINE = /^ {0,3}(`{3,}|~{3,})/;
+const SECTION_HEADING = /^(#{1,2})[ \t]+(.*?)[ \t]*\r?$/;
+// A heading the review-thread tool and the reply job match by name.
+const HEADING_NAME = /^[\p{L}\p{N} ,.'&()/+-]{1,80}$/u;
+
+// The body's rows (split on \n, each keeping a \r) and its `#` and `##`
+// headings outside a fenced code block, each section running to the next.
+export function bodySections(body) {
+  const rows = String(body ?? "").split("\n");
+  const heads = [];
+  let fence = "";
+  rows.forEach((row, at) => {
+    const marker = FENCE_LINE.exec(row);
+    if (fence) {
+      fence = marker && marker[1][0] === fence[0] && marker[1].length >= fence.length ? "" : fence;
+      return;
+    }
+    if (marker) {
+      fence = marker[1];
+      return;
+    }
+    const head = SECTION_HEADING.exec(row);
+    if (head) {
+      heads.push({ at, heading: head[1] === "##" ? head[2] : "" });
+    }
+  });
+  return {
+    rows,
+    sections: heads.map(({ at, heading }, k) => {
+      const end = heads[k + 1]?.at ?? rows.length;
+      return { heading, start: at, end, text: rows.slice(at + 1, end).join("\n") };
+    }),
+  };
+}
+
+// The `##` sections a fix round may rewrite: those `names` (the resolved
+// pr_body_required_sections list; every one when it names none) names, but
+// `## Follow-ups`, a repeated heading, the body's last section (its end holds
+// the footer), and one with text sectionRefusal refuses. The reply job
+// replaces only these, and only while each still reads as here.
+export function refreshableSections(body, names = []) {
+  const { rows, sections } = bodySections(body);
+  const fold = (name) => asciiLower(name.trim());
+  const wanted = new Set(names.map(fold).filter(Boolean));
+  const seen = sections.map((section) => fold(section.heading));
+  return sections
+    .filter(
+      (section, k) =>
+        HEADING_NAME.test(section.heading) &&
+        section.end < rows.length &&
+        fold(section.heading) !== "follow-ups" &&
+        seen.indexOf(seen[k]) === seen.lastIndexOf(seen[k]) &&
+        (wanted.size === 0 || wanted.has(seen[k])) &&
+        (section.text.trim() === "" || sectionRefusal(section.text.replace(/\r$/gm, "")) === null),
+    )
+    .slice(0, BODY_LIMITS.sections)
+    .map(({ heading, text }) => ({ heading, text }));
 }
 
 // The kept threads of a PR as they are now: the reply job's re-read, judged
@@ -2042,6 +2184,14 @@ export async function main(argv, env, { api, actions, log = (line) => console.lo
   if (command === "select") {
     need(env, ["THREAD_FILE", "RUN_FILE"]);
     const result = await selectThreads();
+    // pr_body_refresh from the base's source-control.yaml (unset is on), and
+    // its pr_body_required_sections list.
+    if (result.file && env.BODY_REFRESH !== "false") {
+      const sections = refreshableSections(result.body, String(env.BODY_SECTIONS ?? "").split("\n"));
+      if (sections.length > 0) {
+        result.file.body_sections = sections;
+      }
+    }
     if (result.file) {
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(result.file, null, 2)}\n`);
       writeFileSync(env.RUN_FILE, runRecord(result.file, result.reviewedHeads, result.ci));
