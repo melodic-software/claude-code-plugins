@@ -49,8 +49,17 @@ one line per check, detail lines indented under it:
                       system at a relative path or under the run's sandbox (its
                       workspace and TMPDIR), a relative path only when the call
                       does more than read (a grep of a saved tool result prints
-                      the text it read), or whose user line's local-command-stderr shows
-                      a skill's pre-computed command failing
+                      the text it read)
+    skill loaded      no run's skill load aborted on its pre-computed command:
+                      `Shell command failed for pattern` or `Shell command
+                      permission check failed for pattern` in a user line's
+                      local-command-stderr (a slash-invoked skill) or in the
+                      result of a Skill call. Such a run scored the model
+                      without the skill, even when its Skill grader passed, so
+                      it is a FAIL naming the case and run; in an
+                      invocation-probe or --measured-fire case a failed Skill
+                      call is still the call measured, so it is a warning. skill
+                      fired notes how many fired runs failed to load
     plugins loaded    every suite.plugins plugin, named by its
                       .claude-plugin/plugin.json (else its directory), is in
                       each with-arm run's init plugins list with no
@@ -307,11 +316,19 @@ SANDBOX_VIOLATIONS = re.compile(r"<sandbox_violations>(.*?)</sandbox_violations>
 NETWORK_DENIAL = re.compile(r"^deny network-outbound (\S+)", re.M)
 # Anywhere in a trace line when the shell sandbox never started (Claude Code 2.1.310).
 SANDBOX_FAILURE_TEXT = "Sandbox is required but failed to initialize"
-# A user line's local-command-stderr when a slash-invoked skill's pre-computed
-# (!`command`) line failed (Claude Code 2.1.316, #12422).
+# A skill's pre-computed (!`command`) line that fails, or that its permission
+# check refuses, aborts the skill's load with one of these texts: in a user
+# line's local-command-stderr when the skill was slash-invoked (Claude Code
+# 2.1.316, #12422), and in the result of the Skill call that loaded it (the
+# 2026-11-14 skill-authoring compare on #15707, #16146).
+# - Pointer: https://code.claude.com/docs/en/skills#inject-dynamic-context
+# - As of: 2026-11-14
+# - Recheck trigger: that section rewords either abort message.
 TRACE_USER = "user"
 PRE_COMMAND_STDERR = "local-command-stderr"
-PRE_COMMAND_FAILURE_TEXT = "Shell command failed for pattern"
+PRE_COMMAND_FAILURE = re.compile(r"Shell command (?:permission check )?failed for pattern")
+SLASH_LOAD_FAILED = "a slash-invoked skill's pre-computed command failed"
+SKILL_CALL_LOAD_FAILED = "its Skill call returned a failed pre-computed command"
 # A path a failed write reports as read-only, before the phrase ("cannot touch
 # '<p>': Read-only file system", "line 1: <p>: Read-only file system") or after it
 # ("[Errno 30] Read-only file system: '<p>'", Node's "EROFS: read-only file
@@ -1046,14 +1063,66 @@ def user_texts(line):
     ]
 
 
-def pre_command_failed(run):
-    """True when a user line of the run's trace carries a skill's pre-computed
-    command failing in its local-command-stderr."""
-    return any(
-        PRE_COMMAND_STDERR in text and PRE_COMMAND_FAILURE_TEXT in text
-        for line in run.trace or []
-        for text in user_texts(line)
-    )
+def load_failure(run):
+    """Where the run's trace shows a skill's load aborted by its pre-computed
+    command (SLASH_LOAD_FAILED or SKILL_CALL_LOAD_FAILED), or None. A
+    tool_result answering any call but a Skill call only quotes the text."""
+    skill_calls = set()
+    for line in run.trace or []:
+        if any(
+            PRE_COMMAND_STDERR in text and PRE_COMMAND_FAILURE.search(text)
+            for text in user_texts(line)
+        ):
+            return SLASH_LOAD_FAILED
+        for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
+            if block.get(BLOCK_TYPE) == TOOL_USE and block.get(USE_NAME) == SKILL_TOOL:
+                skill_calls.add(block.get(USE_ID))
+            elif (
+                block.get(BLOCK_TYPE) == TOOL_RESULT
+                and block.get(RESULT_USE_ID) in skill_calls
+                and PRE_COMMAND_FAILURE.search(json.dumps(block.get(CONTENT)))
+            ):
+                return SKILL_CALL_LOAD_FAILED
+    return None
+
+
+def check_loaded(runs, root, measured_fire=frozenset()):
+    """A run whose skill load aborted on its pre-computed command scored the
+    model without the skill, even when its Skill grader saw the call. In an
+    invocation probe or a --measured-fire case a failed Skill call is still the
+    call measured, so it warns there; a failed slash command made no call."""
+    failed, measured = [], []
+    for r in runs:
+        reason = load_failure(r)
+        if not reason:
+            continue
+        detail = "%s: %s (%s)" % (r.where, reason, r.trace_path)
+        if reason == SKILL_CALL_LOAD_FAILED and (
+            is_probe(r.case, root) or r.case.get(CASE_NAME) in measured_fire
+        ):
+            measured.append(detail + "; the call it measures was made")
+        else:
+            failed.append((r, detail))
+    if failed:
+        cases = ", ".join(dict.fromkeys(str(r.case.get(CASE_NAME)) for r, _ in failed))
+        count = plural(len(failed), "run")
+        return (
+            FAIL,
+            "the skill failed to load in %s" % count,
+            [d for _, d in failed] + measured,
+            "the skill failed to load in %s, its pre-computed command failed (case %s)"
+            % (count, cases),
+        )
+    if measured:
+        return (
+            WARN,
+            "the skill failed to load in %s of invocation-probe or measured cases"
+            % plural(len(measured), "run"),
+            measured,
+            "skill failed to load in %s whose call is the measure"
+            % plural(len(measured), "run"),
+        )
+    return PASS, "no trace shows a skill's pre-computed command failing", [], None
 
 
 def check_started(runs):
@@ -1061,17 +1130,12 @@ def check_started(runs):
     sandbox failing to start, scored a session that never ran or had no shell.
     A 0-turn run whose trace holds assistant messages ran in a forked session
     (a slash-invoked `context: fork` skill), which the turn count leaves out.
-    Any run whose trace shows a skill's pre-computed command failing fails."""
+    A run whose skill failed to load is check_loaded's."""
     details, failed, forked = [], set(), []
     for r in runs:
-        if pre_command_failed(r):
-            details.append(
-                "%s: a skill's pre-computed command failed (%s)"
-                % (r.where, r.trace_path)
-            )
-            failed.add(r)
-        elif (
-            is_number(r.row.get(RUN_TURNS))
+        if (
+            not load_failure(r)
+            and is_number(r.row.get(RUN_TURNS))
             and r.row[RUN_TURNS] == 0
             and r.row.get(RUN_ERROR) is None
             and not r.row.get(RUN_ABORTED)
@@ -2658,7 +2722,7 @@ def check_denials(runs, roots, root, own_copy_search_warns=False, plugin_names=(
 
 
 def check_fired(cases, runs, root, measured_fire=frozenset()):
-    unfired, unread, controls, unknown, checked = [], [], [], [], 0
+    unfired, unread, controls, unknown, checked, unloaded = [], [], [], [], 0, 0
     measured = {}  # invocation-probe or --measured-fire case name -> [fired, with-arm runs]
     for case in cases:
         requiring, _ = skill_graders(case, root)
@@ -2684,9 +2748,14 @@ def check_fired(cases, runs, root, measured_fire=frozenset()):
                 tally[1] += 1
             elif all(v is True for v in verdicts):
                 checked += 1
+                unloaded += bool(load_failure(r))
             else:
                 unfired.append("%s (%s)" % (r.where, r.trace_path or "no trace"))
     notes = []
+    if unloaded:
+        notes.append(
+            "%d of the fired runs failed to load the skill (check skill loaded)" % unloaded
+        )
     if controls:
         notes.append("exempt as no-trigger controls: %s" % ", ".join(controls))
     if unknown:
@@ -3036,6 +3105,7 @@ def main(argv=None):
         lines.append("traces: %d of %d tracePaths resolve" % (len(runs), len(runs)))
     later = [
         ("session started", check_started(runs)),
+        ("skill loaded", check_loaded(runs, root, frozenset(args.measured_fire))),
         ("plugins loaded", check_plugins_loaded(runs, suite_plugins(suite, base), root)),
         (
             "permission denials",
