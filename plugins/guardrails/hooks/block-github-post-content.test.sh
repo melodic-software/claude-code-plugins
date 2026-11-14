@@ -158,6 +158,21 @@ deny "body value spelled --attach=" "gh pr comment 1 --body '--attach=$AHP/a.png
 deny "--attach= word taken as the --body value" "gh pr comment 1 --body --attach=$AHP/a.png" path
 deny "--attach= word taken as the -b value" "gh pr comment 1 -b --attach=$AHP/a.png" path
 deny "--attach= word taken as the --title value" "gh issue create --body ok --title --attach=$AHP/a.png" path
+# A word before a joined --attach= that vanishes or splits at run time leaves
+# a value-taking flag right before it, which posts the whole word.
+deny "joined attach after an empty variable" "gh pr comment 1 --body \$E --attach=$AHP/x.png" path
+deny "joined attach after an IFS split" "gh issue create --title x\$IFS--body --attach=$AHP/x.png" path
+deny "joined attach after a brace expansion" "gh issue create --title {x,--body} --attach=$AHP/x.png" path
+deny "joined attach after an empty \"\$@\"" "gh pr comment 1 --body \"\$@\" --attach=$AHP/x.png" path
+deny "joined attach after an empty backtick substitution" "gh pr comment 1 --body \`true\` --attach=$AHP/x.png" path
+deny "joined attach after an empty \$( ) substitution" "gh pr comment 1 --body \$(true) --attach=$AHP/x.png" path
+deny "joined attach after \$null" "gh pr comment 1 --body \$null --attach='$AWP\\x.png'" path PowerShell
+deny "joined attach after an empty string PowerShell may drop" "gh pr comment 1 --body '' --attach='$AWP\\x.png'" path PowerShell
+deny "attach after a bool flag, judged whole" "gh pr create --draft --attach $AHP/x.png --title t --body ok" path
+deny "attach operand holding a glob character" "gh pr comment 1 --body ok --attach $AHP/x*.png" path
+deny "joined attach with a home path in the alt text" "gh pr comment 1 --body ok --attach='$AHP/x.png#built at $AHP'" path
+quiet "joined attach after a flag written with =" "gh pr comment 1 --body=ok --attach=$AHP/x.png"
+quiet "joined attach after a stdin body file" "gh pr comment 1 --body-file - --attach=$AHP/x.png"
 deny "bare --attach ending a segment" "gh pr comment 1 --body ok --attach && gh pr comment 2 --body 'see $AHP/x/log.txt'" path
 deny "attach operand brace-expanding to a body" "gh pr comment 1 --attach {./x.png,--body=$AHP/log}" path
 deny "attach operand IFS-splitting to a body" "gh pr comment 1 --attach ./x.png\$IFS--body=$AHP/log" path
