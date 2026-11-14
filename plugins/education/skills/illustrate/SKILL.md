@@ -171,6 +171,7 @@ record. On a yes, hand it the record as a storyboard, not as a topic:
    | `hub` | `diagram` with `layout: "group"`, the hub's `center` as `center`, a node per branch |
    | `compare` | `diagram` with `layout: "group"`, a node per column, its items as the detail |
    | `before-after` | `before-after` |
+
 3. Narration: one plain paragraph per moment saying what the frame shows. Add every `terms` entry
    the reader needs to the narration of the moment that first uses it.
 4. Invoke `/explainer-video:produce` via the Skill tool on `<dir>/storyboard.json` (its stills
