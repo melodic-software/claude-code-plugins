@@ -291,7 +291,7 @@ ghpost::_literal_operand() {
 # hook::bash_parse_segments callback: one segment's argv words.
 # shellcheck disable=SC2329  # invoked through hook::bash_parse_segments
 ghpost::segment() {
-  local j cmd form=""
+  local j cmd form="" dq=0
   # What stdin and here-strings feed this segment: read only when it posts,
   # which is judged after the whole parse, so record them now.
   for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
@@ -370,6 +370,14 @@ ghpost::segment() {
   gh)
     case "${1-}" in
     pr | issue)
+      # PowerShell's legacy native argument passing does not escape a `"`
+      # inside a word, so the word can split or join later words, an
+      # `--attach` operand included: then no operand is kept apart.
+      if [[ "$GHPOST_TOOL" == PowerShell ]]; then
+        for j in "$@"; do
+          [[ "$j" == *'"'* ]] && dq=1
+        done
+      fi
       local group="$1"
       shift
       while [[ "${1-}" == -R || "${1-}" == --repo ]]; do
@@ -442,7 +450,9 @@ ghpost::segment() {
     # leave a flag right before it. The spaced form needs no such check: there
     # the flag takes `--attach` and X is a positional argument, which gh
     # rejects or reads as the PR or issue selector, posting it neither way.
-    if [[ "$form" == gh-pr-* || "$form" == gh-issue-* ]]; then
+    # On PowerShell, a `"` in any word of the segment (`dq`) keeps every
+    # operand whole.
+    if ((!dq)) && [[ "$form" == gh-pr-* || "$form" == gh-issue-* ]]; then
       if ((attach)); then
         attach=0
         if ghpost::_literal_operand "$w"; then
