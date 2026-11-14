@@ -126,8 +126,10 @@ expect "worktree ranges: an untracked binary file is dropped" no \
 # The staged heads are read in one stream: the 8000-byte boundary, a blob that
 # ends in a NUL, two paths sharing one blob and a large blob between text files
 # must each be judged on its own bytes; a \001 byte and a text blob of exactly
-# 8000 bytes are text. A symlink is not a regular file, so its lines stay even
-# when its target text holds a NUL.
+# 8000 bytes are text, and so is a UTF-8 file, whose multibyte characters must
+# not shift the byte count for the blobs after it, while bytes above \177 beside
+# a NUL are binary. A symlink is not a regular file, so its lines stay even when
+# its target text holds a NUL.
 new_repo; E="$REPO"
 printf 'text\n' >"$E/a.txt"
 { printf '%*s' 7999 '' | tr ' ' a; printf '\0\nmore\n'; } >"$E/edge.dat"
@@ -139,11 +141,13 @@ cp "$E/twin1.dat" "$E/twin2.dat"
 printf 'last\n' >"$E/z.txt"
 printf 'ctl\001x\n' >"$E/ctl.txt"
 { printf '%*s' 7999 '' | tr ' ' c; printf '\n'; } >"$E/exact.txt"
+printf 'caf\303\251 \342\202\254\n' >"$E/utf8.txt"
+printf 'hi\303\251\377\0\n' >"$E/high.dat"
 git -C "$E" add .
 link_blob="$(printf 'tar\0get' | git -C "$E" hash-object -w --stdin)"
 git -C "$E" update-index --add --cacheinfo "120000,$link_blob,link"
 expect "pre-commit ranges: each staged head is judged on its own first 8000 bytes" \
-  $'a.txt\t1\t1\nctl.txt\t1\t1\nexact.txt\t1\t1\nlate.txt\t1\t1\nlink\t1\t1\nz.txt\t1\t1' \
+  $'a.txt\t1\t1\nctl.txt\t1\t1\nexact.txt\t1\t1\nlate.txt\t1\t1\nlink\t1\t1\nutf8.txt\t1\t1\nz.txt\t1\t1' \
   "$(in_repo "$E" pre-commit 'checks_changed_lines; LC_ALL=C sort "$CHECKS_TMP/ranges"')"
 
 # The binary test reads every path with a fixed number of processes, so the

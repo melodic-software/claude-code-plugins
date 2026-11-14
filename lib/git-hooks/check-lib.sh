@@ -601,9 +601,12 @@ checks_worktree_has_nul() {
 # checks_added_ranges skips those names. One git cat-file --batch streams the
 # blobs, each as "<oid> blob <size>" LF <bytes> LF, so a header always has a
 # line of its own and no line holds bytes of two blobs. tr turns every NUL into
-# a \001 and every \001 into a \002, as awk cannot hold a NUL; the last awk
-# counts bytes to find each header and each blob's first 8000, and fails on a
-# stream whose length does not match its headers.
+# a \001 and every \001 and every byte above \177 into a \002, as awk cannot
+# hold a NUL and an awk that reads UTF-8 whatever the locale (the One True AWK's
+# second edition) would count a multibyte character as one; the stream is then
+# ASCII, one byte per character, so the last awk's length() counts bytes to find
+# each header and each blob's first 8000, and fails on a stream whose length
+# does not match its headers.
 checks_nul_blobs() {
   local ranges="$1" out="$2" field="$3" sel="$CHECKS_TMP/nul-blobs"
   shift 3
@@ -626,7 +629,7 @@ checks_nul_blobs() {
       }
       END { close(sel) }' |
     git cat-file --batch 2>/dev/null |
-    LC_ALL=C tr '\0\001' '\001\002' |
+    LC_ALL=C tr '\0\001\200-\377' '\001\002\002' |
     LC_ALL=C awk -F '\n' -v sel="$sel" '
       {
         len = length($0)
