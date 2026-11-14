@@ -255,7 +255,8 @@ the brief in one sentence: what the thing is, where it lives, what it must do.
 
 First resolve the level and print its report line by [reference/levels.md](reference/levels.md),
 whose `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}` and `<option>` is `${user_config.level}`: it sets
-the counts, states, evidence and offers this file states, which are its `standard` values.
+the variant count, states, screenshots, and review-mode and real-stack offers, whose `standard`
+values are the ones this file states.
 Before any code, record the plan as one line per screen naming the route, the host, the variant
 keys and the screen's states, for example: "Plan: `/shipments`, HTML mockup in the app's look,
 variants A to C, states populated, empty, loading, error." List the states the screen has, such
