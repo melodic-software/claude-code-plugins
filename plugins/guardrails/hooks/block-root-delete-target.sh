@@ -841,12 +841,14 @@
 #     NODE_OPTIONS or PYTHON* environment that loads other code; its output
 #     piped to a shell when no span holds a deleter word (unjudged before
 #     too); readers the parse does not model (`bash -c sh`); and a python or
-#     JS escape (`\x72`, or `\n` read as a line break) the program decodes
-#     before a shell reads the string (not decoded before either). Still
-#     refused although harmless: a span that never closes (an apostrophe in it
-#     opens a quote) takes in the rest of the body, so a later `$`, glob,
-#     brace, pipe or redirection character, other backslash, or deleter,
-#     shell or eval word refuses it; any of those in a span with a paren
+#     JS escape outside any span (`"r\x6d"`) the program decodes before a
+#     shell reads the string (not decoded before either). A span holding an
+#     interpreter name, or a `\n`, `\t` or `\r` glued to the next word, is
+#     always tokenized. Still refused
+#     although harmless: a span that never closes (an apostrophe in it opens a
+#     quote) takes in the rest of the body, so a later `$`, glob, brace, pipe
+#     or redirection character, other backslash, or deleter, interpreter, shell or
+#     eval word refuses it; any of those in a span with a paren
 #     (`` `Remove the old check (x)` ``, `` `the form check (x) [1]` ``); a
 #     template literal holding `${…}`, a prefilter substring and a paren; and
 #     any command text before the opener the predicate rejects (`set -e;`,
@@ -6519,7 +6521,8 @@ rdt_brace_rec() {
 # scanned with a word gate: Python 3 has no backticks and a JS backtick is a
 # template literal, so a span there is tokenized unless it reads as plain text
 # (rdt_span_prose): no `$`, brace, glob, tilde, `! @ ^`, pipe or redirection
-# character, no backslash but `\n`, `\t` or `\r`, and no deleter name, shell or
+# character, no backslash but a `\n`, `\t` or `\r` that ends a word, and no
+# deleter name, interpreter name, shell or
 # eval word starting a word in its text as written or as the shell joins it.
 # That still catches a string handed to a shell through a variable. Every
 # other body is scanned on its own, with bodies taken in
@@ -6584,9 +6587,13 @@ rdt_scan_body() {
 #     and extglob expansion, the Bourne pipe), or a pipe or redirection
 #     character, through which a printf or echo -e can feed decoded escapes to
 #     a shell;
-#   * a backslash other than `\n`, `\t` or `\r` (an escape a printf or echo
-#     decodes, an escaped quote, or a backslash-newline joining a word);
-#   * a prefilter stem, or a shell or eval word, at the start of a word in its
+#   * a backslash other than `\n`, `\t` or `\r` with no letter, digit or
+#     underscore after it (an escape a printf, echo or nested interpreter
+#     decodes, an escaped quote, a backslash-newline joining a word, or `\t`
+#     glued to the word it starts, `\trm`);
+#   * a prefilter stem, an interpreter name (python, node, perl, ruby, php,
+#     awk and the rest in word_re), or a shell or eval word, at the start of a
+#     word in its
 #     text as written, with quotes, backticks and backslashes removed (the
 #     shell joins `r""m` and `'r'm` and drops the backslash in `r\m`), or with
 #     line breaks removed too (`r\` then a line break then `m`). Line breaks
@@ -6595,8 +6602,8 @@ rdt_scan_body() {
 #     starts, so `\rm` and `/bin/rm` match.
 rdt_span_prose() {
   local lb="${1,,}" st
-  local meta_re='[]$|<>{}[*?~!@^]' esc_re='\\([^ntr]|$)'
-  local word_re='(^|[^a-z0-9_])(rm|unlink|rsync|robocopy|worktree|remove|mv|truncate|shred|delete|base64|base32|basenc|xxd|cmd|(sh|bash|zsh|dash|ksh|mksh|eval|source)([^a-z0-9_]|$))|of='
+  local meta_re='[]$|<>{}[*?~!@^]' esc_re='\\([^ntr]|$|.[a-z0-9_])'
+  local word_re='(^|[^a-z0-9_])(rm|unlink|rsync|robocopy|worktree|remove|mv|truncate|shred|delete|base64|base32|basenc|xxd|cmd|(sh|bash|zsh|dash|ksh|mksh|eval|source|python|pypy|py|node|nodejs|perl|ruby|php|lua|deno|bun|tclsh|awk|gawk|mawk|nawk|osascript|pwsh|powershell)[0-9.]*([^a-z0-9_]|$))|of='
   [[ "$lb" =~ $meta_re || "$lb" =~ $esc_re ]] && return 1
   st="${lb//[\'\"\`\\]/}"
   [[ "$lb"$'\n'"$st"$'\n'"${st//[$'\n\r']/}" =~ $word_re ]] && return 1

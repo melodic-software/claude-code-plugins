@@ -829,7 +829,8 @@ expect_both "node span piping an echo -e hex escape into bash blocks" 2 --comman
 expect_both "node span with an ANSI-C quoted piece blocks" 2 --command "$rdt_ja"$'"echo `$\'r\'m -rf / form`"'"$rdt_jz"
 # Every other way a shell builds or feeds a word sends the span to the
 # tokenizer too: a brace, glob, tilde, history or extglob character, a pipe or
-# redirection, a backslash other than \n, \t or \r, or a shell or eval word.
+# redirection, a backslash other than a \n, \t or \r that ends a word, or an
+# interpreter, shell or eval word.
 # Each prose twin below fails shfmt once tokenized, which pins the routing.
 rdt_pp=$'python3 - <<\'EOF\'\nprint("`the form check (x) '
 rdt_pq=$'`")\nEOF'
@@ -854,6 +855,19 @@ expect_both "node prose span with a brace still tokenized" 2 --command "$rdt_jp"
 expect_both "node prose span with a question mark still tokenized" 2 --command "$rdt_jp"'a?'"$rdt_jq"
 expect_both "node prose span with another backslash escape still tokenized" 2 --command "$rdt_jp"'a\q'"$rdt_jq"
 expect_both "node prose span with a quote-split stem still tokenized" 2 --command "$rdt_jp"$'r\'\'m'"$rdt_jq"
+expect_both "prose span with a tab escape still tokenized" 2 --command "$rdt_pp"'a\tb'"$rdt_pq"
+expect_both "node prose span with a newline escape still tokenized" 2 --command "$rdt_jp"'a\nb'"$rdt_jq"
+expect_both "prose span naming python3 still tokenized" 2 --command "$rdt_pp"'via python3'"$rdt_pq"
+expect_both "node prose span naming node still tokenized" 2 --command "$rdt_jp"'via node'"$rdt_jq"
+# A nested interpreter decodes `\t` or `\n` itself, so a span running one
+# with that escape before its delete is tokenized and reaches the interpreter
+# lane.
+expect_both "python span running python3 -c with a tab escape before rm blocks" 2 --command $'python3 <<\'EOF\'\nimport subprocess\nc = r"""echo `python3 -c \'import os;os.system("\\trm -rf /")\'`"""\nsubprocess.run(c, shell=True)\nEOF'
+expect_both "python span running python3 -c with a newline escape before rm blocks" 2 --command $'python3 <<\'EOF\'\nimport subprocess\nc = r"""echo `python3 -c \'import os;os.system("true\\nrm -rf /")\'`"""\nsubprocess.run(c, shell=True)\nEOF'
+expect_both "python span running node -e with a tab escape before rm blocks" 2 --command $'python3 <<\'EOF\'\nimport subprocess\nc = r"""echo `node -e \'require("child_process").execSync("\\trm -rf /")\'`"""\nsubprocess.run(c, shell=True)\nEOF'
+expect_both "python span running ruby -e with a tab escape before rm blocks" 2 --command $'python3 <<\'EOF\'\nimport subprocess\nc = r"""echo `ruby -e \'system("\\trm -rf /")\'`"""\nsubprocess.run(c, shell=True)\nEOF'
+expect_both "node span running perl -e with a tab escape before rm blocks" 2 --command $'node <<\'EOF\'\nconst c = "echo `perl -e \'system qq(\\trm -rf /)\'`";\nrequire(\'child_process\').execSync(c);\nEOF'
+expect_both "python comment span running python3 -c with a tab escape before rm blocks" 2 --command $'python3 <<\'EOF\'\n# see `python3 -c "import os; os.system(\'\\trm -rf /\')"`\nprint(1)\nEOF'
 # The earlier text is read with its quotes removed too, so a name split by
 # quotes there still keeps the full scan.
 expect_both "prose span: quote-split interpreter word before python still tokenized" 2 --command $'cp /bin/sh ~/bin/py\'\'thon3; python3 - <<\'EOF\'\n'"$rdt_py"
