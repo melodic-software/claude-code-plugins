@@ -354,9 +354,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   whose lock names this session has an Environment to re-establish entry with its path, this
   session's id and the handover before `check-enter`; the handover is first in
   `Remaining actions, in order`, leading `Next:` unless the handoff is closed (OR none held)
-- [ ] Plugin changes per the structure doc ("Plugin changes"): a plugin installed, updated,
-  enabled or disabled this session has its Environment entry and the below-rail
-  `/reload-plugins` note, and nothing says `/clear` loads it (OR none changed)
+- [ ] Plugin changes: entry and below-rail `/reload-plugins` note (structure doc) (OR none)
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
   names the previous handoff recorded as deliberately left running. For each one, read its
   actual output or transcript per
@@ -430,8 +428,6 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
 - [ ] Worktree claims read this turn: each worktree whose lock names this session is the first
   remaining-work bullet: path, this session's id, handover before `check-enter` (OR none held)
-- [ ] Plugin changes as on the full path: the below-rail `/reload-plugins` note, never a claim
-  that `/clear` loads it (OR none changed)
 - [ ] `wip_commit` line reported, as on the full path; a commit, refusal or hook rejection is one
   bullet in the prompt, nothing pushed
 - [ ] If /export is available in your session (gate basis: [`reference/export-verification.md`](reference/export-verification.md)), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`--unattended`:** make no suggestion; tick this box as not applicable.
@@ -445,7 +441,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   region bullet under "Emit the copy/paste resume prompt"), with the conversation-bound warning
   and the met-goal omission applied as on the full path; a below-the-rails note covering EVERY
   surviving loop that has the resumed session list its scheduled tasks first and re-arm only the
-  loops missing from that list, one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine doc, "Emit the copy/paste resume prompt")
+  loops missing from that list, one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message; the `/reload-plugins` note when a plugin changed (engine doc, "Emit the copy/paste resume prompt")
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
   names the previous handoff recorded as deliberately left running. For each one, read its
   actual output or transcript per
