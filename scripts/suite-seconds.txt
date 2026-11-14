@@ -29,8 +29,10 @@
 # 41202468872, 41204767979, 41206938075, 41209305383 and 41211887017, and the
 # shell rows that had drifted 20 s or more, plus the unlisted shell suites 20 s
 # or more over the mean they counted, 2026-11-02 from the TIME lines of
-# whole-tree main runs 41501297702, 41507989564, 41512679251 and 41517754843. A shell
-# suite runs from the moment
+# whole-tree main runs 41501297702, 41507989564, 41512679251 and 41517754843, and
+# explainer-video.test.sh 2026-11-14 as the median of the TIME lines of
+# merge-queue run 43621221444 and whole-tree main run 43624597608 (first
+# attempt). A shell suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
 # listed counts the mean of the listed suites of its runner, rounded and at
@@ -243,7 +245,7 @@ plugins/evals/skills/validate/scripts/test_validate_cases.py 8
 plugins/evals/skills/validate/scripts/validate-cases.test.sh 4
 plugins/event-storming/skills/simulation/scripts/build-bc-view.test.sh 1
 plugins/explainer-video/hooks/install-python-deps.test.sh 3
-plugins/explainer-video/scripts/explainer-video.test.sh 7
+plugins/explainer-video/scripts/explainer-video.test.sh 320
 plugins/explainer-video/scripts/test_explainer_video_narration.py 1
 plugins/explainer-video/scripts/test_explainer_video_pydeps.py 6
 plugins/explainer-video/scripts/test_explainer_video_render.py 1

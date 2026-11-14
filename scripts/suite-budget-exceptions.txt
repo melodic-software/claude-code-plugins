@@ -9,6 +9,7 @@
 # Each shell suite whose scripts/suite-seconds.txt median is over 150 s, half
 # the default ceiling, at 480 s: the 9-minute test-bash leg less its setup.
 # Remove a row once its suite's median is under 150 s.
+plugins/explainer-video/scripts/explainer-video.test.sh 480
 plugins/planning/shared/tests/ui-a.test.sh 480
 plugins/planning/shared/tests/ui-b.test.sh 480
 plugins/planning/shared/tests/ui-c.test.sh 480
