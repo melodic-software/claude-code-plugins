@@ -2,7 +2,7 @@
   "pass": [
     {
       "answer": "Count: 3 occurrences (threshold 2, default).\nRung: `syntax-pattern-rule`\nScope: project rule.",
-      "why": "hand-written: the new id on a labelled line"
+      "why": "hand-written: the new id on a labeled line"
     },
     {
       "answer": "| Field | Value |\n|---|---|\n| Rung | `syntax-pattern-rule` |\n| Scope | project rule |",
