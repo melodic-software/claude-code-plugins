@@ -27,6 +27,14 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"f=\\\"$RUN/explore-directions.html\\\"; cat $PLUGIN/skills/explore-directions/assets/variant-switcher.html >> \\\"$f\\\" && printf '</body></html>\\\\n' >> \\\"$f\\\"\",\"description\":\"x\"}}]}}",
       "why": "asset appended to the page"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd \\\"$RUN\\\" && sed -i \\\"/SWITCH_HERE/r $PLUGIN/skills/explore-directions/assets/variant-switcher.html\\\" explore-directions.html && sed -i '/SWITCH_HERE/d' explore-directions.html\",\"description\":\"x\"}}]}}",
+      "why": "sed -i reads the asset in after the placeholder line"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 -c \\\"from pathlib import Path; p=Path('explore-directions.html'); sw=Path('$PLUGIN/skills/explore-directions/assets/variant-switcher.html').read_text(); p.write_text(p.read_text().replace('SWITCH_HERE', sw))\\\"\",\"description\":\"x\"}}]}}",
+      "why": "python pathlib write_text splice"
     }
   ],
   "fail": [
@@ -57,6 +65,14 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node -e 'const s=require(\\\"fs\\\").readFileSync(\\\"$PLUGIN/skills/explore-directions/assets/variant-switcher.html\\\",\\\"utf8\\\");console.log(s.length>0, [1].map(x=>x))'\",\"description\":\"x\"}}]}}",
       "why": "asset read by node, no write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node -e 'const s=require(\\\"fs\\\").readFileSync(\\\"$PLUGIN/skills/explore-directions/assets/variant-switcher.html\\\",\\\"utf8\\\"); console.log(s.length > 0)'\",\"description\":\"x\"}}]}}",
+      "why": "read-only node check with a spaced > 0 comparison"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node -e 'process.stdout.write(require(\\\"fs\\\").readFileSync(\\\"$PLUGIN/skills/explore-directions/assets/variant-switcher.html\\\",\\\"utf8\\\"))'\",\"description\":\"x\"}}]}}",
+      "why": "asset printed to stdout, nothing written"
     }
   ]
 }

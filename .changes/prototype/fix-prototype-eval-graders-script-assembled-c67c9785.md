@@ -2,4 +2,4 @@
 bump: none
 ---
 
-Only two eval cases change (four graders, their samples and one case description); the shipped skills are unchanged.
+Only one eval case changes (two graders and their samples); the shipped skills are unchanged.

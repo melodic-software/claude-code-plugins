@@ -7,6 +7,10 @@
     {
       "answer": "Open file:///tmp/explore-directions-a1B2c3/explore-directions.html (arrow keys switch).\n- A Checklist: populated, empty, loading, error\n- B Path: same four states as A\n- C Cards: same four states as A\nNo screenshots: Playwright is not available.\n| Variant | Axis | Right when | Costs |\n| A | layout | few steps | dense |\n| B | interaction | linear | slow to skim |\n| C | hierarchy | visual | space |\nCheck list:\n1. Open the page. Expect: variant A, five habits.\n2. Press Clear. Expect: no habits in any variant.\n3. Press Reset. Expect: the five habits again.\n```\ndirection: <key or graft>\nsteal: <piece> from <variant>\n```",
       "why": "states named on the first variant line and referred to on each later variant line"
+    },
+    {
+      "answer": "Open file:///tmp/explore-directions-a1B2c3/explore-directions.html (arrow keys switch).\n- A Checklist: one column of rows that expand in place\n  - States: populated, empty, loading, error\n- B Path: one step at a time along a track\n  - States: populated, empty, loading, error\n- C Cards: a grid of tiles\n  - States: populated, empty, loading, error\nNo screenshots: Playwright is not available.\n| Variant | Axis | Right when | Costs |\n| A | layout | few steps | dense |\n| B | interaction | linear | slow to skim |\n| C | hierarchy | visual | space |\nCheck list:\n1. Open the page. Expect: variant A, five habits.\n2. Press Clear. Expect: no habits in any variant.\n3. Press Reset. Expect: the five habits again.\n```\ndirection: <key or graft>\nsteal: <piece> from <variant>\n```",
+      "why": "states in a sub-bullet directly under each variant's line"
     }
   ],
   "fail": [
@@ -29,6 +33,10 @@
     {
       "answer": "Open file:///tmp/explore-directions-a1B2c3/explore-directions.html (arrow keys switch).\n- States (same in every variant): populated, empty, loading, error.\n- A Checklist: one column of rows that expand in place\n- B Path: one step at a time along a track\n- C Cards: a grid of tiles\nNo screenshots: Playwright is not available.\n| Variant | Axis | Right when | Costs |\n| A | layout | few steps | dense |\n| B | interaction | linear | slow to skim |\n| C | hierarchy | visual | space |\nCheck list:\n1. Open the page. Expect: variant A, five habits.\n2. Press Clear. Expect: no habits in any variant.\n3. Press Reset. Expect: the five habits again.\n```\ndirection: <key or graft>\nsteal: <piece> from <variant>\n```",
       "why": "a shared States bullet above the variant lines; otherwise complete"
+    },
+    {
+      "answer": "Open file:///tmp/explore-directions-a1B2c3/explore-directions.html (arrow keys switch).\n- A Checklist: one column of rows that expand in place\n- B Path: one step at a time along a track; same states\n- C Cards: a grid of tiles; same states\nNo screenshots: Playwright is not available.\n| Variant | Axis | Right when | Costs |\n| A | layout | few steps | dense |\n| B | interaction | linear | slow to skim |\n| C | hierarchy | visual | space |\nCheck list:\n1. Open the page. Expect: variant A, five habits.\n2. Press Clear. Expect: no habits in any variant.\n3. Press Reset. Expect: the five habits again.\n```\ndirection: <key or graft>\nsteal: <piece> from <variant>\n```",
+      "why": "'same states' with no earlier variant line naming them; otherwise complete"
     }
   ]
 }
