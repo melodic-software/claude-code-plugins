@@ -14,7 +14,7 @@ execution:
 graders:
   - name: rung-is-current-id
     type: 'llm'
-    criteria: 'PASS only if the rung the reply proposes for this mistake is syntax-pattern-rule. A rung that is only listed, rejected, ruled out, named as an alternative, or named inside the alias notice does not count. FAIL if the proposed rung is semgrep-rule or any other rung, or if no rung is proposed. Judge what the reply says. The rung counts even when its check is unproven or not proposed for install. A rung written under the old id semgrep-rule fails even with a note beside it giving the new id: the ladder says a skill that meets the old id "takes it as the new id". When the reply proposes more than one rung for this mistake, such as one per service, it passes only if every proposed rung is syntax-pattern-rule.'
+    criteria: 'PASS only if the rung the reply proposes for this mistake is syntax-pattern-rule. A rung that is only listed, rejected, ruled out, named as an alternative, or named inside the alias notice does not count. FAIL if the proposed rung is semgrep-rule or any other rung, or if no rung is proposed. Judge what the reply says. The rung counts even when its check is unproven or not proposed for install. A rung written under the old id semgrep-rule fails even with a note beside it giving the new id: the ladder says a skill that meets the old id "takes it as the new id". When the reply assigns different checking rungs to different parts of the code, such as one per service, it passes only if each is syntax-pattern-rule. An interim or accompanying instruction line, or removing the replaced CLAUDE.md line, is not a second rung.'
     focus: 'last_message'
     arm: 'with-only'
   - name: says-old-id-is-alias
