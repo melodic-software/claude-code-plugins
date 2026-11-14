@@ -17,7 +17,10 @@ structural lines of its kept traces, with no answer text:
                         all but self-lookup-allowed.jsonl; network-denied.jsonl
                         is a hand-written Bash call whose result reports a
                         sandbox network denial, in the shape a real trace gives
-                        it, with its host and a made-up command
+                        it, with its host and a made-up command; IF6xuu.jsonl
+                        is cut from a recorded playbooks run (Claude Code
+                        2.1.325) whose Skill call returned a failed
+                        pre-computed command, its ids replaced by placeholders
 
 The other tests copy a fixture into a temporary directory and change one field.
 
@@ -917,8 +920,9 @@ class RunValidityTest(unittest.TestCase):
 
     def test_a_fired_run_whose_skill_call_failed_to_load_is_invalid(self):
         # #16146: the Skill grader saw the call, so skill fired passed, but the
-        # load aborted on the skill's pre-computed command. Hand-written in the
-        # shape the issue quotes; a recorded trace is still owed.
+        # load aborted on the skill's pre-computed command. Hand-written with the
+        # tool_use_error wrapper; traces/IF6xuu.jsonl holds a recorded run, whose
+        # result has no wrapper.
         trace = self.skill_load_trace(
             "skill-load.jsonl",
             "<tool_use_error>Shell command permission check failed for pattern"
@@ -952,6 +956,33 @@ class RunValidityTest(unittest.TestCase):
         result.write_text(json.dumps(data), encoding="utf-8")
         proc = self.run_script(result, "--runs", "1")
         self.assertIn("check skill loaded: PASS", proc.stdout)
+
+    def test_a_recorded_skill_call_that_failed_to_load_is_invalid(self):
+        # The recorded case had no skill-fired grader, so only skill loaded can
+        # catch the failure.
+        result = self.clean()
+        case = result["cases"][1]
+        row = case["arms"]["with"][0]
+        for owner in (case, row):
+            owner["graders"] = [g for g in owner["graders"] if g["name"] != "skill-fired"]
+        row.update(tracePath="traces/IF6xuu.jsonl", turns=3)
+        proc = self.run_script(self.write(result), "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertEqual(
+            [line for line in proc.stdout.splitlines() if line.startswith("check ") and ": FAIL" in line],
+            ["check skill loaded: FAIL (the skill failed to load in 1 run)"],
+            proc.stdout,
+        )
+        self.assertIn(
+            "  case measurable-criterion, with-arm run 1: its Skill call returned a"
+            " failed pre-computed command (%s)" % (TRACES / "IF6xuu.jsonl"),
+            proc.stdout,
+        )
+        self.assertIn(
+            "the skill failed to load in 1 run, its pre-computed command failed"
+            " (case measurable-criterion)",
+            proc.stdout.strip().splitlines()[-1],
+        )
 
     def test_a_denial_seen_only_as_a_tool_result_is_counted(self):
         trace = self.dir / "denied.jsonl"

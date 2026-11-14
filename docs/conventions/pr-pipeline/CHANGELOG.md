@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [10.2.4] - 2026-11-14
+
+### Fixed
+
+- A Dependabot pull request carrying a lanes App commit, such as the claude-code install-script pin, is tier `review` in both lanes, and the pr-merge lane merges it only on a `verdict=merge` marker at the new head.
+
 ## [10.2.3] - 2026-11-14
 
 ### Fixed
