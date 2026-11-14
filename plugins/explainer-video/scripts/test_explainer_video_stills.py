@@ -1,8 +1,10 @@
 """stills.py end to end on fixtures/storyboard.json. The refusals need only the standard library; the renders need
 ffmpeg, ffprobe and Playwright for Python with its Chromium, and skip without them unless
 EXPLAINER_VIDEO_REQUIRE_DEPS=1 or MEDIA_RENDER_REQUIRE_DEPS=1, which fails instead."""
+import contextlib
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -11,8 +13,13 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
+LONG_LIST = 9   # three of these two-line paths fill a frame, so nine need three frames
+MIN_FRAME_SECONDS = 3.0   # a frame stays up at least a few seconds, the captions-only hold's floor
+REST_NARRATION = 'The tests cover both paths, and the changelog has one new line.'
+AFTER_NARRATION = 'Job length stays the same after the list.'
 STILLS = HERE / 'stills.py'
 BOARD = HERE / 'fixtures' / 'storyboard.json'
 HAVE_DEPS = importlib.util.find_spec('playwright') is not None and all(shutil.which(t) for t in ('ffmpeg', 'ffprobe'))
@@ -45,6 +52,19 @@ def tone_narration(folder, script):
     subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', f'sine=frequency=440:duration={duration}', '-ar',
                     '24000', '-ac', '1', str(folder / 'narration.wav')], check=True)
     return folder
+
+
+def srt_cues(path):
+    """[(start s, end s, text)] from an SRT file."""
+    def seconds(stamp):
+        h, m, rest = stamp.split(':')
+        return int(h) * 3600 + int(m) * 60 + float(rest.replace(',', '.'))
+    cues = []
+    for block in path.read_text(encoding='utf-8').strip().split('\n\n'):
+        lines = block.splitlines()
+        a, b = lines[1].split(' --> ')
+        cues.append((seconds(a), seconds(b), ' '.join(lines[2:])))
+    return cues
 
 
 class Refusals(unittest.TestCase):
@@ -218,6 +238,78 @@ class Renders(unittest.TestCase):
             self.assertEqual(shot['sha256'], hashlib.sha256(image.read_bytes()).hexdigest())
             self.assertEqual(shot['sidecar_sha256'], hashlib.sha256(sidecar.read_bytes()).hexdigest())
         self.assertNotEqual(shots[0]['sidecar'], shots[1]['sidecar'])
+
+    def list_board(self, folder, follow=False):
+        """One also-changed moment of LONG_LIST long paths with a short paragraph; follow adds a narrated moment
+        after it, whose frames and captions must move by the list's padding."""
+        files = [{'path': f'plugins/example/scripts/a-long-directory-name/entry-{i:02d}/case.json',
+                  'summary': f'case {i}'} for i in range(LONG_LIST)]
+        moments = [{'id': 'rest', 'chapter': 'risk', 'template': 'also-changed', 'data': {'files': files},
+                    'narration': REST_NARRATION, 'covers': [f['path'] for f in files]}]
+        if follow:
+            moments.append({'id': 'after', 'chapter': 'risk', 'template': 'risk-map',
+                            'data': {'rows': [{'area': 'Job length', 'level': 'low', 'note': 'unchanged'}]},
+                            'narration': AFTER_NARRATION, 'covers': []})
+        folder.mkdir()
+        (folder / 'storyboard.json').write_text(json.dumps({
+            'version': 1, 'title': 'Long list', 'chapters': [{'id': 'risk', 'title': 'Risk'}], 'moments': moments}),
+            encoding='utf-8')
+        return folder / 'storyboard.json'
+
+    def test_a_long_list_continues_over_fitting_frames_each_held_long_enough_to_read(self):
+        src = self.list_board(self.dir / 'long-src', follow=True)
+        self.assertEqual(run('--storyboard', src, '--out', self.dir / 'long-script', '--script-only').returncode, 0)
+        narration = tone_narration(self.dir / 'long-narration', (self.dir / 'long-script' / 'script.txt').read_text())
+        out = self.dir / 'long'
+        r = run('--storyboard', src, '--out', out, '--narration', narration)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        m = self.manifest(out)
+        rows = [row for row in m['quality']['frames'] if row['id'] == 'rest']
+        after = [row for row in m['quality']['frames'] if row['id'] == 'after']
+        self.assertGreaterEqual(len(rows), 3, 'the list was not continued over three frames')
+        self.assertEqual([row['part'] for row in rows], list(range(1, len(rows) + 1)))
+        self.assertEqual(rows[0]['entries'][0], 0)
+        self.assertEqual(rows[-1]['entries'][1], LONG_LIST)
+        for a, b in zip(rows, rows[1:]):
+            self.assertEqual(a['entries'][1], b['entries'][0], 'an entry was skipped or shown twice')
+            self.assertEqual(a['end'], b['start'], 'the frames do not follow each other')
+        for row in m['quality']['frames']:
+            self.assertGreaterEqual(row['minimum'], MIN_FRAME_SECONDS)
+            self.assertGreaterEqual(row['end'] - row['start'], row['minimum'] - 1 / 30, row)
+        self.assertEqual([row['fit'] for row in m['quality']['frames']], [[]] * len(m['quality']['frames']))
+        self.assertEqual(len(list((out / 'frames').glob('m001*.png'))), len(rows))
+        # The list's paragraph runs from the start of narration.wav to the first word of the next paragraph.
+        words = json.loads((narration / 'words.json').read_text())
+        paragraph = words['words'][len(REST_NARRATION.split())]['start']
+        padding = sum(row['minimum'] for row in rows) - paragraph
+        self.assertGreater(padding, 0, 'the fixture paragraph should be too short for its frames')
+        self.assertAlmostEqual(rows[-1]['end'] - rows[0]['start'], paragraph + padding, delta=0.01)
+        self.assertEqual(after[0]['start'], rows[-1]['end'])
+        self.assertGreaterEqual(m['video']['duration_s'], words['duration'] + padding - 0.01)
+        opening = ' '.join(AFTER_NARRATION.split()[:3])
+        cue = next(c for c in srt_cues(out / 'captions.srt') if c[2].startswith(opening))
+        self.assertAlmostEqual(cue[0], after[0]['start'], delta=0.002, msg='the captions drifted off the frames')
+
+    def test_a_frame_that_overflows_or_is_held_under_its_reading_minimum_fails_the_render(self):
+        """One cheap render covers both checks: with pagination and the hold minimums both switched off, the
+        list lands on one frame too small for it, held only as long as its paragraph."""
+        sys.path.insert(0, str(HERE))
+        self.addCleanup(sys.path.remove, str(HERE))
+        import stills
+        out = self.dir / 'forced'
+        with mock.patch.object(stills, 'paginate', lambda board, *_: [[None] for _ in board['moments']]), \
+                mock.patch.object(stills, 'moment_minimums', lambda *_: None), \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = stills.main(['--storyboard', str(self.list_board(self.dir / 'forced-src')), '--out', str(out),
+                                '--no-audio'])
+        self.assertEqual(code, 1)
+        m = self.manifest(out)
+        self.assertEqual(m['status'], 'defect')
+        self.assertTrue(any(d.startswith('moment rest: content does not fit the frame') for d in m['defects']),
+                        m['defects'])
+        self.assertTrue(any(d.startswith('moment rest: on screen') and 'reading minimum' in d
+                            for d in m['defects']), m['defects'])
+        self.assertTrue(m['quality']['frames'][0]['fit'])
 
     def test_stylesheet_and_stitcher_come_from_configuration(self):
         css = self.dir / 'white.css'

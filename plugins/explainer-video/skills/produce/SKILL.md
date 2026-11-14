@@ -160,9 +160,14 @@ write markup from it, and never edit its text to get past a check.
    team file, and `--path <frame_stylesheet>` prints the stylesheet, which you write to a file
    outside the repository and pass. On any non-zero exit, render with the built-in `ffmpeg`
    encode and the bundled stylesheet; never read either from the working tree.
-4. Exit 0 is a pass; exit 1 lists each defect in `manifest.json` (a frame under the luma SSIM floor,
-   a loudness miss, a stream defect). Fix the cause and render again; never lower a floor. Read the
-   contact sheet before calling it done.
+4. Exit 0 is a pass; exit 1 lists each defect in `manifest.json` (a frame whose content lies outside
+   it or over its header, a frame held under its reading minimum, a frame under the luma SSIM floor, a loudness miss, a stream defect). A
+   list too long for one frame (also-changed files, code-hunk lines, risk-map rows) continues onto
+   frames labeled "continued, part N of M". Every frame stays up long enough to read its words,
+   at least 3 seconds; when a moment's frames need more than its paragraph, the moment holds on
+   past the paragraph in silence, and a frame held under its minimum is a defect. A fit defect left is one entry too big for any frame, or a diagram or before-after moment with
+   too much in it: it goes back to the storyboard. Fix the cause and render again; never lower a
+   floor. Read the contact sheet before calling it done.
 5. Your contact-sheet read is the fix loop, not the verdict. Read the `verification` level as the
    manim loop does, and copy its line into the report. At standard or strict, dispatch a
    fresh-context subagent with the paths to the contact sheets and `<dir>/script.txt`, never your
