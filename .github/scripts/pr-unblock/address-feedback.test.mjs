@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { ciSnapshot, claimsSecurity, copyPathsFor, coveringLanes, createGitHubApi, currentThreads, earlierFailHeadsFrom, main, maxRoundsFrom, needsPerson, planLanes, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { ciSnapshot, claimsSecurity, copyPathsFor, coveringLanes, createGitHubApi, currentThreads, earlierFailHeadsFrom, main, maxRoundsFrom, needsPerson, planLanes, refreshableSections, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute, ROUTES } from "./escalation-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -2702,4 +2702,78 @@ test("an advisory code-review thread carries may_follow_up and the closing issue
   assert.equal(noAdvisory.decision, "proceed");
   assert.equal(plain.length, 0, "no advisory thread reads no issue");
   assert.equal("closing_issues" in noAdvisory.file, false);
+});
+
+// Q545: a fix round may refresh only the `##` sections the select job offers.
+const REFRESH_BODY = [
+  "No related issue: an owner decision",
+  "",
+  "## Summary",
+  "",
+  "Adds the parser.",
+  "",
+  "## Fix",
+  "",
+  "See [the change](https://example.com/x).",
+  "",
+  "```text",
+  "## Verification",
+  "```",
+  "",
+  "## Verification",
+  "",
+  "Ran the unit suite.",
+  "Left out: nothing",
+  "",
+  "## Notes",
+  "",
+  "Refs: #12",
+  "",
+  "## Follow-ups",
+  "",
+  "- Pre-existing (advisory): `x` ([thread](https://github.com/o/r/pull/1#discussion_r1))",
+  "",
+  "## Related",
+  "",
+  "- the design note",
+  "",
+].join("\n");
+
+test("refreshableSections offers the listed sections only, never Follow-ups, a gate-read section, a fenced heading or the last one", () => {
+  const offered = (names) => refreshableSections(REFRESH_BODY, names).map((section) => section.heading);
+  assert.deepEqual(offered(["Summary", "Fix", "Verification", "Related"]), ["Summary", "Verification"], "Fix holds a code fence, whose heading line is code; Related closes the body");
+  assert.deepEqual(offered([]), ["Summary", "Verification"], "no list: not Fix, Notes (Refs: #12), Follow-ups or the last");
+  assert.deepEqual(offered(["verification", ""]), ["Verification"], "names match case-insensitively");
+  assert.equal(refreshableSections(REFRESH_BODY, ["Verification"])[0].text, "\nRan the unit suite.\nLeft out: nothing\n");
+  assert.deepEqual(refreshableSections("## Summary\n\nA\n\n## Summary\n\nB\n\n## End\n", []).map((s) => s.heading), [], "a repeated heading is never offered");
+  assert.deepEqual(refreshableSections(null, ["Summary"]), []);
+});
+
+test("runRecord pins each offered section's text by SHA-256 and never copies the text", () => {
+  const file = { head_sha: HEAD, pr_paths: [], copy_paths: [], threads: [], body_sections: [{ heading: "Verification", text: "\nRan the unit suite.\n" }] };
+  const run = JSON.parse(runRecord(file));
+  // sha256 of "\nRan the unit suite.\n", by `printf '\nRan the unit suite.\n' | sha256sum`.
+  assert.deepEqual(run.body_sections, [{ heading: "Verification", sha256: "ec2843419a369ae8ad6942a47380f6d20dce87c1e93570cced345d44df1b384d" }]);
+});
+
+test("main select writes the offered sections to the thread file unless pr_body_refresh is false", async (t) => {
+  const dir = tempDir("address-feedback-body-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }, { id: HUMAN, login: "kyle-sexton", kind: "human" }] }));
+  const pull = join(dir, "pull.json");
+  writeFileSync(pull, JSON.stringify({ number: 42, head: { sha: HEAD }, user: { id: APP, type: "Bot" }, labels: [], body: REFRESH_BODY }));
+  const go = async (name, extra) => {
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, `${name}.out`), PR_NUMBER: "42", HEAD_SHA: HEAD, APP_SENDER_ID: String(APP), THREAD_FILE: join(dir, `${name}.json`), RUN_FILE: join(dir, `${name}.run.json`), TRUSTED_ACTORS: actors, PULL_FILE: pull, ...extra };
+    await main(["select"], env, { api: fakeApi(), log: () => {} });
+    return [JSON.parse(readFileSync(env.THREAD_FILE, "utf8")), JSON.parse(readFileSync(env.RUN_FILE, "utf8"))];
+  };
+  const [threads, run] = await go("on", { BODY_SECTIONS: "Verification" });
+  assert.deepEqual(threads.body_sections, [{ heading: "Verification", text: "\nRan the unit suite.\nLeft out: nothing\n" }]);
+  assert.deepEqual(run.body_sections.map((section) => section.heading), ["Verification"]);
+  for (const [name, extra] of [["off", { BODY_REFRESH: "false" }]]) {
+    const [offThreads, offRun] = await go(name, extra);
+    assert.equal("body_sections" in offThreads, false, name);
+    assert.equal("body_sections" in offRun, false, name);
+  }
 });

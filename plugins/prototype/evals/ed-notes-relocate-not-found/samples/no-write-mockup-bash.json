@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"bash /p/notes-bridge/notes-bridge.sh --dir mockup-run status\",\"description\":\"x\"}}]}}",
+      "why": "reads the notes"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -n 1,40p mockup-run/explore-directions.html | grep -i export\",\"description\":\"x\"}}]}}",
+      "why": "a read-only sed with a case-insensitive grep"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -c shipments-export mockup-run/explore-directions.html\",\"description\":\"x\"}}]}}",
+      "why": "searches the mockup for the test id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -i 's/shipments-filter\\\"/shipments-filter\\\" class=\\\"primary\\\"/' mockup-run/explore-directions.html\",\"description\":\"x\"}}]}}",
+      "why": "edits the mockup in place with sed"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat new.html > mockup-run/explore-directions.html\",\"description\":\"x\"}}]}}",
+      "why": "overwrites the mockup with a redirect"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"perl -pi -e 's/Filter/Export/' mockup-run/explore-directions.html\",\"description\":\"x\"}}]}}",
+      "why": "edits the mockup in place with perl"
+    }
+  ]
+}

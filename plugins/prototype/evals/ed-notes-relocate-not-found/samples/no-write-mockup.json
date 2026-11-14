@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Write call"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "mockup-run/ops.json", "content": "{\"replies\": [{\"seq\": 1, \"text\": \"I could not find that button.\"}], \"handled\": []}"}}],
+      "why": "writes only the reply file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "mockup-run/explore-directions.html", "content": "<!doctype html>"}}],
+      "why": "rewrites the mockup"
+    }
+  ]
+}

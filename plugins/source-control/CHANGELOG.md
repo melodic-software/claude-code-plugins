@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.8.1] - 2026-11-14
+
+### Changed
+
+- **The `prep` comment pass describes remove-comments' new default.** The step no longer says `--pipeline` sets the posture: `necessary` is now remove-comments' default in every run.
+
+## [11.8.0] - 2026-11-14
+
+### Added
+
+- `/source-control:pull-request`: `pr_body_preview` (`post` by default, or `preview`) prints a PR body and waits for a yes before `create` or a body edit posts it, in attended runs only.
+- `/source-control:pull-request`: `pr_body_refresh` (on by default). A push to an open PR that makes its body stale (what changed, verification, `Left out:`) now rewrites those sections in place with `gh pr edit --body-file`, never with a comment, so the body describes the current head. This covers pushes by `ready` too. `scripts/check-gate-lines.sh` compares the lines a gate reads (`Hold:`, `Draft:`, linkage, `Siblings:`, `Merge-Risk:`, `## Follow-ups`) before and after, and the edit is skipped when any changed.
+
+### Changed
+
+- The `briefing` preset's `Risk` section says what the change reaches and how it is undone, and states no door or risk tier; `/review:merge-risk` keeps the rating.
+- A review-fix round, attended or `comments --ci`, fixes every instance of a finding's class in the diff, not only the flagged line.
+
 ## [11.7.3] - 2026-11-13
 
 ### Changed
