@@ -120,7 +120,7 @@
     },
     {
       "answer": "## Findings\n\n1. `src/billing/invoice.ts` calls `fetch()` directly instead of `withRetry()`, and CI stayed green.\n\n## Recommendations\n\n1. Wire `scripts/check-bare-fetch.sh` into CI: add a step `run: bash scripts/check-bare-fetch.sh` to `.github/workflows/ci.yml`.\n2. Route `fetchInvoice` through `withRetry()`, as `charge.ts` does.",
-      "why": "PENDING-SECOND-LABELER: constructed: recommends wiring the existing script into CI but never says that nothing runs it now; labeled must-fail by the author, awaiting an independent second label"
+      "why": "constructed: recommends wiring the existing script into CI but never says that nothing runs it now; labeled must-fail by the author and by an independent second labeler"
     },
     {
       "answer": "## Recommendations\n\n1. Write a new test in `test/billing.test.js` that fails when any file under `src/billing` calls `fetch(` directly, so `npm test` catches it.\n2. `scripts/check-bare-fetch.sh` already exists, but nothing runs it: CI runs only `npm test`. Wire it into CI as well.",
