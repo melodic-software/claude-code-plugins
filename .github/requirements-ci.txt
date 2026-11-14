@@ -64,12 +64,11 @@ pyyaml==6.0.3 \
 # tree-sitter and one grammar wheel per language code-tidying's change-shape.py
 # maps (Python, C#, TypeScript, Bash, JavaScript, YAML) are pinned so its
 # grammar-dependent suite RUNS in CI instead of skipping green, the same reason
-# pygments is pinned above (#1313). The core wheel is per-interpreter, so it
-# carries cp314 (CI) and cp311 (cloud VM) sets on the fleet platforms, plus the
-# cp312 Linux x64 wheel for the hosted eval runner's system Python; every
-# grammar ships abi3 wheels, so those carry one hash per platform. The core
-# publishes no cp311/cp314 wheel for musllinux aarch64 or win32, which is why
-# its cp311/cp314 sets are two entries shorter than pyyaml's.
+# pygments is pinned above (#1313). The core wheel is per-interpreter, and its
+# pin carries every hash the release publishes, as Dependabot regenerates it
+# (41 for 0.26.1), which covers cp314 (CI), cp311 (cloud VM) and the cp312
+# Linux x64 wheel for the hosted eval runner's system Python; every grammar
+# ships abi3 wheels, so those carry one hash per platform.
 tree-sitter==0.26.1 \
     --hash=sha256:00e55f823de46b2bbcab9ca58a4c2a7ccc2b1dc28ed3fad7355fb32726008e21 \
     --hash=sha256:02d73ec124fa74e64558f5fdb3ae58d8af19d5e8b4a70197b45ebf22c83e822f \
