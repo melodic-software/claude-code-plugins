@@ -187,8 +187,11 @@ CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_eq "a usage error still exits 0" 0 "$rc"
 
 # A failed fetch keeps the team's level from the last fetched copy, named as possibly stale, rather than
-# dropping to the light default: a reference-transaction hook refuses the fetch's ref update.
+# dropping to the light default. Origin's main moves ahead (pushed by URL, so refs/remotes/origin/main
+# stays behind) and a reference-transaction hook refuses the fetch's update.
 repo=$(fixture stale $'verification: strict\n')
+next="$(g -C "$repo" commit-tree "HEAD^{tree}" -p HEAD -m next)"
+g -C "$repo" push -q "$TEST_TMPDIR/stale/origin.git" "$next:refs/heads/main"
 mkdir -p "$TEST_TMPDIR/hooks"
 printf '#!/bin/sh\nexit 1\n' >"$TEST_TMPDIR/hooks/reference-transaction"
 chmod +x "$TEST_TMPDIR/hooks/reference-transaction"

@@ -62,7 +62,10 @@ last() { CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" "$@" 2>&1 >/dev/null | tail -
 assert_eq "a missing file still names the commit read" \
   "default-branch-file: missing.css at origin/main, commit $sha" "$(last --path missing.css)"
 
-# A fetch that fails reads the last fetched copy and says so: a reference-transaction hook refuses the update.
+# A fetch that fails reads the last fetched copy and says so. Origin's main moves ahead (pushed by URL, so
+# refs/remotes/origin/main stays behind) and a reference-transaction hook refuses the fetch's update.
+next="$(g -C "$repo" commit-tree "$sha^{tree}" -p "$sha" -m next)"
+g -C "$repo" push -q "$dir/origin.git" "$next:refs/heads/main"
 mkdir -p "$TEST_TMPDIR/hooks"
 printf '#!/bin/sh\nexit 1\n' >"$TEST_TMPDIR/hooks/reference-transaction"
 chmod +x "$TEST_TMPDIR/hooks/reference-transaction"
