@@ -197,9 +197,13 @@ jq -e '[.[].check_runs[]] as $r
   | def lane($names): [$r[] | select(.name | IN($names[]))]
       | length > 0 and all(.status == "completed" and .conclusion == "success");
   ($r | length) == .[0].total_count
-  and lane(["PR Review / review-status", "pr-review / review-status",
+  and lane(["PR Review / Status", "pr-review / Status",
+            "PR Review / Claude", "pr-review / Claude",
+            "PR Review / review-status", "pr-review / review-status",
             "PR Review / claude-review-status", "pr-review / claude-review-status"])
-  and lane(["PR Review Security / review-status", "pr-review-security / review-status",
+  and lane(["PR Review Security / Status", "pr-review-security / Status",
+            "PR Review Security / Claude", "pr-review-security / Claude",
+            "PR Review Security / review-status", "pr-review-security / review-status",
             "PR Review Security / security-review", "pr-review-security / security-review",
             "security-review / security-review",
             "claude-security-review-status"])' <<<"$RUNS" >/dev/null \

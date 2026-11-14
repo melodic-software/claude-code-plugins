@@ -274,11 +274,17 @@ chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 HEAD=0123456789abcdef0123456789abcdef01234567
 CODE=pr-review-hosted.yml
 SEC=pr-review-security-hosted.yml
-CODE_CHECK='PR Review / review-status'
-SEC_CHECK='PR Review Security / review-status'
+CODE_CHECK='PR Review / Status'
+SEC_CHECK='PR Review Security / Status'
 # The names a head tested before the rename shows: the caller job ids.
 OLD_CODE_CHECK='pr-review / review-status'
 OLD_SEC_CHECK='pr-review-security / review-status'
+# pr-review-cli.yml's status job before its Title Case name, under the
+# callers' display names, and its Title Case name under the caller job ids.
+RENAMED_CODE_CHECK='PR Review / review-status'
+RENAMED_SEC_CHECK='PR Review Security / review-status'
+ID_CODE_CHECK='pr-review / Status'
+ID_SEC_CHECK='pr-review-security / Status'
 # run <id> <file> [status] [sha] [event] [head repository] [pull request number]
 run() { jq -cn --argjson id "$1" --arg f "$2" --arg st "${3:-completed}" --arg sha "${4:-$HEAD}" --arg ev "${5:-pull_request}" --arg hr "${6:-o/r}" \
   --argjson pr "${7:-77}" '{id: $id, path: (".github/workflows/" + $f), status: $st, head_sha: $sha, event: $ev, head_repository: {full_name: $hr},
@@ -349,12 +355,25 @@ JOBS_10="$(jobs "$(kill_job success success kill-switch)")"
 expect "a kill switch job named by its id still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started."
 JOBS_10="$PASS_CODE" JOBS_20="$PASS_SEC"
 
-# The status job names pr-review-cli.yml gave before it named both review-status.
-JOBS_10="$(jobs "$(kill_job success skipped)" "$(status 'pr-review / claude-review-status' completed success)")"
-JOBS_20="$(jobs "$(kill_job success skipped)" "$(status 'pr-review-security / security-review' completed success)")"
-expect "status jobs under their retired names do not count" 1 "'$CODE_CHECK' did not run on $HEAD" "passed on $HEAD"
+# The status job named review-status, before its Title Case name, still counts,
+# and so does its Title Case name under the caller job ids.
+for pair in "$RENAMED_CODE_CHECK|$RENAMED_SEC_CHECK" "$ID_CODE_CHECK|$ID_SEC_CHECK"; do
+  JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "${pair%%|*}" completed success)")"
+  JOBS_20="$(jobs "$(kill_job success skipped)" "$(status "${pair#*|}" completed success)")"
+  expect "status jobs named '${pair%%|*}' and '${pair#*|}' pass" 0 "'$SEC_CHECK' passed on $HEAD" "::error::"
+done
+JOBS_10="$PASS_CODE" JOBS_20="$PASS_SEC"
+
+# The status job names pr-review-cli.yml gave before it named both review-status,
+# and the Title Case name pr-review.yml and pr-review-security.yml give theirs.
+for pair in 'pr-review / claude-review-status|pr-review-security / security-review' 'pr-review / Claude|pr-review-security / Claude' \
+  'PR Review / Claude|PR Review Security / Claude'; do
+  JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "${pair%%|*}" completed success)")"
+  JOBS_20="$(jobs "$(kill_job success skipped)" "$(status "${pair#*|}" completed success)")"
+  expect "status jobs named '${pair%%|*}' and '${pair#*|}' do not count" 1 "'$CODE_CHECK' did not run on $HEAD" "passed on $HEAD"
+done
 # A status job counts only under its own lane's caller job.
-for name in 'other / review-status' 'review-status' "$CODE_CHECK" "$OLD_CODE_CHECK"; do
+for name in 'other / review-status' 'review-status' 'other / Status' 'Status' "$CODE_CHECK" "$OLD_CODE_CHECK" "$RENAMED_CODE_CHECK" "$ID_CODE_CHECK"; do
   JOBS_20="$(jobs "$(kill_job success skipped)" "$(status "$name" completed success)")"
   expect "a security run whose status job is named '$name' does not count" 1 "::error::'$SEC_CHECK' did not run on $HEAD"
 done

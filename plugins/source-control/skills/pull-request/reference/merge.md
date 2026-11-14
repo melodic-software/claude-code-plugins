@@ -103,12 +103,17 @@ for the user.
   configuration (settings, autoMode, hooks, `CLAUDE.md`, `AGENTS.md`, `.claude/`) and no
   deployment path, unless the user named it in this session.
 - On the head commit you pin, the PR reads `CLEAN` and both AI review lanes have completed with
-  success, matched by exact check name: `PR Review / review-status`, `pr-review / review-status`
-  (a head tested before the rename), `PR Review / claude-review-status` or
-  `pr-review / claude-review-status`, and for security `PR Review Security / review-status`,
-  `pr-review-security / review-status`, `PR Review Security / security-review`,
-  `pr-review-security / security-review`, its legacy caller `security-review / security-review`, or
-  `claude-security-review-status` (the names `babysit_merge.py` accepts). A missing, running,
+  success, matched by exact check name: `PR Review / Status`, `pr-review / Status`,
+  `PR Review / Claude` or `pr-review / Claude` (ci-workflows' Title Case job names), or the
+  earlier `PR Review / review-status`, `pr-review / review-status` (a head tested before the
+  rename), `PR Review / claude-review-status` or `pr-review / claude-review-status`; and for
+  security `PR Review Security / Status`, `pr-review-security / Status`,
+  `PR Review Security / Claude` or `pr-review-security / Claude`, or the earlier
+  `PR Review Security / review-status`, `pr-review-security / review-status`,
+  `PR Review Security / security-review`, `pr-review-security / security-review`, its legacy
+  caller `security-review / security-review`, or `claude-security-review-status` (the names
+  `babysit_merge.py` accepts). Both lanes' jobs share the segments `Status` and `Claude`, so those
+  count only as the whole caller-qualified name. A missing, running,
   skipped or failed review check holds. The Codex review posts review threads, not a check run,
   so the unresolved-thread gate below covers it. Marking the PR ready is what starts those reviews, so this
   never happens at `ready`.

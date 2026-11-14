@@ -187,9 +187,10 @@ export const renderState = ({ runs, filed, runUrl, repoUrl, details = [], reache
 // skipped nor cancelled. The kill switch, a degraded upstream or a born-triaged
 // gate skips it; a run cancelled before it, or that never started, lists it
 // cancelled, skipped or not at all. A run from before the job rename names the
-// caller intake-triage and the verdict job apply-verdict.
+// caller intake-triage and the verdict job apply-verdict. The reusable's apply
+// job is `Apply`, or `claude-intake-triage-apply` before its Title Case rename.
 const INTAKE_JOB = /^(?:Intake Triage|intake-triage)(?: \/ |$)/;
-const INTAKE_APPLY_JOB = /^(?:Intake Triage|intake-triage) \/ .*-apply$/;
+const INTAKE_APPLY_JOB = /^(?:Intake Triage|intake-triage) \/ (?:.*-apply|Apply)$/;
 const APPLY_JOB = "Apply Verdict";
 const APPLY_JOB_BEFORE_RENAME = "apply-verdict";
 export const reachedIntake = (jobs) =>
