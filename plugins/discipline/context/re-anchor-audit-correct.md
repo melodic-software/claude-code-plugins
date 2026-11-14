@@ -81,7 +81,8 @@ Run these in order. Skip a step only when its input is genuinely absent
    not an outward artifact and stays on the do-it-now side of this line.
 4. **Report.** One short list: what was corrected, what remains open, and
    an honest "clean" where the audit found nothing, labeled
-   "(self-audit only)" when step 2's confirmation did not run. When the audit changed
+   "(self-audit only)" when step 2's confirmation did not run, and under
+   `light` or `off` the line `verification: skipped (<level>)` verbatim. When the audit changed
    a recommendation the user still has pending, re-state it as old → new →
    why, where new may be a withheld open question, per
    [`recommendation-basis.md`](recommendation-basis.md).
