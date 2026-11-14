@@ -63,7 +63,7 @@ For reviewers: a narrated walkthrough of this change. Watch it before the diff.
 | Input | Holds |
 |---|---|
 | `<pr>` | The pull request number. Resolve it once and pass it to every call below |
-| `--manifest <file>` | The producer's `manifest.json`. Its `video`, `parts`, `contact_sheet` and `screenshots` entries name the only files this action may attach; each must be a file inside the manifest's own directory |
+| `--manifest <file>` | The producer's `manifest.json`. Its `video`, `parts`, `contact_sheet` and `screenshots` entries name the only files this action may attach; each must be a file inside the manifest's own directory and carry `sha256`, the lowercase hex SHA-256 of the file the producer scanned. Each `screenshots` entry is an object `{path, sha256, sidecar, sidecar_sha256}`: `sidecar` names that screenshot's own frame-text file inside the manifest's directory, never shared with another screenshot |
 | `--run-id <id>` | The id of this run, the same value on `claim`, the post and `fail`: the Actions run id, else any token unique to the run |
 | `--artifact-url <url>` | Optional: the github.com link to the Actions artifact that holds the media |
 | `--retention-days <n>` | Optional, with `--artifact-url`: the days the artifact is kept, 1 to 90, default 30 |
@@ -98,9 +98,13 @@ owns them.
    steps (its steps 2, 3, 5 and the `{{artifact_line}}` rule of step 4) for the section:
    - **Publishable files** are the manifest's listed files and nothing else. A path that leaves
      the manifest's directory, or is no image or video, refuses with exit 2.
-   - **Frame text.** The manifest must record a passing scan of the video's frame text, and each
-     screenshot needs its frame-text sidecar `<screenshot>.txt` beside it, not empty. A missing
-     one refuses with exit 6.
+   - **Bound to the scan.** Every file is copied to a staging folder first, and each copy, the
+     bytes `gh` uploads, must match its manifest `sha256`; a missing or different digest refuses
+     with exit 5, kind `unbound`, before any upload. The manifest must record a passing scan of
+     the video's frame text.
+   - **Frame text.** Each screenshot entry names its own sidecar, whose bytes must match
+     `sidecar_sha256` (else exit 5, `unbound`). A bare-string entry, no sidecar, an empty one, or
+     one sidecar named by two screenshots refuses with exit 6.
    - **Leak scan.** The rendered section, each chapter title as the manifest wrote it and each
      screenshot sidecar go through the secret and machine-data floor (`<plugin-root>/tools/reviewer-media/lib/media_scan.py`). A
      hit, or a scan that cannot run, refuses with exit 5 before any upload; the report names the
@@ -111,10 +115,14 @@ owns them.
      Actions run uploads the media as an artifact first and passes that link. With neither,
      exit 4 and nothing is posted. A video the manifest marks over the upload limit and not
      split is linked, never recompressed.
-   - **The edit.** The script reads the body again right before the edit and refuses with exit 3
-     when the text outside the markers, or the claim, changed since it started, so a person's
-     edit is never overwritten. It reads the body back afterwards and exits 1 when the section
-     does not read back as posted.
+   - **The edit.** With every file staged, the script reads the body again right before the
+     edit and refuses with exit 3 when the text outside the markers, or the claim, changed since
+     it started. `gh pr edit` writes the whole body, so an edit a person makes during that one
+     call (the upload included) would be overwritten: afterwards the script reads the body's
+     edit history (the last 20 edits), and when another account edited since the read it writes
+     the posted block into that person's text once more. A second edit by another account during
+     that repair write is not restored: exit 3, check the body by hand. It then reads the body
+     back and exits 1 when the section does not read back as posted.
    - Media built for a commit the PR has since moved past are still posted, with the
      `Out of date` line.
    - Last, it adds the posted label and removes the request and failure labels.
@@ -131,8 +139,9 @@ only when the section shows a commit other than the head:
 python3 "<skill-dir>/scripts/media.py" stale <pr> --repo <owner>/<repo>
 ```
 
-- `scripts/push-branch.sh` runs it just before every push on the operator path, for the commit
-  it is about to push, and never stops the push over it. A lane's push does not run it.
+- `scripts/push-branch.sh` runs it after a push on the operator path succeeds, for the commit it
+  pushed, on the open PR whose head is that branch (`--pr`, else `gh pr list --head`), and never
+  fails the push over it. A lane's push does not run it.
 - `monitor` runs it after the round's push ([monitor.md](monitor.md) §3.3.2), which covers a
   lane's push and a push made outside `push-branch.sh`.
 - `ready` runs it before the hand-off ([ready-for-review.md](ready-for-review.md) 2.5.6).
@@ -149,8 +158,10 @@ python3 "<skill-dir>/scripts/media.py" fail <pr> --repo <owner>/<repo> --run-id 
 
 It removes this run's claim line (and the whole block when the claim was all it held), swaps the
 request label for the failure label, and posts one comment naming the commit, the reason code and
-the run link. A commit that already has that comment gets no second one, so a caller that finds
-it does not run again on that commit. `<code>` is a short lower-case code such as `build-failed`,
+the run link. A commit that already has that comment, posted by the account `gh` is signed in as
+or by a bot account, gets no second one, so a caller that finds it does not run again on that
+commit; the same marker in anyone else's comment does not count. On a body with broken markers it
+edits no body, still swaps the labels and posts the comment, and exits 3. `<code>` is a short lower-case code such as `build-failed`,
 `no-host` or `scan`.
 
 ## Report

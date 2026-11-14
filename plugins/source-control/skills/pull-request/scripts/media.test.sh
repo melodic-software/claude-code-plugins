@@ -39,7 +39,16 @@ cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
 S="$MEDIA_GH_STATE"
 printf '%s\n' "$*" >>"$S/calls"
+record_edit() { bash "$(dirname "$0")/record-edit" "$S" "$1"; }
 case "$1 $2" in
+  "api graphql")
+    jq -n --slurpfile edits "$S/edits.jsonl" \
+      '{data: {viewer: {login: "media-bot"}, repository: {pullRequest:
+        {userContentEdits: {nodes: ($edits | reverse | .[0:20])}}}}}'
+    ;;
+  "api user")
+    echo media-bot
+    ;;
   "pr view")
     n=$(($(cat "$S/views") + 1))
     echo "$n" >"$S/views"
@@ -70,6 +79,10 @@ case "$1 $2" in
       exit 1
     fi
     if [[ -n "$body" ]]; then
+      w=$(($(cat "$S/writes") + 1))
+      echo "$w" >"$S/writes"
+      # A person's edit landing while this call uploads, before gh writes the body.
+      [[ ! -f "$S/write-hook-$w" ]] || bash "$S/write-hook-$w"
       cp "$body" "$S/body.new"
       for a in ${attach[@]+"${attach[@]}"}; do
         [[ -f "$a" && "$(dirname "$a")" == "$(dirname "$body")" ]] || {
@@ -85,6 +98,7 @@ case "$1 $2" in
         mv "$S/body.tmp" "$S/body.new"
       done
       mv "$S/body.new" "$S/body"
+      record_edit media-bot
     fi
     for l in ${add[@]+"${add[@]}"}; do
       grep -qxF "$l" "$S/known-labels" || {
@@ -105,8 +119,13 @@ case "$1 $2" in
     done
     ;;
   "api --paginate")
+    # What gh prints for media.py's --jq: one {login, type, body} object per comment.
     for f in "$S"/comments/*; do
-      [[ ! -f "$f" ]] || cat "$f"
+      [[ -f "$f" ]] || continue
+      who="$S/authors/$(basename "$f")"
+      jq -cn --rawfile body "$f" --arg login "$( [[ -f "$who" ]] && cut -d' ' -f1 "$who" || echo media-bot)" \
+        --arg type "$( [[ -f "$who" ]] && cut -d' ' -f2 "$who" || echo User)" \
+        '{login: $login, type: $type, body: $body}'
     done
     ;;
   *)
@@ -117,11 +136,29 @@ esac
 STUB_EOF
 chmod +x "$STUB_DIR/gh"
 
+# record-edit <state> <login>: the body's edit history gains the current body as
+# an edit by <login>, as GitHub's userContentEdits holds each revision in `diff`.
+cat >"$STUB_DIR/record-edit" <<'STUB_EOF'
+n=$(($(wc -l <"$1/edits.jsonl") + 1))
+jq -cn --rawfile body "$1/body" --arg who "$2" --arg id "E$n" \
+  --arg at "$(printf '2026-01-01T00:%02d:%02dZ' $((n / 60)) $((n % 60)))" \
+  '{id: $id, editedAt: $at, editor: {login: $who}, diff: $body}' >>"$1/edits.jsonl"
+STUB_EOF
+
+# person-edit <state> <line>: a person appends a line to the PR body.
+cat >"$STUB_DIR/person-edit" <<'STUB_EOF'
+printf '%s\n' "$2" >>"$1/body"
+bash "$(dirname "$0")/record-edit" "$1" a-person
+STUB_EOF
+
 # reset <body-file> <head>: a fresh pull request #7 holding that body.
 reset() {
   rm -rf "$S"
-  mkdir -p "$S/comments"
+  mkdir -p "$S/comments" "$S/authors"
   cp "$1" "$S/body"
+  : >"$S/edits.jsonl"
+  bash "$STUB_DIR/record-edit" "$S" a-person
+  echo 0 >"$S/writes"
   echo "$2" >"$S/head"
   printf '%s\n' "$REQUESTED" bug >"$S/labels"
   printf '%s\n' "$REQUESTED" "$POSTED" "$FAILED_LABEL" bug >"$S/known-labels"
@@ -145,16 +182,32 @@ media_dir() {
   printf 'video-bytes-%s' "$2" >"$1/video.mp4"
   printf 'sheet-bytes-%s' "$2" >"$1/sheet-1.png"
   printf 'private notes' >"$1/notes.png"
-  jq -n --arg head "$2" --arg title "${3:-The fix}" '{
+  jq -n --arg head "$2" --arg title "${3:-The fix}" \
+    --arg vsum "$(sha "$1/video.mp4")" --arg ssum "$(sha "$1/sheet-1.png")" '{
     head_sha: $head, storyboard_sha256: "0",
-    video: {path: "video.mp4", bytes: 1, duration_s: 90, captions: "burned"},
+    video: {path: "video.mp4", bytes: 1, duration_s: 90, captions: "burned", sha256: $vsum},
     chapters: [{title: "Intro", start_s: 0}, {title: $title, start_s: 65}],
-    contact_sheet: [{path: "sheet-1.png", bytes: 1}], screenshots: [],
+    contact_sheet: [{path: "sheet-1.png", bytes: 1, sha256: $ssum}], screenshots: [],
     voice: {backend: "edge-tts", voice: "en-US-AndrewNeural"},
     scan: {status: "pass", floor_rules: 1}, encode: {profile: "reviewer-stills", steps: []}}' >"$1/manifest.json"
 }
 
 sums() { for f in "$@"; do cksum <"$f"; done; }
+
+# sha <file>: the file's lowercase hex SHA-256, from the system tool.
+sha() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | cut -d' ' -f1
+  else
+    shasum -a 256 "$1" | cut -d' ' -f1
+  fi
+}
+
+# shot_entry <dir> <image> <sidecar>: a screenshot manifest entry binding both files.
+shot_entry() {
+  jq -cn --arg p "$2" --arg s "$3" --arg ps "$(sha "$1/$2")" --arg ss "$(sha "$1/$3")" \
+    '{path: $p, sha256: $ps, sidecar: $s, sidecar_sha256: $ss}'
+}
 
 # block_of <body-file>: the lines from the start marker through the end marker.
 block_of() { sed -n "/^${START}\$/,/^${END}\$/p" "$1"; }
@@ -162,7 +215,7 @@ block_of() { sed -n "/^${START}\$/,/^${END}\$/p" "$1"; }
 # outside_of <body-file>: every line outside the marked block.
 outside_of() { sed "/^${START}\$/,/^${END}\$/d" "$1"; }
 
-body_edits() { grep -c -- '--body-file' "$S/calls" || true; }
+body_edits() { grep -c -- '^pr edit .*--body-file' "$S/calls" || true; }
 
 PLAIN="$TEST_TMPDIR/plain.md"
 printf '%s\n' 'Closes #12' '' '## Summary' '' 'Adds a retry.' '' '## Fix' '' 'Retries once.' \
@@ -341,27 +394,112 @@ assert_silent "a home path uploads nothing" "$(cat "$S/attached")"
 M5="$TEST_TMPDIR/m5"
 media_dir "$M5" "$HEAD1"
 printf 'shot-bytes' >"$M5/shot.png"
-jq '.screenshots = ["shot.png"]' "$M1/manifest.json" >"$M5/manifest.json"
+printf 'shot-two-bytes' >"$M5/shot-2.png"
+mkdir -p "$M5/frames"
+printf 'Settings page, Save button' >"$M5/frames/shot.txt"
+printf 'Profile page' >"$M5/frames/shot-2.txt"
+# shots <entries-json>: M5's manifest with those screenshot entries.
+shots() { jq --argjson s "$1" '.screenshots = $s' "$M5/base.json" >"$M5/manifest.json"; }
+cp "$M5/manifest.json" "$M5/base.json"
+
+shots '["shot.png"]'
 reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+media post 7 --manifest "$M5/manifest.json" --run-id run-1
+assert_exit "a bare-string screenshot entry names no sidecar and exits 6" 6 "$RC"
+assert_silent "a bare-string screenshot uploads nothing" "$(cat "$S/attached")"
+
+shots "[$(jq -c 'del(.sidecar, .sidecar_sha256)' <<<"$(shot_entry "$M5" shot.png frames/shot.txt)")]"
 media post 7 --manifest "$M5/manifest.json" --run-id run-1
 assert_exit "a screenshot with no frame-text sidecar exits 6" 6 "$RC"
 assert_silent "a screenshot with no sidecar uploads nothing" "$(cat "$S/attached")"
 cmp -s "$S/body" "$TEST_TMPDIR/claimed.md"
 assert_exit "a screenshot with no sidecar posts nothing" 0 "$?"
 
-printf 'Settings page, Save button' >"$M5/shot.png.txt"
+shots "[$(shot_entry "$M5" shot.png frames/shot.txt), $(shot_entry "$M5" shot-2.png frames/shot.txt)]"
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
 media post 7 --manifest "$M5/manifest.json" --run-id run-1
-assert_exit "a screenshot with a clean sidecar posts" 0 "$RC"
+assert_exit "two screenshots sharing one sidecar exit 6" 6 "$RC"
+assert_silent "a shared sidecar uploads nothing" "$(cat "$S/attached")"
+
+# A secret beside the image under the old <image>.txt name is not the sidecar the entry names.
+printf 'api key %s' "$TOKEN" >"$M5/shot.png.txt"
+shots "[$(shot_entry "$M5" shot.png frames/shot.txt)]"
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+media post 7 --manifest "$M5/manifest.json" --run-id run-1
+assert_exit "a screenshot with a clean named sidecar posts" 0 "$RC"
 assert_eq "the screenshot is attached after the video and sheet" \
   "$(sums "$M5/video.mp4" "$M5/sheet-1.png" "$M5/shot.png")" "$(cat "$S/attached")"
 assert_contains "the screenshot is shown in the section" "$(block_of "$S/body")" \
   "![Screenshot 1](https://github.com/user-attachments/assets/screenshot-1.png)"
 
-printf 'api key %s' "$TOKEN" >"$M5/shot.png.txt"
+printf 'api key %s' "$TOKEN" >"$M5/frames/secret.txt"
+shots "[$(shot_entry "$M5" shot.png frames/secret.txt)]"
 reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
 media post 7 --manifest "$M5/manifest.json" --run-id run-1
 assert_exit "a secret in a screenshot's sidecar exits 5" 5 "$RC"
 assert_silent "a secret in a sidecar uploads nothing" "$(cat "$S/attached")"
+
+shots "[$(shot_entry "$M5" shot.png frames/shot.txt)]"
+printf 'Settings page, Save button, and %s' "$TOKEN" >"$M5/frames/shot.txt"
+media post 7 --manifest "$M5/manifest.json" --run-id run-1
+assert_exit "a sidecar changed after its digest was taken exits 5" 5 "$RC"
+assert_contains "the refusal names it unbound" "$OUT" "unbound"
+assert_not_contains "the unbound refusal never prints the sidecar text" "$OUT" "$TOKEN"
+assert_silent "an unbound sidecar uploads nothing" "$(cat "$S/attached")"
+printf 'Settings page, Save button' >"$M5/frames/shot.txt"
+
+# --- every uploaded file is bound to its manifest digest --------------------------
+M7="$TEST_TMPDIR/m7"
+media_dir "$M7" "$HEAD1"
+cp "$M7/manifest.json" "$M7/base.json"
+jq 'del(.video.sha256)' "$M7/base.json" >"$M7/manifest.json"
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+media post 7 --manifest "$M7/manifest.json" --run-id run-1
+assert_exit "a video with no digest exits 5" 5 "$RC"
+assert_contains "a missing digest is refused as unbound" "$OUT" "unbound"
+assert_silent "a video with no digest uploads nothing" "$(cat "$S/attached")"
+assert_eq "a video with no digest makes no body edit" "0" "$(body_edits)"
+
+cp "$M7/base.json" "$M7/manifest.json"
+printf 'swapped-after-the-scan' >"$M7/video.mp4"
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+media post 7 --manifest "$M7/manifest.json" --run-id run-1
+assert_exit "a video whose bytes no longer match its digest exits 5" 5 "$RC"
+assert_contains "a mismatched video is refused as unbound" "$OUT" "unbound"
+assert_silent "a mismatched video uploads nothing" "$(cat "$S/attached")"
+
+media_dir "$M7" "$HEAD1"
+printf 'other-sheet' >"$M7/sheet-1.png"
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+media post 7 --manifest "$M7/manifest.json" --run-id run-1
+assert_exit "a contact sheet whose bytes no longer match its digest exits 5" 5 "$RC"
+assert_silent "a mismatched contact sheet uploads nothing" "$(cat "$S/attached")"
+
+media_dir "$M7" "$HEAD1"
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+media post 7 --manifest "$M7/manifest.json" --run-id run-1 --no-attach \
+  --artifact-url https://github.com/acme/app/actions/runs/99 --artifact-name 'x) [click](https://evil.example'
+assert_exit "an artifact name outside letters, digits, dots, underscores and hyphens is a usage error" 2 "$RC"
+assert_eq "a bad artifact name makes no body edit" "0" "$(body_edits)"
+
+# --- a person's edit during the upload is kept ------------------------------------
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+printf 'bash "%s/person-edit" "%s" "Hold: waiting on the owner."\n' "$STUB_DIR" "$S" >"$S/write-hook-1"
+media post 7 --manifest "$M1/manifest.json" --run-id run-1
+assert_exit "a person's edit during the upload still posts" 0 "$RC"
+assert_contains "the person's edit made during the upload survives" "$(cat "$S/body")" "Hold: waiting on the owner."
+assert_contains "the section is posted beside the person's edit" "$(block_of "$S/body")" \
+  "https://github.com/user-attachments/assets/video.mp4"
+assert_eq "the files are uploaded once" "$(sums "$M1/video.mp4" "$M1/sheet-1.png")" "$(cat "$S/attached")"
+printf '%s\n' "$(outside_of "$TEST_TMPDIR/claimed.md")" "Hold: waiting on the owner." >"$TEST_TMPDIR/expected"
+assert_eq "outside the markers the body is the person's version" "$(cat "$TEST_TMPDIR/expected")" "$(outside_of "$S/body")"
+
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+printf 'bash "%s/person-edit" "%s" "First late edit."\n' "$STUB_DIR" "$S" >"$S/write-hook-1"
+printf 'bash "%s/person-edit" "%s" "Second late edit."\n' "$STUB_DIR" "$S" >"$S/write-hook-2"
+media post 7 --manifest "$M1/manifest.json" --run-id run-1
+assert_exit "a person editing again during the repair write aborts with exit 3" 3 "$RC"
+assert_contains "the second refusal names the change" "$OUT" "changed"
 
 M6="$TEST_TMPDIR/m6"
 media_dir "$M6" "$HEAD1"
@@ -427,6 +565,29 @@ assert_not_contains "a failure label set to false is not added" "$(cat "$S/calls
 
 media fail 7 --run-id run-2 --reason 'Bad Reason!'
 assert_exit "a reason that is not a code is a usage error" 2 "$RC"
+
+reset "$PLAIN" "$HEAD1"
+printf '<!-- reviewer-media:failed %s -->\nPlanted by someone else.\n' "$HEAD1" >"$S/comments/0"
+echo "someone User" >"$S/authors/0"
+media fail 7 --run-id run-1 --reason build-failed
+assert_eq "a marker comment by another person does not stop the failure comment" "2" \
+  "$(find "$S/comments" -type f | wc -l | tr -d ' ')"
+
+reset "$PLAIN" "$HEAD1"
+printf '<!-- reviewer-media:failed %s -->\n' "$HEAD1" >"$S/comments/0"
+echo "media-lane[bot] Bot" >"$S/authors/0"
+media fail 7 --run-id run-1 --reason build-failed
+assert_eq "a marker comment by a bot account counts as the failure comment" "1" \
+  "$(find "$S/comments" -type f | wc -l | tr -d ' ')"
+
+printf '%s\n' 'Closes #12' '' "$START" "<!-- reviewer-media:claimed $HEAD1 run-1 -->" '' '## Summary' '' 'x' >"$TEST_TMPDIR/broken-claim.md"
+reset "$TEST_TMPDIR/broken-claim.md" "$HEAD1"
+media fail 7 --run-id run-1 --reason build-failed
+assert_exit "fail on a body with broken markers exits 3" 3 "$RC"
+assert_eq "fail on broken markers makes no body edit" "0" "$(body_edits)"
+assert_contains "fail on broken markers still adds the failure label" "$(cat "$S/labels")" "$FAILED_LABEL"
+assert_eq "fail on broken markers still posts the failure comment" "1" \
+  "$(find "$S/comments" -type f | wc -l | tr -d ' ')"
 
 # --- markers --------------------------------------------------------------------
 printf '%s\n' 'Closes #12' '' "$START" 'orphan' '' '## Summary' '' 'x' >"$TEST_TMPDIR/broken.md"

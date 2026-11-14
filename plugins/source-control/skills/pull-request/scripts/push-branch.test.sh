@@ -1049,7 +1049,12 @@ if command -v python3 >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
   mkdir -p "$MEDIA/bin"
   cat >"$MEDIA/bin/gh" <<EOF
 #!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$MEDIA/calls"
 [[ "\$1" == api ]] && echo example-user && exit 0
+if [[ "\$1 \$2" == "pr list" ]]; then
+  [[ -f "$MEDIA/no-pr" ]] || echo 7
+  exit 0
+fi
 if [[ "\$1 \$2" == "pr view" && " \$* " == *" number,url,headRefOid,body,labels "* ]]; then
   [[ -f "$MEDIA/body" ]] || exit 1
   jq -n --rawfile body "$MEDIA/body" '{number: 7, url: "https://github.com/example-org/app/pull/7",
@@ -1106,6 +1111,41 @@ EOF
   (cd "$wc" && PATH="$MEDIA/bin:$PATH" bash "$PUSH_BRANCH") >/dev/null 2>&1
   check "stale media, PR unread: the push still exits 0" "$?" "0"
   check "stale media, PR unread: origin received the branch" "$(has_branch "$WORKDIR/media-unread/origin")" "yes"
+
+  wc=$(make_clone media-resolve)
+  media_body "$OLD_SHA"
+  : >"$MEDIA/calls"
+  (cd "$wc" && PATH="$MEDIA/bin:$PATH" bash "$PUSH_BRANCH") >/dev/null 2>&1
+  check "stale media, by branch: the PR is looked up by its head branch" \
+    "$(grep -c "^pr list --head $BRANCH " "$MEDIA/calls")" "1"
+  check "stale media, by branch: media.py reads the PR by number, not the branch name" \
+    "$(grep -c '^pr view 7 ' "$MEDIA/calls")" "1"
+
+  wc=$(make_clone media-no-pr)
+  media_body "$OLD_SHA"
+  : >"$MEDIA/no-pr"
+  (cd "$wc" && PATH="$MEDIA/bin:$PATH" bash "$PUSH_BRANCH") >/dev/null 2>&1
+  check "stale media, no PR for the branch: the push exits 0" "$?" "0"
+  check "stale media, no PR for the branch: nothing is edited" "$(grep -c . "$MEDIA/edits")" "0"
+  rm -f "$MEDIA/no-pr"
+
+  wc=$(make_clone media-rejected)
+  media_body "$OLD_SHA"
+  printf '#!/bin/sh\nexit 1\n' >"$WORKDIR/media-rejected/origin.git/hooks/pre-receive"
+  chmod +x "$WORKDIR/media-rejected/origin.git/hooks/pre-receive"
+  rc=0
+  (cd "$wc" && PATH="$MEDIA/bin:$PATH" bash "$PUSH_BRANCH") >/dev/null 2>&1 || rc=$?
+  check "stale media, push refused: the push fails" "$((rc != 0))" "1"
+  check "stale media, push refused: the section is not marked out of date" "$(grep -c . "$MEDIA/edits")" "0"
+
+  wc=$(make_clone media-dir-rejected)
+  media_body "$OLD_SHA"
+  printf '#!/bin/sh\nexit 1\n' >"$WORKDIR/media-dir-rejected/origin.git/hooks/pre-receive"
+  chmod +x "$WORKDIR/media-dir-rejected/origin.git/hooks/pre-receive"
+  rc=0
+  (cd "$WORKDIR" && PATH="$MEDIA/bin:$PATH" bash "$PUSH_BRANCH" --dir "$wc" "$BRANCH") >/dev/null 2>&1 || rc=$?
+  check "stale media, --dir push refused: the push fails" "$((rc != 0))" "1"
+  check "stale media, --dir push refused: the section is not marked out of date" "$(grep -c . "$MEDIA/edits")" "0"
 else
   echo "SKIP: stale reviewer media cases need python3 and jq"
 fi

@@ -11,7 +11,8 @@ Every action takes --repo <owner/repo>, and the label names as --label-requested
 
 Exit: 0 done; 1 a gh call failed or the read-back did not match; 2 usage, or a manifest that cannot be
 used; 3 the claim is held by another run, the body changed under the edit, or its markers are broken;
-4 nothing could host the media; 5 the leak scan found something; 6 a screenshot has no frame-text sidecar.
+4 nothing could host the media; 5 the leak scan found something, or a file does not match its manifest
+digest; 6 a screenshot names no frame-text sidecar of its own.
 A refusal writes one `media: refused <code>: <detail>` line to stderr and posts nothing.
 """
 
@@ -20,6 +21,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import enum
+import hashlib
 import json
 import os
 import re
@@ -59,6 +61,14 @@ _RUN_URL = re.compile(
     r"^https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/actions/runs/[0-9]+(/attempts/[0-9]+)?$"
 )
 _REASON = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+_ARTIFACT_NAME = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+# GitHub keeps each revision of the body as one edit, its `diff` holding the full text.
+_EDITS_QUERY = (
+    "query($owner:String!,$name:String!,$number:Int!){viewer{login}"
+    " repository(owner:$owner,name:$name){pullRequest(number:$number)"
+    "{userContentEdits(last:20){nodes{id editedAt editor{login} diff}}}}}"
+)
 _VIDEO = {".mp4", ".mov", ".webm"}
 _IMAGE = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 MAX_RETENTION_DAYS = 90
@@ -215,6 +225,7 @@ class Asset:
     source: Path
     name: str  # the staged file name, which the section references as ./<name>
     label: str
+    sha256: str  # the digest the manifest binds the file to
 
 
 @dataclass(frozen=True)
@@ -252,6 +263,46 @@ def _listed(base: Path, entry: object, kinds: set[str], what: str) -> Path:
     return path
 
 
+def _digest(entry: object, key: str, what: str) -> str:
+    value = entry.get(key) if isinstance(entry, dict) else None
+    if not isinstance(value, str) or not _SHA256.match(value):
+        raise Refusal(5, "unbound", f"{what} has no sha256 digest in the manifest")
+    return value
+
+
+def _bound(base: Path, entry: object, kinds: set[str], what: str) -> tuple[Path, str]:
+    return _listed(base, entry, kinds, what), _digest(entry, "sha256", what)
+
+
+def _frame_text(base: Path, entry: dict, what: str, taken: set[Path]) -> str:
+    """The text of the sidecar the screenshot entry names, checked against its digest."""
+    sidecar = (base / entry["sidecar"]).resolve()
+    if base not in sidecar.parents or not sidecar.is_file():
+        raise Refusal(
+            6,
+            "sidecar",
+            f"{what}'s sidecar is not a file inside the manifest's directory",
+        )
+    if sidecar in taken:
+        raise Refusal(
+            6, "sidecar", f"{what} shares its sidecar with another screenshot"
+        )
+    taken.add(sidecar)
+    expected = _digest(entry, "sidecar_sha256", f"{what}'s sidecar")
+    try:
+        data = sidecar.read_bytes()
+        if hashlib.sha256(data).hexdigest() != expected:
+            raise Refusal(
+                5, "unbound", f"{what}'s sidecar does not match its manifest digest"
+            )
+        text = data.decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        text = ""
+    if not text.strip():
+        raise Refusal(6, "sidecar", f"{what}'s frame-text sidecar holds no text")
+    return text
+
+
 def load_media(manifest_file: str) -> Media:
     try:
         path = Path(manifest_file).resolve(strict=True)
@@ -278,8 +329,10 @@ def load_media(manifest_file: str) -> Media:
     sources = (
         []
         if unhosted
-        else [_listed(base, p, _VIDEO, "a video part") for p in parts]
-        or [_listed(base, video, _VIDEO, "the video")]
+        else [
+            _bound(base, p, _VIDEO, f"video part {i}") for i, p in enumerate(parts, 1)
+        ]
+        or [_bound(base, video, _VIDEO, "the video")]
     )
     videos = [
         Asset(
@@ -288,45 +341,51 @@ def load_media(manifest_file: str) -> Media:
             if len(sources) > 1
             else f"video{p.suffix.lower()}",
             f"Walkthrough video part {i}",
+            digest,
         )
-        for i, p in enumerate(sources, 1)
+        for i, (p, digest) in enumerate(sources, 1)
     ]
     sheets = [
-        Asset(p, f"sheet-{i}{p.suffix.lower()}", f"Contact sheet {i}")
-        for i, p in enumerate(
+        Asset(p, f"sheet-{i}{p.suffix.lower()}", f"Contact sheet {i}", digest)
+        for i, (p, digest) in enumerate(
             (
-                _listed(base, s, _IMAGE, "a contact sheet")
-                for s in data.get("contact_sheet") or []
+                _bound(base, s, _IMAGE, f"contact sheet {i}")
+                for i, s in enumerate(data.get("contact_sheet") or [], 1)
             ),
             1,
         )
     ]
     screenshots = []
+    taken: set[Path] = set()
     for i, entry in enumerate(data.get("screenshots") or [], 1):
-        shot = _listed(base, entry, _IMAGE, "a screenshot")
+        what = f"screenshot {i}"
         named = entry.get("sidecar") if isinstance(entry, dict) else None
-        sidecar = (
-            (base / named).resolve()
-            if isinstance(named, str) and named
-            else shot.with_name(shot.name + ".txt")
-        )
-        try:
-            text = (
-                sidecar.read_text(encoding="utf-8") if base in sidecar.parents else ""
-            )
-        except (OSError, ValueError):
-            text = ""
-        if not text.strip():
+        if not isinstance(named, str) or not named:
             raise Refusal(
                 6,
                 "sidecar",
-                f"screenshot {i} has no frame-text sidecar, so its text cannot be scanned",
+                f"{what} names no frame-text sidecar, so its text cannot be scanned",
             )
-        unrendered[f"screenshot {i} sidecar"] = text
+        shot, digest = _bound(base, entry, _IMAGE, what)
+        unrendered[f"{what} sidecar"] = _frame_text(base, entry, what, taken)
         screenshots.append(
-            Asset(shot, f"screenshot-{i}{shot.suffix.lower()}", f"Screenshot {i}")
+            Asset(
+                shot, f"screenshot-{i}{shot.suffix.lower()}", f"Screenshot {i}", digest
+            )
         )
     return Media(head, videos, sheets, screenshots, chapters, unrendered, unhosted)
+
+
+def stage(media: Media, into: Path) -> None:
+    """Copy every file to upload into `into`, then check each copy, the bytes gh uploads, against its digest."""
+    for asset in media.assets:
+        target = into / asset.name
+        shutil.copyfile(asset.source, target)
+        with target.open("rb") as staged:
+            if hashlib.file_digest(staged, "sha256").hexdigest() != asset.sha256:
+                raise Refusal(
+                    5, "unbound", f"{asset.label} does not match its manifest digest"
+                )
 
 
 def _details(summary: str, lines: list[str]) -> list[str]:
@@ -454,6 +513,33 @@ class Forge:
             target.write_bytes(body.encode("utf-8"))
             self.edit("--body-file", str(target), *args)
 
+    def edits(self) -> tuple[str, list[dict]]:
+        """The signed-in login and the body's recent edits, each {id, editedAt, editor, diff}."""
+        owner, _, name = (self.repo or "").partition("/")
+        out = self.gh(
+            "api",
+            "graphql",
+            "-f",
+            f"query={_EDITS_QUERY}",
+            "-f",
+            f"owner={owner}",
+            "-f",
+            f"name={name}",
+            "-F",
+            f"number={self.pr}",
+        ).stdout
+        try:
+            data = json.loads(out)["data"]
+            viewer = data["viewer"]["login"]
+            nodes = data["repository"]["pullRequest"]["userContentEdits"]["nodes"]
+            if not isinstance(viewer, str) or not isinstance(nodes, list):
+                raise ValueError
+        except (ValueError, KeyError, TypeError):
+            raise Refusal(
+                1, "gh", "gh api graphql did not return the body's edits"
+            ) from None
+        return viewer, [n for n in nodes if isinstance(n, dict) and "id" in n]
+
     def can_attach(self) -> bool:
         return "--attach" in self.gh("pr", "edit", "--help", check=False).stdout
 
@@ -474,6 +560,59 @@ def swap_labels(
         [f"added '{name}'" for name in added]
         + [f"removed '{name}'" for name in dropped]
     )
+
+
+def _editor(edit: dict) -> str | None:
+    return (edit.get("editor") or {}).get("login")
+
+
+def _newest(edits: list[dict]) -> dict | None:
+    return max(edits, key=lambda e: str(e.get("editedAt") or ""), default=None)
+
+
+def keep_their_edit(
+    forge: Forge, seen: set[str], after: dict, head: str
+) -> tuple[dict, tuple[str, str] | None]:
+    """After our write: when another writer edited the body since `seen`, put our block into their text.
+
+    Returns the body as it now reads and, when it was rebuilt, the outside-marker text to expect.
+    """
+    viewer, edits = forge.edits()
+    new = [e for e in edits if e["id"] not in seen]
+    theirs = _newest([e for e in new if _editor(e) != viewer])
+    if theirs is None:
+        return after, None
+    ours = _newest([e for e in new if _editor(e) == viewer])
+    block = split(
+        ours["diff"] if ours and isinstance(ours.get("diff"), str) else after["body"]
+    ).block
+    if (
+        block is None
+        or status_of(block).shown != head
+        or not isinstance(theirs.get("diff"), str)
+    ):
+        raise Refusal(
+            3,
+            "changed",
+            "another writer edited the body during the post, and it cannot be rebuilt",
+        )
+    their_parts = split(theirs["diff"])
+    repaired = join(their_parts, block, theirs["diff"])
+    if after["body"] != repaired:
+        seen = {e["id"] for e in forge.edits()[1]}
+        forge.write_body(repaired)
+        _, again = forge.edits()
+        if any(e["id"] not in seen and _editor(e) != viewer for e in again):
+            raise Refusal(
+                3,
+                "changed",
+                "the body was edited again while another writer's edit was being kept; check it by hand",
+            )
+        after = forge.read()
+        print(
+            "media: kept an edit another writer made during the post", file=sys.stderr
+        )
+    return after, their_parts.outside
 
 
 def label(value: str) -> str | None:
@@ -508,6 +647,12 @@ def cmd_post(a: argparse.Namespace, forge: Forge) -> int:
             "usage",
             "--artifact-url must be a github.com Actions run or artifact URL",
         )
+    if a.artifact_name and not _ARTIFACT_NAME.match(a.artifact_name):
+        raise Refusal(
+            2,
+            "usage",
+            "--artifact-name must be 1 to 128 letters, digits, dots, underscores or hyphens",
+        )
     if not 1 <= a.retention_days <= MAX_RETENTION_DAYS:
         raise Refusal(2, "usage", f"--retention-days must be 1 to {MAX_RETENTION_DAYS}")
     media = load_media(a.manifest)
@@ -519,7 +664,16 @@ def cmd_post(a: argparse.Namespace, forge: Forge) -> int:
             "claim",
             f"run {a.run_id} does not hold the claim for commit {media.head}",
         )
+    with tempfile.TemporaryDirectory(prefix="reviewer-media-") as tmp:
+        staged = Path(tmp)
+        stage(media, staged)
+        return _post(a, forge, media, first, staged)
 
+
+def _post(
+    a: argparse.Namespace, forge: Forge, media: Media, first: dict, staged: Path
+) -> int:
+    mine = (media.head, a.run_id)
     attachable = (
         []
         if a.no_attach or not forge.can_attach()
@@ -544,6 +698,7 @@ def cmd_post(a: argparse.Namespace, forge: Forge) -> int:
     nl = newline_of(first["body"])
     stale = first["headRefOid"] != media.head
     name = a.artifact_name or f"reviewer-media-{forge.pr}-{media.head}"
+    body_file = staged / "body.md"
     for hosting in hostings:
         section = render(
             media,
@@ -559,7 +714,8 @@ def cmd_post(a: argparse.Namespace, forge: Forge) -> int:
                 or "the scan rules did not load"
             )
             raise Refusal(5, "scan", found)
-        # The body is read again here so a person's edit made while the section was built is never overwritten.
+        # Every file is staged already, so from this read to gh's write only the gh call runs.
+        seen = {e["id"] for e in forge.edits()[1]}
         now = forge.read()
         parts = split(now["body"])
         if (
@@ -571,16 +727,12 @@ def cmd_post(a: argparse.Namespace, forge: Forge) -> int:
                 "changed",
                 "the body outside the markers, or the claim, changed while the section was built",
             )
-        target = join(parts, section, now["body"])
-        with tempfile.TemporaryDirectory(prefix="reviewer-media-") as tmp:
-            body_file = Path(tmp) / "body.md"
-            body_file.write_bytes(target.encode("utf-8"))
-            args = ["--body-file", str(body_file)]
-            if hosting is Hosting.ATTACH:
-                for asset in attachable:
-                    shutil.copyfile(asset.source, Path(tmp) / asset.name)
-                    args += ["--attach", str(Path(tmp) / asset.name)]
-            done = forge.edit(*args, check=False, timeout=900)
+        body_file.write_bytes(join(parts, section, now["body"]).encode("utf-8"))
+        args = ["--body-file", str(body_file)]
+        if hosting is Hosting.ATTACH:
+            for asset in attachable:
+                args += ["--attach", str(staged / asset.name)]
+        done = forge.edit(*args, check=False, timeout=900)
         after = forge.read()
         if done.returncode != 0 and after["body"] == now["body"]:
             if hosting is hostings[-1]:
@@ -593,6 +745,10 @@ def cmd_post(a: argparse.Namespace, forge: Forge) -> int:
                 "media: attaching failed, linking the artifact instead", file=sys.stderr
             )
             continue
+        expected = parts.outside
+        if done.returncode == 0:
+            after, theirs = keep_their_edit(forge, seen, after, media.head)
+            expected = theirs or expected
         written = split(after["body"])
         local = [
             asset.name
@@ -601,7 +757,7 @@ def cmd_post(a: argparse.Namespace, forge: Forge) -> int:
         ]
         if (
             done.returncode != 0
-            or written.outside != parts.outside
+            or written.outside != expected
             or status_of(written.block).shown != media.head
             or (hosting is Hosting.ATTACH and local)
         ):
@@ -653,10 +809,14 @@ def cmd_fail(a: argparse.Namespace, forge: Forge) -> int:
         raise Refusal(2, "usage", "--run-url must be a github.com Actions run URL")
     pr = forge.read()
     body = pr["body"]
-    parts = split(body)
-    held = status_of(parts.block).claim
-    head = held[0] if held and held[1] == a.run_id else pr["headRefOid"]
-    if held and held[1] == a.run_id:
+    try:
+        parts, broken = split(body), None
+    except Refusal as refusal:
+        parts, broken = None, refusal
+    held = status_of(parts.block).claim if parts else None
+    mine = held is not None and held[1] == a.run_id
+    head = held[0] if mine else pr["headRefOid"]
+    if parts and mine:
         forge.write_body(
             join(parts, without_claim(parts.block or "", newline_of(body)), body)
         )
@@ -668,16 +828,23 @@ def cmd_fail(a: argparse.Namespace, forge: Forge) -> int:
         )
     )
     marker = f"<!-- reviewer-media:failed {head} -->"
+    login = forge.gh("api", "user", "--jq", ".login").stdout.strip()
     listed = forge.gh(
         "api",
         "--paginate",
         f"repos/{forge.repo}/issues/{forge.pr}/comments",
         "--jq",
-        ".[].body",
+        ".[] | {login: .user.login, type: .user.type, body: .body}",
     ).stdout
-    if marker in listed:
+    # Only this account's or a bot's comment counts, so nobody else can suppress the failure comment.
+    if any(
+        isinstance(c, dict)
+        and (c.get("login") == login or c.get("type") == "Bot")
+        and marker in str(c.get("body") or "")
+        for c in _json_values(listed)
+    ):
         print(f"media: commit {head} already has its failure comment")
-        return 0
+        return _broken(broken)
     comment = [
         marker,
         f"Reviewer media was not produced for commit {head}.",
@@ -699,7 +866,30 @@ def cmd_fail(a: argparse.Namespace, forge: Forge) -> int:
             str(target),
         )
     print(f"media: posted the failure comment for commit {head}")
-    return 0
+    return _broken(broken)
+
+
+def _broken(refusal: Refusal | None) -> int:
+    """fail's exit: 0, or the markers refusal after the labels and comment went ahead without a body edit."""
+    if refusal is None:
+        return 0
+    print(
+        f"media: refused {refusal.code}: {refusal.detail}; the body was not edited",
+        file=sys.stderr,
+    )
+    return refusal.exit_code
+
+
+def _json_values(text: str) -> list[object]:
+    """Every JSON value in gh's --jq output, one per object however it is laid out."""
+    decoder, values, at = json.JSONDecoder(), [], 0
+    while (at := len(text) - len(text[at:].lstrip())) < len(text):
+        try:
+            value, at = decoder.raw_decode(text, at)
+        except ValueError:
+            break
+        values.append(value)
+    return values
 
 
 def main(argv: list[str]) -> int:
