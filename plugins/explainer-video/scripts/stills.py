@@ -5,11 +5,13 @@ usage: stills.py --storyboard FILE --out DIR (--narration NDIR | --no-audio | --
                  [--stitcher COMMAND] [--upload-limit-mb N] [--head-sha SHA] [--scan-pattern REGEX ...]
 
 Steps: parse the storyboard -> scan its narration, frame text and screenshot sidecars (ADR 0107) -> write
-DIR/script.txt -> capture each moment's frame at 3840x2160 -> lay out the holds from NDIR/words.json (speech's
-narrate.py output) or, with --no-audio, captions-only holds -> captions (burned and soft) -> narration rebuilt in
-video time and loudness-normalized -> one encode (profile reviewer-stills, or --stitcher) -> verify streams, size,
-blank frames and luma SSIM of every hold's frame against its source -> contact sheets -> split at chapter starts
-when over the upload limit -> DIR/manifest.json, the list of files a caller may publish.
+DIR/script.txt -> capture each moment at 3840x2160, a long list (also-changed files, code-hunk lines, risk-map rows)
+continued over as many frames as it needs, each frame fit-checked in the capture browser -> lay out the holds from
+NDIR/words.json (speech's narrate.py output) or, with --no-audio, captions-only holds, a moment's frames sharing its
+hold by entry count -> captions (burned and soft) -> narration rebuilt in video time and loudness-normalized -> one
+encode (profile reviewer-stills, or --stitcher) -> verify streams, size, blank frames and luma SSIM of every frame
+against its source -> contact sheets -> split at chapter starts when over the upload limit -> DIR/manifest.json, the
+list of files a caller may publish. A frame whose content lies outside it or over its header is a defect.
 
 --stitcher: a command with {inputs} (DIR/stitch.json: frames with seconds, audio, captions) and {out}; absent or
 'ffmpeg' is the built-in reviewer-stills encode. --scan-pattern (repeatable): a regex the scan also refuses
@@ -99,24 +101,75 @@ def place_screenshots(board, base, side, out):
     return entries
 
 
-def capture(board, chapters, out, stylesheet, base):
-    """Frames at 4K. On the first stills render Playwright's Chromium is not downloaded yet: install it once
-    (only stills renders need it, so a manim-only user never downloads it), then capture again."""
+def html(board, chapters, k, m, stylesheet, base, entries=None, part=None):
+    if entries:
+        m = media_templates.subset(m, *entries)
+    return media_templates.page(m, board.get('title', ''), chapters[m['chapter']], (k, len(board['moments'])),
+                                (FRAMES['width'], FRAMES['height']), BAND, stylesheet, base, part=part)
+
+
+def paginate(board, chapters, stylesheet, base):
+    """Per moment, the entry ranges of its frames: [None] for one frame showing everything. A candidate frame is
+    measured with the longest continuation label, so the label the frame finally gets never makes it taller."""
     import media_capture
-    frames = out / 'frames'
-    frames.mkdir(parents=True, exist_ok=True)
-    n = len(board['moments'])
-    size = (FRAMES['width'], FRAMES['height'])
-    pages = [(media_templates.page(m, board.get('title', ''), chapters[m['chapter']], (k, n), size, BAND, stylesheet,
-                                   base),
-              frames / f'm{k:03d}.png') for k, m in enumerate(board['moments'], 1)]
+    jobs, at = [], []
+    for k, m in enumerate(board['moments'], 1):
+        total = media_templates.entries(m)
+        if total > 1:
+            at.append(k - 1)
+            jobs.append((lambda a, b, k=k, m=m, total=total: html(
+                board, chapters, k, m, stylesheet, base, (a, b), None if (a, b) == (0, total) else (2, total)),
+                total))
+    plans = [[None] for _ in board['moments']]
+    for i, cuts in zip(at, media_capture.paginate(jobs, FRAMES['width'], FRAMES['height'], FRAMES['scale'], BAND)):
+        if len(cuts) > 1:
+            plans[i] = cuts
+    return plans
+
+
+def frames_of(board, chapters, out, stylesheet, base):
+    """[{'id', 'k', 'part', 'parts', 'entries', 'png', 'problems'}], one per captured frame, at 4K and fit-checked.
+    On the first stills render Playwright's Chromium is not downloaded yet: install it once (only stills renders
+    need it, so a manim-only user never downloads it), then try again."""
+    import media_capture
+    folder = out / 'frames'
+    folder.mkdir(parents=True, exist_ok=True)
+
+    def work():
+        frames = []
+        for k, (m, plan) in enumerate(zip(board['moments'], paginate(board, chapters, stylesheet, base)), 1):
+            for j, entries in enumerate(plan, 1):
+                part = (j, len(plan)) if entries else None
+                frames.append({'id': m['id'], 'k': k, 'part': j, 'parts': len(plan), 'entries': entries,
+                               'png': folder / (f'm{k:03d}.png' if j == 1 else f'm{k:03d}-p{j}.png'),
+                               'html': html(board, chapters, k, m, stylesheet, base, entries, part)})
+        shots = media_capture.capture_checked([(f.pop('html'), f['png']) for f in frames], FRAMES['width'],
+                                              FRAMES['height'], FRAMES['scale'], BAND)
+        for f, (_, problems) in zip(frames, shots):
+            f['problems'] = problems
+        return frames
     try:
-        return media_capture.capture(pages, FRAMES['width'], FRAMES['height'], FRAMES['scale'])
+        return work()
     except media_capture.ChromiumMissing:
         pass
     sys.stderr.write('explainer-video stills: installing Playwright\'s Chromium (first stills render only)\n')
     media_capture.install(CHROMIUM_INSTALL_S)
-    return media_capture.capture(pages, FRAMES['width'], FRAMES['height'], FRAMES['scale'])
+    return work()
+
+
+def frame_holds(holds, frames):
+    """Each frame's share of its moment's hold, split by entry count; the moment's frames fill its hold exactly."""
+    out = []
+    for h in holds:
+        mine = [f for f in frames if f['id'] == h['id']]
+        weights = [f['entries'][1] - f['entries'][0] if f['entries'] else 1 for f in mine]
+        edges, done = [h['start']], 0
+        for w in weights:
+            done += w
+            edges.append(round(h['start'] + (h['end'] - h['start']) * done / sum(weights), 3))
+        edges[-1] = h['end']
+        out += [{**f, 'start': a, 'end': b} for f, a, b in zip(mine, edges, edges[1:])]
+    return out
 
 
 def narration_audio(tl, ndir, out, steps):
@@ -147,19 +200,26 @@ def encode(frames, out, audio, srt, ass, stitcher, steps):
     return video
 
 
-def quality(video, frame_paths, holds):
-    """Luma SSIM of the frame shown mid-hold against its source PNG, above the caption band; blank frames."""
+def quality(video, frames):
+    """Per frame: the fit check, then luma SSIM of the frame shown mid-hold against its source PNG, above the
+    caption band, and blank frames."""
     rows, defects = [], []
     check = video.parent / 'check.png'
-    for png, h in zip(frame_paths, holds):
-        t = (h['start'] + h['end']) / 2
+    for f in frames:
+        name = f'moment {f["id"]}' + (f' frame {f["part"]} of {f["parts"]}' if f['parts'] > 1 else '')
+        if f['problems']:
+            more = f' (and {len(f["problems"]) - 1} more)' if len(f['problems']) > 1 else ''
+            defects.append(f'{name}: content does not fit the frame: {f["problems"][0]}{more}')
+        t = (f['start'] + f['end']) / 2
         media_verify.frame_at(video, t, check)
-        ssim = media_verify.luma_ssim(png, check, 1 - BAND)
-        rows.append({'id': h['id'], 't': round(t, 3), 'luma_ssim': round(ssim, 6)})
+        ssim = media_verify.luma_ssim(f['png'], check, 1 - BAND)
+        rows.append({'id': f['id'], 'part': f['part'], 'parts': f['parts'],
+                     'entries': list(f['entries']) if f['entries'] else None, 'start': f['start'], 'end': f['end'],
+                     't': round(t, 3), 'luma_ssim': round(ssim, 6), 'fit': f['problems'][:5]})
         if ssim < FRAMES['min_luma_ssim']:
-            defects.append(f'moment {h["id"]}: luma SSIM {ssim:.6f} is under {FRAMES["min_luma_ssim"]}')
+            defects.append(f'{name}: luma SSIM {ssim:.6f} is under {FRAMES["min_luma_ssim"]}')
         if media_verify.blank(check):
-            defects.append(f'moment {h["id"]}: the frame at {t:.2f} s is blank')
+            defects.append(f'{name}: the frame at {t:.2f} s is blank')
     check.unlink(missing_ok=True)
     return rows, defects
 
@@ -226,7 +286,7 @@ def _run(argv):
         return fail(2, f'the narration in {a.narration} is unusable: {e}')
     steps = []
     try:
-        frame_paths = capture(board, chapters, out, stylesheet, base)
+        frames = frame_holds(tl['holds'], frames_of(board, chapters, out, stylesheet, base))
         steps.append('capture')
         limits = DEFAULTS['captions']
         cues = media_captions.captions(tl['words'], tl['beats'], limits['max_words'], limits['min_seconds'],
@@ -237,8 +297,7 @@ def _run(argv):
         ass.write_text(media_captions.ass(cues, FRAMES['width'] * FRAMES['scale'],
                                           FRAMES['height'] * FRAMES['scale'], BAND), encoding='utf-8')
         audio, loudness = (None, None) if a.no_audio else narration_audio(tl, a.narration.resolve(), out, steps)
-        frames = [(p, h['end'] - h['start']) for p, h in zip(frame_paths, tl['holds'])]
-        video = encode(frames, out, audio, srt, ass, stitcher, steps)
+        video = encode([(f['png'], f['end'] - f['start']) for f in frames], out, audio, srt, ass, stitcher, steps)
         info = media_verify.probe(video)
         defects += media_verify.stream_defects(info, tl['duration'], FPS, audio=audio is not None, subtitle=not stitcher)
         vstream = next((s for s in info['streams'] if s.get('codec_type') == 'video'), {})
@@ -251,9 +310,9 @@ def _run(argv):
             audio.unlink(missing_ok=True)
         voice = json.loads((a.narration / 'voice.json').read_text(encoding='utf-8')) \
             if a.narration and (a.narration / 'voice.json').is_file() else None
-        rows, qdefects = quality(video, frame_paths, tl['holds'])
+        rows, qdefects = quality(video, frames)
         defects += qdefects
-        sheets = media_sheet.sheets(frame_paths, out, max_bytes=DEFAULTS['contact_sheet_max_bytes'])
+        sheets = media_sheet.sheets([f['png'] for f in frames], out, max_bytes=DEFAULTS['contact_sheet_max_bytes'])
         steps.append('contact-sheet')
         limit = media_size.limit_bytes(a.upload_limit_mb)
         parts, oversize = [], None

@@ -1,8 +1,10 @@
 """stills.py end to end on fixtures/storyboard.json. The refusals need only the standard library; the renders need
 ffmpeg, ffprobe and Playwright for Python with its Chromium, and skip without them unless
 EXPLAINER_VIDEO_REQUIRE_DEPS=1 or MEDIA_RENDER_REQUIRE_DEPS=1, which fails instead."""
+import contextlib
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -11,8 +13,10 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
+LONG_LIST = 30   # the reported failure was 28 changed files on one frame
 STILLS = HERE / 'stills.py'
 BOARD = HERE / 'fixtures' / 'storyboard.json'
 HAVE_DEPS = importlib.util.find_spec('playwright') is not None and all(shutil.which(t) for t in ('ffmpeg', 'ffprobe'))
@@ -218,6 +222,51 @@ class Renders(unittest.TestCase):
             self.assertEqual(shot['sha256'], hashlib.sha256(image.read_bytes()).hexdigest())
             self.assertEqual(shot['sidecar_sha256'], hashlib.sha256(sidecar.read_bytes()).hexdigest())
         self.assertNotEqual(shots[0]['sidecar'], shots[1]['sidecar'])
+
+    def long_list_board(self, folder):
+        board = json.loads(BOARD.read_text(encoding='utf-8'))
+        rest = board['moments'][-1]
+        rest['data']['files'] = [{'path': f'plugins/example/scripts/a-long-directory-name/entry-{i:02d}/case.json',
+                                  'summary': f'case {i}'} for i in range(LONG_LIST)]
+        rest['covers'] = [f['path'] for f in rest['data']['files']]
+        folder.mkdir()
+        (folder / 'storyboard.json').write_text(json.dumps(board), encoding='utf-8')
+        return folder / 'storyboard.json'
+
+    def test_a_30_entry_list_continues_over_frames_that_all_fit_inside_its_narration(self):
+        out = self.dir / 'long'
+        r = run('--storyboard', self.long_list_board(self.dir / 'long-src'), '--out', out, '--no-audio')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        m = self.manifest(out)
+        rows = [row for row in m['quality']['frames'] if row['id'] == 'rest']
+        self.assertGreater(len(rows), 1, 'the list was not continued onto a second frame')
+        self.assertEqual([row['part'] for row in rows], list(range(1, len(rows) + 1)))
+        self.assertEqual(rows[0]['entries'][0], 0)
+        self.assertEqual(rows[-1]['entries'][1], LONG_LIST)
+        for a, b in zip(rows, rows[1:]):
+            self.assertEqual(a['entries'][1], b['entries'][0], 'an entry was skipped or shown twice')
+            self.assertEqual(a['end'], b['start'], 'the frames do not follow each other')
+        self.assertEqual(rows[-1]['end'], m['video']['duration_s'], 'the last frame ends before the narration')
+        before = [row for row in m['quality']['frames'] if row['id'] == 'risks']
+        self.assertEqual(rows[0]['start'], before[-1]['end'])
+        self.assertEqual([row['fit'] for row in m['quality']['frames']], [[]] * len(m['quality']['frames']))
+        self.assertEqual(len(list((out / 'frames').glob('m006*.png'))), len(rows))
+
+    def test_a_frame_whose_list_runs_off_the_frame_fails_the_render(self):
+        sys.path.insert(0, str(HERE))
+        self.addCleanup(sys.path.remove, str(HERE))
+        import stills
+        out = self.dir / 'overflow'
+        with mock.patch.object(stills, 'paginate', lambda board, *_: [[None] for _ in board['moments']]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = stills.main(['--storyboard', str(self.long_list_board(self.dir / 'overflow-src')),
+                                '--out', str(out), '--no-audio'])
+        self.assertEqual(code, 1)
+        m = self.manifest(out)
+        self.assertEqual(m['status'], 'defect')
+        self.assertTrue(any(d.startswith('moment rest: content does not fit the frame') for d in m['defects']),
+                        m['defects'])
+        self.assertTrue([row['fit'] for row in m['quality']['frames'] if row['id'] == 'rest'][0])
 
     def test_stylesheet_and_stitcher_come_from_configuration(self):
         css = self.dir / 'white.css'
