@@ -1193,13 +1193,15 @@ export function admissionSettled(labels, events, isMark, state) {
 // lanes App issue no size split filed, a person-held label, a body `Hold:`
 // line or a charge word (the owner's 2026-10-26 rule keeps a
 // person out of every other refusal), a paid-eval done-when item (one that
-// names a billing account; a model eval run alone goes to the host queue), or, on an
-// issue without a trusted `host-run` (addedByTrusted), done-when items a lane
-// run cannot perform beside items it can, which refine
-// splits only from needs-decision (refine.mjs splitOf). `hostRun: true` asks
+// names a billing account; a model eval run alone goes to the host queue).
+// `hostRun: true` asks
 // admit() to add `host-run` on a refusal whose every reason is host work (no
 // item left for the lane, a capped split child), with no
-// hold, wait or pending split.
+// hold, wait or pending split. `triage: true`, on a refusal whose one reason is
+// done-when items a lane run cannot perform beside items it can, on an issue
+// without a trusted `host-run` (addedByTrusted) and with no verdict written,
+// asks the caller to park it at needs-triage, not confirmed: refine.mjs
+// splitOf splits it only in an intake run.
 // `verdict.writtenAt` is when the lane comment the verdict came from was last
 // written; a body edited after it refuses, since the verdict judged an older
 // body. The sweep reads no lane comment and passes none. `public` (from
@@ -1340,11 +1342,15 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   // holds for a person; a model eval run spends only usage and credits that
   // stop at a limit, so it is host work. Some items left for the lane is a
   // split no person answers (stop reason `none`): it parks at status:
-  // confirmed, where refine.mjs splits those items off.
+  // confirmed, where refine.mjs splits those items off in the intake run
+  // whose lane comment it reads. With no such verdict (a sweep's admission),
+  // a split that is the one refusal sets `triage`: it parks at needs-triage,
+  // so the triage sweep runs intake, whose admission parks it for that split.
   const paid = criteria.found.some(({ kind }) => kind === PAID_EVAL);
   const queued = labels.includes(HOST_RUN) && addedByTrusted(events, HOST_RUN, humans, appId);
   const queue = unrunnable !== null && !queued && !paid;
   const hostRun = queue && criteria.found.length === criteria.items;
+  const split = queue && !hostRun;
   if (unrunnable) {
     refuse.push(unrunnable);
     if (paid) holdFor("cost");
@@ -1464,6 +1470,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       ...(!hold && refuse.every((reason) => hostWork.has(reason)) && wait.length === 0 && parked.length === 0 && { hostRun: true }),
       ...(doneBy.length > 0 && { done: doneBy }),
       ...(unset.length > 0 && refuse.length === unset.length && { unsetOnly: unset }),
+      ...(split && verdict.writtenAt === undefined && refuse.length === 1 && !hold && !attended && wait.length === 0 && parked.length === 0 && { triage: true }),
     };
   }
   if (parked.length > 0) {
