@@ -78,6 +78,10 @@
       "why": "\"what to post instead\" followed by nothing"
     },
     {
+      "answer": "The run is INVALID (2 run errors, no kept traces). What to post instead: nothing until the rerun's verdict is VALID.",
+      "why": "\"what to post\" then nothing, with a later \"verdict\""
+    },
+    {
       "answer": "Don't post this line:\n\n```text\nverdict: INVALID (2 run errors; permission denials unchecked: no kept traces)\n```\n\nRerun first.",
       "why": "negated \"post this line\" before the INVALID line"
     }

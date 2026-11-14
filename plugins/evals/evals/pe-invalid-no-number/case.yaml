@@ -20,7 +20,7 @@ graders:
     match: 'not_contains'
   - name: 'post-invalid-instead'
     type: 'regex'
-    pattern: '(?:^|[.;!?:]|\b(?:so|then|and|but)\b)[ \t*_>`-]*(?:(?![.;!?\n])(?!\b(?:not|never|no|cannot|without|nothing|rather than|instead of)\b)(?![A-Za-z]*n[''’]t\b)[^\n])*?\b(?:post|share|paste|publish|send)[ \t]+(?:(?:just |only )?(?:the|that|this|your|its|an?)[ \t]+)?[`*"“'']*(?:verdict\b|INVALID\b(?![ \t]+run\b|[''’]s\b)|line\b[^\n.]{0,80}?(?::[*_ \t]*\n?|\n)(?:[ \t]*\n)*[ \t]*(?:```[\w-]*[ \t]*\n[ \t]*)?[>*_`"“ \t-]*(?:verdict:?[ \t]*)?INVALID\b)|\bwhat (?:you|to) (?:can |should )?(?:post|share)\b(?:[^\n.]{0,40}\b(?:INVALID|verdict)\b|[^\n.]{0,80}?(?::[*_ \t]*\n?|\n)(?:[ \t]*\n)*[ \t]*(?:```[\w-]*[ \t]*\n[ \t]*)?[>*_`"“ \t-]*(?:verdict:?[ \t]*)?INVALID\b)|\b(?:INVALID|verdict)(?:[ \t]+(?:line|verdict))?\b[`*"”'']*[ \t]+is what (?:you|to) (?:post|share)\b'
+    pattern: '(?:^|[.;!?:]|\b(?:so|then|and|but)\b)[ \t*_>`-]*(?:(?![.;!?\n])(?!\b(?:not|never|no|cannot|without|nothing|rather than|instead of)\b)(?![A-Za-z]*n[''’]t\b)[^\n])*?\b(?:post|share|paste|publish|send)[ \t]+(?:(?:just |only )?(?:the|that|this|your|its|an?)[ \t]+)?[`*"“'']*(?:verdict\b|INVALID\b(?![ \t]+run\b|[''’]s\b)|line\b[^\n.]{0,80}?(?::[*_ \t]*\n?|\n)(?:[ \t]*\n)*[ \t]*(?:```[\w-]*[ \t]*\n[ \t]*)?[>*_`"“ \t-]*(?:verdict:?[ \t]*)?INVALID\b)|\bwhat (?:you|to) (?:can |should )?(?:post|share)\b(?:(?:(?!\bnothing\b)[^\n.]){0,40}\b(?:INVALID|verdict)\b|[^\n.]{0,80}?(?::[*_ \t]*\n?|\n)(?:[ \t]*\n)*[ \t]*(?:```[\w-]*[ \t]*\n[ \t]*)?[>*_`"“ \t-]*(?:verdict:?[ \t]*)?INVALID\b)|\b(?:INVALID|verdict)(?:[ \t]+(?:line|verdict))?\b[`*"”'']*[ \t]+is what (?:you|to) (?:post|share)\b'
     flags: 'mi'
   - name: 'skill-fired'
     type: 'tool_used'
