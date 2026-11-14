@@ -122,16 +122,18 @@ def frame_text(moment, board_title, chapter_title):
     are included: a mistyped field renders through str(), keys and all."""
     out = [board_title, chapter_title]
 
-    def walk(v):
+    paths = ('image', 'sidecar') if moment.get('template') == 'screenshot' else ()
+
+    def walk(v, top=False):
         if isinstance(v, dict):
             for k, x in v.items():
                 out.append(str(k))
-                if k not in ('image', 'sidecar'):
+                if not (top and k in paths):
                     walk(x)
         elif isinstance(v, list):
             for x in v:
                 walk(x)
         elif v is not None:
             out.append(str(v))
-    walk(moment.get('data') or {})
+    walk(moment.get('data') or {}, top=True)
     return '\n'.join(out)

@@ -55,7 +55,8 @@ class TemplatesTest(unittest.TestCase):
         self.assertNotIn('--accent', out)
 
     def test_frame_text_lists_shown_strings_but_not_file_paths(self):
-        text = tpl.frame_text({'data': {'image': 'shot.png', 'sidecar': 's.txt', 'caption': 'Login page'}}, 'T', 'C')
+        text = tpl.frame_text({'template': 'screenshot',
+                               'data': {'image': 'shot.png', 'sidecar': 's.txt', 'caption': 'Login page'}}, 'T', 'C')
         self.assertIn('Login page', text.splitlines())
         self.assertNotIn('shot.png', text)
         self.assertNotIn('s.txt', text)
@@ -64,6 +65,13 @@ class TemplatesTest(unittest.TestCase):
         moment = {'template': 'diagram', 'data': {'note': {'ghp_KEYTOKEN': 1}}}
         self.assertIn('ghp_KEYTOKEN', tpl.page(moment, 't', 'c', (1, 1), SIZE, 0.24))
         self.assertIn('ghp_KEYTOKEN', tpl.frame_text(moment, 't', 'c'))
+
+    def test_frame_text_scans_a_nested_image_or_sidecar_value_the_frame_draws(self):
+        for key in ('image', 'sidecar'):
+            moment = {'template': 'diagram', 'data': {'note': {key: 'ghp_NESTED'}}}
+            with self.subTest(key=key):
+                self.assertIn('ghp_NESTED', tpl.page(moment, 't', 'c', (1, 1), SIZE, 0.24))
+                self.assertIn('ghp_NESTED', tpl.frame_text(moment, 't', 'c'))
 
 
 if __name__ == '__main__':
