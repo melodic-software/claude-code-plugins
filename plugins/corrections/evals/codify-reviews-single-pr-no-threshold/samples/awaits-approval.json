@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Proposal for the tmp2 lesson; nothing is installed until you approve it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Installed the naming check."
+    }
+  ]
+}

@@ -32,8 +32,11 @@
 //      lanes App PR: on a PR a person opened the lanes App cannot resolve, so
 //      the thread is left open for the person or their babysit worker tier. The PR head is
 //      re-read before each post and each resolve: once it is not the head
-//      this job gated, nothing more is posted or resolved.
-//   4. Posts the round marker, as the lanes App, once per model run: a
+//      this job gated, nothing more is posted or resolved. When a fix
+//      landed, puts the body sections the model job recorded in place of
+//      the ones the select job offered (refreshBody); text holding a line a
+//      gate reads, or any other refusal, drops that refresh alone.
+//   4. Posts the round marker, naming a dropped body refresh, as the lanes App, once per model run: a
 //      re-run of this job finds the marker naming that run and posts none.
 //   5. With no replies.jsonl, no scanned patch, no scan refusal, no upload
 //      the scan named and the selected head still current (no model turn)
@@ -96,8 +99,14 @@ import { join } from "node:path";
 
 import { runAsScript } from "../lib/run-main.mjs";
 import {
+  BAD_CHARS,
+  BODY_LIMITS,
+  bodySections,
   countRounds,
   createGitHubApi,
+  FORBIDDEN,
+  gateLines,
+  sectionRefusal,
   currentThreads,
   isRoundMarker,
   DEFAULT_MAX_ROUNDS,
@@ -129,15 +138,6 @@ const WEB_FLOW_ID = 19864447;
 export const FIX_TRAILER = "Lane-Activity: pr-unblock/address-feedback";
 const PATH_LINE = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*:[1-9][0-9]{0,6}$/;
 const DOT_SEGMENT = /(^|\/)\.\.?(\/|:)/;
-// Tab and newline only, and no direction, zero-width or byte-order mark.
-const BAD_CHARS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/u;
-// HTML comments carry markers; token shapes from
-// docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-// and the stateless installation token (ghs_ then a JWT) from
-// https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
-// whose header gh[opsur]_[A-Za-z0-9]{20} matches; this prefix check is not GitHub's recommended regex
-// (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
-const FORBIDDEN = /<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|ghs_[0-9]+_|github_pat_/;
 // follow-up: an advisory finding whose change falls outside the closing
 // issue's scope, answered with no fix (run.json's may_follow_up threads only).
 export const FOLLOW_UP = "follow-up";
@@ -218,6 +218,121 @@ async function recordFollowUp(api, pr, comment) {
   }
 }
 
+// The review-thread tool's body record, a replies.jsonl line holding only
+// `body_sections` (the other readers skip it as no reply): replyText without
+// it, and the record's sections, null with none, or the reason it is
+// malformed, which drops the refresh and nothing else.
+export function takeBodyRecord(text) {
+  const kept = [];
+  const records = [];
+  for (const line of text.split("\n")) {
+    let value;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      value = null;
+    }
+    if (value !== null && typeof value === "object" && !Array.isArray(value) && Object.keys(value).join() === "body_sections") {
+      records.push({ line, sections: value.body_sections });
+    } else {
+      kept.push(line);
+    }
+  }
+  const replyText = kept.join("\n");
+  if (records.length === 0) {
+    return { replyText, record: null };
+  }
+  const [{ line, sections }] = records;
+  const wellFormed =
+    records.length === 1 &&
+    Buffer.byteLength(line) <= BODY_LIMITS.record &&
+    Array.isArray(sections) &&
+    sections.length > 0 &&
+    sections.length <= BODY_LIMITS.sections &&
+    sections.every((section) => section !== null && typeof section === "object" && Object.keys(section).sort().join() === "heading,text" && typeof section.heading === "string" && typeof section.text === "string") &&
+    new Set(sections.map((section) => section.heading)).size === sections.length;
+  return { replyText, record: wellFormed ? { sections } : { refusal: "the body record is malformed" } };
+}
+
+const sha256 = (text) => createHash("sha256").update(text).digest("hex");
+
+// `body` with each of `sections` ({heading, text}) put in place of the text
+// under its `## ` heading, every other byte unchanged, or the refusal that
+// drops the whole refresh: a section the select job did not offer
+// (`offered`, run.json's body_sections), or one whose text changed since it
+// read it; text sectionRefusal refuses; or a result whose gate lines differ.
+export function refreshedBody(body, sections, offered = []) {
+  const text = String(body ?? "");
+  const { rows, sections: found } = bodySections(text);
+  const hashes = new Map(offered.map(({ heading, sha256: hash }) => [heading, hash]));
+  const edits = [];
+  for (const { heading, text: next } of sections) {
+    const matches = found.filter((section) => section.heading === heading);
+    if (!hashes.has(heading) || matches.length !== 1 || matches[0].end >= rows.length) {
+      return { refusal: "it names a section the select job did not offer" };
+    }
+    if (sha256(matches[0].text) !== hashes.get(heading)) {
+      return { refusal: "a section changed since the select job read it" };
+    }
+    const why = sectionRefusal(next);
+    if (why !== null) {
+      return { refusal: `the text holds ${why}` };
+    }
+    edits.push({ ...matches[0], next });
+  }
+  for (const { start, end, next } of edits.sort((a, b) => b.start - a.start)) {
+    const eol = rows[start].endsWith("\r") ? "\r" : "";
+    rows.splice(start + 1, end - start - 1, ...["", ...next.trim().split("\n"), ""].map((row) => row + eol));
+  }
+  const result = rows.join("\n");
+  if (gateLines(text).join("\n") !== gateLines(result).join("\n")) {
+    return { refusal: "it would change a line a gate reads" };
+  }
+  return { body: result };
+}
+
+// After a round whose fix landed, the body sections the model job recorded,
+// put in place on the body as it reads now while the PR head is still
+// `headSha`. Returns the round marker's line when the refresh is dropped,
+// else null; a refused or failed refresh changes no other outcome.
+async function refreshBody({ api, pr, headMoved, body, log }) {
+  if (body?.record == null) {
+    return null;
+  }
+  const dropped = (why) => {
+    log(`the body refresh is dropped: ${why}`);
+    return `The body refresh was dropped: ${why}.`;
+  };
+  if (body.record.refusal) {
+    return dropped(body.record.refusal);
+  }
+  if (!body.offered) {
+    return dropped("the select job offered no body section");
+  }
+  if (!body.fixed) {
+    log("no fix landed this round, so the body is left as it is");
+    return null;
+  }
+  try {
+    if (await headMoved()) {
+      return dropped("the PR head moved");
+    }
+    const current = (await api.getPull(pr))?.body ?? "";
+    const next = refreshedBody(current, body.record.sections, body.offered);
+    if (next.refusal) {
+      return dropped(next.refusal);
+    }
+    if (next.body !== current) {
+      await api.updatePullBody(pr, next.body);
+    }
+    log(`refreshed ${body.record.sections.length} body section(s)`);
+    return null;
+  } catch (error) {
+    log(`could not refresh the body: ${String(error?.message ?? error).slice(0, 300)}`);
+    return "The body refresh was dropped: the body could not be read or written.";
+  }
+}
+
 // Whether a lane reply is one after which a lanes App PR's thread is resolved:
 // the VALID or follow-up reply (renderReply) or an adjudication that found
 // the finding does not hold (FINDING_ANSWERED). On an owner PR such a thread
@@ -290,6 +405,13 @@ export function parseRun(text) {
     "run.json holds a malformed reviewed_heads list",
   );
   check(run.ci === undefined || ciValid(run.ci), "run.json holds a malformed ci snapshot");
+  check(
+    run.body_sections === undefined ||
+      (Array.isArray(run.body_sections) &&
+        run.body_sections.length <= BODY_LIMITS.sections &&
+        run.body_sections.every((section) => typeof section?.heading === "string" && /^[0-9a-f]{64}$/.test(String(section.sha256)))),
+    "run.json holds a malformed body_sections list",
+  );
   for (const thread of run.threads) {
     check(
       THREAD_ID.test(thread?.id ?? "") &&
@@ -683,6 +805,8 @@ export async function publish(args) {
   } catch (error) {
     failure = error;
   }
+  const bodyNote =
+    result === null ? null : await refreshBody({ api, pr, headMoved: async () => (await api.readBranch(args.headRef)) !== headSha, body: result.body, log });
   // The round counts whatever happened above, so the cap holds. A marker
   // that cannot be posted still leaves the replies' outcome to a person.
   try {
@@ -703,6 +827,7 @@ export async function publish(args) {
           ...(runLine ? [runLine] : []),
           `pr-unblock / address-feedback finished ${round} on ${headSha}.`,
           ...undisposedLines(result?.undisposed),
+          ...(bodyNote ? ["", bodyNote] : []),
         ].join("\n"),
       );
       log(`recorded round ${rounds}${result?.escalationReason ? `; escalating ${result.escalationReason}` : ""}`);
@@ -760,6 +885,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
   {
     let run;
     let replies;
+    let bodyRecord = null;
     try {
       const { runText, repliesText } = readArtifact();
       run = parseRun(runText);
@@ -786,7 +912,10 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
         log("no reply is posted: no model turn uploaded replies");
         return { escalationReason: "", skipReason: "no-model-turn", posted: [] };
       }
-      replies = parseReplies(repliesText, run, fileExists);
+      check(Buffer.byteLength(repliesText) <= LIMITS.bytes, "the replies are over the size limit");
+      const taken = takeBodyRecord(repliesText);
+      bodyRecord = taken.record;
+      replies = parseReplies(taken.replyText, run, fileExists);
     } catch (error) {
       if (!(error instanceof Invalid) && error.code !== "ENOENT") {
         throw error;
@@ -797,8 +926,11 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     // Every kept thread needs its disposition: one left out would stay open
     // with no reply, and the head's check run stops another dispatch. The
     // round marker names each one left out, for the escalation.
+    // What refreshBody needs once the round's outcome is known.
+    const body = (fixed) => ({ record: bodyRecord, offered: run.body_sections, fixed });
     if (run.verify_notes) {
-      return settleNotes({ api, pr, run, headSha, replies, appId, log });
+      const settledNotes = await settleNotes({ api, pr, run, headSha, replies, appId, log });
+      return { ...settledNotes, body: body(settledNotes.escalationReason === "") };
     }
     if (replies.length !== run.threads.length) {
       const disposed = new Set(replies.map((reply) => reply.thread));
@@ -926,7 +1058,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       escalationReason,
       log,
     });
-    return { ...settled, posted };
+    return { ...settled, posted, body: body(landed.size > 0) };
   }
 }
 

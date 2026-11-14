@@ -123,10 +123,30 @@ checks_changed_lines
 out="$CHECKS_TMP/shellcheck"
 : >"$out"
 rc=0
-if ((${#files[@]})); then
-  shellcheck -x -f gcc -S warning -- "${files[@]}" >"$out" 2>&1
-  rc=$?
-fi
+# Windows caps a whole command line at 32,767 characters, and ShellCheck 0.11.0
+# takes its file list only as arguments, so the paths go in batches whose
+# summed length, plus a separator each, stays under this budget; the rest of
+# the cap is left for the program path, the flags and any quoting. Each batch
+# appends to $out, and the highest status wins.
+sc_budget=24000
+shellcheck_batch() {
+  shellcheck -x -f gcc -S warning -- "$@" >>"$out" 2>&1
+  local batch_rc=$?
+  ((batch_rc > rc)) && rc=$batch_rc
+  return 0
+}
+batch=()
+size=0
+for f in ${files[@]+"${files[@]}"}; do
+  if ((${#batch[@]} && size + ${#f} + 1 > sc_budget)); then
+    shellcheck_batch "${batch[@]}"
+    batch=()
+    size=0
+  fi
+  batch+=("$f")
+  size=$((size + ${#f} + 1))
+done
+((${#batch[@]})) && shellcheck_batch "${batch[@]}"
 # A script gone from the work tree or partly staged is read from the index on
 # stdin, named "-".
 for f in ${indexed[@]+"${indexed[@]}"}; do

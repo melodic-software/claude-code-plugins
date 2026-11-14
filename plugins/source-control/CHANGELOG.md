@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.9.0] - 2026-11-14
+
+### Added
+
+- `comments --ci`: the review-thread tool gains `sections`, the PR body sections the round may refresh, and `record-body <file>`, which records their new text once per round. The record shares the replies file's 49152-byte cap and never costs a reply: `record-body` refuses text that does not fit, a later `record` that needs the room drops it, and `record` refuses a reply that would pass the cap even then. The reply job puts the text in place after the fix lands, and drops it when it holds a line a gate reads. `pr_body_refresh` in `docs/conventions/source-control.yaml` now also governs these rounds.
+
+## [11.8.1] - 2026-11-14
+
+### Changed
+
+- **The `prep` comment pass describes remove-comments' new default.** The step no longer says `--pipeline` sets the posture: `necessary` is now remove-comments' default in every run.
+
 ## [11.8.0] - 2026-11-14
 
 ### Added

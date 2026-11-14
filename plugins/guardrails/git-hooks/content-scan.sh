@@ -10,8 +10,10 @@
 #                          repository path the path patterns match
 #   content_scan <out>     judge the files the change lists (checks_diff, or
 #                          checks_files under --worktree) on the lines
-#                          $CHECKS_TMP/ranges holds (checks_changed_lines), and
-#                          write the findings to <out>, by path and line
+#                          $CHECKS_TMP/ranges holds (checks_changed_lines, or
+#                          the entry's own), and write the findings to <out>,
+#                          by path and line; a binary file's rows there go
+#                          unread
 #   content_report <out> <what>
 #                          print the findings and the fix, naming <what> to
 #                          remove them from, and exit: 1 on a finding or a
@@ -23,10 +25,11 @@
 # a force-added gitignored one included; --worktree leaves out untracked
 # gitignored files. Skipped: symbolic links, submodules and files over 1 MiB.
 # A file holding a NUL byte (whatever a `-diff` attribute says) is judged
-# whole for secrets only. The two guards' path exemptions apply (tests/fixtures
-# for secrets only), and the repository's list (EXEMPT_LIST) exempts path
-# findings only. The message says how to fix the content; the scan never
-# suggests skipping it.
+# whole for secrets only, before any range is read. A file a merge's other
+# parent holds with the same mode and blob is not judged. The two guards' path
+# exemptions apply (tests/fixtures for secrets only), and the repository's list
+# (EXEMPT_LIST) exempts path findings only. The message says how to fix the
+# content; the scan never suggests skipping it.
 
 # The pattern libraries: beside an installed copy (entry assets), or in the
 # plugin's lib/ when run from the plugin itself.
@@ -43,8 +46,8 @@ MAX_BYTES=1048576
 # Where scan_tool records a failure: nowhere until content_scan_init, since
 # checks_init runs wrapped tools before CHECKS_TMP exists.
 scan_error=/dev/null
-# A merge's parents past the first, which each entry sets: a file whose blob
-# one of them holds brings nothing the merge itself adds.
+# A merge's parents past the first, which each entry sets: a file one of them
+# holds with the same mode and blob brings nothing the merge itself adds.
 other_parents=()
 
 # The scan's text tools, here and in check-lib.sh and the pattern libraries,
@@ -254,10 +257,12 @@ content_scan() {
       esac
       rest="${rest#* }"
       rest="${rest#* }"
-      from_other_parent "$f" "${rest%% *}" && continue
       staged+=("$f")
       blobs+=("${rest%% *}")
     done < <(checks_diff --raw --no-abbrev -z --diff-filter=ACMR)
+    for p in ${other_parents[@]+"${other_parents[@]}"}; do
+      drop_unchanged "$p"
+    done
     if ((${#blobs[@]})); then
       while read -r s; do
         sizes+=("$s")
@@ -295,6 +300,7 @@ content_scan() {
       # (UTF-16LE text puts one after every ASCII byte). Both keep newlines, so
       # line numbers hold; the second pass reports only labels the first missed.
       # Path patterns are not judged here, so an ordinary binary still passes.
+      # pre-push-content relies on this test coming before any range is read.
       secret_exempt "$f" && continue
       text="$(tr '\0' ' ' <"$src"; printf x)"
       packed="$(tr -d '\0' <"$src"; printf x)"
@@ -378,15 +384,44 @@ content_scan() {
   } | sort -u -t: -k1,1 -k2,2n >"$result"
 }
 
-# from_other_parent <path> <blob>: 0 when one of other_parents holds <blob> at
-# <path>.
-from_other_parent() {
-  local p
-  ((${#other_parents[@]})) || return 1
-  for p in "${other_parents[@]}"; do
-    [[ "$(git rev-parse -q --verify "$p:$1" 2>/dev/null)" == "$2" ]] && return 0
+# parent_diff <parent> <git diff options...>: the diff from <parent> to the
+# side the change holds: the pushed commit (push-ranges) or the index.
+parent_diff() {
+  local p=$1 tip
+  shift
+  if [[ "$CHECKS_MODE" == pre-push ]]; then
+    read -r _ tip <"$CHECKS_TMP/push-ranges"
+    git -c core.quotePath=false diff --no-ext-diff "$p" "$tip" "$@"
+  else
+    git -c core.quotePath=false diff --no-ext-diff --cached "$p" "$@"
+  fi
+}
+
+# drop_unchanged <parent>: drop from content_scan's staged and blobs each file
+# <parent> holds with the same mode and blob, one the merge takes whole from
+# it. One raw diff lists the paths that differ; a name holding a newline, which
+# that newline-joined list cannot hold apart, is diffed on its own. A failed
+# diff drops nothing, so every file is still judged.
+drop_unchanged() {
+  local LC_ALL=C f differ=$'\n' i
+  local -a kept=() kept_blobs=()
+  ((${#staged[@]})) || return 0
+  parent_diff "$1" --raw --no-abbrev --no-renames -z -- >"$CHECKS_TMP/parent-diff" 2>/dev/null || return 0
+  while IFS= read -r -d '' _ && IFS= read -r -d '' f; do
+    differ+="$f"$'\n'
+  done <"$CHECKS_TMP/parent-diff" || return 0
+  for ((i = 0; i < ${#staged[@]}; i++)); do
+    f="${staged[i]}"
+    if [[ "$f" == *$'\n'* ]]; then
+      GIT_LITERAL_PATHSPECS=1 parent_diff "$1" --quiet --no-renames -- "$f" 2>/dev/null && continue
+    else
+      [[ "$differ" == *$'\n'"$f"$'\n'* ]] || continue
+    fi
+    kept+=("$f")
+    kept_blobs+=("${blobs[i]}")
   done
-  return 1
+  staged=(${kept[@]+"${kept[@]}"})
+  blobs=(${kept_blobs[@]+"${kept_blobs[@]}"})
 }
 
 content_report() {
