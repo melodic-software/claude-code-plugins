@@ -9900,7 +9900,8 @@ class DependabotEligibility(unittest.TestCase):
         self.lane_fix(gh, ["package.json"])
         self.assertEqual(
             self.eligibility(hold_majors=False).reason,
-            f"commit-not-dependabot:{'e' * 12}",
+            f"dependabot-review:commit-not-dependabot:{'e' * 12};"
+            "review-verdict-missing",
         )
         pushes = [
             {
@@ -10140,6 +10141,120 @@ class DependabotEligibility(unittest.TestCase):
                     "dependabot-fix-content:fix-content:package.json:"
                     "package-json-key:allowScripts",
                 )
+
+    PIN_MESSAGE = (
+        "Approve the locked claude-code install script on "
+        "dependabot/npm_and_yarn/x-1.3.0 [dependabot skip]"
+    )
+
+    def pinned_patch(
+        self,
+        *,
+        comments: list[dict[str, Any]],
+        pin: dict[str, Any] | None = None,
+        pushes: list[dict[str, Any]] | None = None,
+    ) -> Any:
+        """A semver-patch Dependabot bump with the lanes App's install-script
+        pin commit (`install-script-pin`) at the head, judged with majors held."""
+        cli = "@anthropic-ai/claude-code"
+
+        def manifest(version: str) -> str:
+            return json.dumps(
+                {
+                    "devDependencies": {cli: "2.1.317"},
+                    "allowScripts": {f"{cli}@{version}": True},
+                }
+            )
+
+        commit = pin or dependabot_commit(
+            name="agent-lanes[bot]",
+            email="1+agent-lanes[bot]@users.noreply.github.com",
+            message=self.PIN_MESSAGE,
+            login=IDENTITY,
+            sha=self.HEAD,
+        )
+        gh = self.fake(
+            commits=[dependabot_commit("semver-patch"), commit],
+            comments=comments,
+            pushes=self.PUSHES if pushes is None else pushes,
+            files=[{"filename": "package-lock.json"}, {"filename": "package.json"}],
+        )
+        self.lane_fix(
+            gh,
+            ["package.json"],
+            before_text={"package.json": manifest("2.1.316")},
+            after={"package.json": manifest("2.1.317")},
+        )
+        return self.eligibility()
+
+    def test_a_patch_bump_with_the_lanes_app_pin_merges_on_a_verdict_at_the_head(
+        self,
+    ) -> None:
+        result = self.pinned_patch(comments=[self.marker()])
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(
+            (result.dependabot.tier, result.dependabot.approved), ("review", "55-1")
+        )
+        self.assertIn(
+            f"commit-not-dependabot:{self.HEAD[:12]}", result.dependabot.reasons
+        )
+
+    def test_a_patch_bump_with_the_lanes_app_pin_and_no_verdict_refuses(
+        self,
+    ) -> None:
+        result = self.pinned_patch(comments=[])
+        self.assertFalse(result.eligible)
+        self.assertEqual(
+            result.reason,
+            f"dependabot-review:commit-not-dependabot:{self.HEAD[:12]};"
+            "review-verdict-missing",
+        )
+
+    def test_a_patch_bump_with_the_lanes_app_pin_and_a_stale_verdict_refuses(
+        self,
+    ) -> None:
+        result = self.pinned_patch(comments=[self.marker(head="a" * 40)])
+        self.assertFalse(result.eligible)
+        self.assertEqual(
+            result.reason,
+            f"dependabot-review:commit-not-dependabot:{self.HEAD[:12]};"
+            "review-verdict-head-moved",
+        )
+
+    def test_a_verdict_admits_no_other_second_commit_on_a_patch_bump(self) -> None:
+        refused = f"commit-not-dependabot:{self.HEAD[:12]}"
+        for label, pin in (
+            (
+                "github-actions",
+                dependabot_commit(
+                    name="github-actions[bot]",
+                    email="41898282+github-actions[bot]@users.noreply.github.com",
+                    message=self.PIN_MESSAGE,
+                    login="github-actions[bot]",
+                    sha=self.HEAD,
+                ),
+            ),
+            (
+                "lanes-app-without-skip",
+                dependabot_commit(
+                    name="agent-lanes[bot]",
+                    email="1+agent-lanes[bot]@users.noreply.github.com",
+                    message="Approve the locked claude-code install script",
+                    login=IDENTITY,
+                    sha=self.HEAD,
+                ),
+            ),
+        ):
+            with self.subTest(commit=label):
+                result = self.pinned_patch(comments=[self.marker()], pin=pin)
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.reason, refused)
+        # The lanes App's commit pushed by anyone else still refuses.
+        result = self.pinned_patch(
+            comments=[self.marker()], pushes=self.FOREIGN_PUSH
+        )
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "pushed-by:maintainer")
 
     def test_an_unreadable_fix_commit_file_list_refuses(self) -> None:
         # Unreadable is not "touches nothing": the .github/ boundary must hold.

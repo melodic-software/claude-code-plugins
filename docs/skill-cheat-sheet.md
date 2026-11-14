@@ -151,7 +151,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/retro-audio:music`](../plugins/retro-audio/skills/music/SKILL.md) | `retro-audio` | Render a short chiptune score to a WAV file |  | `/pixel-art:scene` |
 | [`/retro-audio:sfx`](../plugins/retro-audio/skills/sfx/SKILL.md) | `retro-audio` | Render one retro sound effect to a WAV file |  | `/retro-audio:music` |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |  | `/source-control:pull-request` |
-| [`/speech:narrate`](../plugins/speech/skills/narrate/SKILL.md) | `speech` | Script in, narration.wav and words.json out (kokoro local; elevenlabs optional, third-party) |  | `/harness-ops:prerequisites` |
+| [`/speech:narrate`](../plugins/speech/skills/narrate/SKILL.md) | `speech` | Script in, narration.wav and words.json out (kokoro local, or a voice fallback chain) |  | `/harness-ops:prerequisites` |
 | [`/user-interface:write-animation`](../plugins/user-interface/skills/write-animation/SKILL.md) | `user-interface` | Decide whether an element should animate, then write it in the project's stack |  | `/user-interface:audit` |
 | [`/user-interface:write-css`](../plugins/user-interface/skills/write-css/SKILL.md) | `user-interface` | Write or review CSS after discovering the project's stack, tokens, targets and conventions |  | `/playwright:playwright`, `/user-interface:setup` |
 
@@ -208,7 +208,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/performance:protect`](../plugins/performance/skills/protect/SKILL.md) | `performance` | Hold a verified counter win with a CI ceiling a human merges |  | `/toolchain:ratchet`, `/source-control:pull-request` |
 | [`/performance:snapshot`](../plugins/performance/skills/snapshot/SKILL.md) | `performance` | Capture a snapshot only from a host proven measurable | `baseline`, `post` | `/implementation:implement`, `/performance:snapshot`, `/performance:climb`, `/performance:verify` |
 | [`/performance:verify`](../plugins/performance/skills/verify/SKILL.md) | `performance` | Re-derive the result in fresh context and report it honestly |  | `/performance:protect`, `/source-control:pull-request`, `/performance:target`, `/debugging:debug` |
-| [`/playwright:demo-video`](../plugins/playwright/skills/demo-video/SKILL.md) | `playwright` | Replay a web flow, render a produced demo video, quality-control it from frames, post it to the PR |  | `/playwright:playwright` |
+| [`/playwright:demo-video`](../plugins/playwright/skills/demo-video/SKILL.md) | `playwright` | Replay a web flow, render a produced demo video, quality-control it from frames, post it to the PR |  | `/playwright:playwright`, `/source-control:pull-request` |
 | [`/toolchain:check`](../plugins/toolchain/skills/check/SKILL.md) | `toolchain` | Build, test, and lint changed files across detected ecosystems |  | `/verification:confirm`, `/testing:diagnose` |
 | [`/toolchain:lint`](../plugins/toolchain/skills/lint/SKILL.md) | `toolchain` | Polyglot lint and format checks without a full build |  |  |
 | [`/verification:confirm`](../plugins/verification/skills/confirm/SKILL.md) | `verification` | Prove the change achieved its intended outcome with evidence | `outcome`, `fix`, `refactor` | `/source-control:pull-request`, `/verification:measure`, `/verification:confirm`, `/app-control:map`, `/corrections:codify` |

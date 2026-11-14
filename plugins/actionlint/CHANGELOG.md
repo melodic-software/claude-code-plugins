@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.7] - 2026-11-14
+
+### Changed
+
+- Shared `check-lib.sh` synced where this plugin carries it: it gains `checks_restage`, which the actionlint entry does not call.
+
 ## [1.1.6] - 2026-11-14
 
 ### Fixed

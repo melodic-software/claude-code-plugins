@@ -844,7 +844,6 @@ def main(argv=None):
         'title': {'text': script.get('title', ''), 'subtitle': script.get('subtitle', ''), 'duration': P['title'] if layers['title'] else 0.0},
         'caption_style': {'height': CAP['pill_h'], 'fade': CAP['fade'], 'font_size': CAP['font_size'], 'font': a.font,
                           'background': [17, 20, 28], 'text': [255, 255, 255], 'margin': CAP['margin']},
-        'encode': {'codec': 'libx264', 'profile': 'high', 'preset': 'slower', 'crf': 16, 'pix_fmt': 'yuv420p'},
         'segments': [{k: v for k, v in sg.items() if k != 'dur'} for sg in segments],
         'cuts': [round(c, 4) for c in cuts],
         'nav_cuts': [round(c, 4) for c in nav_cuts],
