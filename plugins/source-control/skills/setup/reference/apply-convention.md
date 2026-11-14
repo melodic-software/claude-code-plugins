@@ -228,7 +228,7 @@ With no argument in an interactive session, run the interview:
      must not suggest a `Related`/linked-issue section, or any other specific organization's list, as
      if it were a universal default; a linked-issue section presumes an issue-tracker convention this
      plugin cannot assume for every repo. Ask what the repo's actual convention requires (a PR
-     template, a CI gate like `pr-contract`, team practice) rather than proposing one, and write
+     template, a CI gate like `check-contract`, team practice) rather than proposing one, and write
      only what the repo genuinely needs. A repo that wants only the `Summary` and `Test plan`
      pair states the keyword `summary-test-plan`. A repo whose convention is **no** PR-body sections states
      that as the literal keyword `none` (a resolved value overriding any lower layer's list, parallel

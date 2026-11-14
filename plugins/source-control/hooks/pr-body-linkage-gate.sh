@@ -10,8 +10,8 @@
 # the calls that never go through `/source-control:pull-request create`.
 #
 # WHAT IT ENFORCES — no negated closing reference anywhere in the body, judged
-# as the consuming repository's `.github/actions/pr-contract` composite step
-# (melodic-software/ci-workflows) judges it, after stripping HTML comments
+# as the consuming repository's `.github/actions/pr-require-checks/check-contract`
+# composite step (melodic-software/ci-workflows) judges it, after stripping HTML comments
 # (terminated ones, then an unterminated `<!--` swallowing the rest) and masking
 # Markdown code. The rest of that contract (a closing line and non-empty
 # `## Summary`, `## Fix`, `## Verification` and `## Related` sections) is
@@ -19,9 +19,8 @@
 #
 # SCOPE GUARD — enforcement is keyed to the repository's OWN policy: the gate
 # runs only when one of the repo's `.github/workflows/*.yml` / `*.yaml` files
-# `uses:` the contract composite step, at its current path
-# `pr-require-checks/check-contract` or its old path `pr-contract`, in either
-# fleet form (the SHA-pinned
+# `uses:` the contract composite step `pr-require-checks/check-contract`, in
+# either fleet form (the SHA-pinned
 # `melodic-software/ci-workflows/.github/actions/<path>@<sha>`, or
 # ci-workflows' own local `./.github/actions/<path>`). The first
 # matching file, in sorted glob order, becomes GATE_FILE. A repo that does not
@@ -148,11 +147,10 @@ hook::repo_root_to REPO_ROOT "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" || :
 GATE_FILE=""
 # Both `uses:` forms the fleet writes: the SHA-pinned cross-repo reference
 # (`melodic-software/ci-workflows/.github/actions/<path>@<sha>`) and
-# ci-workflows' own local dogfood (`./.github/actions/<path>`), at the
-# composite's current path `pr-require-checks/check-contract` or its old path
-# `pr-contract`, which older pins still use. The trailing class keeps a longer
-# sibling directory (`pr-contract-foo`) out.
-gate_re='\.github/actions/(pr-contract|pr-require-checks/check-contract)([@[:space:]]|$)'
+# ci-workflows' own local dogfood (`./.github/actions/<path>`), where <path> is
+# `pr-require-checks/check-contract`. The trailing class keeps a longer sibling
+# directory (`check-contract-foo`) out.
+gate_re='\.github/actions/pr-require-checks/check-contract([@[:space:]]|$)'
 for candidate in "$REPO_ROOT"/.github/workflows/*.yml "$REPO_ROOT"/.github/workflows/*.yaml; do
   # An unmatched glob stays literal; skipped here rather than leaking
   # `shopt -s nullglob` out of the hook.

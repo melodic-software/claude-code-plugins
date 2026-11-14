@@ -1,5 +1,5 @@
 {
-  "description": "Gates pull-request and worktree operations: a PR body against the repo's PR-contract linkage gate on both the CLI and the GitHub MCP path, a `git worktree add` target against the nesting invariant, and a harness-removed worktree's uncommitted work and plugin install records before its removal.",
+  "description": "Gates pull-request and worktree operations: a PR body against the repo's check-contract linkage gate on both the CLI and the GitHub MCP path, a `git worktree add` target against the nesting invariant, and a harness-removed worktree's uncommitted work and plugin install records before its removal.",
   "hooks": {
     "PreToolUse": [
       {
@@ -14,7 +14,7 @@
             ],
             "if": "Bash(*pr *create*)",
             "timeout": 15,
-            "statusMessage": "Checking PR body against the repo's pr-contract gate..."
+            "statusMessage": "Checking PR body against the repo's check-contract gate..."
           },
           {
             "type": "command",
@@ -25,7 +25,7 @@
             ],
             "if": "Bash(*pr *new*)",
             "timeout": 15,
-            "statusMessage": "Checking PR body against the repo's pr-contract gate..."
+            "statusMessage": "Checking PR body against the repo's check-contract gate..."
           },
           {
             "type": "command",
@@ -36,7 +36,7 @@
             ],
             "if": "Bash(*pr *edit*)",
             "timeout": 15,
-            "statusMessage": "Checking PR body against the repo's pr-contract gate..."
+            "statusMessage": "Checking PR body against the repo's check-contract gate..."
           },
           {
             "type": "command",
@@ -62,7 +62,7 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/pr-linkage-mcp-gate.sh"
             ],
             "timeout": 15,
-            "statusMessage": "Checking PR body against the repo's pr-contract gate..."
+            "statusMessage": "Checking PR body against the repo's check-contract gate..."
           }
         ]
       }

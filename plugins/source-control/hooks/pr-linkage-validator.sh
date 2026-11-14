@@ -158,9 +158,10 @@ trim_to() {
   printf -v "$__plv_dest" '%s' "$s"
 }
 
-# The pr-contract analyzer's linkage patterns (`scan_line` and the `no-issue`
-# test in ci-workflows .github/actions/pr-contract/run.sh), transcribed to POSIX
-# ERE and matched against lower-cased text in place of `tolower`. The closing
+# The check-contract analyzer's linkage patterns (`scan_line` and the `no-issue`
+# test in ci-workflows .github/actions/pr-require-checks/check-contract/run.sh),
+# transcribed to POSIX ERE and matched against lower-cased text in place of
+# `tolower`. The closing
 # keyword and the non-closing marker are matched one line at a time, as CI
 # does; the no-issue phrase is matched over the whole body, wrapped in newlines
 # so the explicit non-word boundary also holds at either end.
@@ -492,7 +493,7 @@ linkage::blocking_problems() {
 # drift between the Bash and MCP surfaces.
 linkage::block_message() {
   local p
-  echo "BLOCKED: PR body fails the pr-contract step in $1." >&2
+  echo "BLOCKED: PR body fails the check-contract step in $1." >&2
   for p in "${LINKAGE_PROBLEMS[@]}"; do echo "  - $p" >&2; done
   echo "Only a negated closer blocks; a missing closing line or ## Summary, ## Fix, ## Verification or ## Related section is advisory." >&2
 }
