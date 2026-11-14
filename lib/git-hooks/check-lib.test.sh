@@ -314,6 +314,10 @@ printf 'again\n' >"$S/r1.txt"
 expect "a failing git add in checks_restage fails the hook" \
   "1|checks: git exited 2 while staging the rewritten files, so this change was not fully checked; fix that failure, then commit again" \
   "$(in_repo_failing "$S" pre-commit 'pathspec-file-nul' 'checks_restage r1.txt; exit 0')"
+# --ignore-submodules=all is carried only by checks_restage's own git diff.
+expect "a failing git diff in checks_restage fails the hook" \
+  "1|checks: git exited 2 while listing the rewritten files, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$S" pre-commit 'ignore-submodules=all' 'checks_restage r1.txt; exit 0')"
 
 # --- missing tool and skip-propagation ------------------------------------------
 new_repo; H="$REPO"
