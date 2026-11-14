@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.4] - 2026-11-14
+
+### Changed
+
+- `/playwright:demo-video` names `/review:reviewer-media` by its command under `## Related`.
+
 ## [2.0.3] - 2026-11-14
 
 ### Changed
