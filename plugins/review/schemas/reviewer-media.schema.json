@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/review/schemas/reviewer-media.schema.json",
+  "title": "reviewer-media",
+  "description": "Team layer of the reviewer-media concern (docs/conventions/reviewer-media.yaml): when /review:reviewer-media builds narrated review media for a pull request, and the values it hands the voice, the renderer and the pull-request media action.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "policy": {
+      "description": "never: no media, request label ignored. on-request (default): only when the request label is on the pull request. when-selected: also when the pull request crosses a review-digest trigger. always: every ready pull request.",
+      "enum": ["never", "on-request", "when-selected", "always"]
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requested": { "description": "The label that asks for media; false turns it off.", "type": ["string", "boolean"] },
+        "posted": { "description": "The label set once media are posted; false turns it off.", "type": ["string", "boolean"] },
+        "failed": { "description": "The label set when a build fails for good; false turns it off.", "type": ["string", "boolean"] }
+      }
+    },
+    "voice_chain": {
+      "description": "Voice backends to try in order, passed to /speech:narrate as --backend-chain.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": { "enum": ["edge-tts", "kokoro", "openai", "elevenlabs", "command"] }
+    },
+    "voices": {
+      "description": "The voice per backend, passed as --voice <backend>:<voice>.",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "voice_command": {
+      "description": "Team-only: the command backend's template, {script} in and {out} WAV out. Read from the base commit only, since it runs a command.",
+      "type": "string"
+    },
+    "allow_unattended_paid_voice": {
+      "description": "Team-only: let an unattended run call a paid voice backend.",
+      "type": "boolean"
+    },
+    "ui_paths": {
+      "description": "Globs of paths whose change makes the storyboard include screenshot moments.",
+      "type": "array",
+      "maxItems": 64,
+      "items": { "type": "string" }
+    },
+    "upload_limit_mb": {
+      "description": "The largest video the pull request attaches; a larger one is split at chapters locally or linked as an Actions artifact.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000
+    },
+    "artifact_retention_days": {
+      "description": "Days an Actions artifact holding the media is kept, 1 to 90, so media never add storage billing.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 90
+    }
+  }
+}

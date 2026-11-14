@@ -192,10 +192,11 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/plugin-quality:audit`](../plugins/plugin-quality/skills/audit/SKILL.md) | `plugin-quality` | Behavioral audit of a plugin component ending in a maintainer work item | `session`, `arm` | `/work-items:work` |
 | [`/review:code-review`](../plugins/review/skills/code-review/SKILL.md) | `review` | Org CI code-review lane command for a GitHub pull request |  |  |
 | [`/review:council`](../plugins/review/skills/council/SKILL.md) | `review` | Configurable reviewer panel chosen per change, with optional fix rounds |  | `/review:fanout`, `/verification:confirm` |
-| [`/review:explain-change`](../plugins/review/skills/explain-change/SKILL.md) | `review` | Change digest for a pull request, markdown record plus an interactive view | `pr-number` | `/review:quality-gate` |
+| [`/review:explain-change`](../plugins/review/skills/explain-change/SKILL.md) | `review` | Change digest for a pull request, markdown record plus an interactive view | `pr-number` | `/review:quality-gate`, `/review:reviewer-media` |
 | [`/review:fanout`](../plugins/review/skills/fanout/SKILL.md) | `review` | Fan review out across every reviewer surface into one ranked report | `run-everything`, `fix` | `/review:fanout`, `/verification:confirm`, `/review:council` |
 | [`/review:merge-risk`](../plugins/review/skills/merge-risk/SKILL.md) | `review` | Checked merge-risk rating of one pull request with a demote-only flag | `pr-number`, `pr-url` | `/review:explain-change` |
 | [`/review:quality-gate`](../plugins/review/skills/quality-gate/SKILL.md) | `review` | Single-lens review checkpoint routed to the matching reviewer | `self`, `code`, `code-design`, `architecture`, `security`, `spec`, `close-out`, `downstream`, `pr`, `criteria`, `slice` | `/verification:confirm` |
+| [`/review:reviewer-media`](../plugins/review/skills/reviewer-media/SKILL.md) | `review` | Narrated walkthrough video for a pull request's reviewers, placed in its description |  | `/source-control:pull-request` |
 | [`/review:security-review`](../plugins/review/skills/security-review/SKILL.md) | `review` | Org CI security-review lane command for a GitHub pull request |  |  |
 | [`/skill-quality:check`](../plugins/skill-quality/skills/check/SKILL.md) | `skill-quality` | Static QA gate for skill frontmatter, caps, and evals | `check`, `validate-evals`, `listing-budget`, `measure-invocation` | `/playbooks:skill-authoring`, `/verification:confirm` |
 | [`/toolchain:ratchet`](../plugins/toolchain/skills/ratchet/SKILL.md) | `toolchain` | Hold a count in CI with a checked-in ceiling a human merges |  | `/source-control:pull-request` |
@@ -228,7 +229,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does | Actions | Next |
 | --- | --- | --- | --- | --- |
-| [`/source-control:pull-request`](../plugins/source-control/skills/pull-request/SKILL.md) | `source-control` | Full PR lifecycle. Prep, create, monitor CI, address reviews, merge | `prep`, `create`, `ready`, `monitor`, `comments`, `ci`, `merge`, `reassess`, `evidence`, `status`, `full` | `/session-flow:retro`, `/implementation:implement`, `/explainer-video:produce` |
+| [`/source-control:pull-request`](../plugins/source-control/skills/pull-request/SKILL.md) | `source-control` | Full PR lifecycle. Prep, create, monitor CI, address reviews, merge | `prep`, `create`, `ready`, `monitor`, `comments`, `ci`, `merge`, `reassess`, `evidence`, `status`, `full` | `/session-flow:retro`, `/implementation:implement`, `/review:reviewer-media` |
 
 ## Anytime / cross-cutting
 
