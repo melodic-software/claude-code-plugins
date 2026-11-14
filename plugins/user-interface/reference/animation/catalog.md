@@ -50,8 +50,8 @@ Contents: `should-it-animate`, `name-the-purpose`, `cheapest-tool`, `properties`
 Decide this first; sometimes the right result is no animation at all, and that is a success. Ask
 how often the user will trigger it:
 
-- **100+ times a day** (command menu, keyboard navigation, tab switching in a power tool) → **No
-  animation.** Speed beats smoothness.
+- **More than `animation.skip_frequency` times a day** (command menu, keyboard navigation, tab
+  switching in a power tool) → **No animation.** Speed beats smoothness.
 - **Keyboard-initiated action** (arrow-key list navigation, shortcuts, focus movement) → **Never
   animate.** Keyboard users are moving fast; animation makes the UI feel disconnected from their
   input.
@@ -73,10 +73,10 @@ A frequently seen animation costs the user its full duration on every repeat.
   that isn't plainly a mistake. Cutting a command palette's 300ms entrance to 0 is a fix; removing
   a success celebration is a decision.
 
-**Audit: Blocking.** An animation on a keyboard-initiated or 100-times-a-day action that delays
-input: an enter animation on the command palette, animated highlight movement on arrow-key
-navigation, a transition on tab switches in a tool used all day, anything animated in response to a
-keyboard shortcut.
+**Audit: Blocking.** An animation that delays input on a keyboard-initiated action or one used more
+than `animation.skip_frequency` times a day: an enter animation on the command palette, animated
+highlight movement on arrow-key navigation, a transition on tab switches in a tool used all day,
+anything animated in response to a keyboard shortcut.
 
 **Audit: Important.** The same animation when it does not delay input.
 
@@ -580,7 +580,7 @@ entering list), say so and name the check instead of guessing a value:
 | Animating every property at once | Name the exact properties |
 | An entrance from scale zero | Scale near `animation.scale.enter` with zero opacity |
 | Ease-in on an entrance or on-screen motion | `out`, or `in_out` on screen; `in` for a permanent exit |
-| Motion on a keyboard shortcut or a many-times-an-hour action | No animation |
+| Motion on a keyboard shortcut or an action used more than `animation.skip_frequency` times a day | No animation |
 | A duration over its role with no stated reason | Within the role in `animation.duration_ms` |
 | A trigger-anchored popover growing from its center | Origin at the trigger (modals exempt) |
 | A restarting keyframe on something triggered rapidly | Motion that retargets from the current value |

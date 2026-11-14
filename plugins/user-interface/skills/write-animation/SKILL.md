@@ -51,8 +51,9 @@ Run them in order: steps 2 and 3 can end the run with no code, and that is a cor
    motion tokens and none matches. With no shell or no `node`, read the same signals by hand and use
    the defaults in `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`.
 2. **Should it animate?** Apply "Should it animate" in
-   [catalog.md](../../reference/animation/catalog.md). A keyboard-initiated or many-times-an-hour
-   action does not animate: say so, write nothing, and offer the instant alternative.
+   [catalog.md](../../reference/animation/catalog.md). A keyboard-initiated action, or one used more
+   than `animation.skip_frequency` times a day, does not animate: say so, write nothing, and offer
+   the instant alternative.
 3. **Name the purpose** from catalog.md's list in one word. If none fits, stop the same way.
 4. **Name the stack from the files** the change touches (the component's file type, its imports,
    the project's manifests), never from a framework's name alone, and say which signals you used.
