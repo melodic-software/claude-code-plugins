@@ -152,9 +152,6 @@ def main(argv=None):
     a = ap.parse_args(argv)
     stitcher = None if a.stitcher in (None, '', 'ffmpeg') else a.stitcher
     started = time.monotonic()
-    missing = [t for t in ('ffmpeg', 'ffprobe') if not shutil.which(t)]
-    if missing:
-        return fail(2, f'{" and ".join(missing)} not found on PATH; install FFmpeg (https://ffmpeg.org/download.html)')
     raw = a.storyboard.read_bytes()
     try:
         board = media_timeline.parse(json.loads(raw))
@@ -171,6 +168,9 @@ def main(argv=None):
         why = 'its rules did not load' if scan.fail_closed else ', '.join(f'{f["source"]} ({f["kind"]})'
                                                                            for f in scan.findings)
         return fail(4, f'scan: stopped before anything was rendered: {why}')
+    missing = [] if a.script_only else [t for t in ('ffmpeg', 'ffprobe') if not shutil.which(t)]
+    if missing:
+        return fail(2, f'{" and ".join(missing)} not found on PATH; install FFmpeg (https://ffmpeg.org/download.html)')
     out = a.out.resolve()
     if out.exists() and any(out.iterdir()):
         if not (out / MARKER).is_file():

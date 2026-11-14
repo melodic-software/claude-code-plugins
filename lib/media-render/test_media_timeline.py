@@ -40,7 +40,7 @@ class ParseTest(unittest.TestCase):
     def test_title_may_be_silent(self):
         b = board()
         b['moments'][0]['narration'] = ''
-        mt.parse(b)
+        self.assertEqual(len(mt.script(mt.parse(b)).strip().split('\n\n')), len(b['moments']) - 1)
 
     def test_wrong_version_rejected(self):
         with self.assertRaisesRegex(mt.StoryboardError, 'version'):

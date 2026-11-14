@@ -57,6 +57,24 @@ if ((${#files[@]})); then
   done < <(LC_ALL=C sort -u <<<"$dump")
 fi
 
+# A link to this repository's base branch whose path exists at HEAD resolves
+# once the change merges, so it is not checked online: a pull request that adds
+# a file and links it would otherwise always fail.
+self=${SELF_REPO:-${GITHUB_REPOSITORY:-}}
+if [[ -n $self ]] && ((${#urls[@]})); then
+  kept=()
+  for url in "${urls[@]}"; do
+    path=
+    for kind in blob tree; do
+      prefix="https://github.com/$self/$kind/${base#origin/}/"
+      [[ $url == "$prefix"* ]] && path=${url#"$prefix"} && path=${path%%[#?]*}
+    done
+    if [[ -n $path ]] && git cat-file -e "HEAD:${path%/}" 2>/dev/null; then continue; fi
+    kept+=("$url")
+  done
+  urls=("${kept[@]}")
+fi
+
 if ((list)); then
   ((${#urls[@]} == 0)) || printf '%s\n' "${urls[@]}"
   exit 0
