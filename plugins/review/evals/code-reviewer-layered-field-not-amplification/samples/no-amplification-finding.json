@@ -1,0 +1,90 @@
+{
+  "pass": [
+    {
+      "answer": "SUGGESTION | src/api/customer-mapper.js:8 | phoneNumber is passed through unnormalized; consider E.164 at the boundary | Confidence: low",
+      "why": "no change-amplification finding"
+    },
+    {
+      "answer": "No issues found.",
+      "why": "clean review"
+    },
+    {
+      "answer": "No Shotgun Surgery finding: change amplification is IMPORTANT, never CRITICAL, but the representation each layer needs for one new field is not a site.\n\nSUGGESTION | src/api/customer-mapper.js:8 | phoneNumber has no format check | Confidence: low",
+      "why": "explanation that quotes the rule's severity"
+    },
+    {
+      "answer": "### IMPORTANT\n\n- src/db/customer-repository.js:9: phone_number is not validated before it reaches the entity. Confidence: medium\n\nThe per-layer edits for phoneNumber are not Shotgun Surgery: each layer needs its own representation.",
+      "why": "IMPORTANT section about something else, then a prose note that rules Shotgun Surgery out"
+    },
+    {
+      "answer": "IMPORTANT | src/api/customer-mapper.js:8 | not Shotgun Surgery, but toCustomerDto has no test covering phoneNumber | Confidence: medium",
+      "why": "IMPORTANT finding that negates Shotgun Surgery"
+    },
+    {
+      "answer": "| 1 | SUGGESTION | low | Shotgun Surgery | phoneNumber added in five layers; per-layer representation is excluded, so a note only | src/api/customer-mapper.js:8 | none |",
+      "why": "table row rated SUGGESTION"
+    },
+    {
+      "answer": "SUGGESTION | migrations/002_add_customer_phone_number.sql:1 | excluded from change amplification: entity, row mapping, DTO, mapper and migration are the representation each layer needs | Confidence: high",
+      "why": "exclusion note rated SUGGESTION"
+    },
+    {
+      "answer": "CRITICAL: 0, IMPORTANT: 0, SUGGESTION: 1 (Shotgun Surgery check: none)",
+      "why": "summary count line"
+    },
+    {
+      "answer": "### IMPORTANT\n\n- src/db/customer-repository.js:9: phone_number is read but no insert writes it. Confidence: medium\n\n### SUGGESTION\n\n- src/api/customer-mapper.js:8: Shotgun Surgery check: five layers, each its own representation; noted only.",
+      "why": "Shotgun Surgery mention sits under the SUGGESTION section"
+    },
+    {
+      "answer": "IMPORTANT | src/api/customer-mapper.js:8 | phoneNumber isn't change amplification here, yet the mapper drops null checks | Confidence: low",
+      "why": "contracted negation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "IMPORTANT | src/api/customer-mapper.js:8 | Shotgun Surgery: adding phoneNumber needed edits in customer.js:7, customer-repository.js:9, customer-dto.js:7, customer-mapper.js:8 and 002_add_customer_phone_number.sql:1 | Confidence: medium",
+      "why": "the layered edits rated IMPORTANT as Shotgun Surgery"
+    },
+    {
+      "answer": "CRITICAL | src/domain/customer.js:7 | Change amplification: phoneNumber added in five layers in step | Confidence: high",
+      "why": "rated CRITICAL as change amplification"
+    },
+    {
+      "answer": "| 1 | IMPORTANT | medium | Shotgun Surgery | phoneNumber added in five files | src/api/customer-mapper.js:8 | Derive the layers from one schema |",
+      "why": "table row rated IMPORTANT"
+    },
+    {
+      "answer": "### IMPORTANT\n\n- src/api/customer-dto.js:7: Shotgun Surgery, phoneNumber spread across five files.",
+      "why": "finding under an IMPORTANT section heading"
+    },
+    {
+      "answer": "### Critical\n\n1. src/domain/customer.js:7: change amplification across the entity, DTO and mapper.",
+      "why": "finding under a Critical section heading"
+    },
+    {
+      "answer": "- **IMPORTANT** | src/db/customer-repository.js:9 | amplification: one field, five edits | Confidence: low",
+      "why": "bulleted bold severity, bare amplification"
+    },
+    {
+      "answer": "Severity: IMPORTANT. Shotgun Surgery across customer.js, customer-mapper.js and the migration.",
+      "why": "Severity: label form"
+    },
+    {
+      "answer": "(IMPORTANT) Shotgun Surgery: phoneNumber edited in five places.",
+      "why": "parenthesized severity"
+    },
+    {
+      "answer": "SUGGESTION | src/api/customer-mapper.js:8 | phoneNumber has no format check | Confidence: low\nIMPORTANT | src/api/customer-mapper.js:8 | Shotgun Surgery across five layers | Confidence: medium",
+      "why": "a SUGGESTION line before does not save the IMPORTANT finding"
+    },
+    {
+      "answer": "IMPORTANT | src/payments/labels.js:4 | Shotgun Surgery: adding paypal needed edits in options.js:1, labels.js:4 and icons.js:4 | Confidence: medium",
+      "why": "the genuine amplification shape the sibling case rates IMPORTANT also fires here"
+    }
+  ]
+}
