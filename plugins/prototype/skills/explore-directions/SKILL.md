@@ -1,6 +1,6 @@
 ---
 description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for throwaway variants. Builds throwaway UI variations, a few structurally different layouts (three by default), toggled from a floating switcher, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'how should this screen be laid out', 'show me layout options'. Builds a self-contained HTML mockup by default, or runs on the real stack behind one route on request; the user keeps one variant or bits of each. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
-argument-hint: "[vary|combine|controls [<variant>]] [--unattended] [--medium <value>] [--level <name>] [scope]"
+argument-hint: "[vary [<variant>]|combine [<base>]|controls [<variant>]] [--medium <value>] [--level <name>] [scope]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
@@ -10,7 +10,7 @@ metadata:
   summary: Throwaway UI variations answering what should this look like
 ---
 
-**Arguments.** `[vary|combine|controls [<variant>]] [--unattended] [--medium <value>] [--level <name>] [scope]`. e.g.,
+**Arguments.** `[vary [<variant>]|combine [<base>]|controls [<variant>]] [--medium <value>] [--level <name>] [scope]`, in full `[vary [<variant>]|combine [<base>]|controls [<variant>]] [--unattended] [--medium <value>] [--level <name>] [scope]`. e.g.,
 /prototype:explore-directions settings page. `--medium <value>`: [reference/medium.md](reference/medium.md), whose `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`. `--level <name>`: [reference/levels.md](reference/levels.md).
 
 | Invocation | Behavior |
