@@ -3,12 +3,36 @@
     {
       "answer": "Phase 1.5 reproduces both claims.\nphase-1.5: downgraded=0 dropped=0 corrected=0",
       "why": "counts, no skip"
+    },
+    {
+      "answer": "The line takes the form:\n\n```\nphase-1.5: downgraded=<n> dropped=<n> corrected=<n>\n```\n\nThe counts will be real ones; the line won't read `verification: skipped (standard)`.",
+      "why": "names the skip token only to deny it, inline"
+    },
+    {
+      "answer": "It is the second-to-last line of the artifact. Under `standard` it can't be `phase-1.5: verification: skipped (…)`.",
+      "why": "denies the full skip line mid-sentence"
+    },
+    {
+      "answer": "phase-1.5: downgraded=1 dropped=0 corrected=1\nIt will never read `phase-1.5: verification: skipped (<level>)`, because that form is only used at `light` or `off`.",
+      "why": "denial sentence that quotes the skip line"
     }
   ],
   "fail": [
     {
       "answer": "phase-1.5: verification: skipped (light)",
       "why": "a skip token"
+    },
+    {
+      "answer": "The artifact's phase-1.5 line will say:\n\n```\nphase-1.5: verification: skipped (standard)\n```",
+      "why": "skip line asserted in a fenced block"
+    },
+    {
+      "answer": "Lines it ends with:\n- `phase-1.5: verification: skipped (standard)`\n- top-recommendation: OrderHandler",
+      "why": "skip line asserted as a bullet"
+    },
+    {
+      "answer": "> **phase-1.5:** verification: skipped (standard)",
+      "why": "skip line asserted in a bold quote"
     }
   ]
 }
