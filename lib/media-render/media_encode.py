@@ -1,8 +1,10 @@
 """ffmpeg by subprocess, through named encode profiles (ADR 0103). Standard library only.
 
 PROFILES   one named argument set per caller: a moved plugin keeps its own arguments under its own name.
-run(args, cwd=None, report=False, text=True)     ffmpeg -v error -y ARGS (report: -hide_banner -nostats, for
-                                                 filters that print to stderr); EncodeError carries stderr.
+run(args, cwd=None, report=False, text=True, timeout=None)
+                                                 ffmpeg -v error -y ARGS (report: -hide_banner -nostats, for
+                                                 filters that print to stderr); EncodeError carries stderr;
+                                                 a timeout raises subprocess.TimeoutExpired.
 probe(args)                                      ffprobe -v error ARGS -> stdout; EncodeError as run.
 mux(video, audio, captions, out, profile)        a finished video stream with narration and a soft caption track.
 assemble_audio(wav, segments, out)               narration slices and silences, in order, as one WAV.
@@ -27,6 +29,8 @@ PROFILES = {
     'animation-mp4': {'video': ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '16']},
     'animation-webm': {'video': ['-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-crf', '30', '-b:v', '0']},
     'animation-gif': {'video': ['-vf', 'split[a][b];[a]palettegen[p];[b][p]paletteuse']},
+    # pixel-art's scene capture: the browser's WebM copied as recorded, the scene's looped WAV as Opus.
+    'pixel-art-webm': {'video': ['-c:v', 'copy'], 'audio': ['-c:a', 'libopus']},
 }
 
 
@@ -41,10 +45,10 @@ def _check(r, tool):
     return r
 
 
-def run(args, cwd=None, report=False, text=True):
+def run(args, cwd=None, report=False, text=True, timeout=None):
     level = ['-hide_banner', '-nostats'] if report else ['-v', 'error']
     return _check(subprocess.run(['ffmpeg', *level, '-y', *map(str, args)], cwd=cwd, capture_output=True,
-                                 text=text), 'ffmpeg')
+                                 text=text, timeout=timeout), 'ffmpeg')
 
 
 def probe(args):
