@@ -42,8 +42,10 @@ printf '%s\n' "$*" >>"$S/calls"
 record_edit() { bash "$(dirname "$0")/record-edit" "$S" "$1"; }
 case "$1 $2" in
   "api graphql")
+    # GraphQL viewer names an App or Actions token `name[bot]`; its edits' editor is `name`.
     jq -n --slurpfile edits "$S/edits.jsonl" \
-      '{data: {viewer: {login: "media-bot"}, repository: {pullRequest:
+      --arg viewer "$( [[ -f "$S/viewer" ]] && cat "$S/viewer" || echo media-bot)" \
+      '{data: {viewer: {login: $viewer}, repository: {pullRequest:
         {userContentEdits: {nodes: ($edits | reverse | .[0:20])}}}}}'
     ;;
   "api user")
@@ -518,6 +520,21 @@ printf 'bash "%s/person-edit" "%s" "Second late edit."\n' "$STUB_DIR" "$S" >"$S/
 media post 7 --manifest "$M1/manifest.json" --run-id run-1
 assert_exit "a person editing again during the repair write aborts with exit 3" 3 "$RC"
 assert_contains "the second refusal names the change" "$OUT" "changed"
+
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+echo 'media-bot[bot]' >"$S/viewer"
+printf 'bash "%s/person-edit" "%s" "Hold: waiting on the owner."\n' "$STUB_DIR" "$S" >"$S/write-hook-1"
+media post 7 --manifest "$M1/manifest.json" --run-id run-1
+assert_exit "a bot token's edit during the upload still posts" 0 "$RC"
+assert_contains "a bot viewer keeps the person's edit made during the upload" "$(cat "$S/body")" "Hold: waiting on the owner."
+
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+echo 'media-bot[bot]' >"$S/viewer"
+printf 'bash "%s/person-edit" "%s" "First late edit."\n' "$STUB_DIR" "$S" >"$S/write-hook-1"
+printf 'bash "%s/person-edit" "%s" "Second late edit."\n' "$STUB_DIR" "$S" >"$S/write-hook-2"
+media post 7 --manifest "$M1/manifest.json" --run-id run-1
+assert_exit "a bot viewer still aborts with exit 3 on a second edit during the repair" 3 "$RC"
+assert_contains "a bot viewer's second refusal names the change" "$OUT" "changed"
 
 M6="$TEST_TMPDIR/m6"
 media_dir "$M6" "$HEAD1"

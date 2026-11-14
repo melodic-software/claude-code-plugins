@@ -575,6 +575,15 @@ def _editor(edit: dict) -> str | None:
     return (edit.get("editor") or {}).get("login")
 
 
+def _same(a: str | None, b: str | None) -> bool:
+    """GraphQL `viewer` names an App or Actions token `name[bot]`, but an edit's Bot editor `name`."""
+    return (
+        a is not None
+        and b is not None
+        and a.removesuffix("[bot]") == b.removesuffix("[bot]")
+    )
+
+
 def _newest(edits: list[dict]) -> dict | None:
     return max(edits, key=lambda e: str(e.get("editedAt") or ""), default=None)
 
@@ -588,10 +597,10 @@ def keep_their_edit(
     """
     viewer, edits = forge.edits()
     new = [e for e in edits if e["id"] not in seen]
-    theirs = _newest([e for e in new if _editor(e) != viewer])
+    theirs = _newest([e for e in new if not _same(_editor(e), viewer)])
     if theirs is None:
         return after, None
-    ours = _newest([e for e in new if _editor(e) == viewer])
+    ours = _newest([e for e in new if _same(_editor(e), viewer)])
     block = split(
         ours["diff"] if ours and isinstance(ours.get("diff"), str) else after["body"]
     ).block
@@ -611,7 +620,7 @@ def keep_their_edit(
         seen = {e["id"] for e in forge.edits()[1]}
         forge.write_body(repaired)
         _, again = forge.edits()
-        if any(e["id"] not in seen and _editor(e) != viewer for e in again):
+        if any(e["id"] not in seen and not _same(_editor(e), viewer) for e in again):
             raise Refusal(
                 3,
                 "changed",
