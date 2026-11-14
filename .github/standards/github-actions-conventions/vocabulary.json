@@ -302,13 +302,7 @@
     "Windows"
   ],
   "displayNameLevel": "warning",
-  "jobNameExceptions": [
-    {
-      "jobId": "report-ci-status",
-      "name": "ci-status",
-      "reason": "Keeps the required context `ci-status` reporting, with the `CI Status` job's conclusion, until the github-iac ci-gate ruleset requires `CI Status`; removed once it does."
-    }
-  ],
+  "jobNameExceptions": [],
   "exemptions": [
     {
       "path": ".github/workflows/dependabot-fragments.yml",

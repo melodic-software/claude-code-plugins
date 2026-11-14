@@ -3,6 +3,18 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.5] - 2026-11-14
+
+### Fixed
+
+- **The typos-check pre-commit entry no longer fails on a commit of several hundred staged paths with "Argument list too long" ([#15982](https://github.com/melodic-software/claude-code-plugins/issues/15982)).** The staged paths now reach typos on stdin (`typos --file-list -`), so no count or length of them reaches the command line, which Windows caps at 32,767 characters. A path holding a line feed or carriage return is still checked, through its own command-line call, and a list typos cannot decode is retried once on the command line. The entry now needs typos 1.16.19 or later, the first release with `--file-list`. Rerun `/spelling:setup apply install-git-hooks` to refresh an installed copy; `/spelling:setup check` reports drift until then.
+
+## [2.0.4] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
 ## [2.0.3] - 2026-11-13
 
 ### Changed
