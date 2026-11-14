@@ -1,8 +1,13 @@
 # yaml-language-server: $schema=../../plugins/guardrails/schemas/guardrails.schema.json
 # Team layer for the guardrails plugin's settings.
 # Resolution: plugins/guardrails/hooks/block-fix-request-post.sh (fix_request_post),
-# plugins/guardrails/hooks/block-dangerous-git.sh (unpinned_lease).
+# plugins/guardrails/hooks/block-dangerous-git.sh (unpinned_lease),
+# plugins/guardrails/hooks/abort-boundary.sh (deny_on_crash).
 # allow: the fix-request guard protects only against our own actors, so it is lifted here.
 fix_request_post: allow
 # block: AGENTS.md allows only a lease pinned to the full SHA.
 unpinned_lease: block
+# A crash in the dangerous-git guard denies the call here, so a defect cannot
+# let a force push through with only a notice.
+deny_on_crash:
+  - block-dangerous-git

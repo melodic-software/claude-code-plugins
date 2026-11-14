@@ -2,6 +2,9 @@
   "pass": [
     {
       "answer": "Rung: semgrep-rule."
+    },
+    {
+      "answer": "Rung: syntax-pattern-rule."
     }
   ],
   "fail": [
