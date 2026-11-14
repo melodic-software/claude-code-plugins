@@ -82,6 +82,24 @@ check_fail_closed "a nested list item" \
   $'pre_ready:\n  -\n    - verify\n' "pre_ready item 0 is not a {step, enabled} mapping"
 check_fail_closed "a repeated pre_ready key" \
   $'pre_ready: []\npre_ready:\n  - step: verify\n    enabled: false\n' "pre_ready appears more than once"
+# The parser emits no record for an empty value or an empty item, so these are found in the text.
+check_fail_closed "an empty flow list as a value" \
+  $'pre_ready:\n  - step: verify\n    enabled: false\n    why: []\n' "pre_ready item has a key with no value"
+check_fail_closed "an unknown key with an empty value" \
+  $'pre_ready:\n  - step: verify\n    enabled: false\n    note:\n' "pre_ready item has a key with no value"
+check_fail_closed "a trailing empty list item" \
+  $'pre_ready:\n  - step: verify\n    enabled: false\n  -\n' "pre_ready holds an empty item"
+check_fail_closed "an only, empty list item" \
+  $'pre_ready:\n  -\n' "pre_ready holds an empty item"
+
+# Names the reader uses inside must not be read from the environment it inherits.
+out=$(printf 'pre_ready:\n  - step: verify\n' | env item_0_enabled=false bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
+assert_eq "an inherited item_0_enabled does not fill a missing enabled value" \
+  $'source\tfail-closed\tstep \'verify\' has no enabled value in pre_ready\n'"$ALL_ON" "$out"
+out=$(printf 'pre_ready:\n  - enabled: false\n' | env item_0_step=verify bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
+assert_eq "an inherited item_0_step does not fill a missing step" \
+  $'source\tfail-closed\tpre_ready item 0 has no step\n'"$ALL_ON" "$out"
+
 check_fail_closed "a repeated key inside an item" \
   $'pre_ready:\n  - step: verify\n    enabled: false\n    step: code-review\n' "docs/conventions/source-control.yaml does not parse: line 4: duplicate key \`pre_ready.0.step\` (first at line 2)"
 

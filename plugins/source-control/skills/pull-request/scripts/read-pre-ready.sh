@@ -28,7 +28,8 @@
 #                                   file does not parse, pre_ready
 #                                   repeats or is not a list, an item is not a
 #                                   {step, enabled} mapping or holds another
-#                                   key, a step is missing, unknown or repeated,
+#                                   key, an item or a key's value is empty,
+#                                   a step is missing, unknown or repeated,
 #                                   or enabled is missing, quoted, or not true
 #                                   or false
 # Then one `<step>  enabled|disabled` line per step, in run order. Under
@@ -100,11 +101,14 @@ q="[\"']?"
   fail_closed "pre_ready appears more than once"
 
 base_file_records || fail_closed "$BASE_FILE_REASON"
-records="$BASE_FILE_RECORDS"
 
-seen=$'\n' max=-1
+# A fresh array, so nothing inherited from the environment reads as an item.
+unset ITEM
+declare -A ITEM=()
+seen=$'\n' max=-1 records=0
 while IFS=$'\t' read -r key val; do
   case "$key" in pre_ready | pre_ready.*) ;; *) continue ;; esac
+  ((records += 1))
   [[ "$key" != pre_ready ]] || fail_closed "pre_ready is not a list"
   rest="${key#pre_ready.}"
   idx="${rest%%.*}"
@@ -119,9 +123,20 @@ while IFS=$'\t' read -r key val; do
   fi
   [[ "$seen" != *$'\n'"$key"$'\n'* ]] || fail_closed "pre_ready item $idx repeats a key"
   seen+="$key"$'\n'
-  printf -v "item_${idx}_$sub" '%s' "$val"
+  ITEM["$idx.$sub"]="$val"
   ((idx <= max)) || max=$idx
-done <<<"$records"
+done <<<"$BASE_FILE_RECORDS"
+
+# The parser emits no record for an empty value or an empty item, so those are
+# found in the key's own lines.
+block=$(awk -v q="$q" '
+  $0 ~ "^" q "pre_ready" q "[[:space:]]*:" { inside = 1; next }
+  inside && /^[^[:space:]#-]/ { inside = 0 }
+  inside' <<<"$doc")
+(($(grep -cE '^[[:space:]]*-([[:space:]]|$)' <<<"$block") == max + 1)) ||
+  fail_closed "pre_ready holds an empty item"
+(($(grep -cE "^[[:space:]]*(-[[:space:]]+)?${q}[A-Za-z0-9_.-]+${q}[[:space:]]*:([[:space:]]|\$)" <<<"$block") == records)) ||
+  fail_closed "pre_ready item has a key with no value"
 
 ((max >= 0)) || emit default " "
 
@@ -130,8 +145,7 @@ grep -qE "(^|[[:space:]{,-])${q}enabled${q}[[:space:]]*:[[:space:]]*[\"']" <<<"$
 
 off=" " steps_seen=" "
 for ((i = 0; i <= max; i++)); do
-  step_var="item_${i}_step" enabled_var="item_${i}_enabled"
-  step="${!step_var:-}" enabled="${!enabled_var:-}"
+  step="${ITEM["$i.step"]:-}" enabled="${ITEM["$i.enabled"]:-}"
   [[ -n "$step" ]] || fail_closed "pre_ready item $i has no step"
   [[ " ${PRE_READY_STEPS[*]} " == *" $step "* ]] || fail_closed "unknown step '$step' in pre_ready"
   [[ "$steps_seen" != *" $step "* ]] || fail_closed "step '$step' is listed twice in pre_ready"
