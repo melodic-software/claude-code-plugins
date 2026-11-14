@@ -52,7 +52,7 @@
         "directory": "/",
         "dependency": "@playwright/cli",
         "reviewed": "2026-10-17",
-        "basis": ".github/workflows/eval-browser-dispatch.yml installs the root lockfile in the job that holds the lane's OAuth token, runs the playwright it pulls in and playwright-cli, and makes Bash(playwright-cli *) the eval's default tool, so it runs beside the claude process holding that token.",
+        "basis": ".github/workflows/pr-run-plugin-evals.yml installs the root lockfile in the job that holds the lane's OAuth token, runs the playwright it pulls in and playwright-cli, and makes Bash(playwright-cli *) the eval's default tool, so it runs beside the claude process holding that token.",
         "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
       },
       {
