@@ -894,3 +894,6 @@ lib/media-render/media_verify.py plugins/explainer-video/scripts/media_verify.py
 lib/media-render/media_templates/__init__.py plugins/explainer-video/scripts/media_templates/__init__.py
 lib/media-render/media_templates/frames.css plugins/explainer-video/scripts/media_templates/frames.css
 lib/redact.py plugins/explainer-video/scripts/redact.py
+lib/media-render/media_scan.py plugins/speech/scripts/media_scan.py
+lib/redact.py plugins/speech/scripts/redact.py
+plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json plugins/speech/vendor/gitleaks/gitleaks-rules.json
