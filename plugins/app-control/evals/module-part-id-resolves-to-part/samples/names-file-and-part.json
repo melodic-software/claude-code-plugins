@@ -12,7 +12,7 @@
   "fail": [
     {
       "answer": "No feature file exists for testing/run-e2e: features/testing/README.md lists run-e2e under Parts, but neither features/testing/run-e2e/README.md nor features/testing/run-e2e.md exists, so the feature stops.",
-      "why": "old behaviour: mentions the module file near run-e2e but stops instead of resolving"
+      "why": "old behavior: mentions the module file near run-e2e but stops instead of resolving"
     },
     {
       "answer": "blocked: no feature file for testing/run-e2e (looked for features/testing/run-e2e/README.md and features/testing/run-e2e.md)",
