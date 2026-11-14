@@ -339,7 +339,7 @@ class EdgePerParagraph(unittest.TestCase):
         self.assertEqual(self.chain(self.fake_edge_tts(fail_text='Six seven eight nine.'), nxt=nxt), 0)
         self.assertEqual(self.requests, LONG_PARAGRAPHS[:2] + LONG_PARAGRAPHS[2:3] * 4,
                          'the failing paragraph is retried, and nothing after it is sent')
-        self.assertEqual(self.slept, [1, 2, 4])
+        self.assertEqual(self.slept, [5, 20, 60], 'edge-tts retries wait 5, 20 and 60 seconds')
         self.assertEqual(nxt.scripts, [LONG], 'the next backend voices the whole script, not the rest of it')
         record = json.loads((self.out / 'words.json').read_text(encoding='utf-8'))
         self.assertEqual((record['backend'], record['duration']), ('kokoro', 1.0),
