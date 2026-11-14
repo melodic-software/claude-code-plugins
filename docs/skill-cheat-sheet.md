@@ -171,7 +171,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/tdd:principles`](../plugins/tdd/skills/principles/SKILL.md) | `tdd` | Answer test design questions from authoritative TDD sources |  | `/testing:write` |
 | [`/testing:audit`](../plugins/testing/skills/audit/SKILL.md) | `testing` | Detect tests that cannot fail. Report, gate, or persist |  | `/testing:write`, `/testing:cleanup`, `/review:fanout`, `/review:quality-gate` |
 | [`/testing:check-visual-parity`](../plugins/testing/skills/check-visual-parity/SKILL.md) | `testing` | Baseline screenshots before a change, pixel counts against them after | `baseline`, `compare` | `/implementation:implement`, `/testing:run-e2e` |
-| [`/testing:cleanup`](../plugins/testing/skills/cleanup/SKILL.md) | `testing` | Rewrite, quarantine or delete low-value tests behind a mutation gate, or delete cannot-fail ones | `folder` | `/source-control:pull-request`, `/code-tidying:audit-dead-code` |
+| [`/testing:cleanup`](../plugins/testing/skills/cleanup/SKILL.md) | `testing` | Rewrite, quarantine or delete low-value tests behind a mutation gate, or delete cannot-fail ones |  | `/source-control:pull-request`, `/code-tidying:audit-dead-code` |
 | [`/testing:diagnose`](../plugins/testing/skills/diagnose/SKILL.md) | `testing` | Root-cause failing tests, never retry blindly |  | `/verification:confirm`, `/testing:write` |
 | [`/testing:plan`](../plugins/testing/skills/plan/SKILL.md) | `testing` | Classify changes by required test type and coverage gaps |  | `/testing:write` |
 | [`/testing:run-e2e`](../plugins/testing/skills/run-e2e/SKILL.md) | `testing` | Start the app, drive real flows, capture evidence |  | `/review:quality-gate`, `/verification:confirm`, `/testing:diagnose` |
@@ -341,7 +341,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | Skill | Plugin | What it does | Actions | Next |
 | --- | --- | --- | --- | --- |
 | [`/multi-agent:assess`](../plugins/multi-agent/skills/assess/SKILL.md) | `multi-agent` | Decide workflow, subagents or one context for a task |  | `/multi-agent:route`, `/session-flow:orchestrate` |
-| [`/multi-agent:route`](../plugins/multi-agent/skills/route/SKILL.md) | `multi-agent` | Resolve model and effort per agent role for a multi-agent run | `role`, `all` | `/multi-agent:audit-defaults` |
+| [`/multi-agent:route`](../plugins/multi-agent/skills/route/SKILL.md) | `multi-agent` | Resolve model and effort per agent role for a multi-agent run | `all` | `/multi-agent:audit-defaults` |
 | [`/session-flow:clean-stop`](../plugins/session-flow/skills/clean-stop/SKILL.md) | `session-flow` | Make everything durable before the machine goes away |  |  |
 | [`/session-flow:continue-in-background`](../plugins/session-flow/skills/continue-in-background/SKILL.md) | `session-flow` | Delegate the task to a fresh background agent now |  |  |
 | [`/session-flow:find-handoff`](../plugins/session-flow/skills/find-handoff/SKILL.md) | `session-flow` | Recover a lost handoff or resume prompt after /clear |  |  |

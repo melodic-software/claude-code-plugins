@@ -133,9 +133,10 @@ function unquote(value) {
 }
 
 // The actions are the bare-word alternatives of the hint's first bracketed
-// group: `[audit|fix] [target]` yields audit and fix. Placeholders (`<path>`),
-// flags, `key=value` choices and multi-word alternatives are not actions; a
-// group with no `|` is an argument, and one led by a flag and its value
+// group: `[audit|fix] [target]` yields audit and fix, and a required
+// `<fetch|diff>` group's choices are read the same way. Only a lone `<name>` is
+// a placeholder, so `<<role>|all>` yields all. Flags, `key=value` choices and
+// multi-word alternatives are not actions; a group with no `|` is an argument, and one led by a flag and its value
 // (`[--output a|b]`) chooses that flag's value, so neither yields actions. A
 // group whose first choice is a bare flag (`[--ledger|fix]`) still yields fix.
 function actionWords(hint) {

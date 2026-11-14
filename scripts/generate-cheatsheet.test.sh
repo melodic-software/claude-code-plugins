@@ -325,6 +325,9 @@ rm -rf "$tree"
 mk_tree tree
 write_rich_skill "$tree" alpha flagged \
   'argument-hint: "[--output change-prep|explain] [scope]"' ""
+write_rich_skill "$tree" alpha angled 'argument-hint: "<role|all> [workload]"' ""
+write_rich_skill "$tree" alpha squared 'argument-hint: "[role|all] [workload]"' ""
+write_rich_skill "$tree" alpha marked 'argument-hint: "<<role>|all> [workload]"' ""
 write_rich_skill "$tree" alpha switched \
   'argument-hint: "[--ledger|--tools T1,T2|fix] [--unattended]"' ""
 run_gen "$tree"
@@ -333,6 +336,20 @@ if [[ "$CODE" -eq 0 && "$row" == *"Fixture row for flagged |  |  |" ]]; then
   ok "a first group led by a flag and its value yields no actions (its value choices are not actions)"
 else
   fail "flagged row (exit=$CODE: $OUT; row: $row)"
+fi
+for skill in angled squared; do
+  row="$(row_of "$tree" "alpha:$skill")"
+  if [[ "$row" == *"Fixture row for $skill | \`role\`, \`all\` |  |" ]]; then
+    ok "a first group's choices are actions in $skill brackets"
+  else
+    fail "$skill row: $row"
+  fi
+done
+row="$(row_of "$tree" alpha:marked)"
+if [[ "$row" == *"Fixture row for marked | \`all\` |  |" ]]; then
+  ok "a <name> placeholder among the choices is not an action"
+else
+  fail "marked row: $row"
 fi
 row="$(row_of "$tree" alpha:switched)"
 if [[ "$row" == *"Fixture row for switched | \`fix\` |  |" ]]; then
