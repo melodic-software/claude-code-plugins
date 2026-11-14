@@ -104,9 +104,11 @@ for the user.
   deployment path, unless the user named it in this session.
 - On the head commit you pin, the PR reads `CLEAN` and both AI review lanes have completed with
   success, matched by exact check name: `PR Review / Status`, `pr-review / Status`,
-  `PR Review / Claude` or `pr-review / Claude` (ci-workflows' Title Case job names), or the
-  earlier `PR Review / review-status`, `pr-review / review-status` (a head tested before the
-  rename), `PR Review / claude-review-status` or `pr-review / claude-review-status`; and for
+  `PR Review / Claude`, `pr-review / Claude` or `pr-review-no-bots / Claude` (ci-workflows' Title
+  Case job names; `pr-review-no-bots` is the sandbox's pr-review.yml caller), or the earlier
+  `PR Review / review-status`, `pr-review / review-status` (a head tested before the rename),
+  `PR Review / claude-review-status`, `pr-review / claude-review-status` or
+  `pr-review-no-bots / claude-review-status`; and for
   security `PR Review Security / Status`, `pr-review-security / Status`,
   `PR Review Security / Claude` or `pr-review-security / Claude`, or the earlier
   `PR Review Security / review-status`, `pr-review-security / review-status`,

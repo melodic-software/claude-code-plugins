@@ -198,9 +198,10 @@ jq -e '[.[].check_runs[]] as $r
       | length > 0 and all(.status == "completed" and .conclusion == "success");
   ($r | length) == .[0].total_count
   and lane(["PR Review / Status", "pr-review / Status",
-            "PR Review / Claude", "pr-review / Claude",
+            "PR Review / Claude", "pr-review / Claude", "pr-review-no-bots / Claude",
             "PR Review / review-status", "pr-review / review-status",
-            "PR Review / claude-review-status", "pr-review / claude-review-status"])
+            "PR Review / claude-review-status", "pr-review / claude-review-status",
+            "pr-review-no-bots / claude-review-status"])
   and lane(["PR Review Security / Status", "pr-review-security / Status",
             "PR Review Security / Claude", "pr-review-security / Claude",
             "PR Review Security / review-status", "pr-review-security / review-status",
