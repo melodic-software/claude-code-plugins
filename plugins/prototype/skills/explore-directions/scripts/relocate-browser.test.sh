@@ -4,7 +4,8 @@
 # playwright-cli. A note taken on variant B, state empty, worst content re-locates in a fresh page
 # to the same element, with that view restored through the switcher's vs:show event. Its shot is
 # the element only: no host-page pixel and no switcher pixel, though the switcher covers part of it.
-# With the element's test id renamed, the path still finds it, unconfirmed; with the element gone,
+# A note on an element whose test id sits on a same-tag ancestor shoots that element, not the
+# ancestor. With the element's test id renamed, the path still finds it, unconfirmed; with the element gone,
 # the shot is the stored box, labeled position only.
 # SKIPs without playwright-cli, node, python3 or curl.
 # test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html
@@ -59,6 +60,9 @@ page() {
   .cta { position: fixed; inset-block-end: 0; inset-inline-start: 50%; transform: translateX(-50%); inline-size: 480px; block-size: 120px; }
   .cta.demo { background: #1e40af; }
   .cta.worst { background: #00c853; }
+  .note-card { padding: 8px; background: #1e40af; inline-size: 320px; }
+  .note-title { block-size: 40px; }
+  .note-body { block-size: 60px; background: #d000d0; }
 </style>
 </head>
 <body>
@@ -72,6 +76,7 @@ page() {
     <div data-screen-state="default" data-screen-state-label="Default"><p data-testid="shipments-list">Cards</p></div>
     <div data-screen-state="empty" data-screen-state-label="Empty">
       <p>No shipments yet.</p>
+      <div class="note-card" data-testid="shipments-empty-note"><div class="note-title"></div><div class="note-body"></div></div>
       <div data-content-set="demo"><div class="cta demo" data-testid="shipments-empty-cta"></div></div>
 HTML
   printf '%s\n' "$1"
@@ -126,8 +131,9 @@ status=$(bash "$bridge/notes-bridge.sh" --dir "$d" status)
 # shellcheck disable=SC2016  # ${1} is the note's literal text, not a shell expansion
 if python3 -c '
 import json, sys
-[e] = json.loads(sys.argv[1])["events"]
+e, inner = json.loads(sys.argv[1])["events"]
 a = e["anchor"]
+assert inner["anchor"]["testid"] == "shipments-empty-note" and inner["anchor"]["tag"] == "div", inner
 assert (e["variant"], e["state"], e["content"]) == ({"key": "B"}, {"key": "empty"}, "worst"), e
 assert a["testid"] == "shipments-empty-cta" and a["testidIndex"] == 1, a
 assert set(e["rect"]) == {"x", "y", "w", "h"}, e
@@ -138,12 +144,12 @@ else
   bad "the note is not the expected one: $status"
 fi
 
-# One relocation of note 1 against the page as it is now; prints the script's JSON result.
+# One relocation of note $1 (default 1) against the page as it is now; prints the script's JSON result.
 relocate() {
-  local made script raw got
-  made=$(node "$bridge/relocate-note.mjs" --dir "$d" --seq 1 --url "$url")
+  local seq=${1:-1} made script raw got
+  made=$(node "$bridge/relocate-note.mjs" --dir "$d" --seq "$seq" --url "$url")
   script=$(printf '%s' "$made" | python3 -c 'import json, sys; print(json.load(sys.stdin)["script"])')
-  rm -f -- "$d/shots/1.png"
+  rm -f -- "$d/shots/$seq.png"
   raw=$(code "$script")
   got=$(printf '%s\n' "$raw" | result)
   if [[ -n "$got" ]]; then
@@ -162,10 +168,11 @@ print("async page => { await page.goto(\"about:blank\"); return page.evaluate(as
       " const bytes = Uint8Array.from(atob(b), (c) => c.charCodeAt(0));"
       " const bmp = await createImageBitmap(new Blob([bytes], { type: \"image/png\" }));"
       " const g = new OffscreenCanvas(bmp.width, bmp.height).getContext(\"2d\"); g.drawImage(bmp, 0, 0);"
-      " const d = g.getImageData(0, 0, bmp.width, bmp.height).data, n = d.length / 4; let green = 0, dark = 0, light = 0;"
+      " const d = g.getImageData(0, 0, bmp.width, bmp.height).data, n = d.length / 4; let green = 0, magenta = 0, dark = 0, light = 0;"
       " for (let i = 0; i < d.length; i += 4) { const [r, gr, bl] = [d[i], d[i + 1], d[i + 2]];"
-      " if (gr > 150 && r < 60 && bl < 130) green++; if (r < 70 && gr < 70 && bl < 70) dark++; if (r > 200 && gr > 200 && bl > 200) light++; }"
-      " return JSON.stringify({ w: bmp.width, h: bmp.height, green: green / n, dark: dark / n, light: light / n }); }, " + json.dumps(b64) + "); }")
+      " if (gr > 150 && r < 60 && bl < 130) green++; if (r > 180 && gr < 60 && bl > 180) magenta++;"
+      " if (r < 70 && gr < 70 && bl < 70) dark++; if (r > 200 && gr > 200 && bl > 200) light++; }"
+      " return JSON.stringify({ w: bmp.width, h: bmp.height, green: green / n, magenta: magenta / n, dark: dark / n, light: light / n }); }, " + json.dumps(b64) + "); }")
 ' "$1" >"$tmp/pixels.js"
   code "$tmp/pixels.js" | result
 }
@@ -186,6 +193,16 @@ if [[ -s "$d/shots/1.png" ]]; then
     'assert r["green"] > 0.98 and r["dark"] == 0 and r["light"] == 0' "$px"
 else
   bad "no shot at shots/1.png"
+fi
+
+out=$(relocate 2)
+check "a note under a same-tag test-id ancestor re-locates to the element itself, confirmed" \
+  'assert r["matched"] == "testid" and r["confirmed"] and "container" not in r' "$out"
+if [[ -s "$d/shots/2.png" ]]; then
+  px=$(pixels "$d/shots/2.png")
+  check "its shot is the inner element only, not the ancestor" 'assert r["magenta"] > 0.98' "$px"
+else
+  bad "no shot at shots/2.png"
 fi
 
 page "${worst//shipments-empty-cta/shipments-empty-action}" >"$d/explore-directions.html"

@@ -28,6 +28,17 @@ async page => {
     await page.click("#send");
     await page.waitForFunction(() => /sent/.test(document.getElementById("status").textContent), null, { timeout: 5000 });
     ok("the note is sent", (await page.$$("#notes li")).length === 1);
+
+    // A second note on an element whose nearest test id sits on an ancestor with the same tag.
+    await page.click("#pick");
+    await inFrame.locator('[data-variant="B"] [data-screen-state="empty"] .note-body').click();
+    await page.waitForSelector("#composer:not([hidden])", { timeout: 5000 });
+    const inner = await page.textContent("#picked");
+    ok("the second pick names its ancestor's test id", /shipments-empty-note #1/.test(inner), inner);
+    await page.keyboard.insertText("Give this body more room.");
+    await page.click("#send");
+    await page.waitForFunction(() => /Note 2 sent/.test(document.getElementById("status").textContent), null, { timeout: 5000 });
+    ok("the second note is sent", (await page.$$("#notes li")).length === 2);
   } catch (e) {
     R.push("ERROR " + String(e).split("\n")[0]);
   }
