@@ -27,7 +27,8 @@ its human review comments. `--number` must be digits and `--repo` must match
    frames every line as data per SKILL.md Step 3, and asks for at most ten items: rework,
    corrections by the person, failed or retried steps, and waits, each with its file and line.
 5. **Review comments.** When `/corrections:codify` is in the skill listing, invoke
-   `/corrections:codify reviews --pr <n> --repo '<owner/repo>'`, open or merged. Otherwise skip it
-   and say the `corrections` plugin is not installed.
+   `/corrections:codify reviews --pr <n> --repo '<owner/repo>'`, open or merged. For a PR in another
+   repository than the checkout, that action lists the lessons and proposes nothing. Without the
+   `corrections` plugin, skip it and say so.
 6. **Present** the session table (re-run step 2 with `--format md`), the measured findings, and the
    readers' items grouped by what went wrong, routed as SKILL.md Step 3 says.

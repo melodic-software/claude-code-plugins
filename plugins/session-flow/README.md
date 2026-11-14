@@ -251,7 +251,8 @@ and shows how they move across sessions, with delivery metrics beside them when 
 plugin is installed. The `pr` action looks back over one pull request: it finds the sessions that
 linked it or ran on its head branch in its repository, subagents included, reads them in subagents
 sized to the transcripts, and hands the PR's review comments to `/corrections:codify reviews --pr`
-when that plugin is installed.
+when that plugin is installed, which proposes checks only for a PR in the current checkout's
+repository.
 
 ```shell
 /session-flow:audit-sessions                                # collect, then sweep every session

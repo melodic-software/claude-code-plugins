@@ -2,7 +2,7 @@
 
 Mines the review comments of recent merged pull requests, or with `--pr` of that one pull request,
 open PRs included, in `--repo` or the current checkout's repository. Each lesson step 5 keeps goes
-through sections 2 to 6 of the hub.
+through sections 2 to 6 of the hub, unless step 7 applies.
 
 1. Without `--pr`, take `review_mining_prs` from the settings reader (section 1) as `<n>` and
    report its value and layer. With `--pr`, the window is not read.
@@ -24,6 +24,9 @@ through sections 2 to 6 of the hub.
    threshold. With `--pr` the threshold does not apply, since the person chose the PR: every lesson
    goes on, labeled as from one pull request (`#<n>`), and its proposal still waits for the
    person's approval like any other.
-6. A lesson mined from reviews is project scope, of the repository the PR is in. A rule only a
-   reviewer applies, or a change to how severe a finding is, takes the `automated-review` rung: a
-   `REVIEW.md` line, no new setting.
+6. A lesson mined from reviews is project scope. A rule only a reviewer applies, or a change to how
+   severe a finding is, takes the `automated-review` rung: a `REVIEW.md` line, no new setting.
+7. When `--repo` names a repository other than the current checkout's (its `origin` remote,
+   compared case-insensitively), sections 2 to 6 do not run, because their count, PR lookup, proof
+   and write all act on the current checkout. List each lesson labeled `<owner/repo>#<n>`, say that
+   counting, proof and placement need that repository's checkout, and propose nothing.

@@ -157,7 +157,7 @@
       "id": 17,
       "name": "pr-scope-hands-off-open-pr-in-another-repo",
       "prompt": "/session-flow:audit-sessions pr --number 812 --repo 'acme/billing'. This checkout is acme/web, the PR is still open, and the corrections and source-control plugins are installed.",
-      "expected_output": "The skill finds, measures and reads the PR's sessions as usual and invokes /corrections:codify reviews --pr 812 --repo 'acme/billing', although the PR is open and in another repository than the checkout.",
+      "expected_output": "The skill finds, measures and reads the PR's sessions as usual and invokes /corrections:codify reviews --pr 812 --repo 'acme/billing', although the PR is open and in another repository than the checkout, and reports that codify listed the lessons without proposing a check, since the PR is not in this checkout's repository.",
       "files": [],
       "expectations": [
         "Invokes /corrections:codify reviews with --pr 812 and --repo acme/billing, not the current checkout's repository",
