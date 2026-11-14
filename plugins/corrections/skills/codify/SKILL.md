@@ -1,6 +1,6 @@
 ---
 description: "Counts how often a described mistake recurs in recent commits and the session, picks the strongest enforcement-ladder rung that can catch it, places the lesson by scope, and proposes a check proven to fail on the old code and pass on the current code; `preferences` proposes user-scope lines for what a person keeps typing across sessions; also takes a review findings file or pull requests' review comments as the source. Use when: 'codify this', 'this keeps happening', 'stop us making this mistake again', 'turn this correction into a check', 'what rung catches this', 'prove this check', 'can we stop re-finding this', 'mine our review comments', 'put what I keep repeating into my instructions'."
-argument-hint: "<<description> [#PR]|findings <file>|reviews [--pr <n> [--repo <owner/repo>]]|note [--applied] <observation>|preferences|group…>"
+argument-hint: "<<description> [#PR]|findings <file>|reviews [--pr <n>]|note [--applied] <text>|preferences|group…>"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs\":*)", "Bash(git log:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git branch --show-current)", "Bash(git symbolic-ref:*)", "Write(.work/codify/**)"]
