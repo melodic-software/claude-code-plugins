@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "discovery:explorer",
+            "description": "Explore slugify",
+            "prompt": "Explore the following: how slugify is implemented and tested"
+          }
+        }
+      ],
+      "why": "explorer spawned with no model, so the pin applies"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "discovery:explorer",
+            "description": "Explore slugify",
+            "prompt": "Explore the following: how slugify is implemented and tested",
+            "model": "sonnet"
+          }
+        }
+      ],
+      "why": "the bundled retrieval model passed on the spawn"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "Explore",
+            "description": "Explore slugify",
+            "prompt": "how slugify is implemented and tested"
+          }
+        }
+      ],
+      "why": "the built-in Explore agent, not the explorer"
+    },
+    {
+      "answer": [],
+      "why": "no dispatch"
+    }
+  ]
+}
