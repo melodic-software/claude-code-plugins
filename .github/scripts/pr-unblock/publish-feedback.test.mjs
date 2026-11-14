@@ -2187,6 +2187,12 @@ test("gateLines names exactly the lines check-gate-lines.sh names", (t) => {
     "Closes #7",
     "this fixes o/r#8 too",
     "resolved: #9",
+    "Closes https://github.com/o/r/issues/10",
+    "see fixes: https://github.com/o/r/issues/11 too",
+    "Ship after review; do not",
+    "merge before the vendor fix.",
+    "Then don't",
+    "  merge either.",
     "## Summary",
     "Plain prose about holds and drafts.",
     "Refsx: #1",
@@ -2210,5 +2216,5 @@ test("gateLines names exactly the lines check-gate-lines.sh names", (t) => {
   }
   const named = out.split("\n").filter((line) => line.startsWith("added: ")).map((line) => line.slice("added: ".length)).sort();
   assert.deepEqual(gateLines(corpus), named);
-  assert.ok(named.length >= 14, "the corpus exercises the list");
+  assert.ok(named.length >= 18, "the corpus exercises the list");
 });
