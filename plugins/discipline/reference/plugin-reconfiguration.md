@@ -19,6 +19,9 @@ consumer-run.
 
 ## The routes
 
+A reply that gives the headless routes prints the preferred `claude plugin configure` command in
+full first and the fallback after it, whatever the working directory.
+
 - **Interactive, any time:** `/plugin configure <plugin>@<marketplace>`.
 - **Headless, preferred (Claude Code 2.1.285 or later):** save a JSON object of single-line
   strings with `claude plugin configure`, run from the project the plugin is installed in:
@@ -107,8 +110,9 @@ newer release is verified.
 
 1. **Never uninstall to reconfigure.** Change a value through one of the routes above; an
    uninstall is not a reconfiguration route.
-2. **Scope.** Run `claude plugin configure` from the project the plugin is installed in; it has no
-   scope flag. For the `--config` rerun, pass the scope `claude plugin list` reports for the
+2. **Scope.** `claude plugin configure` has no scope flag and finds only an install visible from
+   the working directory, so run it from the project a `project` or `local` install lives in. For
+   the `--config` rerun, pass the scope `claude plugin list` reports for the
    plugin: a rerun at another scope adds an install record at that scope and enables the plugin
    there (measured in both directions, user over project/local and project over user). When the
    working directory is the home directory, project scope and user scope are the same settings
@@ -142,7 +146,10 @@ value. For the headless routes and the scope and failure-signal caveats it cites
 [Caveats every setup skill's short form carries](#caveats-every-setup-skills-short-form-carries)
 by heading, tells the agent to read them and print what they give (the fallback route, its
 behavior on an already-installed plugin and the scope to pass included) rather than only name
-them, leaving out the verified-version record, and it carries a pointer record to
+them, leaving out the verified-version record. The printed reply gives the preferred
+`claude plugin configure <plugin>@<marketplace>` command in full first and the fallback after it,
+whatever the working directory, as [The routes](#the-routes) opens by saying; the scope caveat
+says where to run `claude plugin configure`. The skill also carries a pointer record to
 [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
 It restates neither the commands' flags and version floor nor the verified-version record.
 Installed plugins cannot read this repository's working tree, and an agent may have no network,

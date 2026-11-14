@@ -13,7 +13,8 @@ You are one subagent of a CI review lane, or one model tier of a `/review:fanout
   The line is the one in that file at the PR head, never a position in the diff file: in a hunk
   `@@ -a,b +c,d @@`, the line after the header is line `c`, and only context and `+` lines
   advance the count. A removed line cites the base file's line, counted from `a` over context
-  and `-` lines.
+  and `-` lines. When a candidate is one of several of the same class in your part, name the
+  class and each place it occurs.
 - **Verifier:** you did not produce the candidate you are given. Try to refute it against the
   code; return `confirmed` or `rejected` with the evidence either way, and give the head file's
   line when the candidate cites a different one.

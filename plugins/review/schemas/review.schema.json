@@ -32,6 +32,12 @@
       "minimum": 1,
       "default": 2
     },
+    "smell_baseline": {
+      "description": "Which design-smell list the code-reviewer agent checks. default: the shipped baseline in the plugin's reference/design-smells.md. off: no smell check. A repository-relative path to a .md file: the repository's own list; a missing file falls back to the shipped baseline. Skipped for a change set that edits this file.",
+      "type": "string",
+      "pattern": "^(default|off|(?!/)(?!.*\\.\\.)[^\\s\\\\]+\\.md)$",
+      "default": "default"
+    },
     "council_lanes": {
       "description": "The council's lane switch. on: an unattended run (a lane, claude -p, an autonomous loop) may start /review:council in this repository. off: an unattended run stops with success and says the switch is off. An attended run never reads it. Repository only: no user option sets it.",
       "enum": ["on", "off"],

@@ -1,5 +1,23 @@
 # Changelog: session-flow plugin
 
+## [8.2.0] - 2026-11-13
+
+### Added
+
+- **audit-sessions looks back over one pull request.** The new `pr --number <n> --repo <owner/repo>` action finds every session that linked the PR or ran on its head branch in its repository, subagent transcripts included, measures them, reads them in fresh subagents sized so none overfills its context, and hands review comments to `/corrections:codify reviews` when the PR is merged, is in the current checkout's repository, and the `corrections` plugin is installed. The store now records subagents' branches and PR links apart (`branches_sub`, `prs_sub`), so the next collect re-reads every transcript once. `retro` stays single-session and names this action for a pull-request retro.
+
+### Changed
+
+- **retro states when a change may skip approval.** Phase 4 now says a change is applied without the person's approval only where an evaluation set scores the changed surface and the change does not lower its score; until then every change waits for approval.
+
+## [8.1.0] - 2026-11-13
+
+### Added
+
+- `/session-flow:recall` reports a **Still reported** section: tracker items of an incident or user-report kind that were closed and reopened, whose fix was reverted, or that repeat the same symptom, plus postmortems on the topic. Its tracker step now searches open and closed items through `/work-items:track search`, reads the state history of up to ten matches with `/work-items:track view --history`, and says when the tracker cannot report history instead of reading that as "not reopened". A reverted commit that closes an item marks that item even when the tracker cannot be read.
+- Two settings, resolved repository file over user option over default: `recall_report_kinds` (issue types or labels that count as an incident or a user report, default `Bug`) and `recall_doc_paths` (git pathspecs searched for postmortems, default `*.md`).
+- Eval case `recall-still-reports-reverted-fix`: a closed bug whose fix was reverted shows under Still reported. Eval case `recall-still-reports-reopened-bug`: a bug the tracker's state history shows closed and reopened shows under Still reported.
+
 ## [8.0.0] - 2026-11-13
 
 ### Changed

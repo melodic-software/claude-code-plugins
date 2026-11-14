@@ -119,9 +119,12 @@ line.
      operable floor fixes (read the value there, never from here; a number restated in this file
      is a copy nothing keeps in step with the contract) → PASS (proactive mode available).
    - Fresh but `rate_limits` absent → INFO: the sessions writing it see no subscription windows
-     (API-key or enterprise auth); consumers correctly run reactive-only. Not a defect. The module
-     writes `rate_limits` only when its session sees subscription windows, so this row needs no
-     source read.
+     (API-key or enterprise auth); consumers correctly run reactive-only. Not a defect. The
+     module writes `rate_limits` only when its session sees subscription windows, so this row
+     needs no source read. The reader contract owns this fail-open rule: the "Snapshot file
+     absent, stale, or missing `rate_limits`" row of its "Capability detection (fail-open)"
+     table in `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`. Name that row as the owner
+     when reporting this result.
    - Absent or stale while step 2 reported mods off, or while `rate_limits_enabled` (step 5)
      is `false` → INFO with that row's wording: no module writes from here. Not a missing
      instrument and not a wiring defect.

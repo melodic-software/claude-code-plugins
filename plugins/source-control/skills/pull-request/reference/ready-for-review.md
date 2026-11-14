@@ -83,7 +83,7 @@ always run. A step `--skip` names that `pre_ready` disabled or a built-in condit
 already skipped keeps that line in the report; only a step that would have run is reported as
 skipped by the override. Report the acting login
 ([GitHub](../../../reference/providers/github/README.md#identity-and-repository)) in each such
-line. `ready` never writes the PR body. It records the run in one PR conversation comment, built
+line. `ready` writes the PR body only to keep it on the current head (2.5.2). It records the run in one PR conversation comment, built
 by `scripts/ready-skip-comment.sh` and posted in 2.5.4 after the hold re-check and right before the
 flip
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#record-the-skipped-steps)):
@@ -99,6 +99,9 @@ any local commits first, with
 (`<branch-checkout>` as [the update sequence](#decide-and-carry-out-the-update) defines it), so the
 reviews (which read the PR's diff on the remote) and the verify gate (which runs on the PR
 worktree's HEAD) in 2.5.3 cover the same commit.
+
+Before each push of commits in this phase (local commits here, review fixes in 2.5.4), bring the
+body up to date as [monitor.md](monitor.md) §3.3.2 step 5 says.
 
 Record the PR's head commit as `HEAD_BEFORE` first
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#record-the-head-before-the-refresh)),

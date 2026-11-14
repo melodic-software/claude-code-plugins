@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| # | Variant | Element | You said | I will change |\n|---|---|---|---|---|\n| 1 | B Cards | not found: no element has test id shipments-export, and its path (toolbar, second button) finds nothing | Make this button the primary color so it stands out | Nothing yet |\n\nPosition only, element not found: your note sat near the top right of the page (about 72% across, 6% down), where the Export button used to be. The rework removed that button, so I have not edited anything.\n\nShould I bring the Export button back in the primary color, or did you mean the Filter button?",
+      "why": "names the failed anchor, labels the position, asks"
+    },
+    {
+      "answer": "Your note on variant B points at an Export button (test id shipments-export) that is no longer in the mockup. All I have is where it was: a position only, top right of the toolbar. Do you want the Export button back, styled as the primary action?",
+      "why": "prose, position-only stated plainly, one question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your note asks for the button in variant B's toolbar to use the primary color. I made the Filter button primary.",
+      "why": "applies the note to another element without asking"
+    },
+    {
+      "answer": "I could not find the Export button your note is on; the rework removed it. I have left the mockup as it is.",
+      "why": "no question"
+    },
+    {
+      "answer": "Your note is on the Export button at the top right of variant B. Should I make it the primary color?",
+      "why": "does not say the element is gone, and gives the position as if the element were there"
+    }
+  ]
+}

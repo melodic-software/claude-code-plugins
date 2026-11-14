@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.1.4
+standards-contract: 1.1.5
 ---
 
 # Standards Convention
@@ -219,6 +219,13 @@ resolution ALSO discovers the personal layers (glob-discover
 its own index when present, else glob) and applies them per Layers and
 precedence. Matching a team index row never substitutes for this step; a
 denied or absent personal layer simply contributes nothing.
+
+**Review-criteria index (planning and implementing):** a skill that plans
+or implements a change also reads the repository's review-criteria index,
+`docs/review/README.md` at the resolution root when present, and loads
+only the files its rows match to what the change touches, so the work is
+built to the criteria it will be reviewed against. The path is fixed; no
+concern-file key moves it. Absent, the step contributes nothing.
 
 **Ambient-content rule:** content already in context (fired `.claude/rules`
 directives, auto-loaded `CLAUDE.md`) is never re-pulled by a grounding

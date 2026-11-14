@@ -365,7 +365,17 @@ subscription fallback) answers them and hands on a patch and its replies,
 `publish-feedback` (a script job with no model, `publish-artifact`) posts the replies, naming the
 pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). It re-reads each
 thread against the reviewed heads the select job recorded in `run.json`, since a review lane edits
-its one marker in place when it reviews the pushed fix.
+its one marker in place when it reviews the pushed fix. `publish-feedback` also brings the body
+sections a landed fix made stale up to date, unless the base's `pr_body_refresh` is `false`: the
+select job offers the `##` sections the base's `pr_body_required_sections` lists (every one when it
+lists none) whose text holds no gate-read line, never `## Follow-ups` or the body's last section,
+and pins each by SHA-256 in `run.json`; the model job records replacement text with the
+review-thread tool; and `publish-feedback` puts it in place of an offered section still unchanged,
+leaving every other byte, or drops the refresh alone, naming why in its log and round marker, when
+any text holds a line a gate reads or the body's gate-read lines would change. Its body writes are
+those sections and its `## Follow-ups` entries. `fix-ci` rewrites no body section; an attended
+session does ([`monitor.md`](../../../plugins/source-control/skills/pull-request/reference/monitor.md)
+§3.3.2 step 5).
 
 ### Outage posture
 
@@ -1046,11 +1056,9 @@ so fix-ci and address-feedback cannot change them. No other row names these thre
 The `issue` row alone also refuses (`claude-protected`), at any depth, every path Claude Code
 denies writes to under the lanes' `dontAsk` permission mode
 ([protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths)) except
-`.gitmodules`, which has its own refusal (`gitmodules`): its run can never write one, so
-intake admission refuses an issue whose work names one before a run is spent on it. The other
-lanes also run under `dontAsk` but have no admission step to feed, and the `merge-base` and
-`shared-copies` patches carry the base's own changes, which may touch such a path, so no other row
-names it, and a rename into such a path is not `rename-into-refused`.
+`.gitmodules`, which has its own refusal (`gitmodules`): its run can never write one, so a run
+whose change needs one stops with `patch-protected-path`. No other row names `claude-protected`,
+and a rename into such a path is not `rename-into-refused`.
 The `ci-context`, `docs`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in

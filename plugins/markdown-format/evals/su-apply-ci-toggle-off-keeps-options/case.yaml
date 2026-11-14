@@ -62,7 +62,7 @@ graders:
     focus: 'last_message'
   - name: 'scope-rule'
     type: 'llm'
-    criteria: 'The reply says to run claude plugin configure from the project the plugin is installed in, since it has no scope flag, and to pass the install --config rerun the scope claude plugin list reports for this plugin, since a rerun at another scope adds an install record there.'
+    criteria: 'The reply says claude plugin configure has no scope flag and finds only an install visible from the working directory, and says to pass the install --config rerun the scope claude plugin list reports for this plugin, because a rerun at another scope adds an install record at that scope.'
     focus: 'last_message'
   - name: 'repeatable-per-key'
     type: 'llm'

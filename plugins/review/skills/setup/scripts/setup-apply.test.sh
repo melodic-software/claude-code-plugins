@@ -710,6 +710,21 @@ assert_eq "case 28: council_lanes=on on the command line exits 0" "0" "$?"
 out="$(run --root "$(new_root c28-cli-list)" council_panel=a)"
 assert_eq "case 28: a list key on the command line exits 1" "1" "$?"
 
+# --- Case 29: smell_baseline takes default, off or a repository-relative .md path
+for good in default off docs/standards/design-smells.md; do
+  R29="$(new_root "c29-${good//\//-}")"
+  run --root "$R29" "smell_baseline=$good" >/dev/null
+  assert_eq "case 29: smell_baseline=$good exits 0" "0" "$?"
+  out="$(run --root "$R29" --check)"
+  assert_contains "case 29: --check reports smell_baseline $good" "$out" "PASS smell_baseline: $good"
+done
+for bad in maybe ../outside.md /etc/smells.md docs/smells.txt; do
+  R29B="$(new_root "c29b-${bad//\//-}")"
+  out="$(run --root "$R29B" --yes "smell_baseline=$bad")"
+  assert_eq "case 29: smell_baseline=$bad exits 1" "1" "$?"
+  assert_contains "case 29: the refusal of $bad names the key" "$out" "smell_baseline"
+done
+
 # --- The writer's record: written_against from plugin.json, one entry per key ---
 VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
 R="$(new_root record-chosen)"
