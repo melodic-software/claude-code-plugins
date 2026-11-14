@@ -12,6 +12,13 @@ import { reportLine, resolveLevel } from "./prototype-settings.mjs";
 const CLI = path.join(import.meta.dirname, "prototype-settings.mjs");
 const base = realpathSync(mkdtempSync(path.join(os.tmpdir(), "prototype-settings-test-")));
 after(() => rmSync(base, { recursive: true, force: true }));
+// Git in every child reads no host config and never climbs above `base` to the repository holding this file.
+const env = {
+  ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "CLAUDE_PROJECT_DIR"].includes(name) && !name.startsWith("GIT_CONFIG"))),
+  GIT_CONFIG_GLOBAL: path.join(base, "gitconfig"),
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CEILING_DIRECTORIES: base,
+};
 
 let n = 0;
 /** A new project directory holding the given files under docs/conventions; `git` makes it a repository. */
@@ -19,7 +26,7 @@ function project(files = {}, { git = false } = {}) {
   const root = path.join(base, `p${++n}`);
   mkdirSync(path.join(root, "docs/conventions"), { recursive: true });
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, "docs/conventions", name), text);
-  if (git) spawnSync("git", ["init", "-q", root], { encoding: "utf8" });
+  if (git) assert.equal(spawnSync("git", ["init", "-q", root], { encoding: "utf8", env }).status, 0);
   return root;
 }
 const team = (text) => ({ "prototype.yaml": text });
@@ -156,7 +163,7 @@ describe("the report line", () => {
 
   it("is printed by the CLI after the JSON, reading the team file in a repository", () => {
     const root = project(team("level: sketch\n"), { git: true });
-    const out = spawnSync("node", [CLI, "resolve", "--option", UNSET], { cwd: root, encoding: "utf8" });
+    const out = spawnSync("node", [CLI, "resolve", "--option", UNSET], { cwd: root, encoding: "utf8", env });
     assert.equal(out.status, 0, out.stderr);
     const [json, line] = out.stdout.trimEnd().split("\n");
     assert.equal(JSON.parse(json).definition.variants, 2);
@@ -165,7 +172,7 @@ describe("the report line", () => {
 
   it("says why no file is read outside a repository", () => {
     const root = project(team("level: sketch\n"));
-    const out = spawnSync("node", [CLI, "resolve", "--option", "", "--project", root], { cwd: root, encoding: "utf8", env: { ...process.env, GIT_CEILING_DIRECTORIES: base } });
+    const out = spawnSync("node", [CLI, "resolve", "--option", "", "--project", root], { cwd: root, encoding: "utf8", env });
     assert.equal(out.status, 0, out.stderr);
     const lines = out.stdout.trimEnd().split("\n");
     assert.equal(lines[1], "level: standard (default)");
@@ -173,7 +180,7 @@ describe("the report line", () => {
   });
 
   it("exits 2 on a usage error", () => {
-    const out = spawnSync("node", [CLI, "resolve"], { encoding: "utf8" });
+    const out = spawnSync("node", [CLI, "resolve"], { encoding: "utf8", env });
     assert.equal(out.status, 2);
   });
 });
