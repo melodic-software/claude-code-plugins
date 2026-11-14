@@ -8,3 +8,6 @@ extend:
   py-pytest:
     assertion:
       calls: ['self\.refused(_ops)?[[:space:]]*\(']
+  # The knowledge plugin's gate tests hand their assertions to gate_test::run_suite.
+  bash-harness:
+    delegation: ['gate_test::run_suite']

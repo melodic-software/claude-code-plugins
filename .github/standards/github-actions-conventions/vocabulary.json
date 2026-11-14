@@ -319,37 +319,7 @@
   "jobNameExceptions": [],
   "exemptions": [
     {
-      "path": ".github/workflows/dependabot-fragments.yml",
-      "repository": "melodic-software/claude-code-plugins",
-      "rules": ["workflow-filename"],
-      "reason": "The file name has no stage word; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."
-    },
-    {
-      "path": ".github/workflows/eval-browser-dispatch.yml",
-      "repository": "melodic-software/claude-code-plugins",
-      "rules": ["workflow-filename"],
-      "reason": "The file name has no stage word; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."
-    },
-    {
-      "path": ".github/workflows/eval-hill-climb-pass.yml",
-      "repository": "melodic-software/claude-code-plugins",
-      "rules": ["workflow-filename"],
-      "reason": "The file name has no stage word; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."
-    },
-    {
-      "path": ".github/workflows/security-outside-actor.yml",
-      "repository": "melodic-software/claude-code-plugins",
-      "rules": ["workflow-filename"],
-      "reason": "The file name has no stage word; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."
-    },
-    {
       "path": ".github/workflows/pr-feedback-dispatch.yml",
-      "repository": "melodic-software/claude-code-plugins",
-      "rules": ["workflow-filename"],
-      "reason": "The file name is not verb-first after its stage; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."
-    },
-    {
-      "path": ".github/workflows/post-merge-demotion-alert.yml",
       "repository": "melodic-software/claude-code-plugins",
       "rules": ["workflow-filename"],
       "reason": "The file name is not verb-first after its stage; its rename is tracked in melodic-software/claude-code-plugins#15394, which removes this entry."

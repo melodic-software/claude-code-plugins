@@ -2226,7 +2226,10 @@ class _GreenMain:
         return sha == tip or self.ahead(sha, tip)
 
     def main_tip(self) -> str:
-        """main's tip, read once by heads/main."""
+        """main's tip, the step's (`passed_main_tip`) or read once by
+        heads/main."""
+        if self.tip is None:
+            self.tip = passed_main_tip(self.owner, self.name)
         if self.tip is None:
             answer = self._read(f"repos/{self.owner}/{self.name}/git/ref/heads/main")
             tip = str(json_object(json_object(answer).get("object")).get("sha") or "")
@@ -4246,6 +4249,34 @@ def base_tip(owner: str, name: str, base: str) -> str:
     return sha
 
 
+MAIN_TIP_ENV = "MAIN_TIP_SHA"
+
+
+def passed_main_tip(owner: str, name: str) -> str | None:
+    """main's tip as a pr-merge.yml step resolved it with `git ls-remote`
+    (`MAIN_TIP_ENV`), for that run's own repository only, else None."""
+    sha = os.environ.get(MAIN_TIP_ENV, "")
+    own = os.environ.get("GITHUB_REPOSITORY", "").casefold() == f"{owner}/{name}".casefold()
+    return sha if own and SHA_RE.fullmatch(sha) else None
+
+
+def carry_base_tip(owner: str, name: str, base: str) -> str:
+    """`base_tip` for an approval or decision carry, whose older tip only
+    refuses more: main's is the step's (`passed_main_tip`) when it has one.
+    Inside `base_tips_remembered` a tip already read answers first, and the
+    passed tip is remembered, so one judgment sees one tip."""
+    key = f"{owner}/{name}@{base}"
+    known = (_BASE_TIPS or {}).get(key)
+    if known:
+        return known
+    passed = base == "main" and passed_main_tip(owner, name)
+    if not passed:
+        return base_tip(owner, name, base)
+    if _BASE_TIPS is not None:
+        _BASE_TIPS[key] = passed
+    return passed
+
+
 # Each branch tip `base_tip` read inside `base_tips_remembered`; None outside.
 _BASE_TIPS: dict[str, str] | None = None
 
@@ -4393,7 +4424,7 @@ def carried_lifters(
         # A carry runs only into the repository's default branch: another
         # base may be non-linear, with criss-cross merge bases.
         carrying = any(s != sha for _, s, _ in lifts) and _default_branch(repo) == base
-        tip = base_tip(owner, name, base) if carrying else ""
+        tip = carry_base_tip(owner, name, base) if carrying else ""
         for login, lifted, dismissal in lifts:
             if lifted == sha:
                 if dismissal is None:
@@ -4464,7 +4495,7 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
         return False
     owner, name = _split_repo(repo)
     try:
-        tip = base_tip(owner, name, base)
+        tip = carry_base_tip(owner, name, base)
         decided = _noticed_head(owner, name, branch, tip, comment.get("created_at"))
     except PolicyReadError:
         return False

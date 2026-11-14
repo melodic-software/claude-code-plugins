@@ -152,20 +152,23 @@ config = json.load(open(sys.argv[1], encoding="utf-8"))
 rules = (config.get("suppressions") or {}).get("correctness_rules") or []
 print("\n".join(str(r) for r in rules if str(r).strip()))
 ' "$CM_CONFIG" >"$WORK/rules" || exit 2
-SCAN_ARGS+=(--correctness-rules "$WORK/rules")
+SCAN_ARGS+=(--correctness-rules "$WORK/rules" --unread-to "$WORK/unread")
 
 if [[ -s "$WORK/scope" ]]; then
   "${PY[@]}" "$SCANNER" "${SCAN_ARGS[@]}" >"$WORK/found.json" || exit 2
 else
   # An empty list would read as "scan the repository".
   printf '[]\n' >"$WORK/found.json"
+  : >"$WORK/unread"
 fi
 
 "${PY[@]}" -I -c '
 import datetime, json, sys
-config_path, found_path, mode, base, scope_path = sys.argv[1:6]
+config_path, found_path, mode, base, scope_path, unread_path = sys.argv[1:7]
 config = json.load(open(config_path, encoding="utf-8"))
 found = json.load(open(found_path, encoding="utf-8"))
+with open(unread_path, encoding="utf-8", errors="replace") as handle:
+    unread = [line.rstrip("\n") for line in handle if line.strip()]
 with open(scope_path, encoding="utf-8", errors="replace") as handle:
     files = sum(1 for line in handle if line.strip())
 rules = (config.get("suppressions") or {}).get("correctness_rules") or []
@@ -182,8 +185,9 @@ print(json.dumps({
         "correctness": sum(1 for r in found if r.get("correctness")),
     },
     "suppressions": found,
+    "unread": unread,
 }, indent=2))
-' "$CM_CONFIG" "$WORK/found.json" "$MODE" "$BASE_SHA" "$WORK/scope" >"$WORK/report.json" || exit 2
+' "$CM_CONFIG" "$WORK/found.json" "$MODE" "$BASE_SHA" "$WORK/scope" "$WORK/unread" >"$WORK/report.json" || exit 2
 
 if [[ "$JSON" -eq 1 ]]; then
   cat "$WORK/report.json"
@@ -228,6 +232,12 @@ if rows:
             cell(r["reason"] or "-")))
     if len(rows) > CAP:
         print("\n%d more rows are in the document." % (len(rows) - CAP))
+unread = doc.get("unread") or []
+if unread:
+    UNREAD_CAP = 50
+    names = ", ".join("`%s`" % cell(p) for p in unread[:UNREAD_CAP])
+    more = " and %d more in the document" % (len(unread) - UNREAD_CAP) if len(unread) > UNREAD_CAP else ""
+    print("\nNot read (the scanner has no file kind for them): %d files: %s%s." % (len(unread), names, more))
 if kept:
     print("\nDocument: %s" % kept)
 elif len(rows) > CAP:
@@ -378,6 +388,8 @@ out.append("Declined candidates: %s count=%d reason=rule-id-on-line" % (NO_RULE_
 out.append("Declined candidates: %s count=%d reason=tool-names-no-rule" % (NO_RULE_ID, declined["tool-names-no-rule"]))
 if outside:
     out.append("Not examined: %d suppressions outside the repository root." % outside)
+if doc.get("unread"):
+    out.append("Not examined: %d files the scanner has no file kind for." % len(doc["unread"]))
 with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
     handle.write("\n".join(out) + "\n")
 print("\nFindings file: %s" % path)

@@ -3255,6 +3255,14 @@ class SharedCompare(CheckCase):
             self.assertEqual(self.process()._branch_tip(), LATER_SHA)
         self.assertEqual(self.reads(f"repos/{REPO}/git/ref/heads/main"), 2)
 
+    def test_the_tip_the_step_resolved_is_used_and_not_read(self) -> None:
+        with mock.patch.dict(os.environ, {"MAIN_TIP_SHA": LATER_SHA, "GITHUB_REPOSITORY": REPO}):
+            self.assertEqual(self.process()._branch_tip(), LATER_SHA)
+        self.assertEqual(self.reads(f"repos/{REPO}/git/ref/heads/main"), 0)
+        with mock.patch.dict(os.environ, {"MAIN_TIP_SHA": LATER_SHA, "GITHUB_REPOSITORY": "o/other"}):
+            self.assertEqual(self.process()._branch_tip(), TIP_SHA)
+        self.assertEqual(self.reads(f"repos/{REPO}/git/ref/heads/main"), 1, "another repository's tip is read")
+
     def test_a_shared_compare_spends_the_settle_budget_as_a_read_would(self) -> None:
         def budget_left(env: str) -> int:
             with mock.patch.dict(os.environ, {pm.run_cache.ENV: env}):

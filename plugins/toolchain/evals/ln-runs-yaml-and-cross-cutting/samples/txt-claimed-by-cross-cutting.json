@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| cross-cutting | pass | PASS |\n\nNo ecosystem linter (cross-cutting text checks only): docs/install.txt, docs/keys.txt\n\nOverall: PASS (2 of 2 ecosystems passed)",
+      "why": "the cross-cutting-only line"
+    },
+    {
+      "answer": "docs/install.txt and docs/keys.txt are outside every ecosystem's globs, but cross-cutting's text checks covered them.",
+      "why": "prose explaining the cross-cutting-only line is not the outside-every-ecosystem line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| cross-cutting | pass | PASS |\n\nOutside every ecosystem: docs/install.txt, docs/keys.txt",
+      "why": "files cross-cutting just checked put on the line for files nothing covered"
+    },
+    {
+      "answer": "**Outside every ecosystem:** `docs/keys.txt`",
+      "why": "bold label, same contradiction"
+    }
+  ]
+}

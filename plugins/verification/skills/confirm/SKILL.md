@@ -1,7 +1,7 @@
 ---
 description: "Prove a change achieved its intended outcome: a mechanical build+test+lint prerequisite (delegated to /toolchain:check and /toolchain:lint, STOPs if broken), then outcome verification. Does the change match the plan/intent and function correctly, with the criterion auto-detected by change-type (feature, fix, refactor). Use when: 'verify changes', 'prove this works', 'did we build the right thing', 'is this done', 'check my work', 'did the fix actually work'; for quick mechanical-only checks use /toolchain:check, for measurable-improvement claims use /verification:measure."
 user-invocable: true
-argument-hint: "[outcome|fix|refactor] [--unattended] [dotnet|python|typescript|bash|powershell|all]"
+argument-hint: "[outcome|fix|refactor] [--unattended] [ecosystem|all]"
 disable-model-invocation: false
 effort: high
 metadata:
@@ -9,7 +9,7 @@ metadata:
   summary: Prove the change achieved its intended outcome with evidence
 ---
 
-**Arguments.** `[outcome|fix|refactor] [--unattended] [dotnet|python|typescript|bash|powershell|all]`. e.g., /verification:confirm, /verification:confirm outcome, /verification:confirm fix, /verification:confirm refactor, /verification:confirm dotnet
+**Arguments.** `[outcome|fix|refactor] [--unattended] [ecosystem|all]`. e.g., /verification:confirm, /verification:confirm outcome, /verification:confirm fix, /verification:confirm refactor, /verification:confirm dotnet
 
 ## Repository context. Gather first
 
@@ -57,7 +57,7 @@ The mechanical pass is a *gate*, not the point. `/toolchain:check` owns build+te
 
 There is **no standalone "mechanical pass" mode**. That role belongs to `/toolchain:check`. Stage 1 here is the prerequisite gate for every outcome criterion. Measurable-improvement claims (`performance` / `metrics` vs a captured baseline) are `/verification:measure`, not a mode here.
 
-**Ecosystem filters** (combinable with any mode): `dotnet`, `python`, `typescript` (or `ts`/`node`), `bash` (or `shell`), `powershell` (or `ps`/`pwsh`), `all`. If omitted, auto-detect from changed files.
+**Ecosystem filters** (combinable with any mode): any ecosystem id `/toolchain:check` covers, meaning one with a record under `.claude/ecosystems/`, one inferred this run from the repo's build files, or one with a bundled default, plus `all`. The bundled defaults it runs are `dotnet`, `python`, `typescript` (or `ts`/`node`), `bash` (or `shell`), `powershell` (or `ps`/`pwsh`), `markdown` (or `md`) and `go` (or `golang`); a record such as `.claude/ecosystems/rust.yaml` makes `rust` a filter too. Stage 1 passes the filter through to `/toolchain:check`, which resolves it. Without the `toolchain` plugin, accept any ecosystem the project's own commands name. If omitted, auto-detect from changed files.
 
 ## Mode dispatch
 

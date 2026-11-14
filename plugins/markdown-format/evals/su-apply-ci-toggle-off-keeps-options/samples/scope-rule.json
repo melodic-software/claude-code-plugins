@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "`claude plugin configure` has no scope flag: it finds only an install visible from the working directory, so a project or local install is found only from that project. For the install `--config` rerun, pass the scope `claude plugin list` reports for markdown-format, because a rerun at another scope adds an install record at that scope and enables the plugin there. From the home directory that list can show one file as both `user` and `project`; pass `user`."
+      "answer": "`claude plugin configure` has no scope flag: it finds only an install visible from the working directory, so a project or local install is found only from that project. For the install `--config` rerun, pass the scope `claude plugin list` reports for markdown-format, because a rerun at another scope adds an install record at that scope and enables the plugin there. When the working directory is the home directory and the list labels the plugin both `user` and `project` (one file there), pass `user`."
     }
   ],
   "fail": [

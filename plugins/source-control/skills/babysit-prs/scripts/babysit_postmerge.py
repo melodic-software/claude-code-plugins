@@ -2254,8 +2254,12 @@ class _Context:
         )
 
     def _branch_tip(self) -> str:
-        """The branch's tip commit, read from `refs/heads/<branch>` once. A
-        failed or malformed read raises, so the verdict is unreadable."""
+        """The branch's tip commit, read from `refs/heads/<branch>` once, or
+        main's as the step resolved it (`policy.passed_main_tip`), which can
+        only be older. A failed or malformed read raises, so the verdict is
+        unreadable."""
+        if self.branch_tip is None and self.branch == "main":
+            self.branch_tip = policy.passed_main_tip(self.owner, self.name)
         if self.branch_tip is None:
             ref = json_object(
                 _read(

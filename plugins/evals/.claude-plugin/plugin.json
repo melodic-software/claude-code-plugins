@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.18.11",
+  "version": "0.18.12",
   "license": "MIT",
   "userConfig": {
     "max_cost_usd": {

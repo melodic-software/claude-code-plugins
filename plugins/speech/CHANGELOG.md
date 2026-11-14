@@ -3,6 +3,26 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.1] - 2026-11-14
+
+### Fixed
+
+- voice edge-tts one paragraph per request
+
+  A whole-script edge-tts request for a 3-minute script took 214 s and
+  380 s, past the 120 s per-call timeout, so the default chain always fell
+  back to kokoro. The edge-tts backend now sends one request per
+  blank-line separated paragraph, each with its own timeout and retries,
+  joins the audio into one narration.wav and moves each paragraph's words
+  onto the whole file's timeline. A paragraph that fails discards all
+  edge-tts output and hands the whole script to the next backend.
+
+## [1.2.0] - 2026-11-14
+
+### Added
+
+- `narrate.py --scan-pattern <regex>` (repeatable) adds a pattern the floor refuses before any online voice; a match exits 4 as any other scan hit, and a pattern that does not compile fails the scan.
+
 ## [1.1.0] - 2026-11-14
 
 ### Added

@@ -1,5 +1,27 @@
 # Changelog: session-flow plugin
 
+## [9.0.4] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now says the install `--config` rerun takes the scope `claude plugin list` reports for the plugin, with a `project` or `local` rerun run from the project that install lives in, and passes `user` only when the working directory is the home directory and the list labels the plugin both `user` and `project`.
+
+## [9.0.3] - 2026-11-14
+
+### Fixed
+
+- `/session-flow:handoff` tells the user to type `/reload-plugins` after `/clear` and before
+  pasting the resume prompt when a plugin was installed, updated, enabled or disabled during the
+  session, and records that step under Environment to re-establish. It no longer lets a handoff
+  say that `/clear` or the resume prompt loads the updated plugin.
+
+- `/session-flow:retro session` now quotes the sentence the report writes when
+  `/docs-hygiene:write-for-agents` is not among the session's skills: each place the report
+  assesses a steering-file line says the skill was not available, not only that the yardstick was
+  not run. The no-op steering-file row now says the retro finds the line by reading the steering
+  files, with no session event behind it, and the durable-findings filter keeps it, so a session
+  where nothing went wrong still reports it.
+
 ## [9.0.2] - 2026-11-14
 
 ### Fixed

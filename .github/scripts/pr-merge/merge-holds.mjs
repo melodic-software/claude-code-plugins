@@ -1137,8 +1137,10 @@ export async function baseParents(compare, tip, then, now) {
 
 // The tip commit of the base branch `base`, read once by its full ref so no
 // tag or other ref of the same name stands in for it; a throw when it does
-// not read as a commit SHA.
-export async function baseTip(github, repo, base) {
+// not read as a commit SHA. `mainTip`, main's tip the caller already
+// resolved, answers for `main` with no read.
+export async function baseTip(github, repo, base, mainTip = undefined) {
+  if (base === "main" && isSha(mainTip)) return mainTip;
   const sha = (await github("GET", `/repos/${repo}/git/ref/heads/${base}`))?.object?.sha;
   if (!isSha(sha)) throw new Error(`the base branch ${base} did not resolve`);
   return sha;
@@ -1181,8 +1183,8 @@ export function liftsOf(reviews, humans, dismissed = new Map()) {
 // the net change differs, H...H', the range between the two merge bases and
 // the recursive trees of H' and M' (exactBaseCarry). A read that fails lifts nothing (a timeline that does not
 // read restores no dismissed approval): the caller keeps the exact-head
-// approvals it read (pathLifters).
-export async function liftersOf(github, repo, number, head, humans, holdPaths = undefined) {
+// approvals it read (pathLifters). `mainTip` goes to baseTip.
+export async function liftersOf(github, repo, number, head, humans, holdPaths = undefined, { mainTip } = {}) {
   try {
     const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
     const base = pull?.base?.ref;
@@ -1195,7 +1197,7 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
     // A carry runs only into the repository's default branch: another base
     // may be non-linear, with criss-cross merge bases.
     const carrying = lifts.some(({ sha }) => sha !== head) && (await github("GET", `/repos/${repo}`))?.default_branch === base;
-    const tip = carrying ? await baseTip(github, repo, base) : null;
+    const tip = carrying ? await baseTip(github, repo, base, mainTip) : null;
     const compares = new Map();
     const compare = async (range) => {
       if (!compares.has(range)) compares.set(range, await github("GET", `/repos/${repo}/compare/${range}`));

@@ -1281,9 +1281,23 @@ printf 'v="$(echo "it'"'"'s")"\npass "after the substitution"\n' >"$SH/subst.tes
 run_file --file "$SH/subst.test.sh"
 assert_contains "quotes nest inside \$( ) inside a double-quoted string" "$out" "test blocks parsed: 1;"
 assert_finding_count "a nested quote does not hide a later assertion" 0
-printf 'gate_test::run_suite "$DIR" test_x.py\n' >"$SH/gate.test.sh"
-run_file --file "$SH/gate.test.sh"
-assert_finding_count "gate_test::run_suite delegates the assertions" 0
+# A consumer's own suite runner reaches the adapter through extend, so the
+# shipped adapter carries no repository's runner name.
+GATE="$TMP_ROOT/gate"
+mkdir -p "$GATE/.claude" "$TMP_ROOT/gate-home"
+git -C "$GATE" init -q
+printf 'gate_test::run_suite "$DIR" test_x.py\n' >"$GATE/gate.test.sh"
+gate_scan() {
+  rc=0
+  out="$(env -u CLAUDE_PROJECT_DIR HOME="$TMP_ROOT/gate-home" bash "$SCAN" --file "$GATE/gate.test.sh" 2>&1)" || rc=$?
+}
+gate_scan
+assert_finding_count "the shipped adapter alone does not take a suite runner call as delegation" 1
+printf '%s\n' 'extend:' '  bash-harness:' "    delegation: ['gate_test::run_suite']" >"$GATE/.claude/testing.yaml"
+gate_scan
+assert_exit "the scan with the extend entry runs (exit 0)" 0 "$rc"
+assert_contains "and examines the file" "$out" "test files: 1 examined"
+assert_finding_count "an extend.bash-harness.delegation entry delegates the assertions" 0
 printf 'exec node "$DIR/x.test.mjs"\n' >"$SH/exec.test.sh"
 run_file --file "$SH/exec.test.sh"
 assert_finding_count "exec running a suite file delegates the assertions" 0

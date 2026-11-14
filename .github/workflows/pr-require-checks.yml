@@ -5237,7 +5237,7 @@ jobs:
             fi
           done <<<"$rows"
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@60b15bf60376dac67541fabc76ba5579954af63b # 60b15bf 2026-11-14
         with:
           token: ${{ github.token }}
           # Dependabot and the release App write generated bodies with no

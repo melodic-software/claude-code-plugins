@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Security defect (reproduced):** any member can cancel another member's hold.\n\n## Hold cancel path\n...\n\nWhich candidate should we explore?",
+      "why": "security defect before the question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "## Hold cancel path\n- recommendation: Strong\n\nWhich candidate should we explore?",
+      "why": "no security defect named"
+    },
+    {
+      "answer": "Which candidate should we explore? Also note a security issue in cancel.",
+      "why": "security named only after the question"
+    }
+  ]
+}
