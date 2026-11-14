@@ -102,6 +102,6 @@
       }
     ],
     "excludeSemverMajor": true,
-    "requiredCheck": "ci-status"
+    "requiredCheck": "CI Status"
   }
 }
