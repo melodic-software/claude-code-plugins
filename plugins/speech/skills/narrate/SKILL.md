@@ -65,7 +65,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py" run --data-dir "${CLAUDE_PLUGI
   "${CLAUDE_PLUGIN_ROOT}/scripts/narrate.py" --data-dir "${CLAUDE_PLUGIN_DATA}" \
   --model-dir '${user_config.model_dir}' \
   --script <script file> --out <output folder> --backend-chain <name,...> \
-  [--voice <backend>:<voice>]... [--command '<template>'] [--timeout <s>] [--allow-paid-voice]
+  [--voice <backend>:<voice>]... [--command '<template>'] [--timeout <s>] [--allow-paid-voice] \
   [--scan-pattern <regex>]...
 ```
 
