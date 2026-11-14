@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No ecosystem linter (cross-cutting text checks only): docs/install.txt, docs/keys.txt",
+      "why": "the skill's line"
+    },
+    {
+      "answer": "**No ecosystem linter (cross-cutting text checks only):** `docs/install.txt`, `docs/keys.txt`",
+      "why": "bold label and code spans"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| cross-cutting | pass | PASS |\n\nOverall: PASS (2 of 2 ecosystems passed)",
+      "why": "the text files are passed over in silence"
+    },
+    {
+      "answer": "Outside every ecosystem: docs/install.txt, docs/keys.txt",
+      "why": "wrong line for files cross-cutting checked"
+    }
+  ]
+}

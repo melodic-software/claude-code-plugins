@@ -80,6 +80,8 @@ It tries the remote the current branch tracks, then `origin`, then the rest, and
 
 If neither path yields changes and no `$ARGUMENTS`: report "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:check all` to verify the full repo, or `/toolchain:check <ecosystem>` for a specific ecosystem." and exit.
 
+**Files outside every ecosystem.** A changed file is outside every ecosystem when no resolved ecosystem's `globs` match it, cross-cutting's `**` aside: that glob is never a claim by itself, and this skill never runs cross-cutting. A match by any other ecosystem counts, even the lint-only `yaml` surface or one that is disabled or skipped for an unmet opt-in. Collect each such text file for the report's `Outside every ecosystem` line; a deleted file is not named. Under `all` the changed files still come from the detection paths above; an ecosystem argument skips this step. A binary file stays quiet. Decide binary with `git ls-files --eol -c -o -- <file>`: the file is binary when Git identifies its working-tree content as not text ([`--eol`](https://git-scm.com/docs/git-ls-files#Documentation/git-ls-files.txt---eol)). A path with no working-tree content is deleted or not a regular file, never binary. One command serves a working-tree change, the branch diff and a caller-supplied changed-file list. If files changed but no ecosystem runs, print the `Outside every ecosystem` line (when it names any file) instead of the table, and exit.
+
 **Conversation-aware targeting.** When the conversation has been working in specific files or projects, scope the build to what was touched. The ecosystem's `anchor` is the default entry point; substitute a narrower project file when changes stay in one project. For .NET, use the specific `.csproj` for a one-project change, and the solution file when changes span projects or touch shared files (`.props`, `.targets`, the solution file).
 
 ### 1.5 Resolve each ecosystem's command surface
@@ -151,6 +153,8 @@ Use `pass`, `FAIL`, `syntax only`, a named skip, or `—` (not applicable: the c
 
 An ecosystem's Status and the Overall line read `FAIL` when any cell or fired gate failed, `INCOMPLETE` when nothing failed but an environment skip remains or an ecosystem's only filled cells are `syntax only`, and `PASS` only when none of these holds. `INCOMPLETE` names each cause with its reason (e.g. `Overall: INCOMPLETE (1 of 2 ecosystems passed; python: skip (tool missing: uv))`, or `bash: no real check ran (syntax only)`), so a caller can say exactly what stayed unverified and whether it was an environment skip. A run the install rule stopped reads `STOPPED`. A `PASS` with any `pass (flaky: N)` cell carries the summed count, as in `Overall: PASS (2 of 2 ecosystems passed; flaky: 1)`.
 
+Below the table, name every changed text file outside every ecosystem on one line, printed word for word even when a note elsewhere in the reply says the same thing: `Outside every ecosystem: <path>, <path>`. Since this skill never runs cross-cutting, `/toolchain:lint`'s cross-cutting-only line never appears here. The line changes no Status and no Overall line, and no binary file is on it. Say nothing about a binary file outside every ecosystem: no table row, no bullet, and no note that it is binary, was skipped or was ignored. Tool output the report shows, such as failing lines or `git diff --stat`, stays as printed.
+
 When any gate fired, list each by name and outcome below the ecosystem table, with its remediation on failure. The Overall line then names both counts, pass or fail (e.g. `Overall: FAIL (0 of 2 ecosystems failed, 1 gate failed)`, `Overall: PASS (2 of 2 ecosystems passed, 1 gate passed)`), so it is clear whether a gate ran.
 
 ### 4. Record the result
@@ -161,7 +165,7 @@ After the report, record its Overall line for the tree it ran on, in its own Bas
 node "${CLAUDE_PLUGIN_ROOT}/scripts/record-result.mjs" --skill check --dir "$REPO_ROOT" --overall '<the Overall line>'
 ```
 
-The plugin's Stop hook reads it when the turn ends and warns when the line is not `PASS`, or when no result is recorded for the current tree. An edit after the run changes the tree, so the record no longer counts. A failed record (exit 2) changes nothing in the report; say it was not recorded. Skip this step when an ecosystem argument narrowed the run (a narrowed `PASS` does not cover the whole tree; `all` and a caller's changed-file list do), and when the run stopped at "No changes found".
+The plugin's Stop hook reads it when the turn ends and warns when the line is not `PASS`, or when no result is recorded for the current tree. An edit after the run changes the tree, so the record no longer counts. A failed record (exit 2) changes nothing in the report; say it was not recorded. Skip this step when an ecosystem argument narrowed the run (a narrowed `PASS` does not cover the whole tree; `all` and a caller's changed-file list do), and when the run stopped at "No changes found" or with no ecosystem to run.
 
 ## For other skills referencing /toolchain:check
 

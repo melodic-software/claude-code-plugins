@@ -52,10 +52,12 @@ opt-outs apply as in the other audits.
 
 Present the markdown report as printed: the scope, the counts, the correctness list with the layer
 that set it, then one row per suppression (correctness rules first, then lines without a reason),
-capped at 200 rows with the kept document named for the rest. The `--json` document
+capped at 200 rows with the kept document named for the rest, then a `Not read` line naming each
+text file in scope whose language the scanner has no kind for. The `--json` document
 (`code-metrics/suppressions/v1`) carries `scope`, `counts` (`suppressions`, `unjustified`,
-`correctness`), `correctness_rules` (`rules`, `layer`) and `suppressions`, one object per row with
-`file`, `line`, `tool`, `rules`, `justified`, `reason` and `correctness`.
+`correctness`), `correctness_rules` (`rules`, `layer`), `suppressions`, one object per row with
+`file`, `line`, `tool`, `rules`, `justified`, `reason` and `correctness`, and `unread`, the paths of
+those files.
 
 ## Findings for the review relay (`--findings`)
 
@@ -193,4 +195,5 @@ The marker catalog follows each tool's own directive syntax, read from these pag
 - The scanner needs Python 3.11 or later, above the plugin's 3.9 floor; below it the scanner
   exits 2 with a one-line message.
 - File type comes from the extension, or the shebang for a file without one; a shell script named
-  `*.txt` is not read as shell.
+  `*.txt` is not read as shell. A text file with no known type is named on the `Not read` line, and
+  a `--findings` file counts it under `Not examined`; a binary file is passed over quietly.

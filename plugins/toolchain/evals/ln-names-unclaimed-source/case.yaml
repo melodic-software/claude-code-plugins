@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: ln-names-unclaimed-source
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: markdown-ran
+    type: regex
+    pattern: '^markdown check\b[^\n]*\bdocs/guide\.md\b'
+    flags: m
+    target: { source: file, path: .calls.log }
+  - name: rs-named
+    type: regex
+    pattern: '\b(?:not (?:linted|checked|covered)|outside (?:every|any) ecosystem)\b[^\n]{0,120}?\bsrc/lib\.rs\b|\bsrc/lib\.rs\b[^\n.;]{0,120}?\b(?:outside (?:every|any) ecosystem|no ecosystem|not (?:linted|covered|claimed)|unclaimed)\b'
+    flags: i
+    target: last_message
+  - name: png-silent
+    type: regex
+    pattern: '\blogo\.png\b[^\n.;]{0,80}?\b(?:skip\w*|warn\w*|FAIL\w*|unclassified|(?:ignore[ds]?|ignoring)|no (?:matching )?ecosystem|outside (?:every|any) ecosystem|not (?:linted|covered|matched|classified|claimed)|binary|image|not (?:a )?text|left (?:alone|out)|excluded|no (?:applicable )?linter|nothing to (?:lint|check))\b|\b(?:skip\w*|warn\w*|FAIL\w*|unclassified|(?:ignore[ds]?|ignoring)|binary|(?:did not|didn.t) lint)\b[^\n.;]{0,80}?\blogo\.png\b|\b(?:not linted|outside (?:every|any) ecosystem)\b[^\n]{0,120}?\blogo\.png\b'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: overall-pass
+    type: regex
+    pattern: 'Overall\W{0,8}PASS\b'
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run is bare `/toolchain:lint` in a repository with a tracked markdown config whose check passes, cross-cutting disabled, no config of any ecosystem that claims a changed `src/lib.rs`, and a changed binary `assets/logo.png`. It passes when the reply runs and reports the markdown ecosystem, names `src/lib.rs` as a changed file outside every ecosystem (not passed over in silence and not reported as covered by the markdown ecosystem), says nothing about skipping, warning on or failing the binary image, and reads the Overall line as PASS: the unlinted source file is named but does not fail the run or make it INCOMPLETE.'
