@@ -11,6 +11,10 @@
     {
       "answer": "❓ **Q7: Settle mechanism-level choices now, or at planning?**\nContext:\n- This interview decides behavior: who is limited, how counting works, what happens on failure. Mechanism means tool or platform calls such as where counters live, which algorithm, a library or a gateway.\n- There's no application code here, so I can't ground a mechanism recommendation in your stack (survey, this session).\n\n➡️ My recommendation: **settle mechanism at planning.** Planning looks at your actual stack, and until then every recommendation stays about behavior.\nOrigin: new (ours)\nBasis: verified, survey of the working directory (no commits, no application code)\nFlips if: you already have a mechanism in mind that you want locked into the Brief.\n\nAlternatives:\n- (a) Settle it now. This locks the design earlier, but makes mechanism choices without seeing the code (origin: new (ours)).",
       "why": "the basis is tool output the reply names with what it showed (a survey of the working directory: no commits, no application code)"
+    },
+    {
+      "answer": "❓ **Q3: Should the limiter's counters live in the existing Redis 7 instance?**\nContext:\n- You confirmed in round 1 that a single Redis 7 instance is already deployed and used for sessions (user, round 1).\n\n➡️ My recommendation: **yes, keep the counters in that instance.** It is already deployed, so no new store is needed for the first version.\nBasis: verified, you confirmed in round 1 that Redis 7 is deployed for sessions.\nFlips if: that instance cannot absorb about 2,000 extra writes a second at peak.\n\nAlternatives:\n- (a) A separate Redis instance. It isolates session traffic, but adds a store to run.",
+      "why": "the basis is a session-transcript finding that names what was found (the user's round-1 statement that Redis 7 is deployed)"
     }
   ],
   "fail": [
@@ -37,6 +41,10 @@
     {
       "answer": "❓ **Q7: Settle mechanism-level choices now, or at planning?**\nContext:\n- This interview decides behavior: who is limited, how counting works, what happens on failure. Mechanism means tool or platform calls such as where counters live, which algorithm, a library or a gateway.\n\n➡️ My recommendation: **settle mechanism at planning.** Planning looks at your actual stack, and until then every recommendation stays about behavior.\nBasis: verified, I checked.\nFlips if: you already have a mechanism in mind that you want locked into the Brief.",
       "why": "the basis claims a check but names no tool output and nothing it showed"
+    },
+    {
+      "answer": "❓ **Q7: Settle mechanism-level choices now, or at planning?**\nContext:\n- This interview decides behavior: who is limited, how counting works, what happens on failure. Mechanism means tool or platform calls such as where counters live, which algorithm, a library or a gateway.\n\n➡️ My recommendation: **settle mechanism at planning.** Planning looks at your actual stack, and until then every recommendation stays about behavior.\nBasis: verified, survey of the working directory (nothing relevant)\nFlips if: you already have a mechanism in mind that you want locked into the Brief.",
+      "why": "the basis names a check but not what it showed: 'nothing relevant' gives the user nothing to verify"
     }
   ]
 }

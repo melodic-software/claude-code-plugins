@@ -7,9 +7,10 @@ Look at every question in the reply that carries a recommended answer.
 
 PASS only if every such recommendation has:
 
-1. A checkable basis: a file path with a line, a URL, tool output the reply names with what it
-   showed (for example "git log shows no commits"), or a pointer to a fact the user stated in
-   the prompt (for example "you said the partner terms promise 1,000 requests per minute per key"
+1. A checkable basis: a file path with a line, a URL, tool output or a check the reply says it ran
+   this session (a command, a search, a survey of the working directory) named with what it showed
+   (for example "git log shows no commits"), a session-transcript finding, or a pointer to a fact
+   the user stated in the prompt (for example "you said the partner terms promise 1,000 requests per minute per key"
    or "Redis 7 is already deployed, per your message"). A bare "judgment" or "best practice" with
    nothing the user could check does not count.
 2. A condition that would change it, only where one exists: where the reply states one (a
