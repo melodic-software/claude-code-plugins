@@ -105,6 +105,35 @@ done
 
 common=(--force-exclude --no-cache --quiet)
 
+# Ruff reads the paths from an argfile, one per line, so no number of staged
+# files overflows the command line (32,767 characters on Windows). The argfile
+# sits in the git dir under a path git spells, which a native ruff.exe opens
+# as is. A path holding a CR or LF cannot be a line, so it stays on argv.
+targets=()
+if ((${#files[@]})); then
+  argfile=".git/ruff-args.$$"
+  [[ -d .git ]] || argfile="$(git rev-parse --git-path "ruff-args.$$")" || exit 1
+  # The EXIT trap checks_init set, plus the argfile's removal.
+  # shellcheck disable=SC2329  # invoked by name, from the EXIT trap
+  finish() {
+    local status=$?
+    rm -f -- "$argfile"
+    checks_finish "$status"
+  }
+  trap 'finish || exit 1' EXIT
+  listed=()
+  for f in "${files[@]}"; do
+    case "$f" in
+    *[$'\n\r']*) targets+=("$f") ;;
+    *) listed+=("$f") ;;
+    esac
+  done
+  if ((${#listed[@]})); then
+    printf '%s\n' "${listed[@]}" >"$argfile" || exit 1
+    targets=("@$argfile" ${targets[@]+"${targets[@]}"})
+  fi
+fi
+
 if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
   # Only the Python files are refused, not every staged path, which is what
   # checks_refuse_partly_staged would walk.
@@ -117,8 +146,8 @@ if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
   done
   ((refused)) && exit 1
 
-  ruff check --fix --no-unsafe-fixes "${common[@]}" -- "${files[@]}" >/dev/null 2>&1 || :
-  ruff format "${common[@]}" -- "${files[@]}" >/dev/null 2>&1 || :
+  ruff check --fix --no-unsafe-fixes "${common[@]}" -- "${targets[@]}" >/dev/null 2>&1 || :
+  ruff format "${common[@]}" -- "${targets[@]}" >/dev/null 2>&1 || :
 
   rewritten=()
   while IFS= read -r -d '' f; do
@@ -151,7 +180,7 @@ collect() {
   to_contract <"$out" >>"$CHECKS_TMP/contract"
 }
 if ((${#files[@]})); then
-  ruff check --no-fix --output-format concise "${common[@]}" -- "${files[@]}" >"$out" 2>&1
+  ruff check --no-fix --output-format concise "${common[@]}" -- "${targets[@]}" >"$out" 2>&1
   collect $?
 fi
 # --stdin-filename names the path, so the config and its excludes hold for it.
