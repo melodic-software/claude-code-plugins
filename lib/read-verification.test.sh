@@ -194,15 +194,12 @@ assert_eq "team file text cannot select the working-tree copy" \
   "verification: standard (default; $F does not parse or repeats a key $(at "$repo"))" "$(run "$repo" | head -n 1)"
 
 # A failed fetch keeps the team's level from the last fetched copy, named as possibly stale, rather than
-# dropping to the light default. Origin's main moves ahead (pushed by URL, so refs/remotes/origin/main
-# stays behind) and a reference-transaction hook refuses the fetch's update.
+# dropping to the light default. Origin's main moves to a commit whose tree names a blob origin does not
+# have: ls-remote still answers, but the fetch cannot send the commit on any git version.
 repo=$(fixture stale $'verification: strict\n')
-next="$(g -C "$repo" commit-tree "HEAD^{tree}" -p HEAD -m next)"
-g -C "$repo" push -q "$TEST_TMPDIR/stale/origin.git" "$next:refs/heads/main"
-mkdir -p "$TEST_TMPDIR/hooks"
-printf '#!/bin/sh\nexit 1\n' >"$TEST_TMPDIR/hooks/reference-transaction"
-chmod +x "$TEST_TMPDIR/hooks/reference-transaction"
-g -C "$repo" config core.hooksPath "$TEST_TMPDIR/hooks"
+origin="$TEST_TMPDIR/stale/origin.git"
+tree="$(printf '100644 blob %s\tx\n' 1111111111111111111111111111111111111111 | g -C "$origin" mktree --missing)"
+g -C "$origin" update-ref refs/heads/main "$(g -C "$origin" commit-tree "$tree" -p main -m next)"
 assert_eq "a failed fetch keeps the last fetched level" \
   "verification: strict ($F verification $(at "$repo"); the fetch failed, so the last fetched copy may be stale)" \
   "$(run "$repo")"

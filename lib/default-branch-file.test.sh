@@ -62,19 +62,16 @@ last() { CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" "$@" 2>&1 >/dev/null | tail -
 assert_eq "a missing file still names the commit read" \
   "default-branch-file: missing.css at origin/main, commit $sha" "$(last --path missing.css)"
 
-# A fetch that fails reads the last fetched copy and says so. Origin's main moves ahead (pushed by URL, so
-# refs/remotes/origin/main stays behind) and a reference-transaction hook refuses the fetch's update.
-next="$(g -C "$repo" commit-tree "$sha^{tree}" -p "$sha" -m next)"
-g -C "$repo" push -q "$dir/origin.git" "$next:refs/heads/main"
-mkdir -p "$TEST_TMPDIR/hooks"
-printf '#!/bin/sh\nexit 1\n' >"$TEST_TMPDIR/hooks/reference-transaction"
-chmod +x "$TEST_TMPDIR/hooks/reference-transaction"
-g -C "$repo" config core.hooksPath "$TEST_TMPDIR/hooks"
+# A fetch that fails reads the last fetched copy and says so. Origin's main moves to a commit whose tree
+# names a blob origin does not have: ls-remote still answers, but the fetch cannot send the commit, so
+# refs/remotes/origin/main stays on the last fetched one on every git version.
+tree="$(printf '100644 blob %s\tx\n' 1111111111111111111111111111111111111111 | g -C "$dir/origin.git" mktree --missing)"
+next="$(g -C "$dir/origin.git" commit-tree "$tree" -p "$sha" -m next)"
+g -C "$dir/origin.git" update-ref refs/heads/main "$next"
 assert_eq "a failed fetch reads the last fetched copy" "body{}" "$(run --path style.css)"
 assert_eq "a failed fetch is named as possibly stale" \
   "default-branch-file: style.css at origin/main, commit $sha; the fetch failed, so the last fetched copy may be stale" \
   "$(last --path style.css)"
-g -C "$repo" config --unset core.hooksPath
 assert_eq "a parent step in --path exits 2" 2 "$(code --path ../style.css)"
 assert_eq "an absolute --path exits 2" 2 "$(code --path /etc/passwd)"
 assert_eq "no arguments exit 2" 2 "$(code)"
