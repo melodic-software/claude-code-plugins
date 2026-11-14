@@ -3,6 +3,16 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0] - 2026-11-14
+
+### Changed
+
+- The team-layer schema's `tool` key accepts any id, not only the six shipped adapters and
+  `manual`, so `tool: cargo-mutants` validates. `/mutation-testing:audit` keeps the layer, names an
+  id with no `tooling.md` row as having no shipped adapter, refuses to run it and offers
+  `tool: manual`. `/mutation-testing:setup check` reports such an id as INFO. `manual` keeps its
+  reserved meaning, and the config template lists the shipped ids.
+
 ## [0.17.2] - 2026-11-14
 
 ### Changed
