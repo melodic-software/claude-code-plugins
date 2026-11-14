@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "| markdown | pass | PASS |\n\nNot linted (outside every ecosystem): src/lib.rs\n\nOverall: PASS (1 of 1 ecosystems passed)",
+      "answer": "| markdown | pass | PASS |\n\nOutside every ecosystem: src/lib.rs\n\nOverall: PASS (1 of 1 ecosystems passed)",
       "why": "no mention of the image"
     },
     {
@@ -11,8 +11,8 @@
   ],
   "fail": [
     {
-      "answer": "Not linted (outside every ecosystem): src/lib.rs, assets/logo.png",
-      "why": "the image on the not-linted line"
+      "answer": "Outside every ecosystem: src/lib.rs, assets/logo.png",
+      "why": "the image on the outside-every-ecosystem line"
     },
     {
       "answer": "assets/logo.png: skipped (no ecosystem matches it)",

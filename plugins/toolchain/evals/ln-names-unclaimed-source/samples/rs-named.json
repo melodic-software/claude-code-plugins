@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "| markdown | pass | PASS |\n\nNot linted (outside every ecosystem): src/lib.rs\n\nOverall: PASS (1 of 1 ecosystems passed)",
+      "answer": "| markdown | pass | PASS |\n\nOutside every ecosystem: src/lib.rs\n\nOverall: PASS (1 of 1 ecosystems passed)",
       "why": "the skill's line"
     },
     {
@@ -16,7 +16,7 @@
     },
     {
       "answer": "Changed files: docs/guide.md, src/lib.rs",
-      "why": "listed as changed, with no word that nothing linted it"
+      "why": "listed as changed, with no word that no ecosystem covers it"
     }
   ]
 }
