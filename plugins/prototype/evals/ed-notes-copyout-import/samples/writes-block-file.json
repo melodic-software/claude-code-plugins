@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/work/mockup-run/import.json\",\"content\":\"```prototype-notes\\n{\\\"notes\\\": [{\\\"kind\\\": \\\"text\\\", \\\"anchor\\\": {\\\"testid\\\": \\\"shipments-parcel-card\\\"}}]}\\n```\\n\"}}]}}",
+      "why": "writes the pasted block to a file in the run directory"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"mockup-run/pasted-notes.json\",\"content\":\"{\\\"notes\\\": [{\\\"anchor\\\": {\\\"testid\\\": \\\"shipments-parcel-card\\\"}}]}\"}}]}}",
+      "why": "the block's JSON alone, under another file name in the run directory"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/work/import.json\",\"content\":\"{\\\"notes\\\": [{\\\"anchor\\\": {\\\"testid\\\": \\\"shipments-parcel-card\\\"}}]}\"}}]}}",
+      "why": "writes the block outside the run directory"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > mockup-run/import.json <<'EOF'\\n{\\\"notes\\\": [{\\\"anchor\\\": {\\\"testid\\\": \\\"shipments-parcel-card\\\"}}]}\\nEOF\",\"description\":\"x\"}}]}}",
+      "why": "writes the block through a Bash heredoc, not the Write tool"
+    }
+  ]
+}

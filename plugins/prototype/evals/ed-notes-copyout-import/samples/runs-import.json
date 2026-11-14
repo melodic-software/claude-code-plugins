@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"bash /p/notes-bridge/notes-bridge.sh --dir mockup-run import --file mockup-run/import.json\",\"description\":\"x\"}}]}}",
+      "why": "imports the file through the bridge"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 /p/notes-bridge/notes_bridge.py --dir /work/mockup-run import --file /work/mockup-run/import.json\",\"description\":\"x\"}}]}}",
+      "why": "the bridge's Python entry point, absolute paths"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"bash \\\"/p/notes-bridge/notes-bridge.sh\\\" --dir \\\"/work/mockup-run\\\" import --file \\\"/work/mockup-run/import.json\\\"\",\"description\":\"x\"}}]}}",
+      "why": "the quoted form feedback.md gives"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"bash /p/notes-bridge/notes-bridge.sh --dir mockup-run status\",\"description\":\"x\"}}]}}",
+      "why": "reads status but never imports"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 -c 'import json; json.load(open(\\\"mockup-run/import.json\\\"))'\",\"description\":\"x\"}}]}}",
+      "why": "parses the file itself instead of importing it"
+    }
+  ]
+}
