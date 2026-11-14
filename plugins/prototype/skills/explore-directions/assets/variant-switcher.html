@@ -252,6 +252,17 @@
       e.preventDefault();
     });
 
+    // A vs:show event on document restores a view a reload loses, for a script re-locating a note:
+    // detail {variant, state, content}, each optional; a part this page does not have is ignored.
+    document.addEventListener("vs:show", (e) => {
+      const d = e.detail;
+      if (!d || typeof d !== "object") return;
+      const i = variants.findIndex((v) => v.dataset.variant === d.variant);
+      if (typeof d.state === "string") stateKey = d.state;
+      if (hasContent && (d.content === "demo" || d.content === "worst") && d.content !== root.dataset.vsContent) flipContent();
+      show(i >= 0 ? i : current);
+    });
+
     show(0);
     // The highlight slides only after first paint, so the load does not animate.
     requestAnimationFrame(() => requestAnimationFrame(() => nav.setAttribute("data-ready", "")));

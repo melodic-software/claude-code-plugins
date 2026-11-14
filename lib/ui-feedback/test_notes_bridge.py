@@ -256,6 +256,16 @@ class TestNotes(NotesCase):
         with self.assertRaises(RuntimeError):
             nb.problems({}, {"oneOf": []})
 
+    def test_a_rect_number_that_json_cannot_carry_is_refused(self):
+        # json.loads reads NaN and Infinity, which the fixtures (strict JSON) cannot hold.
+        base = FIXTURES["valid"][0]["note"]
+        for bad in ("NaN", "Infinity", "-Infinity"):
+            note = {
+                **base,
+                "rect": json.loads(f'{{"x": {bad}, "y": 0, "w": 1, "h": 1}}'),
+            }
+            self.assertNotEqual(nb.problems(note), [], bad)
+
     def test_a_note_is_logged_with_a_seq_and_shown_in_the_state_frame(self):
         code, body = self.note()
         self.assertEqual((code, body["seq"]), (200, 1))
