@@ -94,17 +94,22 @@ class Chain(unittest.TestCase):
                     'kokoro': backend('kokoro', Fake())}
         start = time.monotonic()
         self.assertEqual(self.run_chain(['command', 'kokoro'], backends, timeout=0.5), 0)
-        self.assertLess(time.monotonic() - start, 15, 'four 0.5 s timeouts, not four 30 s sleeps')
-        self.assertEqual([a['status'] for a in self.voice_json()['attempts']], ['timeout'] * 4 + ['ok'])
+        self.assertLess(time.monotonic() - start, 15, 'a 0.5 s timeout, not a 30 s sleep')
+        self.assertEqual([a['status'] for a in self.voice_json()['attempts']], ['timeout', 'ok'],
+                         'a timed-out backend is not retried')
+        self.assertEqual(self.slept, [])
 
-    def test_an_in_process_backend_that_hangs_is_abandoned_at_the_timeout(self):
+    def test_an_in_process_backend_that_hangs_is_called_once_then_abandoned(self):
+        calls = []
+
         def hang(script, out_dir, voice, timeout):
+            calls.append(voice)
             time.sleep(30)
         backends = {'slow': backend('slow', hang), 'kokoro': backend('kokoro', Fake())}
         start = time.monotonic()
         self.assertEqual(self.run_chain(['slow', 'kokoro'], backends, timeout=0.2), 0)
         self.assertLess(time.monotonic() - start, 15)
-        self.assertEqual(self.voice_json()['backend'], 'kokoro')
+        self.assertEqual((len(calls), self.voice_json()['backend']), (1, 'kokoro'))
 
     def test_a_planted_secret_reaches_no_online_backend(self):
         online = Fake()

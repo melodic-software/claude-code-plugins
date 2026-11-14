@@ -15,9 +15,9 @@ exit codes: 0 written; 2 a prerequisite is missing (espeak-ng, the model files, 
 its remedy; 1 any other failure.
 
 With --backend-chain the backends are tried in order and one of them voices the whole script, so a video never mixes
-voices. Each call has a hard timeout (--timeout); a failed or timed-out call is retried after 1, 2 and 4 seconds, then
-the whole script goes to the next backend. A backend that cannot run at all (a missing package, model or key) is not
-retried. voice.json records {backend, voice, attempts[]}; backend and voice are null when nothing was voiced.
+voices. A failed call (a non-zero exit, a network error) is retried after 1, 2 and 4 seconds, then the whole script
+goes to the next backend. A call that passes its hard timeout (--timeout), or a backend that cannot run at all (a
+missing package, model or key), goes to the next backend at once. voice.json records {backend, voice, attempts[]}; backend and voice are null when nothing was voiced.
   edge-tts    online, free; Microsoft's read-aloud endpoint; default voice en-US-AndrewNeural; needs ffmpeg
   kokoro      local; the backend above, with --speed, --data-dir and --model-dir
   openai      online, paid; OPENAI_API_KEY; default voice marin; word times estimated
@@ -512,6 +512,8 @@ def run_chain(text, out, chain, backends, voices=None, timeout=DEFAULT_TIMEOUT_S
                 break
             except CallTimeout as e:
                 note(name, v, 'timeout', e, time.monotonic() - began)
+                shutil.rmtree(work, ignore_errors=True)
+                break
             except Exception as e:   # any other failure of a voice is retried
                 note(name, v, 'failed', str(e) or type(e).__name__, time.monotonic() - began)
             else:
