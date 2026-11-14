@@ -128,8 +128,8 @@ the model's context on demand, and no script reads it. The marked, machine-owned
 
 Each layer answers a question the others cannot. The plugin default keeps every setting resolvable
 with nothing configured. `userConfig` carries a per-person value across repos, which a tracked file
-structurally cannot: a per-user setting cannot decide the location or content of a team-shared
-artifact. The team layer is the only layer teammates receive. The personal override is the only place
+structurally cannot, because a per-user setting cannot decide the location or content of a
+team-shared artifact. The team layer is the only layer teammates receive. The personal override is the only place
 a personal deviation can live without either editing the shared file or going uncommitted and lost.
 Dropping any one of them reintroduces a problem the other three cannot solve.
 
