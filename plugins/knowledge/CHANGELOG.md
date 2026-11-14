@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.1.1] - 2026-11-14
+
+### Fixed
+
+- The `dd-standard-dispatches-verifier-arms` eval case is tagged `no-network`. Its fixture URL is a placeholder the eval sandbox cannot reach, so verifier A's live re-fetch is always denied; without the tag the validity gate read every run INVALID.
+
 ## [3.1.0] - 2026-11-14
 
 ### Added
