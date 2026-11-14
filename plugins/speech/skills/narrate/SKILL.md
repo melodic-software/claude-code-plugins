@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: implement
-  summary: Script in, narration.wav and words.json out (kokoro local; elevenlabs optional, third-party)
+  summary: Script in, narration.wav and words.json out (kokoro local, or a voice fallback chain)
 ---
 
 # Narrate
@@ -53,6 +53,34 @@ Keep the `--model-dir` argument exactly as shown, in single quotes: it carries t
   `python`. Keep `--model-dir` exactly as shown, in single quotes; the script handles an unset
   `model_dir` option.
 - **Exit 1:** report the error. An unknown voice or a speed out of range is the caller's to fix.
+
+## Run a backend chain
+
+A producer that must not stop for want of one voice (explainer-video, reviewer media) passes
+`--backend-chain`, a comma-separated order such as `edge-tts,kokoro`. One backend voices the whole
+script; on failure the whole script goes to the next one, so voices never mix.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py" run --data-dir "${CLAUDE_PLUGIN_DATA}" -- \
+  "${CLAUDE_PLUGIN_ROOT}/scripts/narrate.py" --data-dir "${CLAUDE_PLUGIN_DATA}" \
+  --model-dir '${user_config.model_dir}' \
+  --script <script file> --out <output folder> --backend-chain <name,...> \
+  [--voice <backend>:<voice>]... [--command '<template>'] [--timeout <s>] [--allow-paid-voice]
+```
+
+The backends, their default voices, the retries, the timeout and the scan are in `narrate.py`'s
+docstring. Besides `narration.wav` and `words.json` the run writes `voice.json`: the backend and
+voice that spoke, and every attempt.
+
+- Pass `--allow-paid-voice` only after the user agreed to the paid call in this session, or when the
+  caller's `allow_unattended_paid_voice` setting is true. Never add it to get past exit 3.
+- **Exit 0:** report the paths, the length, and the backend and voice from `voice.json`.
+- **Exit 3:** the chain reached a paid backend without the allowance; nothing was sent.
+- **Exit 4:** the script holds a secret or machine data (the scan floor); nothing was sent. Report
+  the finding kinds from `voice.json` and fix the script. Do not drop the online backends to get
+  past it.
+- **Exit 5:** no backend produced audio. A producer makes its captions-only version.
+- **Exit 1:** a usage error, such as an unknown backend or a `--voice` without its backend.
 
 ## The elevenlabs backend
 

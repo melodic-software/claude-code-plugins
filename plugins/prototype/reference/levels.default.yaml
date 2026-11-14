@@ -1,0 +1,28 @@
+# The shipped levels of the prototype plugin, read by lib/prototype-settings.mjs as the cascade's
+# default layer and validated against schemas/prototype.schema.json. reference/config.md says
+# what each dimension means. standard is the run the skill text describes with no level set.
+levels:
+  sketch:
+    variants: 2
+    screens: one
+    states: core
+    extra_states: []
+    evidence: per-variant
+    offers: []
+    phrases: [a quick sketch, a rough sketch, just a sketch]
+  standard:
+    variants: 3
+    screens: flow
+    states: planned
+    extra_states: []
+    evidence: per-state
+    offers: [review-mode, real-stack]
+    phrases: []
+  full:
+    variants: 5
+    screens: flow
+    states: planned
+    extra_states: [narrow-viewport, dark-scheme, reduced-motion]
+    evidence: per-state
+    offers: [review-mode, real-stack]
+    phrases: [the full package, the full treatment]

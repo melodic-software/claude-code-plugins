@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ed-level-content-word-not-a-level
+description: "Levels, MB:plugins/prototype/skills/explore-directions/reference/levels.md: a scope that uses 'full' and 'quick' as content words (the user's full name, a quick-add field) selects no level. The resolver runs with no --prompt, the reply prints 'level: standard (default)' above the plan, and the plan takes standard's three variants. Plan only, no server: sandbox-safe."
+tags: [explore-directions, levels]
+runs: 3
+expected_outcome: "Before any file is written, the agent runs lib/prototype-settings.mjs resolve with no --prompt and no --argument, the reply shows the line 'level: standard (default)', and the plan line names the route, the host and exactly three variants, each named by its direction."
+execution:
+  prompt: "/prototype:explore-directions profile page for a team-chat app that shows the user's full name, avatar and status, with a quick-add field for a new status message. Show me the plan before you build anything."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

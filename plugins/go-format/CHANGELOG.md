@@ -3,6 +3,12 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.10] - 2026-11-14
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: the changed-line ranges no longer read an added line starting `++ b/` as a file header, so findings in the hunks after it stay with their real file.
+
 ## [1.1.9] - 2026-11-14
 
 ### Fixed

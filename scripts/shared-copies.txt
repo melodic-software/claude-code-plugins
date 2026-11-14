@@ -610,6 +610,7 @@ lib/yaml-subset.mjs plugins/prototype/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/codebase-health/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/overengineering/lib/yaml-subset.mjs
 lib/resolve-convention-home.sh plugins/corrections/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/prototype/lib/resolve-convention-home.sh
 lib/redact.py plugins/session-flow/skills/audit-sessions/scripts/redact.py
 lib/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py
 lib/plugin-options.mjs plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs
@@ -894,3 +895,11 @@ lib/media-render/media_verify.py plugins/explainer-video/scripts/media_verify.py
 lib/media-render/media_templates/__init__.py plugins/explainer-video/scripts/media_templates/__init__.py
 lib/media-render/media_templates/frames.css plugins/explainer-video/scripts/media_templates/frames.css
 lib/redact.py plugins/explainer-video/scripts/redact.py
+lib/media-render/media_scan.py plugins/source-control/tools/reviewer-media/lib/media_scan.py
+lib/redact.py plugins/source-control/tools/reviewer-media/lib/redact.py
+lib/media-render/media_scan.py plugins/speech/scripts/media_scan.py
+lib/redact.py plugins/speech/scripts/redact.py
+plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json plugins/speech/vendor/gitleaks/gitleaks-rules.json
+lib/media-render/media_encode.py plugins/playwright/skills/demo-video/scripts/media_encode.py
+lib/media-render/media_encode.py plugins/pixel-art/scripts/media_encode.py
+lib/media-render/media_encode.py plugins/animation/scripts/media_encode.py

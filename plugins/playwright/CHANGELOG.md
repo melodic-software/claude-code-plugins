@@ -3,6 +3,14 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-14
+
+### Changed
+
+- `demo-video` encodes through the shared media-render library's `demo-video` profile, and mixes narration
+  through its `mix` call; the rendered video is unchanged. The edit plan no longer carries an `encode` block.
+- `demo-video` names its related skills under Related and Next.
+
 ## [2.0.2] - 2026-11-14
 
 ### Changed

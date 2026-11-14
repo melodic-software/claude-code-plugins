@@ -65,6 +65,36 @@
       "check": "/harness-ops:prerequisites"
     },
     {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:pull-request"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "Python ([0-9.]+)",
+          "min": "3.11"
+        },
+        "reject_store_alias": true
+      },
+      "degrade": "Without Python 3.11+, /source-control:pull-request media cannot place reviewer media and stops, a push does not mark a reviewer-media section out of date, and the readiness thread gate holds as unproven; the rest of the skill runs.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.13",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
       "id": "xcrun",
       "kind": "cli",
       "need": "optional",

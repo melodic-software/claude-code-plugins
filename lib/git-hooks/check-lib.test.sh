@@ -69,6 +69,27 @@ expect "filter keeps a finding on a changed line only" \
   'a.txt:4: x' \
   "$(in_repo "$R" pre-commit 'checks_changed_lines; printf "a.txt:1: x\na.txt:4: x\nother:4: x\n" | checks_filter_findings')"
 
+# An added line whose text starts "++ b/" prints as "+++ b/other" inside its
+# hunk; a removed "-- a/" line prints as "--- a/". Neither is a file header, so
+# the later hunks stay with the real file.
+new_repo; H="$REPO"
+printf 'one\ntwo\n-- a/old\nfour\nfive\nsix\n' >"$H/f.txt"
+git -C "$H" add f.txt
+git -C "$H" commit -q -m seed
+printf 'one\n++ b/other\nfour\nfive\nsecret\n' >"$H/f.txt"
+printf 'x\n' >"$H/g.txt"
+git -C "$H" add f.txt g.txt
+expect "pre-commit ranges: an added '++ b/' line is content, not a file header" \
+  $'f.txt\t2\t2\nf.txt\t5\t5\ng.txt\t1\t1' \
+  "$(in_repo "$H" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
+expect "filter: a finding after an added '++ b/' line stays with the real file" \
+  'f.txt:5: x' \
+  "$(in_repo "$H" pre-commit 'checks_changed_lines; printf "f.txt:5: x\nother:5: x\n" | checks_filter_findings')"
+git -C "$H" config diff.interHunkContext 5
+expect "pre-commit ranges: a diff.interHunkContext setting fuses no hunks" \
+  $'f.txt\t2\t2\nf.txt\t5\t5\ng.txt\t1\t1' \
+  "$(in_repo "$H" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
+
 # --- partly-staged --------------------------------------------------------------
 printf 'one\nTWO\nthree\nfour\nfive\n' >"$R/a.txt"
 expect "partly-staged: a file with unstaged changes is detected" yes \

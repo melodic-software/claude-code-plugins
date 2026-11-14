@@ -1,14 +1,17 @@
 """ffmpeg by subprocess, through named encode profiles (ADR 0103). Standard library only.
 
 PROFILES   one named argument set per caller: a moved plugin keeps its own arguments under its own name.
-run(args, cwd=None, report=False, text=True)     ffmpeg -v error -y ARGS (report: -hide_banner -nostats, for
-                                                 filters that print to stderr); EncodeError carries stderr.
+run(args, cwd=None, report=False, text=True, timeout=None)
+                                                 ffmpeg -v error -y ARGS (report: -hide_banner -nostats, for
+                                                 filters that print to stderr); EncodeError carries stderr;
+                                                 a timeout raises subprocess.TimeoutExpired.
 probe(args)                                      ffprobe -v error ARGS -> stdout; EncodeError as run.
 mux(video, audio, captions, out, profile)        a finished video stream with narration and a soft caption track.
 assemble_audio(wav, segments, out)               narration slices and silences, in order, as one WAV.
 stills(frames, out, profile, audio, srt, ass, cwd) held frames -> one video, keyframe per frame, captions burned
                                                  from ass and kept soft from srt; encoded once.
 stitcher(command, inputs, out)                   a custom stitcher: the command template with {inputs} and {out}.
+mix(video, clips, out, seconds, profile)         narration clips placed at their start times over a copied video.
 """
 import shlex
 import subprocess
@@ -23,6 +26,20 @@ PROFILES = {
                         'video': ['-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-tune', 'stillimage',
                                   '-pix_fmt', 'yuv420p', '-movflags', '+faststart'],
                         'audio': ['-c:a', 'aac', '-b:a', '128k', '-ac', '1'], 'subtitle': _SOFT},
+    # playwright:demo-video: rendered RGB frames piped in, BT.709 tagged end to end, narration mixed in afterwards.
+    'demo-video': {'video': ['-vf', 'scale=out_color_matrix=bt709:out_range=tv:flags=lanczos+accurate_rnd'
+                                    '+full_chroma_int+full_chroma_inp,format=yuv420p',
+                             '-c:v', 'libx264', '-profile:v', 'high', '-preset', 'slower', '-crf', '16',
+                             '-x264-params', 'colorprim=bt709:transfer=bt709:colormatrix=bt709:range=tv',
+                             '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
+                             '-color_range', 'tv', '-movflags', '+faststart'],
+                   'audio': ['-c:a', 'aac', '-b:a', '128k']},
+    # animation's render.py --encode: a frame folder piped as rawvideo, one profile per delivered format.
+    'animation-mp4': {'video': ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '16']},
+    'animation-webm': {'video': ['-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-crf', '30', '-b:v', '0']},
+    'animation-gif': {'video': ['-vf', 'split[a][b];[a]palettegen[p];[b][p]paletteuse']},
+    # pixel-art's scene capture: the browser's WebM copied as recorded, the scene's looped WAV as Opus.
+    'pixel-art-webm': {'video': ['-c:v', 'copy'], 'audio': ['-c:a', 'libopus']},
 }
 
 
@@ -37,10 +54,10 @@ def _check(r, tool):
     return r
 
 
-def run(args, cwd=None, report=False, text=True):
+def run(args, cwd=None, report=False, text=True, timeout=None):
     level = ['-hide_banner', '-nostats'] if report else ['-v', 'error']
     return _check(subprocess.run(['ffmpeg', *level, '-y', *map(str, args)], cwd=cwd, capture_output=True,
-                                 text=text), 'ffmpeg')
+                                 text=text, timeout=timeout), 'ffmpeg')
 
 
 def probe(args):
@@ -117,3 +134,18 @@ def stitcher(command, inputs, out):
     if r.returncode:
         raise EncodeError(f'stitcher {argv[0]} exited {r.returncode}: {r.stderr.strip()[-2000:]}')
     return r
+
+
+def mix(video, clips, out, seconds, profile='demo-video'):
+    """clips: [{'file', 'start', 'duration', 'trim' (default 0)}] in seconds. Overlapping clips sum unscaled
+    (normalize=0), and the mix is padded with silence and cut to `seconds`, so audio and video end together."""
+    p = PROFILES[profile]
+    inputs, chains = ['-i', video], []
+    for i, clip in enumerate(clips):
+        inputs += ['-i', clip['file']]
+        chains.append(f"[{i + 1}:a]atrim=start={clip.get('trim', 0)}:duration={clip['duration']},asetpts=PTS-STARTPTS,"
+                      f"aresample=48000,adelay={int(round(clip['start'] * 1000))}:all=1[a{i}]")
+    graph = ';'.join(chains) + ';' + ''.join(f'[a{i}]' for i in range(len(clips))) + \
+        f'amix=inputs={len(clips)}:normalize=0:dropout_transition=0,apad[mixed]'
+    return run([*inputs, '-filter_complex', graph, '-map', '0:v', '-map', '[mixed]', '-c:v', 'copy', *p['audio'],
+                '-t', f'{seconds:.3f}', '-movflags', '+faststart', out])

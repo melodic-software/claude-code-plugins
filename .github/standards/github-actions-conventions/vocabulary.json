@@ -109,6 +109,7 @@
       { "name": "audit-pr-convention-pins", "status": "in-use" },
       { "name": "audit-test-selection", "status": "in-use" },
       { "name": "bump-pinned-versions", "status": "in-use" },
+      { "name": "check-dependency-freshness", "status": "in-use" },
       {
         "name": "check-links",
         "status": "in-use",
@@ -130,13 +131,15 @@
       { "name": "repin-account-rotation", "status": "in-use" },
       { "name": "repin-ci-workflows", "status": "in-use" },
       { "name": "scan-secrets", "status": "in-use" },
+      { "name": "sweep-closed-pr-branches", "status": "in-use" },
       { "name": "sync-standards", "status": "in-use" },
       {
         "name": "tidy-code-upkeep",
         "status": "reserved",
         "purpose": "Detect churn per merge and open code-tidying pull requests as a daily batch."
       },
-      { "name": "verify-governance", "status": "in-use" }
+      { "name": "verify-governance", "status": "in-use" },
+      { "name": "verify-ruleset-drift", "status": "in-use" }
     ],
     "upstream": [
       {
@@ -286,22 +289,28 @@
     "Chromium",
     "Claude",
     "Claude Code",
+    "Codex",
     "Dependabot",
     "Docker",
     "Gitleaks",
     "Go",
     "Lefthook",
+    "Linux",
     "Markdown",
+    "Muse",
     "Node",
     "Pester",
     "Playwright",
     "Pulumi",
     "Pulumi Cloud",
+    "Pyright",
     "Python",
     "Ruff",
+    "WinGet",
+    "WinGet Configuration",
     "Windows"
   ],
-  "displayNameLevel": "warning",
+  "displayNameLevel": "error",
   "jobNameExceptions": [],
   "exemptions": [
     {

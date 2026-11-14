@@ -154,6 +154,51 @@ describe("acquireYouTubeMedia", () => {
     }
   });
 
+  it("bounds only the video-only pass to the download section in full mode", async () => {
+    const workDir = "/tmp/fake-work";
+    /** @type {string[][]} */
+    const spawnedArgs = [];
+    const result = await acquireYouTubeMedia(
+      DRIVER_WATCH_URL,
+      {
+        workDir,
+        mode: "full",
+        videoId: DRIVER_VIDEO_ID,
+        downloadSection: "*1:00:00-1:20:00",
+      },
+      {
+        ...NO_THROTTLE,
+        sleep: async () => {},
+        spawn: async (/** @type {string} */ _command, /** @type {string[]} */ args) => {
+          spawnedArgs.push(args);
+          return spawnOk();
+        },
+        listFiles: async () => [
+          `${workDir}/7zZy1QTvokM.mp4`,
+          `${workDir}/7zZy1QTvokM.en.en-orig.vtt`,
+          `${workDir}/7zZy1QTvokM.info.json`,
+        ],
+        readFile: async (filePath) => {
+          if (filePath.endsWith(".info.json")) {
+            return JSON.stringify({ id: "7zZy1QTvokM", title: "Driver Video" });
+          }
+          return "WEBVTT\n\n";
+        },
+      },
+    );
+
+    expect(result.success).toBe(true);
+    const videoPasses = spawnedArgs.filter((args) => !args.includes("--skip-download"));
+    const captionPasses = spawnedArgs.filter((args) => args.includes("--skip-download"));
+    expect(videoPasses).toHaveLength(1);
+    expect(captionPasses.length).toBeGreaterThan(0);
+    const videoArgs = videoPasses[0];
+    expect(videoArgs[videoArgs.indexOf("--download-sections") + 1]).toBe("*1:00:00-1:20:00");
+    for (const args of captionPasses) {
+      expect(args).not.toContain("--download-sections");
+    }
+  });
+
   it("still fails in full mode when no video downloaded and no captions exist", async () => {
     const workDir = "/tmp/fake-work";
     const result = await acquireYouTubeMedia(
