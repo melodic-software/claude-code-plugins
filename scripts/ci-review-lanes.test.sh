@@ -385,23 +385,44 @@ JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" in_progres
 expect "a newer run still reviewing is pending" 1 "::error::'$CODE_CHECK' has not finished on $HEAD (https://github.com/o/r/actions/runs/11)."
 RUNS_CODE="$(runs "$(run 11 $CODE in_progress)" "$(run 10 $CODE)")" JOBS_11="$(jobs "$(kill_job success skipped)")"
 expect "a newer run whose review jobs are not listed yet is pending" 1 "'$CODE_CHECK' has not finished"
-# A review still running fails pending at once, with no wait: rerun-ci-status
-# (pr-feedback-dispatch.yml) re-runs ci-status once the review finishes.
-export RUN_11
+# The wait (#12447): a run not completed is polled by id until it completes,
+# then judged as before; one still running at the cap fails as before, saying
+# no manual re-run is needed.
+export RUN_11 RUNS_CODE_LATER
 RUN_11="$(run 11 $CODE in_progress)"
-expect "a review still running fails pending at once, naming the automatic re-run" 1 \
-  "has not finished on $HEAD (https://github.com/o/r/actions/runs/11). ci-status re-runs when the review finishes." "Waited"
-if [[ ! -s "$TMP_ROOT/log.sleeps" ]] && ! grep -qE '/actions/runs/[0-9]+$' "$TMP_ROOT/log"; then
-  ok "a running review is neither slept on nor polled by id"
+expect "a review still running at the cap fails pending, naming the automatic re-run" 1 \
+  "has not finished on $HEAD (https://github.com/o/r/actions/runs/11). ci-status waited 480s for it; pr-feedback-dispatch re-runs ci-status"
+if [[ "$(grep -cxF 'api repos/o/r/actions/runs/11' "$TMP_ROOT/log")" == 8 ]]; then
+  ok "the wait reads the waiting run once a poll, 8 polls at most"
 else
-  fail "a running review was waited for: sleeps '$(paste -sd' ' "$TMP_ROOT/log.sleeps")', reads '$(sort "$TMP_ROOT/log" | uniq -c)'"
+  fail "the wait read run 11 $(grep -cxF 'api repos/o/r/actions/runs/11' "$TMP_ROOT/log") times: '$(sort "$TMP_ROOT/log" | uniq -c)'"
 fi
+RUN_11="$(run 11 $CODE)" RUNS_CODE_LATER="$(runs "$(run 11 $CODE)" "$(run 10 $CODE)")"
+JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success)")"
+expect "a review that finishes during the wait passes without a re-run" 0 "Waited 60s for the review lanes on $HEAD." "::error::"
+if [[ "$(listings head) $(listings file)" == "2 0" ]]; then
+  ok "after a wait the head's runs are listed again, once for both lanes"
+else
+  fail "a wait listed the head's runs $(listings head) times and a file's $(listings file) times, want 2 and 0"
+fi
+# A run that appears during the wait is judged: the listing from before the
+# wait names only run 11, whose review failed.
+export JOBS_12
+SAVED_RUNS_CODE=$RUNS_CODE
+RUNS_CODE="$(runs "$(run 11 $CODE in_progress)")" RUNS_CODE_LATER="$(runs "$(run 12 $CODE)" "$(run 11 $CODE)")"
+JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed failure)")" JOBS_12="$PASS_CODE"
+expect "after a wait the judgment reads the head's runs fresh, not the listing from before it" 0 \
+  "'$CODE_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/12)." "ended failure"
+RUNS_CODE=$SAVED_RUNS_CODE RUNS_CODE_LATER="$(runs "$(run 11 $CODE)" "$(run 10 $CODE)")"
+JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" in_progress '')")"
+REVIEW_WAIT_SECONDS=0 expect "a contract-only run (no wait) fails a running review at once" 1 "ci-status waited 0s for it" "Waited"
+if grep -qE '/actions/runs/[0-9]+$' "$TMP_ROOT/log"; then fail "a run with no wait polled a run"; else ok "a run with no wait polls nothing"; fi
 if [[ "$(listings head) $(listings file)" == "1 0" ]]; then
-  ok "a running review leaves one listing of the head's runs for both lanes"
+  ok "a contract-only run lists the head's runs once for both lanes"
 else
-  fail "a running review listed the head's runs $(listings head) times and a file's $(listings file) times, want 1 and 0"
+  fail "a contract-only run listed the head's runs $(listings head) times and a file's $(listings file) times, want 1 and 0"
 fi
-RUN_11=''
+RUNS_CODE_LATER='' RUN_11=''
 RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 11 $CODE completed "${HEAD//0/f}")" "$(run 12 pr-review-shadow.yml)" "$(run 13 $CODE completed "$HEAD" push)")"
 expect "runs on another head, of another file or event do not count" 0 "passed on $HEAD (https://github.com/o/r/actions/runs/10)" "::error::"
 # A fork's run on the same commit is newest; only this repository's head counts.
@@ -438,7 +459,7 @@ fi
 for shape in no-total text-total null-runs; do
   STUB_HEAD_SHAPE=$shape expect "a $shape listing is read from each lane's own runs" 0 \
     "'$SEC_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/20)." "is missing"
-  if [[ "$(listings head) $(listings file)" == "1 2" ]]; then ok "a $shape listing falls back to each lane's own runs, once each"; else fail "a $shape listing read: '$(sort "$TMP_ROOT/log" | uniq -c)'"; fi
+  if [[ "$(listings head) $(listings file)" == "1 4" ]]; then ok "a $shape listing falls back to each lane's own runs, for the wait and the judgment"; else fail "a $shape listing read: '$(sort "$TMP_ROOT/log" | uniq -c)'"; fi
 done
 
 for c in failure cancelled timed_out; do
@@ -980,7 +1001,7 @@ STUB_FILES='[]' STUB_CHANGED=0 STUB_AUTHOR=
 
 # gh_read is the only retry layer: a run-list read is sent 3 times at most,
 # after full-jitter waits of at most 5 and then 10 s, and the step reads it
-# once for both lanes.
+# once for the review wait, and the judgment reuses it when nothing waited.
 runs_reads() { listings head; }
 # waits_within <ceiling>...: one logged sleep per ceiling, each 0 to it.
 waits_within() {
@@ -999,13 +1020,14 @@ if [[ "$(runs_reads)" -eq 2 ]] && waits_within 5; then
 else
   fail "a run list that fails once took $(runs_reads) reads and waits '$(paste -sd' ' "$TMP_ROOT/log.sleeps")', want 2 reads and one wait of 0 to 5 s"
 fi
-# Three failed sends fail the judgment closed, though a 4th would read the list.
-export STUB_RUNS_FAILS=3
+# Three failed sends end the review wait and keep nothing; three more fail the
+# judgment closed, though a 7th send would read the list.
+export STUB_RUNS_FAILS=6
 expect "an unreadable run list fails closed" 1 "::error::could not read the pull_request runs on $HEAD; re-run this run."
-if [[ "$(runs_reads)" -eq 3 ]] && waits_within 5 10; then
-  ok "a failed run-list read is sent 3 times, after waits of 0 to 5 and 0 to 10 s"
+if [[ "$(runs_reads)" -eq 6 ]] && waits_within 5 10 5 10; then
+  ok "each failed run-list read is sent 3 times, after waits of 0 to 5 and 0 to 10 s"
 else
-  fail "the failed run-list read took $(runs_reads) sends and waits '$(paste -sd' ' "$TMP_ROOT/log.sleeps")', want 3 sends and waits within 5 10"
+  fail "the failed run-list reads took $(runs_reads) sends and waits '$(paste -sd' ' "$TMP_ROOT/log.sleeps")', want 6 sends and waits within 5 10 5 10"
 fi
 unset STUB_RUNS_FAILS
 export STUB_JOBS_FAIL=1
