@@ -11,7 +11,8 @@ video time and loudness-normalized -> one encode (profile reviewer-stills, or --
 blank frames and luma SSIM of every hold's frame against its source -> contact sheets -> split at chapter starts
 when over the upload limit -> DIR/manifest.json, the list of files a caller may publish.
 
---stitcher: a command with {inputs} (DIR/stitch.json: frames with seconds, audio, captions) and {out}.
+--stitcher: a command with {inputs} (DIR/stitch.json: frames with seconds, audio, captions) and {out}; absent or
+'ffmpeg' is the built-in reviewer-stills encode.
 exit codes: 0 produced and every check passed; 1 produced with a defect (manifest.json lists each); 2 nothing
 produced (bad storyboard, missing tool, capture failed); 3 a screenshot's sidecar is missing; 4 the scan found
 secret or machine data, or could not load its rules. Exits 3 and 4 write no video.
@@ -37,7 +38,9 @@ import media_verify
 
 DEFAULTS = json.loads(Path(__file__).with_name('defaults.json').read_text(encoding='utf-8'))
 FRAMES = DEFAULTS['frames']
+BAND = FRAMES['caption_band']   # bottom share kept free for burned captions; SSIM compares above it
 PROFILE = 'reviewer-stills'
+FPS = media_encode.PROFILES[PROFILE]['fps']
 CHROMIUM_INSTALL_S = 600
 MARKER = '.stills-output'   # only a folder holding it is cleared on the next run
 
@@ -76,16 +79,16 @@ def capture(board, chapters, out, stylesheet, base):
     frames = out / 'frames'
     frames.mkdir(parents=True, exist_ok=True)
     n = len(board['moments'])
-    pages = [(media_templates.page(m, board.get('title', ''), chapters[m['chapter']], (k, n), stylesheet, base),
+    size = (FRAMES['width'], FRAMES['height'])
+    pages = [(media_templates.page(m, board.get('title', ''), chapters[m['chapter']], (k, n), size, BAND, stylesheet,
+                                   base),
               frames / f'm{k:03d}.png') for k, m in enumerate(board['moments'], 1)]
     try:
         return media_capture.capture(pages, FRAMES['width'], FRAMES['height'], FRAMES['scale'])
-    except media_capture.CaptureError as e:
-        if 'Chromium is missing' not in str(e):
-            raise
+    except media_capture.ChromiumMissing:
+        pass
     sys.stderr.write('explainer-video stills: installing Playwright\'s Chromium (first stills render only)\n')
-    subprocess.run([sys.executable, '-m', 'playwright', 'install', '--only-shell', 'chromium'], check=True,
-                   timeout=CHROMIUM_INSTALL_S)
+    subprocess.run([sys.executable, *media_capture.INSTALL.split()[1:]], check=True, timeout=CHROMIUM_INSTALL_S)
     return media_capture.capture(pages, FRAMES['width'], FRAMES['height'], FRAMES['scale'])
 
 
@@ -124,7 +127,7 @@ def quality(video, frame_paths, holds):
     for png, h in zip(frame_paths, holds):
         t = (h['start'] + h['end']) / 2
         media_verify.frame_at(video, t, check)
-        ssim = media_verify.luma_ssim(png, check, FRAMES['compared_top'])
+        ssim = media_verify.luma_ssim(png, check, 1 - BAND)
         rows.append({'id': h['id'], 't': round(t, 3), 'luma_ssim': round(ssim, 6)})
         if ssim < FRAMES['min_luma_ssim']:
             defects.append(f'moment {h["id"]}: luma SSIM {ssim:.6f} is under {FRAMES["min_luma_ssim"]}')
@@ -147,6 +150,7 @@ def main(argv=None):
     ap.add_argument('--upload-limit-mb', type=float, default=DEFAULTS['upload_limit_mb'])
     ap.add_argument('--head-sha', default=None)
     a = ap.parse_args(argv)
+    stitcher = None if a.stitcher in (None, '', 'ffmpeg') else a.stitcher
     started = time.monotonic()
     missing = [t for t in ('ffmpeg', 'ffprobe') if not shutil.which(t)]
     if missing:
@@ -162,8 +166,7 @@ def main(argv=None):
         side = sidecars(board, base)
     except (FileNotFoundError, ValueError) as e:
         return fail(3, f'sidecar: {e}; a screenshot needs its frame text for the scan, so it is refused')
-    scan = media_scan.scan(scan_texts(board, chapters, side), rules=Path(__file__).resolve().parents[1] / 'vendor'
-                           / 'gitleaks' / 'gitleaks-rules.json')
+    scan = media_scan.scan(scan_texts(board, chapters, side))
     if not scan.ok:
         why = 'its rules did not load' if scan.fail_closed else ', '.join(f'{f["source"]} ({f["kind"]})'
                                                                            for f in scan.findings)
@@ -197,12 +200,12 @@ def main(argv=None):
         srt, ass = out / 'captions.srt', out / 'frames' / 'captions.ass'
         srt.write_text(media_captions.srt(cues), encoding='utf-8')
         ass.write_text(media_captions.ass(cues, FRAMES['width'] * FRAMES['scale'],
-                                          FRAMES['height'] * FRAMES['scale']), encoding='utf-8')
+                                          FRAMES['height'] * FRAMES['scale'], BAND), encoding='utf-8')
         audio, loudness = (None, None) if a.no_audio else narration_audio(tl, a.narration.resolve(), out, steps)
         frames = [(p, h['end'] - h['start']) for p, h in zip(frame_paths, tl['holds'])]
-        video = encode(frames, out, audio, srt, ass, a.stitcher, steps)
+        video = encode(frames, out, audio, srt, ass, stitcher, steps)
         info = media_verify.probe(video)
-        defects += media_verify.stream_defects(info, tl['duration'], 30, audio=audio is not None, subtitle=not a.stitcher)
+        defects += media_verify.stream_defects(info, tl['duration'], FPS, audio=audio is not None, subtitle=not stitcher)
         vstream = next((s for s in info['streams'] if s.get('codec_type') == 'video'), {})
         if int(vstream.get('height') or 0) < FRAMES['min_height']:
             defects.append(f'video height {vstream.get("height")} is under the {FRAMES["min_height"]}p floor')
@@ -211,6 +214,8 @@ def main(argv=None):
             defects += media_loudness.defects(delivered, DEFAULTS['loudness'])
             loudness['delivered'] = media_loudness.levels(delivered)
             audio.unlink(missing_ok=True)
+        voice = json.loads((a.narration / 'voice.json').read_text(encoding='utf-8')) \
+            if a.narration and (a.narration / 'voice.json').is_file() else None
         rows, qdefects = quality(video, frame_paths, tl['holds'])
         defects += qdefects
         sheets = media_sheet.sheets(frame_paths, out, max_bytes=DEFAULTS['contact_sheet_max_bytes'])
@@ -229,12 +234,10 @@ def main(argv=None):
 
     def rel(p):
         return str(Path(p).relative_to(out))
-    voice = json.loads((a.narration / 'voice.json').read_text(encoding='utf-8')) \
-        if a.narration and (a.narration / 'voice.json').is_file() else None
     manifest = {
         'head_sha': a.head_sha, 'storyboard_sha256': hashlib.sha256(raw).hexdigest(),
         'video': {'path': rel(video), 'bytes': video.stat().st_size, 'duration_s': tl['duration'],
-                  'width': vstream.get('width'), 'height': vstream.get('height'), 'captions': 'burned'},
+                  'width': vstream.get('width'), 'height': vstream.get('height'), 'captions': 'stitcher' if stitcher else 'burned'},
         'captions_srt': rel(srt), 'chapters': tl['chapters'],
         'contact_sheet': [{'path': rel(s['path']), 'bytes': s['bytes'], 'frames': s['frames']} for s in sheets],
         'screenshots': [m['data']['image'] for m in board['moments'] if m['template'] == 'screenshot'],
@@ -242,7 +245,7 @@ def main(argv=None):
         'voice': {'backend': voice.get('backend'), 'voice': voice.get('voice')} if voice else
                  {'backend': None if a.no_audio else 'unknown', 'voice': None},
         'scan': {'status': 'pass', 'floor_rules': scan.rule_count},
-        'encode': {'profile': 'stitcher' if a.stitcher else PROFILE, 'steps': steps,
+        'encode': {'profile': 'stitcher' if stitcher else PROFILE, 'steps': steps,
                    'seconds': round(time.monotonic() - started, 1)},
         'quality': {'frames': rows, 'min_luma_ssim': min(r['luma_ssim'] for r in rows), 'loudness': loudness,
                     'caption_flags': flags},

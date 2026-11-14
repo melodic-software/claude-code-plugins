@@ -1,8 +1,7 @@
 /* GENERATED from lib/media-render/media_templates/frames.css by scripts/sync-shared-copies.sh. Do not edit this copy:
    edit the canonical source, then rerun the script. */
-/* Bundled frame stylesheet: 1920x1080 CSS pixels, captured at device scale 2 (3840x2160).
-   The bottom 22% stays clear of content: burned captions sit there, and the quality check compares only the
-   content above it. */
+/* Bundled frame stylesheet. The page size and the bottom padding that keeps the caption band clear are
+   injected by media_templates.page from the caller's frame settings. */
 :root {
   --bg: #0f1117; --panel: #181b24; --fg: #e8eaf0; --muted: #9aa3b5; --accent: #7aa2f7;
   --add-bg: #12301f; --add-fg: #9ee6b0; --del-bg: #3a1619; --del-fg: #ffadb3;
@@ -11,8 +10,7 @@
   --mono: "JetBrains Mono", "Cascadia Mono", "DejaVu Sans Mono", ui-monospace, monospace;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { width: 1920px; height: 1080px; overflow: hidden; }
-body { background: var(--bg); color: var(--fg); font: 32px/1.35 var(--sans); padding: 48px 96px 240px; display: flex; flex-direction: column; }
+body { background: var(--bg); color: var(--fg); font: 32px/1.35 var(--sans); padding: 48px 96px; display: flex; flex-direction: column; }
 header { display: flex; justify-content: space-between; color: var(--muted); font-size: 26px; letter-spacing: .02em; margin-bottom: 28px; }
 header .chapter { color: var(--accent); font-weight: 600; text-transform: uppercase; }
 main { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0; }

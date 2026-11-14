@@ -9,11 +9,11 @@ timeline(board, words, hold) -> {'holds', 'chapters', 'audio', 'words', 'beats',
   words    words.json re-timed to video time (synthetic with no narration, so captions still show);
   beats    [(first word, count)] per narrated moment, for media_captions.captions.
 With no narration (words None) every moment holds max(min_seconds, words * seconds_per_word + extra_seconds).
-Standard library only.
+Standard library plus media_templates beside this file.
 """
 from pathlib import PurePosixPath, PureWindowsPath
 
-TEMPLATES = ('title', 'code-hunk', 'diagram', 'before-after', 'risk-map', 'also-changed', 'screenshot')
+from media_templates import TEMPLATES
 
 
 class StoryboardError(ValueError):

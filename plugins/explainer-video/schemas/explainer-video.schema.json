@@ -17,19 +17,14 @@
       "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },
       "description": "Per-skill verification level, keyed by skill name (for example produce); an entry beats this file's verification value."
     },
-    "renderer": {
-      "enum": ["manim", "stills"],
-      "default": "manim",
-      "description": "How /explainer-video:produce renders: manim (a ManimCE scene from a topic) or stills (held still frames from a storyboard.json, ADR 0102). A caller handing a storyboard selects stills."
-    },
     "stitcher": {
       "type": "string",
       "default": "ffmpeg",
-      "description": "The stills renderer's final encode: ffmpeg (the reviewer-stills profile), or a command run without a shell, with {inputs} (stitch.json: frames with seconds, audio, captions) and {out} (the MP4) substituted."
+      "description": "The stills renderer's final encode: ffmpeg (the built-in reviewer-stills profile), or a command run without a shell, with {inputs} (stitch.json: frames with seconds, audio, captions) and {out} (the MP4) substituted. Read from the default branch's committed copy only, since it runs a command: a branch cannot change it."
     },
     "frame_stylesheet": {
       "type": "string",
-      "description": "Repository-relative path of a CSS file replacing the stills renderer's bundled frame stylesheet. Keep the bottom 22% of the 1920x1080 frame free: captions burn there and the quality check compares only the area above it."
+      "description": "Repository-relative path of a CSS file replacing the stills renderer's bundled frame stylesheet. The file and its content are read from the default branch's committed copy only, so a branch cannot change them. The renderer sets the frame size and pads the bottom caption band (24%) itself; keep content out of that band: captions burn there and the quality check compares only the area above it."
     },
     "upload_limit_mb": {
       "type": "number",

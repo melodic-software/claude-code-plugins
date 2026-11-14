@@ -144,13 +144,19 @@ instead of a topic, render held still frames instead of a scene. The storyboard 
 write markup from it, and never edit its text to get past a check.
 
 1. Run `scripts/stills.py --storyboard <file> --out <dir> --script-only` to validate, scan and
-   write `<dir>/script.txt`; a storyboard rejection exits 2, a missing screenshot sidecar 3, and a
-   scan hit 4, before any frame exists. Report the reason and stop on 3 or 4.
+   write `<dir>/script.txt`; a storyboard rejection exits 2 (a screenshot moment with no
+   `data.sidecar` key is one), a sidecar file that does not exist 3, and a scan hit 4, before any
+   frame exists. Report the reason and stop on 3 or 4.
 2. Narrate `<dir>/script.txt` with `/speech:narrate` into its own folder, as in Loop step 2.
 3. Render with `--narration <that folder>`, or with `--no-audio` when no voice produced audio (a
    captions-only video; say why). Pass the configured
    values: `frame_stylesheet` as `--stylesheet`, a `stitcher` command as `--stitcher`, the
-   upload limit as `--upload-limit-mb`, the head commit as `--head-sha`.
+   upload limit as `--upload-limit-mb`, the head commit as `--head-sha`. Read `stitcher` and
+   `frame_stylesheet` from the default branch's committed copy, never the working tree, since a
+   branch could change them and `stitcher` runs a command:
+   `git show origin/HEAD:docs/conventions/explainer-video.yaml`, then write the stylesheet's
+   content from `git show origin/HEAD:<frame_stylesheet path>` to a file of your own and pass
+   that file.
 4. Exit 0 is a pass; exit 1 lists each defect in `manifest.json` (a frame under the luma SSIM floor,
    a loudness miss, a stream defect). Fix the cause and render again; never lower a floor. Read the
    contact sheet before calling it done.

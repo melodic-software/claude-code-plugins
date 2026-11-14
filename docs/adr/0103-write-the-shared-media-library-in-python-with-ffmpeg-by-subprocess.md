@@ -46,7 +46,7 @@ The language of a vendored library: every carrier plugin takes Python and its ve
 
 ## Consequences
 
-- explainer-video gains `playwright==1.65.1` and a Chromium install in its SessionStart hook and CI.
+- explainer-video gains `playwright==1.65.1`; its Chromium installs on the first stills render, and in CI.
 - Each plugin migration is its own pull request, with a golden capture taken before the move.
 
 ## Revisit triggers

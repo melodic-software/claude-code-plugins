@@ -89,8 +89,9 @@ def stills(frames, out, profile='reviewer-stills', audio=None, srt=None, ass=Non
 
 
 def stitcher(command, inputs, out):
-    """A consumer's stitcher command (config `stitcher: {command}`): {inputs} and {out} are substituted, each
-    shell-quoted, and the command runs without a shell."""
+    """A consumer's stitcher command (config `stitcher: {command}`), split with shlex: {inputs} becomes one
+    argument per input path and {out} the output path, each substituted after the split, so no path is re-parsed;
+    the command runs without a shell."""
     argv = [part.replace('{out}', str(out)) for part in shlex.split(command)]
     if '{inputs}' in argv:
         k = argv.index('{inputs}')

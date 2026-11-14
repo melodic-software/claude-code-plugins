@@ -25,7 +25,7 @@ Callers hand the producer a `storyboard.json`, version 1:
   any template but `title`, and an `also-changed` moment with empty `covers`.
 - A `screenshot` moment needs a frame-text sidecar, or the producer refuses it, so the secret scan has
   text to read.
-- The renderer is chosen by configuration, never by the storyboard.
+- The caller picks the still-frame renderer by handing a storyboard; nothing in the storyboard picks a renderer.
 
 ### One-way doors
 

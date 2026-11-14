@@ -48,9 +48,8 @@ to set these keys, checked against
 | Key | Values | Default | What it controls |
 |---|---|---|---|
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | Whether `/explainer-video:produce` dispatches its fresh-context frame judge on the delivery render: `light` and `off` skip it and report the frames as not independently judged. Read from the default branch only, through `lib/read-verification.sh`; a skill entry beats the plugin value ([verification level](../../docs/contracts/verification-level/README.md)). |
-| `renderer` | `manim`, `stills` | `manim` | How `/explainer-video:produce` renders: a ManimCE scene from a topic, or held still frames from a `storyboard.json` ([ADR 0102](../../docs/adr/0102-hand-produced-video-content-to-the-producer-as-a-data-only-storyboard.md)). |
-| `stitcher` | `ffmpeg`, or a command with `{inputs}` and `{out}` | `ffmpeg` | The stills renderer's final encode; a command receives `stitch.json` (frames with seconds, audio, captions) and writes the MP4. |
-| `frame_stylesheet` | a repository-relative CSS path | the bundled `frames.css` | The stills frames' look; keep the bottom 22% of the 1920x1080 frame free for captions. |
+| `stitcher` | `ffmpeg`, or a command with `{inputs}` and `{out}` | `ffmpeg` | The stills renderer's final encode; a command receives `stitch.json` (frames with seconds, audio, captions) and writes the MP4. Read from the default branch only, since it runs a command. |
+| `frame_stylesheet` | a repository-relative CSS path | the bundled `frames.css` | The stills frames' look. The file and its content are read from the default branch only. The renderer sets the frame size and pads the bottom 24% for captions; keep content out of it. |
 | `upload_limit_mb` | a number over 0 | `10` | Over it, a stills video splits at chapter starts; it is never recompressed or cut. |
 
 ## Stills renderer

@@ -4,12 +4,14 @@ from pathlib import Path
 
 import media_templates as tpl
 
+SIZE = (1920, 1080)
+
 HOSTILE = '<script>alert(1)</script>"\'&'
 
 
 class TemplatesTest(unittest.TestCase):
     def render(self, template, data):
-        return tpl.page({'template': template, 'data': data}, HOSTILE, HOSTILE, (1, 3))
+        return tpl.page({'template': template, 'data': data}, HOSTILE, HOSTILE, (1, 3), SIZE, 0.24)
 
     def test_every_template_escapes_storyboard_text(self):
         cases = {
@@ -36,19 +38,19 @@ class TemplatesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             Path(d, 'shot.png').write_bytes(b'\x89PNG\r\n')
             Path(d, 'x.svg').write_text('<svg/>')
-            out = tpl.page({'template': 'screenshot', 'data': {'image': 'shot.png', 'alt': 'a'}}, 't', 'c', (1, 1),
+            out = tpl.page({'template': 'screenshot', 'data': {'image': 'shot.png', 'alt': 'a'}}, 't', 'c', (1, 1), SIZE, 0.24,
                            base_dir=d)
             self.assertIn('src="data:image/png;base64,', out)
             with self.assertRaises(ValueError):
-                tpl.page({'template': 'screenshot', 'data': {'image': 'x.svg'}}, 't', 'c', (1, 1), base_dir=d)
+                tpl.page({'template': 'screenshot', 'data': {'image': 'x.svg'}}, 't', 'c', (1, 1), SIZE, 0.24, base_dir=d)
             with tempfile.TemporaryDirectory() as other:
                 Path(other, 'secret.png').write_bytes(b'\x89PNG\r\n')
                 Path(d, 'link.png').symlink_to(Path(other, 'secret.png'))
                 with self.assertRaisesRegex(ValueError, 'outside'):
-                    tpl.page({'template': 'screenshot', 'data': {'image': 'link.png'}}, 't', 'c', (1, 1), base_dir=d)
+                    tpl.page({'template': 'screenshot', 'data': {'image': 'link.png'}}, 't', 'c', (1, 1), SIZE, 0.24, base_dir=d)
 
     def test_custom_stylesheet_replaces_bundled_and_cannot_close_style(self):
-        out = tpl.page({'template': 'title', 'data': {}}, 't', 'c', (1, 1), stylesheet='body{}</style><b>')
+        out = tpl.page({'template': 'title', 'data': {}}, 't', 'c', (1, 1), SIZE, 0.24, stylesheet='body{}</style><b>')
         self.assertIn('body{}<\\/style><b>', out)
         self.assertNotIn('--accent', out)
 

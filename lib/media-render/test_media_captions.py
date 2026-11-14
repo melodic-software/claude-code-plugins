@@ -1,4 +1,8 @@
+import shutil
+import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 
 import media_captions as mc
 
@@ -31,11 +35,29 @@ class CaptionsTest(unittest.TestCase):
         self.assertEqual(mc.srt([(0.0, 1.5, 'Hi')]), '1\n00:00:00,000 --> 00:00:01,500\nHi\n\n')
 
     def test_ass_shows_override_characters_literally_and_raises_margin(self):
-        text = mc.ass([(0.0, 1.0, 'a {b} \\N c')], 3840, 2160)
+        text = mc.ass([(0.0, 1.0, 'a {b} \\N c')], 3840, 2160, 0.24)
         self.assertIn('PlayResX: 3840', text)
         self.assertIn('Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,a \\{b\\} \\⁠N c', text)
         margin_v = int(text.split('Style: Default,')[1].split(',')[20])
         self.assertGreaterEqual(margin_v, 2160 // 8)
+
+    @unittest.skipUnless(shutil.which('ffmpeg'), 'ffmpeg is not on PATH')
+    def test_two_line_cue_box_stays_inside_the_caption_band(self):
+        w, h, band = 3840, 2160, 0.24
+        cue = 'a caption long enough that libass has to wrap it onto a second line of words at this font size, even on a 4K frame'
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, 'c.ass').write_text(mc.ass([(0.0, 1.0, cue)], w, h, band), encoding='utf-8')
+            subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', f'color=gray:s={w}x{h}:d=1',
+                            '-vf', 'ass=c.ass', '-frames:v', '1', '-pix_fmt', 'gray', '-f', 'rawvideo', 'f.raw'],
+                           cwd=d, check=True)
+            raw = Path(d, 'f.raw').read_bytes()
+        rows = [y for y in range(h) if raw[y * w:(y + 1) * w].count(raw[0]) != w]
+        self.assertGreater(rows[-1] - rows[0], h * 0.075, 'the cue did not wrap to two lines')
+        self.assertGreaterEqual(rows[0], h * (1 - band))
+
+    def test_band_must_clear_the_control_bar_margin(self):
+        with self.assertRaises(ValueError):
+            mc.ass([], 3840, 2160, mc.MARGIN_V)
 
 
 if __name__ == '__main__':

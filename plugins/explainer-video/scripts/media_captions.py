@@ -10,6 +10,7 @@ import math
 SENTENCE_END = set('.!?…')
 CLOSERS = '"\'’”)]}»'            # may follow a sentence end: "Done." or finished.)
 MARGIN_V = 0.13                   # bottom margin as a share of the height: clears GitHub's player control bar
+TWO_LINE_BOX = 2.4                # a two-line cue's box height in font sizes (libass, DejaVu Sans, measured 2.26)
 
 
 def _sentences(run):
@@ -93,12 +94,16 @@ def _ass_text(text):
     return text.replace('\\', '\\⁠').replace('{', '\\{').replace('}', '\\}')
 
 
-def ass(cues, width, height, font='DejaVu Sans'):
-    """ASS script for burning: white text with a dark box, bottom center, raised above a player's control bar."""
+def ass(cues, width, height, band, font='DejaVu Sans'):
+    """ASS script for burning: white text with a dark box, bottom center, raised above a player's control bar.
+    band: the bottom share of the height kept free of content; the font is sized so a two-line cue's box fits it."""
+    if band <= MARGIN_V:
+        raise ValueError(f'caption band {band} leaves no room above the {MARGIN_V} control-bar margin')
+
     def stamp(t):
         cs = round(t * 100)
         return f'{cs // 360000}:{cs // 6000 % 60:02d}:{cs // 100 % 60:02d}.{cs % 100:02d}'
-    size, margin_v = round(height * 0.045), round(height * MARGIN_V)
+    size, margin_v = round(height * (band - MARGIN_V) / TWO_LINE_BOX), round(height * MARGIN_V)
     head = ('[Script Info]\nScriptType: v4.00+\nWrapStyle: 0\nScaledBorderAndShadow: yes\n'
             f'PlayResX: {width}\nPlayResY: {height}\n\n[V4+ Styles]\n'
             # ASS field names, spelled as the format defines them.

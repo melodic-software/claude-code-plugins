@@ -331,6 +331,24 @@ updates:
         update-types:
           - "minor"
           - "patch"
+  # lib/media-render's lock (playwright), which CI installs for the media suites. explainer-video
+  # carries the library and pins the same playwright; CI fails when the two pins differ.
+  - package-ecosystem: pip
+    directory: /lib/media-render
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      pip-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   # The speech plugin's hash-locked Python packages (numpy, onnxruntime), installed the same way.
   - package-ecosystem: pip
     directory: /plugins/speech
