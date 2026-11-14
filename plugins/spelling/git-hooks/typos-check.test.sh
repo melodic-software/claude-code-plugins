@@ -6,6 +6,9 @@
 # repository's typos config (excludes, allow-list) governs, --worktree covers
 # uncommitted and untracked files, a missing typos follows the skip-key rule,
 # and the plugin's own vendored installer wires the entry so `git commit` runs it.
+# The stub cases, which need no real typos, pin the path transport: paths reach
+# typos on stdin (--file-list -), a path holding LF or CR goes alone on the
+# command line, and a list typos cannot decode is retried there once.
 # "teh" -> "the" is typos' own built-in correction, the fixture every case uses.
 # test-scope: plugins/spelling/git-hooks/entries.json plugins/spelling/lib/git-hooks/check-lib.sh plugins/spelling/lib/git-hooks/install.mjs
 set -uo pipefail
@@ -14,10 +17,6 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/typos-check.sh"
 PLUGIN="$(cd "$HERE/.." && pwd)"
-if ! command -v typos >/dev/null 2>&1; then
-  echo "SKIP: typos not on PATH -- typos-check tests skipped"
-  exit 0
-fi
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -50,10 +49,91 @@ new_repo() {
 check() { # <repo> [args...] -> "<rc>|<stderr>"
   local repo="$1" err rc
   shift
-  err="$(cd "$repo" && bash "$CHECK" "$@" 2>&1 >/dev/null)"
+  err="$(cd "$repo" && bash "$CHECK" "$@" 2>&1 >/dev/null </dev/null)"
   rc=$?
   printf '%s|%s' "$rc" "$err"
 }
+
+# A stand-in typos, so the path transport is tested without a real typos. Each
+# call appends its arguments (%q-quoted, one line per call) to $STUB_OUT/argv,
+# and a --file-list - call copies stdin to $STUB_OUT/stdin and exits
+# $STUB_RC_LIST (default 0). An ordinary path (no LF or CR) after -- exits 3,
+# unless STUB_ALLOW_ARGV=1.
+STUB="$WORK/stub"
+export STUB_OUT="$WORK/stub-out"
+mkdir -p "$STUB"
+cat >"$STUB/typos" <<'EOF'
+#!/usr/bin/env bash
+printf ' %q' "$@" >>"$STUB_OUT/argv"
+printf '\n' >>"$STUB_OUT/argv"
+list=0 after=0 prev=
+for a in "$@"; do
+  if ((after)); then
+    [[ "$a" == *$'\n'* || "$a" == *$'\r'* || "${STUB_ALLOW_ARGV:-}" == 1 ]] || exit 3
+  elif [[ "$a" == -- ]]; then
+    after=1
+  elif [[ "$prev" == --file-list && "$a" == - ]]; then
+    list=1
+  fi
+  prev="$a"
+done
+if ((list)); then
+  cat >>"$STUB_OUT/stdin"
+  exit "${STUB_RC_LIST:-0}"
+fi
+exit 0
+EOF
+chmod +x "$STUB/typos"
+
+stub_check() { # <repo> [args...]: check with the stub typos first on PATH
+  rm -rf "$STUB_OUT"
+  mkdir -p "$STUB_OUT"
+  : >"$STUB_OUT/argv"
+  : >"$STUB_OUT/stdin"
+  PATH="$STUB:$PATH" check "$@"
+}
+
+new_repo
+mkdir -p "$REPO/sub"
+printf 'clean a\n' >"$REPO/a.md"
+printf 'clean b\n' >"$REPO/b.md"
+printf 'clean c\n' >"$REPO/sub/c.md"
+git -C "$REPO" add a.md b.md sub/c.md
+printf 'loose\n' >"$REPO/untracked.md"
+expect "stub: staged paths reach typos without a command-line path" "0|" "$(stub_check "$REPO")"
+argv="$(cat "$STUB_OUT/argv")"
+expect "stub: one typos call, ending in --file-list - with no --" yes \
+  "$([[ "$argv" != *$'\n'* && "$argv" == *' --file-list -' && "$argv " != *' -- '* ]] && echo yes)"
+expect "stub: the list on stdin is exactly the staged paths" "a.md
+b.md
+sub/c.md" "$(sort "$STUB_OUT/stdin")"
+expect "stub: a typos status other than 0 or 2 from the list call blocks" \
+  "1|spelling: typos exited 78 without a verdict; fix what it reports above." \
+  "$(STUB_RC_LIST=78 stub_check "$REPO")"
+expect "stub: a list typos cannot decode (74) is retried on the command line" "0|" \
+  "$(STUB_RC_LIST=74 STUB_ALLOW_ARGV=1 stub_check "$REPO")"
+expect "stub: the retry is one list call, then one command-line call" "2|yes" \
+  "$(wc -l <"$STUB_OUT/argv" | tr -d ' ')|$([[ "$(sed -n 1p "$STUB_OUT/argv")" == *' --file-list -' && "$(sed -n 2p "$STUB_OUT/argv")" == *' -- a.md b.md sub/c.md' ]] && echo yes)"
+
+for name in "l"$'\n'"f.md" "c"$'\r'"r.md"; do
+  label="$(printf '%q' "$name")"
+  new_repo
+  if ! printf 'clean\n' >"$REPO/$name" 2>/dev/null; then
+    echo "SKIP: the filesystem refuses the name $label"
+    continue
+  fi
+  printf 'clean\n' >"$REPO/plain.md"
+  git -C "$REPO" add -A
+  expect "stub: $label passes" "0|" "$(stub_check "$REPO")"
+  expect "stub: $label reaches typos alone after --, and plain.md on stdin" "$label|plain.md" \
+    "$(line="$(grep -F -- ' -- ' "$STUB_OUT/argv")" && printf '%s' "${line##* -- }")|$(cat "$STUB_OUT/stdin")"
+done
+
+if ! command -v typos >/dev/null 2>&1; then
+  echo "SKIP: typos not on PATH -- the real-typos cases skipped"
+  echo "typos-check: $PASS passed, $FAIL failed"
+  exit $((FAIL > 0))
+fi
 
 HINT='spelling: fix the words above, or allow-list intended ones in the repository typos config (extend-words).'
 
@@ -104,6 +184,14 @@ printf 'fixture teh\n' >"$REPO/fixtures/a.md"
 printf 'an old teh line\nallowed teh\n' >"$REPO/notes.md"
 git -C "$REPO" add -A
 expect "the repository typos config governs: an excluded path and an allow-listed word pass" "0|" "$(check "$REPO")"
+
+new_repo
+printf '[files]\nextend-exclude = ["fixtures/"]\n' >"$REPO/_typos.toml"
+mkdir -p "$REPO/fixtures"
+printf 'fixture teh\n' >"$REPO/fixtures/a.md"
+printf 'clean line\n' >"$REPO/clean.md"
+git -C "$REPO" add -A
+expect "the repository typos config's exclude skips an explicitly staged whole file" "0|" "$(check "$REPO")"
 
 new_repo
 mkdir -p "$REPO/sub"

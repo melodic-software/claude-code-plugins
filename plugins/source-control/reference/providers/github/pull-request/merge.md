@@ -119,7 +119,7 @@ blocks a merge whose target it cannot resolve. `--match-head-commit <sha>`, with
 literally, makes GitHub refuse the merge if the head moved. It is optional for an immediate merge
 and required with `--auto`, so auto-merge is armed only on the head the session reviewed. The pin
 does not hold after arming: a push by anyone with write access keeps auto-merge armed, and where the
-AI review checks are not required checks the new head can merge on `ci-status` alone, so an armed
+AI review checks are not required checks the new head can merge on `CI Status` alone, so an armed
 auto-merge is reported, as [confirm queue entry](#confirm-queue-entry) does. Before
 pushing to a PR with auto-merge armed, disarm it with
 `gh pr merge <pr_number> -R <owner>/<repo> --disable-auto`, and re-arm it only after the reviews

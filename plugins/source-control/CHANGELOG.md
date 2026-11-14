@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.10.0] - 2026-11-14
+
+### Added
+
+- **`pull-request review-comments --pr <number>` reads one chosen pull request.** It prints the same rows as `--prs <n>` for that PR alone, open PRs included (where the PR author's own comments are always dropped), with `--repo` as before. `--prs <n>` is unchanged; passing both is a usage error.
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+### Fixed
+
+- `/source-control:pull-request`: `scripts/check-gate-lines.sh`, the attended body refresh's gate-line comparison, also counts a closing keyword followed by a full issue URL, and hold wording whose words sit on two lines (one `hold wording across lines:` entry per match), so a refresh can no longer add, drop or change either unnoticed.
+
+## [11.9.0] - 2026-11-14
+
+### Added
+
+- `comments --ci`: the review-thread tool gains `sections`, the PR body sections the round may refresh, and `record-body <file>`, which records their new text once per round. The record shares the replies file's 49152-byte cap and never costs a reply: `record-body` refuses text that does not fit, a later `record` that needs the room drops it, and `record` refuses a reply that would pass the cap even then. The reply job puts the text in place after the fix lands, and drops it when it holds a line a gate reads. `pr_body_refresh` in `docs/conventions/source-control.yaml` now also governs these rounds.
+
 ## [11.8.1] - 2026-11-14
 
 ### Changed
