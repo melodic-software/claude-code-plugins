@@ -186,6 +186,24 @@ rc=0
 CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_eq "a usage error still exits 0" 0 "$rc"
 
+# No default-branch text selects the working-tree read: a team file holding only `--worktree` beside a
+# working-tree copy set to off still resolves from the team text, which does not parse.
+repo=$(fixture selector $'--worktree\n')
+printf 'verification: off\n' >"$repo/$F"
+assert_eq "team file text cannot select the working-tree copy" \
+  "verification: standard (default; $F does not parse or repeats a key $(at "$repo"))" "$(run "$repo" | head -n 1)"
+
+# A failed fetch keeps the team's level from the last fetched copy, named as possibly stale, rather than
+# dropping to the light default. Origin's main moves to a commit whose tree names a blob origin does not
+# have: ls-remote still answers, but the fetch cannot send the commit on any git version.
+repo=$(fixture stale $'verification: strict\n')
+origin="$TEST_TMPDIR/stale/origin.git"
+tree="$(printf '100644 blob %s\tx\n' 1111111111111111111111111111111111111111 | g -C "$origin" mktree --missing)"
+g -C "$origin" update-ref refs/heads/main "$(g -C "$origin" commit-tree "$tree" -p main -m next)"
+assert_eq "a failed fetch keeps the last fetched level" \
+  "verification: strict ($F verification $(at "$repo"); the fetch failed, so the last fetched copy may be stale)" \
+  "$(run "$repo")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
