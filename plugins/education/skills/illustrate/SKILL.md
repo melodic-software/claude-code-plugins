@@ -159,9 +159,18 @@ record. On a yes, hand it the record as a storyboard, not as a topic:
    [storyboard contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0102-hand-produced-video-content-to-the-producer-as-a-data-only-storyboard.md)).
    Each template's `data` fields are those of the producer's fixture,
    [`plugins/explainer-video/scripts/fixtures/storyboard.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/explainer-video/scripts/fixtures/storyboard.json).
-2. Start with a `title` moment from the record's title, then one moment per idea: each diagram
-   becomes one `diagram` moment (a `before-after` diagram becomes a `before-after` moment), in the
-   record's order, with the diagram's caption as the note.
+2. Start with a `title` moment from the record's title, then one moment per diagram, in the
+   record's order, with the diagram's caption as the note. Keep each kind's shape: only a `flow`
+   draws arrows, since arrows claim each step leads to the next.
+
+   | `kind` | Moment |
+   |---|---|
+   | `flow` | `diagram`, a node per step |
+   | `timeline` | `diagram`, a node per point, `when` as its detail |
+   | `stack` | `diagram` with `layout: "stack"`, a node per layer, top layer first |
+   | `hub` | `diagram` with `layout: "group"`, the hub's `center` as `center`, a node per branch |
+   | `compare` | `diagram` with `layout: "group"`, a node per column, its items as the detail |
+   | `before-after` | `before-after` |
 3. Narration: one plain paragraph per moment saying what the frame shows. Add every `terms` entry
    the reader needs to the narration of the moment that first uses it.
 4. Invoke `/explainer-video:produce` via the Skill tool on `<dir>/storyboard.json` (its stills

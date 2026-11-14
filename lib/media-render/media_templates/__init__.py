@@ -17,6 +17,7 @@ from pathlib import Path
 STYLESHEET = Path(__file__).with_name('frames.css')
 LINE_KINDS = {'+': 'add', '-': 'del', ' ': 'ctx'}
 RISK_LEVELS = ('low', 'medium', 'high', 'critical')
+DIAGRAM_LAYOUTS = ('flow', 'stack', 'group')
 IMAGE_TYPES = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp'}
 
 
@@ -51,7 +52,11 @@ def _diagram(d):
         detail = f'<div class="detail">{esc(n.get("detail"))}</div>' if n.get('detail') else ''
         nodes.append(f'<div class="node"><div class="label">{esc(n.get("label"))}</div>{detail}</div>')
     note = f'<p class="note">{esc(d["note"])}</p>' if d.get('note') else ''
-    return f'<section class="diagram"><div class="flow">{"<div class=arrow>→</div>".join(nodes)}</div>{note}</section>'
+    center = f'<div class="center">{esc(d["center"])}</div>' if d.get('center') else ''
+    # flow joins the nodes with arrows (a sequence); stack and group claim no order between them.
+    layout = d.get('layout') if d.get('layout') in DIAGRAM_LAYOUTS else 'flow'
+    joiner = '<div class=arrow>→</div>' if layout == 'flow' else ''
+    return f'<section class="diagram">{center}<div class="{layout}">{joiner.join(nodes)}</div>{note}</section>'
 
 
 def _before_after(d):
