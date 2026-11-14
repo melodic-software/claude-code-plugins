@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "blocked: testing/no-such-part matched nothing; looked for features/testing/no-such-part/README.md, features/testing/no-such-part.md and the ## Parts of features/testing/README.md",
+      "why": "names both paths and the Parts section it looked in"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "blocked: no feature file for testing/no-such-part.",
+      "why": "stops but names none of the places it looked"
+    },
+    {
+      "answer": "resolved: testing/no-such-part -> features/testing/README.md, part run-e2e",
+      "why": "guessed a part instead of stopping"
+    }
+  ]
+}

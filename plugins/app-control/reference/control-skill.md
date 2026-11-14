@@ -327,9 +327,20 @@ or a step whose selector matches every variant. A selector written against one t
 on the next tenant.
 
 A feature's id is `<feature>`, or `<module>/<feature>` when it sits in a module folder. Drive
-resolves an id, relative to the skill's base directory, to `features/<id>/README.md`, then to the
-legacy `features/<id>.md`. The legacy
-file keeps working as written, with its `## States` section, until someone regroups it.
+resolves an id, relative to the skill's base directory, to the first of these that exists:
+
+1. `features/<id>/README.md`;
+2. the legacy `features/<id>.md`, which keeps working as written, with its `## States` section,
+   until someone regroups it;
+3. for an id `<module>/<part>`, the part named `<part>` under `## Parts` in the file `<module>`
+   resolves to by 1 or 2. A Parts line names a part when it starts with a code span
+   (`` `run-e2e`: ``), a bold id (`**P1.**`) or a word followed by `:` (`range:`), the markup and a
+   trailing `.` or `:` dropped. Drive runs that file's `## Drive` for the part.
+
+A part with a feature file of its own therefore resolves to that file. An id that matches none of
+these, or names a part two Parts lines share, stops that feature, and drive names each path and
+Parts section it looked in. `/app-control:map check` reports two Parts lines in one feature file
+that name the same part.
 
 ## Shared items
 
