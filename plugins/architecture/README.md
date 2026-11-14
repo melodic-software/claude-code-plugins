@@ -14,6 +14,11 @@ interface hides large behavior. Deepening shallow modules improves both
 testability and AI/agent-navigability: a small interface lets a reader grasp a
 module's purpose without traversing the whole import graph.
 
+`/architecture:principles` defines the module-design terms the findings use
+(module, interface, implementation, seam, adapter, depth, leverage, locality)
+and the checks built on them, with the source of each. Other skills load it by
+name.
+
 ## What it does
 
 1. **Explore for friction.** Walks the codebase (via a read-only exploration
@@ -182,6 +187,7 @@ your records.
 /architecture:improve deepening  # explicit
 /architecture:improve boundaries # recorded boundary rules against manifest edges
 /architecture:improve conventions # derive conventions and propose rules
+/architecture:principles seam    # define a module-design term
 /architecture:record-decision    # record one decision into the repo's convention
 /architecture:record-decision audit # list ADRs the code no longer backs
 
