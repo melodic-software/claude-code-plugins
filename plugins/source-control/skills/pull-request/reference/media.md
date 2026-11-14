@@ -84,8 +84,9 @@ owns them.
    ```
 
    It removes the request label and writes the claim line for the PR's head commit. Exit 3 means
-   another run holds the claim for that commit: stop, build nothing. A claim left on an older
-   commit is taken over.
+   another run holds the claim for that commit, or the commit already has its failure comment
+   (refusal `failed`, counted by the same rule as [Failure](#failure)): stop, build nothing. A
+   claim left on an older commit is taken over.
 2. **Build.** The producer builds the media for the claimed commit and writes `manifest.json`.
    This action does not build.
 3. **Post.**
@@ -147,7 +148,15 @@ python3 "<skill-dir>/scripts/media.py" stale <pr> --repo <owner>/<repo>
   lane's push and a push made outside `push-branch.sh`.
 - `ready` runs it before the hand-off ([ready-for-review.md](ready-for-review.md) 2.5.6).
 
-Whether a stale section is rebuilt is the producer's decision, not this action's.
+Whether a stale section is rebuilt is the producer's decision, not this action's. A caller makes
+it from the commit the section shows, which only this script parses:
+
+```bash
+python3 "<skill-dir>/scripts/media.py" shows --facts <facts.json>
+```
+
+It reads the body from a `view` facts file, calls no forge, and prints the commit the posted or
+out-of-date media show, or nothing when the section shows none.
 
 ## Failure
 

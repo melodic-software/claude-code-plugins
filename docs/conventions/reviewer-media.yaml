@@ -1,0 +1,5 @@
+# Team layer of the reviewer-media concern. Keys, defaults and layers: docs/conventions/reviewer-media.md.
+# Schema: plugins/review/schemas/reviewer-media.schema.json. Read from a pull request's base commit only.
+policy: on-request
+# This organization's plan raises GitHub's attachment limit.
+upload_limit_mb: 100

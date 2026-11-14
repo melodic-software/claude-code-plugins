@@ -1,0 +1,8 @@
+{
+  "pass": [
+    { "answer": [], "why": "no calls" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Agent", "input": { "subagent_type": "general-purpose", "prompt": "Render the storyboard for #77" } }], "why": "dispatched work after a skip" }
+  ]
+}

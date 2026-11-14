@@ -259,6 +259,25 @@ assert_contains "the takeover names the new head and run" "$(cat "$S/body")" \
   "<!-- reviewer-media:claimed $HEAD2 run-1 -->"
 assert_not_contains "the takeover drops the old claim" "$(cat "$S/body")" "run-other"
 
+reset "$PLAIN" "$HEAD1"
+printf '<!-- reviewer-media:failed %s -->\n' "$HEAD1" >"$S/comments/0"
+media claim 7 --run-id run-1
+assert_exit "a claim on a head that already has its failure comment aborts with exit 3" 3 "$RC"
+assert_contains "the refusal names the failed head" "$OUT" "refused failed"
+assert_eq "a refused claim on a failed head edits nothing" "0" "$(body_edits)"
+assert_contains "a refused claim on a failed head keeps the request label" "$(cat "$S/labels")" "$REQUESTED"
+
+reset "$PLAIN" "$HEAD2"
+printf '<!-- reviewer-media:failed %s -->\n' "$HEAD1" >"$S/comments/0"
+media claim 7 --run-id run-1
+assert_exit "a failure comment on an older head does not stop a claim on the new one" 0 "$RC"
+
+reset "$PLAIN" "$HEAD1"
+printf '<!-- reviewer-media:failed %s -->\n' "$HEAD1" >"$S/comments/0"
+echo "someone User" >"$S/authors/0"
+media claim 7 --run-id run-1
+assert_exit "a failure marker planted by another person does not stop a claim" 0 "$RC"
+
 # --- post, attaching ----------------------------------------------------------
 M1="$TEST_TMPDIR/m1"
 media_dir "$M1" "$HEAD1"
@@ -568,6 +587,27 @@ reset "$PLAIN" "$HEAD2"
 media stale 7 --head "$HEAD2"
 assert_exit "stale on a body with no section exits 0" 0 "$RC"
 assert_eq "a body with no section is not edited" "0" "$(body_edits)"
+
+# --- shows ----------------------------------------------------------------------
+facts_of() { jq -n --rawfile body "$1" '{body: $body}' >"$TEST_TMPDIR/facts.json"; }
+facts_of "$FIXTURE"
+media shows --facts "$TEST_TMPDIR/facts.json"
+assert_eq "shows prints the commit posted media show" "$HEAD1" "$OUT"
+sed "s|<!-- reviewer-media:posted $HEAD1 -->|Out of date: shows commit $HEAD1|" "$FIXTURE" >"$TEST_TMPDIR/stale.md"
+facts_of "$TEST_TMPDIR/stale.md"
+media shows --facts "$TEST_TMPDIR/facts.json"
+assert_eq "shows prints the commit out-of-date media show" "$HEAD1" "$OUT"
+facts_of "$PLAIN"
+media shows --facts "$TEST_TMPDIR/facts.json"
+assert_exit "shows on a body with no section exits 0" 0 "$RC"
+assert_silent "shows on a body with no section prints nothing" "$OUT"
+printf '<!-- reviewer-media:posted %s -->\n' "$HEAD1" >"$TEST_TMPDIR/outside.md"
+facts_of "$TEST_TMPDIR/outside.md"
+media shows --facts "$TEST_TMPDIR/facts.json"
+assert_silent "a posted line outside the markers shows nothing" "$OUT"
+echo '{}' >"$TEST_TMPDIR/facts.json"
+media shows --facts "$TEST_TMPDIR/facts.json"
+assert_exit "shows on facts with no body is a usage error" 2 "$RC"
 
 # --- fail -----------------------------------------------------------------------
 reset "$TEST_TMPDIR/claimed.md" "$HEAD1"

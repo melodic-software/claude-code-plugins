@@ -5,6 +5,10 @@
   media.py post  <pr> --manifest <file> --run-id <id> [--artifact-url <url> [--retention-days <n>]] [--no-attach]
   media.py stale <pr> [--head <sha>] [--quiet]
   media.py fail  <pr> --run-id <id> --reason <code> [--run-url <url>]
+  media.py shows --facts <file>
+
+`shows` reads the body from a `view` facts file and makes no forge call: it prints the commit the section
+shows (posted or out of date), or nothing.
 
 Every action takes --repo <owner/repo>, and the label names as --label-requested, --label-posted and
 --label-failed (`false` turns one off). Only the text between the two marker lines is ever rewritten.
@@ -637,6 +641,28 @@ def label(value: str) -> str | None:
     return None if value.strip().lower() == "false" else value
 
 
+def failure_marker(head: str) -> str:
+    return f"<!-- reviewer-media:failed {head} -->"
+
+
+def has_failure_comment(forge: Forge, head: str, login: str | None) -> bool:
+    """Whether the head already has its failure comment, posted by this account or a bot account."""
+    listed = forge.gh(
+        "api",
+        "--paginate",
+        f"repos/{forge.repo}/issues/{forge.pr}/comments",
+        "--jq",
+        ".[] | {login: .user.login, type: .user.type, body: .body}",
+    ).stdout
+    # Only this account's or a bot's comment counts, so nobody else can suppress or forge the failure comment.
+    return any(
+        isinstance(c, dict)
+        and ((login and c.get("login") == login) or c.get("type") == "Bot")
+        and failure_marker(head) in str(c.get("body") or "")
+        for c in _json_values(listed)
+    )
+
+
 def cmd_claim(a: argparse.Namespace, forge: Forge) -> int:
     pr = forge.read()
     body, head = pr["body"], pr["headRefOid"]
@@ -644,6 +670,10 @@ def cmd_claim(a: argparse.Namespace, forge: Forge) -> int:
     held = status_of(parts.block).claim
     if held and held[0] == head and held[1] != a.run_id:
         raise Refusal(3, "claim", f"run {held[1]} holds the claim for commit {head}")
+    if has_failure_comment(forge, head, forge.viewer()):
+        raise Refusal(
+            3, "failed", f"commit {head} already failed; no automatic run is made on it"
+        )
     requested = label(a.label_requested)
     drop = (
         ["--remove-label", requested] if requested and requested in pr["labels"] else []
@@ -836,6 +866,19 @@ def cmd_stale(a: argparse.Namespace, forge: Forge) -> int:
     return 0
 
 
+def cmd_shows(a: argparse.Namespace) -> int:
+    try:
+        body = json.loads(Path(a.facts).read_text(encoding="utf-8"))["body"]
+        if not isinstance(body, str):
+            raise TypeError
+    except (OSError, ValueError, KeyError, TypeError):
+        raise Refusal(2, "usage", "--facts must be a view facts file with a body") from None
+    status = status_of(split(body).block)
+    if status.shown:
+        print(status.shown)
+    return 0
+
+
 def cmd_fail(a: argparse.Namespace, forge: Forge) -> int:
     if not _REASON.match(a.reason):
         raise Refusal(
@@ -871,25 +914,11 @@ def cmd_fail(a: argparse.Namespace, forge: Forge) -> int:
             forge, pr["labels"], label(a.label_failed), [label(a.label_requested)]
         )
     )
-    marker = f"<!-- reviewer-media:failed {head} -->"
-    listed = forge.gh(
-        "api",
-        "--paginate",
-        f"repos/{forge.repo}/issues/{forge.pr}/comments",
-        "--jq",
-        ".[] | {login: .user.login, type: .user.type, body: .body}",
-    ).stdout
-    # Only this account's or a bot's comment counts, so nobody else can suppress the failure comment.
-    if any(
-        isinstance(c, dict)
-        and ((login and c.get("login") == login) or c.get("type") == "Bot")
-        and marker in str(c.get("body") or "")
-        for c in _json_values(listed)
-    ):
+    if has_failure_comment(forge, head, login):
         print(f"media: commit {head} already has its failure comment")
         return _broken(broken)
     comment = [
-        marker,
+        failure_marker(head),
         f"Reviewer media was not produced for commit {head}.",
         "",
         f"Reason: `{a.reason}`",
@@ -967,8 +996,13 @@ def main(argv: list[str]) -> int:
         if name == "fail":
             p.add_argument("--reason", required=True)
             p.add_argument("--run-url", default="")
+    shows = sub.add_parser("shows")
+    shows.set_defaults(run=None)
+    shows.add_argument("--facts", required=True)
     a = parser.parse_args(argv)
     try:
+        if a.action == "shows":
+            return cmd_shows(a)
         if getattr(a, "run_id", None) is not None and not re.fullmatch(_RUN, a.run_id):
             raise Refusal(
                 2,

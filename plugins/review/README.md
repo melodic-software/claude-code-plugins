@@ -97,6 +97,13 @@ Invoke via `@review:<agent>` or let Claude delegate.
   agent. Returns the rows for the head it read and a `demote` flag, which may only send an
   unattended merge to a human and never makes a pull request merge-eligible. Posts nothing and
   gates nothing.
+- **`/review:reviewer-media <pr> [--handoff] [--policy ...] [--out <dir>]`**. Narrated
+  walkthrough video for a pull request's reviewers: decides whether the pull request needs one,
+  builds the storyboard from the explain-change digest, checks it covers every changed file, has
+  `/explainer-video:produce` render it and `/source-control:pull-request media` place it near the
+  top of the description. The `reviewer-media` cascade concern
+  ([docs/conventions/reviewer-media.md](../../docs/conventions/reviewer-media.md)) sets the policy
+  (`on-request` by default), labels, voices and limits, read from the base commit.
 - **`/review:code-review`**. CI code-review lane command for a pull request
   (correctness / maintainability; security scoped out where a separate security
   lane runs, folded back in where none does).

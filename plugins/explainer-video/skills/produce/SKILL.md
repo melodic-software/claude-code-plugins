@@ -161,6 +161,12 @@ write markup from it, and never edit its text to get past a check.
 4. Exit 0 is a pass; exit 1 lists each defect in `manifest.json` (a frame under the luma SSIM floor,
    a loudness miss, a stream defect). Fix the cause and render again; never lower a floor. Read the
    contact sheet before calling it done.
+5. Your contact-sheet read is the fix loop, not the verdict. Read the `verification` level as the
+   manim loop does, and copy its line into the report. At standard or strict, dispatch a
+   fresh-context subagent with the paths to the contact sheets and `<dir>/script.txt`, never your
+   notes on them; it returns each frame whose text is cut off or unreadable, or that does not show
+   what its paragraph says. A returned frame sends you back to the storyboard. Under light and off,
+   dispatch none and report `verification: skipped (<level>)`.
 
 `manifest.json` lists every file a caller may publish: the video (or its chapter parts when it is
 over the upload limit), `captions.srt`, the contact sheets and the screenshots. The video, each
@@ -173,6 +179,8 @@ split under the limit; it is hosted whole as an Actions artifact, never recompre
 ## Related
 
 - `/education:illustrate` offers a video view through this skill.
+- `/review:reviewer-media` builds a pull request's reviewer storyboard from that digest and hands
+  it here, then hands the manifest to `/source-control:pull-request media`.
 - `/review:explain-change` writes a pull request digest; a `storyboard.json` built from one renders
   here through the stills renderer.
 - `/playwright:demo-video` records a live UI flow; this skill renders still frames and diagrams.

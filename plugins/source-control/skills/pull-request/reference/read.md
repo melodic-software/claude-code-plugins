@@ -17,7 +17,8 @@ output to that file and prints nothing, so a caller that needs the bytes whole (
 gate scans) reads them from the file, not from a copy of tool output.
 
 - **`view`** prints one object: `number`, `url`, `state`, `isDraft`, `title`, `body`, `baseRefName`,
-  `headRefName`, `baseRefOid`, `headRefOid`, `mergeCommit` (`null` until merged), `additions`,
+  `headRefName`, `baseRefOid`, `headRefOid`, `isCrossRepository` (`true` when the head is in a
+  fork, or a fork since deleted), `mergeCommit` (`null` until merged), `additions`,
   `deletions`, `files`, `labels`, and the repository's `visibility` (`PUBLIC`, `PRIVATE`,
   `INTERNAL`, or `UNKNOWN` when the lookup fails or the forge CLI is not logged in to the PR's
   host, which is then never asked). `<pr>` is a number, a PR URL (which names its own host and
