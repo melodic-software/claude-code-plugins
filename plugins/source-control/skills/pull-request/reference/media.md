@@ -148,7 +148,15 @@ python3 "<skill-dir>/scripts/media.py" stale <pr> --repo <owner>/<repo>
   lane's push and a push made outside `push-branch.sh`.
 - `ready` runs it before the hand-off ([ready-for-review.md](ready-for-review.md) 2.5.6).
 
-Whether a stale section is rebuilt is the producer's decision, not this action's.
+Whether a stale section is rebuilt is the producer's decision, not this action's. A caller makes
+it from the commit the section shows, which only this script parses:
+
+```bash
+python3 "<skill-dir>/scripts/media.py" shows --facts <facts.json>
+```
+
+It reads the body from a `view` facts file, calls no forge, and prints the commit the posted or
+out-of-date media show, or nothing when the section shows none.
 
 ## Failure
 

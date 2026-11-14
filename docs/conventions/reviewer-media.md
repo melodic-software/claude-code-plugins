@@ -67,11 +67,13 @@ An explicit `--policy` argument beats every layer.
 `gh pr edit --attach` needs a signed-in user, so a workflow run hosts the media as an artifact. A
 job that runs the skill (through Claude Code) on a pull request:
 
-1. runs `/review:reviewer-media <pr> --out "$RUNNER_TEMP/reviewer-media"`, which claims the head
-   and builds into that folder, then stops before posting because it is in Actions;
+1. runs `/review:reviewer-media <pr> --handoff --out "$RUNNER_TEMP/reviewer-media"`, which claims
+   the head with run id `$GITHUB_RUN_ID` and builds into that folder, then stops before posting
+   because it is in Actions, printing the resolved `config`;
 2. uploads the folder with `actions/upload-artifact`, `retention-days` set to
    `artifact_retention_days`;
-3. runs `/source-control:pull-request media <pr> --manifest "$RUNNER_TEMP/reviewer-media/manifest.json" --artifact-url <url> --retention-days <days> --no-attach`,
+3. runs `/source-control:pull-request media <pr> --manifest "$RUNNER_TEMP/reviewer-media/manifest.json" --run-id "$GITHUB_RUN_ID" --artifact-url <url> --retention-days <days> --no-attach`
+   with `--label-requested`, `--label-posted` and `--label-failed` set from that `config`,
    `<url>` being the upload step's `artifact-url` output.
 
 The job needs `pull-requests: write` and `issues: write` (labels and the failure comment) and

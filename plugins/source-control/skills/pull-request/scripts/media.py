@@ -5,6 +5,10 @@
   media.py post  <pr> --manifest <file> --run-id <id> [--artifact-url <url> [--retention-days <n>]] [--no-attach]
   media.py stale <pr> [--head <sha>] [--quiet]
   media.py fail  <pr> --run-id <id> --reason <code> [--run-url <url>]
+  media.py shows --facts <file>
+
+`shows` reads the body from a `view` facts file and makes no forge call: it prints the commit the section
+shows (posted or out of date), or nothing.
 
 Every action takes --repo <owner/repo>, and the label names as --label-requested, --label-posted and
 --label-failed (`false` turns one off). Only the text between the two marker lines is ever rewritten.
@@ -862,6 +866,19 @@ def cmd_stale(a: argparse.Namespace, forge: Forge) -> int:
     return 0
 
 
+def cmd_shows(a: argparse.Namespace) -> int:
+    try:
+        body = json.loads(Path(a.facts).read_text(encoding="utf-8"))["body"]
+        if not isinstance(body, str):
+            raise TypeError
+    except (OSError, ValueError, KeyError, TypeError):
+        raise Refusal(2, "usage", "--facts must be a view facts file with a body") from None
+    status = status_of(split(body).block)
+    if status.shown:
+        print(status.shown)
+    return 0
+
+
 def cmd_fail(a: argparse.Namespace, forge: Forge) -> int:
     if not _REASON.match(a.reason):
         raise Refusal(
@@ -979,8 +996,13 @@ def main(argv: list[str]) -> int:
         if name == "fail":
             p.add_argument("--reason", required=True)
             p.add_argument("--run-url", default="")
+    shows = sub.add_parser("shows")
+    shows.set_defaults(run=None)
+    shows.add_argument("--facts", required=True)
     a = parser.parse_args(argv)
     try:
+        if a.action == "shows":
+            return cmd_shows(a)
         if getattr(a, "run_id", None) is not None and not re.fullmatch(_RUN, a.run_id):
             raise Refusal(
                 2,

@@ -14,7 +14,7 @@ const DECIDE = join(SCRIPTS, "decide.mjs");
 const COMPLETENESS = join(SCRIPTS, "completeness.mjs");
 const REPO = join(PLUGIN, "../..");
 
-const { DEFAULTS, decide, sectionShows } = await import(pathToFileURL(DECIDE).href);
+const { DEFAULTS, decide } = await import(pathToFileURL(DECIDE).href);
 const { uncovered } = await import(pathToFileURL(COMPLETENESS).href);
 
 const scratch = mkdtempSync(join(tmpdir(), "reviewer-media-test-"));
@@ -25,13 +25,11 @@ const OLD = "2".repeat(40);
 const REQUESTED = DEFAULTS.labels.requested;
 const quiet = { isDraft: false, isCrossRepository: false, headRefOid: HEAD, body: "", labels: [], files: [{ path: "a.md", additions: 1, deletions: 0 }] };
 const big = { ...quiet, files: Array.from({ length: 9 }, (_, i) => ({ path: `f${i}.md`, additions: 1, deletions: 0 })) };
-const section = (line) => `Closes #1\n\n<!-- reviewer-media:start -->\n## Reviewer media\n\n${line}\n<!-- reviewer-media:end -->\n\n## Summary\n`;
-const posted = (sha) => section(`<!-- reviewer-media:posted ${sha} -->`);
 const config = (overrides = {}) => ({ ...DEFAULTS, ...overrides });
 // A stand-in for the review-digest thresholds: more than five files is "files".
 const triggersOf = (facts) => (facts.files.length > 5 ? ["files"] : []);
-const run = (facts, { policy, requested = false, delta = null } = {}) =>
-  decide(facts, { requested, delta }, config(policy ? { policy } : {}), triggersOf);
+const run = (facts, { policy, requested = false, shown = null, delta = null } = {}) =>
+  decide(facts, { requested, shown, delta }, config(policy ? { policy } : {}), triggersOf);
 
 describe("the decision", () => {
   test("never: skips, the request label and a direct request included", () => {
@@ -61,38 +59,28 @@ describe("the decision", () => {
     assert.equal(run({ ...quiet, isCrossRepository: true, labels: [{ name: REQUESTED }] }, { policy: "always" }).action, "build");
   });
   test("media already showing the head are not rebuilt", () => {
-    const result = run({ ...big, body: posted(HEAD), labels: [{ name: REQUESTED }] }, { policy: "always" });
+    const result = run({ ...big, labels: [{ name: REQUESTED }] }, { policy: "always", shown: HEAD });
     assert.deepEqual([result.action, result.reason], ["skip", "current"]);
   });
   test("a delta since posted media under every threshold gets the stale note only", () => {
-    const result = run({ ...quiet, body: posted(OLD) }, { policy: "when-selected", delta: { files: [{ path: "a.md", additions: 1, deletions: 0 }] } });
+    const result = run(quiet, { policy: "when-selected", shown: OLD, delta: { files: [{ path: "a.md", additions: 1, deletions: 0 }] } });
     assert.deepEqual([result.action, result.reason, result.shown], ["stale", "small-delta", OLD]);
   });
   test("a delta over a threshold rebuilds, measured on the delta, not the whole pull request", () => {
-    const result = run({ ...quiet, body: posted(OLD) }, { policy: "when-selected", delta: { files: big.files } });
+    const result = run(quiet, { policy: "when-selected", shown: OLD, delta: { files: big.files } });
     assert.deepEqual([result.action, result.reason, result.triggers], ["build", "rebuild", ["files"]]);
-    const whole = run({ ...big, body: posted(OLD) }, { policy: "when-selected", delta: { files: quiet.files } });
+    const whole = run(big, { policy: "when-selected", shown: OLD, delta: { files: quiet.files } });
     assert.equal(whole.action, "stale");
   });
   test("an unknown delta gets the stale note, never an unasked rebuild", () => {
-    assert.equal(run({ ...big, body: posted(OLD) }, { policy: "always" }).reason, "delta-unknown");
+    assert.equal(run(big, { policy: "always", shown: OLD }).reason, "delta-unknown");
   });
   test("a request label rebuilds stale media whatever the delta", () => {
-    assert.equal(run({ ...quiet, body: section(`Out of date: shows commit ${OLD}`), labels: [{ name: REQUESTED }] }).action, "build");
+    assert.equal(run({ ...quiet, labels: [{ name: REQUESTED }] }, { shown: OLD }).action, "build");
   });
   test("a request label turned off is never read", () => {
-    const result = decide({ ...quiet, labels: [{ name: REQUESTED }] }, { requested: false, delta: null }, config({ labels: { ...DEFAULTS.labels, requested: false } }), triggersOf);
+    const result = decide({ ...quiet, labels: [{ name: REQUESTED }] }, { requested: false, shown: null, delta: null }, config({ labels: { ...DEFAULTS.labels, requested: false } }), triggersOf);
     assert.equal(result.action, "skip");
-  });
-});
-
-describe("the section status", () => {
-  test("reads posted and stale lines only between the markers", () => {
-    assert.equal(sectionShows(posted(OLD)), OLD);
-    assert.equal(sectionShows(section(`Out of date: shows commit ${OLD}`)), OLD);
-    assert.equal(sectionShows(`<!-- reviewer-media:posted ${OLD} -->\n`), null);
-    assert.equal(sectionShows(section(`<!-- reviewer-media:claimed ${OLD} run-1 -->`)), null);
-    assert.equal(sectionShows(""), null);
   });
 });
 
@@ -172,7 +160,7 @@ describe("the convention layers", () => {
     git(root, "add", "-A");
     git(root, "commit", "-q", "-m", "more");
     const head = git(root, "rev-parse", "HEAD");
-    const result = cli(root, { ...quiet, headRefOid: head, baseRefOid: base, body: posted(base) }, "--policy", "when-selected");
+    const result = cli(root, { ...quiet, headRefOid: head, baseRefOid: base }, "--shown", base, "--policy", "when-selected");
     assert.deepEqual([result.action, result.reason], ["build", "rebuild"]);
   });
   test("the repository's own team file is valid and sets the upload limit", () => {

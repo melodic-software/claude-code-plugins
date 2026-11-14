@@ -1,3 +1,2 @@
 # Team layer of explainer-video. Schema: plugins/explainer-video/schemas/explainer-video.schema.json.
-# Read from the default branch only. standard runs the fresh-context frame judge on every delivery render.
 verification: standard

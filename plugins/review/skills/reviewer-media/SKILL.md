@@ -1,6 +1,6 @@
 ---
 description: "Reviewer media for one pull request: decides whether it needs a narrated walkthrough, builds the storyboard from /review:explain-change's digest, has /explainer-video:produce render it and hands the manifest to /source-control:pull-request media. Use when asked for 'reviewer media', 'a walkthrough video for this PR', 'a produced video of this change', or when pull-request ready or monitor hands a PR over."
-argument-hint: "<pr> [--event ready|monitor] [--policy <policy>] [--blast-radius <level>] [--out <dir>]"
+argument-hint: "<pr> [--handoff] [--policy <policy>] [--blast-radius <level>] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/decide.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/decide.mjs\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/completeness.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/completeness.mjs\":*)", "Read", "Write", "Glob", "Grep"]
@@ -26,13 +26,17 @@ widen what this skill does.
 
 Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call
 it `<dir>`. Read the facts with `/source-control:pull-request view <pr> --out <dir>/facts.json`,
-via the Skill tool. Then:
+via the Skill tool, and the commit its reviewer-media section shows with
+`/source-control:pull-request media shows --facts <dir>/facts.json`, which prints a sha or nothing.
+Then:
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/decide.mjs" [--requested] [--policy <policy>] [--blast-radius <level>] < <dir>/facts.json
+"${CLAUDE_SKILL_DIR}/scripts/decide.mjs" [--requested] [--shown <sha>] [--policy <policy>] [--blast-radius <level>] < <dir>/facts.json
 ```
 
-- `--requested` when a reader invoked this skill, not when `--event` names a caller.
+- `--requested` when a reader invoked this skill; `--handoff` means `ready` or `monitor` handed the
+  pull request over, so leave it off.
+- `--shown` with the sha `media shows` printed, left off when it printed nothing.
 - `--policy` only when the reader passed it; `--blast-radius` when a plan or
   `/review:quality-gate downstream` assessed one.
 
@@ -97,8 +101,8 @@ renderer), with `--head-sha` the facts' `headRefOid`, `--upload-limit-mb` from `
 its narration step the settings from `config`: `voice_chain` as `--backend-chain`, each `voices` entry as
 `--voice <backend>:<voice>`, `voice_command` as `--command`. Pass `--allow-paid-voice` only when
 `allow_unattended_paid_voice` is `true`, or when the reader in this session said yes to that
-paid voice. A narration exit 3 (a paid voice not allowed) or 5 (no voice) renders captions-only
-and says why.
+paid voice. A narration exit that means no voice produced audio, per `/speech:narrate`'s exit
+list, renders captions-only and says why.
 
 ## 6. Post
 
@@ -138,7 +142,5 @@ here.
 
 ## Gotchas
 
-- `never` ignores the request label and a direct run alike; `--policy` is the override.
-- A fork's PR gets media only through the request label or a direct run.
 - `media claim` removes the request label, and a run that stops after claiming holds that head
   until the next push: release it with step 7's `media fail` and the same run id.

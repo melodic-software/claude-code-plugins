@@ -604,7 +604,7 @@ skip, an unanswered offer, or a skill that does not resolve all go on to 2.5.7; 
 accepts the offer later gets the digest then.
 
 Last, on the confirmed head: when `/review:reviewer-media` resolves in this session, invoke it on
-the pull request with `--event ready` and the same blast radius. Its
+the pull request with `--handoff` and the same blast radius. Its
 [reviewer-media convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/reviewer-media.md)
 decides whether media are built, and the request label counts. Like the digest it gates nothing:
 its outcome is one report line, and a failure never undoes the flip.

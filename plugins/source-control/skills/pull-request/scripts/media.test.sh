@@ -588,6 +588,27 @@ media stale 7 --head "$HEAD2"
 assert_exit "stale on a body with no section exits 0" 0 "$RC"
 assert_eq "a body with no section is not edited" "0" "$(body_edits)"
 
+# --- shows ----------------------------------------------------------------------
+facts_of() { jq -n --rawfile body "$1" '{body: $body}' >"$TEST_TMPDIR/facts.json"; }
+facts_of "$FIXTURE"
+media shows --facts "$TEST_TMPDIR/facts.json"
+assert_eq "shows prints the commit posted media show" "$HEAD1" "$OUT"
+sed "s|<!-- reviewer-media:posted $HEAD1 -->|Out of date: shows commit $HEAD1|" "$FIXTURE" >"$TEST_TMPDIR/stale.md"
+facts_of "$TEST_TMPDIR/stale.md"
+media shows --facts "$TEST_TMPDIR/facts.json"
+assert_eq "shows prints the commit out-of-date media show" "$HEAD1" "$OUT"
+facts_of "$PLAIN"
+media shows --facts "$TEST_TMPDIR/facts.json"
+assert_exit "shows on a body with no section exits 0" 0 "$RC"
+assert_silent "shows on a body with no section prints nothing" "$OUT"
+printf '<!-- reviewer-media:posted %s -->\n' "$HEAD1" >"$TEST_TMPDIR/outside.md"
+facts_of "$TEST_TMPDIR/outside.md"
+media shows --facts "$TEST_TMPDIR/facts.json"
+assert_silent "a posted line outside the markers shows nothing" "$OUT"
+echo '{}' >"$TEST_TMPDIR/facts.json"
+media shows --facts "$TEST_TMPDIR/facts.json"
+assert_exit "shows on facts with no body is a usage error" 2 "$RC"
+
 # --- fail -----------------------------------------------------------------------
 reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
 grep -vxF "$REQUESTED" "$S/labels" >"$S/labels.new" && mv "$S/labels.new" "$S/labels"

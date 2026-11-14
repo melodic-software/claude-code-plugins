@@ -8,7 +8,7 @@
   "properties": {
     "$schema": { "type": "string" },
     "policy": {
-      "description": "never: no media, request label ignored. on-request (default): only when the request label is on the pull request. when-selected: also when the pull request crosses a review-digest trigger. always: every ready pull request.",
+      "description": "When media are built: never, on-request (default), when-selected or always; docs/conventions/reviewer-media.md, The policy.",
       "enum": ["never", "on-request", "when-selected", "always"]
     },
     "labels": {
@@ -21,11 +21,11 @@
       }
     },
     "voice_chain": {
-      "description": "Voice backends to try in order, passed to /speech:narrate as --backend-chain.",
+      "description": "Voice backends to try in order, passed to /speech:narrate as --backend-chain, which names the backends it accepts.",
       "type": "array",
       "minItems": 1,
       "maxItems": 5,
-      "items": { "enum": ["edge-tts", "kokoro", "openai", "elevenlabs", "command"] }
+      "items": { "type": "string" }
     },
     "voices": {
       "description": "The voice per backend, passed as --voice <backend>:<voice>.",
