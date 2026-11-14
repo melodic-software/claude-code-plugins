@@ -39,3 +39,4 @@ wayfind-purpose-nothing-before-destination
 wayfind-purpose-bare-run-one-item-by-title
 wayfind-chart-labels-from-binding
 wayfind-work-frontier-uses-binding-labels
+wayfind-chart-labels-from-relocated-home

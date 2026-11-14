@@ -1,0 +1,5 @@
+# mail-digest
+
+<!-- BEGIN GENERATED: convention-home -->
+Team conventions live in `config/team`. Read the topic doc there before changing a governed surface.
+<!-- END GENERATED: convention-home -->

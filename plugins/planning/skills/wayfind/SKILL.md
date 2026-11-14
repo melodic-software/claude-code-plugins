@@ -13,9 +13,13 @@ metadata:
 
 ## Pre-computed context
 
-Labels: resolve them first, once per session, with the Read tool from the tracker binding,
-`work-items.yaml` beside the `planning.yaml` that "Settings" reads (its `tracker` mapping; both keys
-are team-only, so no personal file applies). `<prefix>` is `config.wayfind_label_prefix`, default
+Labels: resolve them first, once per session, with the Read tool from the tracker binding, the
+file the tracker reads: the one `printenv WORK_ITEM_TRACKER_BINDING` names when it prints a path,
+else `<home>/work-items.yaml` (its `tracker` mapping; both keys are team-only, so no personal file
+applies). `<home>` is `docs/conventions` unless the root `AGENTS.md` (else `CLAUDE.md`) holds a
+`<!-- BEGIN GENERATED: convention-home -->` region; then it is the first backticked path in that
+region. A region that does not hold exactly one such path, or a variable naming a missing file, is
+a stop: report it, never take the defaults. `<prefix>` is `config.wayfind_label_prefix`, default
 `wayfind:`; `<human-gated>` is `config.role_labels.human-gated`, default `needs-human`. A missing
 file or key, or an empty value, means the default; any other value that is not a string is a broken
 binding: name the file, key and value and stop. Every wayfind label is `<prefix>`, a space, then
