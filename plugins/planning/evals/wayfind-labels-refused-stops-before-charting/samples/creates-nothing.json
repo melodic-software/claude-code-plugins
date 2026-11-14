@@ -3,6 +3,10 @@
     {
       "answer": "`/work-items:track wayfind-labels` refused: no convention home resolves; run /work-items:setup check. Wayfind takes no default label, so no map or item is created.",
       "why": "no tracker write"
+    },
+    {
+      "answer": "```\nSkill: work-items:track\nargs: wayfind-labels\n```\nRefused: no convention home resolves; run /work-items:setup check. No map or item is created.",
+      "why": "only the label lookup is written out"
     }
   ],
   "fail": [
@@ -13,6 +17,10 @@
     {
       "answer": "/work-items:track labels 'wayfind: map' needs-human",
       "why": "checks default labels after a refusal"
+    },
+    {
+      "answer": "The lookup was refused, so the defaults apply.\n```\nSkill: work-items:track\nargs: add --label 'wayfind: map' --body-file map-body.md \"Map: notification digest\"\n```",
+      "why": "creates the map after a refusal, written as skill and arguments"
     }
   ]
 }

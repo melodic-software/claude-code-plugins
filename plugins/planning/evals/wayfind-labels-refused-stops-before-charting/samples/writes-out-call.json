@@ -3,12 +3,20 @@
     {
       "answer": "Labels: `/work-items:track wayfind-labels` replied `REFUSED: work-item-tracker: no convention home resolves under /work/acme-mail; run /work-items:setup check to see why`. Stopping.",
       "why": "the call is written out"
+    },
+    {
+      "answer": "Label lookup, treated as made:\n```\nSkill: work-items:track\nargs:  wayfind-labels\n```\nIt returned `REFUSED: work-item-tracker: no convention home resolves under /work/acme-mail; run /work-items:setup check to see why`. Stopping.",
+      "why": "the call is written out as skill and arguments"
     }
   ],
   "fail": [
     {
       "answer": "The tracker binding could not be found, so I stopped.",
       "why": "no call written out"
+    },
+    {
+      "answer": "The skill work-items:track would give the labels, but the convention home does not resolve, so I stopped.",
+      "why": "names the skill without the wayfind-labels call"
     }
   ]
 }
