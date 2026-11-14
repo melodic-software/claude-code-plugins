@@ -286,10 +286,9 @@ Two menus open from the same button. The bad one opens in 0.4s with `ease-in`, s
 `scale(0)`, and grows from its own center. The good one opens in 0.2s on a strong ease-out curve,
 from `scale(0.95)`, out of the trigger.
 
-Here's why the one on the right feels better: it uses `ease-out` as the easing, which is fast at the
-beginning and helps it feel snappy. `scale(0.95)` feels better than `scale(0)` because nothing in
-the real world appears out of nothing. The duration is `200ms` because a dropdown is used dozens of
-times a day, no need to slow the user down.
+The good one feels better for three reasons. `ease-out` is fast at the beginning, so it feels
+snappy. `scale(0.95)` keeps a visible shape, where `scale(0)` makes the menu appear out of nothing.
+And `200ms` is enough for a dropdown used dozens of times a day, with no reason to slow the user down.
 
 ## Springs: `springs`
 
@@ -551,8 +550,8 @@ feels right, then check again later.
 
 ## Feel check: `feel-check`
 
-An agent can build almost anything you ask for now. What it can't do is tell you whether the result
-is good. That part is still on you. Motion correctness can't be proven from code.
+An agent can build the animation you ask for, but it cannot tell you whether the result feels good.
+Motion correctness can't be proven from code, so that judgment stays with a person.
 
 When the result depends on feel that code cannot settle (a crossfade, a spring's bounce, an
 entering list), say so and name the check instead of guessing a value:
