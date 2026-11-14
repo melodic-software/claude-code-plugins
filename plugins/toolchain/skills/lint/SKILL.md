@@ -210,7 +210,7 @@ If `--code-fix` was used (and applied), note which ecosystems ran `code-fix-cmd`
 
 Show failing output below the table. Truncated to key error lines, not the full dump.
 
-Below the table, name every unclaimed changed text file (section 1, step 4) on one of two fixed lines:
+Below the table, name every unclaimed changed text file (section 1, step 4) on one of two fixed lines, printed word for word even when a note elsewhere in the reply says the same thing:
 
 - `No ecosystem linter (cross-cutting text checks only): <path>, <path>` only when cross-cutting's check command executed in this invocation (its row reads `pass` or `FAIL`), so its checks covered them;
 - `Outside every ecosystem: <path>, <path>` in every other case, including a cross-cutting row that is a skip.
