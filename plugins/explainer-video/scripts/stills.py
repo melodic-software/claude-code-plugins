@@ -7,11 +7,13 @@ usage: stills.py --storyboard FILE --out DIR (--narration NDIR | --no-audio | --
 Steps: parse the storyboard -> scan its narration, frame text and screenshot sidecars (ADR 0107) -> write
 DIR/script.txt -> capture each moment at 3840x2160, a long list (also-changed files, code-hunk lines, risk-map rows)
 continued over as many frames as it needs, each frame fit-checked in the capture browser -> lay out the holds from
-NDIR/words.json (speech's narrate.py output) or, with --no-audio, captions-only holds, a moment's frames sharing its
-hold by entry count -> captions (burned and soft) -> narration rebuilt in video time and loudness-normalized -> one
+NDIR/words.json (speech's narrate.py output) or, with --no-audio, captions-only holds; every frame gets a reading
+minimum, a moment whose frames need more than its paragraph holds on past it in silence, and its frames share the
+spare time by entry count -> captions (burned and soft) -> narration rebuilt in video time and loudness-normalized -> one
 encode (profile reviewer-stills, or --stitcher) -> verify streams, size, blank frames and luma SSIM of every frame
 against its source -> contact sheets -> split at chapter starts when over the upload limit -> DIR/manifest.json, the
-list of files a caller may publish. A frame whose content lies outside it or over its header is a defect.
+list of files a caller may publish. A frame whose content lies outside it or over its header, or that is held under
+its reading minimum, is a defect.
 
 --stitcher: a command with {inputs} (DIR/stitch.json: frames with seconds, audio, captions) and {out}; absent or
 'ffmpeg' is the built-in reviewer-stills encode. --scan-pattern (repeatable): a regex the scan also refuses
@@ -140,7 +142,9 @@ def frames_of(board, chapters, out, stylesheet, base):
         for k, (m, plan) in enumerate(zip(board['moments'], paginate(board, chapters, stylesheet, base)), 1):
             for j, entries in enumerate(plan, 1):
                 part = (j, len(plan)) if entries else None
+                shown = media_templates.subset(m, *entries) if entries else m
                 frames.append({'id': m['id'], 'k': k, 'part': j, 'parts': len(plan), 'entries': entries,
+                               'minimum': minimum(shown, board.get('title', '')),
                                'png': folder / (f'm{k:03d}.png' if j == 1 else f'm{k:03d}-p{j}.png'),
                                'html': html(board, chapters, k, m, stylesheet, base, entries, part)})
         shots = media_capture.capture_checked([(f.pop('html'), f['png']) for f in frames], FRAMES['width'],
@@ -157,16 +161,49 @@ def frames_of(board, chapters, out, stylesheet, base):
     return work()
 
 
+def visible_words(moment, board_title):
+    """Whitespace-separated words of the strings a frame draws from its data (keys and file paths excluded)."""
+    words = len(board_title.split()) if moment['template'] == 'title' else 0
+    hidden = ('image', 'sidecar', 'alt') if moment['template'] == 'screenshot' else ()
+
+    def walk(v):
+        if isinstance(v, dict):
+            return sum(walk(x) for k, x in v.items() if k not in hidden)
+        if isinstance(v, list):
+            return sum(walk(x) for x in v)
+        return len(str(v).split()) if v is not None else 0
+    return words + walk(moment.get('data') or {})
+
+
+def minimum(moment, board_title):
+    """Seconds a frame must stay on screen to be read: its words at the caption reading rate (captions
+    seconds_per_word, the rate captions are held to), never under the captions-only hold's floor (min_seconds),
+    the producer's own shortest hold for a frame with no narration."""
+    return round(max(DEFAULTS['captions_only_hold']['min_seconds'],
+                     visible_words(moment, board_title) * DEFAULTS['captions']['seconds_per_word']), 3)
+
+
+def moment_minimums(board, frames):
+    """Per moment, the seconds its frames need together; media_timeline.timeline extends a shorter hold."""
+    return [round(sum(f['minimum'] for f in frames if f['id'] == m['id']), 3) for m in board['moments']]
+
+
 def frame_holds(holds, frames):
-    """Each frame's share of its moment's hold, split by entry count; the moment's frames fill its hold exactly."""
+    """Each frame's span of its moment's hold: its minimum, plus the hold's spare time shared by entry count. A
+    hold shorter than its frames' minimums (never made by timeline) is split by entry count alone, and quality()
+    reports the frames it leaves short."""
     out = []
     for h in holds:
         mine = [f for f in frames if f['id'] == h['id']]
         weights = [f['entries'][1] - f['entries'][0] if f['entries'] else 1 for f in mine]
-        edges, done = [h['start']], 0
-        for w in weights:
-            done += w
-            edges.append(round(h['start'] + (h['end'] - h['start']) * done / sum(weights), 3))
+        length = h['end'] - h['start']
+        spare = length - sum(f['minimum'] for f in mine)
+        # The holds are rounded to the millisecond, so a hold built to its minimums can read a hair short.
+        floors, spare = ([f['minimum'] for f in mine], spare) if spare > -0.005 else ([0] * len(mine), length)
+        edges, t = [h['start']], h['start']
+        for floor, w in zip(floors, weights):
+            t += floor + spare * w / sum(weights)
+            edges.append(round(t, 3))
         edges[-1] = h['end']
         out += [{**f, 'start': a, 'end': b} for f, a, b in zip(mine, edges, edges[1:])]
     return out
@@ -201,8 +238,9 @@ def encode(frames, out, audio, srt, ass, stitcher, steps):
 
 
 def quality(video, frames):
-    """Per frame: the fit check, then luma SSIM of the frame shown mid-hold against its source PNG, above the
-    caption band, and blank frames."""
+    """Per frame: the fit check, its time on screen against its reading minimum (one video frame of slack for
+    rounding), then luma SSIM of the frame shown mid-hold against its source PNG, above the caption band, and blank
+    frames."""
     rows, defects = [], []
     check = video.parent / 'check.png'
     for f in frames:
@@ -210,11 +248,15 @@ def quality(video, frames):
         if f['problems']:
             more = f' (and {len(f["problems"]) - 1} more)' if len(f['problems']) > 1 else ''
             defects.append(f'{name}: content does not fit the frame: {f["problems"][0]}{more}')
+        shown = round(f['end'] - f['start'], 3)
+        if shown < f['minimum'] - 1 / FPS:
+            defects.append(f'{name}: on screen {shown:.2f} s, under its {f["minimum"]:.2f} s reading minimum')
         t = (f['start'] + f['end']) / 2
         media_verify.frame_at(video, t, check)
         ssim = media_verify.luma_ssim(f['png'], check, 1 - BAND)
         rows.append({'id': f['id'], 'part': f['part'], 'parts': f['parts'],
                      'entries': list(f['entries']) if f['entries'] else None, 'start': f['start'], 'end': f['end'],
+                     'minimum': f['minimum'],
                      't': round(t, 3), 'luma_ssim': round(ssim, 6), 'fit': f['problems'][:5]})
         if ssim < FRAMES['min_luma_ssim']:
             defects.append(f'{name}: luma SSIM {ssim:.6f} is under {FRAMES["min_luma_ssim"]}')
@@ -286,8 +328,11 @@ def _run(argv):
         return fail(2, f'the narration in {a.narration} is unusable: {e}')
     steps = []
     try:
-        frames = frame_holds(tl['holds'], frames_of(board, chapters, out, stylesheet, base))
+        frames = frames_of(board, chapters, out, stylesheet, base)
         steps.append('capture')
+        tl = media_timeline.timeline(board, words, DEFAULTS['captions_only_hold'], DEFAULTS['captions'],
+                                     minimum=moment_minimums(board, frames))
+        frames = frame_holds(tl['holds'], frames)
         limits = DEFAULTS['captions']
         cues = media_captions.captions(tl['words'], tl['beats'], limits['max_words'], limits['min_seconds'],
                                        limits['seconds_per_word'])

@@ -17,6 +17,8 @@ from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 LONG_LIST = 30   # the reported failure was 28 changed files on one frame
+MIN_FRAME_SECONDS = 3.0   # a frame stays up at least a few seconds, the captions-only hold's floor
+REST_NARRATION = 'The tests cover both paths, and the changelog has one new line.'   # the fixture's last paragraph
 STILLS = HERE / 'stills.py'
 BOARD = HERE / 'fixtures' / 'storyboard.json'
 HAVE_DEPS = importlib.util.find_spec('playwright') is not None and all(shutil.which(t) for t in ('ffmpeg', 'ffprobe'))
@@ -49,6 +51,19 @@ def tone_narration(folder, script):
     subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', f'sine=frequency=440:duration={duration}', '-ar',
                     '24000', '-ac', '1', str(folder / 'narration.wav')], check=True)
     return folder
+
+
+def srt_cues(path):
+    """[(start s, end s, text)] from an SRT file."""
+    def seconds(stamp):
+        h, m, rest = stamp.split(':')
+        return int(h) * 3600 + int(m) * 60 + float(rest.replace(',', '.'))
+    cues = []
+    for block in path.read_text(encoding='utf-8').strip().split('\n\n'):
+        lines = block.splitlines()
+        a, b = lines[1].split(' --> ')
+        cues.append((seconds(a), seconds(b), ' '.join(lines[2:])))
+    return cues
 
 
 class Refusals(unittest.TestCase):
@@ -233,9 +248,12 @@ class Renders(unittest.TestCase):
         (folder / 'storyboard.json').write_text(json.dumps(board), encoding='utf-8')
         return folder / 'storyboard.json'
 
-    def test_a_30_entry_list_continues_over_frames_that_all_fit_inside_its_narration(self):
+    def test_a_30_entry_list_continues_over_fitting_frames_each_held_long_enough_to_read(self):
+        src = self.long_list_board(self.dir / 'long-src')
+        self.assertEqual(run('--storyboard', src, '--out', self.dir / 'long-script', '--script-only').returncode, 0)
+        narration = tone_narration(self.dir / 'long-narration', (self.dir / 'long-script' / 'script.txt').read_text())
         out = self.dir / 'long'
-        r = run('--storyboard', self.long_list_board(self.dir / 'long-src'), '--out', out, '--no-audio')
+        r = run('--storyboard', src, '--out', out, '--narration', narration)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         m = self.manifest(out)
         rows = [row for row in m['quality']['frames'] if row['id'] == 'rest']
@@ -246,11 +264,38 @@ class Renders(unittest.TestCase):
         for a, b in zip(rows, rows[1:]):
             self.assertEqual(a['entries'][1], b['entries'][0], 'an entry was skipped or shown twice')
             self.assertEqual(a['end'], b['start'], 'the frames do not follow each other')
-        self.assertEqual(rows[-1]['end'], m['video']['duration_s'], 'the last frame ends before the narration')
+        for row in m['quality']['frames']:
+            self.assertGreaterEqual(row['minimum'], MIN_FRAME_SECONDS)
+            self.assertGreaterEqual(row['end'] - row['start'], row['minimum'] - 1 / 30, row)
+        self.assertEqual(rows[-1]['end'], m['video']['duration_s'], 'the last frame ends before the video')
         before = [row for row in m['quality']['frames'] if row['id'] == 'risks']
         self.assertEqual(rows[0]['start'], before[-1]['end'])
         self.assertEqual([row['fit'] for row in m['quality']['frames']], [[]] * len(m['quality']['frames']))
         self.assertEqual(len(list((out / 'frames').glob('m006*.png'))), len(rows))
+        # The list's paragraph is the script's last: it runs from its first word to the end of narration.wav.
+        words = json.loads((narration / 'words.json').read_text())
+        paragraph = words['duration'] - words['words'][-len(REST_NARRATION.split())]['start']
+        padding = sum(row['minimum'] for row in rows) - paragraph
+        self.assertGreater(padding, 0, 'the fixture paragraph should be too short for its frames')
+        self.assertAlmostEqual(rows[-1]['end'] - rows[0]['start'], paragraph + padding, delta=0.01)
+        self.assertGreaterEqual(m['video']['duration_s'], words['duration'] + padding - 0.01)
+        opening = ' '.join(REST_NARRATION.split()[:3])
+        first_cue = next(c for c in srt_cues(out / 'captions.srt') if c[2].startswith(opening))
+        self.assertAlmostEqual(first_cue[0], rows[0]['start'], delta=0.002, msg='the captions drifted off the frames')
+
+    def test_a_frame_held_under_its_reading_minimum_fails_the_render(self):
+        sys.path.insert(0, str(HERE))
+        self.addCleanup(sys.path.remove, str(HERE))
+        import stills
+        out = self.dir / 'short'
+        with mock.patch.object(stills, 'moment_minimums', lambda *_: None), \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = stills.main(['--storyboard', str(self.long_list_board(self.dir / 'short-src')),
+                                '--out', str(out), '--no-audio'])
+        self.assertEqual(code, 1)
+        m = self.manifest(out)
+        self.assertTrue(any(d.startswith('moment rest frame 1 of ') and 'reading minimum' in d
+                            for d in m['defects']), m['defects'])
 
     def test_a_frame_whose_list_runs_off_the_frame_fails_the_render(self):
         sys.path.insert(0, str(HERE))
