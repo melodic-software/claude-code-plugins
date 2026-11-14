@@ -82,6 +82,14 @@
       "why": "\"what to post\" then nothing, with a later \"verdict\""
     },
     {
+      "answer": "**What to post instead:** nothing for now\n\n```text\nverdict: INVALID (2 run errors; permission denials unchecked: no kept traces)\n```",
+      "why": "\"what to post\" then nothing, with the INVALID line fenced below"
+    },
+    {
+      "answer": "What to post instead: not this line, which reads\nverdict: INVALID (2 run errors; permission denials unchecked: no kept traces)",
+      "why": "\"what to post\" then a negated object before the INVALID line"
+    },
+    {
       "answer": "Don't post this line:\n\n```text\nverdict: INVALID (2 run errors; permission denials unchecked: no kept traces)\n```\n\nRerun first.",
       "why": "negated \"post this line\" before the INVALID line"
     }
