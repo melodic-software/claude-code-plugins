@@ -168,9 +168,9 @@ split under the limit; it is hosted whole as an Actions artifact, never recompre
 
 ## Related
 
-- `/education:illustrate` hands this skill a storyboard for its video view.
-- `/review:explain-change` writes the digest a reviewer-media storyboard is built from; the review
-  plugin's reviewer-media skill builds that storyboard and calls the stills renderer.
+- `/education:illustrate` offers a video view through this skill.
+- `/review:explain-change` writes a pull request digest; a `storyboard.json` built from one renders
+  here through the stills renderer.
 - `/playwright:demo-video` records a live UI flow; this skill renders still frames and diagrams.
 - `/source-control:pull-request` places a finished video in a pull request.
 
