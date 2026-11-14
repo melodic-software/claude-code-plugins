@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Proposes the owner rule as a boundary rule in the forbidden-reference form (every project other than Billing.Ledger must not reference Billing.Ledger.Data), with its manifest evidence. On the yes it announces the path, appends a ## Boundary rules section to docs/conventions/architecture/README.md holding one entry with the rule, its evidence and the date, leaves the YAML block and other prose unchanged, reads the file back and reports the line, and points at /architecture:improve boundaries.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

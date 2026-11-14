@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Says that no boundary rule is recorded and names the sources it checked. Collects the edges through the plugin's dependency map, presents the three internal edges, and asks the user which reference directions must never occur. It proposes no rule from the folder names or the existing references, and writes no findings file because no rule has been confirmed.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}
