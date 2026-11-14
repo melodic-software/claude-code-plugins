@@ -14,13 +14,13 @@ An `invalid-state` row is offered `make-impossible` first; codify only proposes 
 | `style` (formatting, whitespace, ordering, naming style) | `editorconfig-severity` | in-repo `.editorconfig` |
 | `defined-diagnostic` (a diagnostic an installed analyzer pack or linter already defines: a cited `CAxxxx`/`IDExxxx`/`SAxxxx`, an ESLint, ruff, or markdownlint id, or a rule the pack documents) | `analyzer-pack-rule` | in-repo configuration: enable the rule or raise its severity in `.editorconfig`, `.globalconfig`, or the linter's own config |
 | `dotnet-invariant` (a project-specific API or usage invariant in C# expressible over syntax or the semantic model: a banned API, a required attribute, a misuse pattern) | `custom-analyzer` | Microsoft Learn, "Tutorial: Write your first analyzer and code fix" (<https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix>) |
-| `syntactic-pattern` (a code pattern expressible as a syntactic match in any language: a dangerous call, an injection sink, a secret shape, a cross-language invariant; also `dotnet-invariant` in a non-.NET ecosystem) | `semgrep-rule` | the `semgrep-rule-creator` plugin when installed; otherwise Semgrep's rule-writing documentation (<https://docs.semgrep.dev/writing-rules/overview>) |
+| `syntactic-pattern` (a code pattern expressible as a syntactic match in any language: a dangerous call, an injection sink, a secret shape, a cross-language invariant; also `dotnet-invariant` in a non-.NET ecosystem) | `syntax-pattern-rule` | the `semgrep-rule-creator` plugin when installed; otherwise Semgrep's rule-writing documentation (<https://docs.semgrep.dev/writing-rules/overview>) |
 | `structure` (dependency direction, layering, namespace-to-layer naming, forbidden references) | `architecture-test` | ArchUnitNET (<https://archunitnet.readthedocs.io/>) for .NET; dependency-cruiser (<https://github.com/sverweij/dependency-cruiser>) for JS/TS |
 | `process` (commit shape, file placement, generated-file freshness, session behavior: anything observed at tool-call or commit time rather than in source) | `action-guard` | the `harness-config` plugin's automation-gaps audit when enabled; otherwise record the candidate and stop |
 | `design-judgment` (readability, correctness reasoning, prose quality) and `unclassified` | `automated-review` | none; the finding stays a review-time judgment |
 
 The `custom-analyzer` rung is .NET-only. The same invariant in any other ecosystem is
-`syntactic-pattern`, and falls to the `semgrep-rule` rung.
+`syntactic-pattern`, and falls to the `syntax-pattern-rule` rung.
 
 ## Lookup sections
 
@@ -104,7 +104,7 @@ is unambiguous, plus a default that hands everything else to the next ladder ste
 | Dimension | Class | Rung | Basis |
 |---|---|---|---|
 | `architecture` | `structure` | `architecture-test` | the dimension names dependency and layering shape, which is exactly what an architecture test asserts |
-| `security` | `syntactic-pattern` | `semgrep-rule` | the recurring security findings a check can catch are sink and secret shapes, which a syntactic matcher expresses in any language |
+| `security` | `syntactic-pattern` | `syntax-pattern-rule` | the recurring security findings a check can catch are sink and secret shapes, which a syntactic matcher expresses in any language |
 | `docs` | `design-judgment` | `automated-review` | prose quality is judgment; a docs finding that is mechanical carries a rule id and was already resolved a step earlier |
 | any other or unlisted dimension | (none) | (none) | fall through to the judgment step; the enum is open, so an unlisted heading carries no mapping and guessing one would be worse than reading the row |
 
@@ -138,7 +138,7 @@ carried out by `/implementation:implement`. One rule chooses between cleanup and
 cleanup when every existing violation can be fixed in the change that lands the rule, as one
 reviewable pull request with no fix needing a design decision. Otherwise, or when the count is
 unknown, a counting rung (`editorconfig-severity`, `analyzer-pack-rule`, `custom-analyzer`,
-`semgrep-rule`, `architecture-test`) with the ratchet offer on ends with it: once the rule exists,
+`syntax-pattern-rule`, `architecture-test`) with the ratchet offer on ends with it: once the rule exists,
 the count goes to `/toolchain:ratchet` and the cleanup follows as its own work. A zero count lands
 the rule.
 
@@ -151,8 +151,8 @@ the rule.
   Where the producing detector already is the deterministic check, the next step is to keep it.
 - **`custom-analyzer`**: point at Microsoft Learn, "Tutorial: Write your first analyzer and code
   fix" (<https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix>).
-  This rung is .NET-only; the same invariant elsewhere belongs on the Semgrep rung.
-- **`semgrep-rule`**: `/semgrep-rule-creator:semgrep-rule-creator` when that plugin is installed;
+  This rung is .NET-only; the same invariant elsewhere belongs on the `syntax-pattern-rule` rung.
+- **`syntax-pattern-rule`**: `/semgrep-rule-creator:semgrep-rule-creator` when that plugin is installed;
   otherwise Semgrep's rule-writing documentation (<https://docs.semgrep.dev/writing-rules/overview>).
 - **`architecture-test`**: ArchUnitNET (<https://archunitnet.readthedocs.io/>) for .NET and the
   dependency-cruiser repository docs (<https://github.com/sverweij/dependency-cruiser>) for JS/TS.
