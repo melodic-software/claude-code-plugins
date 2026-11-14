@@ -3,6 +3,12 @@
 All notable changes to the `python-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.7] - 2026-11-14
+
+### Fixed
+
+- **The pre-commit check re-stages the Python files Ruff rewrites without putting their paths on git's command line.** With many staged Python files, that list could pass the 32,767-character Windows command-line limit, and the rewritten files were then left unstaged. The shared `check-lib.sh` helper `checks_restage` now lists the unstaged changes once and gives `git add` the paths on stdin, which needs git 2.25 or later. A failed git call there now fails the hook instead of passing.
+
 ## [2.0.6] - 2026-11-14
 
 ### Fixed

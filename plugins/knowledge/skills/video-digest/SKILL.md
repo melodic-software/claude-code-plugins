@@ -7,7 +7,7 @@ shell: bash
 allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs\":*)"]
 ---
 
-**Arguments.** `<watch [<url>|<n>]|<url>|queue <url>...|queue list|transcript <url>|resume <slug>>`. Full form: watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | <url> | queue <url> | queue list | transcript <url> | resume <slice-slug>
+**Arguments.** `<watch [<url>|<n>]|<url>|queue <url>...|queue list|transcript <url>|resume <slug>>`. Full form: watch <url> [--target <repo>] [--from <h:mm:ss>] [--to <h:mm:ss>] | watch [--target <repo>] | watch <n> [--target <repo>] | <url> | queue <url> | queue list | transcript <url> | resume <slice-slug>
 
 ## Pre-computed context
 
@@ -159,7 +159,7 @@ Ordered phase spine. Each phase's procedure, inputs, and outputs: `context/watch
    harvest):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" watch/run-watch.js "<url>" [--skip-research] [--target <repo>] [--max-frame-gap-sec <sec>]
+   node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" watch/run-watch.js "<url>" [--skip-research] [--target <repo>] [--max-frame-gap-sec <sec>] [--from <h:mm:ss>] [--to <h:mm:ss>]
    ```
 
    `--max-frame-gap-sec` sets the longest stretch between timed frames before a gap-fill frame is

@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.3] - 2026-11-14
+
+### Changed
+
+- Shared `check-lib.sh` synced where this plugin carries it: it gains `checks_restage`, which no instruction-placement hook calls.
+
 ## [1.2.2] - 2026-11-14
 
 ### Fixed
