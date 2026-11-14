@@ -215,7 +215,7 @@ Below the table, name every unclaimed changed text file (section 1, step 4) on o
 - `No ecosystem linter (cross-cutting text checks only): <path>, <path>` when cross-cutting ran in this invocation, so its row covered them;
 - `Outside every ecosystem: <path>, <path>` when it did not.
 
-Neither line changes a Status or the Overall line, and no binary file is on either. Say nothing about a binary file outside every ecosystem: no table row, no bullet, and no note that it is binary, was skipped or was ignored.
+Neither line changes a Status or the Overall line, and no binary file is on either. Say nothing about a binary file outside every ecosystem: no table row, no bullet, and no note that it is binary, was skipped or was ignored. Tool output the report shows, such as failing lines or `git diff --stat`, stays as printed.
 
 ### 4. Fix mode notes
 
