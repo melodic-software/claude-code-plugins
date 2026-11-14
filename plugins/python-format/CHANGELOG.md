@@ -3,6 +3,16 @@
 All notable changes to the `python-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+### Fixed
+
+- **The ruff-check pre-commit hook now passes the staged Python paths to Ruff through an argfile, a file Ruff reads its arguments from ([#15997](https://github.com/melodic-software/claude-code-plugins/issues/15997)).** Before, all the paths went on the command line. On Windows, a commit whose paths totaled more than 32,767 characters could not start Ruff: nothing was formatted, and the commit was blocked with `python-format: ruff failed:`. The hook now writes the paths one per line to a file in the git dir and passes `@<file>` to `ruff check --fix`, `ruff format` and `ruff check --no-fix`. It removes the file when it exits. A path holding a CR or LF cannot be an argfile line, so it still goes on the command line. The config's excludes (`--force-exclude`) still apply to the listed paths.
+
 ## [2.0.2] - 2026-11-13
 
 ### Changed

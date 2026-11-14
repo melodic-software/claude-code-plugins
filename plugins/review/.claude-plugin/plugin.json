@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "8.5.0",
+  "version": "8.7.0",
   "license": "MIT",
   "keywords": [
     "review",
@@ -57,6 +57,12 @@
       "description": "How many rows under each By axis heading (Spec, Standards) of a /review:fanout report are marked act on; default 2, a whole number of at least 1. The other rows stay in the report, marked no. A repository's docs/conventions/review.yaml fanout_act_on_cap wins over this option.",
       "default": 2,
       "min": 1
+    },
+    "smell_baseline": {
+      "type": "string",
+      "title": "Design-smell baseline",
+      "description": "default (default): the code-reviewer agent checks the shipped design-smell baseline. off: no smell check. A repository-relative .md path: that list, or the shipped one when the file is missing or the change edits it. A repository's docs/conventions/review.yaml smell_baseline wins over this option.",
+      "default": "default"
     },
     "council_max_rounds": {
       "type": "number",

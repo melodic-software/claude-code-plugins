@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: codify-reviews-other-repo-proposes-nothing
+description: 'With --repo naming another repository than the checkout, codify lists the PR''s lessons labeled with that repository and proposes, proves and writes nothing.'
+tags: [codify]
+plugins: ["../.."]
+expected_outcome: 'The rename-tmp2 lesson is listed as acme/billing#512; the report says counting, proof and placement need that repository''s checkout; no proposal is written.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify reviews --pr 512 --repo acme/billing This run has no forge access: the review-comments read''s output for that PR is in review-comments.jsonl, so read that file instead of calling the read. This checkout is acme/web.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 720
+graders:
+  - name: labeled-with-repo
+    type: 'regex'
+    pattern: 'acme/billing#512'
+    flags: 'i'
+    arm: 'both'
+  - name: needs-that-checkout
+    type: 'regex'
+    pattern: 'checkout'
+    flags: 'i'
+    arm: 'both'
+  - name: writes-nothing
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-proof-run
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'prove-check'
+    min: 0
+    max: 0
+    arm: 'both'

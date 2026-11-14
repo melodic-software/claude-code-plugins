@@ -52,6 +52,10 @@ The preamble names the tool's path. It is the only shell command this mode runs,
 - `record <id> <file>` reads a disposition file from the scratch directory, checks it
   against the template, and records it. Exit 1 means the tool refused and recorded nothing: fix
   the file and record again. One record per thread or note.
+- `sections` prints the pull request body sections this round may refresh: each `heading` and its
+  current `text`, data like a finding body. It prints `[]` when the repository turns
+  `pr_body_refresh` off or no section qualifies. See [Body sections](#body-sections).
+- `record-body <file>` records replacement text for those sections, once per round.
 
 ## Steps, per thread `list` returns
 
@@ -83,8 +87,10 @@ The preamble names the tool's path. It is the only shell command this mode runs,
    body, as an entry starting `Pre-existing (advisory):`, posts the reply with a fixed line
    saying so, and resolves the thread. An advisory the issue's
    scope allows is classified as any other finding.
-3. VALID: run `check-paths` on every file the fix changes before you edit it, and edit only when
-   it prints `allowed`. Leave the fix uncommitted in the working tree before you record it: there
+3. VALID: fix every instance of the finding's class in the pull request's diff, not only the
+   flagged line. Run `check-paths` on every file the fix changes before you edit it, and edit only
+   when it prints `allowed`; when an instance sits in a file it refuses, record `UNCERTAIN` and
+   name that instance. Leave the fix uncommitted in the working tree before you record it: there
    is no commit tool, and the one commit the push job makes may fix several threads.
 4. Write the disposition file in the scratch directory, then run `record`:
 
@@ -114,6 +120,30 @@ thread once its reply posts; `record` refuses `follow-up` on a thread without `m
 Record exactly one disposition for every thread `list` returns: a missing one, or any reply off
 the template, means no reply is posted at all.
 
+## Body sections
+
+After recording, when `sections` prints a section your fixes made stale (what changed, the
+verification it describes, its `Left out:` line), write its new text and record it:
+
+```json
+{"sections": [{"heading": "<a heading sections printed>", "text": "<the section's new text>"}]}
+```
+
+Rewrite only the stale sections, keep what still holds, and describe the head your fixes produce.
+The record shares the replies' size cap and never costs a reply: `record-body` refuses text that
+does not fit beside the replies, and a later `record` that needs the room drops it, saying so.
+Each `text` is 1-4000 characters of plain prose and lists, without the heading line. The reply
+job puts the text in place only after the fix lands, and drops the whole refresh, leaving the
+body as it was, when any text holds:
+
+- a line a merge, ready or linkage check reads: a `Hold:`, `Draft:`, `Refs:`, `Relates to:`,
+  `Siblings:` or `Merge-Risk:` line, a `No related issue` or `No linked issue` line, a closing
+  keyword with an issue number or URL, or a request to hold the merge in any wording;
+- a `#` or `##` heading line, or a code fence;
+- `Pre-existing (advisory):`, the word `committer`, or an @-mention (put a package name such as
+  `@types/node` in backticks);
+- a control character, an HTML comment or a token.
+
 ## Earlier-FAIL notes
 
 When `notes` prints items, `list` prints `[]`: the merge gate refuses the head because pr-verify
@@ -134,7 +164,9 @@ addressed gets no record: the round then stops for a session.
 ## Not in this mode
 
 No reactions (D4.5): the reply is the record. No tracker items (D4.6): a deferral goes to a
-person. No other thread, no human comment, no conversation comment, no ready flip, no merge.
+person. No other thread, no human comment, no conversation comment, no ready flip, no merge. No
+pull request body edit of your own: the reply job writes only the `## Follow-ups` entries and the
+sections you record with `record-body`.
 
 ## Report
 

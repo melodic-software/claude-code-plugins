@@ -304,7 +304,7 @@ Track which file/layer supplied the effective value; the §2.4.2 gate cites it v
 - `What changed` (required): up to three bullets describing the difference a user or caller will notice.
 - `Scope` (required): up to three items: what is in this PR, and what is deliberately left out of it.
 - `Tradeoffs` (only when a real alternative was weighed): the option not taken and why.
-- `Risk` (only when it has content): a sentence or two naming the callers, data or environments the change reaches, and whether that reach is safe.
+- `Risk` (only when it has content): a sentence or two on what the change reaches (callers, data, environments) and how it is undone. State no door or risk tier: `/review:merge-risk` rates the change.
 - `Verification` (required): up to three bullets, one per command or check you ran, with what it printed or returned.
 
 Keep each section to plain statements. Leave out commit hashes and file-by-file listings; the diff shows them.
@@ -609,6 +609,13 @@ fi
 # remote's default branch as the remote reports it, and an unreadable default.
 bash "<skill-dir>/scripts/push-branch.sh" --check --dir "<checkout>" "$BRANCH" || exit 1
 ```
+
+**Preview the body.** Resolve `pr_body_preview` (SKILL.md "PR body preview"; levels in
+[config-resolution.md](../../../reference/config-resolution.md#yaml-keys-docsconventionssource-controlyaml)).
+With `preview` in an attended run, print `$BODY_FILE`'s full text as it will post and wait for the
+person's yes; a no posts nothing, and on an edit request change the file, rerun the §2.4.2 gates and print it again. With
+`post`, or in any unattended run (the list under "An unattended run follows the resolved state"),
+post without waiting. The same rule holds whenever this skill later edits a PR body.
 
 Then resolve the repository the PR opens on, once, from `<checkout>` with
 `scripts/target-repo.sh`, and report the `target repository:` line it prints

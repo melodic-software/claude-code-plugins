@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.2] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+## [3.3.1] - 2026-11-14
+
+### Fixed
+
+- **block-github-post-content no longer blocks a `gh pr|issue` `--attach` file run through the Bash tool for the directory it sits in ([#15979](https://github.com/melodic-software/claude-code-plugins/issues/15979)).** gh uploads the file and posts only its alt text or base name, so under the Bash tool a home path or the project root in the operand's directory is no longer judged. The alt text, the base name, and every other word are still judged, and a secret anywhere in the operand still blocks. A home path right after the `#` (`--attach './x.png#<home path>'`) now blocks too. An operand the shell could expand, one after a dash flag without `=`, and a joined `--attach=<path>` after a word the shell could expand are still judged whole, since a flag left right before the joined word would post it. Under the PowerShell tool every `--attach` operand is still judged whole, because PowerShell's argument passing to native commands can change what gh receives.
+
 ## [3.3.0] - 2026-11-13
 
 ### Added

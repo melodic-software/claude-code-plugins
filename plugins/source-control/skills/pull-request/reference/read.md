@@ -6,7 +6,7 @@ script with the action's arguments and return its output unchanged:
 ```bash
 "<skill-dir>/scripts/read-pr.sh" view [<pr>] [--repo <owner/repo>] [--diff] [--out <file>]
 "<skill-dir>/scripts/read-pr.sh" list [--head <branch>] [--head-match <ERE>] [--search <text>] [--state open|closed|merged|all] [--repo <owner/repo>] [--out <file>]
-"<skill-dir>/scripts/read-review-comments.sh" --prs <n> [--repo <owner/repo>]
+"<skill-dir>/scripts/read-review-comments.sh" (--prs <n> | --pr <number>) [--repo <owner/repo>]
 ```
 
 Pass each argument in single quotes. Refuse a `<pr>`, `--head`, `--repo` or `--out` value holding
@@ -34,10 +34,10 @@ gate scans) reads them from the file, not from a copy of tool output.
   - **Pointer**: when checking whether the forge's head filter can name a head repository, fetch
     the `--head` option of [gh pr list](https://cli.github.com/manual/gh_pr_list) live.
 - **`review-comments`** prints one JSON object per kept comment of the last `<n>` merged PRs
-  (2 to 200), newest merge first: `pr`, `source`, `author`, `kind` (`review` body or `inline`),
+  (2 to 200), newest merge first, or with `--pr` of that one PR, open PRs included: `pr`, `source`, `author`, `kind` (`review` body or `inline`),
   `path`, `line`, `body`. `source` is `human` (an owner, member or collaborator of the repository,
   on a comment that is not a reply and is not by the PR's author unless the author made it after
-  the merge; other accounts are dropped) or `accepted-bot` (a bot's inline comment, not a reply,
+  the merge, so never on an open PR; other accounts are dropped) or `accepted-bot` (a bot's inline comment, not a reply,
   whose line changed later in the same PR). A final `{"truncated": true, ...}` line means the output
   stopped at 64 KB. Its exit codes are its own: 0 read; 2 a bad argument, a missing prerequisite or
   a failed forge call, with nothing on stdout.

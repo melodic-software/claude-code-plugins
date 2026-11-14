@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "scripts/prove-check.sh --check 'grep -r tmp2 src' --old HEAD~1"
+          }
+        }
+      ]
+    }
+  ]
+}

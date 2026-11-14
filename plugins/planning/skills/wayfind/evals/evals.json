@@ -383,6 +383,18 @@
         "Output opens a new decision item that links #502 instead of reopening #502 or editing its resolution comment",
         "Output names Courier, the fallback, as the new item's starting point"
       ]
+    },
+    {
+      "id": 32,
+      "name": "ui-prototype-item-routes-to-explore-directions",
+      "prompt": "/planning:wayfind work 'Map: notification vendor' (#500). The claimed item 'Settle the channel mute controls' (#506) carries the wayfind: prototype label. Its body reads: '**Prove:** UI: a settings screen where a user mutes email, push and in-app per notification type reads clearly at a glance. **Pass checks:** 1. A first-time user finds how to mute push for order updates in under ten seconds. 2. The muted state of every channel is visible without scrolling. **On fail:** reopen the preferences layout decision. **Fallback:** one global mute per channel.' I'll judge the variants. Work it.",
+      "expected_output": "The item routes by its wayfind: prototype label to the prototype skills, and because its Prove line says UI, to /prototype:explore-directions, not /prototype:pressure-test. It does not go to /planning:design even though its subject is a screen layout.",
+      "files": [],
+      "expectations": [
+        "Output routes the item to /prototype:explore-directions",
+        "Output does not route the item to /prototype:pressure-test",
+        "Output does not route the item to /planning:design"
+      ]
     }
   ]
 }

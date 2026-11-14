@@ -85,23 +85,52 @@ checks_changed_lines
 
 out="$CHECKS_TMP/findings"
 : >"$out"
-# run_typos <dir> <path>...: typos on <path>... from <dir>, findings appended to
-# $out. typos exits 0 when clean and 2 on findings; any other status (a config
-# it cannot read, say) is no verdict, and no verdict blocks. typos --format
-# brief prints "<path>:<line>:<col>: error: <message>"; the finding this hook
-# prints drops the column and the severity.
-run_typos() {
-  local dir="$1" rc
+# typos_in <dir> <typos args>...: one typos call from <dir>; returns its status.
+typos_in() {
+  local dir="$1"
   shift
-  (cd "$dir" && typos ${config_args[@]+"${config_args[@]}"} --force-exclude --format brief --color never -- "$@") \
+  (cd "$dir" && typos ${config_args[@]+"${config_args[@]}"} --force-exclude --format brief --color never "$@") \
     >"$CHECKS_TMP/typos.out" 2>"$CHECKS_TMP/typos.err"
-  rc=$?
-  if ((rc != 0 && rc != 2)); then
+}
+
+# typos_verdict <status>: typos exits 0 when clean and 2 on findings; any other
+# status (a config it cannot read, say) is no verdict, and no verdict blocks.
+# typos --format brief prints "<path>:<line>:<col>: error: <message>"; the
+# finding appended to $out drops the column and the severity.
+typos_verdict() {
+  if (($1 != 0 && $1 != 2)); then
     cat "$CHECKS_TMP/typos.err" >&2
-    printf 'spelling: typos exited %s without a verdict; fix what it reports above.\n' "$rc" >&2
+    printf 'spelling: typos exited %s without a verdict; fix what it reports above.\n' "$1" >&2
     exit 1
   fi
   sed -n 's/^\(.*\):\([0-9][0-9]*\):[0-9][0-9]*: [a-z]*: \(.*\)$/\1:\2: \3/p' "$CHECKS_TMP/typos.out" >>"$out"
+}
+
+# run_typos <dir> <path>...: typos on <path>... from <dir>. The paths go to typos
+# on stdin (--file-list -), so no count or length of them reaches the command
+# line, which Windows caps at 32,767 characters. typos reads that list one path
+# per line, so a path holding LF or CR gets its own command-line call. A list
+# typos cannot decode (status 74, a path that is not UTF-8) is retried once on
+# the command line.
+run_typos() {
+  local dir="$1" f rc listed=()
+  shift
+  for f in "$@"; do
+    if [[ "$f" == *$'\n'* || "$f" == *$'\r'* ]]; then
+      typos_in "$dir" -- "$f"
+      typos_verdict $?
+    else
+      listed+=("$f")
+    fi
+  done
+  ((${#listed[@]})) || return 0
+  typos_in "$dir" --file-list - < <(printf '%s\n' "${listed[@]}")
+  rc=$?
+  if ((rc == 74)); then
+    typos_in "$dir" -- "${listed[@]}"
+    rc=$?
+  fi
+  typos_verdict "$rc"
 }
 ((${#whole[@]})) && run_typos . "${whole[@]}"
 for f in ${partial[@]+"${partial[@]}"}; do

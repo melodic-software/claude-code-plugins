@@ -13,7 +13,7 @@ behavior, while a token comparison is exhaustive over the file.
 - [The gates, by what each can prove](#the-gates-by-what-each-can-prove)
 - [The test net (tiers 2 and 3)](#the-test-net-tiers-2-and-3)
 - [Exempt surfaces](#exempt-surfaces)
-- [Outside-constraint keeps (`necessary` only)](#outside-constraint-keeps-necessary-only)
+- [Outside-constraint keeps (`necessary`, shipped keep list)](#outside-constraint-keeps-necessary-shipped-keep-list)
 - [Not exempt, but the highest-cost misclassification: route to class C](#not-exempt-but-the-highest-cost-misclassification-route-to-class-c)
 - [Path exclusions](#path-exclusions)
 - [Narrative staging: text is never silently destroyed](#narrative-staging-text-is-never-silently-destroyed)
@@ -26,7 +26,7 @@ behavior, while a token comparison is exhaustive over the file.
 |---|---|---|---|
 | **`explanatory`** | Applied, each deletion certified by the tier-0 proof | Applied per the tier table below; otherwise proposed | Earn-its-keep triage; a criterion-2 failure is deleted behind the tier-0 proof, an over-budget comment rewritten; narrative staged before either |
 | **`safe`** | Applied, same certification | Always proposed: no code-structure change is applied | Same triage, but **nothing class-C is applied**: a criterion-2 deletion and an over-budget rewrite are both proposed, with the narrative staged. Only class A deletes here |
-| **`necessary`** | Applied, same certification | Dissolved when the tier's gate passes; otherwise deleted, narrative staged, with a reshape flag | Earn-its-keep is replaced by the keep list in `SKILL.md`: the floor, public-API doc comments, and, within `class_c_max_lines`, verified outside-constraint comments stay; every other class-C comment is staged and deleted behind the tier-0 proof, never rewritten |
+| **`necessary`** | Applied, same certification | Dissolved when the tier's gate passes; otherwise deleted, narrative staged, with a reshape flag | Earn-its-keep is replaced by the floor and the resolved keep list (`SKILL.md`, Postures); every other class-C comment is staged and deleted behind the tier-0 proof, never rewritten |
 | **`none`** | Applied, same certification | Deleted as a comment, no move attempted, narrative staged, with a reshape flag | Only the floor and public-API doc comments stay |
 | **`report`** | Proposed | Proposed | Proposed. Nothing is applied in any class; the posture in effect decides which treatment each proposal names, and the run never asks a question |
 
@@ -127,10 +127,13 @@ open the apply path, because they cannot attest behavior preservation.
 
 ## Exempt surfaces
 
-The floor in `SKILL.md` is untouched under every posture. Public-API doc comments stay under every
-posture too, except that `none` proposes deleting one that only restates its signature. Unit,
-sentinel and ordering annotations are exempt under `explanatory` only: `necessary` and `none`
-delete them with a reshape flag to a type. The list:
+The floor in `SKILL.md`, most of the list below, is untouched under every posture. Above it, under
+`necessary` the resolved keep list alone decides: the shipped list keeps public-API doc comments,
+and a `comment_keep_list` path that leaves them out deletes them.
+Public-API doc comments stay under `explanatory` and `none`, except that `none` proposes deleting
+one that only restates its signature. Unit, sentinel and ordering annotations are exempt under
+`explanatory` only: `none` deletes them with a reshape flag to a type, and so does `necessary`
+unless the resolved keep list keeps them. The list:
 
 - Public-API doc comments, in the language's structured doc-comment form: docstrings, C# XML docs,
   JSDoc/TSDoc, GoDoc sentences, on exported/public surfaces. PowerShell comment-based help (a
@@ -165,12 +168,13 @@ delete them with a reshape flag to a type. The list:
 - Lines carrying `remove-comments-ignore`, or the older `dissolve-comments-ignore`, on the line or
   the line immediately before
 
-## Outside-constraint keeps (`necessary` only)
+## Outside-constraint keeps (`necessary`, shipped keep list)
 
-Two kinds of class-C comment stay under `necessary`. They are not exempt surfaces: `explanatory`
-triages them like any class-C comment, `none` deletes them, and they are held to
-`class_c_max_lines`. Each stays only when verified: the adjacent code depends on the named party
-and nothing in this repository could remove the reason. The outside fact itself need not be provable
+Under the shipped keep list ([keep-list.md](keep-list.md)), two kinds of class-C comment stay
+under `necessary`; a `comment_keep_list` path replaces that list, and its criteria decide instead.
+They are not exempt surfaces: `explanatory` triages them like any class-C comment, `none` deletes
+them, and they are held to `class_c_max_lines`. Each stays only when verified: the adjacent code
+depends on the named party and nothing in this repository could remove the reason. The outside fact itself need not be provable
 from here; a comment the code contradicts is class A.
 
 - **Behavior an outside party forces.** The adjacent code does something only because a

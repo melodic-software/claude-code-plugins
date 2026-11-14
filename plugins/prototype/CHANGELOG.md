@@ -3,6 +3,40 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0] - 2026-11-14
+
+### Added
+
+- `/prototype:explore-directions` re-locates each note in a fresh page before restating it
+  (`reference/feedback.md`, "Re-locating a note"): `notes-bridge/relocate-note.mjs` writes a
+  `playwright-cli run-code` script that carries the note as one JSON literal, restores the note's
+  variant, screen state and content set, runs the anchor ladder in the sandboxed frame, and saves a
+  shot of the element from inside the frame. A note whose element is gone gets a position-only
+  shot of its stored box, and the session asks instead of editing.
+- Notes carry the picked element's box (`rect`, percent of the page), the position-only last step of the anchor ladder.
+- The variant switcher listens for a `vs:show` event that restores a variant, screen state and
+  content set. Pages that never send it behave as before.
+- Eval case `ed-notes-relocate-not-found`.
+
+## [0.27.0] - 2026-11-13
+
+### Added
+
+- `/prototype:explore-directions` can serve its mockup through a notes host when the person wants
+  to pin notes in the page (`reference/feedback.md`). The host page frames the mockup in a sandbox,
+  the person picks an element and writes a note, and the session reads each note as data through
+  the session bridge's watcher, restates it, and replies on the page. The host puts the mockup's
+  policy first in the framed page, so a page that leaves out its own still has no network. The
+  `file://` mockup and its copy-out stay the default.
+- `notes-bridge/`: this plugin's copies of the shared ui-feedback parts (host page, pin helper,
+  note schema and validator, notes bridge app) and the session-bridge files they run on.
+- `python3` and `curl` prerequisite rows (optional; without them, the mockup stays copy-out only).
+- Eval case `ed-notes-tracer`.
+
+### Changed
+
+- The `shipments-mockup.html` eval fixture carries proposed test ids, as every mockup does.
+
 ## [0.26.2] - 2026-11-13
 
 ### Added

@@ -51,6 +51,8 @@ Consumer conventions come from the consuming project's own `CLAUDE.md`, `AGENTS.
 
 **Review venue** (`auto`, `local`, `ci` or `both`) decides which local review steps run before and at the ready flip. The per-user value is `${user_config.review_venue}` (this line carries the substituted value; a literal `${user_config.review_venue}` token means unset), passed as `--user` to `scripts/read-review-venue.sh`. A `review_venue` key in the repository's `docs/conventions/source-control.yaml`, read at the PR's base branch, wins over it. [reference/review-venue.md](reference/review-venue.md) reads it and owns what each value does.
 
+**PR body preview** (`post` or `preview`) decides whether an attended run shows a body and waits for a yes before posting it. The per-user value is `${user_config.pr_body_preview}`; **PR body refresh** (`true` or `false`) decides whether a push to an open PR also rewrites the body sections it made stale, per-user value `${user_config.pr_body_refresh}`. A literal unexpanded token means unset. A key of the same name in the repository's `docs/conventions/source-control.yaml` wins over each; the levels are in [../../reference/config-resolution.md](../../reference/config-resolution.md). [reference/create.md](reference/create.md) §2.4.3 applies the preview and [reference/monitor.md](reference/monitor.md) §3.3.2 the refresh.
+
 ## Emit checklist
 
 For runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/templates/checklist.md` into your project's working-notes location (or track it inline) and tick each `- [ ]` as its phase produces output. It survives `/clear`.
@@ -83,7 +85,7 @@ For runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/tem
 | `fetch-logs <pr\|run> [--raw\|--job <job-id>]` | CI log retrieval | Pull failed-CI evidence: default = `::error`/`::warning` annotations only (cheapest); `--raw` = full ZIP dump for archive review; `--job <id>` = per-job plain text |
 | `view [<pr>] [--repo <owner/repo>] [--diff] [--out <file>]` | Read only | One PR's facts as JSON, or its diff with `--diff`; no number reads the current branch's PR. See [reference/read.md](reference/read.md) |
 | `list [--head <branch>\|--head-match <ERE>] [--search <text>] [--state open\|closed\|merged\|all] [--repo <owner/repo>]` | Read only | PRs as a JSON array, open by default |
-| `review-comments --prs <n> [--repo <owner/repo>]` | Read only | The review comments of the last `<n>` merged PRs as JSON lines. See [reference/read.md](reference/read.md) |
+| `review-comments (--prs <n> \| --pr <number>) [--repo <owner/repo>]` | Read only | The review comments of the last `<n>` merged PRs, or of one PR, as JSON lines. See [reference/read.md](reference/read.md) |
 | `review-venue [--repo <owner/repo>] [--max-age-days <n>] [--head <sha>]` | Read only | Per AI review lane (code, security): `ci` when the repository's CI lane is present and healthy, so no local review runs for it, else `local`; with `--head`, a `tests` line: `ci` when CI's test lanes passed on that commit. See [reference/review-venue.md](reference/review-venue.md) |
 
 For the all-PR continuous loop (discover every open PR, work each to readiness, self-pace), use

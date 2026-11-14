@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Clean up the three imports in the same change through /implementation:implement."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A count above zero goes to /toolchain:ratchet."
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

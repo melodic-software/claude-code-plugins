@@ -3,6 +3,22 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.1] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
+## [0.46.0] - 2026-11-14
+
+### Added
+
+- **A repository can replace what `necessary` keeps above the floor.** The new `comment_keep_list` setting (`userConfig`, the team file and the personal override) takes `default`, the shipped `skills/remove-comments/reference/keep-list.md`, or a repository-relative path to the repository's own criteria file, which replaces the shipped list. A path that is absolute, holds a `..` segment, runs through a symlink or names no regular file is invalid in every layer; `settings.sh --keep-list <value>` checks the `userConfig` one. The list applies under `necessary` only, and the floor stays under every list. `comment-reviewer` reads the resolved list, and a run names a non-shipped list in its report.
+
+### Changed
+
+- **remove-comments defaults to `necessary` in every run.** `comment_posture: auto` now resolves to `necessary` whether or not `--pipeline` is passed, where it was `explanatory` outside the pull-request pipeline. Set `comment_posture: explanatory` (or pass the `explanatory` token) to keep the old interactive behavior; `none` stays selectable. `--pipeline` is still accepted and changes no setting.
+
 ## [0.45.0] - 2026-11-13
 
 ### Changed

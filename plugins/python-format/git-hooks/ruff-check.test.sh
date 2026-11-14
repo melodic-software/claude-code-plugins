@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Contract tests for the python-format pre-commit entry (git-hooks/ruff-check.sh):
-# staged Python files are rewritten and re-staged, a partly staged one is refused
+# staged Python files reach ruff through an argfile, never on argv, and are
+# rewritten and re-staged, a partly staged one is refused
 # untouched, a finding blocks only on a line the commit adds, only a file a Ruff
 # config governs is touched, --worktree reports without rewriting, a missing ruff
 # follows the skip-key rule, and the plugin's own vendored installer wires the
@@ -15,11 +16,6 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/ruff-check.sh"
 PLUGIN="$(cd "$HERE/.." && pwd)"
-if ! command -v ruff >/dev/null 2>&1; then
-  echo "SKIP: ruff not on PATH -- ruff-check tests skipped"
-  exit 0
-fi
-REAL_RUFF="$(command -v ruff)"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -61,6 +57,48 @@ check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
 }
 
 HINT='python-format: fix the findings above, or adjust the repository Ruff config.'
+
+# A stub ruff that exits 3 on a .py path on argv, the way a launch over the
+# Windows command-line limit fails, and logs each call's argfile lines.
+STUB="$WORK/stub"
+mkdir -p "$STUB"
+cat >"$STUB/ruff" <<EOF
+#!/bin/sh
+for a in "\$@"; do
+  case "\$a" in
+  @*) printf '%s %s\n' "\$1" "\$2" >>"$WORK/stub.log"; cat "\${a#@}" >>"$WORK/stub.log" ;;
+  *.py) exit 3 ;;
+  esac
+done
+EOF
+chmod +x "$STUB/ruff"
+new_repo
+printf 'x=1\n' >"$REPO/a.py"
+printf 'x=1\n' >"$REPO/b c.py"
+printf 'x=1\n' >"$REPO/-d.py"
+git -C "$REPO" add -- a.py "b c.py" -d.py
+out="$(cd "$REPO" && PATH="$STUB:$PATH" bash "$CHECK" 2>&1)"
+expect "no ruff call carries a staged path on argv" "0|" "$?|$out"
+expect "each of the three ruff calls names an argfile listing exactly the staged paths" "check --fix
+-d.py
+a.py
+b c.py
+format --force-exclude
+-d.py
+a.py
+b c.py
+check --no-fix
+-d.py
+a.py
+b c.py" "$(cat "$WORK/stub.log")"
+expect "the argfile is removed when the check ends" "" "$(cd "$REPO/.git" && ls -d ruff-args.* 2>/dev/null)"
+
+if ! command -v ruff >/dev/null 2>&1; then
+  echo "SKIP: ruff not on PATH -- the remaining ruff-check tests skipped"
+  echo "ruff-check: $PASS passed, $FAIL failed"
+  exit $((FAIL != 0))
+fi
+REAL_RUFF="$(command -v ruff)"
 
 new_repo
 printf 'x=1\n' >"$REPO/a.py"
@@ -195,8 +233,9 @@ pkg/sub/b.py|" "$(check "$REPO")"
 new_repo 'extend-exclude = ["gen"]'
 mkdir -p "$REPO/gen"
 printf 'x=1\n' >"$REPO/gen/g.py"
-git -C "$REPO" add gen/g.py
-expect "a file the config excludes is left alone" "0||" "$(check "$REPO")"
+printf 'x=1\n' >"$REPO/a.py"
+git -C "$REPO" add gen/g.py a.py
+expect "a file the config excludes is left alone, though the argfile lists it" "0|a.py|" "$(check "$REPO")"
 expect "an excluded file keeps its bytes" "x=1" "$(cat "$REPO/gen/g.py")"
 
 new_repo

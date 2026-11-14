@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Edit call"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "mockup-run/explore-directions.html"}}],
+      "why": "reads the mockup"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "mockup-run/explore-directions.html", "old_string": "<button type=\"button\" data-testid=\"shipments-filter\">", "new_string": "<button type=\"button\" class=\"primary\" data-testid=\"shipments-filter\">"}}],
+      "why": "applies the note to the Filter button"
+    }
+  ]
+}

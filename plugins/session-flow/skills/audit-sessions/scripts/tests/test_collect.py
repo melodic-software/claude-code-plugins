@@ -671,6 +671,29 @@ def test_transcript_strings_are_redacted_before_they_are_stored(data_dir, tmp_pa
     assert home not in stored
 
 
+def test_subagent_branch_and_pr_link_are_stored_apart_from_the_main_session(data_dir, tmp_path):
+    root = tmp_path / "projects"
+    base = {"sessionId": "sess-o", "version": "2.1.287", "cwd": "/w/repo"}
+    main = [
+        {**base, "type": "user", "uuid": "u1", "timestamp": "2026-09-25T10:00:00Z", "gitBranch": "main",
+         "message": {"role": "user", "content": "dispatch the worker"}},
+    ]
+    sub = [
+        {**base, "type": "assistant", "isSidechain": True, "uuid": "s1", "timestamp": "2026-09-25T10:01:00Z",
+         "gitBranch": "feat/worker", "message": {"id": "m1", "model": "claude-opus-5-5", "content": [{"type": "text", "text": "ok"}]}},
+        {"type": "pr-link", "sessionId": "sess-o", "prNumber": 9, "prRepository": "o/r"},
+    ]
+    subagents = root / "proj-o" / "sess-o" / "subagents"
+    subagents.mkdir(parents=True)
+    (root / "proj-o" / "sess-o.jsonl").write_text("".join(json.dumps(r) + "\n" for r in main), encoding="utf-8", newline="\n")
+    (subagents / "agent-w1.jsonl").write_text("".join(json.dumps(r) + "\n" for r in sub), encoding="utf-8", newline="\n")
+
+    assert collect(data_dir, root).returncode in (0, 1)
+    rec = records(data_dir)["sess-o"]
+    assert (rec["branches"], rec["prs"]) == (["main"], [])
+    assert (rec["branches_sub"], rec["prs_sub"]) == (["feat/worker"], [{"repo": "o/r", "number": 9}])
+
+
 def collect_failing_closed(data_dir: Path, root: Path, tmp_path: Path) -> subprocess.CompletedProcess[str]:
     """Collect from a copy of the plugin's script layout whose one vendored rule cannot compile."""
     skill = tmp_path / "plugin" / "skills" / "audit-sessions"

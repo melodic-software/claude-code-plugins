@@ -1513,6 +1513,15 @@ jobs:
           export REVIEWER_IDS
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           export LANE_IDENTITY
+          # The base's pr_body_refresh (unset is on) and its
+          # pr_body_required_sections list, for the body sections a fix may
+          # refresh (address-feedback.mjs refreshableSections).
+          BODY_REFRESH=true BODY_SECTIONS=""
+          if [ -f .base/docs/conventions/source-control.yaml ]; then
+            BODY_REFRESH=$(yq '.pr_body_refresh' .base/docs/conventions/source-control.yaml)
+            BODY_SECTIONS=$(yq '.pr_body_required_sections | select(tag == "!!seq") | .[]' .base/docs/conventions/source-control.yaml)
+          fi
+          export BODY_REFRESH BODY_SECTIONS
           THREAD_FILE="$FEEDBACK_DIR/threads.json" RUN_FILE="$FEEDBACK_DIR/run.json" \
             node .base/.github/scripts/pr-unblock/address-feedback.mjs select
           if [ -f "$FEEDBACK_DIR/threads.json" ]; then

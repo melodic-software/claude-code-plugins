@@ -1,6 +1,6 @@
 ---
-description: "Counts how often a described mistake recurs in recent commits and the session, picks the strongest enforcement-ladder rung that can catch it, places the lesson by scope, and proposes a check proven to fail on the old code and pass on the current code; `preferences` proposes user-scope lines for what a person keeps typing across sessions; also takes a review findings file or merged pull requests' review comments as the source. Use when: 'codify this', 'this keeps happening', 'stop us making this mistake again', 'turn this correction into a check', 'what rung catches this', 'prove this check', 'can we stop re-finding this', 'mine our review comments', 'put what I keep repeating into my instructions'."
-argument-hint: "<<description> [#PR]|findings <file>|reviews|note [--applied] <observation>|preferences|group…>"
+description: "Counts how often a described mistake recurs in recent commits and the session, picks the strongest enforcement-ladder rung that can catch it, places the lesson by scope, and proposes a check proven to fail on the old code and pass on the current code; `preferences` proposes user-scope lines for what a person keeps typing across sessions; also takes a review findings file or pull requests' review comments as the source. Use when: 'codify this', 'this keeps happening', 'stop us making this mistake again', 'turn this correction into a check', 'what rung catches this', 'prove this check', 'can we stop re-finding this', 'mine our review comments', 'put what I keep repeating into my instructions'."
+argument-hint: "<<description> [#PR]|findings <file>|reviews [--pr <n>]|note [--applied] <text>|preferences|group…>"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs\":*)", "Bash(git log:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git branch --show-current)", "Bash(git symbolic-ref:*)", "Write(.work/codify/**)"]
@@ -28,7 +28,7 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 |---|---|---|
 | `"<description>" [#PR]` (default) | Counts the mistake, picks the rung, proposes and proves the check | Sections 1-6 below |
 | `findings <findings-file>` | Each row of one review findings file becomes a described mistake, counted, proved and ending in a proposal | [actions/findings.md](actions/findings.md) |
-| `reviews` | Mines recent merged pull requests' review comments and takes each recurring lesson through sections 2-6 | [actions/reviews.md](actions/reviews.md) |
+| `reviews [--pr <n> [--repo <owner/repo>]]` | Mines the review comments of recent merged pull requests, or of one chosen pull request, and takes the lessons through sections 2-6 | [actions/reviews.md](actions/reviews.md) |
 | `preferences [--scope machine\|project] [--since <day>]` | Needs the `session-flow` plugin. Counts preferences typed across sessions, by distinct session, and takes each one the person confirms through sections 3 and 6, for a user-scope file only | [actions/preferences.md](actions/preferences.md) |
 | `note [--applied] "<observation>" [#PR \| <commit>]` | Appends one observation, or with `--applied` one change already made, to the findings buffer; never counts, codifies or fixes | [actions/note.md](actions/note.md) |
 | `group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Read-only: groups buffer rows by the named fields (default `producer`) and by mistake, naming the keys, with each mistake's count next to the threshold | [actions/group.md](actions/group.md) |
@@ -36,7 +36,9 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 An action runs only when the first word of `$ARGUMENTS` is exactly `findings`, `reviews`,
 `preferences`, `note` or `group`, unquoted. Anything else, including a quoted description that starts with one of those words,
 is the default action. The action word, and `note`'s unquoted `--applied` right after it, are the
-only tokens read as a choice. The rest stays data, as above.
+only tokens read as a choice, with `reviews`' unquoted `--pr <n>` and `--repo <owner/repo>` right
+after it, whose values must match `^[1-9][0-9]*$` and `^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$` or the
+action stops before running anything. The rest stays data, as above.
 
 ## 1. Count
 
@@ -139,7 +141,9 @@ code. Any other exit is **unproven**: the check passed on the old ref, failed on
 the proof could not run, a denied proof call included. The script runs the check command, so it is
 not pre-approved and each proof asks first. Report an unproven check with the exit code and the
 script's own lines, and do not propose it for install. A proof that passes on the old ref says the check does not catch
-the mistake; change the check or the rung, and prove again.
+the mistake; change the check or the rung, and prove again. A check that fails on the current code
+only because existing violations remain is not wrong: report the proof as pending the cleanup or
+the ratchet the proposal offers (section 6), and rerun it once that lands.
 
 ## 5. Missing context
 
@@ -162,12 +166,16 @@ did not escape review needs no answer.
 - **A blocking check** (a hook, a required CI check, a lint at error level): ask before installing it,
   every time, even for a person's invocation. The proposal's consent covers the file it writes, never
   the install. Install nothing unproven.
+- **Approval stays with a person.** Every change codify proposes lands only when a person approves
+  it. Applying one without approval becomes allowed only where an evaluation set scores the surface
+  the change touches and the change does not lower that score.
 
 The proposal holds: the description, the occurrences counted, the rung id and the criterion items
 behind it, the scope and why, the check command, the proof result (old ref, both exit codes), the
-missing-context answer when it applies, and the install step with whether it blocks, taken from
-["Next step per rung"](reference/finding-classes.md#next-step-per-rung). With `ratchet_offer` true,
-a counting rung's proposal also carries that section's offer; false leaves it out.
+missing-context answer when it applies, the existing violations with the cleanup or ratchet offer,
+and the install step with whether it blocks, both taken from
+["Next step per rung"](reference/finding-classes.md#next-step-per-rung). `ratchet_offer` false
+leaves the ratchet offer out; the existing violations and any cleanup offer stay.
 
 ## Report
 
@@ -181,6 +189,7 @@ with the question for any blocking install.
 - It never installs a check unasked, and never installs an unproven one.
 - It never implements a rung. No analyzer, rule, architecture test or hook is written here. Asked to
   "just write the analyzer", decline and hand over the rung's pointer.
+- It never fixes an existing violation. The cleanup it offers runs through `/implementation:implement`.
 - Moving a mistake up the ladder is not promotion in the autonomy sense: it changes no work class or
   guardrail class, and neither implies the other.
 - `note` appends one row and does nothing else.
@@ -191,6 +200,7 @@ with the question for any blocking install.
 - hook: /harness-config:audit-automation-gaps.
 - make-impossible: /architecture:improve.
 - a group at or over the threshold: /corrections:codify "<the group's mistake>".
+- existing violations to clean up: /implementation:implement.
 
 ## Gotchas
 

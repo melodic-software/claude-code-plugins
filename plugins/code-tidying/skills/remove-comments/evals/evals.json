@@ -16,7 +16,7 @@
     {
       "id": 2,
       "name": "proposes-class-b-without-test-net",
-      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a code file where a comment narrates what a 6-line block does — a class-B extract-function candidate. The repository has no discoverable test command: no test script in the package manifest, no Makefile target, no ecosystem default that resolves.)",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is explanatory. The uncommitted diff contains a code file where a comment narrates what a 6-line block does — a class-B extract-function candidate. The repository has no discoverable test command: no test script in the package manifest, no Makefile target, no ecosystem default that resolves.)",
       "narration": true,
       "expectations": [
         "Classifies the block comment as class B with Extract Function as the named move",
@@ -40,7 +40,7 @@
     {
       "id": 4,
       "name": "never-touches-exempt-surfaces",
-      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains: a public exported function with a JSDoc block, a file-top license header, a line with '// eslint-disable-next-line', a 'TODO(#412): remove after migration' marker, a terse '// items must stay sorted; binary search depends on it' constraint comment, and a change inside .github/workflows/ci.yml.)",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is explanatory. The uncommitted diff contains: a public exported function with a JSDoc block, a file-top license header, a line with '// eslint-disable-next-line', a 'TODO(#412): remove after migration' marker, a terse '// items must stay sorted; binary search depends on it' constraint comment, and a change inside .github/workflows/ci.yml.)",
       "narration": true,
       "expectations": [
         "Leaves the public-API JSDoc, license header, lint directive, and TODO(#412) marker untouched",
@@ -52,7 +52,7 @@
     {
       "id": 5,
       "name": "stages-narrative-before-deletion",
-      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a file with a 10-line comment justifying why one caching strategy was chosen over another; one line of it states a durable constraint — the cache must be invalidated before writes.)",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is explanatory. The uncommitted diff contains a file with a 10-line comment justifying why one caching strategy was chosen over another; one line of it states a durable constraint — the cache must be invalidated before writes.)",
       "narration": true,
       "expectations": [
         "Extracts the durable constraint into a terse one-line class-C comment",
@@ -76,7 +76,7 @@
     {
       "id": 7,
       "name": "reverts-when-ast-proof-fails",
-      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a class-B Rename Variable candidate: '// retry budget in attempts' above 'let n = 3;' where n is function-local. When the rename is applied, the change-shape check reports CODE-CHANGED with kinds=['number'] because the edit also altered a neighboring numeric literal from 3 to 5 instead of returning RENAME-ONLY.)",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is explanatory. The uncommitted diff contains a class-B Rename Variable candidate: '// retry budget in attempts' above 'let n = 3;' where n is function-local. When the rename is applied, the change-shape check reports CODE-CHANGED with kinds=['number'] because the edit also altered a neighboring numeric literal from 3 to 5 instead of returning RENAME-ONLY.)",
       "narration": true,
       "expectations": [
         "Runs the change-shape check after applying the move, before deleting the comment",
@@ -124,7 +124,7 @@
     {
       "id": 11,
       "name": "keeps-rejected-alternative-rationale",
-      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a guard script whose header says 'git branch -D is deliberately NOT blocked: a deleted branch is reflog-recoverable' and 'the helper is deliberately not named dirname, which would shadow the real command for every sourced guard'. Neither sentence has a referent in the adjacent code. The same file has '# increment counter' above 'count=$((count + 1))'.)",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is explanatory. The uncommitted diff contains a guard script whose header says 'git branch -D is deliberately NOT blocked: a deleted branch is reflog-recoverable' and 'the helper is deliberately not named dirname, which would shadow the real command for every sourced guard'. Neither sentence has a referent in the adjacent code. The same file has '# increment counter' above 'count=$((count + 1))'.)",
       "narration": true,
       "expectations": [
         "Classifies both header sentences as class C negative information (what the code deliberately does not do, and why an alternative was rejected) and keeps them",
@@ -148,7 +148,7 @@
     {
       "id": 13,
       "name": "over-budget-class-c-is-rewritten-under-strict",
-      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is unset. The uncommitted diff contains a 14-line comment above a retry loop: two lines state the durable constraint that the backoff must stay under the upstream's 30-second timeout, the remaining twelve narrate how three alternatives were tried and why each was rejected.)",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is explanatory. The uncommitted diff contains a 14-line comment above a retry loop: two lines state the durable constraint that the backoff must stay under the upstream's 30-second timeout, the remaining twelve narrate how three alternatives were tried and why each was rejected.)",
       "narration": true,
       "expectations": [
         "Classifies the comment as class C (a constraint plus rationale) and keeps the constraint",
@@ -279,7 +279,7 @@
     {
       "id": 24,
       "name": "kept-constraint-refuted-by-code-is-obsolete",
-      "prompt": "/code-tidying:remove-comments src/ledger.py\n\n(src/ledger.py is committed and tree-sitter is present for python. Above post_entry() it has '# Not safe to call from two threads: post_entry mutates the module-level _BALANCES dict'. The module no longer has a _BALANCES global: post_entry() now takes a Ledger instance and takes self._lock before writing self._balances. A second comment, '# Amounts are integer cents, never floats', sits above the amount parameter, and the function still accepts any number.)",
+      "prompt": "/code-tidying:remove-comments src/ledger.py\n\n(comment_posture is explanatory. src/ledger.py is committed and tree-sitter is present for python. Above post_entry() it has '# Not safe to call from two threads: post_entry mutates the module-level _BALANCES dict'. The module no longer has a _BALANCES global: post_entry() now takes a Ledger instance and takes self._lock before writing self._balances. A second comment, '# Amounts are integer cents, never floats', sits above the amount parameter, and the function still accepts any number.)",
       "narration": true,
       "expectations": [
         "Re-checks the thread-safety claim against the current code before keeping it and finds it false, citing the lock and the missing _BALANCES global by line",
@@ -433,6 +433,30 @@
         "The file has a row whose Finding cell opens with code-tidying/remove-comments/rule-reshape-flag, with Tier SUGGESTION and an Action naming a move on CACHE_TTL, such as renaming it to carry its unit, which also reaches lib/session.sh",
         "No row's Action says the run fixed the cause or applied the move, and the run does not attempt the root-cause fix",
         "The report names the findings file and offers /review:fanout fix as a next step without running it"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "unset-posture-resolves-to-necessary",
+      "prompt": "/code-tidying:remove-comments lib/worker.sh\n\n(comment_posture and comment_keep_list are unset in every layer. lib/worker.sh is committed. It carries a rationale comment explaining why a retry count is three, and a comment naming the vendor gateway that closes idle sockets at 60 seconds above a keepalive of 45. AskUserQuestion is unavailable.)",
+      "narration": true,
+      "expectations": [
+        "Names the resolved posture, necessary, from the default auto, in the report's first lines",
+        "Deletes the retry rationale with its narrative staged, behind a COMMENT-ONLY verdict",
+        "Keeps the gateway comment as a verified outside-constraint keep from the shipped keep list",
+        "Does not name a keep-list path, since the shipped list is in use"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "repository-keep-list-replaces-the-shipped-one",
+      "prompt": "/code-tidying:remove-comments necessary lib/worker.sh\n\n(docs/conventions/code-tidying.yaml sets comment_keep_list: docs/comment-keeps.md, a file whose only criterion keeps a comment naming the unit of a numeric value. lib/worker.sh is committed. It carries '# seconds' above 'TIMEOUT=30', a comment naming the vendor gateway that closes idle sockets at 60 seconds above a keepalive of 45, a license header and a '# shellcheck disable=SC2034' directive with its justification. AskUserQuestion is unavailable.)",
+      "narration": true,
+      "expectations": [
+        "Names docs/comment-keeps.md as the keep list in use, and the team file as its layer, in the report's first lines",
+        "Keeps the '# seconds' comment under the repository's criterion",
+        "Deletes the gateway comment with its narrative staged, because the repository list replaces the shipped one rather than adding to it",
+        "Keeps the license header and the shellcheck directive with its justification, the floor every list keeps"
       ]
     }
   ]
