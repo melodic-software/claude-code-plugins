@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Ecosystem | Build | Test | Lint | Status |\n|---|---|---|---|---|\n| zig | PASS | PASS | PASS | PASS |\n\nOverall: PASS (1 of 1 ecosystems passed)",
+      "why": "zig ran as a covered ecosystem"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "zig: no record and nothing to infer it from\n\nOverall: INCOMPLETE",
+      "why": "the recorded id was treated as uncovered"
+    }
+  ]
+}
