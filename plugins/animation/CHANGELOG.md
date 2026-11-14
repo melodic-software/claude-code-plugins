@@ -3,6 +3,13 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.21] - 2026-11-14
+
+### Changed
+
+- `render.py --encode` takes its ffmpeg arguments from the shared media library's `animation-mp4`,
+  `animation-webm` and `animation-gif` encode profiles; the arguments, and so the encoded films, are unchanged.
+
 ## [1.0.20] - 2026-11-14
 
 ### Fixed
