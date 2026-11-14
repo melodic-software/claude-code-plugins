@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Claiming it: /work-items:track start <#62>.",
+      "why": "claims the design item"
+    },
+    {
+      "answer": "Claiming it: /work-items:track start https://example.com/acme/mail/issues/62",
+      "why": "claims the design item by URL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Claiming it: /work-items:track start <#61>.",
+      "why": "claims the owner-call item"
+    },
+    {
+      "answer": "Claiming it: /work-items:track start https://example.com/acme/mail/issues/162",
+      "why": "another item"
+    }
+  ]
+}

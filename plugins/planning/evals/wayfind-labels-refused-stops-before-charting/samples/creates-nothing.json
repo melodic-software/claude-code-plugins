@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "`/work-items:track wayfind-labels` refused: no convention home resolves; run /work-items:setup check. Wayfind takes no default label, so no map or item is created.",
+      "why": "no tracker write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`/work-items:track wayfind-labels` refused, so the defaults apply.\n/work-items:track add --label 'wayfind: map' --body-file map-body.md \"Map: notification digest\"",
+      "why": "creates the map after a refusal"
+    },
+    {
+      "answer": "/work-items:track labels 'wayfind: map' needs-human",
+      "why": "checks default labels after a refusal"
+    }
+  ]
+}

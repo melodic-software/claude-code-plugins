@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Open maps: `/work-items:track list --label 'decide: map' --state open`.",
+      "why": "lists maps by the supplied prefix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Open maps: `/work-items:track list --label 'wayfind: map' --state open`.",
+      "why": "the default prefix"
+    }
+  ]
+}

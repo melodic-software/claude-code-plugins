@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Labels: `/work-items:track wayfind-labels` replied `REFUSED: work-item-tracker: no convention home resolves under /work/acme-mail; run /work-items:setup check to see why`. Stopping.",
+      "why": "the call is written out"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The tracker binding could not be found, so I stopped.",
+      "why": "no call written out"
+    }
+  ]
+}

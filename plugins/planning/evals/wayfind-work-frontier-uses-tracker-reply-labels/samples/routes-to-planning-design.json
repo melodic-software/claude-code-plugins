@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Routing by decide: design: /planning:design.",
+      "why": "routes to the design skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Routing to /planning:interview.",
+      "why": "wrong route"
+    }
+  ]
+}
