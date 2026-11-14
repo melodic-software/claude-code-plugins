@@ -3,6 +3,19 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.5] - 2026-11-14
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: the changed-line ranges no longer read an added line starting `++ b/` as a file header, so the hunks after it stay with their real file and the pre-push content scan still judges them.
+- `reference-verify.sh` reads the lines a copied file adds with the same hunk parse, so an added `++ b/` line in a copy no longer moves the later hunks to another path.
+
+## [3.4.4] - 2026-11-14
+
+### Fixed
+
+- The `pre-commit-content` and `pre-push-content` git hooks now scan a regular file that a commit turns from a symlink or a submodule, on its whole content (in a merge, on the lines the merge adds). Before, the scans skipped this type change, so a secret or machine path added that way passed. A regular file turned into a symlink is still not scanned as content.
+
 ## [3.4.3] - 2026-11-14
 
 ### Changed

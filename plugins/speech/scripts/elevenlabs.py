@@ -29,6 +29,7 @@ waiting for --proceed; 4 the organization's egress floor forbids the backend.
 import argparse
 import base64
 import email.utils
+import functools
 import hashlib
 import json
 import os
@@ -73,6 +74,7 @@ MODELS = {
 MAX_ATTEMPTS = 4
 BACKOFF_S = 1.0
 RETRY_AFTER_CAP_S = 60.0
+REQUEST_TIMEOUT_S = 300
 CACHE_VERSION = 1
 
 
@@ -86,6 +88,10 @@ class Blocked(Exception):
 
 class Failed(Exception):
     """The request or its response was unusable: exit 1."""
+
+
+class TimedOut(Failed):
+    """A request timed out, or the caller's deadline would pass before the next request could start."""
 
 
 def check_floor(env):
@@ -162,14 +168,19 @@ def retry_delay(headers, attempt):
     return step / 2 + random.uniform(0, step / 2)
 
 
-def call(method, path, key, body=None, attempts=MAX_ATTEMPTS):
-    """One API call with retries. Returns (decoded JSON, {request_id, character_cost}). The key goes in a header only."""
+def call(method, path, key, body=None, attempts=MAX_ATTEMPTS, deadline=None):
+    """One API call with retries. Returns (decoded JSON, {request_id, character_cost}). The key goes in a header only.
+    With a deadline (a time.monotonic() value), each request's timeout ends by it, and no request or retry wait
+    starts that would pass it."""
     data = None if body is None else json.dumps(body).encode('utf-8')
     for attempt in range(1, attempts + 1):
+        left = REQUEST_TIMEOUT_S if deadline is None else min(deadline - time.monotonic(), REQUEST_TIMEOUT_S)
+        if left <= 0:
+            raise TimedOut(f'the deadline passed before the request to {HOST}')
         req = urllib.request.Request(f'https://{HOST}{path}', data=data, method=method, headers={
             'xi-api-key': key, 'Content-Type': 'application/json', 'Accept': 'application/json'})
         try:
-            with urllib.request.urlopen(req, timeout=300) as r:
+            with urllib.request.urlopen(req, timeout=left) as r:
                 headers = getattr(r, 'headers', None) or {}
                 return json.loads(r.read()), {'request_id': headers.get('request-id'),
                                               'character_cost': headers.get('character-cost')}
@@ -177,25 +188,32 @@ def call(method, path, key, body=None, attempts=MAX_ATTEMPTS):
             detail = error_detail(e)
             e.close()
             if (e.code == 429 or 500 <= e.code < 600) and attempt < attempts:
-                time.sleep(retry_delay(e.headers, attempt))
+                delay = retry_delay(e.headers, attempt)
+                if deadline is not None and time.monotonic() + delay >= deadline:
+                    raise TimedOut(f'ElevenLabs answered HTTP {e.code}, and its {delay:g} s retry wait ends past '
+                                   'the deadline') from None
+                time.sleep(delay)
                 continue
             hint = f' ({KEY_VAR} was rejected)' if e.code == 401 else ''
             tries = f' after {attempt} attempts' if attempt > 1 else ''
             raise Failed(f'ElevenLabs answered HTTP {e.code}{hint}{tries}: {detail or e.reason}') from None
         except (urllib.error.URLError, TimeoutError, ValueError) as e:
-            raise Failed(f'the request to {HOST} failed: {getattr(e, "reason", e)}') from None
+            reason = getattr(e, 'reason', e)
+            raise (TimedOut if isinstance(reason, TimeoutError) else Failed)(
+                f'the request to {HOST} failed: {reason}') from None
 
 
-def request(text, voice, model, settings, key):
+def request(text, voice, model, settings, key, deadline=None):
     body = {'text': text, 'model_id': model}
     if settings:
         body['voice_settings'] = settings
-    return call('POST', f'/v1/text-to-speech/{voice}/with-timestamps?output_format={OUTPUT_FORMAT}', key, body)
+    return call('POST', f'/v1/text-to-speech/{voice}/with-timestamps?output_format={OUTPUT_FORMAT}', key, body,
+                deadline=deadline)
 
 
-def subscription(key):
+def subscription(key, deadline=None):
     """(characters used, character limit) for the current billing period."""
-    body, _ = call('GET', '/v1/user/subscription', key)
+    body, _ = call('GET', '/v1/user/subscription', key, deadline=deadline)
     try:
         return int(body['character_count']), int(body['character_limit'])
     except (KeyError, TypeError, ValueError):
@@ -335,9 +353,12 @@ def write_cache(entry, reply, meta, say=print):
 
 
 def narrate(text, out, voice=DEFAULT_VOICE, model=DEFAULT_MODEL, proceed=False, env=None, send=None, quota=None,
-            say=print, settings=(), cache=None, refresh=False):
+            say=print, settings=(), cache=None, refresh=False, timeout=None):
+    """timeout (seconds) bounds the default quota lookup and request together, retry waits included."""
     env = os.environ if env is None else env
-    send, quota = send or request, quota or subscription
+    bound = {} if timeout is None else {'deadline': time.monotonic() + timeout}
+    send = send or functools.partial(request, **bound)
+    quota = quota or functools.partial(subscription, **bound)
     check_floor(env)
     if model not in MODELS:
         raise ValueError(f'unknown model {model!r}; choose one of {", ".join(MODELS)}')
@@ -364,6 +385,8 @@ def narrate(text, out, voice=DEFAULT_VOICE, model=DEFAULT_MODEL, proceed=False, 
     try:
         remaining = quota(key)
     except Failed as e:
+        if bound and isinstance(e, TimedOut):
+            raise
         remaining = str(e)
     say(statement(len(text), model, voice, remaining))
     if not proceed:

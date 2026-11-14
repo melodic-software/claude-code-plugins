@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.1.0] - 2026-11-14
+
+### Added
+
+- `video-digest` `watch <url> --from <h:mm:ss> --to <h:mm:ss>` (either bound optional, YouTube only) downloads only that range of the video through yt-dlp `--download-sections`. The slice keeps every stamp in full-video time: frame times, densification windows, timeline entries and ASR cues get the range's start added. `watch.json` `timeRange` records the range and the error bound from the keyframe-aligned cut, which also widens each timed frame's `timestampErrorSec`. The slice `README.md` names the range.
+
 ## [3.0.2] - 2026-11-14
 
 ### Changed

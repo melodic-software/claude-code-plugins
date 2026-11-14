@@ -8,7 +8,7 @@ metadata:
   summary: Full PR lifecycle. Prep, create, monitor CI, address reviews, merge
 ---
 
-**Arguments.** `[prep|create|ready|monitor|comments|ci|merge|reassess|evidence|status|full|…] [--unattended] [args]`. Full set: the Arguments table below. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request evidence <pr> --evidence <file>, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>, /pull-request review-venue
+**Arguments.** `[prep|create|ready|monitor|comments|ci|merge|reassess|evidence|status|full|…] [--unattended] [args]`. Full set: the Arguments table below. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request evidence <pr> --evidence <file>, /pull-request media <pr> --manifest <file>, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>, /pull-request review-venue
 
 ## Repository context. Gather first
 
@@ -35,7 +35,7 @@ Run the PR lifecycle from quality review through merge and the post-merge worktr
 
 ## Adapting to your environment (graceful degrade)
 
-This skill is self-contained: it runs on `git`, the forge's CLI, `jq`, and its bundled scripts (skill-private ones under `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/`, plugin-shared ones under `${CLAUDE_PLUGIN_ROOT}/scripts/`, which the `reference/` files call `<scripts-dir>`: substitute the resolved path before a command from them reaches Bash). `jq` is required (the merge and readiness paths pipe forge API output through it): check `command -v jq` before the first phase that parses; if missing, stop with the install remediation (<https://jqlang.org/download/>; a separate install under Git Bash on native Windows) instead of failing mid-phase. The readiness thread gate (Gate 7) also needs Python 3.11+; without it that gate holds as unproven and the rest of the skill runs. An adjacent capability a phase names (a code-review skill or agents, a simplifier, a build/test/lint verifier, an external research skill, an exploration skill, a work-item tracker, a CI-log-audit agent, a forge-events push channel) is **optional**: invoke it when your environment provides it (a skill, plugin, agent, or MCP server), else follow the inline guidance, which stands on its own. Never block a phase because an adjacent tool is absent.
+This skill is self-contained: it runs on `git`, the forge's CLI, `jq`, and its bundled scripts (skill-private ones under `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/`, plugin-shared ones under `${CLAUDE_PLUGIN_ROOT}/scripts/`, which the `reference/` files call `<scripts-dir>`: substitute the resolved path before a command from them reaches Bash). `jq` is required (the merge and readiness paths pipe forge API output through it): check `command -v jq` before the first phase that parses; if missing, stop with the install remediation (<https://jqlang.org/download/>; a separate install under Git Bash on native Windows) instead of failing mid-phase. The readiness thread gate (Gate 7) also needs Python 3.11+; without it that gate holds as unproven and the rest of the skill runs. The `media` action and the stale reviewer-media check need Python 3.11+ too: without it `media` stops with the install remediation (<https://www.python.org/downloads/>) and the stale check is skipped. An adjacent capability a phase names (a code-review skill or agents, a simplifier, a build/test/lint verifier, an external research skill, an exploration skill, a work-item tracker, a CI-log-audit agent, a forge-events push channel) is **optional**: invoke it when your environment provides it (a skill, plugin, agent, or MCP server), else follow the inline guidance, which stands on its own. Never block a phase because an adjacent tool is absent.
 
 Consumer conventions come from the consuming project's own `CLAUDE.md`, `AGENTS.md`, and rules. Notably: PR body template, branch naming, merge style (this skill defaults to squash), review-reply identity (some projects post bot-identity replies via a wrapper; default is the forge CLI under your own login), and any extra pre-PR gates. Read them before creating or merging.
 
@@ -79,6 +79,7 @@ For runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/tem
 | `ci --ci` | CI | The pr-unblock lane's unattended fix of a PR's failing checks: reads the runner's context file as data, reproduces each check with the repository's own command, fixes the cause, reruns it, and leaves the fix uncommitted for the runner's patch; never weakens a check, and escalates what it cannot fix with a named reason. See [reference/ci-ci.md](reference/ci-ci.md) |
 | `merge` | Phase 4 | Squash merge, or merge or enqueue without asking once the PR is `CLEAN` and the AI review checks have passed on the reviewed head, with the plain merge command (a refusal is reported, never handed to the user or retried in another shape), then confirm a merge-queue PR entered the queue (enqueue a `CLEAN` one left out, report the refusal text verbatim; §4.2.2) and wait for `MERGED` (no strategy flag behind a merge queue, `--auto` only pinned to the reviewed head; [reference/merge.md](reference/merge.md) §4.2.1) + worktree transition (reuse it, or release this session's lock) + verify. Never removes a worktree: that is `/source-control:worktree cleanup` |
 | `evidence <pr> --evidence <file> [--attach <path>]... [--summary <file>] [--artifact-url <url> [--retention-days <n>]]` | Evidence | After the verifier passed for the PR's head, post one evidence comment, or update it in place for a new head, with `gh pr comment --edit-last --create-if-none --attach`: the text summary, publishable captures only in collapsed sections laid out by `templates/evidence-comment.md`, and the CI capture artifact link with its expiry. A file outside the `publishable` list, or a leak-scan hit on the body, posts nothing. See [reference/evidence.md](reference/evidence.md) |
+| `media <pr> --manifest <file> [--artifact-url <url> [--retention-days <n>]]` | Reviewer media | Place a produced walkthrough (video, contact sheet, chapter list, screenshots) in the marked `## Reviewer media` section near the top of the PR body, rewriting only the text between its two marker lines: claim the head first, attach only the files the producer's `manifest.json` lists with `gh pr edit --attach`, else link the Actions artifact with its expiry, and swap the request label for the posted one. A leak-scan hit, a screenshot with no frame-text sidecar, a claim another run holds, a body that changed under the edit, or no way to host the media posts nothing. `media stale <pr>` marks a section that shows an older commit; `media fail <pr>` records a failed build once per commit. See [reference/media.md](reference/media.md) |
 | `reassess [<pr>] [--act] [--state-dir <dir>]` | Reassess | Judge whether one open PR should still land, even when green and mergeable, and return `continue`, `rework` or `close` with its evidence: report-only unless `--act` carries out the verdict. Runs on one PR and is no merge prerequisite. `--state-dir` defaults to `${CLAUDE_PLUGIN_DATA}/state/babysit-prs`. See [reference/reassess.md](reference/reassess.md) |
 | `status` | Report only | Unified status across all phases |
 | `full` | Phase 1-4 | Run prep → create → monitor → merge end-to-end |
@@ -157,6 +158,7 @@ Execute in order. Each phase is self-contained. Read the relevant file for detai
 | CI | [reference/ci-ci.md](reference/ci-ci.md) | `ci --ci` |
 | 4. Merge | [reference/merge.md](reference/merge.md) | `merge` |
 | Evidence | [reference/evidence.md](reference/evidence.md) | `evidence` |
+| Reviewer media | [reference/media.md](reference/media.md) | `media` |
 | Reassess | [reference/reassess.md](reference/reassess.md) | `reassess` |
 
 ---
@@ -285,10 +287,21 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 `CLAUDE_SKILL_DIR` or `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
+## Related
+
+- `/review:explain-change` writes a pull request digest; it never posts to the PR.
+- `/explainer-video:produce` renders a storyboard into the narrated video, contact sheet and
+  `manifest.json` that the `media` action places.
+- `review:reviewer-media` decides which media a PR needs, builds the storyboard from the digest
+  and hands the manifest to the `media` action.
+- `/playwright:demo-video` records a live UI flow as PR evidence; the `evidence` action posts it.
+- `/education:illustrate` explains a concept, with a video view through the same producer.
+
 ## Next
 
 - PR merged, optional review of how the session went: /session-flow:retro.
 - `reassess` returned `rework`: /implementation:implement.
+- A reviewer walkthrough still to build for the `media` action: /explainer-video:produce.
 
 ## Gotchas
 

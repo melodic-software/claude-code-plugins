@@ -594,6 +594,11 @@ per the
 [review-digest convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/review-digest.md):
 `off` does nothing, `offer` offers the digest when a trigger fires, and `always` builds it.
 
+Before the hand-off, run `python3 "<skill-dir>/scripts/media.py" stale "$PR_NUMBER" --repo <owner>/<repo>`,
+so a reviewer-media section that shows a commit older than the head this phase published says so
+([media.md](media.md), "Stale media"). It does nothing on a body with no such section, and a
+failure is reported, never a reason to undo the flip.
+
 The digest gates nothing: no step of this phase or of [readiness.md](readiness.md) reads it. A
 skip, an unanswered offer, or a skill that does not resolve all go on to 2.5.7; a reader who
 accepts the offer later gets the digest then.

@@ -1,6 +1,7 @@
 """stills.py end to end on fixtures/storyboard.json. The refusals need only the standard library; the renders need
 ffmpeg, ffprobe and Playwright for Python with its Chromium, and skip without them unless
 EXPLAINER_VIDEO_REQUIRE_DEPS=1 or MEDIA_RENDER_REQUIRE_DEPS=1, which fails instead."""
+import hashlib
 import importlib.util
 import json
 import os
@@ -155,6 +156,61 @@ class Renders(unittest.TestCase):
         self.assertEqual(m['video']['captions'], 'burned')
         self.assertIsNone(m['voice']['backend'])
         self.assertIn('only retries server errors.', (out / 'captions.srt').read_text())
+
+    def test_every_published_video_and_contact_sheet_names_the_sha256_of_its_bytes(self):
+        r, out = self.narrated
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        m = self.manifest(out)
+        for entry in [m['video'], *m['contact_sheet']]:
+            data = (out / entry['path']).read_bytes()
+            self.assertEqual(entry['sha256'], hashlib.sha256(data).hexdigest(), f'{entry["path"]} digest')
+            self.assertEqual(entry['bytes'], len(data), f'{entry["path"]} size')
+
+    def test_each_chapter_part_of_a_split_video_names_the_sha256_of_its_bytes(self):
+        r, whole = self.silent
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        limit_mb = (whole / 'video.mp4').stat().st_size * 0.8 / 10 ** 6   # under the whole video, over any one chapter
+        out = self.dir / 'split'
+        r = run('--storyboard', BOARD, '--out', out, '--no-audio', '--upload-limit-mb', limit_mb)
+        self.assertIn(r.returncode, (0, 1), r.stdout + r.stderr)
+        m = self.manifest(out)
+        self.assertIsNone(m['oversize'])
+        self.assertGreaterEqual(len(m['parts']), 2, 'the video was not split at chapter starts')
+        for part in m['parts']:
+            self.assertFalse(Path(part['path']).is_absolute(), part['path'])
+            data = (out / part['path']).read_bytes()
+            self.assertEqual(part['bytes'], len(data), f'{part["path"]} size')
+            self.assertEqual(part['sha256'], hashlib.sha256(data).hexdigest(), f'{part["path"]} digest')
+
+    def test_each_screenshot_is_published_with_its_own_scanned_sidecar_inside_the_output(self):
+        board = json.loads(BOARD.read_text(encoding='utf-8'))
+        src = self.dir / 'shots'
+        src.mkdir()
+        texts = {'one': 'Settings page\nRetry count: 3\n', 'two': 'Audit log\nNo entries yet\n'}
+        for name, text in texts.items():
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=0x336699:s=640x360', '-frames:v',
+                            '1', str(src / f'{name}.png')], check=True)
+            (src / f'{name}.txt').write_text(text, encoding='utf-8')
+            board['moments'].append({'id': f'shot-{name}', 'chapter': 'risk', 'template': 'screenshot',
+                                     'data': {'image': f'{name}.png', 'sidecar': f'{name}.txt', 'alt': name},
+                                     'narration': f'The {name} page.', 'covers': []})
+        (src / 'storyboard.json').write_text(json.dumps(board), encoding='utf-8')
+        out = self.dir / 'screens'
+        r = run('--storyboard', src / 'storyboard.json', '--out', out, '--no-audio')
+        self.assertIn(r.returncode, (0, 1), r.stdout + r.stderr)
+        shots = self.manifest(out)['screenshots']
+        self.assertEqual(len(shots), 2)
+        for shot, (name, text) in zip(shots, texts.items()):
+            self.assertEqual(set(shot), {'path', 'sha256', 'sidecar', 'sidecar_sha256'})
+            for rel in (shot['path'], shot['sidecar']):
+                self.assertFalse(Path(rel).is_absolute(), rel)
+                self.assertTrue((out / rel).resolve().is_relative_to(out.resolve()), f'{rel} is outside the output')
+            image, sidecar = out / shot['path'], out / shot['sidecar']
+            self.assertEqual(image.read_bytes(), (src / f'{name}.png').read_bytes())
+            self.assertEqual(sidecar.read_text(encoding='utf-8'), text)
+            self.assertEqual(shot['sha256'], hashlib.sha256(image.read_bytes()).hexdigest())
+            self.assertEqual(shot['sidecar_sha256'], hashlib.sha256(sidecar.read_bytes()).hexdigest())
+        self.assertNotEqual(shots[0]['sidecar'], shots[1]['sidecar'])
 
     def test_stylesheet_and_stitcher_come_from_configuration(self):
         css = self.dir / 'white.css'

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "level: full (prompt)\nPlan: /settings/account, HTML mockup, variants A to E, states populated, empty, error, narrow-viewport, dark-scheme, reduced-motion.\n- A Sectioned form (layout)\n- B Sidebar tabs (navigation)\n- C Inline edit cards (interaction model)\n- D Wizard steps (flow)\n- E Dense ledger (density)",
+      "why": "five named, narrow-viewport state"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Plan: /settings/account, HTML mockup, variants A to C, states populated, empty, error.\n- A Sectioned form\n- B Sidebar tabs\n- C Inline edit cards",
+      "why": "three variants, no responsive state"
+    },
+    {
+      "answer": "Plan: Option A to Option E for /settings/account, states populated, mobile.",
+      "why": "generic names"
+    }
+  ]
+}

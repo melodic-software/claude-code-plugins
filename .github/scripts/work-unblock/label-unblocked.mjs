@@ -85,7 +85,9 @@
 // ready` issues in no queue (neither agent-ready nor admission-deferred, no
 // hold or refuse label, no open blocker or sub-issue), at most
 // limits.readmit-per-run of them, oldest updated first (readmitReady), and
-// writes as intake's admission does. A born-triaged issue (check-born-triaged
+// writes as intake's admission does. One with an open blocker or sub-issue
+// goes to the rules too, once a day, while no admission comment is newer than
+// its newest `status: ready` (admissionUndecided). A born-triaged issue (check-born-triaged
 // notBornTriaged: the marker as its body's last line, a listed human or the
 // App its author) that the rules refuse only for a Size or Uncertainty no one
 // set yet waits with no write: its filer sets them after filing, and if no one
@@ -1456,6 +1458,20 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
   }
 }
 
+// Whether no admission comment (ADMIT_MARKER, by `bot`) among `comments` was
+// written at or after the newest `status: ready` add in the issue's events,
+// read through `events()` only when that comment exists: no admission decided
+// the ready status the issue holds now, as when intake's admission skipped or
+// failed on it.
+export async function admissionUndecided({ comments, events, bot }) {
+  const own = comments.find((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(ADMIT_MARKER));
+  if (!own) {
+    return true;
+  }
+  const decided = Date.parse(own.updated_at);
+  return (await events()).some((event) => event?.event === "labeled" && String(event.label?.name).toLowerCase() === READY && Date.parse(event.created_at) > decided);
+}
+
 // Runs intake's admission on the open `status: ready` issues in no queue:
 // neither agent-ready nor admission-deferred, so nothing else revisits them (a
 // deferral whose label was lost, or a `status: ready` set by hand). Those of
@@ -1479,8 +1495,13 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
 // sub-issues read only for a comment it may rewrite, so each is read once a
 // day whether or not a sub-issue closes. One that read shows has no open
 // sub-issue goes to the rules: the summary leaves a duplicate close out of
-// `completed`, so it can show a wait with nothing open. Returns how many reads
-// or writes failed.
+// `completed`, so it can show a wait with nothing open. Every issue left out
+// for an open blocker or sub-issue, on the same hour, goes to the rules when
+// no admission decided its `status: ready` (admissionUndecided): one comments
+// read each, shared with refreshSplitWait, and its events only when it has an
+// admission comment. A decision that leaves that comment unchanged, or posts
+// none, leaves the issue undecided, so it is decided again the next day.
+// Returns how many reads or writes failed.
 async function readmitReady({ github, repo, listed: open, names = labelNames, humans, bot, gate, appId, admission, cap, now, writer = NO_WRITER, statusOf, maps = NO_MAPS }) {
   const lower = (item) => names(item).map((name) => name.toLowerCase());
   const listed = open.filter((item) => lower(item).includes(READY) && !maps.skip(item));
@@ -1490,6 +1511,9 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
   const hour = new Date(now).getUTCHours();
   const rotated = (entry) => Number(entry.number) % 24 === hour && entry.issue_dependencies_summary?.blocked_by === 0 && lower(entry).includes(READY) && !queued(lower(entry));
   const drained = new Set();
+  // The comments refreshSplitWait read, by issue; null once it rewrote the
+  // admission comment, which decides the issue.
+  const read = new Map();
   for (const item of listed.filter((entry) => rotated(entry) && waiting(entry))) {
     const base = `/repos/${repo}/issues/${item.number}`;
     try {
@@ -1500,14 +1524,29 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
         }
         return left;
       };
-      if (await refreshSplitWait({ github, repo, parent: item, names: lower(item), comments: await paginate(github, `${base}/comments`), open, bot })) {
+      const comments = await paginate(github, `${base}/comments`);
+      const rewrote = await refreshSplitWait({ github, repo, parent: item, names: lower(item), comments, open, bot });
+      read.set(item.number, rewrote ? null : comments);
+      if (rewrote) {
         console.log(`label-unblocked: #${item.number} admission comment now names its open sub-issues`);
       }
     } catch (error) {
       failed += failedFor(github, item.number, error);
     }
   }
-  let candidates = listed.filter((item) => !queued(lower(item)) && (!waiting(item) || drained.has(item.number)));
+  const undecided = new Set();
+  for (const item of listed.filter((entry) => Number(entry.number) % 24 === hour && waiting(entry) && !drained.has(entry.number) && !queued(lower(entry)) && read.get(entry.number) !== null)) {
+    const number = Number(item.number);
+    try {
+      const comments = read.get(item.number) ?? (await paginate(github, `/repos/${repo}/issues/${number}/comments`));
+      if (await admissionUndecided({ comments, events: () => eventsOf(github, repo, statusOf, number), bot })) {
+        undecided.add(item.number);
+      }
+    } catch (error) {
+      failed += failedFor(github, number, error);
+    }
+  }
+  let candidates = listed.filter((item) => !queued(lower(item)) && (!waiting(item) || drained.has(item.number) || undecided.has(item.number)));
   if (candidates.length === 0) {
     return failed;
   }

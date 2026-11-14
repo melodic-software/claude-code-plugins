@@ -1344,6 +1344,35 @@ describe("run", () => {
     assert.equal(seen.length, 1);
   });
 
+  test("admission gets the Work status the run wrote or found in place, and none when the write answered nothing", async () => {
+    for (const [answer, wrote] of [
+      [{ outcome: "written", state: "ready", option: 86380003 }, "ready"],
+      [{ outcome: "unchanged", state: "ready" }, "ready"],
+      [undefined, undefined],
+    ]) {
+      const fake = fakeGitHub({ comments: [laneComment()] });
+      const seen = [];
+      await run({
+        env: ENV,
+        github: fake.github,
+        dimensionsConfig: DIMS,
+        fieldSetters: noSetters,
+        setStatus: async (...args) => {
+          await fake.setStatus(...args);
+          return answer;
+        },
+        statusConfig: STATUS_CONFIG,
+        admitIssue: async (verdict, options) => {
+          seen.push(options);
+          return { outcome: "admitted", reasons: [] };
+        },
+        log: () => {},
+      });
+      assert.deepEqual(states(fake.calls), ["ready"], JSON.stringify(answer));
+      assert.deepEqual(seen, [{ wrote }], JSON.stringify(answer));
+    }
+  });
+
   test("an escalated or flagged verdict hands the issue to the split note; a ready one does not", async () => {
     const seen = [];
     const noteSplit = async (issue) => {
