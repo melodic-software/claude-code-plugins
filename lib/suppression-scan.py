@@ -647,11 +647,11 @@ def kind_of_text(path: str, text: str) -> str | None:
     return kind_of(path, text.partition("\n")[0].rstrip("\r"))
 
 
-def scan_text(path: str, text: str) -> list[Record]:
-    lines = text.splitlines()
-    kind = kind_of(path, lines[0] if lines else "")
+def scan_text(text: str, kind: str | None) -> list[Record]:
+    """The suppressions in `text`, read as `kind` (from kind_of_text)."""
     if kind is None or not ANY_MARKER.search(text):
         return []
+    lines = text.splitlines()
     state = LexState()
     records: list[Record] = []
     for index, line in enumerate(lines):
@@ -809,9 +809,10 @@ def inventory(
             raise UsageError(f"cannot read {path}: {exc.strerror}") from exc
         if text is None:
             continue
-        if unread is not None and kind_of_text(shown, text) is None:
+        kind = kind_of_text(shown, text)
+        if unread is not None and kind is None:
             unread.append(shown)
-        found.extend((shown, r) for r in scan_text(shown, text))
+        found.extend((shown, r) for r in scan_text(text, kind))
     return found
 
 
@@ -897,9 +898,10 @@ def changed(
         text = decode(git(["cat-file", "blob", f"HEAD:{path}"], cwd=top))
         if text is None:
             continue
-        if unread is not None and kind_of_text(path, text) is None:
+        kind = kind_of_text(path, text)
+        if unread is not None and kind is None:
             unread.append(path)
-        found.extend((path, r) for r in scan_text(path, text) if r.line in lines)
+        found.extend((path, r) for r in scan_text(text, kind) if r.line in lines)
     return found
 
 

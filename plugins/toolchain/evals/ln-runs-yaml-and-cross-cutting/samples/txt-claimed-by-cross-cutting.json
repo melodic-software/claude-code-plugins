@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| yaml | pass | PASS |\n| cross-cutting | pass | PASS |\n\nOverall: PASS (2 of 2 ecosystems passed)",
+      "why": "cross-cutting ran on the text files, so no file is outside every ecosystem"
+    },
+    {
+      "answer": "Changed files: .github/workflows/ci.yml, docs/install.txt, docs/keys.txt\n\n| cross-cutting | pass | PASS |",
+      "why": "listed as changed, not as unclaimed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| cross-cutting | pass | PASS |\n\nOutside every ecosystem: docs/install.txt, docs/keys.txt",
+      "why": "files cross-cutting just checked reported as unclaimed"
+    },
+    {
+      "answer": "docs/keys.txt is outside every ecosystem.",
+      "why": "prose form of the same contradiction"
+    }
+  ]
+}

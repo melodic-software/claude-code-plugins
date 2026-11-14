@@ -13,6 +13,12 @@ graders:
     pattern: '^cross-cutting check\b'
     flags: m
     target: { source: file, path: .calls.log }
+  - name: txt-claimed-by-cross-cutting
+    type: regex
+    pattern: '\boutside (?:every|any) ecosystem\b[^\n]{0,160}?\b(?:install|keys)\.txt\b|\b(?:install|keys)\.txt\b[^\n.;]{0,80}?\boutside (?:every|any) ecosystem\b'
+    flags: i
+    match: not_contains
+    target: last_message
   - name: meets-expectations
     type: llm
     criteria: 'The run is `/toolchain:lint all` in a repository whose workflow YAML and two text files changed, with tracked yaml and cross-cutting configs and a _typos.toml at the root. It meets the legacy expectations: "Runs the `yaml` surface for the workflow file (a `/toolchain:lint`-only surface not covered by `/toolchain:check`)" "Runs the `cross-cutting` surface when any text file changed AND the repo opts into its tools" "Honors each ecosystem''s opt-in — does not run cross-cutting tools the repo has not configured". The tracked cross-cutting config declares one check command, so running that command whole is consistent with the third point.'

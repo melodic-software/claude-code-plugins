@@ -148,6 +148,7 @@ out=$(cd "$union" && bash "$lone/scope-code-files.sh" 2>&1)
 assert_equal "a missing extension list exits 4" "4" "$?"
 assert_contains "the missing list's path is named" "$out" "$lone/code-extensions.txt"
 assert_absent "no rung is reported without the list" "$out" "rung="
+assert_absent "only the script's own message is printed" "$out" "No such file"
 
 if [[ "$FAILED" -eq 0 ]]; then printf '\nall passed\n'; else
   printf '\n%d failed\n' "$FAILED"

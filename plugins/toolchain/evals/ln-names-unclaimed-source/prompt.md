@@ -1,5 +1,5 @@
 ---
-description: "Lint names a source file outside every ecosystem. The markdown surface is tracked and its check logs to .calls.log; a changed .rs file has no config any ecosystem claims it by, and a changed .png is binary. The reply names src/lib.rs as outside every ecosystem, says nothing about the image, and the Overall line still reads PASS. markdown-ran reads .calls.log; rs-named, png-silent and overall-pass read the reply; meets-expectations (llm) judges the whole. Needs --scaffold --allow-tools Bash."
+description: "Lint names a source file outside every ecosystem. The markdown surface is tracked and its check logs to .calls.log, and cross-cutting is disabled; a changed .rs file has no config any ecosystem claims it by, and a changed .png is binary. The reply names src/lib.rs as outside every ecosystem, says nothing about the image, and the Overall line still reads PASS. markdown-ran reads .calls.log; rs-named, png-silent and overall-pass read the reply; meets-expectations (llm) judges the whole. Needs --scaffold --allow-tools Bash."
 tags: [toolchain, lint, outcome, unclaimed-file, scaffold, no-network]
 max_turns: 25
 timeout_seconds: 600

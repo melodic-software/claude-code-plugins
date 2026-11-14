@@ -17,7 +17,8 @@ set -u
 
 MAX="${1:-10}"
 EXT_LIST="$(dirname "${BASH_SOURCE[0]}")/code-extensions.txt"
-EXTS="$(tr -d '\r' <"$EXT_LIST" 2>/dev/null | grep . | paste -sd'|' -)"
+EXTS=""
+[[ -f "$EXT_LIST" && -r "$EXT_LIST" ]] && EXTS="$(tr -d '\r' <"$EXT_LIST" | grep . | paste -sd'|' -)"
 if [[ -z "$EXTS" ]]; then
   printf 'changed-code-files: cannot read the extension list %s\n' "$EXT_LIST" >&2
   exit 4

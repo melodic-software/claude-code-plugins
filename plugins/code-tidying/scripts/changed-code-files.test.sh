@@ -133,6 +133,7 @@ rc=$?
 assert_exit "a missing extension list exits 4" 4 "$rc"
 assert_contains "the missing list's path is named" "$out" "$LONE/code-extensions.txt"
 assert_absent "no code file is listed without the list" "$out" "f.py"
+assert_absent "only the script's own message is printed" "$out" "No such file"
 
 # --- Final report ---------------------------------------------------------------
 

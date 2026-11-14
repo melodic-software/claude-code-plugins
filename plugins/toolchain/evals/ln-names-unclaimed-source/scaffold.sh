@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# A tracked markdown config whose check logs to .calls.log, and no config any ecosystem has for the
-# source file beside it. A markdown file, a source file no ecosystem claims and a .png image changed.
+# A tracked markdown config whose check logs to .calls.log, cross-cutting turned off, and no config
+# any ecosystem has for the source file beside it. A markdown file, a source file no ecosystem
+# claims and a .png image changed.
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/../fixtures/eval-repo.sh"
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 eval_repo_init main .claude tools src docs assets
 eval_logger
 eval_eco markdown '["*.md"]' check
+eval_eco_off cross-cutting
 mkdir -p src docs assets
 printf '# Guide\n\nStart here.\n' >docs/guide.md
 printf 'pub fn total(a: u32, b: u32) -> u32 {\n    a + b\n}\n' >src/lib.rs
