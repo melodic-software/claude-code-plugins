@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "bugs:write",
+            "args": "--file Fuel surcharge added twice: QuoteService().quote({\"postcode\": \"B12 4QT\", \"weight_kg\": 2}) returns 7.50, expected 6.75"
+          }
+        }
+      ],
+      "why": "qualified name, --file first, escaped quotes in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "write",
+            "args": "Quote adds \"FUEL_SURCHARGE\" twice in parcels/quote_service.py --file --quick"
+          }
+        }
+      ],
+      "why": "bare name, --file after escaped quotes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "bugs:write",
+            "args": "Fuel surcharge added twice in QuoteService.quote"
+          }
+        }
+      ],
+      "why": "no --file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "bugs:scan",
+            "args": "--file parcels"
+          }
+        }
+      ],
+      "why": "a different bugs skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "parcels/quote_service.py"
+          }
+        }
+      ],
+      "why": "no Skill call"
+    }
+  ]
+}
