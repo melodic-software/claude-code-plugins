@@ -17,7 +17,8 @@ environment.
 - **Placement.** Write everything under `<data_dir>/staging/<run>/`, `<run>` with no leading
   dot, never a `mktemp` or system temp directory: the interview copies files only from inside its
   data dir. That covers build sources, scripts and scratch files as well as the output: put them
-  in `<data_dir>/staging/<run>/` too, or keep them in memory, and run no `mktemp` for any of it. SKILL.md's
+  in `<data_dir>/staging/<run>/` too, outside the live build folder (the one `live.folder` names),
+  or keep them in memory, and run no `mktemp` for any of it. SKILL.md's
   "Ephemeral placement" `mktemp` template is for the offline mockup only, never for shared-interview output.
   Keep the folder: the owner's Approve copies the live build from it, and a change made
   after Approve is not served. SKILL.md step 5's deletion does not apply to it.
