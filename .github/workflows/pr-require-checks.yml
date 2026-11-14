@@ -4226,9 +4226,6 @@ jobs:
     # 9 s p95 and 42 s max in full mode, about 10 s contract-only. The cap
     # adds to that:
     # - up to 10 minutes while a contract-only run holds;
-    # - up to 8 more while the review-lane step waits for a review
-    #   (REVIEW_WAIT_SECONDS, ending 120 s before gh_read's deadline, so
-    #   inside its margin);
     # - the worst case of the pinned composites' waits, about five and a half
     #   minutes: two 60 s rate-limit waits (`rate-limit-wait-seconds` on
     #   check-contract and aggregate-results), 120 s of own-gate retries, 7 s
@@ -7320,11 +7317,6 @@ jobs:
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
-          # A contract-only run (a label flip or body edit) does not wait: it
-          # holds no review the full run's wait would not, and each would keep
-          # a runner.
-          REVIEW_WAIT_SECONDS: ${{ (github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}
-          REVIEW_POLL_SECONDS: 60
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           # dependabot[bot], melodic-release[bot] and
@@ -7569,8 +7561,8 @@ jobs:
           # sharedRuns keeps), else out of $file's own runs, so a cut-short or
           # malformed listing never reads as no run.
           # head_runs <sha>: prints <sha>'s pull_request runs of every
-          # workflow, kept from the first read until the head's entry is
-          # dropped after a wait; a failed read or write keeps nothing.
+          # workflow, kept from the first read; a failed read or write keeps
+          # nothing.
           head_runs_dir=$(mktemp -d "$RUNNER_TEMP/head-runs.XXXXXX")
           head_runs() {
             local out
@@ -7657,40 +7649,10 @@ jobs:
             echo "::warning::'$check' carries a review back more than $hop heads; ci-status stops there." >&2
             return 1
           }
-          # WAIT FOR A REVIEW STILL RUNNING. A review usually finishes after
-          # this step first reads it, so rather than fail red and wait for
-          # pr-feedback-dispatch's rerun-ci-status (2 to 6 minutes later, #12447),
-          # the step polls each lane whose run on the head has not completed,
-          # every REVIEW_POLL_SECONDS for at most REVIEW_WAIT_SECONDS, ending
-          # 120 s before gh_read's deadline, reading that run once a poll. A
-          # lane with no run is not waited for: the push that made the head
-          # creates its review runs before this job starts, so one missing now
-          # rarely comes. The wait decides nothing: the loop after it reads
-          # every lane, and a read that fails ends the wait for that loop to
-          # fail closed. Both reads take the lanes from one listing of the
-          # head's runs: the loop reuses the wait's when nothing waited, and
-          # reads it again after a wait. A review still running at the cap
-          # fails, and rerun-ci-status re-runs ci-status when it finishes.
-          poll=${REVIEW_POLL_SECONDS:-60} polls=$((${REVIEW_WAIT_SECONDS:-480} / ${REVIEW_POLL_SECONDS:-60}))
-          stop_at=$(($(cat "$RUNNER_TEMP/gh-read.deadline" 2>/dev/null || echo 120) - 120))
-          declare -A waiting=()
-          while [ "$polls" -gt 0 ] && read -r file lane checks; do
-            run=$(lane_run "$HEAD_SHA") || { waiting=(); break; }
-            if [ -n "$run" ] && [ "$(jq -r .status <<<"$run")" != completed ]; then
-              waiting[$file]=$(jq -r .id <<<"$run")
-            fi
-          done <<<"$lanes"
-          waited=0
-          while [ "${#waiting[@]}" -gt 0 ] && [ "$polls" -gt 0 ] && [ $(($(date +%s) + poll)) -le "$stop_at" ]; do
-            sleep "$poll"
-            polls=$((polls - 1)) waited=$((waited + poll))
-            for file in "${!waiting[@]}"; do
-              run=$(read_api "run ${waiting[$file]}" "repos/$GITHUB_REPOSITORY/actions/runs/${waiting[$file]}") || { waiting=(); break 2; }
-              [ "$(jq -r .status <<<"$run")" != completed ] || unset "waiting[$file]"
-            done
-          done
-          [ "$waited" -eq 0 ] || { echo "Waited ${waited}s for the review lanes on $HEAD_SHA."; rm -f "$head_runs_dir/$HEAD_SHA"; }
-          rerun_note="ci-status waited ${waited}s for it; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed."
+          # A review still running fails here without a wait: rerun-ci-status
+          # (pr-feedback-dispatch.yml) re-runs ci-status once the review
+          # finishes.
+          rerun_note="ci-status re-runs when the review finishes."
           missing_note="ci-status does not wait for a lane with no run; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed."
           while read -r file lane checks; do
             check=${checks%%|*} run='' verdict=''

@@ -2933,7 +2933,7 @@ test("a job read that is not whole and final, or is empty, is not carried", asyn
 // head has completed, PENDING_BACKOFF_MINUTES ago or more, that ci-status is
 // re-run, recorded as attempt 2. The notes are the ones pr-require-checks.yml
 // writes (pinned below).
-const RERUN_NOTE = "ci-status waited 480s for it; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed.";
+const RERUN_NOTE = "ci-status re-runs when the review finishes.";
 const PENDING_LINE = (check = "pr-review / claude-review-status", head = sha(1), tail = RERUN_NOTE) =>
   `'${check}' has not finished on ${head} (https://github.com/${REPO}/actions/runs/201). ${tail}`;
 const MISSING_NOTE = "ci-status does not wait for a lane with no run; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed.";
@@ -3017,8 +3017,7 @@ test("ci-status's review-lane step still writes the pending and missing notes th
   const line = step.split("\n").find((l) => l.includes(`has not finished on $HEAD_SHA ($url)`));
   assert.ok(line, "the pending error line is in the step");
   const text = /echo "::error::(.*)"$/.exec(line.trim())?.[1] ?? "";
-  // The step's re-run note, with the wait it reports at its cap.
-  const note = (/\n[ ]+rerun_note="(.*)"\n/.exec(step)?.[1] ?? "").replace("${waited}", "480");
+  const note = /\n[ ]+rerun_note="(.*)"\n/.exec(step)?.[1] ?? "";
   const written = text.replace("$check", "pr-review / claude-review-status").replace("$HEAD_SHA", sha(1)).replace("$url", `https://github.com/${REPO}/actions/runs/201`).replace("$rerun_note", note);
   assert.match(written, PENDING_REVIEW_NOTE);
   assert.equal(written, PENDING_LINE());
@@ -3027,10 +3026,10 @@ test("ci-status's review-lane step still writes the pending and missing notes th
   const absent = (/echo "::error::(.*)"$/.exec(missing.trim())?.[1] ?? "").replace("$check", "pr-review / claude-review-status").replace("$file", "pr-review-hosted.yml").replace("$HEAD_SHA", sha(1)).replace("$missing_note", /\n[ ]+missing_note="(.*)"\n/.exec(step)?.[1] ?? "");
   assert.match(absent, MISSING_REVIEW_NOTE);
   assert.equal(absent, MISSING_LINE());
-  // A run from before the wait wrote the older tail, which still matches.
-  const before = "ci-status re-runs when the review finishes.";
-  assert.match(PENDING_LINE(undefined, undefined, before), PENDING_REVIEW_NOTE);
-  assert.match(MISSING_LINE(undefined, undefined, undefined, before), MISSING_REVIEW_NOTE);
+  // A run from while ci-status waited for running reviews wrote this tail, which still matches.
+  const waited = "ci-status waited 480s for it; pr-feedback-dispatch re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed.";
+  assert.match(PENDING_LINE(undefined, undefined, waited), PENDING_REVIEW_NOTE);
+  assert.match(MISSING_LINE(undefined, undefined, undefined, RERUN_NOTE), MISSING_REVIEW_NOTE);
   assert.match(step, /\n[ ]+exit "\$failed"\n/);
 });
 
