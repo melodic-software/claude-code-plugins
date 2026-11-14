@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.10.1] - 2026-11-14
+
+### Changed
+
+- The `pull-request` merge references and the `babysit-prs` safety reference name the required check `CI Status` where they warn that an armed auto-merge could merge on it alone.
+
 ## [11.10.0] - 2026-11-14
 
 ### Added
