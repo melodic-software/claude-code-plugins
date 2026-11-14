@@ -4262,8 +4262,19 @@ def passed_main_tip(owner: str, name: str) -> str | None:
 
 def carry_base_tip(owner: str, name: str, base: str) -> str:
     """`base_tip` for an approval or decision carry, whose older tip only
-    refuses more: main's is the step's (`passed_main_tip`) when it has one."""
-    return (base == "main" and passed_main_tip(owner, name)) or base_tip(owner, name, base)
+    refuses more: main's is the step's (`passed_main_tip`) when it has one.
+    Inside `base_tips_remembered` a tip already read answers first, and the
+    passed tip is remembered, so one judgment sees one tip."""
+    key = f"{owner}/{name}@{base}"
+    known = (_BASE_TIPS or {}).get(key)
+    if known:
+        return known
+    passed = base == "main" and passed_main_tip(owner, name)
+    if not passed:
+        return base_tip(owner, name, base)
+    if _BASE_TIPS is not None:
+        _BASE_TIPS[key] = passed
+    return passed
 
 
 # Each branch tip `base_tip` read inside `base_tips_remembered`; None outside.

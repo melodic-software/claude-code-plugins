@@ -11246,6 +11246,17 @@ class PassedMainTip(unittest.TestCase):
         self.assertEqual(policy.carry_base_tip("owner", "repo", "main"), SHA)
         self.assertEqual(self.reads(), [])
 
+    def test_one_judgment_sees_one_tip_of_main(self) -> None:
+        self.env(MAIN_TIP_SHA=SHA, GITHUB_REPOSITORY=REPO)
+        with policy.base_tips_remembered():
+            self.assertEqual(policy.carry_base_tip("owner", "repo", "main"), SHA)
+            self.assertEqual(policy.remembered_base_tip("owner", "repo", "main"), SHA)
+        self.assertEqual(self.reads(), [])
+        with policy.base_tips_remembered():
+            self.assertEqual(policy.remembered_base_tip("owner", "repo", "main"), self.OTHER)
+            self.assertEqual(policy.carry_base_tip("owner", "repo", "main"), self.OTHER)
+        self.assertEqual(len(self.reads()), 1)
+
     def test_another_branch_repository_or_value_reads_the_ref(self) -> None:
         for branch, values in (
             ("release", {"MAIN_TIP_SHA": SHA, "GITHUB_REPOSITORY": REPO}),
