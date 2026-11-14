@@ -3,6 +3,17 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.0] - 2026-11-14
+
+### Changed
+
+- `/toolchain:lint` and `/toolchain:check` name each changed text file no ecosystem's globs claim,
+  instead of skipping it silently; cross-cutting's `**` is never a claim by itself. Lint puts such a
+  file on `No ecosystem linter (cross-cutting text checks only)` when cross-cutting ran, and on
+  `Outside every ecosystem` when it did not; check, which never runs cross-cutting, uses only the
+  second line. A binary or deleted file is not named, and neither line changes a Status or the
+  Overall line.
+
 ## [1.2.9] - 2026-11-14
 
 ### Fixed
