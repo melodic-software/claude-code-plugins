@@ -228,7 +228,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does | Actions | Next |
 | --- | --- | --- | --- | --- |
-| [`/source-control:pull-request`](../plugins/source-control/skills/pull-request/SKILL.md) | `source-control` | Full PR lifecycle. Prep, create, monitor CI, address reviews, merge | `prep`, `create`, `ready`, `monitor`, `comments`, `ci`, `merge`, `reassess`, `evidence`, `status`, `full` | `/session-flow:retro`, `/implementation:implement` |
+| [`/source-control:pull-request`](../plugins/source-control/skills/pull-request/SKILL.md) | `source-control` | Full PR lifecycle. Prep, create, monitor CI, address reviews, merge | `prep`, `create`, `ready`, `monitor`, `comments`, `ci`, `merge`, `reassess`, `evidence`, `status`, `full` | `/session-flow:retro`, `/implementation:implement`, `/explainer-video:produce` |
 
 ## Anytime / cross-cutting
 
