@@ -39,9 +39,13 @@ which fits, a backend/logic question routes to `pressure-test` and a page/compon
 
 ## Configuration
 
-This plugin has no `userConfig`. Its only inputs are conversational: the scope you pass, the
-`observe` option for `pressure-test`, and the variant count you ask for (UI defaults to 3, capped
-at 5). It reads your project's own stack and
+One setting, `level`, sets how large an `explore-directions` run is: `sketch`, `standard` (the
+default) or `full`, or a level your repository adds. Set it per user in the plugin's `userConfig`,
+per repository in `docs/conventions/prototype.yaml`, or per run by asking ("the full package") or
+with `--level <name>`. Every key, layer and value is in
+[`reference/config.md`](reference/config.md). The other inputs are conversational: the scope you
+pass, the `observe` option for `pressure-test`, and a variant count you ask for. It reads your
+project's own stack and
 conventions rather than imposing its own. It writes throwaway code next to where your production
 code lives, except its HTML pages (the default UI mockup and the HTML logic demo), which go in a
 temp directory outside the repository. `build-generator` saves its configuration as a JSON file
@@ -57,6 +61,41 @@ in the project, which stays as the output after the tool is deleted.
 
 Prototypes are built in whatever language and task runner your host project
 already uses; the plugin adds no runtime of its own.
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. For how Claude Code asks for
+these and hands them to the plugin, see [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `level` | string | *(none)* | The level a /prototype:explore-directions run takes when the request names none: sketch, standard or full, or a level your repository's docs/conventions/prototype.yaml adds. Unset is standard. A repository's prototype.yaml wins over this option; see the plugin's reference/config.md. |
+
+### How to set these
+
+Set the options above for `prototype@<marketplace>`, replacing `<marketplace>` with the
+marketplace you installed this plugin from:
+
+- **In a session or headless:** [`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session) or
+  [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure). The configure command is the preferred
+  headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its limits.
+- **By hand:** under [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) in your **user** settings.
+
+Do **not** uninstall the plugin to reconfigure it: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+For a Claude Code release without `plugin configure`, see [Plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install).
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills)
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins)
+
+<!-- END GENERATED: plugin options -->
 
 ## License
 

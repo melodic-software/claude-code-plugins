@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ed-level-full-package
+description: "Levels, MB:plugins/prototype/skills/explore-directions/reference/levels.md: a request for 'the full package' selects the full level through the resolver's --prompt, the reply prints the report line 'level: full (prompt)' above the plan, and the plan takes full's variant count and its extra states. Plan only, no server: sandbox-safe."
+tags: [explore-directions, levels]
+runs: 3
+expected_outcome: "Before any file is written, the agent runs lib/prototype-settings.mjs resolve with --prompt full, the reply shows the line 'level: full (prompt)', and the plan line names the route, the host, more than three and at most five variants each named by its direction, and states that include a narrow-viewport (phone width) state alongside the screen's ordinary states."
+execution:
+  prompt: "/prototype:explore-directions account settings page for a team-chat app. I want the full package. Show me the plan before you build anything."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

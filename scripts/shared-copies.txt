@@ -608,6 +608,7 @@ lib/yaml-subset.mjs plugins/prototype/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/codebase-health/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/overengineering/lib/yaml-subset.mjs
 lib/resolve-convention-home.sh plugins/corrections/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/prototype/lib/resolve-convention-home.sh
 lib/redact.py plugins/session-flow/skills/audit-sessions/scripts/redact.py
 lib/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py
 lib/plugin-options.mjs plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs

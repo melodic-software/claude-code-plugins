@@ -1,6 +1,6 @@
 ---
 description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for throwaway variants. Builds throwaway UI variations, a few structurally different layouts (three by default), toggled from a floating switcher, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'how should this screen be laid out', 'show me layout options'. Builds a self-contained HTML mockup by default, or runs on the real stack behind one route on request; the user keeps one variant or bits of each. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
-argument-hint: "[vary [<variant>]|combine [<base>]|controls [<variant>]] [--unattended] [--medium <value>] [scope]"
+argument-hint: "[vary|combine|controls [<variant>]] [--unattended] [--medium <value>] [--level <name>] [scope]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
@@ -10,12 +10,12 @@ metadata:
   summary: Throwaway UI variations answering what should this look like
 ---
 
-**Arguments.** `[vary [<variant>]|combine [<base>]|controls [<variant>]] [--unattended] [--medium <value>] [scope]`. e.g.,
-/prototype:explore-directions settings page. `--medium <value>`: [reference/medium.md](reference/medium.md), whose `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`.
+**Arguments.** `[vary|combine|controls [<variant>]] [--unattended] [--medium <value>] [--level <name>] [scope]`. e.g.,
+/prototype:explore-directions settings page. `--medium <value>`: [reference/medium.md](reference/medium.md), whose `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`. `--level <name>`: [reference/levels.md](reference/levels.md).
 
 | Invocation | Behavior |
 | --- | --- |
-| `<scope>`, or `-- <scope>` | Full process: plan, draft 3 variants, switcher, handover, then wait for the reply; a leading `--` ends the actions, so `-- controls page` plans that page |
+| `<scope>`, or `-- <scope>` | Full process: plan, draft the level's variants (3 by default), switcher, handover, then wait for the reply; a leading `--` ends the actions, so `-- controls page` plans that page |
 | `vary [<variant>]` | New round: keep the switcher, draft a fresh set diverging around that variant's direction; with no variant named, ask which, as one question |
 | `combine [<base>]` | Run the [combine matrix](reference/combine-matrix.md) on that base, build the combined variant, add it beside the originals; with no base named, ask which variant is the base, as one question |
 | `controls [<variant>]` | Keep one variant and put its numbers on the [control panel](../../context/control-panel.md); with no variant named, ask which, as one question |
@@ -253,12 +253,15 @@ it: pick the single highest-leverage piece, say which and why, and offer the res
 runs. A small set of screens in one flow is one run, planned per screen below. Restate
 the brief in one sentence: what the thing is, where it lives, what it must do.
 
+First resolve the level and print its report line by [reference/levels.md](reference/levels.md),
+whose `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}` and `<option>` is `${user_config.level}`: it sets
+the counts, states, evidence and offers this file states, which are its `standard` values.
 Before any code, record the plan as one line per screen naming the route, the host, the variant
 keys and the screen's states, for example: "Plan: `/shipments`, HTML mockup in the app's look,
 variants A to C, states populated, empty, loading, error." List the states the screen has, such
 as empty, loading, populated, error, validation and permission-limited; every variant builds
-every listed state. For a single screen the count is **3 variants** unless the user asks for
-another number or the design space is genuinely wide, and never more than 5: past five, new
+every listed state. For a single screen the count is **3 variants** unless the level or the user
+sets another number or the design space is genuinely wide, and never more than 5: past five, new
 variants repeat earlier ones instead of disagreeing with them. When the run covers several
 screens, build 2 or 3 variants per screen: the person reviews every state of every variant of
 every screen, so each added screen multiplies the review.
