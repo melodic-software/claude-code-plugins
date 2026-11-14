@@ -192,6 +192,17 @@ class CaptureTest(unittest.TestCase):
         self.assertTrue(any('above' in p for p in long), f'the centered list should also run up over the header: {long}')
         self.assertEqual(short, [])
 
+    def test_a_code_line_that_wraps_at_a_space_fits_the_frame(self):
+        import media_capture
+        text = ('Below the table, name every changed text file outside every ecosystem on one line: '
+                '`Outside every ecosystem: <path>, <path>`. The line changes no Status and no Overall line.')
+        moment = {'template': 'code-hunk', 'chapter': 'c', 'data': {
+            'path': 'plugins/toolchain/skills/check/SKILL.md',
+            'lines': [{'n': 156, 'kind': '+', 'text': text}]}}
+        with tempfile.TemporaryDirectory() as d:
+            ((_, problems),) = media_capture.capture_checked([(frame(moment), Path(d) / 'hunk.png')], *SIZE, 1, BAND)
+        self.assertEqual(problems, [])
+
     def test_paginate_covers_the_list_in_order_with_frames_that_each_fit(self):
         import media_capture
         import media_templates

@@ -24,7 +24,7 @@ h2 { font-size: 48px; color: var(--muted); font-weight: 600; margin-bottom: 20px
 
 .hunk { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 12px; font: 40px/1.4 var(--mono); }
 .hunk td { padding: 0 16px; white-space: pre; vertical-align: top; }
-.hunk td.t { width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hunk td.t { width: 100%; white-space: break-spaces; overflow-wrap: anywhere; }
 .hunk td.n { color: var(--muted); text-align: right; min-width: 4ch; }
 .hunk tr.add { background: var(--add-bg); color: var(--add-fg); }
 .hunk tr.del { background: var(--del-bg); color: var(--del-fg); }
