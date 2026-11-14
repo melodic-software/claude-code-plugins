@@ -31,17 +31,14 @@ import sys
 import threading
 from pathlib import Path
 
+import media_encode
 import prereq
 import produce
 import workdir
 
 HERE = Path(__file__).resolve().parent
 WORKERS = min(8, os.cpu_count() or 1)   # pages capture.mjs renders in parallel; every worker default routes here
-FORMATS = {   # ffmpeg output arguments per delivered format
-    'mp4': ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '16'],
-    'webm': ['-c:v', 'libvpx-vp9', '-pix_fmt', 'yuv420p', '-crf', '30', '-b:v', '0'],
-    'gif': ['-vf', 'split[a][b];[a]palettegen[p];[b][p]paletteuse'],
-}
+FORMATS = {fmt: f'animation-{fmt}' for fmt in ('mp4', 'webm', 'gif')}   # delivered format -> media_encode profile
 
 
 class Roots(http.server.SimpleHTTPRequestHandler):
@@ -104,15 +101,20 @@ def render(scene, out, fps=None, drawings=None, query='', roots=(), workers=WORK
     return meta
 
 
+def encoders(fmt):
+    """The prereq rows fmt's profile names: the encoders prereq checks ffmpeg for (mp4's H.264 encoder)."""
+    return [arg for arg in media_encode.PROFILES[FORMATS[fmt]]['video'] if arg in prereq.ROWS]
+
+
 def encode(frames, fmt, fps, out):
     """The one ffmpeg write path: pipe BGR images (an iterable, each held as many frames as it repeats) as rawvideo
     bgr24 at fps into out; return out."""
-    prereq.require(['ffmpeg'] + (['libx264'] if fmt == 'mp4' else []))
+    prereq.require(['ffmpeg', *encoders(fmt)])
     frames = iter(frames)
     first = next(frames)
     h, w = first.shape[:2]
     p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{w}x{h}',
-                          '-framerate', f'{fps:g}', '-i', '-', *FORMATS[fmt], str(out)], stdin=subprocess.PIPE)
+                          '-framerate', f'{fps:g}', '-i', '-', *media_encode.PROFILES[FORMATS[fmt]]['video'], str(out)], stdin=subprocess.PIPE)
     pipe = p.stdin
     assert pipe is not None   # stdin=PIPE always opens it
     try:
@@ -164,7 +166,7 @@ def main(argv=None):
             ap.error(f'--shots {a.shots}: {err or "needs fps, size and shots ending in a t1"}; '
                      'run produce.py shots on it first')
     if a.encode != 'none':   # fail before the render, not after it
-        prereq.require(['ffmpeg', 'numpy', 'opencv'] + (['libx264'] if a.encode == 'mp4' else []))
+        prereq.require(['ffmpeg', 'numpy', 'opencv', *encoders(a.encode)])
     meta = render(a.scene, a.out, a.fps, a.drawings, a.query, [r.resolve() for r in a.root], a.workers,
                   a.playwright_core)
     problems = produce.render_problems(meta, shots) if shots else []
