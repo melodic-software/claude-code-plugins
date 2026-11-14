@@ -126,7 +126,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { carried, DECISION_LABELS, isStatusLabel, readyWhileDeferred } from "../../actions/resolve-config/read-status.mjs";
+import { carried, DECISION_LABELS, isStatusLabel, readyWhileDeferred, StatusReadError } from "../../actions/resolve-config/read-status.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { OUTSIDE_ACTOR_LABEL, UNTRUSTED_LABEL, UNTRUSTED_LABELS } from "../pr-merge/merge-holds.mjs";
 import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
@@ -2260,9 +2260,50 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
   return { outcome: "noted", reasons: [reason] };
 }
 
+// How many times writtenLabels reads the issue's Work status again, and the
+// wait before the first of those reads, doubled before each next one.
+export const WRITTEN_STATUS_REREADS = 3;
+export const WRITTEN_STATUS_WAIT_MS = 5000;
+
 // The Work status field reads one admission takes (statusReader's limit):
-// the issue's and its parent's.
-export const ADMISSION_STATUS_READS = 2;
+// the issue's and its parent's, and writtenLabels' rereads of the issue.
+export const ADMISSION_STATUS_READS = 2 + WRITTEN_STATUS_REREADS;
+
+// `statusOf(number, names)` (read-status.mjs statusReader), read again while
+// the field's trusted state is not `wrote`, the state this run just wrote.
+// GitHub can answer an issue's field events without the write it just took,
+// and a value no listed event set reads as unset. A read whose two halves
+// still disagree after the reader's own wait counts as one that missed the
+// write. Still missing it after WRITTEN_STATUS_REREADS rereads, it throws
+// StatusReadError naming what it read, so admission never decides on a read
+// the write had not reached. With no `wrote`, one read.
+export async function writtenLabels({ statusOf, number, names, wrote, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
+  if (wrote === undefined || wrote === null || !statusOf.state) {
+    return statusOf(number, names);
+  }
+  let waited = 0;
+  for (let reread = 0; ; reread += 1) {
+    let seen;
+    try {
+      const labels = await statusOf(number, names);
+      seen = (await statusOf.state(number)) ?? "unset";
+      if (seen === wrote) {
+        return labels;
+      }
+    } catch (error) {
+      if (error?.cause?.name !== "StatusDisagreement") {
+        throw error;
+      }
+      seen = "two disagreeing values";
+    }
+    if (reread === WRITTEN_STATUS_REREADS) {
+      throw new StatusReadError(number, `it read ${seen}, not the \`${wrote}\` this run wrote, on ${reread + 1} reads over ${waited / 1000} s`);
+    }
+    const ms = WRITTEN_STATUS_WAIT_MS * 2 ** reread;
+    await sleep(ms);
+    waited += ms;
+  }
+}
 
 // Every fact decide() reads but the verdict, the rules and the caller's own
 // (humans, appId, repository, webHosts), for `issue` as just read.
@@ -2274,8 +2315,9 @@ export const ADMISSION_STATUS_READS = 2;
 // decides the label names decide() reads (`holdLabels`, and the parent's when
 // it is in this repository) and gives the events as statusEvents, the Work
 // status field's changes among them; without it, the labels and REST events
-// alone decide.
-export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted, appId, doneBy, statusOf }) {
+// alone decide. `wrote`, the Work status this run wrote, has the issue's field
+// read until it shows that state (writtenLabels, which waits with `sleep`).
+export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted, appId, doneBy, statusOf, wrote, sleep }) {
   const base = `/repos/${repository}/issues/${number}`;
   const blockers = await blockersOf(github, base);
   const isApp = appActor(appId);
@@ -2324,7 +2366,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   const subIssues = await openSubIssues(github, base, issue);
   return {
     issue,
-    ...(statusOf && { holdLabels: await readyWhileDeferred(await statusOf(Number(number), names(issue.labels)), names(issue.labels)) }),
+    ...(statusOf && { holdLabels: await readyWhileDeferred(await writtenLabels({ statusOf, number: Number(number), names: names(issue.labels), wrote, sleep }), names(issue.labels)) }),
     // After holdLabels, so it reuses that field read.
     ...(statusOf?.state && { fieldState: await statusOf.state(Number(number)) }),
     // Read for the admission comment's own earlier copy (sayWhy) and decide's
@@ -2454,15 +2496,17 @@ export function admissionsAhead(entered, number) {
 // its agent-ready write starts the lane run, after the writer removes every
 // other status label the token broker would refuse the run for.
 // `statusOf` (admissionFacts) decides the label names and status history
-// decide() reads. `listing` lists deferred issues and reads one issue's
-// status history (deferredAhead, admissionsSince). Returns {outcome, reasons};
-// outcome `held`, with `status`, when a person's hold landed before a write.
-export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, setStatus, statusOf, listing, log = console.log }) {
+// decide() reads; `wrote`, the Work status apply-verdict just wrote, is read
+// until the field shows it (writtenLabels, waiting with `sleep`). `listing`
+// lists deferred issues and reads one issue's status history (deferredAhead,
+// admissionsSince). Returns {outcome, reasons}; outcome `held`, with
+// `status`, when a person's hold landed before a write.
+export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, setStatus, statusOf, wrote, sleep, listing, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const isTrusted = closedByTrusted({ github, repository, humans, appId });
   const doneBy = mergedRefsReader({ github, repository, humans, appId, log });
-  const facts = await admissionFacts({ github, repository, number, issue, rules, humans, appId, isTrusted, doneBy, statusOf });
+  const facts = await admissionFacts({ github, repository, number, issue, rules, humans, appId, isTrusted, doneBy, statusOf, wrote, sleep });
   const { comments } = facts;
   const decision = decide({ ...facts, verdict, rules, humans, appId, repository, webHosts });
   const reasons = decision.reasons.join("; ");
