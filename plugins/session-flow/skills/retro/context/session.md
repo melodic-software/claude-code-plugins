@@ -436,8 +436,11 @@ Checklist of memory saved / rules edited / items queued.
 
 ### Session health score
 
-**Calibration:** read the score history (SKILL.md "Paths", `<project-slug>.md`) if it
-exists and note trends alongside this session's scores.
+**Calibration:** read the score history (SKILL.md "Paths", `<project-slug>.md`) with one Read
+tool call of its own: no Bash, no existence check first, and nothing chained with it. An eval
+sandbox denies that directory; its validity gate sets a lone denied call aside but can count one
+chained with another command against the run. A missing file or a denied read means no history
+yet, so score without trends; otherwise note trends alongside this session's scores.
 
 | Dimension | Score | Notes |
 | --- | --- | --- |
