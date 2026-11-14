@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "resolved: testing/run-e2e -> .claude/skills/control-repo/features/testing/README.md, part run-e2e. testing/no-such-part: blocked, no features/testing/no-such-part/README.md, no features/testing/no-such-part.md, and no such line under ## Parts in features/testing/README.md.",
+      "why": "names the part and the file it resolved to"
+    },
+    {
+      "answer": "The id resolves to features/testing/README.md, part `run-e2e`, since no feature file of its own exists.",
+      "why": "file first, part after"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No feature file exists for testing/run-e2e (looked for features/testing/run-e2e/README.md and features/testing/run-e2e.md), so the feature stops.",
+      "why": "stopped without looking in the module's Parts and never named the module file"
+    }
+  ]
+}
