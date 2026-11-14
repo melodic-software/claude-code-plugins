@@ -47,14 +47,14 @@ Place an untagged motion finding on the audit ladder this way:
 - **Important**: a trigger-anchored element growing from its center.
 - **Suggestion**: a weak curve, missing stagger.
 
-A finding a spoke tag covers keeps that tag. In catalog.md: motion on a keyboard or
-many-times-a-day action ("Should it animate"), scale from zero ("Physicality"), a duration over its
-role and an exit's length ("Duration"), a keyframe animation that restarts on a toggle or a rapid
-trigger ("Interruption and exit"), movement with no reduced-motion handling ("Reduced motion"), and
-every ease-in finding, an exit that is not a permanent one included ("Easing"; its **permanent
-exit** paragraph, before the numbered list, says which exits are). In performance.md: an animated
-layout property ("Swap down a tier"). In behaviors.md: a press scale below its lower limit
-("Button press").
+A finding a spoke tag covers keeps that tag. In catalog.md: motion on a keyboard action or one
+used more than `animation.skip_frequency` times a day ("Should it animate"), scale from zero
+("Physicality"), a duration over its role and an exit's length ("Duration"), a keyframe animation
+that restarts on a toggle or a rapid trigger ("Interruption and exit"), movement with no
+reduced-motion handling ("Reduced motion"), and every ease-in finding, an exit that is not a
+permanent one included ("Easing"; its **permanent exit** paragraph, before the numbered list, says
+which exits are). In performance.md: an animated layout property ("Swap down a tier"). In
+behaviors.md: a press scale below its lower limit ("Button press").
 
 ## Sub-modes
 
