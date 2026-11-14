@@ -3,6 +3,12 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.19] - 2026-11-14
+
+### Changed
+
+- Shared `media_encode.py` synced where this plugin carries it; no other change to this plugin.
+
 ## [0.7.18] - 2026-11-14
 
 ### Changed
