@@ -609,6 +609,18 @@
         "The rails prompt carries the /clear copy instruction",
         "The response does no phase 3 work after the rails prompt"
       ]
+    },
+    {
+      "id": 45,
+      "name": "plugin-updated-this-session-needs-reload-plugins",
+      "prompt": "/session-flow:handoff\n\n(Context: earlier this session the user updated the review plugin to 9.1.0 with /plugin. The next session's first step is /review:reviewer-media, a skill added in 9.1.0.)",
+      "expected_output": "A plugin changed this session, and /clear keeps the plugin set the running Claude Code process loaded, so the handoff tells the user to type /reload-plugins after /clear and before pasting the resume prompt. The Environment to re-establish section names review 9.1.0, the /reload-plugins restore step and the check that /review:reviewer-media resolves. Nothing in the response says /clear or the resume prompt loads the updated plugin.",
+      "files": [],
+      "expectations": [
+        "A note below the bottom rail tells the user to type /reload-plugins after /clear and before pasting",
+        "The Environment to re-establish section names the review plugin, version 9.1.0, and the /reload-plugins step",
+        "No line says /clear, a new conversation or the resume prompt loads the updated plugin"
+      ]
     }
   ]
 }

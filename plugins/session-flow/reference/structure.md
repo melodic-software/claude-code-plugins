@@ -389,6 +389,16 @@ carries no headlines, so the entry here is its only record. Carry forward a pred
 whose lock still names the older session id, since this session never took that claim over. No
 such lock: say none is held.
 
+**Plugin changes.** `/clear` is not a plugin reload: a plugin installed, updated, enabled or
+disabled during this session reaches the resuming session only after the user types
+`/reload-plugins` (what each command does:
+[Commands § All commands](https://code.claude.com/docs/en/commands#all-commands)). Write one entry
+naming each changed plugin and its version, the restore step (the user types `/reload-plugins`
+after `/clear` and before pasting), and the observable (a skill from that plugin resolves instead
+of `Unknown skill`), and give the user that step in the below-rail note the engine doc's "Plugin
+reload" bullet prescribes. Never write that `/clear` or the resume prompt loads the new version.
+No plugin changed: say so.
+
 **TaskList.** Branch on which task tools this session has (read its tool list), never on the model
 name:
 
