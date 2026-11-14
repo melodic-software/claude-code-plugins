@@ -307,7 +307,7 @@ export const AGGREGATE_STEP = "Aggregate lane results";
 // `do-not-merge` label, issue linkage), and the one error line its run.sh
 // writes for the label, whose name pr-require-checks.yml leaves the default.
 export const CONTRACT_STEP = "Check the pull-request contract";
-export const DO_NOT_MERGE_LINE = "pr-contract: this PR carries the 'do-not-merge' label; remove it to merge.";
+export const DO_NOT_MERGE_LINE = "check-contract: this PR carries the 'do-not-merge' label; remove it to merge.";
 // What merge-holds.mjs `holds` writes after each hold an approving review of
 // the head lifts, and the line the runner adds for the step's failing exit.
 export const PERSON_LIFT = "; an approving review of this head by a person on the trusted-actor list lifts it";

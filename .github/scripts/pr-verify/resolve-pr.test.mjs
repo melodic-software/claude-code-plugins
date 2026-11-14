@@ -836,7 +836,7 @@ test("a held run that still reports the hold step's earlier name is judged the s
 });
 
 test("a contract failure other than do-not-merge, or a label line its step does not account for, starts nothing", async () => {
-  const TITLE = "pr-contract: the PR title does not follow Conventional Commits";
+  const TITLE = "check-contract: the PR title does not follow Conventional Commits";
   const cases = {
     "a title failure beside the label": [contractLog(DO_NOT_MERGE_LINE, TITLE), failing(CONTRACT_STEP)],
     "a title failure alone": [contractLog(TITLE), failing(CONTRACT_STEP)],

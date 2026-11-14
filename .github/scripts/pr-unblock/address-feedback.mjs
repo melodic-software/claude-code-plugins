@@ -1508,7 +1508,7 @@ export function gateLines(body) {
 }
 
 // What else a gate or reader takes from a body: a closing reference by URL,
-// the paused-filing sweep's marker, a squash line the pr-contract reads, a
+// the paused-filing sweep's marker, a squash line the check-contract reads, a
 // mention, and the structure the section reader relies on.
 const SECTION_REFUSALS = [
   [/^[ \t>]*#{1,2}(?:[ \t]|$)/m, "a heading line"],
