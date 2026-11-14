@@ -3,6 +3,16 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.0] - 2026-11-14
+
+### Added
+
+- **A repository or user can choose which guards deny the call when they crash ([#15992](https://github.com/melodic-software/claude-code-plugins/issues/15992)).** The new `deny_on_crash` option (comma-separated guard names, empty by default), or a `deny_on_crash` list in a repository's `docs/conventions/guardrails.yaml` at its local `origin/HEAD`, names `PreToolUse` guards whose crash denies the tool call. Such a guard exits as a block, and its "guard did not run" notice says the call was denied and how to take the guard off the list. A guard neither layer names still allows the call with the notice, as before. An unknown name, `all` and `*` included, is ignored and reported in the crash notice. The setting is read only when a guard crashes, so a call that does not crash starts no extra process.
+
+### Fixed
+
+- When `block-root-delete-target` cannot parse a substitution or here-doc body, or a program a shell reads, that it lifted out of the command, its refusal now names the guard, says that shfmt's `line:col` counts from the start of that body rather than the command, and shows the body's first 60 characters. The shared command reader's own second readings (a backtick's unescaped text, a joined here-doc body) name themselves the same way. A refusal of the command itself reads as before.
+
 ## [3.3.3] - 2026-11-14
 
 ### Changed

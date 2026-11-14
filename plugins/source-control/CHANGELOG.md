@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.11.0] - 2026-11-14
+
+### Added
+
+- **A `prep_audits` list in `docs/conventions/source-control.yaml` sets the audit `/source-control:pull-request prep` runs for each change class.** Each `{class, enabled, skill}` item turns the `markdown`, `renames`, `skills`, `rules` or `tests` audit off (`enabled: false`) or, except for `tests`, replaces it with a named skill that receives the class's changed files. It is read at the default branch, never the working tree, through `scripts/read-prep-audits.sh`, and a missing key, another base branch or a list the reader cannot trust runs every default audit. The comment pass and `security` are not configurable here.
+
+### Fixed
+
+- The shared hook library's command reader now says, when shfmt rejects text a guard lifted out of the command and named with `HOOK_BPS_SPAN`, which guard refused, that shfmt's `line:col` counts from the start of that text rather than the command, and the text's first 60 characters. Its own second readings (a backtick's unescaped text, a joined here-doc body) name themselves the same way. A refusal of the command itself reads as before.
+
 ## [11.10.1] - 2026-11-14
 
 ### Changed
