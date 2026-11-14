@@ -14,6 +14,7 @@ import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import { createAcquisitionEnvelope } from "../adapters/adapter-contract.js";
 import { acquireMedia } from "../adapters/registry.js";
 import { runWatchCli } from "./run-watch.js";
+import { watchStatePath } from "./watch-state.js";
 
 const captured = vi.hoisted(() => ({
   stderr: /** @type {string[]} */ ([]),
@@ -130,7 +131,7 @@ describe("run-watch time range (CLI-level)", () => {
             caption: null,
           },
         ],
-        metadata: parseVideoMetadata({ id: VIDEO_ID, title: "Ranged Fixture", duration: 32300 }),
+        metadata: parseVideoMetadata({ id: VIDEO_ID, title: "Sample Talk", duration: 32300 }),
         workDir: fixtureDir,
       }),
     });
@@ -157,7 +158,7 @@ describe("run-watch time range (CLI-level)", () => {
     ]);
 
     const { sliceDir } = JSON.parse(captured.stdout.join(""));
-    const state = JSON.parse(await fs.readFile(path.join(sliceDir, "watch.json"), "utf8"));
+    const state = JSON.parse(await fs.readFile(watchStatePath(sliceDir), "utf8"));
     expect(state.timeRange).toEqual({
       fromSec: 3600,
       toSec: 4800,
