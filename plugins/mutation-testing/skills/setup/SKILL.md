@@ -90,7 +90,9 @@ run a mutation analysis. That is `/mutation-testing:audit`.
 6. **Config presence (effective, across layers)**. Report the merged result and which layer
    contributes what: tool, diff target, operator set, timeout, paths to mutate, with a value from
    the user layer named `userConfig` and an invalid one reported as FAIL naming the key, the value
-   and `/plugin configure` as the fix. Nothing readable →
+   and `/plugin configure` as the fix. A `tool` id with no shipped adapter (any id but `manual` and
+   the six the audit's `config-fallback.md` lists) → INFO naming the id and saying the audit offers
+   `tool: manual` instead of running it; the layer still counts. Nothing readable →
    INFO naming the audit's fallback: `tool: manual`, the diff target from `origin/HEAD`, the
    changed source files, the effort cap, and a test command the user supplies or confirms at run
    time. `apply` writes a config that replaces it. The retired .claude/mutation-testing.md

@@ -44,3 +44,15 @@ Name the install command as `/mutation-testing:setup check` does, and offer to c
 to `manual` with no configured `test-command` takes its test command under the never-guessed rule
 above. An unattended run keeps the configured tool and stops with the install command and the
 `tool: manual` offer.
+
+## Tool with no shipped adapter
+
+The shipped adapters are `stryker-js`, `stryker-net`, `stryker4s`, `pitest`, `infection` and
+`mutmut`, one per row of the `principles` skill's
+[`tooling.md`](../../principles/reference/tooling.md) "Established tools" table. Any other `tool`
+id but `manual` (for example `cargo-mutants`) is valid config. Keep the layer that set it, and every other value in that layer.
+The `Config:` line names the id and says `no shipped adapter`. With no row, Phase 0 cannot work out
+the tool's write regime, so it cannot rule out an in-tree write it has no gate for. Refuse to run
+the tool, and offer to continue with `tool: manual` this run, under the same terms as Tool
+unavailable above: install nothing, take the test command under the never-guessed rule, and when
+running unattended stop with the id and the `tool: manual` offer.

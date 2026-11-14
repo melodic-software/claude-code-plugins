@@ -7,8 +7,10 @@
   "additionalProperties": false,
   "properties": {
     "tool": {
-      "enum": ["stryker-js", "stryker-net", "stryker4s", "pitest", "infection", "mutmut", "manual"],
-      "description": "The mutation tool driving this project's test runner. manual means no off-the-shelf tool covers the language, and the audit applies each mutant by the single-operator manual protocol."
+      "type": "string",
+      "minLength": 1,
+      "examples": ["stryker-js", "stryker-net", "stryker4s", "pitest", "infection", "mutmut", "manual"],
+      "description": "The mutation tool driving this project's test runner. Any id is accepted. The plugin ships an adapter for stryker-js, stryker-net, stryker4s, pitest, infection and mutmut; the audit reports any other id as having no shipped adapter and offers manual instead of running it. manual is reserved: no off-the-shelf tool covers the language, and the audit applies each mutant by the single-operator manual protocol."
     },
     "command": {
       "type": "string",

@@ -189,9 +189,11 @@ Under `--exercised`, run them in the order [The exercised scope](#the-exercised-
 - **Config.** Read and merge every layer the setup skill's [config merge model](../setup/SKILL.md#the-config-merge-model)
   names. **No config at any layer** → fall back to defaults, never refuse. **Tool unavailable** →
   name the install command and offer `tool: manual` for this run; refuse only when the user declines
-  both. Read [`context/config-fallback.md`](context/config-fallback.md) before resolving the config:
-  it owns the merge, the `Config:` line, the fallback defaults, and the rule that **the test command
-  is never guessed**, so an unattended run with no test command stops and asks for one.
+  both. **Tool with no shipped adapter** → keep the layer, name the id as having no shipped adapter,
+  refuse to run it and offer `tool: manual`. Read [`context/config-fallback.md`](context/config-fallback.md)
+  before resolving the config: it owns the merge, the `Config:` line, the fallback defaults, the
+  no-adapter rule, and the rule that **the test command is never guessed**, so an unattended run
+  with no test command stops and asks for one.
 - **Working tree dirty in a file about to be mutated** → stop. A mutation harness reverts by
   restoring a known state; uncommitted edits in the target make "revert" ambiguous and risk
   discarding the user's work. Ask them to commit or stash first. This is a hard stop, not a warning.
