@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [1.1.11] - 2026-11-14
+
+### Changed
+
+- The shipped copy of the plugin-reconfiguration convention, `reference/plugin-reconfiguration.md`, now opens its routes section by saying a reply prints the preferred `claude plugin configure` command in full first and the install `--config` fallback after it, whatever the working directory. Its scope caveat now says `claude plugin configure` has no scope flag and finds only an install visible from the working directory.
+
 ## [1.1.10] - 2026-11-13
 
 ### Changed

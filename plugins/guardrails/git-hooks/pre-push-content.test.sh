@@ -6,7 +6,9 @@
 # push removes it again; a pushed commit with nothing to find, the same token
 # under an exempt path, a commit the remote's tracking refs already hold, the
 # remote's lines and files a merge brings in and a deletion do not block; a merge's own
-# conflict resolution is judged; a declined entry checks nothing; --worktree
+# conflict resolution is judged, in a file another parent holds as a symlink
+# too, and its git process count does not grow with the other side's diff; a
+# NUL file is judged whole; a declined entry checks nothing; --worktree
 # covers uncommitted files; and through the plugin's vendored installer a real
 # `git push` of a dossier/<key>-<slug> branch (the dossier_branch_prefix
 # default) to a bare remote fails on a planted token and passes once that
@@ -192,6 +194,96 @@ git -C "$REPO" add notes.md
 git -C "$REPO" commit -q --no-edit --no-verify
 expect "a path a merge's own resolution adds blocks beside one the remote's main brings" \
   "1|notes.md:2: machine-specific path (Linux user path detected) (commit $(short HEAD))
+$HINT" "$(new_push)"
+
+# Two merges of one 3-file branch, with integration branches of 20 and 40
+# changed files, each merge adding a token of its own. The git processes each
+# push starts are counted from a trace, and compared as a difference, not an
+# absolute count, so git's own internal spawns cancel out.
+new_repo
+for i in 1 2 3; do printf 'branch %s\n' "$i" >"$REPO/b$i.md"; done
+git -C "$REPO" add -A
+git -C "$REPO" commit -q -m branch --no-verify
+git -C "$REPO" push -q --no-verify origin "$BRANCH" 2>/dev/null
+starts=()
+for w in 20 40; do
+  git -C "$REPO" switch -q -c "integ$w" main
+  for ((i = 1; i <= w; i++)); do printf 'integ %s\n' "$i" >"$REPO/i$i.md"; done
+  git -C "$REPO" add -A
+  git -C "$REPO" commit -q -m "integ $w" --no-verify
+  git -C "$REPO" push -q --no-verify origin "integ$w" 2>/dev/null
+  git -C "$REPO" switch -q -c "merge$w" "$BRANCH"
+  git -C "$REPO" merge -q --no-commit --no-ff "integ$w" >/dev/null 2>&1
+  printf 'token=%s\n' "$FAKE_GHP" >"$REPO/resolved.md"
+  git -C "$REPO" add resolved.md
+  git -C "$REPO" commit -q --no-edit --no-verify
+  expect "a pushed merge with a $w-file side blocks on its own token" \
+    "1|resolved.md:1: secret or credential pattern: GitHub PAT (commit $(short HEAD))
+$HINT" "$(GIT_TRACE2_EVENT="$WORK/trace.$w" push_check "$(git -C "$REPO" rev-parse HEAD)" "$ZERO")"
+  starts+=("$(grep -c '"event":"start"' "$WORK/trace.$w")")
+done
+echo "measured: a pushed merge started ${starts[0]} git processes with a 20-file side, ${starts[1]} with a 40-file side"
+expect "a pushed merge's git process count does not grow with the other side's diff" yes \
+  "$( ((starts[0] > 0 && starts[1] - starts[0] <= 2)) && echo yes)"
+
+# Merges built with plumbing, so no symlink is ever checked out: on Windows
+# with core.symlinks=false, an edited checked-out symlink stays at 120000.
+# ptree <mode> <name>: a one-file tree holding stdin as <name> at <mode>.
+ptree() {
+  local blob
+  blob="$(git -C "$REPO" hash-object -w --stdin)"
+  printf '%s blob %s\t%s\n' "$1" "$blob" "$2" | git -C "$REPO" mktree
+}
+# pcommit <tree> <parent>...: a commit of <tree> on those parents.
+pcommit() {
+  local tree=$1 p
+  local -a args=()
+  shift
+  for p in "$@"; do args+=(-p "$p"); done
+  git -C "$REPO" commit-tree "${args[@]}" -m plumbing "$tree"
+}
+# on_remote <name> <commit>: a tracking ref holds <commit>, so only a merge on
+# it is pushed.
+on_remote() { git -C "$REPO" update-ref "refs/remotes/origin/$1" "$2"; }
+
+new_repo
+seed="$(git -C "$REPO" rev-parse HEAD)"
+p1="$(pcommit "$(printf 'clean\n' | ptree 100644 t.txt)" "$seed")"
+p2="$(pcommit "$(printf 'elsewhere' | ptree 120000 t.txt)" "$seed")"
+on_remote p1 "$p1"
+on_remote p2 "$p2"
+merge="$(pcommit "$(printf 'clean\ntoken=%s\n' "$FAKE_GHP" | ptree 100644 t.txt)" "$p1" "$p2")"
+expect "a token in a file a non-first parent holds as a symlink blocks" \
+  "1|t.txt:2: secret or credential pattern: GitHub PAT (commit $(short "$merge"))
+$HINT" "$(push_check "$merge" "$ZERO")"
+
+p2="$(pcommit "$(printf 'token=%s' "$FAKE_GHP" | ptree 120000 t.txt)" "$seed")"
+on_remote p2b "$p2"
+merge="$(pcommit "$(printf 'token=%s' "$FAKE_GHP" | ptree 100644 t.txt)" "$p1" "$p2")"
+expect "a symlink target turned into a regular file with the same bytes is judged" \
+  "1|t.txt:1: secret or credential pattern: GitHub PAT (commit $(short "$merge"))
+$HINT" "$(push_check "$merge" "$ZERO")"
+
+b0="$(pcommit "$(printf 'MZ\0base\n' | ptree 100644 n.bin)" "$seed")"
+b1="$(pcommit "$(printf 'MZ\0one\n' | ptree 100644 n.bin)" "$b0")"
+b2="$(pcommit "$(printf 'MZ\0two\n' | ptree 100644 n.bin)" "$b0")"
+on_remote b1 "$b1"
+on_remote b2 "$b2"
+merge="$(pcommit "$(printf 'MZ\0resolved\ntoken=%s\n' "$FAKE_GHP" | ptree 100644 n.bin)" "$b1" "$b2")"
+expect "a binary file the merge's resolution changes is judged whole" \
+  "1|n.bin:2: secret or credential pattern: GitHub PAT (commit $(short "$merge"))
+$HINT" "$(push_check "$merge" "$ZERO")"
+
+new_repo
+printf 'MZ\0%s\n' "$FAKE_LINUX" >"$REPO/path.bin"
+git -C "$REPO" add path.bin
+git -C "$REPO" commit -q -m "path binary" --no-verify
+expect "a non-merge commit's ordinary binary passes" "0|" "$(new_push)"
+printf 'MZ\0token=%s\n' "$FAKE_GHP" >"$REPO/token.bin"
+git -C "$REPO" add token.bin
+git -C "$REPO" commit -q -m "token binary" --no-verify
+expect "a non-merge commit's NUL file is judged whole" \
+  "1|token.bin:1: secret or credential pattern: GitHub PAT (commit $(short HEAD))
 $HINT" "$(new_push)"
 
 new_repo
