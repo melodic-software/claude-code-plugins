@@ -95,14 +95,15 @@ esac
 file="${line%% at origin/*}"
 at="at ${line#"$file at "}"
 
-# resolve <text> | --worktree: sets LEVEL, KEY (empty when no key set) and ERR
-# (empty when valid), from the team file's text, or the working tree's copy.
+# resolve team <text> | resolve worktree: sets LEVEL, KEY (empty when no key
+# set) and ERR (empty when valid), from the team file's text, or the working
+# tree's copy. The source is its own argument, so no file text selects it.
 # The value is checked as the parser records it, before any normalization, so
 # `off/` or a list is named as invalid rather than read as a level.
 resolve() {
-  local text="$1" records v k
+  local text="${2-}" records v k
   LEVEL=light KEY="" ERR=""
-  if [[ "$text" == --worktree ]]; then
+  if [[ "$1" == worktree ]]; then
     [[ -n "$root" && -f "$root/$file" ]] || return
     text="$(<"$root/$file")"
   fi
@@ -137,7 +138,7 @@ describe() {
 }
 
 if ((rc == 0)); then
-  resolve "$team"
+  resolve team "$team"
 else
   LEVEL=light KEY="" ERR=""
 fi
@@ -145,7 +146,7 @@ team_level="$LEVEL"
 say "$(describe) $at)"
 
 root="$(git -C "$(config_root_resolve)" rev-parse --show-toplevel 2>/dev/null)" || root=""
-resolve --worktree
+resolve worktree
 if [[ "$LEVEL" != "$team_level" ]]; then
   branch="${at#at origin/}"
   say "the working tree's copy gives $(describe)); the origin/${branch%%, commit *} copy ($team_level) applied"

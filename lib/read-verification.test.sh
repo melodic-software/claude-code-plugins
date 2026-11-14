@@ -186,6 +186,13 @@ rc=0
 CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_eq "a usage error still exits 0" 0 "$rc"
 
+# No default-branch text selects the working-tree read: a team file holding only `--worktree` beside a
+# working-tree copy set to off still resolves from the team text, which does not parse.
+repo=$(fixture selector $'--worktree\n')
+printf 'verification: off\n' >"$repo/$F"
+assert_eq "team file text cannot select the working-tree copy" \
+  "verification: standard (default; $F does not parse or repeats a key $(at "$repo"))" "$(run "$repo" | head -n 1)"
+
 # A failed fetch keeps the team's level from the last fetched copy, named as possibly stale, rather than
 # dropping to the light default. Origin's main moves ahead (pushed by URL, so refs/remotes/origin/main
 # stays behind) and a reference-transaction hook refuses the fetch's update.
