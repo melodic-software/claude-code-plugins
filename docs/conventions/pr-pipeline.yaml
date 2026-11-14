@@ -692,11 +692,12 @@ activities:
     # Work status needs-owner-decision, only when a listed human's text already
     # holds a task list, else the status stays and the comment asks a listed human
     # to post the criteria as their own decision comment. Not exact: numbered questions with RECOMMENDED
-    # answers at Work status needs-owner-decision. For an issue admission held at the
-    # App's needs-decision for some, not all, done-when items a lane run
-    # cannot perform, a split the model judges sound lists those items in the
+    # answers at Work status needs-owner-decision. For an issue intake's admission
+    # parked at Work status confirmed for some, not all, done-when items a lane run
+    # cannot perform (work-unblock's admission parks it at needs-triage, so the
+    # triage sweep sends it to intake), a split the model judges sound lists those items in the
     # refinement comment as checks a person runs, with their numbers and the
-    # body they number, lifts needs-decision and triages once more; the body
+    # body they number, lifts confirmed and triages once more; the body
     # stays as its author wrote it, and admission and pr-verify leave those
     # items out while that comment counts as spec (admit.mjs personChecks). Neither lifts while the App's
     # verdict comment lists a flag other than intent or records that an

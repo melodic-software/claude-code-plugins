@@ -38,6 +38,7 @@ import {
   laneSlots,
   sharedLaneRuns,
   skipText,
+  splitHandBack,
   UNPARKED_MARKER,
 } from "./label-unblocked.mjs";
 
@@ -7323,6 +7324,65 @@ test("a status: ready issue in no queue refused for a manual external step parks
     `POST /repos/${REPO}/issues/26/labels {"labels":["attended"]}`,
     `POST /repos/${REPO}/issues/26/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(ATTENDED_REASON)}` })}`,
   ]);
+});
+
+// refine.mjs splits done-when items a lane run cannot perform only in an
+// intake run, so this sweep's refusal for that split alone parks at
+// needs-triage, where the triage sweep dispatches intake; every item
+// unrunnable is host work and parks at status: confirmed as before.
+const SPLIT_BODY = "Fix it.\n\n## Done when\n\n- [ ] Line 3 says nineteen.\n- [ ] Run it on a Windows 11 host.";
+const HOST_BODY = "Fix it.\n\n## Done when\n\n- [ ] Run it on a Windows 11 host.";
+
+// The hand-back goes first, apart from the admission comment refine's splitOf
+// matches, so the triage sweep starts a new dispatch cycle for it.
+const handBackPost = (n, body) => `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body: splitHandBack(body) })}`;
+
+test("a status: ready issue in no queue refused only for a partial split is handed back to the triage sweep at needs-triage, born triaged or not", async (t) => {
+  t.mock.method(console, "log", () => {});
+  for (const body of [SPLIT_BODY, `${SPLIT_BODY}\n\n<!-- work-items:born-triaged -->\n`]) {
+    const { github, calls, writer } = readyWorld({ items: [readyIssue(26, { body })] });
+    assert.equal(await sweep({ github, writer, admission: admissionFor() }, PAUSING), 0);
+    const posted = writes(calls);
+    assert.equal(posted.length, 3, posted.join("\n"));
+    assert.equal(posted[0], handBackPost(26, body));
+    assert.ok(splitHandBack(body).startsWith(`${UNPARKED_MARKER}\n`));
+    assert.equal(posted[1], "SET 26 needs-triage", body);
+    assert.ok(posted[2].startsWith(`POST /repos/${REPO}/issues/26/comments`) && posted[2].includes("recommended split"), posted[2]);
+  }
+});
+
+test("the split hand-back is posted once per body: a repeat refusal of the same body posts no second one, an edited body gets one", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const backed = { id: 30, body: splitHandBack(SPLIT_BODY), user: LANES_BOT, created_at: STAMP, updated_at: STAMP };
+  const same = readyWorld({ items: [readyIssue(26, { body: SPLIT_BODY })], extra: { comments: { 26: [note(), backed] } } });
+  assert.equal(await sweep({ github: same.github, writer: same.writer, admission: admissionFor() }, PAUSING), 0);
+  assert.ok(!writes(same.calls).includes(handBackPost(26, SPLIT_BODY)), writes(same.calls).join("\n"));
+  assert.ok(writes(same.calls).includes("SET 26 needs-triage"));
+  // Only the lanes App's own hand-back counts.
+  const forged = readyWorld({ items: [readyIssue(26, { body: SPLIT_BODY })], extra: { comments: { 26: [note(), { ...backed, user: OWNER }] } } });
+  assert.equal(await sweep({ github: forged.github, writer: forged.writer, admission: admissionFor() }, PAUSING), 0);
+  assert.equal(writes(forged.calls)[0], handBackPost(26, SPLIT_BODY));
+  const edited = `${SPLIT_BODY}\n- [ ] Tests pass.`;
+  const changed = readyWorld({ items: [readyIssue(26, { body: edited })], extra: { comments: { 26: [note(), backed] } } });
+  assert.equal(await sweep({ github: changed.github, writer: changed.writer, admission: admissionFor() }, PAUSING), 0);
+  assert.equal(writes(changed.calls)[0], handBackPost(26, edited));
+});
+
+test("a status: ready issue in no queue whose every done-when item is unrunnable still parks at status: confirmed", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls, writer } = readyWorld({ items: [readyIssue(26, { body: HOST_BODY })] });
+  assert.equal(await sweep({ github, writer, admission: admissionFor() }, PAUSING), 0);
+  assert.equal(writes(calls)[0], "SET 26 confirmed");
+});
+
+test("a person's mark refused only for a partial split parks at needs-triage", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls, writer } = markedWorld({ body: SPLIT_BODY });
+  assert.equal(await sweep({ github, writer, admission: admissionFor() }, PAUSING), 0);
+  const posted = writes(calls);
+  assert.ok(posted.includes("SET 25 needs-triage"), posted.join("\n"));
+  assert.ok(!posted.includes("SET 25 confirmed"), posted.join("\n"));
+  assert.equal(posted[0], handBackPost(25, SPLIT_BODY));
 });
 
 test("a status: ready issue in no queue an open pull request is for gets admission-deferred and the wait comment", async (t) => {

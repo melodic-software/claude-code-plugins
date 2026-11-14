@@ -3000,6 +3000,50 @@ describe("host-run work", () => {
     await go(fake);
     assert.equal(writes(fake.calls)[0], STATUS("needs-owner-decision"));
   });
+
+  // refine.mjs splits a partial split only in an intake run whose lane comment
+  // it reads, so a sweep's refusal (no verdict written) asks for that run.
+  describe("a partial split decided with no triage verdict", () => {
+    const BORN = `${CANARY}\n\n<!-- work-items:born-triaged -->`;
+    const FRESH = { ...VERDICT, writtenAt: "2026-10-20T09:00:00Z" };
+
+    test("asks for triage, born triaged or not, with no hold and no host-run", () => {
+      for (const body of [CANARY, BORN]) {
+        const result = decide(facts({ issue: issueOf({ body }) }));
+        assert.equal(result.verdict, "refuse", body);
+        assert.equal(result.triage, true, body);
+        assert.equal(result.hold, undefined, body);
+        assert.equal(result.hostRun, undefined, body);
+      }
+    });
+
+    test("an intake run's verdict parks it at status: confirmed for refine-select, as before", async () => {
+      const issue = issueOf({ body: BORN });
+      const result = decide(facts({ issue, verdict: FRESH }));
+      assert.equal(result.verdict, "refuse");
+      assert.equal(result.triage, undefined);
+      const fake = fakeGitHub({ issue });
+      assert.equal((await admit({ ...goArgs(fake), verdict: FRESH })).status, CONFIRMED);
+      assert.equal(writes(fake.calls)[0], STATUS("confirmed"));
+    });
+
+    test("every item unrunnable, a paid eval, a host-run label or another refusal asks for no triage", () => {
+      const PAID = "- [ ] Run `claude plugin eval` on the suite in Azure and record the delta.";
+      for (const [why, input] of [
+        ["every item unrunnable", { issue: hostRun(HOST_ONLY) }],
+        ["a paid eval beside a lane item", { issue: hostRun(`- [ ] Line 3 says nineteen.\n${PAID}`) }],
+        ["a trusted host-run label", { issue: queued(CANARY), events: addedBy(HUMAN) }],
+        ["Uncertainty unknown beside it", { issue: hostRun(CANARY), verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, uncertainty: "unknown" } } }],
+        ["an open pull request", { issue: hostRun(CANARY), pulls: [5] }],
+      ]) {
+        const result = decide(facts(input));
+        assert.equal(result.verdict, "refuse", why);
+        assert.equal(result.triage, undefined, why);
+      }
+      assert.equal(decide(facts({ issue: hostRun(HOST_ONLY) })).hostRun, true);
+      assert.equal(decide(facts({ issue: hostRun(`- [ ] Line 3 says nineteen.\n${PAID}`) })).hold, true);
+    });
+  });
 });
 
 // Admission reads no path an issue names: a run whose change needs a path the
@@ -3059,7 +3103,7 @@ describe("admission and the paths the issue lane cannot push", () => {
       { verdict: "refuse", reasons: [`${HOST_REASON}; ${SPLIT}`, "it carries host-run"] },
       { verdict: "refuse", reasons: [`${PAID_REASON}; no done-when item is left for the lane, so it goes to the owner, since a paid eval can bill the owner`, "its title or stated work names a charge (azure), which needs an owner decision"], hold: true, reason: "cost" },
       { verdict: "refuse", reasons: [`${HOST_REASON}; no done-when item is left for the lane, so it goes to the host queue (\`host-run\`)`], hostRun: true },
-      { verdict: "refuse", reasons: [`${HOST_REASON}; ${SPLIT}`] },
+      { verdict: "refuse", reasons: [`${HOST_REASON}; ${SPLIT}`], triage: true },
     ];
     neighbors().forEach(([why, input], index) => {
       assert.deepEqual(decide(facts(input)), expected[index], why);
