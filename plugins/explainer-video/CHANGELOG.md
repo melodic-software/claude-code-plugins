@@ -3,6 +3,12 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.4] - 2026-11-14
+
+### Changed
+
+- Shared `media_encode.py` synced where this plugin carries it; no other change to this plugin.
+
 ## [2.1.3] - 2026-11-14
 
 ### Changed
