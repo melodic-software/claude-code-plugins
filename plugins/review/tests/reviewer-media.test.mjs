@@ -156,6 +156,12 @@ describe("the convention layers", () => {
     assert.deepEqual(result.config["scan.extra_patterns"].value, ["\\bBLUEJAY\\b", "ACME-\\d+"]);
     assert.match(result.config["scan.extra_patterns"].source, /^team .*\+ personal-override/);
   });
+  test("a scan pattern Python cannot compile skips before the claim, naming it", () => {
+    const { root, base } = repoWith("scan:\n  extra_patterns: ['ok', '(unclosed']\n");
+    const result = cli(root, { ...quiet, baseRefOid: base }, "--requested");
+    assert.deepEqual([result.action, result.reason], ["skip", "invalid-scan-pattern"]);
+    assert.match(result.warnings.join("\n"), /scan\.extra_patterns\[1\]/);
+  });
   test("scan.extra_patterns defaults to none", () => {
     const { root, base } = repoWith(null);
     assert.deepEqual(cli(root, { ...quiet, baseRefOid: base }).config["scan.extra_patterns"], { value: [], source: "default" });

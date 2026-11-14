@@ -55,8 +55,15 @@ const at = (object, parts) => parts.reduce((o, k) => o?.[k], object);
  * @param {(facts: object, whole: boolean) => string[]} triggersOf the review-digest triggers that fire for a set
  *   of facts; `whole` is false for the delta since posted media, which an assessment of the whole pull request
  *   (its blast radius) does not describe
+ * @param {number[]} badPatterns indexes of scan.extra_patterns that do not compile: a build would fail its scan, so
+ *   it skips before claiming the head, and fixing the team file lets the next run build
  */
-export function decide(facts, { requested, shown, delta }, config, triggersOf) {
+export function decide(facts, options, config, triggersOf, badPatterns = []) {
+  const result = choose(facts, options, config, triggersOf);
+  return result.action === "build" && badPatterns.length ? { ...result, action: "skip", reason: "invalid-scan-pattern" } : result;
+}
+
+function choose(facts, { requested, shown, delta }, config, triggersOf) {
   const out = (action, reason, fired = []) => ({ action, reason, triggers: fired, shown });
   const labels = (Array.isArray(facts.labels) ? facts.labels : []).map((l) => (typeof l === "string" ? l : l?.name));
   const label = config.labels.requested;
@@ -125,6 +132,17 @@ export function valuesOf(config) {
   return values;
 }
 
+/** Indexes of the patterns Python's re cannot compile (the scans are Python); all of them when python3 cannot run. */
+export function invalidPatterns(patterns) {
+  if (!patterns.length) return [];
+  const check = "import json, re, sys\nbad = []\nfor i, p in enumerate(json.load(sys.stdin)):\n    try: re.compile(p)\n    except re.error: bad.append(i)\nprint(json.dumps(bad))";
+  try {
+    return JSON.parse(execFileSync("python3", ["-c", check], { input: JSON.stringify(patterns), encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] }));
+  } catch {
+    return patterns.map((_, i) => i);
+  }
+}
+
 /** Changed files between the commit the media show and the head, or null when git cannot say. */
 function deltaOf(root, from, to) {
   if (!root || !isSha(from) || !isSha(to)) return null;
@@ -179,7 +197,9 @@ function main(argv) {
   warnings.push(...digest.warnings);
   const triggersOf = (f, whole) => triggers(f, whole ? opts.blastRadius : "", digest.config).triggers;
   const delta = opts.shown && opts.shown !== facts.headRefOid ? deltaOf(root, opts.shown, facts.headRefOid) : null;
-  const result = decide(facts, { requested: opts.requested, shown: opts.shown, delta }, valuesOf(config), triggersOf);
+  const bad = invalidPatterns(config["scan.extra_patterns"].value);
+  for (const i of bad) warnings.push(`reviewer-media: scan.extra_patterns[${i}] is not a valid Python regular expression; nothing is built until it is fixed`);
+  const result = decide(facts, { requested: opts.requested, shown: opts.shown, delta }, valuesOf(config), triggersOf, bad);
   process.stdout.write(`${JSON.stringify({ ...result, head: facts.headRefOid ?? null, config, warnings }, null, 2)}\n`);
   return 0;
 }

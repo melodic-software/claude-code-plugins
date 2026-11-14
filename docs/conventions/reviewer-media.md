@@ -44,7 +44,7 @@ run builds on it again.
 | `voice_command` | none | team-only: the `command` backend's template, `{script}` in and `{out}` WAV out |
 | `allow_unattended_paid_voice` | `false` | team-only: lets an unattended run use `openai` or `elevenlabs` |
 | `ui_paths` | none | globs; a changed path matching one adds screenshot moments |
-| `scan.extra_patterns` | none | Python regexes the secret and machine-data scan also refuses (a private codename, an internal host), passed as `--scan-pattern` to the renderer, the voice and the `media` action. One that does not compile fails the scan |
+| `scan.extra_patterns` | none | Python regexes the secret and machine-data scan also refuses (a private codename, an internal host), passed as `--scan-pattern` to the renderer, the voice and the `media` action. While one does not compile, `decide.mjs` skips (reason `invalid-scan-pattern`, the pattern named in `warnings`) before claiming the head, so nothing is built without it and no commit is marked failed; the scans themselves also refuse it |
 | `upload_limit_mb` | `10` | `stills.py --upload-limit-mb` |
 | `artifact_retention_days` | `30` | the Actions artifact's retention and `media --retention-days`, 1 to 90 |
 
