@@ -21,6 +21,14 @@
     {
       "answer": "The lookup was refused, so the defaults apply.\n```\nSkill: work-items:track\nargs: add --label 'wayfind: map' --body-file map-body.md \"Map: notification digest\"\n```",
       "why": "creates the map after a refusal, written as skill and arguments"
+    },
+    {
+      "answer": "Skill: work-items:track\n```\n```\narguments: add --label 'wayfind: map' \"Map: notification digest\"",
+      "why": "a create after a refusal, arguments on a later line past a fence"
+    },
+    {
+      "answer": "{\"skill\": \"work-items:track\", \"args\": \"link 61 --blocks 62\"}",
+      "why": "wires an edge after a refusal"
     }
   ]
 }

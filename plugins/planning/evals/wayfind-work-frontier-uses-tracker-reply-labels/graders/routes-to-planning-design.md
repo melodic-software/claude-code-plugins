@@ -1,4 +1,4 @@
 ---
 type: regex
-pattern: '/planning:design'
+pattern: 'planning:design'
 ---

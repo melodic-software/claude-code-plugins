@@ -15,6 +15,10 @@
     {
       "answer": "```\nSkill: work-items:track   args: start https://example.com/acme/mail/issues/62\n```",
       "why": "claims the design item by URL, written as skill and arguments"
+    },
+    {
+      "answer": "Claim: `/work-items:track start <issue #62>`.",
+      "why": "claims the design item, written as an issue reference"
     }
   ],
   "fail": [

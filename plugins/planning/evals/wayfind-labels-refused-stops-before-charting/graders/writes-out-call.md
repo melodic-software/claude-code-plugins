@@ -1,4 +1,4 @@
 ---
 type: regex
-pattern: 'work-items:track\s+(?:args:\s*)?wayfind-labels'
+pattern: 'work-items:track[\s`*",]*(?:[Aa]rg(?:ument)?s[\s:=*`"]*)?wayfind-labels'
 ---

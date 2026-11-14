@@ -7,6 +7,14 @@
     {
       "answer": "Label lookup, treated as made:\n```\nSkill: work-items:track\nargs:  wayfind-labels\n```\nIt returned `REFUSED: work-item-tracker: no convention home resolves under /work/acme-mail; run /work-items:setup check to see why`. Stopping.",
       "why": "the call is written out as skill and arguments"
+    },
+    {
+      "answer": "{\"skill\": \"work-items:track\", \"args\": \"wayfind-labels\"} returned REFUSED. Stopping.",
+      "why": "the call written as JSON"
+    },
+    {
+      "answer": "**Skill:** `work-items:track`\n**arguments:** `wayfind-labels`\nRefused; stopping.",
+      "why": "the call written with bold labels and the word arguments"
     }
   ],
   "fail": [

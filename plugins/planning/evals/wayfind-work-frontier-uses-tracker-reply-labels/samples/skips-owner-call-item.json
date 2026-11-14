@@ -21,6 +21,10 @@
     {
       "answer": "```\nSkill: work-items:track\nargs: start https://example.com/acme/mail/issues/61\n```",
       "why": "claims the owner-call item, written as skill and arguments"
+    },
+    {
+      "answer": "{\"skill\": \"work-items:track\", \"args\": \"start <issue #61>\"}",
+      "why": "claims the owner-call item, written as JSON"
     }
   ]
 }
