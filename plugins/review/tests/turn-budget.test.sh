@@ -3,7 +3,7 @@
 # agents that write a findings file: derives that set from the agent
 # definitions, checks each one's stated cap, stop turn and sentinel, and checks
 # that every caller of the contract names the same sentinel. Reads files only.
-# test-scope: plugins/review/agents/*.md plugins/review/reference/reviewer-handback.md plugins/review/skills/quality-gate/context/*.md plugins/review/workflows/fanout-sweep.js
+# test-scope: plugins/review/agents/*.md plugins/review/reference/reviewer-handback.md plugins/review/reference/findings-normalization.md plugins/review/skills/quality-gate/context/*.md plugins/review/workflows/fanout-sweep.js
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -117,6 +117,18 @@ while IFS= read -r item; do
 done <<<"$after"
 if ((keeps)); then pass "reviewer-handback.md never writes a reply over a checkpoint"; else fail "reviewer-handback.md never writes a reply over a checkpoint" "no item pairs 'Never write' with '$SENTINEL'"; fi
 if ((clobbers)); then fail "reviewer-handback.md does not take a no-block reply as the report" "an item pairs 'no block' with taking or writing the reply as the report"; else pass "reviewer-handback.md does not take a no-block reply as the report"; fi
+
+# The quality-gate callers point at the handback recovery and treat the unresolved-base decline as no result.
+DECLINE='Coverage: none, change set unresolved'
+for rel in skills/quality-gate/context/self.md skills/quality-gate/context/security.md; do
+  text="$(<"$PLUGIN_DIR/$rel")"
+  assert_contains "$rel points at reviewer-handback.md \"Incomplete reply\"" "$text" '"Incomplete reply"'
+  assert_contains "$rel names the unresolved-base decline" "$text" "$DECLINE"
+done
+
+# Stage 0, which the main-thread fanout paths run, judges the reviewers by the handback rule.
+stage0="$(awk '/^## / { on = (index($0, "## Stage 0") == 1); next } on' "$PLUGIN_DIR/reference/findings-normalization.md")"
+assert_contains "findings-normalization.md Stage 0 points at reviewer-handback.md" "$stage0" "(reviewer-handback.md) \"Incomplete reply\""
 
 if ((FAILED)); then
   printf '%d assertion(s) failed\n' "$FAILED" >&2

@@ -247,8 +247,12 @@ if (returned.length || fileLeaves.length) {
   const coverageLeaves = roster.map(l => l.label).filter(label => HANDBACK_LEAVES.includes(label))
   const coverageClause = coverageLeaves.length
     ? ' These surfaces must close their report with a Coverage line: ' + coverageLeaves.join(', ') + '. ' +
-      'Judge each one\'s report (its findings file, or its reply where the rules above make the reply the ' +
-      'report) by that line. Only `Coverage: all changed files reviewed` can be clean. ' +
+      'Judge each one\'s report by that line: ' +
+      (files
+        ? 'its report is its findings file, or its reply where the findings-file rules above make the reply the report. '
+        : 'its report is its reply. ') +
+      'A surface already given a record saying its report was not found or it ' +
+      'returned no result gets no further record here. Only `Coverage: all changed files reviewed` can be clean. ' +
       '`Coverage: none, change set unresolved` means the surface declined to grade because its change set ' +
       'did not resolve: emit one record for that surface whose raw_text says it returned no result because ' +
       'its change set did not resolve. Any other Coverage line, or no Coverage line, means the report is ' +

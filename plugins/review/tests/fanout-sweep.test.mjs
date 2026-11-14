@@ -185,6 +185,25 @@ test('the extractor judges only the handback reviewers by their Coverage line', 
   }
 })
 
+test('without findings paths the Coverage clause judges the reply and names no file rules', async () => {
+  const { calls } = await run({ diffBase: 'abc' })
+  const brief = extract(calls).prompt
+  assert.ok(!brief.includes('told to write their full report to a findings file'), 'no file clause')
+  assert.ok(!brief.includes('rules above'), 'no pointer at absent rules')
+  assert.ok(brief.includes('Judge each one\'s report by that line: its report is its reply.'))
+  const withFile = await run({ diffBase: 'abc', findingsPaths: { 'code-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-code-reviewer.md' } })
+  assert.ok(extract(withFile.calls).prompt.includes('its report is its findings file, or its reply where the findings-file rules above make the reply the report.'))
+})
+
+test('a surface with no report gets one no-result record, not also an incomplete one', async () => {
+  const findingsPaths = { 'code-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-code-reviewer.md' }
+  const { calls } = await run({ diffBase: 'abc', findingsPaths })
+  const brief = extract(calls).prompt
+  const noFurther = brief.indexOf('A surface already given a record saying its report was not found or it returned no result gets no further record here.')
+  assert.ok(noFurther > -1)
+  assert.ok(noFurther < brief.indexOf('Any other Coverage line, or no Coverage line'), 'the exclusion precedes the incomplete rule')
+})
+
 test('model-diversity arms are not judged by a Coverage line', async () => {
   const roles = { orchestrator: { fanout: { model: 'opus', effort: 'high' } }, retrieval: { fanout: { model: 'sonnet', effort: 'low' } } }
   const { calls } = await run({ diffBase: 'abc', roles, diversity: 'model' })
