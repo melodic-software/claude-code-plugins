@@ -835,18 +835,22 @@
 #     the mistake #92593 records, not one deliberately obfuscating a command
 #     word.
 #   * A python or node program fed on a quoted heredoc (rdt_hd_interp) has
-#     its substitution spans tokenized only when a deleter name starts a word
-#     in them or they hold a `$`. Not seen through it: a body that writes a
-#     file a later line runs; an interpreter binary replaced under another
-#     name; NODE_OPTIONS or PYTHON* environment that loads other code; its
-#     output piped to a shell when no span holds a deleter word (unjudged
-#     before too); and readers the parse does not model (`bash -c sh`). Still
+#     a substitution span skipped only when it reads as plain text
+#     (rdt_span_prose). Not seen through it: a body that writes a file a
+#     later line runs; an interpreter binary replaced under another name;
+#     NODE_OPTIONS or PYTHON* environment that loads other code; its output
+#     piped to a shell when no span holds a deleter word (unjudged before
+#     too); readers the parse does not model (`bash -c sh`); and a python or
+#     JS escape (`\x72`, or `\n` read as a line break) the program decodes
+#     before a shell reads the string (not decoded before either). Still
 #     refused although harmless: a span that never closes (an apostrophe in it
-#     opens a quote) takes in the rest of the body, so a later `$` or deleter
-#     word refuses it; a deleter word at a word start in a span with a paren
-#     (`` `Remove the old check (x)` ``); a template literal holding `${…}`, a
-#     prefilter substring and a paren; and any command text before the opener
-#     the predicate rejects (`set -e;`, `${VAR}`, a reserved word).
+#     opens a quote) takes in the rest of the body, so a later `$`, glob,
+#     brace, pipe or redirection character, other backslash, or deleter,
+#     shell or eval word refuses it; any of those in a span with a paren
+#     (`` `Remove the old check (x)` ``, `` `the form check (x) [1]` ``); a
+#     template literal holding `${…}`, a prefilter substring and a paren; and
+#     any command text before the opener the predicate rejects (`set -e;`,
+#     `${VAR}`, a reserved word).
 #
 # BLOCKING: on a recursive delete of a root, of an empty or
 # bare-variable operand, of a protected tree, of a target outside the allowed
@@ -6513,9 +6517,11 @@ rdt_brace_rec() {
 # python or node program read from stdin under a plain quoted word, at top
 # level with nothing after the delimiter on its line (rdt_hd_interp), is
 # scanned with a word gate: Python 3 has no backticks and a JS backtick is a
-# template literal, so a span there is read only when a deleter name starts a
-# word in it or it holds a `$`, which still catches a string handed to a shell
-# through a variable (rdt_scan_body). Every
+# template literal, so a span there is tokenized unless it reads as plain text
+# (rdt_span_prose): no `$`, brace, glob, tilde, `! @ ^`, pipe or redirection
+# character, no backslash but `\n`, `\t` or `\r`, and no deleter name, shell or
+# eval word starting a word in its text as written or as the shell joins it.
+# That still catches a string handed to a shell through a variable. Every
 # other body is scanned on its own, with bodies taken in
 # the order their openers appear, as bash reads them. An opener is recognized
 # only outside quotes and outside any ordinary paren or backtick body, so
@@ -6558,21 +6564,43 @@ rdt_scan_body() {
     *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd* | *cmd*rd*) ;;
   *) return 0 ;;
   esac
-  # Inside a python or node program body (rdt_scan_gated), a span is prose
-  # unless a prefilter stem STARTS a word in it (`\`, `/`, quotes and operators
-  # count as word starts, so `\rm` and `/bin/rm` still match) or it holds a
-  # `$`, which could spell any word at run time. "form" or "perform" no longer
-  # sends a markdown backtick span to shfmt.
-  if [[ "${rdt_span_gate:-}" == word && "$b" != *'$'* ]]; then
-    local lb="${b,,}"
-    local stem_re='(^|[^a-z0-9_])(rm|unlink|rsync|robocopy|worktree|remove|mv|truncate|shred|delete|base64|base32|basenc|xxd|cmd)|of='
-    [[ "$lb" =~ $stem_re ]] || return 0
-  fi
+  # Inside a python or node program body (rdt_scan_gated), a span that reads
+  # as plain text (rdt_span_prose) is not tokenized: "form" or "perform" no
+  # longer sends a markdown backtick span to shfmt.
+  [[ "${rdt_span_gate:-}" == word ]] && rdt_span_prose "$b" && return 0
   # A span that is read is read in full: nothing it reaches is gated.
   local rdt_span_gate=
   rdt_scanned=$((rdt_scanned + ${#b}))
   ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "bodies-too-long"
   rdt_parse "$b"
+}
+
+# rdt_span_prose <span>: true when a span in a python or node program body
+# reads as plain text, so no shell that runs it could build a delete from it.
+# A shell rebuilds a word before it runs it, so the span is NOT plain when it
+# holds:
+#   * a `$` (any expansion, ANSI-C quoting included);
+#   * a brace, glob, tilde, `!`, `@` or `^` character (brace, glob, history
+#     and extglob expansion, the Bourne pipe), or a pipe or redirection
+#     character, through which a printf or echo -e can feed decoded escapes to
+#     a shell;
+#   * a backslash other than `\n`, `\t` or `\r` (an escape a printf or echo
+#     decodes, an escaped quote, or a backslash-newline joining a word);
+#   * a prefilter stem, or a shell or eval word, at the start of a word in its
+#     text as written, with quotes, backticks and backslashes removed (the
+#     shell joins `r""m` and `'r'm` and drops the backslash in `r\m`), or with
+#     line breaks removed too (`r\` then a line break then `m`). Line breaks
+#     stay separators in the second reading, so a quoted piece that starts a
+#     line still starts a word. `\`, `/`, quotes and operators count as word
+#     starts, so `\rm` and `/bin/rm` match.
+rdt_span_prose() {
+  local lb="${1,,}" st
+  local meta_re='[]$|<>{}[*?~!@^]' esc_re='\\([^ntr]|$)'
+  local word_re='(^|[^a-z0-9_])(rm|unlink|rsync|robocopy|worktree|remove|mv|truncate|shred|delete|base64|base32|basenc|xxd|cmd|(sh|bash|zsh|dash|ksh|mksh|eval|source)([^a-z0-9_]|$))|of='
+  [[ "$lb" =~ $meta_re || "$lb" =~ $esc_re ]] && return 1
+  st="${lb//[\'\"\`\\]/}"
+  [[ "$lb"$'\n'"$st"$'\n'"${st//[$'\n\r']/}" =~ $word_re ]] && return 1
+  return 0
 }
 
 # rdt_hd_plain <text>: true when the text around a heredoc opener holds no
@@ -6627,13 +6655,13 @@ rdt_hd_reader() {
 # python or node program read from stdin, `python|python3|python3.N` with only
 # no-argument flags and an optional `-`, or `node|nodejs` with an optional `-`,
 # and nothing earlier in the command can rebind that name or reach the body:
-# no `\ < > { } ( )`, no `PATH`, `hash`, `exec` or interpreter word, no
-# reserved word and nothing RDT_LIT_FORBID_RE names (alias, eval, source,
-# function, `.`). A launcher, a path, a prefix assignment, a code option
+# no `\ < > { } ( )`, and, in the text as written or with its quotes removed,
+# no `PATH`, `hash`, `exec` or interpreter word, no reserved word and nothing
+# RDT_LIT_FORBID_RE names (alias, eval, source, function, `.`). A launcher, a path, a prefix assignment, a code option
 # (`-c`, `-e`, `-m`), a script or perl and ruby, whose backticks run commands,
 # all fail and keep the full scan.
 rdt_hd_interp() {
-  local t="$1" stmt before w0
+  local t="$1" stmt before bq w0
   local rebind_re='(^|[^A-Za-z0-9_])(hash|exec)([^A-Za-z0-9_]|$)'
   stmt="${t##*$'\n'}"
   stmt="${stmt##*[;&|]}"
@@ -6644,8 +6672,13 @@ rdt_hd_interp() {
   else
     return 1
   fi
-  [[ "$before" == *[\\\<\>\{\}\(\)]* || "$before" == *PATH* || "$before" == *"$w0"* ]] && return 1
-  [[ "$before" =~ $rebind_re ||"$before" =~ $RDT_LIT_RESERVED_RE || "$before" =~ $RDT_LIT_FORBID_RE ]] && return 1
+  [[ "$before" == *[\\\<\>\{\}\(\)]* ]] && return 1
+  # The word tests read the text as written and with its quotes removed, as
+  # the shell joins `py''thon3` or `ha$''sh` into one word.
+  bq="${before//\$[\'\"]/}"
+  bq="$before"$'\n'"${bq//[\'\"\`]/}"
+  [[ "$bq" == *PATH* || "$bq" == *"$w0"* ]] && return 1
+  [[ "$bq" =~ $rebind_re || "$bq" =~ $RDT_LIT_RESERVED_RE || "$bq" =~ $RDT_LIT_FORBID_RE ]] && return 1
   return 0
 }
 
@@ -6775,7 +6808,9 @@ rdt_scan_substitutions() {
           hq=0
         fi
         # A python or node program body (rdt_hd_interp) at top level under a
-        # plain quoted word is scanned with the span word gate.
+        # plain quoted word is scanned with the span word gate. No carriage
+        # return reaches this scan: the payload's are removed when the command
+        # is read (hook::jq_fields), so a CRLF opener reads as an LF one.
         hi=0
         if [[ -z "$nested" && hcmt -lt 0 && "${s:hstart:i-hstart}" =~ $hd_word_re ]] &&
           ((pd == 0)) && rdt_hd_interp "$hfull"; then

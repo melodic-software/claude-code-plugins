@@ -801,6 +801,74 @@ expect_both "prose span: alias before the interpreter still tokenized" 2 --comma
 expect_both "prose span: eval before the interpreter still tokenized" 2 --command $'eval true; python3 - <<\'EOF\'\n'"$rdt_py"
 expect_both "prose span: dot source before the interpreter still tokenized" 2 --command $'. ./defs.sh; python3 - <<\'EOF\'\n'"$rdt_py"
 expect_both "prose span holding a dollar sign still tokenized" 2 --command $'python3 - <<\'EOF\'\nprint("`the form check ($x)`")\nEOF'
+# A shell rebuilds a word before it runs it: it joins adjacent quoted pieces,
+# drops backslashes and backslash-newlines, and a printf or echo -e piped into
+# a shell decodes escapes. Each span below spells its delete that way and is
+# handed to a shell through a variable, so the gate must tokenize it.
+rdt_pa=$'python3 - <<\'EOF\'\nimport os\ncmd = '
+rdt_pz=$'\nos.system(cmd)\nEOF'
+rdt_ja=$'node - <<\'EOF\'\nconst { execSync } = require("child_process");\nconst c = '
+rdt_jz=$';\nexecSync(c);\nEOF'
+expect_both "python span joining a double-quoted empty piece into rm blocks" 2 --command "$rdt_pa"'"echo `r""m -rf / form`"'"$rdt_pz"
+expect_both "python span joining a single-quoted piece into rm blocks" 2 --command "$rdt_pa"$'"echo `\'r\'m -rf / form`"'"$rdt_pz"
+expect_both "python span with a backslash inside rm blocks" 2 --command "$rdt_pa"'"echo `r\m -rf / form`"'"$rdt_pz"
+expect_both "python span with a backslash-newline inside rm blocks" 2 --command "$rdt_pa"$'"""echo `r\\\nm -rf / form`"""'"$rdt_pz"
+expect_both "python span with a quoted piece after a line break blocks" 2 --command "$rdt_pa"$'"""echo `true\n\'r\'m -rf / form`"""'"$rdt_pz"
+expect_both "python dollar-paren span joining a quoted piece into rm blocks" 2 --command "$rdt_pa"$'"echo $(r\'\'m -rf / form)"'"$rdt_pz"
+expect_both "python span piping a printf octal escape into sh blocks" 2 --command "$rdt_pa"$'r"echo `printf \'r\\155 -rf / form\' | sh`"'"$rdt_pz"
+expect_both "python span piping an echo -e hex escape into bash blocks" 2 --command "$rdt_pa"$'r"echo `echo -e \'r\\x6d -rf / form\' | bash`"'"$rdt_pz"
+expect_both "python span with an ANSI-C quoted piece blocks" 2 --command "$rdt_pa"$'"echo `$\'r\'m -rf / form`"'"$rdt_pz"
+expect_both "node span joining an empty quoted piece into rm blocks" 2 --command "$rdt_ja"$'"echo `r\'\'m -rf / form`"'"$rdt_jz"
+expect_both "node span joining a single-quoted piece into rm blocks" 2 --command "$rdt_ja"$'"echo `\'r\'m -rf / form`"'"$rdt_jz"
+expect_both "node span with a backslash inside rm blocks" 2 --command "$rdt_ja"'"echo `r\m -rf / form`"'"$rdt_jz"
+expect_both "node span with a backslash-newline inside rm blocks" 2 --command "$rdt_ja"$'"echo `r\\\nm -rf / form`"'"$rdt_jz"
+expect_both "node span with a quoted piece after a line break blocks" 2 --command "$rdt_ja"$'`echo \\`true\n\'r\'m -rf / form\\``'"$rdt_jz"
+expect_both "node dollar-paren span joining a quoted piece into rm blocks" 2 --command "$rdt_ja"$'"echo $(r\'\'m -rf / form)"'"$rdt_jz"
+expect_both "node span piping a printf octal escape into sh blocks" 2 --command "$rdt_ja"$'"echo `printf \'r\\155 -rf / form\' | sh`"'"$rdt_jz"
+expect_both "node span piping an echo -e hex escape into bash blocks" 2 --command "$rdt_ja"$'"echo `echo -e \'r\\x6d -rf / form\' | bash`"'"$rdt_jz"
+expect_both "node span with an ANSI-C quoted piece blocks" 2 --command "$rdt_ja"$'"echo `$\'r\'m -rf / form`"'"$rdt_jz"
+# Every other way a shell builds or feeds a word sends the span to the
+# tokenizer too: a brace, glob, tilde, history or extglob character, a pipe or
+# redirection, a backslash other than \n, \t or \r, or a shell or eval word.
+# Each prose twin below fails shfmt once tokenized, which pins the routing.
+rdt_pp=$'python3 - <<\'EOF\'\nprint("`the form check (x) '
+rdt_pq=$'`")\nEOF'
+rdt_jp=$'node - <<\'EOF\'\nconsole.log(`the form check (x) '
+rdt_jq=$'`);\nEOF'
+expect_both "prose span with a brace still tokenized" 2 --command "$rdt_pp"'{a,b}'"$rdt_pq"
+expect_both "prose span with a bracket still tokenized" 2 --command "$rdt_pp"'a[1]'"$rdt_pq"
+expect_both "prose span with a star still tokenized" 2 --command "$rdt_pp"'a*'"$rdt_pq"
+expect_both "prose span with a question mark still tokenized" 2 --command "$rdt_pp"'a?'"$rdt_pq"
+expect_both "prose span with a tilde still tokenized" 2 --command "$rdt_pp"'~a'"$rdt_pq"
+expect_both "prose span with a bang still tokenized" 2 --command "$rdt_pp"'a!'"$rdt_pq"
+expect_both "prose span with an at sign still tokenized" 2 --command "$rdt_pp"'a@b'"$rdt_pq"
+expect_both "prose span with a caret still tokenized" 2 --command "$rdt_pp"'a^b'"$rdt_pq"
+expect_both "prose span with a pipe still tokenized" 2 --command "$rdt_pp"'a | b'"$rdt_pq"
+expect_both "prose span with a less-than still tokenized" 2 --command "$rdt_pp"'a <b'"$rdt_pq"
+expect_both "prose span with a greater-than still tokenized" 2 --command "$rdt_pp"'a >b'"$rdt_pq"
+expect_both "prose span with another backslash escape still tokenized" 2 --command "$rdt_pp"'a\q'"$rdt_pq"
+expect_both "prose span naming sh still tokenized" 2 --command "$rdt_pp"'via sh'"$rdt_pq"
+expect_both "prose span naming eval still tokenized" 2 --command "$rdt_pp"'via eval'"$rdt_pq"
+expect_both "prose span with a quote-split stem still tokenized" 2 --command "$rdt_pp"'r""m'"$rdt_pq"
+expect_both "node prose span with a brace still tokenized" 2 --command "$rdt_jp"'{a,b}'"$rdt_jq"
+expect_both "node prose span with a question mark still tokenized" 2 --command "$rdt_jp"'a?'"$rdt_jq"
+expect_both "node prose span with another backslash escape still tokenized" 2 --command "$rdt_jp"'a\q'"$rdt_jq"
+expect_both "node prose span with a quote-split stem still tokenized" 2 --command "$rdt_jp"$'r\'\'m'"$rdt_jq"
+# The earlier text is read with its quotes removed too, so a name split by
+# quotes there still keeps the full scan.
+expect_both "prose span: quote-split interpreter word before python still tokenized" 2 --command $'cp /bin/sh ~/bin/py\'\'thon3; python3 - <<\'EOF\'\n'"$rdt_py"
+expect_both "prose span: quote-split interpreter word before node still tokenized" 2 --command $'echo no""de; node - <<\'EOF\'\n'"$rdt_js"
+expect_both "prose span: quote-split PATH before the interpreter still tokenized" 2 --command $'PA\'\'TH=/opt/x; python3 - <<\'EOF\'\n'"$rdt_py"
+expect_both "prose span: quote-split hash before the interpreter still tokenized" 2 --command $'ha\'\'sh -r; python3 - <<\'EOF\'\n'"$rdt_py"
+expect_both "prose span: ANSI-C split hash before the interpreter still tokenized" 2 --command $'ha$\'\'sh -r; python3 - <<\'EOF\'\n'"$rdt_py"
+expect_both "prose span: quote-split exec before the interpreter still tokenized" 2 --command $'ex""ec bash; python3 - <<\'EOF\'\n'"$rdt_py"
+expect_both "prose span: quote-split eval before the interpreter still tokenized" 2 --command $'e\'\'val true; python3 - <<\'EOF\'\n'"$rdt_py"
+# A tab-stripping opener qualifies. The payload's carriage returns are removed
+# before the guard reads the command, so a CRLF opener reads as an LF one.
+expect_both "python heredoc with a tab-stripping opener and prose in a backtick span allowed" 0 --command $'python3 - <<-\'EOF\'\nprint("`the form check (x)`")\n\tEOF'
+expect_both "python heredoc with a tab-stripping opener and a backticked rm blocks" 2 --command $'python3 - <<-\'EOF\'\nprint("`rm -rf /`")\n\tEOF'
+expect_both "python heredoc with a CRLF opener and prose in a backtick span allowed" 0 --command $'python3 - <<\'EOF\'\r\nprint("`the form check (x)`")\r\nEOF\r'
+expect_both "python heredoc with a CRLF opener and a backticked rm blocks" 2 --command $'python3 - <<\'EOF\'\r\nprint("`rm -rf /`")\r\nEOF\r'
 # An unquoted delimiter's body IS expanded, so its substitutions still run.
 expect_both 'unquoted heredoc body with backticked rm blocks' 2 --command $'cat <<EOF\nnote: `rm -rf /`\nEOF'
 expect_both "unquoted heredoc ahead of a quoted one on the same line blocks" 2 --command $'cat <<A <<\'B\'\n`rm -rf /`\nA\ninert\nB'
