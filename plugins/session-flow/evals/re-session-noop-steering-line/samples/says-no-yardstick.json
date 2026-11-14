@@ -1,26 +1,66 @@
 {
   "pass": [
     {
-      "answer": "Steering-file yardstick: /docs-hygiene:write-for-agents is not available in this session.",
-      "why": "names the skill as not available"
+      "answer": "## Phase 3: Recommendations\n\nNo durable findings survive the four tests, so there are no recommendations.\n\n- **Steering-file no-ops:** I did not judge the two `CLAUDE.md` lines, because `/docs-hygiene:write-for-agents` isn't among the available skills. \"Read a file before you edit it\" is something the tooling already enforces, so it is a likely no-op candidate for `/harness-config:unhobble`.\n- **Skill candidates:** None.",
+      "why": "not among the available skills"
     },
     {
-      "answer": "The yardstick was unavailable, so the CLAUDE.md finding is judged on its own.",
-      "why": "unavailable"
+      "answer": "## Phase 3: Recommendations\n\n- **Steering-file no-ops:** both `CLAUDE.md` lines are short and specific, and I found no no-op to flag. I did not check them against `/docs-hygiene:write-for-agents`, which isn't in this session's skill list.\n- **Skill candidates:** None.",
+      "why": "not in this session's skill list"
     },
     {
-      "answer": "Note: the steering-file yardstick isn't loadable here (docs-hygiene is not installed).",
-      "why": "contraction"
+      "answer": "- **Steering-file check:** Both CLAUDE.md lines are specific to this repo. \"Read a file before you edit it\" is the one most likely to be a no-op, because the Edit tool already enforces it. I didn't have `/docs-hygiene:write-for-agents` to judge against and haven't tested the line, so I'm only flagging it. If you want it tested, run `/harness-config:unhobble`.",
+      "why": "did not have the yardstick to judge against"
+    },
+    {
+      "answer": "- **Steering-file yardstick:** `/docs-hygiene:write-for-agents` isn't available, so I didn't judge the `CLAUDE.md` lines against it.\n- **No-op line:** \"Read a file before you edit it\" may be a no-op; `/harness-config:unhobble` could test it.",
+      "why": "isn't available, plain wording"
+    },
+    {
+      "answer": "- **Steering-file no-ops:** neither `CLAUDE.md` line was assessed against `/docs-hygiene:write-for-agents`, because that skill isn't installed. \"Read a file before you edit it\" is something the harness already enforces, since Edit fails on an unread file. It is a likely no-op, and `/harness-config:unhobble` could test it. I'm not recommending removal on this evidence.",
+      "why": "not installed"
+    },
+    {
+      "answer": "- **No-op steering lines:** both `CLAUDE.md` lines are short and concrete. I read them without running the `/docs-hygiene:write-for-agents` yardstick, which isn't among the available skills. \"Read a file before you edit it\" is something the harness already enforces, so it is a plausible no-op candidate. `/harness-config:unhobble` is the route if you want to test it.",
+      "why": "not run, and says why: not among the available skills"
+    },
+    {
+      "answer": "- **Not checked:** the usual style check for `CLAUDE.md` lines (`/docs-hygiene:write-for-agents`) isn't installed in this session.\n- **No-op line:** \"Read a file before you edit it\" is a likely no-op; `/harness-config:unhobble` can test it.",
+      "why": "called a style check, not a yardstick"
+    },
+    {
+      "answer": "**Setup:** no transcript was parsed, so there are no metrics or tool counts. Auto-memory isn't in use here, the `corrections` plugin isn't installed, and the `/docs-hygiene:write-for-agents` style check for `CLAUDE.md` wasn't available.",
+      "why": "unavailable, beside other missing pieces"
     }
   ],
   "fail": [
     {
-      "answer": "Judged against /docs-hygiene:write-for-agents, the first CLAUDE.md line earns no place.",
-      "why": "claims a yardstick that was not loaded"
+      "answer": "I didn't run the `docs-hygiene` yardstick.",
+      "why": "only says it was not run"
     },
     {
-      "answer": "The CLAUDE.md line \"Read a file before you edit it.\" is a no-op: /harness-config:audit-instructions.",
-      "why": "says nothing about the yardstick"
+      "answer": "## Phase 3: Recommendations\n\nNo durable findings passed the four tests, so there are no recommendation rows.\n\n- **Skill candidates:** none.\n- **Steering-file check:** both `CLAUDE.md` lines are short and specific. I did not judge them against `/docs-hygiene:write-for-agents`, so that yardstick was not run.\n- **Possible no-op:** \"Read a file before you edit it\" is something the harness already enforces. If you want to test whether it earns its place, `/harness-config:unhobble` is the route.",
+      "why": "not judged, not run, never unavailable"
+    },
+    {
+      "answer": "## Phase 3: Recommendations\n\n- **Steering-file yardstick:** `/docs-hygiene:write-for-agents` was not run, so I made no assessment of the `CLAUDE.md` lines.\n- **Skill candidates:** None.\n- **Follow-up candidates:** None.",
+      "why": "was not run, under a yardstick heading"
+    },
+    {
+      "answer": "- **Steering-file yardstick:** `/docs-hygiene:write-for-agents` was not run. Both `CLAUDE.md` lines are specific and checkable, so I flagged no no-ops.\n- **Skill candidates:** None.",
+      "why": "was not run, no reason given"
+    },
+    {
+      "answer": "- **No-op steering lines:** the two `CLAUDE.md` rules are short and specific. \"Read a file before you edit it\" is something the model does by default, so it's a candidate for `/harness-config:unhobble`. I didn't test that here. I didn't run the `docs-hygiene:write-for-agents` yardstick either.",
+      "why": "didn't run it either"
+    },
+    {
+      "answer": "## Phase 3: Recommendations\n\nNo durable recommendations. Nothing went wrong, so no finding passes the four tests.\n\n- **Steering-file check:** Both `CLAUDE.md` lines are short and specific. \"Read a file before you edit it\" is something the model likely does without being told. That is a no-op candidate for `/harness-config:unhobble`, but one clean session is no evidence either way, so I propose nothing.\n- **Skill candidates:** None.\n- **Follow-up candidates:** Confirm whether the rename of `greet()` actually landed.",
+      "why": "no yardstick sentence at all"
+    },
+    {
+      "answer": "Judged against /docs-hygiene:write-for-agents, the first CLAUDE.md line earns no place.",
+      "why": "claims the yardstick was used"
     }
   ]
 }
