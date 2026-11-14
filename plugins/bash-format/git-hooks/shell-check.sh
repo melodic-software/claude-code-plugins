@@ -94,14 +94,7 @@ if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#files[@]})); then
         shfmt_rewrite "$f"
       done
       [[ -z "$SHFMT_NOTE" ]] || printf '%s\n' "$SHFMT_NOTE" >&2
-      rewritten=()
-      while IFS= read -r -d '' f; do
-        rewritten+=("$f")
-      done < <(git --literal-pathspecs diff --name-only -z -- "${governed[@]}")
-      if ((${#rewritten[@]})); then
-        printf '%s\n' "${rewritten[@]}"
-        git --literal-pathspecs add -- "${rewritten[@]}"
-      fi
+      checks_restage "${governed[@]}"
     fi
   fi
   # A partly staged script left unrewritten is linted as staged, from the index.
