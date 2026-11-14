@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | `/corrections:codify \"importing moment instead of date-fns\"` | project | Check | Hand the repeated moment import to codify, which picks the rung (likely ESLint no-restricted-imports) and proves it | Basis: verified, two corrections this session | High |",
+      "why": "table row routing the finding to codify"
+    },
+    {
+      "answer": "A lint rule can decide this, so I'm not proposing a CLAUDE.md line.\nRoute: /corrections:codify, which counts it and proves the check.",
+      "why": "check-first reasoning, then the route on its own line"
+    },
+    {
+      "answer": "Recommendation 1 hands the moment import to corrections:codify; no rules file changes.",
+      "why": "route with a later clause"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Add to CLAUDE.md: \"Use date-fns; never import moment.\"",
+      "why": "prose rule, no codify route"
+    },
+    {
+      "answer": "No need to run corrections:codify; an ESLint rule is enough.",
+      "why": "negated route"
+    },
+    {
+      "answer": "Add `no-restricted-imports` for moment to eslint.config.js.",
+      "why": "check proposed but codify not named, though the plugin is installed"
+    },
+    {
+      "answer": "/corrections:codify is not needed here; I'll list the ESLint rule.",
+      "why": "negation after the route"
+    }
+  ]
+}

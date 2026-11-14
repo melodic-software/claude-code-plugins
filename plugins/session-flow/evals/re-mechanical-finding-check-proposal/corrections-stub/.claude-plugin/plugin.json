@@ -1,0 +1,5 @@
+{
+  "name": "corrections",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the corrections plugin: the codify skill, so a retro can route a mechanical finding to it as a check proposal, with no scripts."
+}

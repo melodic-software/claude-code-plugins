@@ -1,7 +1,9 @@
 # Ecosystem Improvement Catalog
 
 Taxonomy of improvements codifiable from session findings. Each category maps a finding type to a
-specific ecosystem target.
+specific ecosystem target. The target sections that hold a rule run strongest first: Hooks and
+Settings, which can block; then CLAUDE.md / Rules, the guidance tier the enforcement ladder ranks
+below them; then Memory, which reaches one user on one machine.
 
 **Research before recommending.** The Claude Code ecosystem evolves constantly, so verify current
 capabilities against current official docs before recommending; never recommend features from
@@ -13,9 +15,35 @@ the docs lookup: follow `<plugin-root>/reference/docs-lookup-procedure.md` with 
 the fallback only when the manifest records the page unread with reason `curl-missing` or the
 script wrote no manifest.
 
+## Check first
+
+Before the scope question, ask one thing of every finding: **could a check decide this?** A check
+can when a machine reaches the same verdict every time, the first item of the "Guardrail
+criterion" in `<plugin-root>/skills/retro/reference/enforcement-ladder.md`: a fixed pattern, a
+banned API, a file written in the wrong place, a step skipped before a commit.
+
+- **Yes**: the recommendation is a check proposal, never a new prose line. An existing check that
+  should have caught it but is unwired or broken comes first: the row wires or repairs that check,
+  as "When to propose a check" under [Owner skills](#owner-skills) says. Otherwise, when the
+  `corrections` plugin is installed, the row hands the finding to
+  `/corrections:codify "<the mistake>"`, which counts it, applies the ladder's guardrail
+  criterion, picks the strongest rung that can decide it and proves the check. Without it, judge
+  the finding on the "Guardrail criterion" items a retro can settle from the finding itself: item
+  1 (decidable without reasoning), item 2 (it recurs, by the rule "When to propose a check" under
+  [Owner skills](#owner-skills) gives for when the plugin is missing) and item 7 (no stronger rung
+  already covers it). A finding that meets those three takes the [Hooks](#hooks) section's format
+  and names the strongest rung of the ladder copy that can decide it. Items 3-6 and 8 (precision,
+  a message naming the fix, proof on a planted violation, the same command at edit time and in
+  CI, a kill switch) describe a check that exists, and a retro proposes a check without writing
+  or proving one, so the row lists them as requirements the proposed check must meet. A finding
+  that fails item 1, 2 or 7 goes on to the placement decision tree, since the ladder keeps it on
+  the guidance tier. Give a finding that gets a check row no CLAUDE.md, `AGENTS.md` or rules-file
+  row, a pointer to the check included: the check replaces the line.
+- **No**: go on to the placement decision tree below.
+
 ## Placement Decision Tree
 
-Before recommending a target, determine WHERE the finding should live. The key distinction is
+When a finding gets no check row, determine WHERE it should live. The key distinction is
 **scope**: who needs this knowledge, and what happens if it is lost?
 
 **Two scopes:**
@@ -29,8 +57,6 @@ Before recommending a target, determine WHERE the finding should live. The key d
 
 1. **Would another contributor (human or agent) on a fresh clone need this?**
    - Technical gotchas, tooling quirks, conventions → **project** (rules/CLAUDE.md)
-   - A mistake a deterministic check could catch → **project**, routed through
-     [Owner skills](#owner-skills) rather than written as prose
    - Example: "the analyzer silently skips generated files" → the relevant `.claude/rules/` file
 2. **Does it protect the accuracy or quality of a specific git-tracked artifact?**
    - Guard rails for skills, rules files, or documentation → **project** (in the artifact it
@@ -79,9 +105,12 @@ CLAUDE.md / Rules, or Skills for a script whose output cost many tokens).
 | An agent-loaded doc (CLAUDE.md, AGENTS.md, rules) that misled or bloated the session | `/docs-hygiene:write-for-agents` |
 
 **When to propose a check.** Retro proposes a check and never adopts one: the user decides at the
-approval checkpoint, and the owner skill picks the mechanism. Propose one on the first occurrence of
-a policy-class mistake (irreversible, public, or security-relevant), and on a repeat with the same
-cause for a behavior correction. Sometimes the right outcome is no check: the model already
+approval checkpoint, and the owner skill picks the mechanism. How often a mistake must recur before
+a check is proposed is `/corrections:codify`'s `recurrence.min_occurrences` setting, and this
+catalog keeps no count of its own. A policy-class mistake (irreversible, public, or
+security-relevant) needs one occurrence, as that skill and the ladder copy's guardrail criterion
+both say. Without the `corrections` plugin there is no setting to read, so propose on a repeat with
+the same cause. Sometimes the right outcome is no check: the model already
 complies, the action is reversible, or the repo has nothing to wire a check into. An existing check
 that should have caught the mistake but is unwired (no CI or pre-commit step runs it) or broken is
 the finding, reported before any new check is proposed. A repo with no CI or pre-commit step to
@@ -89,52 +118,6 @@ wire a check into is still reported as a finding. It proposes a check only when 
 session is one that check would have caught; otherwise it is reported as a standing gap with no
 proposal, since a check proposed from general practice rather than a session event tends to go
 unread by later sessions ([Treude and Baltes, RQ1](https://arxiv.org/html/2610.34938v1)).
-
-## Memory
-
-Personal learnings that persist across THIS USER's sessions on THIS machine. NOT committed, NOT
-shared. It is either rediscoverable (preferences, references) or ephemeral (work status).
-
-### When to recommend
-
-- **Feedback memory.** The user corrected behavior, or a non-obvious approach was validated
-- **User memory.** Learned something about the user's role, preferences, or expertise
-- **Project memory.** Learned about ongoing work, deadlines, or context not in code/git
-- **Reference memory.** Discovered where information lives in external systems
-
-### Format
-
-Match the consumer's existing auto-memory conventions. Read a sibling memory file first and follow
-its naming, structure, and any index it maintains rather than inventing a new format.
-
-### What NOT to save
-
-No code patterns derivable from the codebase, no git history, no debugging recipes, no duplicates
-of instruction-file content, no ephemeral task details.
-
-## CLAUDE.md / Rules
-
-Conventions and guidelines that should be documented.
-
-### When to recommend
-
-- A convention was followed implicitly but isn't documented, so future sessions would rediscover it
-- An existing rule was ambiguous and caused confusion. Clarify it
-- A rule is outdated and caused incorrect behavior. Update or remove it
-- A new pattern was established that should be the default going forward
-
-### Criteria for CLAUDE.md vs rules files
-
-| Target | Criteria |
-| --- | --- |
-| CLAUDE.md | Repo-wide, always-on context. Keep brief: reference, don't duplicate |
-| `.claude/rules/*.md` | Scoped to file types. Detailed conventions, gotchas, examples |
-| Neither | General industry knowledge the agent already follows |
-
-### Important
-
-Do NOT recommend content that duplicates source-of-truth files (linter configs, analyzer rule
-lists, formatter settings). CLAUDE.md documents that enforcement exists; it doesn't reproduce it.
 
 ## Hooks
 
@@ -160,6 +143,73 @@ changes faster than any copy here could track, so no copy is kept here.
 ### Recommendation format
 
 Include: hook event, matcher pattern, what the script checks, expected behavior (block vs warn).
+
+## Settings / Configuration
+
+Changes to Claude Code settings (settings.json, permissions, environment variables).
+
+### When to recommend
+
+- A permission was repeatedly denied that should be pre-approved
+- An environment variable was needed but not configured
+- A sandbox or security setting needs adjustment
+
+### Recommendation format
+
+Include: which settings file (user/project), the specific setting key, proposed value, rationale.
+
+## CLAUDE.md / Rules
+
+Recommend a CLAUDE.md or rules-file line only when no rung above guidance in the ladder copy can
+decide the finding: [Check first](#check-first) answered no, or the finding fails item 1, 2 or 7
+of the ladder's guardrail criterion, the items a retro judges from the finding itself. Items 3-6
+and 8 are requirements on the proposed check, so failing only those admits no prose line. A prose
+line is the ladder's guidance tier, which nothing checks, so a finding a check could decide goes
+to a check instead.
+
+Conventions and guidelines that should be documented.
+
+### When to recommend
+
+- A convention was followed implicitly but isn't documented, so future sessions would rediscover it
+- An existing rule was ambiguous and caused confusion. Clarify it
+- A rule is outdated and caused incorrect behavior. Update or remove it
+- A new pattern was established that should be the default going forward
+
+### Criteria for CLAUDE.md vs rules files
+
+| Target | Criteria |
+| --- | --- |
+| CLAUDE.md | Repo-wide, always-on context. Keep brief: reference, don't duplicate |
+| `.claude/rules/*.md` | Scoped to file types. Detailed conventions, gotchas, examples |
+| Neither | General industry knowledge the agent already follows |
+
+### Important
+
+Do NOT recommend content that duplicates source-of-truth files (linter configs, analyzer rule
+lists, formatter settings). CLAUDE.md documents that enforcement exists; it doesn't reproduce it.
+
+## Memory
+
+Personal learnings that persist across THIS USER's sessions on THIS machine. NOT committed, NOT
+shared. It is either rediscoverable (preferences, references) or ephemeral (work status).
+
+### When to recommend
+
+- **Feedback memory.** The user corrected behavior, or a non-obvious approach was validated
+- **User memory.** Learned something about the user's role, preferences, or expertise
+- **Project memory.** Learned about ongoing work, deadlines, or context not in code/git
+- **Reference memory.** Discovered where information lives in external systems
+
+### Format
+
+Match the consumer's existing auto-memory conventions. Read a sibling memory file first and follow
+its naming, structure, and any index it maintains rather than inventing a new format.
+
+### What NOT to save
+
+No code patterns derivable from the codebase, no git history, no debugging recipes, no duplicates
+of instruction-file content, no ephemeral task details.
 
 ## Skills
 
@@ -210,20 +260,6 @@ Include: server transport (choose from the transports the docs currently support
 provided, read-only vs read-write, expected benefit.
 
 - **Pointer**: [Connect Claude Code to tools via MCP § Installing MCP servers](https://code.claude.com/docs/en/mcp#installing-mcp-servers)
-
-## Settings / Configuration
-
-Changes to Claude Code settings (settings.json, permissions, environment variables).
-
-### When to recommend
-
-- A permission was repeatedly denied that should be pre-approved
-- An environment variable was needed but not configured
-- A sandbox or security setting needs adjustment
-
-### Recommendation format
-
-Include: which settings file (user/project), the specific setting key, proposed value, rationale.
 
 ## Other Ecosystem Components
 

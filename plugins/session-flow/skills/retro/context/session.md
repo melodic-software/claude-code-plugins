@@ -299,8 +299,10 @@ Code configuration: verify it against current official docs before presenting, r
 docs lookup the catalog below describes. Never recommend features from training-data assumptions.
 
 **Load the catalog.** Read `<plugin-root>/skills/retro/reference/ecosystem-improvement-catalog.md`
-before filling the table. The placement decision tree and the per-target recommendation formats
-(memory, rules, hooks, skills, agents, MCP servers, settings) live there.
+before filling the table, and put each finding through its "Check first" step before choosing a
+target: a finding a check could decide gets a check row, not a CLAUDE.md or rules row. The
+placement decision tree and the per-target recommendation formats (hooks, settings, rules, memory,
+skills, agents, MCP servers) live there.
 
 **Repeated corrections.** A finding that is a correction the session needed more than once is
 routed to `/corrections:codify "<the mistake>"` when the `corrections` plugin is installed, which
