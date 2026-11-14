@@ -30,7 +30,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
 import media_scan  # noqa: E402
 
 START = "<!-- reviewer-media:start -->"

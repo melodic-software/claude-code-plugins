@@ -1042,7 +1042,8 @@ check "--preflight in a lane: lane-push.sh did not run" "$(lane_dest)" "NONE"
 # The gh stand-in keeps the PR body in a file and answers media.py's read with
 # it; media.py runs from the plugin copy.
 if command -v python3 >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-  cp -p "${SCRIPT_DIR}/media.py" "${SCRIPT_DIR}/media_scan.py" "${SCRIPT_DIR}/redact.py" "$PLUGIN/skills/pull-request/scripts/"
+  cp -p "${SCRIPT_DIR}/media.py" "$PLUGIN/skills/pull-request/scripts/"
+  cp -p "${SCRIPT_DIR}/../../../lib/media_scan.py" "${SCRIPT_DIR}/../../../lib/redact.py" "$PLUGIN/lib/"
   MEDIA="$WORKDIR/media"
   mkdir -p "$MEDIA/bin"
   cat >"$MEDIA/bin/gh" <<EOF

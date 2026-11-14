@@ -7,7 +7,7 @@
 # from `gh pr edit --attach` as gh documents it: a body reference to an attached
 # image has its path swapped for the asset URL, a video reference alone in a
 # paragraph becomes the bare URL, and a failed upload leaves the body unwritten.
-# test-scope: plugins/source-control/skills/pull-request/scripts/media.py plugins/source-control/skills/pull-request/scripts/media_scan.py plugins/source-control/skills/pull-request/scripts/redact.py plugins/source-control/skills/pull-request/scripts/fixtures/body-with-reviewer-media.md plugins/source-control/skills/pull-request/vendor/gitleaks/*
+# test-scope: plugins/source-control/skills/pull-request/scripts/media.py plugins/source-control/lib/media_scan.py plugins/source-control/lib/redact.py plugins/source-control/skills/pull-request/scripts/fixtures/body-with-reviewer-media.md plugins/source-control/vendor/gitleaks/*
 
 set -uo pipefail
 
