@@ -1,50 +1,62 @@
 {
   "pass": [
     {
-      "answer": "**Rung:** `syntax-pattern-rule` (this repository's CLAUDE.md calls it `semgrep-rule`, an alias through 3.x).",
-      "why": "bold label with the current id first and the alias after it"
+      "answer": "Count: 3 occurrences (threshold 2, default).\nRung: `syntax-pattern-rule`\nScope: project rule.",
+      "why": "hand-written: the new id on a labelled line"
     },
     {
       "answer": "| Field | Value |\n|---|---|\n| Rung | `syntax-pattern-rule` |\n| Scope | project rule |",
-      "why": "the rung as a table row"
+      "why": "hand-written: the new id in a vertical table row"
     },
     {
-      "answer": "The strongest rung that can decide this is syntax-pattern-rule: one matcher over both services.",
-      "why": "the rung in prose"
+      "answer": "| Mistake | Rung | Scope |\n|---|---|---|\n| shell-string command | `syntax-pattern-rule` | project rule |",
+      "why": "hand-written: the new id in a horizontal table row under a Rung header"
     },
     {
-      "answer": "Rung: `semgrep-rule` → `syntax-pattern-rule`",
-      "why": "the rename shown as an arrow that ends on the current id"
+      "answer": "Picking the rung, strongest first against this repository's order.\n\nOne matcher has to cover both the TypeScript and the Python service, so the proposal is\n`syntax-pattern-rule`, written as one rule in `.semgrep/`.",
+      "why": "hand-written: the new id in prose two lines after the word rung"
+    },
+    {
+      "answer": "### Rung\n\n`syntax-pattern-rule`: one rule over both services. Criterion items 1, 2 and 7 decided it.",
+      "why": "hand-written: the new id under a ### Rung heading"
+    },
+    {
+      "answer": "Rung (CLAUDE.md calls it `semgrep-rule`, now an alias): `syntax-pattern-rule`.",
+      "why": "hand-written: the new id after a parenthetical naming the old id"
     }
   ],
   "fail": [
     {
-      "answer": "",
-      "why": "empty reply"
-    },
-    {
-      "answer": "Rung: semgrep-rule",
-      "why": "keeps the old id as the rung"
-    },
-    {
-      "answer": "Rung: `semgrep-rule` (alias of `syntax-pattern-rule`)",
-      "why": "the chosen rung line leads with the old id"
-    },
-    {
-      "answer": "Notice: the rung id `semgrep-rule` in CLAUDE.md is read as `syntax-pattern-rule` (renamed in ladder 3.0.0).\nRung: shared-helper",
-      "why": "the alias notice alone; the chosen rung is another one"
-    },
-    {
-      "answer": "Rungs considered: semgrep-rule, syntax-pattern-rule, shared-helper.\nRung: instruction.",
-      "why": "a bare mention in a list of rungs; the chosen rung is instruction"
-    },
-    {
       "answer": "Rung considered and rejected: syntax-pattern-rule. Chosen rung: instruction.",
-      "why": "the current id named only as a rejected rung"
+      "why": "hand-written: the new id only on a rejected-rung line; another rung chosen"
     },
     {
-      "answer": "The threshold is 2 (default) and the count is 3.",
-      "why": "an answer to a different question"
+      "answer": "syntax-pattern-rule is ruled out: semgrep is not installed here.\nRung: shared-helper.",
+      "why": "hand-written: the new id on a ruled-out line"
+    },
+    {
+      "answer": "Rung: instruction (syntax-pattern-rule would need semgrep, which this machine lacks).",
+      "why": "hand-written: the new id named only as an alternative inside the rung line"
+    },
+    {
+      "answer": "Rung: shared-helper rather than syntax-pattern-rule.",
+      "why": "hand-written: the new id named as the rung not taken"
+    },
+    {
+      "answer": "Rung ids: make-impossible, shared-helper, editorconfig-severity, analyzer-pack-rule, custom-analyzer, syntax-pattern-rule, architecture-test, harness-setting, action-guard, scaffold, runtime-verification, formal-verification, automated-review, instruction, skill, human-review.",
+      "why": "hand-written: a list of every rung id, no rung proposed"
+    },
+    {
+      "answer": "Chosen rung: semgrep-rule; in ladder 3.0.0 this rung is syntax-pattern-rule.",
+      "why": "hand-written: the old id kept as the chosen rung, the new id only in a note"
+    },
+    {
+      "answer": "Notice: `semgrep-rule` → `syntax-pattern-rule` (renamed in ladder 3.0.0).\nRung: shared-helper.",
+      "why": "hand-written: the new id only in an arrow-form alias notice; another rung chosen"
+    },
+    {
+      "answer": "Rung: `semgrep-rule`, as CLAUDE.md orders it first for dangerous calls.",
+      "why": "hand-written: the old id kept as the chosen rung"
     }
   ]
 }

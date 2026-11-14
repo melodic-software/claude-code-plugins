@@ -1,22 +1,22 @@
 schema_version: "1.1"
 name: codify-old-rung-id-read-as-alias
-description: 'The repository''s CLAUDE.md still orders the old semgrep-rule id first for dangerous calls; codify reads it as the syntax-pattern-rule alias, says so, and proposes the rung under its current id.'
+description: 'The repository''s CLAUDE.md still orders the old semgrep-rule id first for dangerous calls; codify reads it as the syntax-pattern-rule alias, says so, and proposes the rung under its current id. Both judges read the final reply on purpose: the report must carry the alias notice, because a notice printed mid-turn and dropped from the final report does not reach the user.'
 tags: [codify]
 plugins: ["../.."]
 expected_outcome: 'The reply says that semgrep-rule, the id the repository''s CLAUDE.md uses, is an alias of syntax-pattern-rule, and proposes syntax-pattern-rule as the rung. It neither refuses the old id nor keeps it as the current one, writes only under .work/codify/ and edits no file.'
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/corrections:codify "builds a shell command string from a variable and runs it through a shell: child_process.exec with a template string in services/api, subprocess with shell=True in services/worker" Third time this session I caught this, so it has to be caught every time. Skip the proof for now and report the check as unproven.'
+  prompt: '/corrections:codify "builds a shell command string from a variable and runs it through a shell: child_process.exec with a template string in services/api, subprocess with shell=True in services/worker" Third time this session I caught this, so it has to be caught every time.'
   allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
   max_turns: 30
   timeout_seconds: 720
 graders:
   - name: rung-is-current-id
-    type: 'regex'
-    pattern: '\brung\b(?:(?!semgrep-rule(?![-\w])(?!`?\s*(?:→|->|=>))|alias|renam|consider|reject|instead)[^\n])*?syntax-pattern-rule'
-    flags: 'i'
-    arm: 'both'
+    type: 'llm'
+    criteria: 'PASS only if the rung the reply proposes for this mistake is syntax-pattern-rule. A rung that is only listed, rejected, ruled out, named as an alternative, or named inside the alias notice does not count. FAIL if the proposed rung is semgrep-rule or any other rung, or if no rung is proposed. Judge what the reply says.'
+    focus: 'last_message'
+    arm: 'with-only'
   - name: says-old-id-is-alias
     type: 'llm'
     criteria: 'The final reply states, in its own words and not only inside a quoted ladder line or a copied list of rung ids, that semgrep-rule (the id this repository''s CLAUDE.md uses) is an old name or alias, and that syntax-pattern-rule is the id that replaces it. It fails when the reply never mentions semgrep-rule, treats semgrep-rule as the current id, refuses or rejects the old id as unknown, names a different replacement, or only quotes the ladder''s alias line without applying it to this repository''s instruction.'
