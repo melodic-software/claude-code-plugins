@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Inferred rust: globs *.rs, Cargo.toml\n\n| Ecosystem | Lint | Status |\n|---|---|---|\n| rust | skip (tool missing: cargo) | INCOMPLETE |",
+      "why": "the contract line"
+    },
+    {
+      "answer": "**Inferred `rust`: globs `**/*.rs`, `Cargo.toml`**",
+      "why": "markdown-decorated line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "rust: no record and nothing to infer it from",
+      "why": "the filter skipped rung 2"
+    },
+    {
+      "answer": "Inferred rust from Cargo.toml.",
+      "why": "no globs named"
+    }
+  ]
+}

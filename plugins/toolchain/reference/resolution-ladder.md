@@ -40,12 +40,12 @@ holds:
   id: `Inferred <id>: globs <glob>, <glob>`.
 - **Bundled.** A bundled portable default ships for the id.
 
-Before detection or `all`, look for build files of ecosystems that are neither recorded nor bundled
-(a `Cargo.toml`, a `Gemfile`, a `pom.xml`) and run rung 2 for each id they point to, so an inferred
-id joins the set before any glob is matched. Detection, `all`, an ecosystem filter and the
-files-outside-every-ecosystem rule all read this set.
+Before detection, `all` or an ecosystem filter, look for build files of ecosystems that are neither
+recorded nor bundled (a `Cargo.toml`, a `Gemfile`, a `pom.xml`) and run rung 2 for each id they
+point to, so an inferred id joins the set before any glob is matched or any filter is checked.
+Detection, `all`, an ecosystem filter and the files-outside-every-ecosystem rule all read this set.
 
-A filter naming an id that none of these covers goes to rung 3: ask for its command and offer
+A filter naming an id that is still not covered after that pass goes to rung 3: ask for its command and offer
 `/toolchain:setup` to record it. With nobody to ask, run nothing for it and report
 `<id>: no record and nothing to infer it from`.
 

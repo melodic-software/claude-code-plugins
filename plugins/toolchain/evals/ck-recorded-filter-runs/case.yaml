@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: ck-recorded-filter-runs
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-recorded-test
+    type: regex
+    pattern: '^zig test$'
+    flags: m
+    target: { source: file, path: .calls.log }
+  - name: not-uncovered
+    type: regex
+    pattern: 'no record and nothing to infer'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run checks a repository whose tracked .claude/ecosystems/zig.yaml records zig, an ecosystem no bundled default ships, and is asked for the zig filter. It meets issue #16060''s acceptance criterion "check, lint and confirm accept any ecosystem id that is recorded or inferred this run": it treats zig as covered, runs the build, test and lint commands zig.yaml declares, and neither asks for a zig command nor reports that zig has no record.'
