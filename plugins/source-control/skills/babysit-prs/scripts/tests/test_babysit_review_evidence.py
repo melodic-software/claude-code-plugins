@@ -408,10 +408,13 @@ class StatusJobNameTests(Base):
         for name, lane in {
             "PR Review / review-status": "claude-review",
             "pr-review / review-status": "claude-review",
+            "PR Review / claude-review-status": "claude-review",
             "pr-review / claude-review-status": "claude-review",
             "PR Review Security / review-status": "claude-security-review",
             "pr-review-security / review-status": "claude-security-review",
+            "PR Review Security / security-review": "claude-security-review",
             "pr-review-security / security-review": "claude-security-review",
+            "PR Review / security-review": "",
             "other / review-status": "",
             "review-status": "",
             None: "",
