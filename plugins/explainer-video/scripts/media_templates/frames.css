@@ -29,7 +29,10 @@ h2 { font-size: 48px; color: var(--muted); font-weight: 600; margin-bottom: 20px
 .hunk tr.add { background: var(--add-bg); color: var(--add-fg); }
 .hunk tr.del { background: var(--del-bg); color: var(--del-fg); }
 
-.flow { display: flex; align-items: center; justify-content: center; gap: 32px; flex-wrap: wrap; }
+.flow { display: flex; align-items: center; justify-content: center; gap: 32px; flex-wrap: nowrap; }
+.flow .node { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.node .label, .node .detail { text-wrap: balance; }
+.flow .arrow { flex: none; }
 .node { background: var(--panel); border: 4px solid var(--accent); border-radius: 20px; padding: 32px 40px; max-width: 640px; }
 .node .label { font-weight: 700; font-size: 52px; }
 .node .detail { color: var(--muted); font-size: 40px; margin-top: 12px; }
