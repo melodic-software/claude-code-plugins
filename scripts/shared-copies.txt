@@ -896,5 +896,6 @@ lib/media-render/media_templates/frames.css plugins/explainer-video/scripts/medi
 lib/redact.py plugins/explainer-video/scripts/redact.py
 lib/media-render/media_scan.py plugins/source-control/tools/reviewer-media/lib/media_scan.py
 lib/redact.py plugins/source-control/tools/reviewer-media/lib/redact.py
+lib/media-render/media_encode.py plugins/playwright/skills/demo-video/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/pixel-art/scripts/media_encode.py
 lib/media-render/media_encode.py plugins/animation/scripts/media_encode.py
