@@ -28,8 +28,8 @@ const big = { ...quiet, files: Array.from({ length: 9 }, (_, i) => ({ path: `f${
 const config = (overrides = {}) => ({ ...DEFAULTS, ...overrides });
 // A stand-in for the review-digest thresholds: more than five files is "files".
 const triggersOf = (facts) => (facts.files.length > 5 ? ["files"] : []);
-const run = (facts, { policy, requested = false, shown = null, delta = null } = {}) =>
-  decide(facts, { requested, shown, delta }, config(policy ? { policy } : {}), triggersOf);
+const run = (facts, { policy, requested = false, shown = null, delta = null, producerUnavailable = false } = {}) =>
+  decide(facts, { requested, shown, delta, producerUnavailable }, config(policy ? { policy } : {}), triggersOf);
 
 describe("the decision", () => {
   test("never: skips, the request label and a direct request included", () => {
@@ -85,6 +85,16 @@ describe("the decision", () => {
   });
   test("a request label rebuilds stale media whatever the delta", () => {
     assert.equal(run({ ...quiet, labels: [{ name: REQUESTED }] }, { shown: OLD }).action, "build");
+  });
+  test("no producer in the session: a build skips before the claim, a direct request included", () => {
+    const result = run(quiet, { requested: true, producerUnavailable: true });
+    assert.deepEqual([result.action, result.reason], ["skip", "producer-unavailable"]);
+    const always = run(big, { policy: "always", producerUnavailable: true });
+    assert.deepEqual([always.action, always.reason], ["skip", "producer-unavailable"]);
+  });
+  test("no producer in the session still writes the stale note, which renders nothing", () => {
+    const result = run(quiet, { policy: "when-selected", shown: OLD, producerUnavailable: true, delta: { files: quiet.files } });
+    assert.deepEqual([result.action, result.reason], ["stale", "small-delta"]);
   });
   test("a request label turned off is never read", () => {
     const result = decide({ ...quiet, labels: [{ name: REQUESTED }] }, { requested: false, shown: null, delta: null }, config({ labels: { ...DEFAULTS.labels, requested: false } }), triggersOf);
@@ -161,6 +171,13 @@ describe("the convention layers", () => {
     const result = cli(root, { ...quiet, baseRefOid: base }, "--requested");
     assert.deepEqual([result.action, result.reason], ["skip", "invalid-scan-pattern"]);
     assert.match(result.warnings.join("\n"), /scan\.extra_patterns\[1\]/);
+  });
+  test("--producer-unavailable skips a requested build with reason producer-unavailable", () => {
+    const { root, base } = repoWith(null);
+    const facts = { ...quiet, baseRefOid: base };
+    assert.equal(cli(root, facts, "--requested").action, "build");
+    const result = cli(root, facts, "--requested", "--producer-unavailable");
+    assert.deepEqual([result.action, result.reason], ["skip", "producer-unavailable"]);
   });
   test("scan.extra_patterns defaults to none", () => {
     const { root, base } = repoWith(null);
