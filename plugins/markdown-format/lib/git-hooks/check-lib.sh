@@ -57,6 +57,9 @@
 #   checks_refuse_partly_staged
 #                              a rewriting check calls this first: prints the
 #                              contract line per partly staged path, returns 1
+#   checks_restage <path>...   a rewriting check calls this after it rewrites:
+#                              prints and stages each <path> whose work tree
+#                              now differs from the index
 #   checks_refuse_config_drift [--if <fn>] <name>... -- <path>...
 #                              pre-commit: prints the contract line per config
 #                              governing a <path> whose work tree differs from
@@ -621,6 +624,40 @@ checks_refuse_partly_staged() {
     fi
   done < <(checks_files)
   return "$refused"
+}
+
+# checks_restage <path>...: after a rewrite, prints one per line each <path>
+# whose work tree differs from the index, in git's order, and stages them.
+# Windows caps a command line at 32,767 characters, so no git call carries the
+# paths: the diff lists every unstaged change and the <path>s are picked out of
+# it, and git add (2.25 or later) reads them NUL-separated from stdin. A failed
+# git call says so on stderr and returns 1, and the hook then exits 1.
+checks_restage() {
+  # %q spells every name on one line, so a name holding an LF stays one entry.
+  # The names are kept in one LF-joined list per spelled length, so a lookup
+  # scans only the names of its own length. LC_ALL=C keeps the match byte-wise.
+  local LC_ALL=C nl=$'\n' f q
+  local -a want=() rewritten=()
+  for f in "$@"; do
+    printf -v q '%q' "$f"
+    want[${#q}]="${want[${#q}]:-$nl}$q$nl"
+  done
+  git diff --name-only --no-color --no-ext-diff --ignore-submodules=all -z >"$CHECKS_TMP/restage" || {
+    checks_tool_failed git "$?" 'listing the rewritten files'
+    return 1
+  }
+  while IFS= read -r -d '' f; do
+    printf -v q '%q' "$f"
+    if [[ "${want[${#q}]:-}" == *"$nl$q$nl"* ]]; then
+      rewritten+=("$f")
+    fi
+  done <"$CHECKS_TMP/restage"
+  ((${#rewritten[@]})) || return 0
+  printf '%s\n' "${rewritten[@]}"
+  printf '%s\0' "${rewritten[@]}" | git --literal-pathspecs add --pathspec-from-file=- --pathspec-file-nul || {
+    checks_tool_failed git "$?" 'staging the rewritten files'
+    return 1
+  }
 }
 
 checks_partly_staged() {
