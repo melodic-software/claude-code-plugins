@@ -9,6 +9,7 @@ assemble_audio(wav, segments, out)               narration slices and silences, 
 stills(frames, out, profile, audio, srt, ass, cwd) held frames -> one video, keyframe per frame, captions burned
                                                  from ass and kept soft from srt; encoded once.
 stitcher(command, inputs, out)                   a custom stitcher: the command template with {inputs} and {out}.
+mix(video, clips, out, seconds, profile)         narration clips placed at their start times over a copied video.
 """
 import shlex
 import subprocess
@@ -23,6 +24,14 @@ PROFILES = {
                         'video': ['-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-tune', 'stillimage',
                                   '-pix_fmt', 'yuv420p', '-movflags', '+faststart'],
                         'audio': ['-c:a', 'aac', '-b:a', '128k', '-ac', '1'], 'subtitle': _SOFT},
+    # playwright:demo-video: rendered RGB frames piped in, BT.709 tagged end to end, narration mixed in afterwards.
+    'demo-video': {'video': ['-vf', 'scale=out_color_matrix=bt709:out_range=tv:flags=lanczos+accurate_rnd'
+                                    '+full_chroma_int+full_chroma_inp,format=yuv420p',
+                             '-c:v', 'libx264', '-profile:v', 'high', '-preset', 'slower', '-crf', '16',
+                             '-x264-params', 'colorprim=bt709:transfer=bt709:colormatrix=bt709:range=tv',
+                             '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
+                             '-color_range', 'tv', '-movflags', '+faststart'],
+                   'audio': ['-c:a', 'aac', '-b:a', '128k']},
 }
 
 
@@ -117,3 +126,18 @@ def stitcher(command, inputs, out):
     if r.returncode:
         raise EncodeError(f'stitcher {argv[0]} exited {r.returncode}: {r.stderr.strip()[-2000:]}')
     return r
+
+
+def mix(video, clips, out, seconds, profile='demo-video'):
+    """clips: [{'file', 'start', 'duration', 'trim' (default 0)}] in seconds. Overlapping clips sum unscaled
+    (normalize=0), and the mix is padded with silence and cut to `seconds`, so audio and video end together."""
+    p = PROFILES[profile]
+    inputs, chains = ['-i', video], []
+    for i, clip in enumerate(clips):
+        inputs += ['-i', clip['file']]
+        chains.append(f"[{i + 1}:a]atrim=start={clip.get('trim', 0)}:duration={clip['duration']},asetpts=PTS-STARTPTS,"
+                      f"aresample=48000,adelay={int(round(clip['start'] * 1000))}:all=1[a{i}]")
+    graph = ';'.join(chains) + ';' + ''.join(f'[a{i}]' for i in range(len(clips))) + \
+        f'amix=inputs={len(clips)}:normalize=0:dropout_transition=0,apad[mixed]'
+    return run([*inputs, '-filter_complex', graph, '-map', '0:v', '-map', '[mixed]', '-c:v', 'copy', *p['audio'],
+                '-t', f'{seconds:.3f}', '-movflags', '+faststart', out])
