@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Contract tests for lib/git-hooks/check-lib.sh against real git repositories:
-# the staged and worktree file sets, changed-line ranges, the partly staged
-# test, the checks.skipmissing key reaching a hook through `git -c`, agent and
+# the staged and worktree file sets, a merge's own file set with its fallback,
+# changed-line ranges, the partly staged test, the checks.skipmissing key reaching a hook through `git -c`, agent and
 # human missing-tool messages, the pre-push range with its fallbacks, set -e
 # tolerance, and a bash 3.2 syntax lint. Expected values come from the
 # check-placement contract's runtime table.
@@ -145,6 +145,85 @@ expect "pre-commit ranges in a merge: only the lines no parent holds" $'a.txt\t2
   "$(in_repo "$M" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
 expect "worktree ranges in a merge: every line added against HEAD" $'a.txt\t2\t3\ns.txt\t1\t1' \
   "$(in_repo "$M" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' --worktree)"
+
+# --- the files a merge being committed changes --------------------------------------
+# Pre-commit lists only the paths whose staged entry differs from every parent:
+# a file the merged branch adds, edits, renames or re-modes, taken unchanged, is
+# not this commit's. A failure while listing them lists every staged path. Its
+# own repo, so $M stays mid-merge for the failing-awk case below.
+new_repo; G="$REPO"
+printf 'seed\n' >"$G/seed.txt"
+printf 'rename me\n' >"$G/r.txt"
+printf '#!/bin/sh\n' >"$G/m.sh"
+git -C "$G" add seed.txt r.txt m.sh
+git -C "$G" commit -q -m seed
+git -C "$G" checkout -q -b side
+printf 'side\n' >"$G/s.txt"
+printf 'inherited\n' >"$G/i.txt"
+git -C "$G" mv r.txt rr.txt
+chmod +x "$G/m.sh"
+git -C "$G" add s.txt i.txt
+git -C "$G" add --chmod=+x m.sh
+git -C "$G" commit -q -m side
+git -C "$G" checkout -q main
+printf 'main\n' >"$G/main.txt"
+git -C "$G" add main.txt
+git -C "$G" commit -q -m main
+git -C "$G" merge -q --no-commit side >/dev/null 2>&1
+printf 'side\nresolved\n' >"$G/s.txt"
+git -C "$G" add s.txt
+expect "merge fixture: the merge is in progress, not fast-forwarded" yes \
+  "$([[ -f "$G/.git/MERGE_HEAD" ]] && echo yes)"
+expect "pre-commit files in a merge: only the paths that differ from every parent" 's.txt' \
+  "$(in_repo "$G" pre-commit 'checks_files' | nul_list)"
+expect "pre-commit files in a merge: nothing on stderr" "" \
+  "$(in_repo "$G" pre-commit 'checks_files' 2>&1 >/dev/null)"
+MERGE_ALL=$'i.txt\nm.sh\nrr.txt\ns.txt'
+MERGE_FALLBACK='failed while listing the paths this merge changes, so every staged path is checked'
+merge_fallback() { # <snippet that breaks a tool> -> "<list>|<stderr>"
+  local list
+  list="$(in_repo "$G" pre-commit "$1; checks_files" 2>"$WORK/merge.err" | nul_list)"
+  printf '%s|%s' "$list" "$(cat "$WORK/merge.err")"
+}
+expect "a failing git in a merge lists every staged path, with one line naming git" \
+  "$MERGE_ALL|checks: git $MERGE_FALLBACK" \
+  "$(merge_fallback 'git() { case " $* " in *" --no-renames "*) return 2 ;; esac; command git "$@"; }')"
+expect "a failing sort in a merge lists every staged path, with one line naming sort" \
+  "$MERGE_ALL|checks: sort $MERGE_FALLBACK" \
+  "$(merge_fallback 'sort() { [[ "$1" == -z ]] && return 2; command sort "$@"; }')"
+expect "a sort that exits 0 without sorting lists every staged path, with one line naming sort" \
+  "$MERGE_ALL|checks: sort $MERGE_FALLBACK" \
+  "$(merge_fallback 'sort() { cat "$2"; }')"
+expect "a failing tool in a merge leaves the hook's exit status alone" "0" \
+  "$(in_repo "$G" pre-commit 'sort() { return 2; }; checks_files >/dev/null; exit 0' 2>/dev/null; echo $?)"
+mkdir "$G/sub"
+expect "pre-commit files in a merge: the same list from a subdirectory" 's.txt' \
+  "$(in_repo "$G/sub" pre-commit 'checks_files' | nul_list)"
+expect "worktree files in a merge: every path changed against HEAD" "$MERGE_ALL" \
+  "$(in_repo "$G" pre-commit 'checks_files' --worktree | nul_list | sort)"
+git -C "$G" commit -q --no-edit
+expect "pre-commit files after the merge commits: nothing on stderr" "" \
+  "$(in_repo "$G" pre-commit 'checks_files' 2>&1 >/dev/null)"
+
+# An octopus merge: a path equal to either head is not listed.
+git -C "$G" checkout -q -b o1
+printf 'o1\n' >"$G/o1.txt"
+git -C "$G" add o1.txt
+git -C "$G" commit -q -m o1
+git -C "$G" checkout -q -b o2 main
+printf 'o2\n' >"$G/o2.txt"
+git -C "$G" add o2.txt
+git -C "$G" commit -q -m o2
+git -C "$G" checkout -q main
+printf 'main again\n' >"$G/main.txt"
+git -C "$G" commit -q -am main2
+git -C "$G" merge -q --no-commit o1 o2 >/dev/null 2>&1
+printf 'o2\nresolved\n' >"$G/o2.txt"
+git -C "$G" add o2.txt
+expect "octopus fixture: MERGE_HEAD names both heads" 2 \
+  "$(grep -c . "$G/.git/MERGE_HEAD" 2>/dev/null)"
+expect "pre-commit files in an octopus merge: only the path that differs from both heads" 'o2.txt' \
+  "$(in_repo "$G" pre-commit 'checks_files' | nul_list)"
 
 # --- a failing tool fails the hook ------------------------------------------------
 # A tool that crashes while the lib reads the changed lines or filters findings

@@ -1,0 +1,4 @@
+# lib/media-render's one third-party package: frame capture through Playwright for Python (ADR 0103).
+# CI installs this lock for the media-render and explainer-video suites; a plugin carrying the library pins the
+# same version in its own requirements.in.
+playwright==1.65.1
