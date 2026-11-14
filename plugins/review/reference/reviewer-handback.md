@@ -76,10 +76,13 @@ when you reached every one, and reply with the handback block." Never dispatch a
 instead: it starts from zero and meets the same cap. Re-read the file; when it is still
 incomplete, the review is a partial result and the caller names what was missed.
 
-Only `Coverage: all changed files reviewed` can be clean; any other value is a partial result
-naming what was missed. A caller with no SendMessage tool or no agent ID, such as a workflow leaf,
-reports a checkpoint file's findings as a partial result, and records a reviewer that left no
-file and no report as returning no result.
+Only `Coverage: all changed files reviewed` can be clean; any other value, or no `Coverage:` line,
+is a partial result naming what was missed. `Coverage: none, change set unresolved` is the
+reviewer declining to grade a change set whose base did not resolve: record it as no result,
+never as clean, and do not resume it, because a resume does not resolve the base. A caller with
+no SendMessage tool or no agent ID, such as a workflow leaf, reports a checkpoint file's
+findings, or any other report not fully covered, as a partial result naming what was missed, and
+records a reviewer that left no file and no report as returning no result.
 
 The file is the agent's raw report, not a `type: review-findings` file, so the `/review:fanout`
 fix action skips it when it scans the same directory.

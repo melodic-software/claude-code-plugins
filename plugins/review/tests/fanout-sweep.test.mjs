@@ -171,6 +171,26 @@ test('the extractor brief keeps a checkpoint file\'s findings and marks that sur
   assert.match(brief, /extract its findings and also emit one record for that surface whose raw_text says its report is incomplete/)
 })
 
+// A workflow leaf cannot be resumed, so a report that skipped files or carries no Coverage line must
+// reach the merge marked incomplete, whether or not the caller passed findings paths.
+test('the extractor judges only the handback reviewers by their Coverage line', async () => {
+  for (const findingsPaths of [undefined, { 'code-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-code-reviewer.md' }]) {
+    const { calls } = await run({ diffBase: 'abc', slices: ['a.md'], findingsPaths })
+    const brief = extract(calls).prompt
+    assert.ok(brief.includes('must close their report with a Coverage line: security-reviewer, code-reviewer.'))
+    assert.ok(brief.includes('Only `Coverage: all changed files reviewed` can be clean.'))
+    assert.match(brief, /Any other Coverage line, or no Coverage line, means the report is incomplete/)
+    assert.match(brief, /names what the report says it did not reach, or says it has no Coverage line/)
+    assert.match(brief, /`Coverage: none, change set unresolved` means the surface declined to grade[^.]*: emit one record for that surface whose raw_text says it returned no result/)
+  }
+})
+
+test('model-diversity arms are not judged by a Coverage line', async () => {
+  const roles = { orchestrator: { fanout: { model: 'opus', effort: 'high' } }, retrieval: { fanout: { model: 'sonnet', effort: 'low' } } }
+  const { calls } = await run({ diffBase: 'abc', roles, diversity: 'model' })
+  assert.ok(!extract(calls).prompt.includes('Coverage line'))
+})
+
 test('a handback leaf that returned nothing still has its findings file extracted', async () => {
   const findingsPaths = { 'security-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-security-reviewer.md' }
   const { result, calls } = await run({ diffBase: 'abc', findingsPaths }, {

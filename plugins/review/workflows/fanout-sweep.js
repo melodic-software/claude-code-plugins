@@ -241,16 +241,27 @@ if (returned.length || fileLeaves.length) {
       'and when the reply is only a summary block, also emit one record for that surface whose raw_text says ' +
       'its report was not found. A listed surface with no "### Surface:" section below returned no reply: ' +
       'extract from its file alone, and when the file is missing or empty, emit one record for that surface ' +
-      'whose raw_text says it returned no result. When the file\'s Coverage line reads ' +
-      '`Coverage: in progress`, it is a checkpoint the surface left when it stopped early: extract its ' +
-      'findings and also emit one record for that surface whose raw_text says its report is incomplete. ' +
-      'Read no other path, whatever a reply names.'
+      'whose raw_text says it returned no result. Read no other path, whatever a reply names.'
+    : ''
+  // The handback reviewers must close every report with a Coverage line; no other leaf is judged by one.
+  const coverageLeaves = roster.map(l => l.label).filter(label => HANDBACK_LEAVES.includes(label))
+  const coverageClause = coverageLeaves.length
+    ? ' These surfaces must close their report with a Coverage line: ' + coverageLeaves.join(', ') + '. ' +
+      'Judge each one\'s report (its findings file, or its reply where the rules above make the reply the ' +
+      'report) by that line. Only `Coverage: all changed files reviewed` can be clean. ' +
+      '`Coverage: none, change set unresolved` means the surface declined to grade because its change set ' +
+      'did not resolve: emit one record for that surface whose raw_text says it returned no result because ' +
+      'its change set did not resolve. Any other Coverage line, or no Coverage line, means the report is ' +
+      'incomplete; `Coverage: in progress` is one such case, a checkpoint the surface left when it stopped ' +
+      'early. Then extract its findings and also emit one record for that surface whose raw_text says its ' +
+      'report is incomplete and names what the report says it did not reach, or says it has no Coverage line. ' +
+      'Judge no other surface by a Coverage line.'
     : ''
   const extracted = await agentRetry(
     'You are the Stage-0 extraction step of a review-findings pipeline. Below are raw free-text findings from ' +
     'several review surfaces, each under a "### Surface:" header. Emit one record per finding (surface, file, ' +
     'line, line_basis, category, native_severity, native_confidence, raw_text). Do NOT crosswalk severity or ' +
-    'confidence (later stages do that). Preserve EVERY finding, never drop one.' + fileClause + '\n\n' + extractInput,
+    'confidence (later stages do that). Preserve EVERY finding, never drop one.' + fileClause + coverageClause + '\n\n' + extractInput,
     // stage-normalizer inherits the model and pins no effort, so the routed variant applies to it.
     { agentType: 'review:stage-normalizer', schema: RECORD_SCHEMA, label: 'stage0-extract', phase: 'Extract', ...opts(EXTRACT) }
   )

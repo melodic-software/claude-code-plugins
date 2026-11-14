@@ -105,8 +105,10 @@ after="$(awk '
 ' "$PLUGIN_DIR/reference/reviewer-handback.md")"
 assert_contains "reviewer-handback.md After the reply names SendMessage" "$after" "SendMessage"
 assert_contains "reviewer-handback.md After the reply names a partial result" "$after" "partial"
-assert_contains "reviewer-handback.md After the reply lets only full coverage be clean" "$after" \
-  "Only \`Coverage: all changed files reviewed\` can be clean"
+CLEAN="Only \`Coverage: all changed files reviewed\` can be clean"
+assert_contains "reviewer-handback.md After the reply lets only full coverage be clean" "$after" "$CLEAN"
+assert_contains "workflows/fanout-sweep.js extractor brief lets only full coverage be clean" \
+  "$(<"$PLUGIN_DIR/workflows/fanout-sweep.js")" "$CLEAN"
 # A reply with no block must never be written over the agent's checkpoint.
 keeps=0 clobbers=0
 while IFS= read -r item; do
