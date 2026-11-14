@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.11.4] - 2026-11-14
+
+### Fixed
+
+- The pr-merge lane sorts a Dependabot pull request that carries a lanes App `[dependabot skip]` commit to tier `review`, so it merges on the App's `verdict=merge` marker at the current head instead of being refused for the App's own commit.
+
 ## [11.11.3] - 2026-11-14
 
 ### Fixed
