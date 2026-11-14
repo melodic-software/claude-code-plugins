@@ -459,7 +459,9 @@ refinement's `External state: manual (...)` line to `attended`; a resolve-issue 
 such a step stops with the `manual-external` code, which routes to `attended`
 ([Attended work](../../conventions/pr-pipeline/README.md#attended-work)). An issue that mixes
 such items with items the lane can do also parks at `status: confirmed`, with no `host-run`, for
-refine.mjs to split: no person answers a split. Every intake hold for a person
+refine.mjs to split in the same intake run; refused that way by work-unblock's admission, outside
+an intake run, it parks at Work status needs-triage, so the triage sweep sends it to intake first:
+no person answers a split. Every intake hold for a person
 (`needs-owner-decision`) names its owner reason in a `stop-reason lane=intake-triage` marker.
 
 A session does not hold a pull request that a lane already judges (a Dependabot tier, the security
