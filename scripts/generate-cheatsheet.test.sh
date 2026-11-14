@@ -270,6 +270,64 @@ else
 fi
 rm -rf "$tree"
 
+# --- Actions and Next columns -----------------------------------------------------
+# write_rich_skill <dir> <plugin> <skill> <argument-hint line or ""> <body>
+write_rich_skill() {
+  local dir="$1" plugin="$2" skill="$3" hint="$4" body="$5"
+  mkdir -p "$dir/plugins/$plugin/skills/$skill"
+  {
+    printf -- '---\nname: %s\ndescription: fixture skill for cheat-sheet generator tests\n' "$skill"
+    [[ -n "$hint" ]] && printf '%s\n' "$hint"
+    printf 'metadata:\n  workflow-stage: plan\n  summary: Fixture row for %s\n---\n\n# %s\n\n%s\n' \
+      "$skill" "$skill" "$body"
+  } >"$dir/plugins/$plugin/skills/$skill/SKILL.md"
+}
+
+row_of() { # row_of <tree> <plugin:skill>: the sheet row for that skill
+  grep -F "[\`/$2\`]" "$1/docs/skill-cheat-sheet.md"
+}
+
+mk_tree tree
+write_rich_skill "$tree" alpha hinted \
+  'argument-hint: "[audit|fix [<file>:<line>]|sweep --all|<target>|this branch] [--json]"' \
+  "$(printf '## Next\n\n- Findings to fix: /beta:looper --apply.\n- Nothing found: `/alpha:mapped`.\n\n## Gotchas\n\n- /alpha:setup is outside the Next section.')"
+write_rich_skill "$tree" alpha single \
+  "argument-hint: '[topic]'" \
+  "$(printf '## Next\n\n/alpha:hinted audit <path>, which reads the report this run wrote.')"
+run_gen "$tree"
+if [[ "$CODE" -eq 0 ]]; then ok "skills with argument-hint and ## Next generate"; else fail "rich fixture (exit=$CODE: $OUT)"; fi
+row="$(row_of "$tree" alpha:hinted)"
+if [[ "$row" == *"| \`audit\`, \`fix\`, \`sweep\` | \`/beta:looper\`, \`/alpha:mapped\` |" ]]; then
+  ok "Actions are the first group's action words; Next follows the bullet shape in order"
+else
+  fail "hinted row: $row"
+fi
+row="$(row_of "$tree" alpha:single)"
+if [[ "$row" == *"Fixture row for single |  | \`/alpha:hinted\` |" ]]; then
+  ok "a hint with no choice of actions renders an empty Actions cell; Next reads the one-line shape"
+else
+  fail "single row: $row"
+fi
+row="$(row_of "$tree" alpha:mapped)"
+if [[ "$row" == *"Fixture skill mapped to the plan stage |  |  |" ]]; then
+  ok "no argument-hint and no ## Next render empty cells"
+else
+  fail "mapped row: $row"
+fi
+row="$(row_of "$tree" beta:looper)"
+if [[ "$row" == *"| continuous | Fixture operator skill with a cadence |  |  |" ]]; then
+  ok "operator rows carry the Actions and Next columns after the cadence"
+else
+  fail "looper row: $row"
+fi
+rm -rf "$tree"
+
+mk_tree tree
+write_rich_skill "$tree" alpha hinted "" \
+  "$(printf '## Next\n\n/alpha:ghost <topic>.')"
+assert_fails "a ## Next naming a skill not in the tree fails" "$tree" \
+  "alpha/hinted: ## Next names /alpha:ghost, which is not a skill in this tree"
+
 # --- spine drift ----------------------------------------------------------------
 mk_tree tree
 printf '## 3. Blueprint (renamed upstream)\n' \
