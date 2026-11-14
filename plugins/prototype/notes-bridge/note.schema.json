@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "note.schema.json",
   "title": "UI feedback note",
-  "description": "One note a person pins to a non-final UI. The only definition of a note's fields, enums and limits (docs/contracts/ui-feedback). x-version moves on any change; x-maxNotesPerRun caps the notes one bridge run stores. Text is 1 to 4000 characters: long enough for a paragraph of review, short enough that a batch of notes stays readable in one session turn. Every string the page supplies is an id or a key; none is page text. rect is the element's box in percent of the page's scrollable box when the note was taken: the position-only last rung when no anchor finds the element.",
+  "description": "One note a person pins to a non-final UI. The only definition of a note's fields, enums and limits (docs/contracts/ui-feedback). x-version moves on any change; x-maxNotesPerRun caps the notes one bridge run stores. Text is 1 to 4000 characters: long enough for a paragraph of review, short enough that a batch of notes stays readable in one session turn. Every string the page supplies is an id or a key; none is page text. rect is the element's box in percent of the page's scrollable box when the note was taken: the position-only last step of the anchor ladder when no anchor finds the element.",
   "x-version": 2,
   "x-maxNotesPerRun": 500,
   "type": "object",

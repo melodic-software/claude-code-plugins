@@ -10,7 +10,7 @@ bump: minor
   variant, screen state and content set, runs the anchor ladder in the sandboxed frame, and saves a
   shot of the element from inside the frame. A note whose element is gone gets a position-only
   shot of its stored box, and the session asks instead of editing.
-- Notes carry the picked element's box (`rect`, percent of the page), the position-only last rung.
+- Notes carry the picked element's box (`rect`, percent of the page), the position-only last step of the anchor ladder.
 - The variant switcher listens for a `vs:show` event that restores a variant, screen state and
   content set. Pages that never send it behave as before.
 - Eval case `ed-notes-relocate-not-found`.
