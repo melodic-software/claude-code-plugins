@@ -168,6 +168,13 @@ deny "joined attach after an empty backtick substitution" "gh pr comment 1 --bod
 deny "joined attach after an empty \$( ) substitution" "gh pr comment 1 --body \$(true) --attach=$AHP/x.png" path
 deny "joined attach after \$null" "gh pr comment 1 --body \$null --attach='$AWP\\x.png'" path PowerShell
 deny "joined attach after an empty string PowerShell may drop" "gh pr comment 1 --body '' --attach='$AWP\\x.png'" path PowerShell
+# Under PowerShell's legacy native argument passing an embedded `"` is not
+# escaped, so it can split a word or join later words, the attach operand
+# included, into one posted value.
+deny "PowerShell double quote in the body before a joined attach" "gh pr comment 1 --body 'x\" \"--body' --attach='$AWP\\x.png'" path PowerShell
+deny "PowerShell double quote in a spaced attach operand" "gh pr comment 1 --attach './x.png\" \"--body=$AWP\\log'" path PowerShell
+deny "PowerShell double quote in a joined attach operand" "gh pr comment 1 --body ok --attach='./x.png\" \"--body=$AWP\\log'" path PowerShell
+deny "PowerShell double quote in an earlier word of the segment" "gh pr comment 1 --body 'a\"b' --repo o/r --attach='$AWP\\x.png'" path PowerShell
 deny "attach after a bool flag, judged whole" "gh pr create --draft --attach $AHP/x.png --title t --body ok" path
 deny "attach operand holding a glob character" "gh pr comment 1 --body ok --attach $AHP/x*.png" path
 deny "joined attach with a home path in the alt text" "gh pr comment 1 --body ok --attach='$AHP/x.png#built at $AHP'" path
