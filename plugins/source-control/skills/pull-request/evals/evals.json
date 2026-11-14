@@ -887,6 +887,34 @@
         "It updates the PR body with gh pr edit 701 --body-file, not with a comment",
         "The edited body still holds the `Hold: waiting on vendor` line and the `## Follow-ups` section"
       ]
+    },
+    {
+      "id": 67,
+      "name": "prep-runs-the-replacement-audit-prep-audits-names-at-default-branch",
+      "prompt": "/pull-request prep. Branch docs/88-guide targets main, the default branch, and edits docs/guide.md and .claude/rules/docs.md. The repository's docs/conventions/source-control.yaml on main is captured in evals/fixtures/source-control-prep-audits-replace-markdown.yaml relative to the skill directory; the branch's own copy of that file has no prep_audits key. The team-docs plugin is enabled.",
+      "expected_output": "The skill reads prep_audits from main, not the working tree, so the markdown class runs /team-docs:prose-lint over both changed .md files, docs/guide.md and .claude/rules/docs.md, in place of ai-slop:audit and docs-hygiene:audit-noise, and the rules class runs no audit. The 1.6 report has one line per detected class: markdown replaced by /team-docs:prose-lint, rules off by prep_audits at main.",
+      "files": [
+        "evals/fixtures/source-control-prep-audits-replace-markdown.yaml"
+      ],
+      "expectations": [
+        "prep_audits is read from main, not from the working tree or the branch's copy",
+        "The markdown class runs /team-docs:prose-lint over the changed markdown files, docs/guide.md and .claude/rules/docs.md, and neither ai-slop:audit nor docs-hygiene:audit-noise runs",
+        "No rules audit runs, and the report says rules is off by prep_audits at main, never that it passed"
+      ]
+    },
+    {
+      "id": 68,
+      "name": "prep-runs-every-default-audit-when-prep-audits-names-an-unknown-class",
+      "prompt": "/pull-request prep. Branch docs/91-faq targets main, the default branch, and edits docs/faq.md only. The repository's docs/conventions/source-control.yaml on main is captured in evals/fixtures/source-control-prep-audits-unknown-class.yaml relative to the skill directory.",
+      "expected_output": "The list names an unknown class, security, so the reader fails closed and every class runs its default audit: the markdown class still runs ai-slop:audit and docs-hygiene:audit-noise (or their stated fallbacks), even though the list sets markdown to enabled: false. The report says prep_audits failed closed and names the unknown class security.",
+      "files": [
+        "evals/fixtures/source-control-prep-audits-unknown-class.yaml"
+      ],
+      "expectations": [
+        "The markdown class's default audits run over docs/faq.md, despite the list turning markdown off",
+        "The report says prep_audits failed closed and names the unknown class security as the reason",
+        "No class is reported as off by prep_audits"
+      ]
     }
   ]
 }
