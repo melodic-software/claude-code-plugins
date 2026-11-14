@@ -259,6 +259,25 @@ assert_contains "the takeover names the new head and run" "$(cat "$S/body")" \
   "<!-- reviewer-media:claimed $HEAD2 run-1 -->"
 assert_not_contains "the takeover drops the old claim" "$(cat "$S/body")" "run-other"
 
+reset "$PLAIN" "$HEAD1"
+printf '<!-- reviewer-media:failed %s -->\n' "$HEAD1" >"$S/comments/0"
+media claim 7 --run-id run-1
+assert_exit "a claim on a head that already has its failure comment aborts with exit 3" 3 "$RC"
+assert_contains "the refusal names the failed head" "$OUT" "refused failed"
+assert_eq "a refused claim on a failed head edits nothing" "0" "$(body_edits)"
+assert_contains "a refused claim on a failed head keeps the request label" "$(cat "$S/labels")" "$REQUESTED"
+
+reset "$PLAIN" "$HEAD2"
+printf '<!-- reviewer-media:failed %s -->\n' "$HEAD1" >"$S/comments/0"
+media claim 7 --run-id run-1
+assert_exit "a failure comment on an older head does not stop a claim on the new one" 0 "$RC"
+
+reset "$PLAIN" "$HEAD1"
+printf '<!-- reviewer-media:failed %s -->\n' "$HEAD1" >"$S/comments/0"
+echo "someone User" >"$S/authors/0"
+media claim 7 --run-id run-1
+assert_exit "a failure marker planted by another person does not stop a claim" 0 "$RC"
+
 # --- post, attaching ----------------------------------------------------------
 M1="$TEST_TMPDIR/m1"
 media_dir "$M1" "$HEAD1"

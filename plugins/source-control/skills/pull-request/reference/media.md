@@ -84,8 +84,9 @@ owns them.
    ```
 
    It removes the request label and writes the claim line for the PR's head commit. Exit 3 means
-   another run holds the claim for that commit: stop, build nothing. A claim left on an older
-   commit is taken over.
+   another run holds the claim for that commit, or the commit already has its failure comment
+   (refusal `failed`, counted by the same rule as [Failure](#failure)): stop, build nothing. A
+   claim left on an older commit is taken over.
 2. **Build.** The producer builds the media for the claimed commit and writes `manifest.json`.
    This action does not build.
 3. **Post.**
