@@ -144,12 +144,12 @@
       "id": 16,
       "name": "pr-scope-finds-reads-and-hands-off-reviews",
       "prompt": "/session-flow:audit-sessions pr --number 812 --repo 'acme/billing'. This checkout is acme/billing, the PR is merged, and the corrections and source-control plugins are installed.",
-      "expected_output": "The skill takes the head branch from /source-control:pull-request view, collects, runs sweep.py with --pr 812 --repo 'acme/billing' and --branch, measures the matched sessions with --session, and reads their main and subagent transcripts in fresh read-only subagents sized so none gets more than a quarter of its context window, splitting a larger file by line ranges. It invokes /corrections:codify reviews --pr 812 --repo 'acme/billing'. It applies no finding.",
+      "expected_output": "The skill takes the head branch from /source-control:pull-request view, collects, runs sweep.py with --pr 812 --repo 'acme/billing' and --branch, measures the matched sessions with --session, and reads their main and subagent transcripts in fresh read-only subagents sized so none gets more than a quarter of its context window, splitting a larger file by line ranges. It invokes /corrections:codify reviews --pr 812 --repo acme/billing, the repository unquoted. It applies no finding.",
       "files": [],
       "expectations": [
         "Passes --pr 812 and --repo acme/billing to sweep.py, with the head branch from the view action as --branch",
         "Reads subagent transcripts as well as main ones, in subagents sized to the files rather than one reader for everything",
-        "Invokes /corrections:codify reviews with --pr 812 and --repo acme/billing",
+        "Invokes /corrections:codify reviews with --pr 812 and --repo acme/billing, the repository not in quotes",
         "Applies no finding and edits no file"
       ]
     },
@@ -157,7 +157,7 @@
       "id": 17,
       "name": "pr-scope-hands-off-open-pr-in-another-repo",
       "prompt": "/session-flow:audit-sessions pr --number 812 --repo 'acme/billing'. This checkout is acme/web, the PR is still open, and the corrections and source-control plugins are installed.",
-      "expected_output": "The skill finds, measures and reads the PR's sessions as usual and invokes /corrections:codify reviews --pr 812 --repo 'acme/billing', although the PR is open and in another repository than the checkout, and reports that codify listed the lessons without proposing a check, since the PR is not in this checkout's repository.",
+      "expected_output": "The skill finds, measures and reads the PR's sessions as usual and invokes /corrections:codify reviews --pr 812 --repo acme/billing, unquoted, although the PR is open and in another repository than the checkout, and reports that codify listed the lessons without proposing a check, since the PR is not in this checkout's repository.",
       "files": [],
       "expectations": [
         "Invokes /corrections:codify reviews with --pr 812 and --repo acme/billing, not the current checkout's repository",

@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git remote get-url origin"
+            "command": "git log --oneline"
           }
         }
       ]

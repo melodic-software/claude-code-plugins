@@ -26,7 +26,9 @@ through sections 2 to 6 of the hub, unless step 7 applies.
    person's approval like any other.
 6. A lesson mined from reviews is project scope. A rule only a reviewer applies, or a change to how
    severe a finding is, takes the `automated-review` rung: a `REVIEW.md` line, no new setting.
-7. When `--repo` names a repository other than the current checkout's (its `origin` remote,
-   compared case-insensitively), sections 2 to 6 do not run, because their count, PR lookup, proof
+7. With `--repo`, find the current checkout's repository as the read does: run
+   `/source-control:pull-request view <n>` without `--repo` and take `<owner>/<repo>` from its
+   `url`; a failed view means the checkout's repository has no such PR. When that differs from
+   `--repo` (compared case-insensitively) or the view failed, sections 2 to 6 do not run, because their count, PR lookup, proof
    and write all act on the current checkout. List each lesson labeled `<owner/repo>#<n>`, say that
    counting, proof and placement need that repository's checkout, and propose nothing.

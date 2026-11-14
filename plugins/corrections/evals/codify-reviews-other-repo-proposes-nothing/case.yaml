@@ -7,7 +7,7 @@ expected_outcome: 'The rename-tmp2 lesson is listed as acme/billing#512; the rep
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/corrections:codify reviews --pr 512 --repo acme/billing This run has no forge access: the review-comments read''s output for that PR is in review-comments.jsonl, so read that file instead of calling the read.'
+  prompt: '/corrections:codify reviews --pr 512 --repo acme/billing This run has no forge access: the review-comments read''s output for that PR is in review-comments.jsonl, so read that file instead of calling the read. This checkout is acme/web.'
   allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
   max_turns: 30
   timeout_seconds: 720
