@@ -1,11 +1,11 @@
 ---
-description: "deepening.md Phase 2: review-class problems the scan saw on a candidate (Any-typed parameters, an exception caught and discarded, a hard-coded tax rate) stay as evidence on that candidate, get no defect report, finding or badge of their own, and the reply names the owning skill or, with neither owning plugin installed, says they were seen and not assessed. Hard: the scan notes read like defects, and the easy reply turns each into a finding or bug report. Source: written for this case from the deepening.md review-class paragraph."
+description: "deepening.md Phase 2: review-class problems the scan saw on a candidate (Any-typed parameters, an exception caught and discarded, a hard-coded tax rate) stay as evidence on that candidate, get no defect report, finding or badge of their own, and, since neither owning plugin (code-metrics, review) is loaded in the run, the reply says they were seen and not assessed. Hard: the scan notes read like defects, and the easy reply turns each into a finding or bug report. Source: written for this case from the deepening.md review-class paragraph."
 tags: [architecture, improve, deepening, review-class, scaffold, hard]
 runs: 3
 max_turns: 30
 timeout_seconds: 600
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: "Reproduces the invoicing candidate's shallow-signal, keeps the Any-typed parameters, the discarded exception in InvoiceStore.save and the hard-coded 0.20 tax rate as evidence on that candidate only, reports no defect and adds no finding or badge for them, names /code-metrics:audit type-debt and /review:quality-gate code as their owners or says they were seen and not assessed, and ends asking which candidate to explore."
+expected_outcome: "Reproduces the invoicing candidate's shallow-signal, keeps the Any-typed parameters, the discarded exception in InvoiceStore.save and the hard-coded 0.20 tax rate as evidence on that candidate only, reports no defect and adds no finding or badge for them, says they were seen and not assessed (naming /code-metrics:audit type-debt and /review:quality-gate code as their would-be owners is fine), and ends asking which candidate to explore."
 ---
 
 /architecture:improve deepening --medium terminal

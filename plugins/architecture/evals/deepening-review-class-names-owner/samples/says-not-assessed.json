@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "These were seen and not assessed: neither owning plugin is installed.",
+      "why": "seen and not assessed"
+    },
+    {
+      "answer": "The typing belongs to /code-metrics:audit type-debt and the rest to /review:quality-gate code. Neither skill is available here, so these were seen but not assessed.",
+      "why": "names the would-be owners and says not assessed"
+    },
+    {
+      "answer": "I kept them as evidence on the candidate and didn't assess them.",
+      "why": "contraction"
+    },
+    {
+      "answer": "The skills that own them aren't installed, so I haven’t assessed them.",
+      "why": "typographic apostrophe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The typing belongs to /code-metrics:audit type-debt and the rest to /review:quality-gate code.",
+      "why": "names owners as if installed, never says not assessed"
+    },
+    {
+      "answer": "Finding 2 (medium): InvoiceStore.save swallows every exception.",
+      "why": "a finding of its own"
+    }
+  ]
+}
