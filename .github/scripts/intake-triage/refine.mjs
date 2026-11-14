@@ -8,7 +8,7 @@
 // verdict's `Flags:` line names `intent` (no exact outcome), or the body has
 // no unquoted task list line (no checkable criteria). Splits: not thin, the
 // verdict raised no flag, the lanes App's admission parked it at `status:
-// confirmed` (or held it, before, at its own `needs-owner-decision`), and
+// confirmed` (never a hold: a held issue is a person's, cost included), and
 // some of its done-when items are ones a lane run cannot perform
 // (admit.mjs unrunnableCriteria, the check that refused it) while at least one
 // item stays once they move; the context then carries those items as `split`. It refines only an open
@@ -161,15 +161,16 @@ export function isThin({ body, laneBody }) {
 }
 
 // The split a refused issue gets, or null: it is parked at `status:
-// confirmed` alone (admission parks a split there) or, as admission held one
-// before, at `needs-owner-decision`, the verdict raised no flag, some done-when items are ones a lane run cannot
+// confirmed` alone (admission parks a split there, never at a hold, so a
+// hold such as a cost verdict's needs-owner-decision is a person's and never
+// split around), the verdict raised no flag, some done-when items are ones a lane run cannot
 // perform, every task-list line they own is one too, at least one item lies
 // outside them, and `admission`, the lanes App's admission comment, refused
 // it for those items and nothing else. {count, items:
 // [{n, kind, text}]}, each text the item's first line, whole. Who set the
 // label and wrote the comment is checked apart. Pure.
 export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) {
-  if (!(carried(labels, DECISION_LABELS) || confirmedOnly(labels)) || flagsOf(laneBody)?.join() !== "none") {
+  if (!confirmedOnly(labels) || flagsOf(laneBody)?.join() !== "none") {
     return null;
   }
   const items = taskItems(body, rules["task-list"]);
@@ -187,15 +188,9 @@ export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) 
 }
 
 // Why the split may not lift the issue's status, or null: admission parks a
-// split at `status: confirmed` (admit.mjs admissionParked), and an issue it
-// held before at the lanes App's own `needs-owner-decision` lifts as
-// decisionStays judges over `events`. Any other status stays.
-async function splitStays(github, base, labels, comments, appId, events) {
-  if (carried(labels, DECISION_LABELS)) {
-    return decisionStays(github, base, comments, appId, events);
-  }
-  return admissionParked(labels, comments, appId) ? null : `is not parked at ${CONFIRMED} by the lanes App's admission`;
-}
+// split at `status: confirmed` (admit.mjs admissionParked); any other status
+// stays.
+const splitStays = (labels, comments, appId) => (admissionParked(labels, comments, appId) ? null : `is not parked at ${CONFIRMED} by the lanes App's admission`);
 
 // Up to four plain lowercase words from the title, each 4 or more letters or
 // digits, so no search qualifier or operator survives.
@@ -524,7 +519,7 @@ export async function selectRefinement({ github, repository, number, humans, app
   if (!thin && split === null) {
     return no("not thin, and no done-when items to split off");
   }
-  const stays = split === null ? null : await splitStays(github, base, labels, comments, appId);
+  const stays = split === null ? null : splitStays(labels, comments, appId);
   if (stays !== null) {
     return no(stays);
   }
@@ -792,22 +787,16 @@ export async function applyRefinement({ github, repository, number, appId, human
     return skip("is already refined");
   }
   if (output.split.length > 0) {
-    if ((await splitStays(github, base, labels, comments, appId, events)) !== null) {
+    if (splitStays(labels, comments, appId) !== null) {
       return skip(`is no longer parked by the lanes App's admission alone`);
     }
-    const decisionHold = carried(labels, DECISION_LABELS);
-    const parkedAt = decisionHold ? NEEDS_DECISION : CONFIRMED;
+    // confirmed is a queue state the needs-triage field write replaces.
     const held = await retriage();
     if (held) {
       return held;
     }
-    // A needs-decision hold label holds on top of the field; confirmed is a
-    // queue state the needs-triage field write already replaced.
-    if (decisionHold) {
-      await removeLabel(github, base, carried(own, DECISION_LABELS) ?? decisionHold);
-    }
     await github("POST", `${base}/comments`, { body: render(output, { body: issue.body, checks: movedTexts(issue.body, rules["task-list"], output.split), retriage: true }) });
-    log(`refine: #${number} split; items ${output.split.join(", ")} listed as checks a person runs, ${parkedAt} lifted and triage asked again`);
+    log(`refine: #${number} split; items ${output.split.join(", ")} listed as checks a person runs, ${CONFIRMED} lifted and triage asked again`);
     return { outcome: "split", redispatch: true };
   }
   const post = (retriage = false) => github("POST", `${base}/comments`, { body: render(output, { body: issue.body, retriage }) });

@@ -368,7 +368,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, listedStatusOf, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker, stripStateLabels } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip, resolveStrandedBackoff, STRANDED_BACKOFF_MAX } from "../work-resolve-issue/limits.mjs";
-import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, bodyVersion, clearedPastReport, CONFIRMED, confirmedOnly, decide, deferralLapsed, doneReason, judgedSince, loadRules, mergedRefsReader, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, retriageNote, sayWhy, SECURITY_AREA, SIZE_SPLIT_DONE, SPLIT_PENDING, specOf, splitLeftOpen, splitParentClosed, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 import { describeLevel, laneLevelFromEnv, resolvedLaneLevel } from "../lib/lane-level-value.mjs";
@@ -1070,6 +1070,23 @@ async function handBackParked({ github, repo, number, comments, parkedAt, isApp,
   return heldOnSet(writer, number, "needs-triage");
 }
 
+// The hand-back a refusal decide marks `triage` posts before its needs-triage
+// write, apart from the admission comment refine's splitOf matches: the
+// UNPARKED_MARKER line, so the triage sweep starts a new dispatch cycle for
+// it, then the body's version (admit.mjs bodyVersion, the key refine's own
+// once-per-body guard reads), so the same body is handed back once. Pure.
+export const splitHandBack = (body) =>
+  `${UNPARKED_MARKER}\n${bodyVersion(body)}\nAdmission refused this issue only for done-when items a lane run cannot perform beside items it can, which intake's refine step splits off only in an intake run, so work-unblock set its Work status to needs-triage, and the hourly triage sweep sends it back to intake triage.`;
+
+// Posts splitHandBack for `issue` unless the lanes App (`appId`) already
+// posted it for this body among `comments`.
+async function handBackSplit({ github, repo, issue, comments, appId }) {
+  const text = splitHandBack(issue.body ?? "");
+  if (!comments.some((comment) => appId !== undefined && comment.user?.id === appId && String(comment.body ?? "") === text)) {
+    await github("POST", `/repos/${repo}/issues/${issue.number}/comments`, { body: text });
+  }
+}
+
 // Hands each of `parked` ({issue, lower}) that should go back to intake back
 // to it (handBackParked), counting them first. Returns how many reads or
 // writes failed.
@@ -1413,6 +1430,9 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
     // beside attended, itself a hold) parks at status: confirmed.
     const code = decisionReason(decision);
     const status = parkingStatus(code, decision.triage);
+    if (decision.triage) {
+      await handBackSplit({ github, repo, issue, comments: facts.comments, appId });
+    }
     if (!(await refuseDeferred({ github, repo, number, comments: facts.comments, reasons, labels: decision.attended ? [status, ATTENDED] : [status], code, writer }))) {
       console.log(`label-unblocked: #${number}, marked by a person, refused: ${reasons}`);
     }
@@ -1537,6 +1557,9 @@ async function readmitReady({ github, repo, listed: open, names = labelNames, hu
       } else if (decision.verdict === "refuse") {
         // As intake's admit: the parking state is the one write.
         const code = decisionReason(decision);
+        if (decision.triage) {
+          await handBackSplit({ github, repo, issue, comments: facts.comments, appId });
+        }
         if (await heldOnSet(writer, number, refusedState(parkingStatus(code, decision.triage)))) {
           continue;
         }

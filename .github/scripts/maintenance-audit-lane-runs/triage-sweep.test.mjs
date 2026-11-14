@@ -16,6 +16,7 @@ import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { readRouting } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { ADMIT_MARKER, retriageNote } from "../intake-triage/admit.mjs";
+import { splitHandBack } from "../work-unblock/label-unblocked.mjs";
 import { HUMAN_ID, mirroredStatusOf, OPTION, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { issuesByStatus } from "../../actions/resolve-config/resolve-config.mjs";
@@ -1087,8 +1088,11 @@ const intakeBack = (user, at) => ({ id: 7, user, body: "<!-- work-resolve-issue 
 // A pushback that may name a security risk marks its intake comment `security`.
 const securityBack = (user, at) => ({ id: 7, user, body: "<!-- work-resolve-issue outcome=intake security run=9 -->\nThe work-resolve-issue lane stopped on this issue (`pushback-means`).", created_at: at });
 
+// work-unblock's hand-back before it parks a split refusal at needs-triage.
+const splitBack = (user, at) => ({ id: 8, user, body: splitHandBack("- [ ] Line 3 says nineteen.\n- [ ] Run it on a Windows 11 host."), created_at: at });
+
 test("a lanes App hand-back newer than the state comment starts a new cycle of dispatches in the same comment", async () => {
-  for (const [filed, back] of [[null, handBack], [HANDED, handBack], [null, intakeBack], [HANDED, intakeBack], [null, securityBack]]) {
+  for (const [filed, back] of [[null, handBack], [HANDED, handBack], [null, intakeBack], [HANDED, intakeBack], [null, securityBack], [null, splitBack], [HANDED, splitBack]]) {
     const gh = fakeGitHub({
       issues: [issue(1)],
       comments: { 1: [stateAt([11, 22], filed, "2026-10-17T06:00:00Z"), back(LANES, "2026-10-18T08:00:00Z")] },
