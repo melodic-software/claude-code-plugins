@@ -57,7 +57,7 @@ it resolves to under a given session model is read live from the pointer below.
 
 ## Turn budget
 
-The cap is `maxTurns: 30` and a large change set can exhaust it. Finish reading the project's review criteria (step 1 above), or record it as skipped with the reason, before the first diff read. With a findings path, write a checkpoint to it right after step 2 and update it at most once more before the stop turn (Handback, below). Stop gathering by turn 22 at the latest and spend the remaining turns writing the report. Review the highest-risk files first: behavioral code before tests, tests before docs and config.
+The cap is `maxTurns: 30` and a large change set can exhaust it. Finish reading the project's review criteria (step 1 above), or record it as skipped with the reason, before the first diff read. With a findings path, write a checkpoint to it right after step 2 and update it at most once more before the stop turn (Handback, below). Stop gathering by turn 22 at the latest and spend the remaining turns writing the report. Review the highest-risk files first: behavioral code before tests, tests before docs and config. End the report with the `Coverage:` line (Output format, below), naming the changed files you did not reach.
 
 ## Review checklist
 

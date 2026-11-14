@@ -45,3 +45,12 @@ and effort hold and the lane's step timeout stays within reach.
 
 - **Pointer:** for how a `tools` list withholds tools from a subagent, see
   [create custom subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
+
+## Turn budget
+
+The cap is `maxTurns: 25` and a large slice can exhaust it before any result is returned.
+Stop gathering by turn 18 at the latest and spend the remaining turns writing the result.
+As hunter, return the candidates found so far and end the result by naming the hunk ranges
+you did not reach. As verifier, return `rejected` only with cited evidence that refutes the
+candidate; otherwise return `confirmed` with the evidence you have. End the result by naming
+the code paths you did not reach.

@@ -43,6 +43,10 @@ it resolves to under a given session model is read live from the pointer below.
 
 3. **Read the project's CI conventions** (workflow docs, required-check patterns) when present, so you know the expected job set.
 
+## Turn budget
+
+The cap is `maxTurns: 25` and a large run's logs can exhaust it before any summary is written. Stop gathering by turn 18 at the latest and spend the remaining turns writing the summary. Audit masked failures (checklist item 1) and silently-skipped jobs (item 2) first, then items 3 to 6 in order. End the report by naming the checklist items and jobs you did not reach.
+
 ## Audit checklist (what `##[error]` grep misses)
 
 ### 1. Masked failures (`continue-on-error: true`)

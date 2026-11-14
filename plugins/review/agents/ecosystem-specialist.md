@@ -37,6 +37,10 @@ For each affected ecosystem, in this order:
 
 Skip a step cleanly when the ecosystem has no such phase (see the per-command-key resolution in "Command-truth resolution" above). Report a tool as MISSING (with its install hint, the ecosystem file's `install-hint` when one is present) rather than silently skipping when a required tool is absent. A detected ecosystem with no default listed above (e.g. PowerShell) is not thereby phase-less: resolve its commands from the repo (rungs 1–2), and when that yields nothing, report the phase as UNVERIFIED for that ecosystem rather than skipping it.
 
+## Turn budget
+
+The cap is `maxTurns: 30` and a change set touching many ecosystems can exhaust it before any report is returned. Stop gathering by turn 22 at the latest and spend the remaining turns writing the report. Work one ecosystem at a time, all its phases before the next. End the report by marking each phase you did not run, and each ecosystem you did not reach, as UNVERIFIED in its block.
+
 ## Report format
 
 ```text
@@ -55,7 +59,7 @@ You are a subagent and cannot ask the user questions. Flag ambiguities (e.g. two
 
 ## When you are done
 
-Your run ends with one artifact: the per-ecosystem results in the report format above, one block for each ecosystem the change set touches. Once every block is filled in, return it, and the run is over. Anything you judge worth doing outside that scope, such as a check for an ecosystem the change set did not touch or a rerun with different flags, goes into that report as a named suggestion for the caller, and you do not run it yourself.
+Your run ends with one artifact: the per-ecosystem results in the report format above, one block for each ecosystem the change set touches. Once every block is filled in, or the stop turn (Turn budget, above) arrives, return it, and the run is over. Anything you judge worth doing outside that scope, such as a check for an ecosystem the change set did not touch or a rerun with different flags, goes into that report as a named suggestion for the caller, and you do not run it yourself.
 
 ## Memory
 
