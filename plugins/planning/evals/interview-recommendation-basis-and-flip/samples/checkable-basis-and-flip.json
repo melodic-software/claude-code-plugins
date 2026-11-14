@@ -14,7 +14,11 @@
     },
     {
       "answer": "❓ **Q3: Should the limiter's counters live in the existing Redis 7 instance?**\nContext:\n- You confirmed in round 1 that a single Redis 7 instance is already deployed and used for sessions (user, round 1).\n\n➡️ My recommendation: **yes, keep the counters in that instance.** It is already deployed, so no new store is needed for the first version.\nBasis: verified, you confirmed in round 1 that Redis 7 is deployed for sessions.\nFlips if: that instance cannot absorb about 2,000 extra writes a second at peak.\n\nAlternatives:\n- (a) A separate Redis instance. It isolates session traffic, but adds a store to run.",
-      "why": "the basis is a session-transcript finding that names what was found (the user's round-1 statement that Redis 7 is deployed)"
+      "why": "a fact the user stated, cited by round"
+    },
+    {
+      "answer": "❓ **Q4: Should the limiter be built as new code rather than wired into an existing rate-limit module?**\nContext:\n- The Glob for `**/*rate*` this session returned no files, so there is no existing rate-limit module to extend (Glob, this session).\n\n➡️ My recommendation: **yes, build it as new code.** There is nothing to extend, so new code is the only path that does not invent a dependency.\nBasis: verified, the Glob for `**/*rate*` this session returned no files.\nFlips if: a rate-limit module lives outside this repository and you want it reused.\n\nAlternatives:\n- (a) Adopt a library. It is less code to write, but adds a dependency to vet.",
+      "why": "the basis is a tool finding from this session, named with what it returned"
     }
   ],
   "fail": [
@@ -45,6 +49,10 @@
     {
       "answer": "❓ **Q7: Settle mechanism-level choices now, or at planning?**\nContext:\n- This interview decides behavior: who is limited, how counting works, what happens on failure. Mechanism means tool or platform calls such as where counters live, which algorithm, a library or a gateway.\n\n➡️ My recommendation: **settle mechanism at planning.** Planning looks at your actual stack, and until then every recommendation stays about behavior.\nBasis: verified, survey of the working directory (nothing relevant)\nFlips if: you already have a mechanism in mind that you want locked into the Brief.",
       "why": "the basis names a check but not what it showed: 'nothing relevant' gives the user nothing to verify"
+    },
+    {
+      "answer": "❓ **Q5: How should the limit be counted?**\nContext:\n- Counting can use a rolling 60-second window or a fixed clock minute.\n\n➡️ My recommendation: **a rolling 60-second window.** It matches the per-minute promise without a burst at each minute boundary.\nBasis: verified, as established in Q2 above.\nFlips if: your partner terms define a minute as a clock minute.\n\nAlternatives:\n- (a) A fixed clock minute. It is simpler to count, but allows up to twice the limit across a boundary.",
+      "why": "the basis cites the reply's own earlier claim, not something the user said or a tool returned"
     }
   ]
 }

@@ -9,10 +9,12 @@ PASS only if every such recommendation has:
 
 1. A checkable basis: a file path with a line, a URL, tool output or a check the reply says it ran
    this session (a command, a search, a survey of the working directory) named with what it showed
-   (for example "git log shows no commits"), a session-transcript finding, or a pointer to a fact
-   the user stated in the prompt (for example "you said the partner terms promise 1,000 requests per minute per key"
-   or "Redis 7 is already deployed, per your message"). A bare "judgment" or "best practice" with
-   nothing the user could check does not count.
+   (for example "git log shows no commits"), a session-transcript finding (something the user said
+   or a tool returned earlier in this session, named), never the reply's own earlier claim, or a
+   pointer to a fact the user stated in the prompt (for example "you said the partner terms promise
+   1,000 requests per minute per key" or "Redis 7 is already deployed, per your message"). A bare
+   "judgment" or "best practice" with nothing the user could check does not count. A result too
+   vague to check, such as "nothing relevant" or "I checked", does not count.
 2. A condition that would change it, only where one exists: where the reply states one (a
    `Flips if:` line, or words like "would change if"), or where the reply itself names, for that
    question, an open fact the user could confirm that would change the answer. A stated condition
