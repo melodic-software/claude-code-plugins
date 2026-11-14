@@ -102,6 +102,38 @@ out=$(cd "$NOREPO" && GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$SCRIPT" 2>&1
 rc=$?
 assert_exit "outside a repo exits 1" 1 "$rc"
 
+# --- 5. One untracked file per extension in the shared list ---------------------
+
+UNION="$TEST_TMPDIR/union"
+make_repo "$UNION"
+for ext in cs ts tsx js jsx py sh ps1 go rs java rb lua sql c h cpp hpp yaml yml toml mts cts mjs cjs pyi bash psm1; do
+  printf 'x\n' >"$UNION/f.$ext"
+done
+printf 'x\n' >"$UNION/notes.txt"
+out=$(cd "$UNION" && bash "$SCRIPT" 100 2>&1)
+rc=$?
+assert_exit "one file per extension exits 0" 0 "$rc"
+lines=$'\n'"$out"$'\n'
+for ext in cs ts tsx js jsx py sh ps1 go rs java rb lua sql c h cpp hpp yaml yml toml; do
+  assert_contains "characterization: f.$ext listed" "$lines" $'\n'"f.$ext"$'\n'
+done
+for ext in mts cts mjs cjs pyi bash psm1; do
+  assert_contains "added extension: f.$ext listed" "$lines" $'\n'"f.$ext"$'\n'
+done
+assert_absent "a .txt file is still excluded" "$out" "notes.txt"
+assert_equal "28 code files listed" 28 "$(printf '%s\n' "$out" | grep -c .)"
+
+# --- 6. An unreadable extension list is named, never an empty match --------------
+
+LONE="$TEST_TMPDIR/lone"
+mkdir -p "$LONE"
+cp "$SCRIPT" "$LONE/changed-code-files.sh"
+out=$(cd "$UNION" && bash "$LONE/changed-code-files.sh" 100 2>&1)
+rc=$?
+assert_exit "a missing extension list exits 4" 4 "$rc"
+assert_contains "the missing list's path is named" "$out" "$LONE/code-extensions.txt"
+assert_absent "no code file is listed without the list" "$out" "f.py"
+
 # --- Final report ---------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

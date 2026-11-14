@@ -338,5 +338,36 @@ frozen="$(cd "$X" && "$PY" "$SCRIPT_DIR/suppression-scan.py" --count --exclude-f
 assert_eq "--count given scope.exclude equals the report's counts" "suppressions=3
 unjustified=2" "$frozen"
 
+# ---- files the scanner has no kind for --------------------------------------------
+# The change adds a .rs and a .txt file the scanner reads no language for, a
+# .png and a .py file; only the first two are named as not read.
+N="$TMP/unread"
+mkdir -p "$N/src"
+gn() { git -C "$N" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }
+gn init -q -b main
+printf '%s\n' 'x = 0' >"$N/base.py"
+gn add -A
+gn commit -q -m base
+gn switch -q -c topic
+printf '%s\n' 'fn main() {}' >"$N/src/lib.rs"
+printf '%s\n' 'plain notes' >"$N/notes.txt"
+printf '\x89PNG\r\n\x1a\n\x00\x00' >"$N/logo.png"
+printf '%s\n' 'y = 1  # noqa: E501 the URL is kept whole' >"$N/app.py"
+gn add -A
+gn commit -q -m topic
+out="$(cd "$N" && bash "$SCRIPT" --json)"
+assert_eq "the document lists the files the scanner has no kind for" "notes.txt src/lib.rs" \
+  "$(printf '%s' "$out" | doc_field '" ".join(d["unread"])')"
+out="$(cd "$N" && bash "$SCRIPT")"
+assert_contains "the markdown names each file it did not read" "$out" \
+  'Not read (the scanner has no file kind for them): 2 files: `notes.txt`, `src/lib.rs`'
+assert_not_contains "the markdown does not name the binary file" "$out" "logo.png"
+out="$(cd "$N" && bash "$SCRIPT" --findings </dev/null)"
+NFILE="${out##*Findings file: }"
+assert_contains "the findings file counts the files not examined" "$(sed -n '/^## Surfaces/,$p' "$NFILE")" \
+  'Not examined: 2 files the scanner has no file kind for.'
+out="$(cd "$REPO" && bash "$SCRIPT")"
+assert_not_contains "a change whose files all have a kind draws no not-read line" "$out" "Not read"
+
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))

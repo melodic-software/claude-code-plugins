@@ -16,13 +16,19 @@
 # Usage: scope-code-files.sh [--base <ref>] [--max <n>]
 # Output: line 1 `rung=<name> base=<ref-or-none> files=<count>`, then one
 #         repo-relative path per line (capped at --max when given).
-# Exit: 0 resolved; 1 not a git repository; 2 usage.
+# Exit: 0 resolved; 1 not a git repository; 2 usage; 4 the shared extension
+# list (code-extensions.txt beside this script) cannot be read, named on stderr.
 set -uo pipefail
 
-# Keep in step with CODE_EXT in comment-census.py: the census must count every
-# file this resolver lists, and this resolver must list every file the
-# change-shape and commented-out-code grammars accept.
-CODE_EXT='\.(cs|ts|tsx|mts|cts|js|jsx|mjs|cjs|py|pyi|sh|bash|ps1|psm1|go|rs|java|rb|lua|sql|c|h|cpp|hpp|yaml|yml|toml)$'
+# The extension list is shared with changed-code-files.sh and comment-census.py,
+# and must cover every file the change-shape and commented-out-code grammars accept.
+EXT_LIST="$(dirname "${BASH_SOURCE[0]}")/code-extensions.txt"
+EXTS="$(tr -d '\r' <"$EXT_LIST" 2>/dev/null | grep . | paste -sd'|' -)"
+if [[ -z "$EXTS" ]]; then
+  printf 'scope-code-files: cannot read the extension list %s\n' "$EXT_LIST" >&2
+  exit 4
+fi
+CODE_EXT="\\.($EXTS)\$"
 BASE=""
 MAX=""
 while [[ $# -gt 0 ]]; do

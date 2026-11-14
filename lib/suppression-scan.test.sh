@@ -370,6 +370,46 @@ assert_eq "--paths-from reads one path per line" 'with space.sh:1 shellcheck SC2
 out="$(cd "$REPO" && "$PY" "$SCANNER" r2.py | summarize)"
 assert_eq "inventory mode still lists the renamed file's suppression" 'r2.py:1 noqa F401 no' "$out"
 
+# ---- --unread-to ------------------------------------------------------------------
+# A text file the scanner has no kind for is named; a binary file and a file
+# known by its shebang are not. Stdout is the same with or without the option.
+UNR="$TEST_TMPDIR/unread"
+mkdir -p "$UNR/src"
+printf '%s\n' 'fn main() {} // allow(dead_code)' >"$UNR/src/lib.rs"
+printf '%s\n' 'plain notes' >"$UNR/notes.txt"
+printf '\x89PNG\r\n\x1a\n\x00\x00' >"$UNR/logo.png"
+printf '%s\n' '#!/usr/bin/env bash' '# shellcheck disable=SC2086' >"$UNR/run"
+printf '%s\n' 'x = 1  # noqa: E501' >"$UNR/a.py"
+plain="$(cd "$UNR" && "$PY" "$SCANNER" .)"
+named="$(cd "$UNR" && "$PY" "$SCANNER" --unread-to "$TEST_TMPDIR/unread.txt" .)"
+assert_eq "--unread-to leaves the JSON on stdout unchanged" "$plain" "$named"
+assert_eq "--unread-to names each text file with no kind, sorted" 'notes.txt
+src/lib.rs' "$(cat "$TEST_TMPDIR/unread.txt")"
+counted="$(cd "$UNR" && "$PY" "$SCANNER" --count --unread-to "$TEST_TMPDIR/unread-count.txt" .)"
+assert_eq "--count with --unread-to prints the same two lines" "suppressions=2
+unjustified=2" "$counted"
+assert_eq "and still names the unread files" "2" "$(grep -c . "$TEST_TMPDIR/unread-count.txt")"
+(cd "$UNR" && "$PY" "$SCANNER" --unread-to "$TEST_TMPDIR/unread-known.txt" a.py run >/dev/null)
+assert_eq "a run with only known files writes an empty list" "file:" "$([[ -f "$TEST_TMPDIR/unread-known.txt" ]] && echo file):$(cat "$TEST_TMPDIR/unread-known.txt" 2>/dev/null)"
+
+UR="$TEST_TMPDIR/unread-repo"
+mkdir -p "$UR"
+ug() { git -C "$UR" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }
+ug init -q -b main
+printf '%s\n' 'old' >"$UR/kept.txt"
+ug add -A
+ug commit -q -m base
+ug switch -q -c topic
+printf '%s\n' 'fn f() {}' >"$UR/new.rs"
+printf '%s\n' 'y = 2  # noqa: E741' >"$UR/b.py"
+ug add -A
+ug commit -q -m topic
+(cd "$UR" && "$PY" "$SCANNER" --diff main --unread-to "$TEST_TMPDIR/unread-diff.txt" >/dev/null)
+assert_eq "--diff names only the changed files with no kind" "new.rs" "$(cat "$TEST_TMPDIR/unread-diff.txt")"
+
+out="$(cd "$UNR" && "$PY" "$SCANNER" --unread-to "$TEST_TMPDIR/no-such-dir/x.txt" . 2>/dev/null)"
+assert_eq "an --unread-to file that cannot be written exits 2 with nothing on stdout" "2:" "$?:$out"
+
 # ---- exit 2 -------------------------------------------------------------------
 expect_usage() {
   local name="$1" out rc

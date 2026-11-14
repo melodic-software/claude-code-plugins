@@ -61,8 +61,8 @@ verdict, including which token kinds differed. UNPROVABLE (a parse error on eith
 revert, never a pass, and so is exit 2: an unmapped extension is an *unproven* edit, never a
 tacit pass.
 
-**Exit 2 is the common case on a mixed-language repository, not an edge case.** `CODE_EXT` in
-`scope-code-files.sh` admits 28 extensions; `change-shape.py` proves 18 of them and
+**Exit 2 is the common case on a mixed-language repository, not an edge case.** The shared
+extension list `scripts/code-extensions.txt` admits 28 extensions; `change-shape.py` proves 18 of them and
 `commented-out-code.py` 14, and their union is 18. The 10 neither backend reads,
 `.c .cpp .go .h .hpp .java .lua .rb .rs .sql`, reach triage normally and then
 have **no** applicable tier-0 or tier-1 proof, so every deletion and rename in them is a proposal.

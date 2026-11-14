@@ -125,6 +125,30 @@ a=$(cd "$r2" && bash "$SCRIPT" | md5sum)
 b=$(cd "$r2" && bash "$SCRIPT" | md5sum)
 assert_equal "output is deterministic" "$a" "$b"
 
+# 9. Characterization: one untracked file per extension in the shared list.
+union="$TEST_TMPDIR/union"
+mkrepo "$union"
+for ext in cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua sql c h cpp hpp yaml yml toml; do
+  printf 'x\n' >"$union/f.$ext"
+done
+printf 'x\n' >"$union/notes.txt"
+out=$(cd "$union" && bash "$SCRIPT")
+assert_equal "every listed extension is code" "rung=uncommitted base=none files=28" "$(printf '%s\n' "$out" | head -1)"
+lines=$'\n'"$out"$'\n'
+for ext in cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua sql c h cpp hpp yaml yml toml; do
+  assert_contains "characterization: f.$ext listed" "$lines" $'\n'"f.$ext"$'\n'
+done
+assert_absent "a .txt file is excluded" "$out" "notes.txt"
+
+# 10. An unreadable extension list is named, never an empty match.
+lone="$TEST_TMPDIR/lone"
+mkdir -p "$lone"
+cp "$SCRIPT" "$lone/scope-code-files.sh"
+out=$(cd "$union" && bash "$lone/scope-code-files.sh" 2>&1)
+assert_equal "a missing extension list exits 4" "4" "$?"
+assert_contains "the missing list's path is named" "$out" "$lone/code-extensions.txt"
+assert_absent "no rung is reported without the list" "$out" "rung="
+
 if [[ "$FAILED" -eq 0 ]]; then printf '\nall passed\n'; else
   printf '\n%d failed\n' "$FAILED"
   exit 1

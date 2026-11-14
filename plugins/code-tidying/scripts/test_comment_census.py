@@ -414,5 +414,47 @@ class Degradation(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
 
 
+UNION = (
+    "cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua "
+    "sql c h cpp hpp yaml yml toml"
+).split()
+
+
+def load_census():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("_census_under_test", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class SharedExtensionList(unittest.TestCase):
+    def test_one_file_per_listed_extension_is_selected_and_txt_is_not(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(rmtree_force, tmp)
+        for ext in UNION:
+            (tmp / f"f.{ext}").write_text("x\n")
+        (tmp / "notes.txt").write_text("x\n")
+        census = load_census()
+        found = census.tracked_files([tmp])
+        self.assertEqual(sorted(p.name for p in found), sorted(f"f.{e}" for e in UNION))
+
+    def test_missing_extension_list_exits_4_naming_its_path(self):
+        lone = Path(tempfile.mkdtemp())
+        self.addCleanup(rmtree_force, lone)
+        shutil.copy(SCRIPT, lone / "comment-census.py")
+        (lone / "m.py").write_text(MOD_PY)
+        p = subprocess.run(
+            [sys.executable, str(lone / "comment-census.py"), str(lone)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(p.returncode, 4, p.stderr)
+        self.assertIn(str(lone / "code-extensions.txt"), p.stderr)
+        self.assertEqual(p.stdout, "")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
