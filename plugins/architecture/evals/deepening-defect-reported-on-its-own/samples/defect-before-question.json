@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Live defect (reproduced)\n\nQuote overcharges by one fuel surcharge. Steps: quote a 2 kg parcel to B12 4QT. Expected 6.75, actual 7.50. Fix in parcels/quote_service.py, QuoteService.quote.\n\n## Candidates\n\n...\n\nWhich candidate should we explore?",
+      "why": "defect named before the question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Which candidate should we explore? Separately, there is a bug in the quote.",
+      "why": "defect only after the question"
+    },
+    {
+      "answer": "Quote path (Strong): three one-step classes. Which candidate should we explore?",
+      "why": "no defect named"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "name": "bugs",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the bugs plugin: the write skill's name and --file contract, in a sandbox with no report directory, with no scripts or hooks."
+}
