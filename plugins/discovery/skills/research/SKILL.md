@@ -15,8 +15,6 @@ metadata:
 
 **From the main conversation, this skill dispatches the `discovery:researcher` subagent**, which returns a file pointer plus a short summary, not the transcript, so its reading stays out of this context. The parent resolves the **pre-dispatch envelope** and baseline first ("Pre-dispatch envelope and baseline" below) and owns the **post-dispatch boundary** after: re-surfacing `open_questions`, dispatching the sibling verifier, applying project fit, and **writing both results back into the index** (`verification: pending` says the producer may not self-grade, not that the question is open). Inline runs, and why an un-runnable gate is no reason for one: "Running inline" below.
 
-**Each spawn's `model`**, researcher and research-verifier alike, follows the parent contract's "The worker's model is the parent's call" ([`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)): pass one only when a multi-agent config layer moves that agent's role off its pin.
-
 **Discipline-liveness token.** The dispatched agent echoes this token as `preload_token`, and a missing or mismatched one is a **hard failure: the parent discards the run**.
 
 ```text
@@ -209,6 +207,8 @@ Research config: corroborators=<n> recency=<active>/<standard>/<guide>
 ```
 
 At `Budget: low` the parent contract's "`Budget:` vocabulary" sets the `Turn budget:` value. `Source breadth:` is `${CLAUDE_EFFORT}` as this load rendered it (a literal placeholder means the body was read from disk: write `high`). Why each field exists and how a missing one degrades: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), which the dispatch does not need.
+
+**Each spawn's `model`**, researcher and research-verifier alike, follows that file's "The worker's model is the parent's call": pass one only when a multi-agent config layer moves the agent's role off its pin.
 
 **Pre-dispatch:** create the memory slice and touch `<that slice>/.research-dispatch` as the gate's freshness baseline, then hand that file to the gate as `--newer-than`. Without it a slice that already holds an earlier run's index passes every on-disk check even when this dispatch wrote nothing at all. On an N-topic fan-out one baseline at the slice root serves every sub-slice. Run the form matching this session's shell, because the POSIX form's `touch` is not a command in PowerShell and its directory flag is a parameter error there:
 
