@@ -7,6 +7,10 @@
     {
       "answer": "Q1: Where should the counters live?\nMy recommendation: the existing Redis 7 instance.\nBasis: verified, you said Redis 7 is already deployed for sessions.\nFlips if: that instance cannot absorb about 2,000 extra writes a second at peak.\n\nQ2: What limit should partner keys get?\nMy recommendation: 1,000 requests per minute per API key.\nBasis: verified, your published partner terms promise exactly that, as you quoted them.",
       "why": "every recommendation has a checkable basis; Q2 omits Flips if: because the published terms leave no condition that would change it"
+    },
+    {
+      "answer": "❓ **Q7: Settle mechanism-level choices now, or at planning?**\nContext:\n- This interview decides behavior: who is limited, how counting works, what happens on failure. Mechanism means tool or platform calls such as where counters live, which algorithm, a library or a gateway.\n- There's no application code here, so I can't ground a mechanism recommendation in your stack (survey, this session).\n\n➡️ My recommendation: **settle mechanism at planning.** Planning looks at your actual stack, and until then every recommendation stays about behavior.\nOrigin: new (ours)\nBasis: verified, survey of the working directory (no commits, no application code)\nFlips if: you already have a mechanism in mind that you want locked into the Brief.\n\nAlternatives:\n- (a) Settle it now. This locks the design earlier, but makes mechanism choices without seeing the code (origin: new (ours)).",
+      "why": "the basis is tool output the reply names with what it showed (a survey of the working directory: no commits, no application code)"
     }
   ],
   "fail": [
@@ -25,6 +29,14 @@
     {
       "answer": "Q1: Where should the counters live?\nContext: it is not yet known whether the session Redis instance has headroom for about 2,000 extra writes a second at peak.\nMy recommendation: the existing Redis 7 instance.\nBasis: verified, you said Redis 7 is already deployed for sessions.",
       "why": "the reply names an open fact that would change Q1 (Redis headroom) but states no condition for it"
+    },
+    {
+      "answer": "❓ **Q8: Settle mechanism-level choices (store commands, scripts, libraries) now, or leave them to planning?**\nContext:\n- Q6 (failure mode) and Q7 (Redis sharing) already name Redis, which you stated as existing infrastructure (user, round 0).\n- This interview decides what the limiter does; how it is built belongs to planning.\n\n➡️ My recommendation: **leave mechanism details to planning and settle only the store choice here.** That keeps the Brief about behavior.\nOrigin: new (ours)\nBasis: verified, the interview's what-not-how scope rule.\n\nAlternatives:\n- (a) Settle mechanisms now. There are fewer open items at planning, but the interview runs longer.",
+      "why": "the basis cites only one of the interview's own rules, nothing the user could check"
+    },
+    {
+      "answer": "❓ **Q7: Settle mechanism-level choices now, or at planning?**\nContext:\n- This interview decides behavior: who is limited, how counting works, what happens on failure. Mechanism means tool or platform calls such as where counters live, which algorithm, a library or a gateway.\n\n➡️ My recommendation: **settle mechanism at planning.** Planning looks at your actual stack, and until then every recommendation stays about behavior.\nBasis: verified, I checked.\nFlips if: you already have a mechanism in mind that you want locked into the Brief.",
+      "why": "the basis claims a check but names no tool output and nothing it showed"
     }
   ]
 }
