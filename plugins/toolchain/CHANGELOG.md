@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.9] - 2026-11-14
+
+### Fixed
+
+- **`/toolchain:ratchet` names the pull-request setting again.** Where it says what a `GITHUB_TOKEN` needs to open the tightening PR, it names the "Allow GitHub Actions to create and approve pull requests" setting, so replies quote that name instead of paraphrasing it. A dated stored-value line under the GitHub docs pointer records the name.
+
 ## [1.2.8] - 2026-11-13
 
 ### Changed
