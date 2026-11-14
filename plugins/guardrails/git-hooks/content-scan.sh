@@ -19,8 +19,9 @@
 #                          remove them from, and exit: 1 on a finding or a
 #                          text tool that failed mid-scan, else 0
 #
-# Each file is judged the way a Write or Edit of it would be: a new file on its
-# whole content, a changed file on the lines the change adds, read from the
+# Each file is judged the way a Write or Edit of it would be: a new file, or
+# (outside --worktree) one that was a symlink or a submodule, on its whole
+# content, a changed file on the lines the change adds, read from the
 # change's blobs (the work tree with --worktree). Every listed path is judged,
 # a force-added gitignored one included; --worktree leaves out untracked
 # gitignored files. Skipped: symbolic links, submodules and files over 1 MiB.
@@ -224,6 +225,28 @@ hpp_sweep() {
   hpp_sweep "$mid" "$to"
 }
 
+# retyped_ranges <path>...: pre-commit; checks_changed_lines lists no type
+# change, so a regular file HEAD holds as a symlink or a submodule has no rows
+# in $CHECKS_TMP/ranges. Every line of it is added against HEAD; in a merge,
+# only the lines each other parent's diff adds too. A name git quotes is
+# judged whole anyway and gets no row. pre-push-content's commit_ranges lists
+# type changes itself.
+retyped_ranges() {
+  local f p all="$CHECKS_TMP/retyped"
+  : >"$all" || scan_failed .
+  for f in "$@"; do
+    [[ "$f" == *[\"\\[:cntrl:]]* ]] || printf '%s\t1\t2147483647\n' "$f" >>"$all" || scan_failed "$f"
+  done
+  for p in ${other_parents[@]+"${other_parents[@]}"}; do
+    : >"$all.other"
+    checks_added_ranges "$all.other" ACMRT "$p"
+    checks_intersect_ranges "$all.other" "$all" >"$all.both" ||
+      checks_tool_failed awk "$?" 'listing the lines the merge adds'
+    mv "$all.both" "$all"
+  done
+  cat "$all" >>"$CHECKS_TMP/ranges" || scan_failed .
+}
+
 content_scan() {
   local result=$1 i f s src sink text packed meta rest p
   # The files to judge: paths[i] names one and, outside --worktree, keeps[i]
@@ -242,9 +265,10 @@ content_scan() {
       paths+=("$f")
     done < <(checks_files)
   else
-    local -a staged=() blobs=() sizes=()
+    local -a staged=() blobs=() sizes=() retyped=()
     # ":<mode> <mode> <id> <id> <status>", then the path; a rename or copy
-    # names its source first.
+    # names its source first. A type change (T) to a regular file, from a
+    # symlink or a submodule, is listed in retyped.
     while IFS= read -r -d '' meta && IFS= read -r -d '' f; do
       case "${meta##* }" in
       R* | C*) IFS= read -r -d '' f || break ;;
@@ -255,11 +279,15 @@ content_scan() {
       100644 | 100755) ;;
       *) continue ;;
       esac
+      [[ "${meta##* }" == T ]] && retyped+=("$f")
       rest="${rest#* }"
       rest="${rest#* }"
       staged+=("$f")
       blobs+=("${rest%% *}")
-    done < <(checks_diff --raw --no-abbrev -z --diff-filter=ACMR)
+    done < <(checks_diff --raw --no-abbrev -z --diff-filter=ACMRT)
+    if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#retyped[@]})); then
+      retyped_ranges "${retyped[@]}"
+    fi
     for p in ${other_parents[@]+"${other_parents[@]}"}; do
       drop_unchanged "$p"
     done
