@@ -85,6 +85,13 @@ class Refusals(unittest.TestCase):
         self.assertNotIn(home, r.stderr)
         self.assertFalse((self.dir / 'out' / 'video.mp4').exists())
 
+    def test_a_scan_pattern_stops_its_match_before_any_frame(self):
+        path = self.board(lambda d: d['moments'][2]['data']['lines'].append({'n': 47, 'kind': '+', 'text': 'BLUEJAY'}))
+        r = run('--storyboard', path, '--out', self.dir / 'out', '--script-only', '--scan-pattern', r'\bBLUEJAY\b')
+        self.assertEqual(r.returncode, 4, r.stderr)
+        self.assertIn('config-pattern', r.stderr)
+        self.assertEqual(run('--storyboard', path, '--out', self.dir / 'plain', '--script-only').returncode, 0)
+
     def test_a_failure_that_produced_nothing_exits_2_not_1(self):
         cases = {'missing storyboard': ('--storyboard', self.dir / 'nope.json', '--out', self.dir / 'a'),
                  'out is a file': ('--storyboard', BOARD, '--out', BOARD)}

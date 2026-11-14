@@ -4,7 +4,7 @@
 usage: pydeps.py run --data-dir DIR -- narrate.py --data-dir DIR [--model-dir DIR] --script FILE [--out DIR]
        [--voice NAME] [--speed X]
        pydeps.py run --data-dir DIR -- narrate.py ... --backend-chain NAME[,NAME...] [--voice BACKEND:VOICE]...
-       [--command TEMPLATE] [--timeout S] [--allow-paid-voice]
+       [--command TEMPLATE] [--timeout S] [--allow-paid-voice] [--scan-pattern REGEX]...
 
 Every whitespace-separated token of the script is a word in words.json, with a start and end in seconds.
 
@@ -25,6 +25,7 @@ missing package, model or key), goes to the next backend at once. voice.json rec
   command     --command TEMPLATE run without a shell, {script} the script file, {out} the WAV to write; its egress
               is unknown, so it counts as online; word times estimated
 Before the first online backend the script passes the secret and machine-data floor (media_scan.py); nothing lowers it.
+--scan-pattern (repeatable) adds a regex the floor also refuses (scan.extra_patterns).
 SPEECH_EGRESS_FLOOR=local skips every online backend. A paid backend runs only with --allow-paid-voice, which the
 caller passes for an attended run the user approved or when allow_unattended_paid_voice is set.
 exit codes: 0 written; 1 a usage error; 3 the chain reached a paid backend without --allow-paid-voice, nothing sent;
@@ -458,11 +459,11 @@ def registry(command='', data_flag=None, model_dir=None, speed=1.0, env=None):
     return {b.name: b for b in found}
 
 
-def scan_script(text):
+def scan_script(text, extra=()):
     """The finding kinds media_scan reports for the script, or why it could not run; [] when the text may leave."""
     try:
         import media_scan
-        result = media_scan.scan({'narration': text})
+        result = media_scan.scan({'narration': text}, extra=extra)
     except Exception as e:   # the floor fails closed on any error
         return [f'scan-error: {type(e).__name__}']
     return (['rules-failed-to-load'] if result.fail_closed else []) + sorted({f['kind'] for f in result.findings})
@@ -563,7 +564,7 @@ def chain_main(a, out):
         voices[name] = value
     try:
         code = run_chain(a.script.read_text(encoding='utf-8'), out, chain, backends, voices, a.timeout,
-                         a.allow_paid_voice)
+                         a.allow_paid_voice, scan=lambda text: scan_script(text, a.scan_pattern))
     except (ValueError, OSError) as e:
         sys.stderr.write(f'speech: {e}\n')
         return 1
@@ -595,6 +596,7 @@ def main(argv=None):
     ap.add_argument('--command', default='', help='the command backend\'s template: {script} in, {out} WAV out')
     ap.add_argument('--timeout', type=float, default=DEFAULT_TIMEOUT_S, help='seconds per backend call')
     ap.add_argument('--allow-paid-voice', action='store_true', help='let the chain call a paid backend')
+    ap.add_argument('--scan-pattern', action='append', default=[], help='a regex the floor also refuses (repeatable)')
     a = ap.parse_args(argv)
     out = a.out or a.script.parent
     if a.backend_chain is not None:

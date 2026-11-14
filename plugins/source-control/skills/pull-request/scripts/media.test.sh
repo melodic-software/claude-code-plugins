@@ -430,6 +430,14 @@ assert_exit "a home path in the section exits 5" 5 "$RC"
 assert_contains "the refusal names the kind" "$OUT" "home-path"
 assert_silent "a home path uploads nothing" "$(cat "$S/attached")"
 
+M8="$TEST_TMPDIR/m8"
+media_dir "$M8" "$HEAD1" "Ships codename BLUEJAY"
+reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
+media post 7 --manifest "$M8/manifest.json" --run-id run-1 --scan-pattern 'BLUEJAY'
+assert_exit "a --scan-pattern hit exits 5" 5 "$RC"
+assert_contains "the refusal names a config pattern" "$OUT" "config-pattern"
+assert_silent "a --scan-pattern hit uploads nothing" "$(cat "$S/attached")"
+
 M5="$TEST_TMPDIR/m5"
 media_dir "$M5" "$HEAD1"
 printf 'shot-bytes' >"$M5/shot.png"
