@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/p/x.html",
+            "content": "<html>"
+          }
+        }
+      ],
+      "why": "wrote a file"
+    }
+  ]
+}

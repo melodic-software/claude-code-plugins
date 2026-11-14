@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "level: sketch (team)\nPlan: /orders, HTML mockup, variants A and B, states populated, empty.\n- A Receipt list (layout)\n- B Calendar grid (hierarchy)",
+      "why": "two named variants"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Plan: /orders, HTML mockup, variants A to C.\n- A Receipt list\n- B Calendar grid\n- C Timeline",
+      "why": "three variants"
+    }
+  ]
+}

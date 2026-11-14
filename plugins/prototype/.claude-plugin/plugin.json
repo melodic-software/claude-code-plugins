@@ -18,5 +18,12 @@
   ],
   "metadata": {
     "category": "design"
+  },
+  "userConfig": {
+    "level": {
+      "type": "string",
+      "title": "Level",
+      "description": "The level a /prototype:explore-directions run takes when the request names none: sketch, standard or full, or a level your repository's docs/conventions/prototype.yaml adds. Unset is standard. A repository's prototype.yaml wins over this option; see the plugin's reference/config.md."
+    }
   }
 }
