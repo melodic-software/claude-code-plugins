@@ -41,9 +41,9 @@ Run these in order. Skip a step only when its input is genuinely absent
    name CONCRETE, located findings, not a generic mea culpa. Each finding
    points at a specific turn, claim, or artifact and at the specific part
    of the discipline it breaks. If there are none, say so plainly. Do not
-   invent findings to look diligent. For load-bearing work (code, config,
-   a recommendation, or a claim something downstream cites; when in doubt,
-   treat it as load-bearing), a clean self-audit is not yet the verdict:
+   invent findings to look diligent. For work that others depend on (code,
+   config, a recommendation, or a claim something downstream cites; when in
+   doubt, treat it as depended on), a clean self-audit is not yet the verdict:
    dispatch a fresh-context subagent with the discipline's source and the
    work, not your audit, to audit it independently and report findings
    before step 4 reports clean; what it finds goes to step 3. The
