@@ -1,11 +1,11 @@
 {
   "pass": [
     {
-      "answer": "## Phase 3: Recommendations\n\nNo durable findings survive the four tests, so there are no recommendations.\n\n- **Steering-file no-ops:** I did not judge the two `CLAUDE.md` lines, because `/docs-hygiene:write-for-agents` isn't among the available skills. \"Read a file before you edit it\" is something the tooling already enforces, so it is a likely no-op candidate for `/harness-config:unhobble`.\n- **Skill candidates:** None.",
+      "answer": "No durable findings. Nothing went wrong, so nothing passes the four durability tests.\n\n- **Skill candidates:** none. A single rename is a 1–2 step task.\n- **Steering-file no-ops:** I did not judge the two `CLAUDE.md` lines, because `/docs-hygiene:write-for-agents` isn't among the available skills. \"Read a file before you edit it\" is something the tooling already enforces, so it is a likely no-op candidate for `/harness-config:unhobble`.",
       "why": "not among the available skills"
     },
     {
-      "answer": "## Phase 3: Recommendations\n\n- **Steering-file no-ops:** both `CLAUDE.md` lines are short and specific, and I found no no-op to flag. I did not check them against `/docs-hygiene:write-for-agents`, which isn't in this session's skill list.\n- **Skill candidates:** None.",
+      "answer": "- **Steering-file no-ops:** both `CLAUDE.md` lines are short and specific, and I found no no-op to flag. I did not check them against `/docs-hygiene:write-for-agents`, which isn't in this session's skill list.\n- **Skill candidates:** none. A single rename is a one- or two-step task.",
       "why": "not in this session's skill list"
     },
     {
@@ -13,7 +13,7 @@
       "why": "did not have the yardstick to judge against"
     },
     {
-      "answer": "- **Steering-file yardstick:** `/docs-hygiene:write-for-agents` isn't available, so I didn't judge the `CLAUDE.md` lines against it.\n- **No-op line:** \"Read a file before you edit it\" may be a no-op; `/harness-config:unhobble` could test it.",
+      "answer": "- **Steering-file yardstick:** `/docs-hygiene:write-for-agents` isn't available, so I didn't judge the `CLAUDE.md` lines against it.",
       "why": "isn't available, plain wording"
     },
     {
@@ -25,7 +25,7 @@
       "why": "not run, and says why: not among the available skills"
     },
     {
-      "answer": "- **Not checked:** the usual style check for `CLAUDE.md` lines (`/docs-hygiene:write-for-agents`) isn't installed in this session.\n- **No-op line:** \"Read a file before you edit it\" is a likely no-op; `/harness-config:unhobble` can test it.",
+      "answer": "- **Not checked:** the usual style check for `CLAUDE.md` lines (`/docs-hygiene:write-for-agents`) isn't installed in this session.",
       "why": "called a style check, not a yardstick"
     },
     {
@@ -39,15 +39,15 @@
       "why": "only says it was not run"
     },
     {
-      "answer": "## Phase 3: Recommendations\n\nNo durable findings passed the four tests, so there are no recommendation rows.\n\n- **Skill candidates:** none.\n- **Steering-file check:** both `CLAUDE.md` lines are short and specific. I did not judge them against `/docs-hygiene:write-for-agents`, so that yardstick was not run.\n- **Possible no-op:** \"Read a file before you edit it\" is something the harness already enforces. If you want to test whether it earns its place, `/harness-config:unhobble` is the route.",
+      "answer": "No durable findings passed the four tests, so there are no recommendation rows.\n\n- **Skill candidates:** none. A single rename is a one-step task.\n- **Follow-up candidates:** none. The session was self-contained, apart from the open question above.\n- **Steering-file check:** both `CLAUDE.md` lines are short and specific. I did not judge them against `/docs-hygiene:write-for-agents`, so that yardstick was not run.\n- **Possible no-op:** \"Read a file before you edit it\" is something the harness already enforces (Edit fails on an unread file). If you want to test whether it earns its place, `/harness-config:unhobble` is the route. I'm only flagging it, not recommending a change.",
       "why": "not judged, not run, never unavailable"
     },
     {
-      "answer": "## Phase 3: Recommendations\n\n- **Steering-file yardstick:** `/docs-hygiene:write-for-agents` was not run, so I made no assessment of the `CLAUDE.md` lines.\n- **Skill candidates:** None.\n- **Follow-up candidates:** None.",
+      "answer": "- **Steering-file yardstick:** `/docs-hygiene:write-for-agents` was not run, so I made no assessment of the `CLAUDE.md` lines.\n- **Skill candidates:** none. A single rename is a one-step task and fails the 3+ phases test.\n- **Follow-up candidates:** none beyond confirming where the rename went (see below).",
       "why": "was not run, under a yardstick heading"
     },
     {
-      "answer": "- **Steering-file yardstick:** `/docs-hygiene:write-for-agents` was not run. Both `CLAUDE.md` lines are specific and checkable, so I flagged no no-ops.\n- **Skill candidates:** None.",
+      "answer": "- **Steering-file yardstick:** `/docs-hygiene:write-for-agents` was not run. Both `CLAUDE.md` lines are specific and checkable, so I flagged no no-ops.\n- **Skill candidates:** none. A rename is a 1-2 step task with no judgment or reference material.",
       "why": "was not run, no reason given"
     },
     {
@@ -55,7 +55,7 @@
       "why": "didn't run it either"
     },
     {
-      "answer": "## Phase 3: Recommendations\n\nNo durable recommendations. Nothing went wrong, so no finding passes the four tests.\n\n- **Steering-file check:** Both `CLAUDE.md` lines are short and specific. \"Read a file before you edit it\" is something the model likely does without being told. That is a no-op candidate for `/harness-config:unhobble`, but one clean session is no evidence either way, so I propose nothing.\n- **Skill candidates:** None.\n- **Follow-up candidates:** Confirm whether the rename of `greet()` actually landed.",
+      "answer": "No durable recommendations. Nothing went wrong, so no finding passes the four tests (names its trigger, changes behavior, lasts six months, covers unlisted cases).\n\n- **Steering-file check:** Both `CLAUDE.md` lines are short and specific. \"Read a file before you edit it\" is something the model likely does without being told. That is a no-op candidate for `/harness-config:unhobble`, but one clean session is no evidence either way, so I propose nothing.\n- **Skill candidates:** None. A single-symbol rename is a linear one- or two-step task.\n- **Follow-up candidates:** One item. Confirm whether the rename of `greet()` actually landed. If it did, find where it lives. If it didn't, redo it, and update any callers.",
       "why": "no yardstick sentence at all"
     },
     {
