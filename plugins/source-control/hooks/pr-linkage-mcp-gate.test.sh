@@ -35,25 +35,16 @@ trap 'rm -rf "$WORK"' EXIT
 GATED="$WORK/gated"
 NOGATE="$WORK/nogate"
 NOORIGIN="$WORK/noorigin"
-RENAMED="$WORK/renamed"
-mkdir -p "$GATED/.github/workflows" "$NOGATE" "$NOORIGIN/.github/workflows" "$RENAMED/.github/workflows"
-# The scope guard keys on a workflow that `uses:` the pr-contract composite
-# step, so an EMPTY workflow file no longer satisfies it.
-PR_CONTRACT_WF='jobs:
-  ci-status:
-    steps:
-      - uses: melodic-software/ci-workflows/.github/actions/pr-contract@5776760254f8b63cba44e896f51604cb755350d9 # v0.22.2
-'
-printf '%s' "$PR_CONTRACT_WF" >"$GATED/.github/workflows/ci.yml"
-printf '%s' "$PR_CONTRACT_WF" >"$NOORIGIN/.github/workflows/ci.yml"
-# Only the composite's renamed path, pr-require-checks/check-contract.
-printf '%s' 'jobs:
+mkdir -p "$GATED/.github/workflows" "$NOGATE" "$NOORIGIN/.github/workflows"
+# The scope guard keys on a workflow that `uses:` the check-contract composite
+# step, so an EMPTY workflow file does not satisfy it.
+CHECK_CONTRACT_WF='jobs:
   ci-status:
     steps:
       - uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
-' >"$RENAMED/.github/workflows/ci.yml"
-git -C "$RENAMED" init -q
-git -C "$RENAMED" remote add origin https://github.com/acme-corp/widgets.git
+'
+printf '%s' "$CHECK_CONTRACT_WF" >"$GATED/.github/workflows/ci.yml"
+printf '%s' "$CHECK_CONTRACT_WF" >"$NOORIGIN/.github/workflows/ci.yml"
 git -C "$GATED" init -q
 git -C "$GATED" remote add origin https://github.com/acme-corp/widgets.git
 git -C "$NOGATE" init -q
@@ -105,7 +96,6 @@ BAD=$'Refs: #12\n\nThis does not close #12.'"$SECTIONS"
 run 0 "valid body passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$GOOD")"
 run 2 "negated closer blocks beside a Refs: marker" "$(payload "$GATED" $CREATE $OWNER $REPO "$BAD")"
 run 2 "negated closer blocks beside a real closing keyword" "$(payload "$GATED" $CREATE $OWNER $REPO $'Closes #4\n\nThis is not meant to resolve #12 here.'"$SECTIONS")"
-run 2 "a workflow wiring only pr-require-checks/check-contract enforces" "$(payload "$RENAMED" $CREATE $OWNER $REPO "$BAD")"
 # CI reports the rest of the body contract as advisory, so none of it blocks.
 run 0 "missing Related passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$NO_RELATED")"
 run 0 "empty Related passes" "$(payload "$GATED" $CREATE $OWNER $REPO "$EMPTY_RELATED")"

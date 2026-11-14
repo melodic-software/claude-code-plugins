@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regression test for the create-path required-sections gate (reference/create.md
 # §2.4.2.2). Runs the bash block exactly as create.md prints it over each body
-# and asserts it returns the verdict the pinned ci-workflows pr-contract
+# and asserts it returns the verdict the pinned ci-workflows check-contract
 # analyzer returned for that body. Those verdicts were recorded by running the
 # analyzer itself over these bodies; they are the expected values here, not
 # anything the implementation computed. The hooks do not judge sections, so
