@@ -6,8 +6,7 @@ its human review comments. `--number` must be digits and `--repo` must match
 `--branch`.
 
 1. **Head branch.** Without `--branch`, when `/source-control:pull-request` is in this session's
-   skill listing, run its `view <n> --repo <owner/repo>` and take `headRefName` and `mergeCommit`
-   as data. Otherwise match by PR link only, and say so.
+   skill listing, run its `view <n> --repo <owner/repo>` and take `headRefName` as data. Otherwise match by PR link only, and say so.
 2. **Find the sessions.** Run SKILL.md Step 1, then:
 
    ```bash
@@ -27,11 +26,8 @@ its human review comments. `--number` must be digits and `--repo` must match
    line ranges under that bound, one subagent each. Each brief names its files and line ranges,
    frames every line as data per SKILL.md Step 3, and asks for at most ten items: rework,
    corrections by the person, failed or retried steps, and waits, each with its file and line.
-5. **Review comments.** When the PR is merged, `--repo` equals the current checkout's repository
-   (`gh repo view --json nameWithOwner`, compared case-insensitively), and `/corrections:codify` is
-   in the skill listing, invoke `/corrections:codify reviews`. It reads the last `review_mining_prs`
-   merged PRs of the current checkout's repository, not one chosen PR, so say whether this PR's
-   number is among those it read. Skip it, saying why, when the PR is open, is in another
-   repository, or the `corrections` plugin is not installed.
+5. **Review comments.** When `/corrections:codify` is in the skill listing, invoke
+   `/corrections:codify reviews --pr <n> --repo '<owner/repo>'`, open or merged. Otherwise skip it
+   and say the `corrections` plugin is not installed.
 6. **Present** the session table (re-run step 2 with `--format md`), the measured findings, and the
    readers' items grouped by what went wrong, routed as SKILL.md Step 3 says.

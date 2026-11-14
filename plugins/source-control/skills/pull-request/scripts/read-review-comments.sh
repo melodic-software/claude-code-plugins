@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # read-review-comments.sh — The `review-comments` read: the review comments of a
-# repository's last merged pull requests as JSON lines.
+# repository's last merged pull requests, or of one chosen pull request, as JSON
+# lines.
 #
 #   read-review-comments.sh --prs <n> [--repo <owner>/<repo>]
+#   read-review-comments.sh --pr <number> [--repo <owner>/<repo>]
 #   read-review-comments.sh --help
 #
-# <n> is 2-200 (a lesson needs two PRs). Without --repo, the repository of the
-# current directory. The last <n> merged PRs, by merge time, are picked from the
-# merged PRs updated most recently, read until no unread PR can be among them.
+# <n> is 2-200 (a lesson needs two PRs). --pr reads that one PR, open, closed or
+# merged. Without --repo, the repository of the current directory. The last <n>
+# merged PRs, by merge time, are picked from the merged PRs updated most
+# recently, read until no unread PR can be among them.
 # For each, newest first, it reads review bodies and inline review comments
 # (gh api --paginate) and the review threads (gh api graphql), and keeps:
 #
@@ -38,28 +41,35 @@ set -uo pipefail
 
 LIMIT_BYTES=65536
 
-usage_text="usage: read-review-comments.sh --prs <n> [--repo <owner>/<repo>]  (<n>: 2-200)"
+usage_text="usage: read-review-comments.sh (--prs <n> | --pr <number>) [--repo <owner>/<repo>]  (<n>: 2-200)"
 die() {
   printf 'read-review-comments: %s\n' "$1" >&2
   exit 2
 }
 
-prs="" repo=""
+prs="" pr_one="" repo=""
 while (($#)); do
   case "$1" in
   --help | -h)
     printf '%s\n' "$usage_text"
     exit 0
     ;;
-  --prs | --repo)
+  --prs | --pr | --repo)
     (($# >= 2)) || die "$1 needs a value; $usage_text"
-    if [[ "$1" == --prs ]]; then prs="$2"; else repo="$2"; fi
+    case "$1" in
+    --prs) prs="$2" ;;
+    --pr) pr_one="$2" ;;
+    *) repo="$2" ;;
+    esac
     shift 2
     ;;
   *) die "unknown argument: $1; $usage_text" ;;
   esac
 done
-if [[ ! "$prs" =~ ^[1-9][0-9]{0,2}$ ]] || ((prs < 2 || prs > 200)); then
+if [[ -n "$pr_one" ]]; then
+  [[ -z "$prs" ]] || die "give --prs or --pr, not both; $usage_text"
+  [[ "$pr_one" =~ ^[1-9][0-9]{0,9}$ ]] || die "--pr must be a pull request number; $usage_text"
+elif [[ ! "$prs" =~ ^[1-9][0-9]{0,2}$ ]] || ((prs < 2 || prs > 200)); then
   die "--prs must be an integer from 2 to 200; $usage_text"
 fi
 repo_re='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
@@ -85,8 +95,14 @@ name="${repo#*/}"
 # read until it is complete: every PR not yet read was updated, so merged,
 # before the n-th newest merge read so far. Search returns at most 1000 results
 # (https://docs.github.com/en/rest/search/search#about-search).
+if [[ -n "$pr_one" ]]; then
+  gh api "repos/$repo/pulls/$pr_one" >"$tmp/one.json" 2>/dev/null || die "reading PR #$pr_one failed"
+  jq '[{number, author: {login: .user.login?}, mergedAt: .merged_at}]' "$tmp/one.json" >"$tmp/prs.json" ||
+    die "unreadable gh api output for PR #$pr_one"
+  prs=1
+fi
 limit=$((prs * 3))
-while :; do
+while [[ -z "$pr_one" ]]; do
   gh pr list --state merged --search "sort:updated-desc" --limit "$limit" \
     --json number,author,mergedAt,updatedAt --repo "$repo" >"$tmp/listed.json" 2>/dev/null ||
     die "gh pr list failed (check gh auth status)"
@@ -98,7 +114,7 @@ while :; do
   ((limit < 1000)) || die "the last $prs merged PRs are not within the 1000 most recently updated"
   limit=$((limit * 2 > 1000 ? 1000 : limit * 2))
 done
-jq --argjson n "$prs" 'to_entries | sort_by([(.value.mergedAt // ""), -.key]) | reverse | map(.value) | .[:$n]' "$tmp/listed.json" >"$tmp/prs.json" ||
+[[ -n "$pr_one" ]] || jq --argjson n "$prs" 'to_entries | sort_by([(.value.mergedAt // ""), -.key]) | reverse | map(.value) | .[:$n]' "$tmp/listed.json" >"$tmp/prs.json" ||
   die "unreadable gh pr list output"
 count="$(jq 'length' "$tmp/prs.json")" || die "unreadable gh pr list output"
 [[ "$count" =~ ^[0-9]+$ ]] || die "unreadable gh pr list output"
@@ -170,7 +186,9 @@ while IFS= read -r row; do
   kept=$((kept + 1))
 done <"$rows"
 if ((truncated)); then
-  jq -nc --argjson limit "$LIMIT_BYTES" --argjson kept "$kept" \
-    '{truncated: true, limit_bytes: $limit, rows_printed: $kept, note: "output capped; a smaller --prs reads a complete window"}' >>"$out"
+  note="output capped; a smaller --prs reads a complete window"
+  [[ -z "$pr_one" ]] || note="output capped; the rest of PR #$pr_one was not printed"
+  jq -nc --argjson limit "$LIMIT_BYTES" --argjson kept "$kept" --arg note "$note" \
+    '{truncated: true, limit_bytes: $limit, rows_printed: $kept, note: $note}' >>"$out"
 fi
 cat "$out"
