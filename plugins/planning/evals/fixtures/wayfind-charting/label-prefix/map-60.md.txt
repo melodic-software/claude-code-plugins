@@ -1,0 +1,21 @@
+# #60 Map: notification digest
+
+URL: https://example.com/acme/mail/issues/60. State: open. Labels: decide: map.
+
+## Destination
+
+A PRD for the weekly notification digest.
+
+## Notes
+
+- The digest replaces per-event emails; it never adds a new channel.
+
+## Decisions-so-far
+
+## Not-yet-specified
+
+- **Quiet weeks**: something about what a digest with nothing new should do feels unsettled.
+
+## Out-of-scope
+
+- Push notifications.

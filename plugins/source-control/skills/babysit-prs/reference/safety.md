@@ -845,7 +845,8 @@ The AI review checks are the review lane's `PR Review / review-status` (`pr-revi
 review-status` on a head tested before the rename) or `claude-review-status` (matched by that job
 segment under any caller, e.g. `review /` or `pr-review /`) and the security lane's
 `PR Review Security / review-status`, `pr-review-security / review-status`,
-`security-review / security-review` or `pr-review-security / security-review` (matched by its
+`security-review / security-review`, `PR Review Security / security-review` or
+`pr-review-security / security-review` (matched by its
 whole name, never by the job segment alone; every name holds while old and new callers coexist),
 plus any `claude-security-review-status` check the rollup carries. Their names are
 `<caller job name> / <reusable job name>`: the caller's display name, or its job id where it sets

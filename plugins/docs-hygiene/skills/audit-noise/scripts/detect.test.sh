@@ -378,7 +378,7 @@ ENFORCEABILITY_CHILD="$TEST_TMPDIR/enforceability-child.md"
 cat >"$ENFORCEABILITY_CHILD" <<'EOF'
 # Enforceability child fixture
 
-See .work/enforceability/feat-x/01-semgrep-rule-src.md for the proposed rung.
+See .work/enforceability/feat-x/01-syntax-pattern-rule-src.md for the proposed rung.
 EOF
 enf_child_out="$(bash "$DETECT" "$ENFORCEABILITY_CHILD")"
 assert_contains "concrete child under .work/enforceability/ is a ghost ref" "$enf_child_out" "Finding shape: ghost-ref"

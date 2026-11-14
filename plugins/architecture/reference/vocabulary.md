@@ -1,13 +1,25 @@
-# Deepening Vocabulary
+# Module-design vocabulary
 
-When the `deepening` lens names an architectural idea, it uses one of the eight terms below, with the
+An architecture finding names an architectural idea with one of the eight terms below, with the
 meaning given here. Scan agents, report cards and interview turns all hold to this, so two findings
 that say "seam" mean the same thing. A near-synonym makes the reader ask whether a second idea is
-meant.
+meant. Domain nouns come from the project's own glossary.
 
-Basis: John Ousterhout, *A Philosophy of Software Design*, with "seam" taken from Michael Feathers,
-narrowed here for review work. The examples below use one running case: tax calculation in a
-billing system.
+Basis, by term:
+
+- Module, interface, implementation and depth (deep and shallow modules): John Ousterhout, *A
+  Philosophy of Software Design*; his notes on modular design state the goal as maximizing
+  functionality over interface complexity ([Stanford CS190, Modular Design](https://web.stanford.edu/~ouster/cgi-bin/cs190-winter18/lecture.php?topic=modularDesign)).
+- Seam: Michael Feathers, *Working Effectively with Legacy Code*, ch. 4: "A seam is a place where
+  you can alter behavior in your program without editing in that place." That a module's interface
+  sits wherever its seam sits is our narrowing.
+- Adapter: Alistair Cockburn's ports and adapters (hexagonal architecture), where an adapter
+  converts between a port's API and what an outside device or system needs. We use the narrower
+  sense of the code plugged in at a seam.
+- Leverage and locality as the two things depth produces, the deletion test and the two-adapter
+  check: our own terms and checks.
+
+The examples below use one running case: tax calculation in a billing system.
 
 ## Naming the parts
 

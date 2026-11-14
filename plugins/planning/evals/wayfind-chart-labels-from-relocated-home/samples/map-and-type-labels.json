@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Labels: decide: (binding at config/team/work-items.yaml), owner-call (binding).\n1. /work-items:track add --label 'decide: map' --body-file map-body.md \"Map: order-history export\"\n2. /work-items:track add --parent <map-id> --label 'decide: design' --body-file format.md \"Pick the export file format\"\n3. /work-items:track add --parent <map-id> --label 'decide: interview' --label 'owner-call' --body-file promise.md \"Decide what the export keeps after an account closes\"",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Labels: wayfind: (default), needs-human (default).\n1. /work-items:track add --label 'wayfind: map' --body-file map-body.md \"Map: order-history export\"\n2. /work-items:track add --parent <map-id> --label 'wayfind: design' --body-file format.md \"Pick the export file format\"",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "multi-agent:route",
+            "args": "all research session=opus"
+          }
+        }
+      ],
+      "why": "route skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "multi-agent:assess"
+          }
+        }
+      ],
+      "why": "another skill"
+    }
+  ]
+}

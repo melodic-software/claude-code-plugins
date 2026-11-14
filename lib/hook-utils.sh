@@ -4401,7 +4401,9 @@ hook::bash_parse_segments() {
 
 # The command reader: shfmt's parse tree (hook::bash_parse_segments_shfmt
 # below), which hands every simple command bash would run to the callback.
-# A command shfmt cannot parse is refused (exit 2) with the cause named.
+# A command shfmt cannot parse is refused (exit 2) with the cause named. A
+# caller that hands over text lifted out of the command sets HOOK_BPS_SPAN first
+# (hook::_bps_refuse), so the refusal names the guard and that text.
 #
 # Call as: hook::bash_parse_segments <command-string> <callback>; the callback
 # receives one segment's argv words as "$@" and reads the segment's OTHER half —
@@ -4676,11 +4678,36 @@ hook::_bps_install_note() {
 # The refusal for a command no parse came back for: bash has not run it, and
 # with no tree the guard cannot say what it would run. Shared across a dispatcher's
 # guards when guard::say_once is there. Its reason is what the model can act on.
+# A caller parsing text it lifted out of the command (a substitution or here-doc
+# body, a -c operand) sets HOOK_BPS_SPAN, with `local` around that parse, to
+# "<guard>: <what the text is>". shfmt's line:col then counts from the start of
+# that text, not of the command, so the refusal says so and shows the start of
+# the text it parsed (__hu_bcmd, the innermost parse's) with newlines as spaces
+# and control bytes dropped. A second reading the lib makes itself names its
+# text in __hu_bspan, local to that parse, so a parse a callback starts inside
+# it does not inherit the name. Read only here, on the refusal path.
+# shellcheck disable=SC2154  # __hu_bcmd and __hu_bspan are hook::bash_parse_segments_shfmt's
 hook::_bps_refuse() {
   ((${HOOK_BPS_FAIL_OPEN:-0})) && exit 0
   local __hu_br_m="BLOCKED: the guard reads a command through shfmt and got no parse (${HOOK_BPS_FAIL:-no reason recorded}), so it cannot check this call. Fix the syntax, or install shfmt and jq, then reissue the call."
+  local __hu_br_k=shfmt-unparsable __hu_br_x __hu_br_s=${HOOK_BPS_SPAN:-}
+  if [[ -n "${__hu_bspan:-}" ]]; then
+    if [[ -n "$__hu_br_s" ]]; then
+      __hu_br_s+=", read again as $__hu_bspan"
+    else
+      __hu_br_s="hook-utils: $__hu_bspan"
+    fi
+  fi
+  if [[ -n "$__hu_br_s" ]]; then
+    __hu_br_x=${__hu_bcmd:0:256}
+    __hu_br_x=${__hu_br_x//$'\n'/ }
+    __hu_br_x=${__hu_br_x//[[:cntrl:]]/}
+    ((${#__hu_br_x} > 60)) && __hu_br_x="${__hu_br_x:0:60}..."
+    __hu_br_m="BLOCKED: the guard reads text it lifted from the command through shfmt and got no parse (${HOOK_BPS_FAIL:-no reason recorded}), so it cannot check this call. Lifted text: $__hu_br_s. A line:col in that reason counts from the start of that text, not of the command; the text begins: \"$__hu_br_x\". Fix the syntax there, or install shfmt and jq, then reissue the call."
+    __hu_br_k=shfmt-unparsable-span
+  fi
   if declare -F guard::say_once >/dev/null; then
-    guard::say_once shfmt-unparsable "$__hu_br_m"
+    guard::say_once "$__hu_br_k" "$__hu_br_m"
   else
     printf '%s\n' "$__hu_br_m" >&2
   fi
@@ -4891,15 +4918,17 @@ hook::_bps_hd_check() {
   hook::_bps_refuse
 }
 
-# hook::bash_parse_segments_shfmt <command> <callback> [soft]: every simple
-# command in the tree reaches <callback>. With no parse it refuses the call
-# (exit 2), or with [soft] returns 1. A command holding any extglob form is
+# hook::bash_parse_segments_shfmt <command> <callback> [soft] [reading]: every
+# simple command in the tree reaches <callback>. With no parse it refuses the
+# call (exit 2), or with [soft] returns 1. A command holding any extglob form is
 # refused, soft or not (see E in hook::_bps_tree_decode). A second reading (the
 # array `#` one, a backtick's unescaped text, a joined here-doc body) is not
 # soft: bash runs every command before its syntax error, so it refuses.
+# [reading] is passed only by this function, naming a second reading's text
+# for the refusal (__hu_bspan, hook::_bps_refuse).
 # shellcheck disable=SC2034  # HOOK_SEG_* are read by the callback's caller
 hook::bash_parse_segments_shfmt() {
-  local __hu_bcmd=$1 __hu_bcb=$2 __hu_bsoft=${3:-0} __hu_bout=""
+  local __hu_bcmd=$1 __hu_bcb=$2 __hu_bsoft=${3:-0} __hu_bspan=${4:-} __hu_bout=""
   local __hu_sp="" __hu_bsshift=0 __hu_bext=0
   local -a __hu_spins=()
   # The budget is shared down the nested calls (dynamic scope) and starts over
@@ -4928,7 +4957,7 @@ hook::bash_parse_segments_shfmt() {
     HOOK_BPS_FAIL="an extglob pattern, which shfmt and bash do not read the same way"
     hook::_bps_refuse
   fi
-  local __hu_s __hu_w=0 __hu_r=0 __hu_a __hu_c __hu_x __hu_hm
+  local __hu_s __hu_w=0 __hu_r=0 __hu_a __hu_c __hu_x __hu_hm __hu_hl
   local -a __hu_argv=()
   for ((__hu_s = 0; __hu_s < ${#__hu_ac[@]}; __hu_s++)); do
     __hu_a=${__hu_ac[__hu_s]}
@@ -4955,18 +4984,22 @@ hook::bash_parse_segments_shfmt() {
   # not parse.
   if [[ -n "$__hu_sp" ]]; then
     HOOK_HEREDOC_BODIES=()
-    hook::bash_parse_segments_shfmt "$__hu_sp" "$__hu_bcb" "$__hu_bsoft" || return 1
+    hook::bash_parse_segments_shfmt "$__hu_sp" "$__hu_bcb" "$__hu_bsoft" "$__hu_bspan" || return 1
     hook::_bps_hd_check map "$__hu_sp" ${__hu_spins[@]+"${__hu_spins[@]}"} || return 1
   fi
   # A backtick's unescaped text and a joined here-doc body are commands bash runs,
-  # so each refuses as the command does.
+  # so each refuses as the command does, naming the reading.
   for __hu_x in ${__hu_bt_more[@]+"${__hu_bt_more[@]}"}; do
     HOOK_HEREDOC_BODIES=()
-    hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" "$__hu_bsoft" || return 1
     # A joined body is read as `: <<D` then its joined text, so that one body is
     # the joined form of a body the first tree holds.
     __hu_hm=none
-    [[ "$__hu_x" == ': <<'* ]] && __hu_hm=joined
+    __hu_hl="the text inside backticks, its escaped backticks, dollars and backslashes unescaped"
+    if [[ "$__hu_x" == ': <<'* ]]; then
+      __hu_hm=joined
+      __hu_hl="an unquoted here-doc body, its backslash-newlines joined, after a \`: <<DELIMITER\` first line"
+    fi
+    hook::bash_parse_segments_shfmt "$__hu_x" "$__hu_bcb" "$__hu_bsoft" "$__hu_hl" || return 1
     hook::_bps_hd_check "$__hu_hm" "$__hu_x" || return 1
   done
   # Set last: a callback's own parse would overwrite it.

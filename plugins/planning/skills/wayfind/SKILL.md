@@ -13,8 +13,21 @@ metadata:
 
 ## Pre-computed context
 
+Labels: resolve them first, once per session, with the Read tool from the tracker binding, the
+file the tracker reads: the one `printenv WORK_ITEM_TRACKER_BINDING` names when it prints a path,
+else `<home>/work-items.yaml` (its `tracker` mapping; both keys are team-only, so no personal file
+applies). `<home>` is `docs/conventions` unless the root `AGENTS.md` (else `CLAUDE.md`) holds a
+`<!-- BEGIN GENERATED: convention-home -->` region; then it is the first backticked path in that
+region. A region that does not hold exactly one such path, or a variable naming a missing file, is
+a stop: report it, never take the defaults. `<prefix>` is `config.wayfind_label_prefix`, default
+`wayfind:`; `<human-gated>` is `config.role_labels.human-gated`, default `needs-human`. A missing
+file or key, or an empty value, means the default; any other value that is not a string is a broken
+binding: name the file, key and value and stop. Every wayfind label is `<prefix>`, a space, then
+its kind (`<prefix> map`, `<prefix> research`), and every label this skill writes or queries uses
+those two values. Report both in one line, each with `(default)` or `(binding)`.
+
 Open maps: list them at the start of every action with
-`/work-items:track list --label 'wayfind: map' --state open`, invoked via the Skill tool
+`/work-items:track list --label '<prefix> map' --state open`, invoked via the Skill tool
 ([`context/tracker-mechanics.md`](context/tracker-mechanics.md)). Without the `work-items` plugin,
 wayfind cannot reach the tracker: say so and stop.
 
@@ -75,10 +88,10 @@ and the default applies. Report one line per setting naming its value and layer,
 | Key | Default | Basis | Meaning |
 |---|---|---|---|
 | `wayfind_research_start` | `auto` | Owner decision Q532 (2026-10-15) | `auto`: start a research item without asking when research is the next step whatever the user picks (the frontier holds no item other than research items); otherwise ask first in an interactive session. `confirm`: always ask first in an interactive session |
-| `wayfind_hitl_concurrency` | `1` | Owner decision Q330 (2026-11-12): one human-in-the-loop item at a time per person | The most `needs-human` items of one map that one person (the assignee a claim sets) may hold at once, across all of that person's sessions. Research items never count against it |
+| `wayfind_hitl_concurrency` | `1` | Owner decision Q330 (2026-11-12): one human-in-the-loop item at a time per person | The most `<human-gated>` items of one map that one person (the assignee a claim sets) may hold at once, across all of that person's sessions. Research items never count against it |
 
 An unattended (CI) session asks no one, so labels start research there (Q532): it starts a
-research item only when the item carries `wayfind: research` and no `needs-human`, labels chart
+research item only when the item carries `<prefix> research` and no `<human-gated>`, labels chart
 set while a human was present. Adding or removing those labels is how a person starts or holds one.
 
 ## The fog test (the one call that governs everything)
@@ -99,13 +112,13 @@ user can → an `interview` item; nobody can phrase it yet → fog.
 
 ## Readiness: one engine, human only for intent and vision
 
-Mode is the `needs-human` label, the human-gated role label every `/work-items` skill reads, which
+Mode is the `<human-gated>` label, the human-gated role label every `/work-items` skill reads, which
 keeps an item off every autonomous frontier
 ([`context/tracker-mechanics.md`](context/tracker-mechanics.md) "Check labels"). Wayfind applies it
 more narrowly than the label's general meaning: only when resolving the item needs the user's
 **intent or vision**: what they want, why, or which outcome they would accept. Any other item, whatever its type, is agent-capable. Wayfind has no readiness
 rules or picker of its own: the work step picks by the order below and nothing else, and map items
-stay out of `/work-items:work`, whose frontier leaves out every item carrying a `wayfind:` label.
+stay out of `/work-items:work`, whose frontier leaves out every item carrying a label that starts with `<prefix>`.
 
 ## Shared files
 
@@ -140,7 +153,7 @@ Parse the first token of `$ARGUMENTS`.
 | *(empty)* | **auto** | Open map exists → list its frontier by title, recommend one item and wait for the user's pick (several open maps: name them and ask which); an unattended session goes straight to `work`. No open map → propose `chart` and wait for the user's yes |
 | `chart [topic]` | **Chart** | Build or extend a map, without asking first. **Interactive only**. Refuses non-interactive sessions (charting burns assumptions that need a human) |
 | `work [map] [item]` | **Work** | Work one frontier item: the named one, else the first in creation order |
-| An item reference (URL, `#<n>` or tracker key) | **Work** | Work that item on its map. A reference to a map itself (it carries `wayfind: map`) is handled as *(empty)* for that map |
+| An item reference (URL, `#<n>` or tracker key) | **Work** | Work that item on its map. A reference to a map itself (it carries `<prefix> map`) is handled as *(empty)* for that map |
 | Any other text | **auto** | The text is the topic: an open map for it → as *(empty)*. Else propose `chart` with the topic and wait for the user's yes |
 
 ## Chart mode
@@ -199,12 +212,12 @@ that charting needs an interactive session. Do not fabricate a map.
      Not-yet-specified bullets; the Out-of-scope list. Apply the changes the user asks for and
      show it again. Extending an existing map, show only what would be added.
 3. **Create or extend the map issue.** On first use in a repo, **verify** the wayfind label
-   taxonomy (`wayfind: *`, `needs-human`; snippet in `context/tracker-mechanics.md`) is present:
+   taxonomy (`<prefix> *`, `<human-gated>`; snippet in `context/tracker-mechanics.md`) is present:
    an unknown `--label` fails the create. Honor
    the consuming repository's declared label ownership: if it names a label-as-code source of
    truth, STOP and report the exact missing set to that owner; otherwise report the set and ask
    the user how labels are provisioned. Never create labels ad hoc from this skill. Then create
-   one issue labeled `wayfind: map` (+ any repo program labels). Its body carries
+   one issue labeled `<prefix> map` (+ any repo program labels). Its body carries
    five sections:
    - **Destination**: the confirmed destination from step 2.
    - **Notes**: only what every session on this map must obey or consult: standing
@@ -229,7 +242,7 @@ that charting needs an interactive session. Do not fabricate a map.
    routing target (the type table in work step 5). Then, in a second pass once every item has
    its real id, wire `blocked-by` edges and write any cross-reference between items. Wire an edge
    only where one decision genuinely gates another; never invent edges to impose order.
-5. **Materialize the mode** on each item at creation: `needs-human` only for an intent or vision
+5. **Materialize the mode** on each item at creation: `<human-gated>` only for an intent or vision
    question ("Readiness" above), whatever the type. The label's presence or absence is the only
    mode mechanism; no `Mode:` body field.
 6. **Hand off to `work`.** Report the frontier (open, unblocked, unassigned items) **by title**,
@@ -252,14 +265,14 @@ that charting needs an interactive session. Do not fabricate a map.
    only when the step at hand needs it (the picked item, a blocker, a decision the sweep checks).
 3. **Compute the frontier.** `frontier = open ∧ zero OPEN blockers ∧ unassigned` (count open
    blockers, not the raw edge count), in creation order. In a non-interactive session, filter OUT
-   `needs-human` items; if that empties the frontier, STOP with a truthful "all remaining decisions
+   `<human-gated>` items; if that empties the frontier, STOP with a truthful "all remaining decisions
    need a human". Never resolve a HITL item by standing in for the human.
 4. **Pick one and claim it.** Take the item the user named, else the first frontier item in
-   creation order. A `needs-human` item is skipped while the person this session claims as (its
-   assignee) already holds `wayfind_hitl_concurrency` claimed `needs-human` items on the map
+   creation order. A `<human-gated>` item is skipped while the person this session claims as (its
+   assignee) already holds `wayfind_hitl_concurrency` claimed `<human-gated>` items on the map
    ("Settings"); other people's claims do not count; with nothing else left,
    report which items hold the slots and stop. A named item that is off the frontier, or a named
-   `needs-human` item while the slots are full, is reported with the reason and not claimed. Claim through `/work-items:track start` (the sibling
+   `<human-gated>` item while the slots are full, is reported with the reason and not claimed. Claim through `/work-items:track start` (the sibling
    claim model: assignee + lease with a race-safe back-off, no claim label; see
    [`context/tracker-mechanics.md`](context/tracker-mechanics.md)). One item per session, with one
    exception: **`research`-typed items may be burned down in parallel**, started per
@@ -271,18 +284,18 @@ that charting needs an interactive session. Do not fabricate a map.
    let the verifier run. Graduate each on completion per step 6; the resolution comment is the
    finding's durable home, and the findings file and its sidecars are copied to the item's folder
    on the dossier branch first ([`context/tracker-mechanics.md`](context/tracker-mechanics.md)
-   "Graduate a research item"). Never fan out a `needs-human` item.
+   "Graduate a research item"). Never fan out a `<human-gated>` item.
 5. **Consult the Notes skills, then route by type.** First invoke each skill the map's Notes lists
    for every session, one Skill call per skill. Then invoke the target skill for the item's type
    label (never a type its body states); its own Q&A supplies the HITL loop:
 
    | Type label | Usually | Routes to |
    |---|---|---|
-   | `wayfind: research` | agent-capable | `/discovery:research` (falls back to inline research if not enabled) |
-   | `wayfind: interview` | `needs-human` (intent) | `/planning:interview` |
-   | `wayfind: design` | agent-capable unless it asks for vision | `/planning:design`, or `/event-storming:methodology` / `/event-storming:simulation` when the item is domain/event-model work |
-   | `wayfind: prototype` | `needs-human` when the user judges it | `/prototype:pressure-test` (behaviour/feasibility) or `/prototype:explore-directions` (design/UX). The item body says which. Its files go in the item's folder on the dossier branch ("Shared files"); its verdict goes in the resolution comment |
-   | `wayfind: task` | per item | Direct decision-unblocking work. No feature code, no PR tie. Its resolution records what was done and the facts later items need. Work only a human can do (a vendor sign-up, credentials, a dashboard) routes to `/wizard:generate`; its resolution records the names and locations of what was set up, never the values |
+   | `<prefix> research` | agent-capable | `/discovery:research` (falls back to inline research if not enabled) |
+   | `<prefix> interview` | `<human-gated>` (intent) | `/planning:interview` |
+   | `<prefix> design` | agent-capable unless it asks for vision | `/planning:design`, or `/event-storming:methodology` / `/event-storming:simulation` when the item is domain/event-model work |
+   | `<prefix> prototype` | `<human-gated>` when the user judges it | `/prototype:pressure-test` (behaviour/feasibility) or `/prototype:explore-directions` (design/UX). The item body says which. Its files go in the item's folder on the dossier branch ("Shared files"); its verdict goes in the resolution comment |
+   | `<prefix> task` | per item | Direct decision-unblocking work. No feature code, no PR tie. Its resolution records what was done and the facts later items need. Work only a human can do (a vendor sign-up, credentials, a dashboard) routes to `/wizard:generate`; its resolution records the names and locations of what was set up, never the values |
 
 6. **Graduate on every resolution.** Every edit to the map body, here or anywhere in this skill,
    applies its change to a copy of the body read right before the write, then reads the body back:
@@ -366,14 +379,14 @@ intent is unsettled and escalating here when it outgrows one session → referen
   after the map closes; a decision that resolves into buildable work is a graduation, not a map
   item. No Notes line overrides this.
 - **Does not resolve a HITL item for the human** (inviolable). Non-interactive frontier filters
-  `needs-human` items out.
+  `<human-gated>` items out.
 - **Does not chart non-interactively.** The `chart` action refuses non-interactive sessions.
 - **Does not build a map to justify its invocation.** No fog, or fits one session → route out
   (chart step 1's bail-out).
 - **Does not store coordination in the memory tier or on the dossier branch.** The map lives on
   the tracker; the memory slice and the dossier branch hold files only.
 - **Does not invent a second claim, mode or picking mechanism.** Claims use the `work-items`
-  plugin's claim model (`/work-items:track start`); mode is the `needs-human` label; the pick is
+  plugin's claim model (`/work-items:track start`); mode is the `<human-gated>` label; the pick is
   the named item or creation order.
 
 ## Next

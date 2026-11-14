@@ -317,7 +317,8 @@ def is_unarmed_status(check: dict[str, Any]) -> bool:
 # share. `PR Review / review-status` and `PR Review Security / review-status`
 # are the callers' display names; the lower-case callers are a head tested
 # before the rename, or a repository whose caller job has no display name.
-# `pr-review-security / security-review` is the caller of pr-review-security.yml,
+# `pr-review-security / security-review` is the caller of pr-review-security.yml
+# (`PR Review Security / security-review` under its display name),
 # `security-review / security-review` the previous one, and
 # `claude-security-review-status` the job of a pin that predates the fold.
 # Old and new callers run side by side while repos migrate. Every matching
@@ -332,6 +333,7 @@ AI_REVIEW_CHECKS = {
         "claude-security-review-status",
         "security-review / security-review",
         "pr-review-security / security-review",
+        "PR Review Security / security-review",
         "PR Review Security / review-status",
         "pr-review-security / review-status",
     ),

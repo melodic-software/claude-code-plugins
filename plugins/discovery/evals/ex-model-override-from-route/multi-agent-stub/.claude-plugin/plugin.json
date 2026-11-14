@@ -1,0 +1,5 @@
+{
+  "name": "multi-agent",
+  "version": "0.0.0",
+  "description": "Eval-only stand-in for the multi-agent plugin: the route skill with the role map it resolves to when a personal-override layer sets the retrieval role's model to opus, with no scripts or hooks."
+}

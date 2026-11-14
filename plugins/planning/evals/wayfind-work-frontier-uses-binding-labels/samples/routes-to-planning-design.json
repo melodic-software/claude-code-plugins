@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Claimed 'Pick the digest batching window' (#62). Skill call: /planning:design with the item's question.",
+      "why": "matches"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Claimed 'Decide what the digest promises a first-time reader' (#61). Skill call: /planning:interview.",
+      "why": "does not match"
+    }
+  ]
+}

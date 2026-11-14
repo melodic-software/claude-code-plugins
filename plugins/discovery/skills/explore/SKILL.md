@@ -77,6 +77,9 @@ The two shapes:
 
 **From the main conversation, this skill dispatches the `discovery:explorer` subagent.** Exploration reads many files; keeping that out of the orchestrator's context window is the point. The agent loads the project's path-scoped rules, runs the six dimensions, writes the artifact set, and returns a bounded summary plus a file pointer, not the reads. The parent resolves the **pre-dispatch envelope** first, six fields (scope, reason, memory-slice path, memory root, budget, capability flags), written into the dispatch prompt as the labeled template in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), not as prose the agent has to parse, and owns the **post-dispatch boundary** after: re-surfacing `open_questions` to the user, dispatching the sibling verifier, and **writing its verdict back into `EXPLORE.md`** (which agent, its prompt, the literal `verification:` line, and what to write when no verifier can run: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "The sibling verifier, stated once"), the explorer always returns `verification: pending` because it may not grade its own work, so an artifact left saying `pending` after the parent verified it cannot be told apart from one whose verifier never ran, and this artifact is the whole handoff a fresh session resumes from.
 
+**The spawn's `model`** follows the parent contract's "The worker's model is the parent's call":
+pass one only when a multi-agent config layer moves the explorer's role off its pin.
+
 **The dispatch prompt also carries `Output: change-prep` or `Output: explain`**, the concrete shape
 resolved under Reply shape above, never `auto`: the explorer cannot see the request or who made it.
 After the acceptance gate passes, the reply to the person (or the calling skill) is the explorer's

@@ -17,11 +17,11 @@ Moved to [this section](../../contracts/enforcement-ladder/README.md#tier-2-stat
 
 ### Tier 3: Guidance
 
-Moved to [this section](../../contracts/enforcement-ladder/README.md#tier-3-guidance).
+Moved to [this section](../../contracts/enforcement-ladder/README.md#tier-4-guidance).
 
 ### Tier 4: Human only
 
-Moved to [this section](../../contracts/enforcement-ladder/README.md#tier-4-human-only).
+Moved to [this section](../../contracts/enforcement-ladder/README.md#tier-5-human-only).
 
 ### Where boundary rules live
 

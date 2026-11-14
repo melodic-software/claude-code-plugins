@@ -46,7 +46,9 @@ boundary** after: re-surfacing `open_questions`, dispatching the sibling verifie
 assignment, and writing that verdict back into the index. Before that verifier, run
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin discovery --skill trace-intent --file docs/conventions/discovery.yaml` and
 report its line: `light` and `off` skip it and write `verification: skipped (<level>)`, per the
-parent contract's "The sibling verifier, stated once".
+parent contract's "The sibling verifier, stated once". The spawn's `model` follows the parent
+contract's "The worker's model is the parent's call": pass one only when a multi-agent config
+layer moves the intent-tracer's role off its pin.
 
 **Run inline instead** for tight turn-by-turn iteration, for cost, or when the invoking context is
 already a subagent, and inline runs the identical discipline; the escape hatch relaxes nothing

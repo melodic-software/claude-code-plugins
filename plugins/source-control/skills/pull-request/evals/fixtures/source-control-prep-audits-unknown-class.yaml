@@ -1,0 +1,6 @@
+# Eval fixture: a repository's docs/conventions/source-control.yaml whose prep_audits list names an unknown class.
+prep_audits:
+  - class: markdown
+    enabled: false
+  - class: security
+    enabled: false

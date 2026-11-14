@@ -90,7 +90,8 @@ Fill `Budget` from the vocabulary in [`parent-contract.md`](../../../reference/p
 definition, so no value widens past that ceiling; a task that needs more belongs to the workflow
 engine. `Turn budget:` is the same bound as a number: the turn by which the agent stops gathering
 and writes, at or below its default stop turn of 30. Field-by-field rationale:
-[dispatch.md](dispatch.md).
+[dispatch.md](dispatch.md). The spawn's `model` follows the parent contract's "The worker's model
+is the parent's call", with the `worker` role's `fanout` variant on the N-topic fan-out.
 
 ## Single deep topic: the workflow engine, else one researcher
 

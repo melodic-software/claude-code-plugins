@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Frontier (unattended, owner-call items filtered out): 'Pick the digest batching window' (#62). Claiming it: /work-items:track start <#62>. Routing by decide: design: /planning:design.",
+      "why": "meets the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "First frontier item: 'Decide what the digest promises a first-time reader' (#61); it carries no needs-human label. Claiming it: /work-items:track start <#61>. Routing to /planning:interview.",
+      "why": "breaks the rule"
+    }
+  ]
+}

@@ -237,6 +237,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/adhd:clarify`](../plugins/adhd/skills/clarify/SKILL.md) | `adhd` | Reshape a dense, decision-heavy message into clear one-decision-at-a-time chunks, losing nothing |  |  |
 | [`/adhd:shape`](../plugins/adhd/skills/shape/SKILL.md) | `adhd` | Set a standing action-first output posture. Lead with the next action, cut preamble |  |  |
 | [`/ai-slop:audit`](../plugins/ai-slop/skills/audit/SKILL.md) | `ai-slop` | Detect and remove AI-writing tells from markdown, commit messages, PR bodies and interface copy | `audit`, `fix` |  |
+| [`/architecture:principles`](../plugins/architecture/skills/principles/SKILL.md) | `architecture` | Define the module-design terms architecture findings use |  | `/architecture:improve` |
 | [`/architecture:record-decision`](../plugins/architecture/skills/record-decision/SKILL.md) | `architecture` | Record an architecture decision in the repository's existing ADR convention |  | `/planning:plan` |
 | [`/attribution:audit`](../plugins/attribution/skills/audit/SKILL.md) | `attribution` | Find prose copied from external sources and convert it into pointers | `audit`, `fix`, `sweep` |  |
 | [`/code-metrics:audit`](../plugins/code-metrics/skills/audit/SKILL.md) | `code-metrics` | Lines, complexity and typed-code numbers beside cited references, no verdict | `size`, `complexity`, `type-debt` | `/verification:measure`, `/code-metrics:audit-coverage`, `/code-metrics:principles` |
