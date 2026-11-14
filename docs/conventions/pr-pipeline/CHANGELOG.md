@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [10.2.4] - 2026-11-14
+
+### Fixed
+
+- A Dependabot pull request carrying a lanes App commit, such as the claude-code install-script pin, is tier `review` in both lanes, and the pr-merge lane merges it only on a `verdict=merge` marker at the new head.
+
+## [10.2.3] - 2026-11-14
+
+### Fixed
+
+- Every Work status write of agent-ready (intake admission, work-unblock's sweep admission, and the lanes App's restarts and re-fires, all through write-status.mjs) now reads the issue's labels first and removes each status label of another state in models.issue-status, such as the `needs-triage` an issue form adds. The lanes token broker reads labels and refuses the issue lane's token while the issue carries any status label but agent-ready. A field write never removed that label, so the run started, took a lease and was refused as `untrusted-actor`. A hold label (`needs-human`, `needs-owner-decision`, `needs-reporter-info`, `needs-spec`) stays on: the write answers held and starts no run. A label read or removal that fails stops the write, so agent-ready is never set while a status label is still on the issue. Each agent-ready write costs one label read plus one removal per leftover label. Writes of any other state cost nothing more. The broker is unchanged.
+
 ## [10.2.2] - 2026-11-14
 
 ### Fixed

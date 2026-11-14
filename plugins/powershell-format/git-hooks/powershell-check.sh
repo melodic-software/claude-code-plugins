@@ -244,14 +244,7 @@ for i in "${!sets[@]}"; do
 done
 
 if [[ "$CHECKS_MODE" == pre-commit ]] && ((${#tree[@]})); then
-  rewritten=()
-  while IFS= read -r -d '' f; do
-    rewritten+=("$f")
-  done < <(git --literal-pathspecs diff --name-only -z -- "${tree[@]}")
-  if ((${#rewritten[@]})); then
-    printf '%s\n' "${rewritten[@]}"
-    git --literal-pathspecs add -- "${rewritten[@]}"
-  fi
+  checks_restage "${tree[@]}"
 fi
 
 ((broken)) && exit 1

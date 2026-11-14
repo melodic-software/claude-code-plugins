@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Contract tests for lib/git-hooks/check-lib.sh against real git repositories:
 # the staged and worktree file sets, a merge's own file set with its fallback,
-# changed-line ranges with the binary test and its launch count, the partly staged test, the checks.skipmissing key reaching a hook through `git -c`, agent and
+# changed-line ranges with the binary test and its launch count, the partly staged test, the re-stage of a rewrite, the checks.skipmissing key reaching a hook through `git -c`, agent and
 # human missing-tool messages, the pre-push range with its fallbacks, set -e
 # tolerance, and a bash 3.2 syntax lint. Expected values come from the
 # check-placement contract's runtime table.
@@ -347,6 +347,55 @@ expect "a failing git cat-file in the binary test fails the hook" \
 expect "a failing awk in the binary test fails the hook" \
   "1|checks: awk exited 2 while testing the changed files for binary content, so this change was not fully checked; fix that failure, then commit again" \
   "$(in_repo_failing "$F" pre-commit 'blob_end' 'checks_changed_lines; exit 0')"
+
+# --- re-staging a rewrite ----------------------------------------------------------
+# Windows caps a command line at 32,767 characters, so checks_restage must never
+# put the file list on git's argv. Every path below ends in .txt, and the stub
+# git fails any call whose arguments hold more than two of them, with or
+# without `--`, so a long list cannot pass by luck.
+ARGV_SHIMS="$WORK/argv-shims"
+mkdir "$ARGV_SHIMS"
+# shellcheck disable=SC2016 # $@, $a and $n expand when the stub runs
+printf '#!/bin/sh\nn=0\nfor a in "$@"; do\n  case "$a" in *.txt) n=$((n + 1)) ;; esac\ndone\nif [ "$n" -gt 2 ]; then echo "git: $n paths on argv" >&2; exit 2; fi\nexec %s "$@"\n' \
+  "$(command -v git)" >"$ARGV_SHIMS/git"
+chmod +x "$ARGV_SHIMS/git"
+new_repo; S="$REPO"
+printf 'old\n' >"$S/outside.txt"
+git -C "$S" add outside.txt
+git -C "$S" commit -q -m seed
+set_paths=(-lead.txt "a b.txt" r1.txt r2.txt same.txt)
+rewrote=(-lead.txt "a b.txt" r1.txt r2.txt)
+# An LF in a name is Linux-only; Git for Windows cannot create one.
+lf_name=$'lf\nname.txt'
+if printf 'x\n' >"$S/$lf_name" 2>/dev/null; then
+  set_paths+=("$lf_name")
+  rewrote=(-lead.txt "a b.txt" "$lf_name" r1.txt r2.txt)
+fi
+for f in "${set_paths[@]}"; do
+  printf 'x\n' >"$S/$f"
+done
+git -C "$S" add -- "${set_paths[@]}"
+for f in "${rewrote[@]}"; do
+  printf 'formatted\n' >"$S/$f"
+done
+printf 'unstaged edit\n' >"$S/outside.txt"
+expect "the argv stub refuses a long path list" 2 \
+  "$(PATH="$ARGV_SHIMS:$PATH" git -C "$S" add -- "${rewrote[@]}" 2>/dev/null; echo $?)"
+expect "restage: prints the rewritten paths, none on argv" "$(printf '%s\n' "${rewrote[@]}")"$'\n|0' \
+  "$(PATH="$ARGV_SHIMS:$PATH" in_repo "$S" pre-commit 'checks_restage "$@"; echo "|$?"' "${set_paths[@]}")"
+expect "restage: stages the rewritten paths and leaves other unstaged edits" 'outside.txt' \
+  "$(git -C "$S" diff --name-only -z | nul_list)"
+expect "restage: the index holds the rewrite" 'formatted' "$(git -C "$S" show ':-lead.txt')"
+expect "restage: nothing rewritten prints and stages nothing" '|0' \
+  "$(in_repo "$S" pre-commit 'checks_restage same.txt; echo "|$?"')"
+printf 'again\n' >"$S/r1.txt"
+expect "a failing git add in checks_restage fails the hook" \
+  "1|checks: git exited 2 while staging the rewritten files, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$S" pre-commit 'pathspec-file-nul' 'checks_restage r1.txt; exit 0')"
+# --ignore-submodules=all is carried only by checks_restage's own git diff.
+expect "a failing git diff in checks_restage fails the hook" \
+  "1|checks: git exited 2 while listing the rewritten files, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$S" pre-commit 'ignore-submodules=all' 'checks_restage r1.txt; exit 0')"
 
 # --- missing tool and skip-propagation ------------------------------------------
 new_repo; H="$REPO"
