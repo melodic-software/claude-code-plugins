@@ -15,8 +15,8 @@
 // must name existing plugins/skills; stage and cadence values must be in the
 // config enums; `cadence` is required with `workflow-stage:
 // operator` and forbidden otherwise; summaries must pass the shared guard
-// (plain YAML scalar, <=100 codepoints); every `/plugin:skill` in a `## Next`
-// section must name a skill in the tree. Swept values are plain scalars, and
+// (plain YAML scalar, <=100 codepoints). A `## Next` token naming no skill is
+// rendered as written; scripts/check-next-graph.py fails on it. Swept values are plain scalars, and
 // this reader takes the literal text after the key: it strips a trailing
 // `#`-comment but never strips quotes, because a quoted value is a rejection
 // here rather than a value to unwrap. skill-quality's
@@ -253,11 +253,6 @@ for (const s of skills) {
   }
   const guardError = summaryError(summary ?? "");
   if (guardError) errors.push(`${key}: ${guardError}`);
-  for (const token of s.meta.successors) {
-    if (!bySkillKey.has(token)) {
-      errors.push(`${key}: ## Next names /${token.replace("/", ":")}, which is not a skill in this tree`);
-    }
-  }
   mapped.push({ ...s, stage, summary, cadence });
 }
 

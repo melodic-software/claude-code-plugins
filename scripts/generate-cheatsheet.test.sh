@@ -325,8 +325,14 @@ rm -rf "$tree"
 mk_tree tree
 write_rich_skill "$tree" alpha hinted "" \
   "$(printf '## Next\n\n/alpha:ghost <topic>.')"
-assert_fails "a ## Next naming a skill not in the tree fails" "$tree" \
-  "alpha/hinted: ## Next names /alpha:ghost, which is not a skill in this tree"
+run_gen "$tree"
+row="$(row_of "$tree" alpha:hinted)"
+if [[ "$CODE" -eq 0 && "$row" == *"|  | \`/alpha:ghost\` |" ]]; then
+  ok "a ## Next naming a skill not in the tree renders as written (check-next-graph.py owns that failure)"
+else
+  fail "ghost successor (exit=$CODE: $OUT; row: $row)"
+fi
+rm -rf "$tree"
 
 # --- spine drift ----------------------------------------------------------------
 mk_tree tree
