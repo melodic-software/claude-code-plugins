@@ -7,6 +7,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 /p/notes-bridge/notes_bridge.py --dir /work/mockup-run import --file /work/mockup-run/import.json\",\"description\":\"x\"}}]}}",
       "why": "the bridge's Python entry point, absolute paths"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"bash \\\"/p/notes-bridge/notes-bridge.sh\\\" --dir \\\"/work/mockup-run\\\" import --file \\\"/work/mockup-run/import.json\\\"\",\"description\":\"x\"}}]}}",
+      "why": "the quoted form feedback.md gives"
     }
   ],
   "fail": [

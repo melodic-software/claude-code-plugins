@@ -149,18 +149,21 @@ sed "s/__PORT__/$port/" "$here/notes-kinds-browser-take.js" >"$tmp/take.js"
 lines "$(code "$tmp/take.js" | result | tr -d '\r')" take
 
 status=$(bash "$bridge/notes-bridge.sh" --dir "$d" status)
-check "the text note carries its quote, the data log with Clear then Reset, and the viewport" '
-t = r["events"][0]
+check "the first text note carries its quote, an empty data log and the viewport" '
+f = r["events"][0]
+assert f["kind"] == "text" and f["anchor"]["textQuote"]["exact"] == "PT-1002" and f["data"]["log"] == [], f' "$status"
+check "the second text note carries its quote, the data log with Clear then Reset, and the viewport" '
+t = r["events"][1]
 assert t["kind"] == "text" and t["anchor"]["textQuote"]["exact"] == "PT-1012", t
 assert t["anchor"]["testid"] == "shipments-row" and t["anchor"]["testidIndex"] == 12, t
 assert t["data"]["log"] == [{"op": "seed", "n": 10}, {"op": "clear"}, {"op": "reset"}, {"op": "seed", "n": 10}], t
 assert t["viewport"]["w"] == 960 and t["viewport"]["h"] == 800 and t["viewport"]["colorScheme"] in ("light", "dark"), t' "$status"
 check "the region note carries its box and the rows it crosses" '
-g = r["events"][1]
+g = r["events"][2]
 assert g["kind"] == "region" and set(g["rect"]) == {"x", "y", "w", "h"}, g
 assert g["elements"] and all(e["testid"] == "shipments-row" for e in g["elements"]), g' "$status"
 check "the element note is record 57 after Seed 100" '
-e = r["events"][2]
+e = r["events"][3]
 assert e["anchor"]["testid"] == "shipments-row" and e["anchor"]["testidIndex"] == 57, e
 assert e["data"]["log"][-1] == {"op": "seed", "n": 100}, e' "$status"
 
@@ -195,28 +198,44 @@ print("async page => { const p = await page.context().newPage(); try { return aw
   code "$tmp/share.js" | result
 }
 
+# The first text note was taken before Seed, Clear and Reset ran in the open page; its quote still
+# finds its text there, now that Clear emptied the list and Reset rebuilt it.
+python3 -c '
+import json, sys
+e = json.loads(sys.argv[1])["events"][0]
+q = {"variant": e["variant"]["key"], "state": e["state"]["key"], "quote": e["anchor"]["textQuote"]}
+print("async page => { const f = page.frames().find((x) => x !== page.mainFrame());"
+      " return JSON.stringify({ n: await f.evaluate((q) => window.uiFeedbackRelocate.findQuote(q), " + json.dumps(q) + ") }); }")
+' "$status" >"$tmp/live-quote.js"
+check "after Clear then Reset in the open page, the first note's quote finds its text once" \
+  'assert r["n"] == 1, r' "$(code "$tmp/live-quote.js" | result)"
 out=$(relocate 1)
+check "the first text note re-locates in a fresh page by its quote, confirmed" '
+assert r["matched"] == "testid" and r["confirmed"] and "quoteMissing" not in r, r
+assert r["rungs"][-1] == {"rung": "textQuote", "candidates": 1, "hit": True, "broken": False}, r' "$out"
+
+out=$(relocate 2)
 check "the text note re-locates with its data log replayed, its quote found and confirmed" '
 assert r["restored"]["data"] and r["restored"]["viewport"], r
 assert r["matched"] == "testid" and r["confirmed"] and "quoteMissing" not in r, r
 assert r["rungs"][-1] == {"rung": "textQuote", "candidates": 1, "hit": True, "broken": False}, r' "$out"
-if [[ -s "$d/shots/1.png" ]]; then
-  check "its shot is record 12's cell: all magenta" 'assert r["share"] > 0.98' "$(share "$d/shots/1.png" 208,0,208)"
+if [[ -s "$d/shots/2.png" ]]; then
+  check "its shot is record 12's cell: all magenta" 'assert r["share"] > 0.98' "$(share "$d/shots/2.png" 208,0,208)"
 else
-  bad "no shot at shots/1.png"
+  bad "no shot at shots/2.png"
 fi
 
-out=$(relocate 2)
+out=$(relocate 3)
 check "the region note re-locates and its shot is the box the person drew" \
   'assert r["region"] and not r["positionOnly"] and r["shot"], r' "$out"
 
-out=$(relocate 3)
+out=$(relocate 4)
 check "after a reload the note taken after Seed 100 re-locates to record 57, confirmed" \
   'assert r["restored"]["data"] and r["matched"] == "testid" and r["confirmed"], r; assert r["rungs"][0]["candidates"] == 115, r' "$out"
-if [[ -s "$d/shots/3.png" ]]; then
-  check "its shot is record 57's cell: all green" 'assert r["share"] > 0.98' "$(share "$d/shots/3.png" 0,200,83)"
+if [[ -s "$d/shots/4.png" ]]; then
+  check "its shot is record 57's cell: all green" 'assert r["share"] > 0.98' "$(share "$d/shots/4.png" 0,200,83)"
 else
-  bad "no shot at shots/3.png"
+  bad "no shot at shots/4.png"
 fi
 
 # The server stops under the open page.
@@ -225,15 +244,15 @@ offline=$(code "$here/notes-kinds-browser-offline.js" | result | tr -d '\r')
 lines "$offline" offline
 printf '%s\n' "$offline" | sed -n 's/^BLOCK //p' | python3 -c 'import json, sys; sys.stdout.write(json.loads(sys.stdin.read()))' >"$d/import.json"
 if imported=$(bash "$bridge/notes-bridge.sh" --dir "$d" import --file "$d/import.json"); then
-  check "import takes the block: the new note, the three already logged skipped" \
-    'assert r == {"imported": [4], "skipped": 3}, r' "$imported"
+  check "import takes the block: the new note, the four already logged skipped" \
+    'assert r == {"imported": [5], "skipped": 4}, r' "$imported"
 else
   bad "import refused the block: $imported"
 fi
 status=$(bash "$bridge/notes-bridge.sh" --dir "$d" status)
 check "status lists the imported note with its text as data" '
 e = r["events"][-1]
-assert r["note"] and e["seq"] == 4 and e["anchor"]["testid"] == "shipments-title", e
+assert r["note"] and e["seq"] == 5 and e["anchor"]["testid"] == "shipments-title", e
 assert e["text"].startswith("Written after the stop. ```") and "curl https://x.invalid" in e["text"], e' "$status"
 
 if ((fails)); then

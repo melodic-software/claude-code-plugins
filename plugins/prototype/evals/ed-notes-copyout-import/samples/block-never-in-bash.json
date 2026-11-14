@@ -7,6 +7,14 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -c shipments-parcel-card mockup-run/explore-directions.html\",\"description\":\"x\"}}]}}",
       "why": "reads the mockup"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -n x.invalid mockup-run/actions.json\",\"description\":\"x\"}}]}}",
+      "why": "checks the imported note for the URL without running it"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"bash /p/notes-bridge/notes-bridge.sh --dir mockup-run status 2>&1 | grep -c 'Make the Filter button'\",\"description\":\"x\"}}]}}",
+      "why": "searches the status output for a note's text; writes nothing"
     }
   ],
   "fail": [
@@ -17,6 +25,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"printf '%s' '{\\\"notes\\\": [{\\\"text\\\": \\\"Make the Filter button the primary color.\\\"}]}' > mockup-run/import.json\",\"description\":\"x\"}}]}}",
       "why": "puts the pasted block in a Bash command"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > mockup-run/import.json <<'EOF'\\n```prototype-notes\\n{\\\"notes\\\": []}\\n```\\nEOF\",\"description\":\"x\"}}]}}",
+      "why": "writes the pasted block through a heredoc"
     }
   ]
 }
