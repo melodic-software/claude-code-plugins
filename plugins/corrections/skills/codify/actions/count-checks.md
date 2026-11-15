@@ -30,9 +30,11 @@ From inside the repository, run
 `node "<plugin-root>/scripts/count-checks.mjs"` (`SKILL.md` renders `<plugin-root>`) with `--since`, `--until` and `--bucket`
 when given. With no `--bucket` it buckets by month. With no `--since` the window starts on the
 earliest commit day (UTC) among commits holding a counted record, a reverted record, or a line
-listed as not counted that looks like an attempted record (the text after `Codifies:` starts with
-`#<digit>`, `session` or `<`, or the line contains `rung=`); a `Codifies:` mentioned in a commit
-subject or prose with no such record does not move it. With no `--until` it ends today (UTC), and
+listed as not counted. A line is listed when it starts with `Codifies:` at column 0, or sits
+elsewhere and looks like an attempted record: `#<digit>` or `session` follows `Codifies:` (emphasis
+or code-span marks between them allowed), or the line gives a rung a value (`rung=` and an id). A
+`Codifies:` mentioned in a commit subject or prose, or a quoted grammar with placeholders, is not
+listed and does not move the window. With no `--until` it ends today (UTC), and
 a `--since` after that day is a usage error. It reads the default branch
 (`origin/HEAD`, else `origin/main`, `origin/master`, `main` or `master`) with
 `git log --first-parent`, so a merged branch's own commits are not read twice.

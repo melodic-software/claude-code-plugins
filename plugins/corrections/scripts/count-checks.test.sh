@@ -274,6 +274,57 @@ run "$R" --since 2026-08-01 --until 2026-10-31
 DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "mentions: inside the window, the mentions are still not listed" has_line "not counted: 0"
 
+# 3b-1a. A malformed line at column 0, older than every record, opens the default window and is
+# listed.
+new_repo
+commit 2026-03-01 "feat: analyzer (#11)
+
+Codifies: issue-12 custom-analyzer blocking"
+commit 2026-06-01 "feat: check (#12)
+
+Codifies: #5 rung=custom-analyzer blocking"
+run "$R" --until 2026-07-31
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "malformed at column 0: with no --since it opens the window" \
+  has_line "window: 2026-03-01 to 2026-07-31, bucket: month"
+DETAIL="out: $OUT"
+check "malformed at column 0: it is listed" has_line "not counted: 1"
+DETAIL="out: $OUT"
+check "malformed at column 0: with its reason" \
+  grep -qF 'malformed: does not match the record grammar: "Codifies: issue-12 custom-analyzer blocking"' <<<"$OUT"
+DETAIL="out: $OUT"
+check "malformed at column 0: the later record is counted in June" has_line '| 2026-06 | 1 | 0 | 1 | 0 | 1 |'
+
+# 3b-1b. A record written with emphasis on the key is listed; a quoted grammar with placeholders is
+# not; a harmless repeat of an advisory line carries no promotion hint.
+new_repo
+# shellcheck disable=SC2016 # the backticks are literal Markdown code spans
+commit 2026-04-01 'docs: explain the record line (#16)
+
+The record is `Codifies: <#n | session> rung=<id> <kind>`.
+**Codifies:** #13 rung=action-guard blocking'
+commit 2026-04-02 "feat: boundary test (#14)
+
+Codifies: #15 rung=architecture-test advisory
+
+Co-authored-by: a <a@example.invalid>
+
+Codifies: #15 rung=architecture-test advisory"
+run "$R" --since 2026-04-01 --until 2026-04-30
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "forms: the emphasis form and the repeat are listed, the quoted grammar is not" has_line "not counted: 2"
+DETAIL="out: $OUT"
+check "forms: the emphasis form is listed" grep -qF '**Codifies:** #13 rung=action-guard blocking' <<<"$OUT"
+DETAIL="out: $OUT"
+check "forms: the quoted grammar is not listed" test "$(grep -c 'session> rung=<id>' <<<"$OUT")" -eq 0
+DETAIL="out: $OUT"
+check "forms: the advisory record counts once" has_line '| window | 0 | 1 | 0 | 1 | 1 |'
+DETAIL="out: $OUT"
+check "forms: the repeat is listed as a repeat" \
+  grep -qF 'repeats a line earlier in this commit message, which counts once: "Codifies: #15 rung=architecture-test advisory"' <<<"$OUT"
+DETAIL="out: $OUT"
+check "forms: an advisory repeat carries no promotion hint" test "$(grep -c 'two promotions' <<<"$OUT")" -eq 0
+
 # 3b-2. Two same-rung advisory records landed by one pull request: one promoting line promotes one,
 # its repeat in the same message is listed, and a second commit promotes the other.
 new_repo

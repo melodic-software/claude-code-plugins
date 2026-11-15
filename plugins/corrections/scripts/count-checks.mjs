@@ -30,9 +30,10 @@ const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const RECORD = /^Codifies: (#[1-9][0-9]*|session) rung=([a-z0-9-]+) (blocking|advisory)$/;
 const RECORD_PREFIX = /^Codifies: (?:#[1-9][0-9]*|session) rung=[a-z0-9-]+ (?:blocking|advisory)\s/;
 const KEY = "Codifies:";
-const ATTEMPT = /Codifies:[ \t]*(?:#[0-9]|session|<)/;
+const ATTEMPT = /Codifies:[*`]*[ \t]*(?:#[0-9]|session\b)/;
+const RUNG_VALUE = /rung=[a-z0-9]/;
 /** True when a line naming `Codifies:` looks like an attempted record, not a mention in prose. */
-const recordLike = (line) => ATTEMPT.test(line) || line.includes("rung=");
+const recordLike = (line) => ATTEMPT.test(line) || RUNG_VALUE.test(line);
 const REVERTS_SHA = /^This reverts commit ([0-9a-f]{7,40})\b/;
 const REVERTS_PR = /^Reverts (?:([A-Za-z0-9._-]+\/[A-Za-z0-9._-]+))?#([1-9][0-9]*)\b/;
 const PR_SUFFIX = /\(#([1-9][0-9]*)\)\s*$/;
@@ -224,9 +225,10 @@ for (const c of commits) {
     if (!atColumn0 && !recordLike(line)) continue;
     const entry = { commit: c, line };
     if (seenLines.has(line)) {
+      const promotes = RECORD.exec(line)?.[3] === "blocking";
       notCounted.push({
         ...entry,
-        why: "repeats a line earlier in this commit message, which counts once (two promotions of the same source and rung need two commits)",
+        why: `repeats a line earlier in this commit message, which counts once${promotes ? " (two promotions of the same source and rung need two commits)" : ""}`,
       });
       continue;
     }
@@ -304,7 +306,7 @@ for (const r of records) {
 
 // With no --since the window opens at the first record line in history: a counted or reverted
 // record, or a line not counted that looks like an attempted record.
-const firstDay = [...records, ...reverted, ...notCounted.filter((e) => recordLike(e.line))].map((e) => e.commit.day).sort()[0];
+const firstDay = [...records, ...reverted, ...notCounted].map((e) => e.commit.day).sort()[0];
 let since = opts.since ?? firstDay ?? until;
 if (since > until) since = until;
 
