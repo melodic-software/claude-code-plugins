@@ -34,7 +34,7 @@ Distinct from:
 - `fragment-development.md`: a partial line or section, not just a seed
 - `hook.md` "Title generation": title generation techniques (the seven types, Nashville method)
 
-This file is the bridge between seed and title generation. It walks the
+This file is the bridge between seed and title generation. It takes the
 writer from intuition to concrete title candidates.
 
 ## When to load
@@ -281,7 +281,7 @@ Let the writer choose. If none feels right, shelve and re-run Step 2 with
 a different angle on the seed, or shelve the seed entirely for now.
 
 A seed that doesn't yield a strong title isn't necessarily a bad seed.
-Sometimes seeds need to season.
+Sometimes a seed needs more time before it yields a title.
 
 ## Common failure modes
 

@@ -106,8 +106,8 @@ Open:
 Next question: <one>
 ```
 
-Restatement is cheap. Rework is expensive. The AI restates after every
-non-trivial writer answer.
+A restatement costs one line, and a misread answer found later costs
+rework. The AI restates after every non-trivial writer answer.
 
 ## Apply the tool, then move
 
@@ -233,8 +233,8 @@ verbatim.
 > the most potent force in language. […] The difference between average and
 > great writing: verbs."
 
-The coaching protocol exists so the AI's process matches Pat's process:
-the writer's voice arrives at the writer's song.
+The coaching protocol exists so the AI's process matches Pat's process.
+The writer's voice then arrives at the writer's song.
 
 ## Cross-references
 

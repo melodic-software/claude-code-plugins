@@ -591,7 +591,7 @@ go ahead, you already know where you should end up!" What you expect, and get,
 is `The lamb was sure to go`. "If it had ended any other way you would have been
 surprised."
 
-The imbalance between four and three is the entire engine of the form, and the
+The 4/3 length mismatch is what makes the closing phrase feel expected, and the
 "whitest snow" edit is the cheapest way to hear it.
 
 That contrast is also the bridge to Paradigm 2 below, which is simply what a
@@ -682,8 +682,8 @@ content. Do not turn on a spotlight for decoration.
 
 ## Common-meter spotlighting
 
-In *Writing Better Lyrics* (2009), Chapter 15, Pattison turns common meter into a controlled
-spotlight machine. Begin with a stable abab / 4-3-4-3 pattern, let the listener
+In *Writing Better Lyrics* (2009), Chapter 15, Pattison uses common meter to spotlight
+a chosen line. Begin with a stable abab / 4-3-4-3 pattern, let the listener
 expect the fourth line to rhyme with line two and carry three stresses, then
 alter one variable at a time. His demonstration stanza, which the whole chapter
 then manipulates one move at a time:

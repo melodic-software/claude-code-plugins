@@ -183,8 +183,8 @@ lives in the co-write skill's input gate rather than in a post-hoc checklist.
 - It can only describe what has already been accepted. A writer's register moves, and
   a voiceprint built from one song over-fits that song's world.
 - It does not replace the sing-check. The rubric filters; the writer's ear decides.
-- It says nothing about whether a line is good. It answers a narrower question, the
-  one that went unasked: is this line in this writer's hand?
+- It says nothing about whether a line is good. The narrower question it
+  answers, which went unasked, is whether this line is in this writer's hand.
 
 ## Cross-references
 

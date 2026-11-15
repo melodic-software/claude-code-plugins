@@ -275,7 +275,7 @@ Love Love Love
 > it the "you-I-we" formula for lyric development: Each verse focuses from a
 > different perspective. It's a nice guideline for dividing your verses' jobs.
 
-The joke is doing real work: the boxes gain weight because each one is *about*
+The joke is doing real work, because the boxes gain weight when each one is *about*
 something the others are not.
 
 ### Past-Present-Future formula

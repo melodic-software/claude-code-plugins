@@ -437,7 +437,7 @@ writer is the songwriter; AI is the coach.
 
 **Posture note (UNAUDITED, not a Pat quote):**
 
-Make it sense-bound, then make it sing; the writer makes both calls. This is
+Check that the line is sense-bound, then that it sings. The writer decides both. This is
 plugin-authored guidance; no such sentence appears anywhere in the four-book
 corpus, so never quote it or credit it to Pat.
 

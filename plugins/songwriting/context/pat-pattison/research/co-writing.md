@@ -13,7 +13,7 @@ session opener and seminar copy on technical-talk discipline.
 
 ## Core idea
 
-Co-writing works best when the room protects idea flow. The first job is not to
+Co-writing works best when ideas keep coming and nobody judges them early. The first job is not to
 be smart, polished, or defensible. The first job is to keep material moving
 until both writers hear something worth keeping.
 

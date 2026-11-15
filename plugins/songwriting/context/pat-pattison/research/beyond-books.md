@@ -372,8 +372,7 @@ Lateral reader credit (read Pat's books, didn't formally study):
   Mayer a message "I've written my first metaphor" after reading
 
 These attributions are publicly documented in interviews; absence from
-this list does not imply absence of credit (many alumni cite Pat
-informally).
+this list does not imply absence of credit.
 
 ## When to load this file
 

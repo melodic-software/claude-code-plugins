@@ -85,7 +85,7 @@ sentence at the end of the Challenge 1 introduction:
 The mined material becomes input for `idea-to-title.md` or
 `fragment-development.md` in a later session.
 
-## Paths B, C and D: plugin scaffolding, not Pat's printed method
+## Paths B, C and D: plugin coaching prompts, not Pat's printed method
 
 <!-- unaudited: Paths B, C and D below are this plugin's own coaching
      scaffolding. None of them is printed in the four books; Path A is the only

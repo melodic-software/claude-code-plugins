@@ -262,7 +262,7 @@ Default chain:
    revision is solitary. Schedule the follow-up before leaving.
 
 Coach posture: the no-free-zone protects the riskiest ideas, which are
-usually the best. Defensiveness kills the room.
+usually the best. Defensiveness makes writers stop offering ideas.
 
 ## Scenario 6: Diagnose without rewrite
 
@@ -366,7 +366,7 @@ Default chain:
 9. Route to Scenario 3 (writing from a title) once title locks.
 
 Coach posture: a seed that doesn't yield a strong title isn't necessarily
-wrong. Some seeds need to season.
+wrong. It may need more time.
 
 ## Scenario 10: Fragment in hand
 

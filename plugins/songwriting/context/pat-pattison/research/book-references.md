@@ -143,7 +143,7 @@ or, with the attribution as a lead-in:
 > "<quote ≤25 words>"
 
 Do not write `"<quote>" (Pat Pattison, *Book*, Chapter N)`. A parenthetical
-attribution is an interruption wearing a different mark.
+attribution interrupts the sentence the way an em dash does.
 
 Or shorter inline cite when book context is already established:
 

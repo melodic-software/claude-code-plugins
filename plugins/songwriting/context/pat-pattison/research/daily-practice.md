@@ -540,7 +540,7 @@ When applying this file:
 
 ## Strict timer: stop mid-word
 
-The single most consequential discipline of *Songwriting Without Boundaries* (2011). The timer is not
+A core discipline of *Songwriting Without Boundaries* (2011). The timer is not
 guidance. The writer stops the moment the buzzer fires, including
 mid-word and mid-letter.
 
@@ -717,8 +717,8 @@ collision; it is a three-stage chain:
 4. Ten-minute object write: the target idea through the source lens
 ```
 
-The leap matters. Most beginners skip the linking-quality stage and
-jump directly from source to target, which produces strained
+The leap matters. Skipping the linking-quality stage and
+jumping directly from source to target produces strained
 metaphors. Naming the quality in stage 2 is the craft move.
 
 The reversal pattern: after writing target-through-source, turn the

@@ -57,7 +57,7 @@ it, and return to it.
 
 > "The same principles apply on each level."
 
-Use song form to decide how the whole lyric breathes: repetition builds home
+Use song form to decide how the whole lyric paces repetition and contrast: repetition builds home
 base; contrast creates tension; return resolves it.
 
 ## Potent and impotent packages

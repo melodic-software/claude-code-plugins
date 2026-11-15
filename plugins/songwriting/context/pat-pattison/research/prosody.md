@@ -196,8 +196,8 @@ exactly that point:
 > those good bits into your lap.
 
 A writer who has not tuned into motion is left waiting on those accidents; a
-writer who has can name which element is fighting the idea and change it. Flat
-is a structure problem, not an inspiration problem.
+writer who has can name which element is fighting the idea and change it. A
+flat section has a structural cause the writer can change.
 
 ## Stable vs unstable
 
@@ -701,7 +701,7 @@ therefore carries the strongest duty to put something there worth looking at.
 ## Targeting the next section
 
 An unmatched line's end sound is a free slot pointing into the section that
-follows. Leave it unused and it merely hangs there; aim it and it lights a word
+follows. Leave it unused and it does nothing; aim it and it draws attention to a word
 in the oncoming title.
 
 Pat introduces the tool on an `AAB` pre-chorus whose third line is left hanging,

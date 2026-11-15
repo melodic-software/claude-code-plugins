@@ -47,7 +47,7 @@ melody, no rhyme position, no figure, no voiceprint on disk) are declared and st
 the pass running, not a skip. The response filter's own §1-§8 boxes stay skippable-with-reason.
 
 If a gate's input is missing, invoke the skill that produces it; do not proceed and note the
-absence. Lines written without their inputs are LLM defaults wearing the method's vocabulary,
+absence. Lines written without their inputs are LLM defaults that borrow the method's vocabulary,
 which is what the writer rejects. A source row's missing input is a file, so read it: summarizing
 what a craft file probably says, or working from a remembered version, is the same failure as an
 unnamed skip.

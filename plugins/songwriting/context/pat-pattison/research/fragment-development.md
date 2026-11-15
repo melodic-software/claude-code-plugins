@@ -139,8 +139,8 @@ context:
 - Prosody fit
 
 Most fragments survive their original form; some get sharpened during the
-build. A fragment that wants to change as the song develops is a healthy
-fragment.
+build. A fragment that changes as the song develops is doing what fragments
+do.
 
 <!-- ai-slop-ignore-start: correction note quoting the retired fabricated sentence verbatim -->
 <!-- No sentence calling a revision "an option, not a betrayal" appears in the

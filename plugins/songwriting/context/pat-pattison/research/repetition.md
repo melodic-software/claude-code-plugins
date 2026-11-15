@@ -1139,7 +1139,7 @@ tense-neutralization above.
 > that takes the emotion to a new level. … When you're writing a song, stay alert
 > for chances to ask a question or give a command. It'll engage your listeners.
 
-The repetition is the vehicle; the change of sentence type is the cargo. A
+The change of sentence type is what makes the repetition work. A
 fragment that repeats without changing sentence type is just an echo.
 
 Pat closes the chapter by running the technique on his own prose:

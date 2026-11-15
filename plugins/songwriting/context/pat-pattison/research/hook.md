@@ -497,7 +497,7 @@ Then, of the real `abaa` chorus:
 > Neat structure. It lights up the title and supports the emotion of the lines
 > with perfect prosody. I'm glad we looked.
 
-That third effect is the craft point, not a side cost: **match the security of
+That third effect is a craft point in its own right: **match the security of
 the cadence to whether the song's question is answered.**
 
 <!-- Editorial inference, not printed. Everything from here to the end of this

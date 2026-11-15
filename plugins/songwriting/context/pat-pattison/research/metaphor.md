@@ -406,7 +406,7 @@ first idea that comes to mind with avalanche, unless you recognize their
 linking term, power. In most contexts, Muhammad Ali and avalanche are
 nondiatonic, unrelated to each other."
 
-The key idea prevents arbitrary cleverness. The collision may look strange on
+The shared linking trait keeps the collision from being arbitrary. The collision may look strange on
 the surface, but it has a shared underlying trait.
 
 ## The two metaphor questions
@@ -1006,7 +1006,7 @@ For each move:
 4. Note one extension the move opens (a downstream verb, image, or
    action).
 
-The point is not to use all eight. The point is to surface options
+Using all eight is optional. The aim is to surface options
 so the choice is conscious.
 
 ### Participles as adjectives: micro-recipe

@@ -17,7 +17,7 @@ When the writer asks for "5 versions of this line" / "another way to say
 this" / "what else could verse 2 be", generate variations along a chosen
 axis with explicit labels so the writer compares deliberately.
 
-Pat's stance: more options = better choices. Variations are not waste; they
+Pat's stance: more options mean better choices. Variations are not waste; they
 are the writer choosing rather than settling.
 
 ## When to load

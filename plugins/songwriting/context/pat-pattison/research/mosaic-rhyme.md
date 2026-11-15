@@ -124,7 +124,7 @@ rhyme breaks that. The freedom comes from:
 | Abstract noun (love, hope) | concrete imperative, sense-bound action phrase, sound effect |
 
 The grammar mismatch is feature, not bug. It creates surprise. Surprise
-is what makes a rhyme land instead of slide.
+keeps the rhyme from passing unnoticed.
 
 ## Proper nouns are mosaic-rich
 

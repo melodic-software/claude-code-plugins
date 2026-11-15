@@ -636,8 +636,8 @@ are the exercise being refused.
 
 Object writing is not journaling. Journaling can explain, evaluate, remember,
 or confess. Object writing stays inside sensory experience. It is also not a
-drafting method for finished lyric sections. It generates raw ore: images,
-verbs, physical details, surprising turns, and emotional weather.
+drafting method for finished lyric sections. It generates raw material: images,
+verbs, physical details, surprising turns, and emotional tone.
 
 When coaching, keep the user from turning the exercise into analysis. If a line
 says "I was lonely," ask for the body, room, weather, object, taste, pressure,
@@ -787,7 +787,7 @@ Challenge 1 broadens object writing through four prompt categories:
 | 12-14 | Where | Uses place to organize action and make abstraction physical. |
 
 This progression prevents "object writing" from becoming a narrow noun drill.
-The same sensory engine can generate lyric raw material from a room, a person,
+The same sensory method can generate lyric raw material from a room, a person,
 a holiday, a vehicle, a ceremony, or a place in motion.
 
 Challenge 1 daily seeds:

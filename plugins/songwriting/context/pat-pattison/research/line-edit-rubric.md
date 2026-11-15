@@ -604,8 +604,7 @@ is equally possible. Neither pass acquires the other's test.
 
 The writer sings it against the melody. **The rubric filters; the ear decides.**
 
-The AI cannot sing, so this is not politeness. It is the one measurement the
-rubric cannot take. Pat makes singing the settling test twice in *Essential Guide
+The AI cannot sing, so singing is the one measurement the rubric cannot take. Pat makes singing the settling test twice in *Essential Guide
 to Rhyming* (2014), Chapter 5 alone:
 
 > "Never stop listening. If your ear says a sound is wrong, find another

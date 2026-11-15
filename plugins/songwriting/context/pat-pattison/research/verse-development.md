@@ -52,7 +52,7 @@ So the numbered
 and bulleted lists under "Travelogue test", "Natural continuity", "Verse
 responsibility", "Use this scan", "Opening position", "Closing position",
 "Use trigger lines to", "Verse-development diagnosis" and "Skill workflow"
-are this file's own operational scaffolding, useful for coaching but **not
+are this file's own operational headings, useful for coaching but **not
 Pat's text and not attributable to him.** The surrounding prose and block
 quotes in those sections are sourced; it is the lists themselves that are
 not. Everything in a `>` block quote is verbatim.
@@ -352,7 +352,7 @@ Verse 3: next consequence / vow / escalation / payoff
 ```
 
 The chorus gains force because every return carries the whole previous chain.
-The title becomes more than a label; it becomes a mechanism.
+Each return of the title carries that chain, so the title does more than label the song.
 
 ## Natural continuity
 

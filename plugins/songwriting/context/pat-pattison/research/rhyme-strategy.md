@@ -1063,8 +1063,8 @@ Diagnostic:
 - If a section feels chaotic in shape but sonically rich, order
   repetition is weak; tighten the scheme.
 
-Most sections want both forces aligned. Mismatches are tools, not
-defaults.
+Most sections want both forces aligned. Use a mismatch
+deliberately, when the diagnosis above calls for it.
 
 ## Paul Simon "50 Ways to Leave Your Lover": strategic consonance (*Essential Guide to Rhyming* (2014), Chapter 6)
 

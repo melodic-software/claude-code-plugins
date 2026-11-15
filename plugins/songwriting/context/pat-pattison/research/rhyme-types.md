@@ -841,7 +841,7 @@ Pat's advice in *Essential Guide to Rhyming* (2014), Chapter 5:
 
 > "Keep your eyes open for them. They'll drop out of the sky. Stars fall all the time. If you're watching for them, you'll see some."
 
-The addition can also land inside the word, where it is less noticeable. Searching `hush` through the nasals turns up `lunch`, "which seems to work just fine." Treat the worksheet as a discovery surface: while searching family options, mark relatives that also add sound.
+The addition can also land inside the word, where it is less noticeable. Searching `hush` through the nasals turns up `lunch`, "which seems to work just fine." Treat the worksheet as a place to find candidates: while searching family options, mark relatives that also add sound.
 
 ## Subtractive Rhyme
 
@@ -1118,7 +1118,7 @@ Pat's summary of the remote types: assonance, consonance, and partial rhyme are 
 ### Coaching Prompts For Remote Rhyme
 
 Synthesis, not a printed list. Chapter 6 prints no such sequence. Use as
-coaching scaffolding only; do not attribute to Pat.
+coaching guidance only; do not attribute to Pat.
 
 When coaching a writer through kissin' cousins:
 
