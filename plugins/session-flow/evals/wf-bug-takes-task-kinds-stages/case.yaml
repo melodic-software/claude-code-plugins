@@ -3,7 +3,7 @@ name: wf-bug-takes-task-kinds-stages
 description: 'Default mode of /session-flow:workflow on "fix bug X": the stage list comes from the Bug row of the Task kinds table in context/steps.md (the full path less the PRD), and the answer names the PRD as the stage that row skips.'
 tags: [workflow, task-kinds, bug]
 plugins: ["../.."]
-expected_outcome: 'The answer gives the Bug row''s stages in order, from Interview to Implement with no PRD between them, then Test, Review, Verify outcome and Ship, and says the bug skips the PRD.'
+expected_outcome: 'The answer gives every stage of the Bug row in order (Interview, Explore, Research, Design, Plan, Decompose, Implement, Test, Review, Verify outcome, Ship), mentions the PRD only as skipped, and says the bug skips the PRD.'
 execution:
   prompt: '/session-flow:workflow Fix bug X: exporting a report to CSV drops the last row, and I do not know why yet. Which stages does this take, in order, and which does it skip?'
   allowed_tools: [Read, Glob, Grep, Skill]
@@ -12,8 +12,11 @@ execution:
 graders:
   - name: bug-stage-list
     type: regex
-    pattern: '\bInterview\b(?:(?!\bPRD\b)[\s\S]){0,600}?\bImplement\b[\s\S]{0,400}?\bTest\b[\s\S]{0,400}?\bReview\b[\s\S]{0,400}?\bVerif\w*[\s\S]{0,400}?\b(?:Ship|PR|pull request)\b'
-    flags: 'm'
+    # Every Bug-row stage in order, at any distance. Before Implement, a PRD is
+    # allowed only on a line that also says it is skipped, which keeps the
+    # default-mode overview (PRD listed, not skipped) from passing on its own.
+    pattern: '\bInterview\b(?:\bskip\w*[^\n]*?\bPRD\b|\bPRD\b(?=[^\n]*\bskip)|(?!\bPRD\b)[\s\S])*?\bExplore\b(?:\bskip\w*[^\n]*?\bPRD\b|\bPRD\b(?=[^\n]*\bskip)|(?!\bPRD\b)[\s\S])*?\bResearch\b(?:\bskip\w*[^\n]*?\bPRD\b|\bPRD\b(?=[^\n]*\bskip)|(?!\bPRD\b)[\s\S])*?\bDesign\b(?:\bskip\w*[^\n]*?\bPRD\b|\bPRD\b(?=[^\n]*\bskip)|(?!\bPRD\b)[\s\S])*?\bPlan\b(?:\bskip\w*[^\n]*?\bPRD\b|\bPRD\b(?=[^\n]*\bskip)|(?!\bPRD\b)[\s\S])*?\bDecompose\b(?:\bskip\w*[^\n]*?\bPRD\b|\bPRD\b(?=[^\n]*\bskip)|(?!\bPRD\b)[\s\S])*?\bImplement\w*[\s\S]*?\bTest\w*[\s\S]*?\bReview\w*[\s\S]*?\bVerif\w*[\s\S]*?\b(?:Ship|PR|pull request)\b'
+    flags: 'i'
     arm: with-only
   - name: names-skipped-stages
     type: regex
