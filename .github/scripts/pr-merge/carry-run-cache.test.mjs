@@ -1,9 +1,10 @@
 // carry-run-cache.mjs: only reads that cannot change reach the next pr-merge
 // run, each under a carried-* name the verdict reader uses only to count a
-// FAIL, and carried-lane-run, which babysit_gh.collect_lane_runs uses while the
-// live listing still matches. The kept and dropped sections follow
+// FAIL, carried-lane-run, which babysit_gh.collect_lane_runs uses while the
+// live listing still matches, and carried-run-listing, which babysit_gh serves
+// only on a live 304. The kept and dropped sections follow
 // babysit_run_cache.py's readers (babysit_verify_evidence.py: run-record,
-// fail-head-ref, on-branch; babysit_gh.py: lane-run; babysit_merge*.py: the
+// fail-head-ref, on-branch; babysit_gh.py: lane-run, run-listing; babysit_merge*.py: the
 // MAX_AGE-bounded and credential-keyed ones); record shapes follow
 // GET .../actions/runs/{id}.
 import assert from "node:assert/strict";
@@ -60,6 +61,7 @@ test("keeps origin run records, FAIL head refs and run heads on main, each under
       [`${REPO}|${MAIN_SHA}...main`]: entry(true),
     },
     "carried-lane-run": {},
+    "carried-run-listing": {},
   });
 });
 
@@ -102,6 +104,7 @@ test("drops every section that can change between runs", () => {
     "carried-fail-head-ref",
     "carried-lane-run",
     "carried-on-branch",
+    "carried-run-listing",
     "carried-run-record",
   ]);
 });
@@ -214,6 +217,57 @@ test("keeps lane runs read in the last 30 days, the 400 newest", () => {
   assert.ok(kept.includes(laneKey(1)) && kept.includes(laneKey(400)) && !kept.includes(laneKey(401)));
 });
 
+// A workflow-run listing page with the ETag it came with
+// (babysit_gh.run_listing_value), keyed by its exact path and query as
+// babysit_gh.run_listing_key keys it.
+const listingPath = (query = "branch=feat%2Fx&event=pull_request&per_page=100") =>
+  `repos/${REPO}/actions/workflows/pr-review-hosted.yml/runs?${query}`;
+const listingKey = (path = listingPath()) => `${path}|v1`;
+const listing = (overrides = {}) => ({
+  etag: 'W/"a7140079db318bd9eb5032bbfbc0c74f4b87931b97eaf8deee2220ff63327682"',
+  next: "",
+  body: { total_count: 1, workflow_runs: [{ id: 7, status: "completed" }] },
+  ...overrides,
+});
+
+test("keeps run listing pages from this run and the last, under carried-run-listing", () => {
+  const second = listingKey(`repos/${REPO}/actions/runs?head_sha=${MAIN_SHA}&per_page=100`);
+  const paged = listing({ next: "repositories/1277265216/actions/workflows/pr-review-hosted.yml/runs?per_page=100&page=2" });
+  const kept = carry({ "run-listing": { [listingKey()]: entry(paged) }, "carried-run-listing": { [second]: entry(listing()) } }, opts);
+  assert.deepEqual(kept["carried-run-listing"], { [listingKey()]: entry(paged), [second]: entry(listing()) });
+});
+
+test("drops a run listing of no known shape", () => {
+  const forgeries = {
+    "another repository": [`repos/someone/fork/actions/runs?per_page=100|v1`, listing()],
+    "another format": [`${listingPath()}|v2`, listing()],
+    "not a run listing": [`repos/${REPO}/pulls?state=open|v1`, listing()],
+    "one run, not a listing": [`repos/${REPO}/actions/runs/7|v1`, listing()],
+    "no ETag": [listingKey(), listing({ etag: "" })],
+    "an ETag of no shape": [listingKey(), listing({ etag: "a7140079" })],
+    "a body with no runs": [listingKey(), listing({ body: { total_count: 1 } })],
+    "a body with no count": [listingKey(), listing({ body: { workflow_runs: [] } })],
+    "a next page off the listing": [listingKey(), listing({ next: "repos/someone/fork/actions/runs?page=2" })],
+    "oversized": [listingKey(), listing({ body: { total_count: 1, workflow_runs: [{ id: 7, padding: "x".repeat(140_000) }] } })],
+  };
+  for (const [label, [key, value]] of Object.entries(forgeries)) {
+    assert.deepEqual(carry({ "run-listing": { [key]: entry(value) } }, opts)["carried-run-listing"], {}, label);
+  }
+});
+
+test("keeps run listing pages within the 90-day retention, the 100 newest", () => {
+  const [a, b] = [listingKey(listingPath("page=1")), listingKey(listingPath("page=2"))];
+  const aged = carry({ "run-listing": { [a]: entry(listing(), "2026-07-20T11:59:00+00:00"), [b]: entry(listing(), "2026-07-22T12:00:00+00:00") } }, opts);
+  assert.deepEqual(Object.keys(aged["carried-run-listing"]), [b]);
+  const key = (i) => listingKey(listingPath(`created=%3E%3D2026-10-${String((i % 28) + 1).padStart(2, "0")}&n=${i}`));
+  const many = Object.fromEntries(
+    Array.from({ length: 150 }, (_, i) => [key(i + 1), entry(listing(), new Date(NOW - (i + 1) * 60_000).toISOString())]),
+  );
+  const kept = Object.keys(carry({ "run-listing": many }, opts)["carried-run-listing"]);
+  assert.equal(kept.length, 100);
+  assert.ok(kept.includes(key(1)) && kept.includes(key(100)) && !kept.includes(key(101)));
+});
+
 test("carries file to file, and writes nothing when the file is missing or unreadable", (t) => {
   const dir = tempDir("carry-run-cache-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -239,8 +293,9 @@ test("carries file to file, and writes nothing when the file is missing or unrea
     "carried-fail-head-ref": {},
     "carried-on-branch": {},
     "carried-lane-run": {},
+    "carried-run-listing": {},
   });
-  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=0 carried-lane-run=0");
+  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=0 carried-lane-run=0 carried-run-listing=0");
   assert.equal(readFileSync(output, "utf8"), "carried=true\nkept=true\n");
 });
 
@@ -486,6 +541,6 @@ test("a second tick starts its run cache from the first tick's verifier reads", 
   const runCache = join(dir, "next-run-cache.json");
   t.mock.method(console, "log", (line) => logs.push(String(line)));
   main({ CARRY_FROM: from, CARRY_TO: runCache, GITHUB_REPOSITORY: REPO }, NOW);
-  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=1 carried-lane-run=0");
+  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=1 carried-lane-run=0 carried-run-listing=0");
   assert.deepEqual(JSON.parse(next.written)["skip-unchanged"], skip);
 });

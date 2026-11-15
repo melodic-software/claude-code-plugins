@@ -203,10 +203,17 @@ def _run_gh(
     call is counted before it runs, so a failed or timed-out call is counted
     too, and the process prints the counts to stderr on exit
     (`gh_call_summary`). A REST `api <endpoint> --paginate --slurp` read goes
-    one guarded page at a time (`_run_pages`)."""
+    one guarded page at a time (`_run_pages`), and a bare run listing GET as
+    one such page (`_page`, which may answer it from a saved ETag)."""
     if not binary and _is_paged_read(args):
         proc = _run_pages(
             args, timeout_seconds=timeout_seconds, env_overrides=env_overrides
+        )
+    elif not binary and len(args) == 2 and _RUN_LISTING.fullmatch(args[1]):
+        proc, _, _ = _page(
+            args[1],
+            _default_timeout_seconds if timeout_seconds is None else timeout_seconds,
+            env_overrides,
         )
     else:
         proc, _ = _send(
@@ -257,26 +264,125 @@ def _run_pages(
         left = deadline - time.monotonic()
         if left <= 0:
             raise RuntimeError(f"{' '.join(['gh', *args])} timed out after {total:g}s")
-        proc, headers = _send(
-            ["api", endpoint],
-            timeout_seconds=left,
-            env_overrides=env_overrides,
-            binary=False,
-        )
+        proc, body, following = _page(endpoint, left, env_overrides)
         if proc.returncode != 0:
             return proc
-        try:
-            bodies.append(json.loads(proc.stdout))
-        except ValueError:
+        if body is _NOT_JSON:
             return subprocess.CompletedProcess(
                 proc.args, 1, proc.stdout, f"page {len(bodies) + 1} is not JSON"
             )
-        following = _LINK_NEXT.search(headers.get("link", ""))
-        if following is None:
+        bodies.append(body)
+        if not following:
             return subprocess.CompletedProcess(
                 proc.args, 0, json.dumps(bodies), proc.stderr
             )
-        endpoint = _API_ORIGIN.sub("", following[1])
+        endpoint = following
+
+
+# A workflow-run listing page's ETag, body and next page, saved in the
+# pr-merge run cache (babysit_run_cache.py) by its exact path and query and
+# carried to the next run by .github/scripts/pr-merge/carry-run-cache.mjs,
+# which checks the same key and shape and bounds them. A saved body is served
+# only when a live request for the same path and query, sent with its ETag as
+# If-None-Match, answers 304, which GitHub does not count against the rate
+# limit; any other answer to that request is read again as a plain read.
+RUN_LISTING_SECTION = "run-listing"
+CARRIED_RUN_LISTING_SECTION = "carried-run-listing"
+RUN_LISTING_FORMAT = "v1"
+# carry-run-cache.mjs RUN_LISTING_BYTES: a larger page is not saved.
+RUN_LISTING_BYTES = 131_072
+_RUN_LISTING = re.compile(
+    r"repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/(workflows/[^/?#\s|]+/)?runs\?[^#\s|]*"
+)
+_NEXT_LISTING = re.compile(
+    r"repositories/[1-9][0-9]{0,15}/actions/(workflows/[^/?#\s|]+/)?runs\?[^#\s|]*"
+)
+_ETAG = re.compile(r'(W/)?"[^"\s]{1,200}"')
+# gh exits 1 on a 304 and says only this (gh api -i, observed 2026-11-15); a
+# reworded message reads as a failed conditional read, so a plain read follows.
+_NOT_MODIFIED = re.compile(r"^gh: HTTP 304\s*$", re.MULTILINE)
+
+
+def run_listing_key(endpoint: str) -> str:
+    return f"{endpoint}|{RUN_LISTING_FORMAT}"
+
+
+def _saved_listing(endpoint: str) -> dict[str, Any] | None:
+    """This run's or the carried entry for exactly `endpoint`, when it has the
+    shape carry-run-cache.mjs keeps."""
+    if not _RUN_LISTING.fullmatch(endpoint):
+        return None
+    for section in (RUN_LISTING_SECTION, CARRIED_RUN_LISTING_SECTION):
+        value = run_cache.get(section, run_listing_key(endpoint), None)
+        if (
+            is_json_object(value)
+            and isinstance(value.get("etag"), str)
+            and _ETAG.fullmatch(value["etag"])
+            and isinstance(value.get("next"), str)
+            and (value["next"] == "" or _NEXT_LISTING.fullmatch(value["next"]))
+            and is_json_object(value.get("body"))
+            and type(value["body"].get("total_count")) is int
+            and is_json_array(value["body"].get("workflow_runs"))
+        ):
+            return value
+    return None
+
+
+_NOT_JSON = object()
+
+
+def _page(
+    endpoint: str, timeout_seconds: float, env_overrides: Mapping[str, str] | None
+) -> tuple[subprocess.CompletedProcess[Any], Any, str]:
+    """One page of a paged read: its answer, its parsed body (`_NOT_JSON`
+    when it does not parse) and its next page ("" for none). A saved run
+    listing for `endpoint` is asked for conditionally (above), and a 200 to a
+    run listing is saved for the next read."""
+
+    def send(call: list[str]) -> tuple[subprocess.CompletedProcess[Any], dict[str, str]]:
+        return _send(
+            call,
+            timeout_seconds=timeout_seconds,
+            env_overrides=env_overrides,
+            binary=False,
+        )
+
+    saved = _saved_listing(endpoint)
+    proc, headers = None, {}
+    if saved is not None:
+        proc, headers = send(["api", endpoint, "-H", f"If-None-Match: {saved['etag']}"])
+        if proc.returncode != 0 and _NOT_MODIFIED.search(proc.stderr or ""):
+            run_cache.put(RUN_LISTING_SECTION, run_listing_key(endpoint), saved)
+            done = subprocess.CompletedProcess(
+                proc.args, 0, json.dumps(saved["body"]), ""
+            )
+            return done, saved["body"], saved["next"]
+    if proc is None or proc.returncode != 0:
+        proc, headers = send(["api", endpoint])
+    if proc.returncode != 0:
+        return proc, None, ""
+    try:
+        body = json.loads(proc.stdout)
+    except ValueError:
+        return proc, _NOT_JSON, ""
+    following = _LINK_NEXT.search(headers.get("link", ""))
+    after = "" if following is None else _API_ORIGIN.sub("", following[1])
+    etag = headers.get("etag", "")
+    if (
+        _RUN_LISTING.fullmatch(endpoint)
+        and _ETAG.fullmatch(etag)
+        and (after == "" or _NEXT_LISTING.fullmatch(after))
+        and is_json_object(body)
+        and is_json_array(body.get("workflow_runs"))
+        and type(body.get("total_count")) is int
+        and len(proc.stdout) <= RUN_LISTING_BYTES
+    ):
+        run_cache.put(
+            RUN_LISTING_SECTION,
+            run_listing_key(endpoint),
+            {"etag": etag, "next": after, "body": body},
+        )
+    return proc, body, after
 
 
 def _send(

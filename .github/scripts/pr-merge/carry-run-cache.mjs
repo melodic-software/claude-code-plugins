@@ -23,7 +23,7 @@
 // The carried reads stay untrusted all the same: each kept read lands in a
 // carried-* section that babysit_verify_evidence.py reads only on a FAIL's
 // path and only where the value counts the FAIL; any other answer is read
-// from GitHub. lane-run, last below, is the one exception.
+// from GitHub. lane-run and run-listing, last below, are the exceptions.
 //   run-record        a pr-verify run's record of origin shape (a run of
 //                     pr-verify.yml on the branch of this repository), kept
 //                     as carried-run-record with each repository trimmed to
@@ -44,6 +44,17 @@
 //                     latest-attempt fields, and forging one needs code
 //                     running in main's pr-merge.yml, as forging the listing
 //                     carry does (babysit_verify_evidence.py "Carried reads")
+//   run-listing       a workflow-run listing page (babysit_gh._page) by
+//                     its exact path and query, with the ETag and next page
+//                     it came with, kept as carried-run-listing, the
+//                     RUN_LISTING_MAX newest, each at most RUN_LISTING_BYTES
+//                     (at most 12.5 MiB in all). Its body is used only when a
+//                     live request for that same path and query, sent with
+//                     the ETag as If-None-Match, answers 304; any other answer
+//                     is read as a plain read would be, and a 200 replaces the
+//                     entry. The 304 shows the ETag is current, not that the
+//                     body is the one it came with: that rests, as for
+//                     lane-run, on only main's pr-merge.yml writing the file
 // Everything else is dropped: a read bounded by MAX_AGE, keyed by
 // credentials, or a sweep stamp can change between runs. So is an entry dated
 // in the future or more than RETENTION_DAYS ago, past the artifact retention
@@ -74,7 +85,7 @@ import { escapeCommand, ghDownload, newestTrustedRun, sharedReads } from "./rota
 
 export const CARRY_ARTIFACT = "pr-merge-run-cache";
 export const VERIFY_ARTIFACT = "pr-merge-verify-run-cache";
-const CARRIED = ["carried-run-record", "carried-fail-head-ref", "carried-on-branch", "carried-lane-run"];
+const CARRIED = ["carried-run-record", "carried-fail-head-ref", "carried-on-branch", "carried-lane-run", "carried-run-listing"];
 export const CARRY_FILE = "pr-merge-carried.json";
 
 // A FAIL verdict's artifact retention (write-verdict.mjs retentionDays; .github/artifact-retention.json `pr-verify-*`).
@@ -86,6 +97,16 @@ export const LANE_RUN_DAYS = 30;
 export const LANE_RUN_MAX = 400;
 const LANE_RUN_BYTES = 65_536;
 const LANE_RUN_FORMAT = "v1";
+// The carried run listings' bound (judgment): fifty open PRs' lane listings,
+// two lanes each, a page of about eight runs at some 16 KB a run.
+// babysit_gh.RUN_LISTING_FORMAT names the key's last field and
+// babysit_gh.RUN_LISTING_BYTES the page it saves.
+export const RUN_LISTING_MAX = 100;
+const RUN_LISTING_BYTES = 131_072;
+const RUN_LISTING_FORMAT = "v1";
+const RUN_LISTING_PATH = /^actions\/(workflows\/[^/?#\s|]+\/)?runs\?[^#\s|]*$/;
+const NEXT_PAGE = /^repositories\/[1-9][0-9]{0,15}\/actions\/(workflows\/[^/?#\s|]+\/)?runs\?[^#\s|]*$/;
+const ETAG_VALUE = /^(W\/)?"[^"\s]{1,200}"$/;
 const WORKFLOW_PATH = ".github/workflows/pr-verify.yml";
 const SHA = /^[0-9a-f]{40}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -163,6 +184,34 @@ function laneRun(key, value, repo) {
   );
 }
 
+// One listing page saved under `repos/<repo>/<path and query>|format` with the
+// ETag it came with and its Link header's next page, if any.
+function runListing(key, value, repo) {
+  const [path, format] = [key.slice(0, key.lastIndexOf("|")), key.slice(key.lastIndexOf("|") + 1)];
+  const prefix = `repos/${repo}/`;
+  return (
+    format === RUN_LISTING_FORMAT &&
+    path.startsWith(prefix) &&
+    RUN_LISTING_PATH.test(path.slice(prefix.length)) &&
+    isObject(value) &&
+    typeof value.etag === "string" &&
+    ETAG_VALUE.test(value.etag) &&
+    typeof value.next === "string" &&
+    (value.next === "" || NEXT_PAGE.test(value.next)) &&
+    isObject(value.body) &&
+    Number.isSafeInteger(value.body.total_count) &&
+    Array.isArray(value.body.workflow_runs) &&
+    JSON.stringify(value).length <= RUN_LISTING_BYTES
+  );
+}
+
+const newestOf = (entries, max) =>
+  Object.fromEntries(
+    Object.entries(entries)
+      .sort(([, a], [, b]) => Date.parse(b.at) - Date.parse(a.at))
+      .slice(0, max),
+  );
+
 // The sections of `data` kept for the next run, each entry as saved.
 export function carry(data, { repo, branch, now }) {
   const out = Object.fromEntries(CARRIED.map((section) => [section, {}]));
@@ -182,10 +231,9 @@ export function carry(data, { repo, branch, now }) {
   take("fail-head-ref", (k, v) => headRef(k, v, repo));
   take("on-branch", (k, v) => onBranch(k, v, repo, branch));
   take("lane-run", (k, v) => laneRun(k, v, repo), { days: LANE_RUN_DAYS });
-  const newest = Object.entries(out["carried-lane-run"])
-    .sort(([, a], [, b]) => Date.parse(b.at) - Date.parse(a.at))
-    .slice(0, LANE_RUN_MAX);
-  out["carried-lane-run"] = Object.fromEntries(newest);
+  take("run-listing", (k, v) => runListing(k, v, repo));
+  out["carried-lane-run"] = newestOf(out["carried-lane-run"], LANE_RUN_MAX);
+  out["carried-run-listing"] = newestOf(out["carried-run-listing"], RUN_LISTING_MAX);
   return out;
 }
 
