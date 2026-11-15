@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "@given(st.integers(min_value=0))\ndef test_formatted_duration_parses_back(seconds):\n    assert parse_duration(format_duration(seconds)) == seconds\n",
+      "why": "a rule stronger than does-not-crash"
+    },
+    {
+      "answer": "@given(st.integers(min_value=0))\ndef test_formatted_duration_parses_back(seconds):\n    text = format_duration(seconds)\n    assert parse_duration(text) == seconds\n",
+      "why": "the same round trip in two steps"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "@given(st.text())\ndef test_does_not_crash(text):\n    try:\n        parse_duration(text)\n    except ValueError:\n        pass\n",
+      "why": "only the does-not-crash rule"
+    },
+    {
+      "answer": "@given(st.integers(min_value=0))\ndef test_format_does_not_crash(n):\n    format_duration(n)\n",
+      "why": "calls format_duration but checks nothing about it"
+    }
+  ]
+}
