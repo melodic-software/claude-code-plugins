@@ -13,9 +13,9 @@ Usage: HEAD_SHA=<40-hex head commit> BASE_REF=<base branch> check-comment-lint.s
 Adds a detached worktree at HEAD_SHA, soft-resets it to the merge base with
 origin/<BASE_REF> so the pull request's diff is the staged diff, and takes the
 files the lint's settings come from as the merge base holds them: AGENTS.md and
-CLAUDE.md (the convention-home pointer), then the home's code-tidying.yaml and
-code-tidying.local.yaml, each restored from the merge base or removed when it
-has none. So the level, posture and allow list are the base's, not the
+CLAUDE.md (the convention-home pointer), then the code-tidying.yaml and
+code-tidying.local.yaml of the home the merge base names, each restored from
+the merge base or removed when it has none. So the level, posture and allow list are the base's, not the
 branch's. It then runs the lint's git-hook entry there unchanged, removes the
 worktree and exits with the entry's status.
 
@@ -82,10 +82,11 @@ from_base() {
 
 from_base AGENTS.md
 from_base CLAUDE.md
-home="$(bash "$tree/$HOME_RESOLVER" --root "$tree" 2>/dev/null)" || home=""
+home="$(bash "$tree/$HOME_RESOLVER" --root "$tree" --ref "$base" 2>/dev/null)" || home=""
 if [[ -z "$home" || "$home" == /* || "$home" == *..* ]]; then
   home=docs/conventions
 fi
+mkdir -p "$tree/${home%/}"
 from_base "${home%/}/code-tidying.yaml"
 from_base "${home%/}/code-tidying.local.yaml"
 

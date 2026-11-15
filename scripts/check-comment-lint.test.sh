@@ -105,6 +105,23 @@ commit_all "$clone" 'planted, convention home moved'
 run_gate "$clone" >/dev/null
 check 'a branch cannot move the convention home to its own team file' '1' "$?"
 
+pointer() {
+  printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in %s.\n<!-- END GENERATED: convention-home -->\n' "\`$1\`"
+}
+clone="$(new_clone renamed off)"
+mkdir "$TMP/origin.renamed/team"
+printf 'comment_posture: necessary\ncomment_lint: block\n' >"$TMP/origin.renamed/team/code-tidying.yaml"
+pointer team >"$TMP/origin.renamed/AGENTS.md"
+commit_all "$TMP/origin.renamed" 'the base binds its home to team'
+git -C "$clone" fetch -q origin
+git -C "$clone" reset -q --hard origin/main
+git -C "$clone" mv team new-team
+pointer new-team >"$clone/AGENTS.md"
+planted >>"$clone/src/app.py"
+commit_all "$clone" 'planted, the home directory renamed'
+run_gate "$clone" >/dev/null
+check 'a branch that renames the home directory still gets the base level' '1' "$?"
+
 clone="$(new_clone linked-out block)"
 planted >>"$clone/src/app.py"
 printf 'keep\n' >"$TMP/outside.txt"

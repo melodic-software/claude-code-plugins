@@ -206,11 +206,13 @@ for part in a b c; do
 done
 rm -rf "$repo/plugins/planning"
 
-mk plugins/guardrails/git-hooks/lefthook-remote.test.sh
-plan -- plugins/guardrails/git-hooks/lefthook-remote.test.sh
-is "$(key bash_needs)" '{"0":"lefthook"}'
-check "the guardrails remote's end-to-end suite gets lefthook on whatever leg it lands" $?
-rm -rf "$repo/plugins/guardrails"
+for plugin in guardrails code-tidying; do
+  mk "plugins/$plugin/git-hooks/lefthook-remote.test.sh"
+  plan -- "plugins/$plugin/git-hooks/lefthook-remote.test.sh"
+  is "$(key bash_needs)" '{"0":"lefthook"}'
+  check "the $plugin remote's end-to-end suite gets lefthook on whatever leg it lands" $?
+  rm -rf "$repo/plugins/$plugin"
+done
 
 # A lock bump selects the suite through its test-scope, so the leg installs the
 # lock it bumped and ffmpeg, and the suite cannot skip green (#8780).
