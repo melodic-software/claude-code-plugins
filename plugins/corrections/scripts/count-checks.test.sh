@@ -218,6 +218,7 @@ check "promotion: the promoting line names the pull request that landed the advi
 
 # 3b. Every other line naming Codifies: is listed with its reason, the task-list form included.
 new_repo
+# shellcheck disable=SC2016 # the backticks are literal Markdown code spans
 commit 2026-05-01 'feat: issue form (#300)
 
 - [ ] The PR body carries `Codifies: #9 rung=architecture-test blocking`.
@@ -229,12 +230,15 @@ check "placement: nothing is counted" has_line '| window | 0 | 0 | 0 | 0 |'
 DETAIL="out: $OUT"
 check "placement: all three lines are listed as not counted" has_line "not counted: 3"
 DETAIL="out: $OUT"
+# shellcheck disable=SC2016 # literal code spans
 check "placement: the task-list item form" \
   grep -qF 'a list item quoting it in a code span, not a line of its own at column 0: "- [ ] The PR body carries `Codifies: #9' <<<"$OUT"
 DETAIL="out: $OUT"
+# shellcheck disable=SC2016 # literal code spans
 check "placement: a record inside a code span" \
   grep -qF 'a code span, not a line of its own at column 0: "`Codifies: #9 rung=architecture-test blocking`"' <<<"$OUT"
 DETAIL="out: $OUT"
+# shellcheck disable=SC2016 # literal code spans
 check "placement: a mention inside prose" \
   grep -qF 'a line of other text quoting it in a code span, not a line of its own at column 0: "Adds a `Codifies:` line' <<<"$OUT"
 
