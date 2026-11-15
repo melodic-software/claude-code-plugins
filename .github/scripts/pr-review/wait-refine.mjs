@@ -22,8 +22,9 @@
 // any other run, a wait past its cap, or any read that fails runs the review,
 // as it ran before this job existed.
 //
-// Reads PR_NUMBER and HEAD_SHA from env only; logs carry the PR number, SHAs
-// and run ids only. Writes proceed and reason to GITHUB_OUTPUT.
+// Reads PR_NUMBER, HEAD_SHA, PR_BASE_REF and PR_HEAD_REPO from env only; logs
+// carry the PR number, SHAs and run ids only. Writes proceed and reason to
+// GITHUB_OUTPUT.
 
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -59,10 +60,12 @@ export function readEnv(env) {
     appearMs: bound("WAIT_APPEAR_SECONDS", DEFAULTS.appearSeconds),
     capMs: bound("WAIT_CAP_SECONDS", DEFAULTS.capSeconds),
     pollMs: bound("WAIT_POLL_SECONDS", DEFAULTS.pollSeconds),
+    baseRef: env.PR_BASE_REF || null,
+    headRepository: env.PR_HEAD_REPO || null,
   };
 }
 
-export async function decide({ number, head, repository, appearMs, capMs, pollMs }, { api, now, sleep, log }) {
+export async function decide({ number, head, repository, appearMs, capMs, pollMs, baseRef, headRepository }, { api, now, sleep, log }) {
   const start = now();
   const deadline = start + capMs;
   const say = (level, text) => log(`::${level}::wait-refine #${number} ${head}: ${text}`);
@@ -128,13 +131,16 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
 
   try {
     // The dispatcher's refine job runs only for a same-repository PR into
-    // main, so any other PR is reviewed without waiting out the window, and
-    // a head already moved is skipped once a second read confirms it.
-    const pr = await api.get(`pulls/${number}`);
-    if (pr.base?.ref !== "main" || pr.head?.repo?.full_name !== repository) {
+    // main, so any other PR is reviewed without waiting out the window. The
+    // event's base ref and head repository answer that with no read; without
+    // both, the pull request is read, and a head it shows already moved is
+    // skipped once a second read confirms it.
+    const pr = baseRef && headRepository ? null : await api.get(`pulls/${number}`);
+    if (pr) [baseRef, headRepository] = [pr.base?.ref, pr.head?.repo?.full_name];
+    if (baseRef !== "main" || headRepository !== repository) {
       return await finish("no-refine");
     }
-    const gone = await moved(pr);
+    const gone = pr && (await moved(pr));
     if (gone) return skip(gone, "the start");
     let runs;
     for (;;) {
