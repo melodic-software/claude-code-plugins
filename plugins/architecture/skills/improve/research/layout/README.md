@@ -55,7 +55,8 @@ A `well-encapsulated` cluster is no candidate: its card is left out and the repo
 | `min_cluster_size` | 4 | ModularityCheck removes clusters of fewer than four classes |
 | `encapsulated_min_focus`, `crosscutting_min_spread`, `crosscutting_max_focus` | 0.8, 4, 0.3 | this plugin's judgment |
 
-Sources, read 2026-11-15:
+Sources, as of 2026-11-15. Recheck when code-maat's option table changes a default for `-n`, `-m`,
+`-i`, `-x` or `-s`:
 
 - [code-maat](https://github.com/adamtornhill/code-maat): the option table's defaults for `-n`,
   `-m`, `-i`, `-x` and `-s`, and the coupling output's `degree` (a percentage) and `average-revs`
@@ -100,7 +101,7 @@ The first row that applies sets the badge:
 
 | Badge | When |
 |---|---|
-| `Speculative` | no style is recorded, or the cluster is unclassified with no mixed folder |
+| `Speculative` | no style is recorded, or the cluster does not contradict the recorded style and is unclassified with no mixed folder |
 | `Strong` | the cluster contradicts the recorded style, or is `crosscutting`, and every pair has degree at least 50 |
 | `Worth exploring` | every other card |
 
