@@ -3,6 +3,19 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.2] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+- The session bridge watch, events and unwatch tool descriptions now say what each tool needs first, what it returns, and when it errors.
+
+- Shared `publish-gate.mjs` synced where this plugin carries it: a comment now names the fold-corpus test that guards its backslash fold; the gate's behavior does not change.
+
+- Planning skill, agent and reference text reads in plain case instead of capital-letter emphasis, and stale paths, counts, test lists and resolver exit codes now match the repository.
+- Restated upstream facts in the planning docs point at their source with an as-of date and a recheck trigger.
+
 ## [5.2.1] - 2026-11-15
 
 ### Changed

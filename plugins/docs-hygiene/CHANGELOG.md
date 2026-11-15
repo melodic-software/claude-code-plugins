@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [4.0.4] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
 ## [4.0.3] - 2026-11-14
 
 ### Changed

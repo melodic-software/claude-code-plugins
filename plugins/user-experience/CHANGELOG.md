@@ -3,6 +3,12 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.17] - 2026-11-15
+
+### Changed
+
+- The setup skill's scope section is written in plain case instead of capital-letter emphasis.
+
 ## [0.4.16] - 2026-11-13
 
 ### Changed
