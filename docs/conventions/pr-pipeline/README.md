@@ -660,7 +660,7 @@ nor a listed human, a re-run) waits for its next event.
 
 A `fix-docs` run whose run job emits an empty head posts no check (`post-decline: false`). The
 event dispatcher reads and saves no dispatch record, so the per-head cap of
-`limits.limit-stops-per-head` broker-allowed runs that posted no check holds only within one
+`limits.limit-stops-per-head` record-broker-allow runs that posted no check holds only within one
 run, where it never binds: each event starts at most one run, and a new head arrives as a new
 event.
 
@@ -1480,7 +1480,7 @@ the rules that only tighten in
   does, and for a pull request whose changed files include a lane source runs both lanes on the
   head's diff as data, each lane's criteria and the standards copied from main, with a read-only
   token and a model that may only Read its data directory. A head both lanes already reviewed,
-  where the merge gate's own predicate (`_main_bound`) binds each lane on what the trigger job
+  where the merge gate's own predicate (`_main_bound`) binds each lane on what the check-trigger job
   reads, is not reviewed again, and no leg starts for a pull request with no lane source. A verdict
   counts there only when its run's main commit has no diff from main's tip over what the review
   reads from main (`.github/scripts/pr-review-main/criteria.txt`, which the copy steps also read),
@@ -3212,7 +3212,7 @@ them on every `pull_request` run, contract-only runs included:
   the lanes switch.
   No admin bypass exists: the ruleset requires ci-status and the merge queue even for an admin
   merge. Only runs from this repository's head count, never a
-  fork's run on the same commit, and a PR whose head is a fork fails as a fork before any run is read. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
+  fork's run on the same commit, and a PR whose head is a fork fails as a fork before any run is read. A check-kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
   author id, except that their PR fails when a changed file (or a renamed file's old path) is a

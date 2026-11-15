@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/fix-shell-calls/20261114T000000Z-proposal.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "the proposal under the slugged home"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/CLAUDE.md"
+          }
+        }
+      ],
+      "why": "no write at all"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/CLAUDE.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "rewrites the repository's instructions"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.semgrep/no-shell-string.yaml",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "implements the rung, which codify never does"
+    }
+  ]
+}
