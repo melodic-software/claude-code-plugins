@@ -131,7 +131,8 @@ It is not the approval-marker publish gate (#7956), and it does not cover
   `/review:fanout run-everything` as a saved workflow: the four reviewer agents by tier, then one
   `brief-reviewer` agent per project criteria slice, then one `stage-normalizer` agent that turns the raw findings
   into records. Its `args` carry `diffBase` and `loosenedCheck`, the path of the bundled
-  "Fail a change that loosens a check" criterion every review leaf applies (both required; without
+  "Fail a change that loosens a check" criterion that `code-reviewer`, every slice and every model
+  tier apply (both required; without
   either the run dispatches nothing), plus `loosenedSettings` (that criterion's two resolved setting
   lines), `spec` (the issue text the change resolves), `slices`, `roles`, `maxConcurrent`
   (default 4), `diversity`, `session` and `findingsPaths`. `roles` is the map `/multi-agent:route all`

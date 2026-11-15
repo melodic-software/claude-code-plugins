@@ -102,8 +102,12 @@ out="$(node "$RESOLVE" --root "$R1" --verdict-option note)"
 assert_contains "case 4: without --ref the repository layer is skipped and the head file is not read" \
   "$(line_of "$out" loosened_check_verdict)" "loosened_check_verdict: note (userConfig)"
 assert_contains "case 4: without --ref the skip is named" "$out" "INFO repository layer skipped"
-out="$(node "$RESOLVE" --root "$R1" --ref origin/nope --verdict-option note)"
-assert_contains "case 4: an unreadable ref skips the repository layer" "$out" "INFO repository layer skipped"
+out="$(node "$RESOLVE" --root "$R1" --ref origin/nope --verdict-option note --patterns-option '["test/**"]')"
+assert_eq "case 4: an unreadable ref resolves fail over a user note, the safe floor" \
+  "loosened_check_verdict: fail (unreadable default branch)" "$(line_of "$out" loosened_check_verdict)"
+assert_eq "case 4: an unreadable ref keeps the user's patterns" \
+  'loosened_check_patterns: ["test/**"] (userConfig)' "$(line_of "$out" loosened_check_patterns)"
+assert_contains "case 4: an unreadable ref is named in a WARN line" "$out" "WARN origin/nope could not be read"
 out="$(node "$RESOLVE" --root "$R4" --ref origin/main --verdict-option sometimes --patterns-option 'not json')"
 assert_contains "case 4: an invalid user verdict is named" "$out" "WARN userConfig loosened_check_verdict"
 assert_contains "case 4: an invalid user verdict falls back to fail" \

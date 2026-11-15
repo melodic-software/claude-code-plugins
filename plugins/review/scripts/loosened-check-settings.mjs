@@ -10,8 +10,9 @@
 //
 // The repository layer is read only from --ref, through setup-apply.mjs --check
 // --ref, never from the working tree, so a change cannot relax the verdict or
-// drop a pattern for its own review. Without --ref, or when the ref cannot be
-// read, the repository layer is skipped and the output says why. An option
+// drop a pattern for its own review. Without --ref the repository layer is
+// skipped and the output says why. When the ref cannot be read, the verdict
+// resolves fail, the user's patterns still apply, and a WARN line says why. An option
 // that is empty or an unrendered ${user_config.<key>} placeholder is unset.
 //
 // Output, one line each:
@@ -77,17 +78,15 @@ function repositoryLayer(opts, notes) {
   }
   const args = [APPLY, "--check", "--ref", opts.ref, ...(opts.root ? ["--root", opts.root] : [])];
   const check = spawnSync(process.execPath, args, { encoding: "utf8" });
-  if (check.status === 2 || check.status === null) {
-    notes.push(`INFO repository layer skipped: ${opts.ref} could not be read (${(check.stderr || "").trim() || `exit ${check.status}`})`);
-    return {};
-  }
+  const unreadable = (why) => {
+    notes.push(`WARN ${opts.ref} could not be read (${why}): verdict resolves fail, the safe floor, and only the user's patterns apply`);
+    return { verdict: "fail", unreadable: true };
+  };
+  if (check.status === 2 || check.status === null) return unreadable((check.stderr || "").trim() || `exit ${check.status}`);
   const out = check.stdout;
   for (const line of out.split("\n")) if (line.startsWith("WARN ")) notes.push(line);
   const read = out.match(/^INFO read (\S+) at \S+, commit ([0-9a-f]{40})$/m);
-  if (!read) {
-    notes.push(`INFO repository layer skipped: ${(check.stderr || "").trim() || `the settings file at ${opts.ref} could not be read (exit ${check.status})`}`);
-    return {};
-  }
+  if (!read) return unreadable((check.stderr || "").trim() || `the settings file could not be read, exit ${check.status}`);
   if (/^INFO \S+: absent;/m.test(out)) {
     notes.push(`INFO ${read[1]} is absent at ${opts.ref}, commit ${read[2]}`);
     return {};
@@ -137,9 +136,11 @@ export function resolveLoosenedCheck(layers) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const opts = parseArgs(process.argv.slice(2));
   const notes = [];
+  const user = userLayer(opts, notes);
+  const repo = repositoryLayer(opts, notes);
   const layers = [
-    ["userConfig", userLayer(opts, notes)],
-    ["docs/conventions/review.yaml", repositoryLayer(opts, notes)],
+    ["userConfig", user],
+    [repo.unreadable ? "unreadable default branch" : "docs/conventions/review.yaml", repo],
   ];
   const r = resolveLoosenedCheck(layers);
   process.stdout.write(

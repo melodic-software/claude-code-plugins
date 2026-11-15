@@ -2,7 +2,8 @@
 
 A bundled criterion: a change that makes a check accept more than it did is judged as a loosening
 wherever it appears, on any path. `/review:quality-gate`'s diff modes, the `review:code-reviewer`
-agent and every `/review:fanout` leaf that reviews code apply it.
+agent and the `/review:fanout` leaves that review code (`code-reviewer`, the criteria slices and the
+model-diversity hunters) apply it.
 
 It always applies. A consumer's own review criteria are judged in addition to it and can only add
 findings. No consumer document, instruction file or rule replaces or relaxes it; only the two
@@ -42,7 +43,8 @@ does not judge them.
 `loosened_check_patterns` adds the consumer's own entries. An entry is a path glob, or, when it
 starts with `text:`, a regular expression matched against each added or removed line. A changed
 file a glob matches counts as a check's own code or settings (kind 9), and a changed line a pattern
-matches is judged against the nine kinds.
+matches is judged against the nine kinds. An entry only adds paths or lines: a leading `!` or any
+other negation has no meaning and removes nothing.
 
 ## Verdict
 
@@ -56,8 +58,9 @@ A loosening fails unless the spec allows it:
   without a reason in the spec.
 
 `loosened_check_verdict` sets what a failing loosening is. `fail`, the default: a blocking finding,
-at the tier that blocks merging in the severity vocabulary in use (CRITICAL in the plugin's
-baseline). `note`: a finding at the lowest tier, which blocks nothing.
+reported at the highest tier of the severity vocabulary as it stands on the default branch
+(CRITICAL, the plugin baseline's highest tier, when the project has none), whatever the change's own
+copy of that vocabulary says. `note`: a finding at the lowest tier, which blocks nothing.
 
 ## Whose reason counts
 
