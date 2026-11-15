@@ -34,7 +34,7 @@ Shared-session tunnel for [`context/lane-shared.md`](context/lane-shared.md): `t
 
 ## Purpose
 
-Rework often comes from acting on assumptions the user never made and the agent never surfaced, an **underspecified** task, one missing the constraints needed to act safely. `/planning:interview` is the pipeline's underspecification resolver: a structured pass driving every unknown the task depends on to a decision OR capturing it as a named, explicit assumption, before exploration, planning, or execution start.
+Rework often comes from acting on assumptions the user never made and the agent never surfaced, an **underspecified** task, one missing the constraints needed to act safely. `/planning:interview` is the pipeline's underspecification resolver: a structured pass driving every unknown the task depends on to a decision or capturing it as a named, explicit assumption, before exploration, planning, or execution start.
 
 The **pre-clarity** stage. Upstream of exploration, research, and `/planning:plan`. `/planning:plan` presupposes a coherent task; `/planning:interview` produces one out of fuzzy intent. The contract it writes is the target every later stage aims at.
 
@@ -48,7 +48,7 @@ The **pre-clarity** stage. Upstream of exploration, research, and `/planning:pla
 
 ## Emit checklist
 
-For interview sessions with ≥2 open questions OR explicit `me` mode, copy `${CLAUDE_PLUGIN_ROOT}/skills/interview/templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; **one ledger per topic**. Not per session). Re-interview appends `## Resolved (<round>, <date>)` sections; do not create `interview-checklist-2.md`. Tick each step as completed. Steps 1, 3, 4 are mandatory; Steps 1.5 + 2 are mode-conditional.
+For interview sessions with ≥2 open questions or explicit `me` mode, copy `${CLAUDE_PLUGIN_ROOT}/skills/interview/templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; **one ledger per topic**. Not per session). Re-interview appends `## Resolved (<round>, <date>)` sections; do not create `interview-checklist-2.md`. Tick each step as completed. Steps 1, 3, 4 are mandatory; Steps 1.5 + 2 are mode-conditional.
 
 The ledger's `## Open-question register` is emitted the moment **any** round is asked, whatever that threshold says. It has to exist before the first reply arrives. The acceptance-criteria coverage prompt does not count as a round here: it writes no register row and does not by itself make the register exist or bring the register gate into scope ([`context/coverage-prompt.md`](context/coverage-prompt.md)). Register mechanics, the drift check, the unattended ladder, and the gate that grades it: [`context/loop.md`](context/loop.md) "The open-question register".
 
@@ -391,7 +391,7 @@ Section schema: write the literal `## Brief` template (TLDR / Problem / Goal / W
 
 ### Step 5. Hand off
 
-Route the handoff by what the session produced. Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger. Read [`context/handoff.md`](context/handoff.md) at the stop boundary, before recommending: it owns the route for a mid-flow arrival, a general session, an engineering Brief by task shape, a question only another person can answer, and an interview that outgrew the session.
+Route the handoff by what the session produced. Do not auto-clear or auto-invoke. Recommend; let the user pull the trigger. Read [`context/handoff.md`](context/handoff.md) at the stop boundary, before recommending: it owns the route for a mid-flow arrival, a general session, an engineering Brief by task shape, a question only another person can answer, and an interview that outgrew the session.
 
 ## Session-config recommendation (model, effort, advisor)
 
@@ -432,9 +432,7 @@ Failure patterns from real sessions: `context/gotchas.md`.
 
 The `context/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+writing it into a brief. Which files get `${…}` substitution and where each variable resolves:
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
 
 Two spokes own the acceptance-criteria rules: [`context/coverage-prompt.md`](context/coverage-prompt.md) holds the coverage prompt and its register exemption, and [`context/ears.md`](context/ears.md) holds the EARS tags and how `acceptance_criteria_format` resolves, through the shared ladder in [`${CLAUDE_PLUGIN_ROOT}/context/authoring-formats.md`](../../context/authoring-formats.md).

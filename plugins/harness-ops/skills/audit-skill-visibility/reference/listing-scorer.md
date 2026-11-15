@@ -20,7 +20,7 @@ name-only.
 
 **It is a greedy first-fit walk, not a score-ordered prefix.** The grant loop has
 no early exit, so a cheap low-scored description can still be granted after an
-expensive higher-scored one was refused. Description LENGTH is therefore a second
+expensive higher-scored one was refused. Description length is therefore a second
 ranking input, which no prose account of this mechanism mentions:
 
 ```js
@@ -66,12 +66,12 @@ one of them is a setting:
   description before it is summed. Read both defaults live from
   [skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction)
   and [skillListingMaxDescChars](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars).
-- `window` is the ACTIVE model's context window, which the live caller passes
+- `window` is the active model's context window, which the live caller passes
   to the arithmetic; the formula's literal is only what it falls back on when
   none is passed. Which models run with which window, and the variables that
   change it, are read live from
   [model configuration: extended context](https://code.claude.com/docs/en/model-config#extended-context).
-- `bytesPerToken` is 4 or 3 BY MODEL, resolved from the model id. A 3-byte
+- `bytesPerToken` is 4 or 3 by model, resolved from the model id. A 3-byte
   model gets a budget a quarter smaller than a 4-byte model at the same fraction
   and window.
 
@@ -101,7 +101,7 @@ Two more properties the ordering depends on:
 
 - **Ties keep catalog order, not alphabetical.** The product's sort is stable, so
   equal scores stay in input order. This decides everything in the `unscored`
-  case, where every score is zero and the tiebreak IS the whole ordering.
+  case, where every score is zero and the tiebreak is the whole ordering.
 - **The grant budget is computed forward from a floor**, `budget - V`, where `V`
   is what the listing costs before any description is granted: every listed entry
   pays for its own name, the exempt classes pay their full rendering, and the

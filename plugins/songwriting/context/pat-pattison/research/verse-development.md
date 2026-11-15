@@ -52,7 +52,7 @@ So the numbered
 and bulleted lists under "Travelogue test", "Natural continuity", "Verse
 responsibility", "Use this scan", "Opening position", "Closing position",
 "Use trigger lines to", "Verse-development diagnosis" and "Skill workflow"
-are this file's own operational scaffolding, useful for coaching but **not
+are this file's own operational headings, useful for coaching but **not
 Pat's text and not attributable to him.** The surrounding prose and block
 quotes in those sections are sourced; it is the lists themselves that are
 not. Everything in a `>` block quote is verbatim.
@@ -352,7 +352,7 @@ Verse 3: next consequence / vow / escalation / payoff
 ```
 
 The chorus gains force because every return carries the whole previous chain.
-The title becomes more than a label; it becomes a mechanism.
+Each return of the title carries that chain, so the title does more than label the song.
 
 ## Natural continuity
 
@@ -438,15 +438,14 @@ that is the whole taxonomy, **three** families, not nine:
 > blue, sun yellow …
 
 <!-- ai-slop-ignore-start: verbatim Pattison quotation, Writing Better Lyrics (2009) Chapter 7 -->
-This file used to list extra cases as peers of those three: subsection
-openings and closings, the trigger line, an early rhyme. They are not a fourth
-and fifth family. They are instances Pat derives inside the chapter's two
+Subsection openings and closings, the trigger line and an early rhyme are not
+peers of those three, and not a fourth and fifth family. They are instances Pat
+derives inside the chapter's two
 readings: the "Child Again" subsections ("She uses her power positions — the
 first and last positions of the verse, plus the ending and beginning of its
 subsections") and the nursery-rhyme reading ("it gains extra punch by
 rhyming early, at the second rather than the third stress"). Both appear in
-full below. An earlier revision of this file flattened them into a
-nine-bullet "most common power positions" list that Pat does not print.
+full below. Pat prints no "most common power positions" list.
 <!-- ai-slop-ignore-end -->
 
 Power positions are not decoration. They steer the listener's focus.
@@ -708,10 +707,9 @@ Pat opens the surprise case like this:
 > to what you are saying. This extra focus gives the position its power.
 
 The surprises he actually names are **shorter, longer, or extra lines** (the
-Moral) and, in the nursery-rhyme reading below, **rhyming early**. An earlier
-revision of this file expanded that into an eight-item list adding "a delayed
+Moral) and, in the nursery-rhyme reading below, **rhyming early**. "A delayed
 rhyme", "a pattern break", "a repeated fragment" and "a sudden change in
-syntax"; none of those are Chapter 7's. The test the chapter does give is the
+syntax" are not Chapter 7's. The test the chapter does give is the
 generalization above: any special effect you create with structure.
 
 When using a surprise, place a meaningful idea there. A surprise that carries
@@ -793,11 +791,10 @@ paragraph. Verbatim:
 ("The original" is the "Chain Reaction" travelogue above: verse two is
 Camille in West Beirut, verse three the ancient Ford in South Africa.) The
 paragraph runs straight on into "Verse development is probably a lyricist's
-trickiest job …", quoted under "Distance control" above. An earlier revision
-of this file inflated the exercise into six bullets. Two of those, "make the
-verse sequence accumulate into one full-blown strategy" as an instruction,
-and "check that the verses still make sense when the chorus is removed", are
-not part of what Pat asks for.
+trickiest job …", quoted under "Distance control" above. The exercise asks for
+nothing more: "make the verse sequence accumulate into one full-blown strategy"
+is not an instruction in it, and "check that the verses still make sense when
+the chorus is removed" is not part of what Pat asks for.
 
 ## Skill workflow
 

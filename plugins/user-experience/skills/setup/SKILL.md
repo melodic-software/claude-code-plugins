@@ -98,7 +98,7 @@ FAIL. Write nothing.
 `check`: the table. `apply`: the table before and after, the written path, and what was inferred,
 changed or skipped.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Install `node` or the `claude` CLI; it prints their install pointers.
 - Write anywhere but the team file: never under `.claude/`, never user settings. The plugin has no

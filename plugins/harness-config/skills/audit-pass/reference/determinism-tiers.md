@@ -14,15 +14,15 @@ Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
 ## 6. The three tiers and their properties
 
 The two-tier `mechanical` / `behavioral` split the delegated catalogs use cannot carry a determinism
-property, for two independently sufficient reasons: no delegated check reaches the report without
-model judgment (a catalog's own lane refinement and verify pass both re-judge, so even a
-`mechanical`-tagged check is model-gated), and half the delegated catalog uses a different vocabulary
+property, for two independently sufficient reasons: a catalog's own lane refinement and verify pass
+re-judge most delegated checks, so even a `mechanical`-tagged check is model-gated unless its lane
+emits rows straight from a script or engine, and half the delegated catalog uses a different vocabulary
 entirely. So the property is stated over the part of the run that genuinely is deterministic.
 
 | Tier | Contents | Produced by | Property |
 |---|---|---|---|
-| **Derived** | three-scope surface inventory, exclusion set, shadowed-definition findings, raw script candidate rows | enumeration and scripts only, with no model in the path | **exact equality** |
-| **Judged** | every finding from a delegated catalog check, whatever that catalog calls it | a model | **stability tolerance** |
+| **Derived** | three-scope surface inventory, exclusion set, shadowed-definition findings, raw script candidate rows, and the rows a delegate's script or engine emits with no model in the path (the lane catalog names which lanes) | enumeration and scripts only, with no model in the path | **exact equality** |
+| **Judged** | every finding a model produced or refined, from any delegated catalog check, whatever that catalog calls it | a model | **stability tolerance** |
 | **Delegated** | `/doctor`'s output | a prompt-based bundled skill | **none**, diffed by nobody |
 | **Note** | cross-catalog overlap notes, and nothing else | set comparison over **judged** findings | **none**, excluded from the derived identity set and from P1-P3 |
 

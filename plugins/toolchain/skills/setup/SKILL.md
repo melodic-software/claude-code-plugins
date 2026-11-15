@@ -130,7 +130,7 @@ Tracked `.claude/ecosystems/*.yaml` files in the consuming repo, and a one-parag
 was written and how to re-run this setup to reconfigure. `check` alone reports the effective
 configuration and changes nothing.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run build/test/lint. That is `/toolchain:check` and `/toolchain:lint`.
 - Write machine-local state. Configuration lives in the consumer's tracked files, never in the plugin

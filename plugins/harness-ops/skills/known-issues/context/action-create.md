@@ -11,13 +11,15 @@ Draft and file GitHub issue on `anthropics/claude-code` (or specified repo) usin
 | `bug` | `bug` | `[BUG]` |
 | `feature` | `enhancement` | `[FEATURE]` |
 
+These labels and prefixes, and the filenames in Gate 1, are our copy of what `anthropics/claude-code/.github/ISSUE_TEMPLATE/` sets. The template Gate 1 fetches wins: when its `title` prefix or `labels` differ from this table, use the template's.
+
 ## Flags
 
 - **`--repo <repo>`**: target different repo (default: `anthropics/claude-code`)
 
 ## Mandatory gates (all must pass before drafting)
 
-Gates mirror preflight checklists in Anthropic's issue templates. Every gate is hard requirement. If any fails, STOP and explain why.
+Gates mirror preflight checklists in Anthropic's issue templates. Every gate is hard requirement. If any fails, stop and explain why.
 
 **Gate 1: Fetch live template.** Always fetch current template from GitHub. Never use cached content:
 
@@ -35,7 +37,7 @@ gh api repos/{repo}/contents/.github/ISSUE_TEMPLATE/{template_file} --jq '.conte
 | `bug` | `bug_report.yml` |
 | `feature` | `feature_request.yml` |
 
-If template can't be fetched (repo inaccessible, template renamed/removed), STOP and inform user. Template structure may change at any time and this repo keeps no cached copy to fall back on; `context/issue-templates.md` names the live source and this plugin's local field rule.
+If template can't be fetched (repo inaccessible, template renamed/removed), stop and inform user. Template structure may change at any time and this repo keeps no cached copy to fall back on; `context/issue-templates.md` names the live source and this plugin's local field rule.
 
 **Gate 2: Version check.** Verify user is on latest Claude Code version:
 
@@ -61,7 +63,7 @@ gh search issues "<keywords>" --repo {repo} --state closed --sort updated --limi
 
 Present matches and ask user to confirm none cover the same issue. If match exists, suggest commenting on existing issue instead (`gh issue comment`). Only proceed on explicit "no duplicates" confirmation.
 
-**Gate 4: Single-issue check.** Confirm report covers exactly ONE bug or ONE feature request. If user's description contains multiple issues, ask them to split into separate reports.
+**Gate 4: Single-issue check.** Confirm report covers exactly one bug or one feature request. If user's description contains multiple issues, ask them to split into separate reports.
 
 **Gate 5: Correct template selection.** Verify issue type matches content:
 

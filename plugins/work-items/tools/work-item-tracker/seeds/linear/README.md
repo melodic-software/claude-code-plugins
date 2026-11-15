@@ -62,16 +62,16 @@ adapter's guards:
 
 | Verb | Declared | Status |
 |---|---|---|
-| `create-item` | `true` | scaffold, provider mapping to write |
-| `get-item` | `true` | scaffold, provider mapping to write |
-| `claim` | `true` | scaffold, provider mapping to write |
-| `renew-lease` | `true` | scaffold, provider mapping to write |
+| `create-item` | `true` | implemented, tested |
+| `get-item` | `true` | implemented, tested |
+| `claim` | `true` | implemented, tested |
+| `renew-lease` | `true` | implemented, tested |
 | `release` | `false` | exit `6` at the capability gate (not yet mapped) |
-| `reclaim` | `true` | scaffold, provider mapping to write |
-| `link-blocks` | `true` | scaffold, provider mapping to write |
-| `add-sub-item` | `true` | scaffold, provider mapping to write |
-| `list-items` | `true` | scaffold, provider mapping to write |
-| `list-sub-items` | `true` | scaffold, provider mapping to write |
+| `reclaim` | `true` | implemented, tested |
+| `link-blocks` | `true` | implemented, tested |
+| `add-sub-item` | `true` | implemented, tested |
+| `list-items` | `true` | implemented, tested |
+| `list-sub-items` | `true` | implemented, tested |
 | `capabilities` | `true` | generated, complete |
 
 A verb declared `false` exits `6` at the core capability gate with a clear message:

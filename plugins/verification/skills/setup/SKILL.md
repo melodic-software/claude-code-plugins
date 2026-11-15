@@ -38,8 +38,9 @@ Report a PASS/INFO/WARN table. Do not write anything.
    value, null, a key the schema does not list, a file that does not parse, a list or map, a
    symlink or hard link), quoting the file, key and value. A key the schema does not list is
    ignored: the other keys keep their PASS lines, so a valid `proof_level` floor beside it counts.
-   A WARN never stops `/verification:confirm`: it names the value,
-   drops the layer and resolves that key's default (`path`, `1`). `apply` is the fix. `/verification:confirm` reads the default
+   A WARN never stops `/verification:confirm`: it names the value and
+   drops the layer; `proof_level` then takes the user option, else `path`, and `live_workers`
+   resolves `1` ([config.md](${CLAUDE_PLUGIN_ROOT}/reference/config.md)). `apply` is the fix. `/verification:confirm` reads the default
    branch's committed copy, so say that a working-tree value takes effect once it is merged there.
 
 ## `apply`

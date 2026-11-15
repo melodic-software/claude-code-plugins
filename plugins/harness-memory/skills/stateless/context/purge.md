@@ -8,22 +8,22 @@ stateless SKILL.md renders its absolute path; put it in place of the placeholder
 command.
 
 For `purge all` (machine-wide): the flow is the same Steps 1–5 with a wider candidate set.
-In Step 1, the candidates are EVERY per-project store from
+In Step 1, the candidates are every per-project store from
 `bash "<skill-dir>/scripts/enumerate-all-projects.sh"` (plus any
 `autoMemoryDirectory` overrides found in the scopes readable from here), not just the current
-project's. Step 2 captures ONE combined manifest across all candidate dirs (the loop already
-takes a list). Step 3 raises ONE combined gate that states the machine-wide total file count
-AND lists every directory with its per-dir count. A machine-wide delete must never ride on a
+project's. Step 2 captures one combined manifest across all candidate dirs (the loop already
+takes a list). Step 3 raises one combined gate that states the machine-wide total file count
+and lists every directory with its per-dir count. A machine-wide delete must never ride on a
 single-project-sounding confirmation. The backup offer applies to the whole manifest (each
 source dir gets its own sibling `.bak-<UTC>/`, same timestamp). Steps 4–5 are unchanged.
 
 State this known limit in the combined gate: a project that relocated its store via
-`autoMemoryDirectory` in its own repo's `.claude/settings(.local).json` is NOT discoverable
+`autoMemoryDirectory` in its own repo's `.claude/settings(.local).json` is not discoverable
 from enumeration (only that repo's settings scopes know), so its store is absent from the
 manifest and survives `purge all`. Say so in the gate ("relocated per-repo stores are not
 included") and offer to additionally check any repos the user names.
 
-## Step 1: Resolve EVERY candidate directory
+## Step 1: Resolve every candidate directory
 
 We resolve `autoMemoryDirectory` from **every** settings scope present before purging; miss one and
 you purge the wrong place. Which scopes it is read from is in
@@ -42,7 +42,7 @@ the record. So:
 
 ## Step 2: Capture the exact manifest (and flag relocations)
 
-Enumerate the files ONCE into an explicit list, and delete exactly that captured list in Step 4.
+Enumerate the files once into an explicit list, and delete exactly that captured list in Step 4.
 Never re-glob at deletion time (a re-glob reopens a time-of-check/time-of-use gap and can
 delete files created between the manifest and the delete). Capture regular files only (`-type f`
 skips symlinks, so a symlinked `*.md` is never followed):
@@ -89,7 +89,7 @@ paths), and offer an opt-in backup in the same question, e.g.:
 Proceed only on an unambiguous yes. On anything else, abort and change nothing. Never infer
 consent from the original request; the gate is a separate, explicit step.
 
-**A bundled or earlier multi-option answer does NOT satisfy this gate.** Consent that rode
+**A bundled or earlier multi-option answer does not satisfy this gate.** Consent that rode
 along in an upstream flow is materially weaker than this gate's bar: a `/planning:interview` round
 where "purge" was one bullet of a bundled answer, a numbered menu selection (`"1"`) whose option
 happened to include the purge, or a "go stateless and purge" given before the manifest existed. The gate must restate the concrete, now-known scope (file count, directories)
@@ -129,7 +129,7 @@ if [[ "$copied" -ne "$total" ]]; then
 fi
 ```
 
-Proceed to the delete ONLY when `copied == total`. On any shortfall (full disk,
+Proceed to the delete only when `copied == total`. On any shortfall (full disk,
 permissions), abort the purge, report the partial snapshot's path, and change nothing. The
 user can re-confirm a plain no-backup delete afterwards if they still want it.
 `cp -- "$file"` on a manifest entry copies a regular file only (the Step 2 capture was

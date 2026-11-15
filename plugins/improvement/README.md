@@ -3,11 +3,11 @@
 A Claude Code plugin for improving anything, from one method to a whole feature, and knowing why
 the change is better. `find` answers **"what should we improve here, and how do we know?"** with a
 ranked, evidence-cited list. `improve` answers **"make this better"** by shipping one improvement,
-measured against a stated standard, as one small draft PR.
+measured against a stated standard, as one small PR, ready or draft by the repository's open-state rule.
 
 | Skill | What it does |
 |---|---|
-| `/improvement:improve` | Improve-one-thing. Point it at any target (a symbol, file, feature, skill, doc, or process) with an optional focus such as performance, naming, or currency with current upstream guidance. It finds one gap against the repo's written standards (and upstream guidance when the focus asks for it), ships the smallest complete fix as one draft PR within the [PR scope budget](reference/pr-scope-budget.md), and hands larger changes to planning. With no arguments it reads the conversation and confirms target and focus with you first. Runnable unattended on a schedule. |
+| `/improvement:improve` | Improve-one-thing. Point it at any target (a symbol, file, feature, skill, doc, or process) with an optional focus such as performance, naming, or currency with current upstream guidance. It finds one gap against the repo's written standards (and upstream guidance when the focus asks for it), ships the smallest complete fix as one PR (ready or draft by the repository's open-state rule) within the [PR scope budget](reference/pr-scope-budget.md), and hands larger changes to planning. With no arguments it reads the conversation and confirms target and focus with you first. Runnable unattended on a schedule. |
 | `/improvement:find` | Evidence-first improvement finder. Point it at a repo, a feature, a concept, or a process surface, with a vague or specific prompt, and it produces a ranked, evidence-cited list of improvement candidates led by the highest value-to-effort, deliberates on the picked candidate through an interview, and hands off to the planning pipeline. Runnable unattended as a tech-debt-sweep routine. |
 | `/improvement:setup` | Verifies or writes the `.claude/improvement.md` config cascade and reports the effective evidence-source configuration. `check` (default) is read-only across all three layers; `apply` interviews and writes the team file. Key contract: [reference/config.md](reference/config.md). |
 

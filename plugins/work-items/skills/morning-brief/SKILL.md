@@ -431,7 +431,7 @@ label. When none of the configured queue labels exist, the Queues section report
 - `/harness-ops:observability`. Reads locally captured telemetry (OTEL store, hook-event JSONL,
   ccusage). This skill instead reads GitHub-side queue and PR state.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not mutate anything**. No label, comment, merge, or close writes, and no billing,
   budget, plan, policy or Azure setting change.

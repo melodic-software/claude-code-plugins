@@ -1,16 +1,16 @@
 # Book References: Canonical Naming
 
 Single source of truth for how Pat Pattison's four books are cited
-throughout this skill. Every context file references books by SHORT NAME +
+throughout this skill. Every context file references books by short name +
 year. The short name is used inline and in file headers.
 
-## ⚠ WHAT "VERBATIM" COVERS: read this before auditing anything
+## ⚠ What "verbatim" covers: read this before auditing anything
 
-**Verbatim means the WORDS.** Reproduce Pat's examples, exercises, answer keys,
+**Verbatim means the words.** Reproduce Pat's examples, exercises, answer keys,
 tables and analyzed lyrics exactly as printed: no paraphrase, no genericizing,
 no invented substitutes.
 
-**It does NOT mean punctuation glyphs.** ASCII `'` and `"` versus curly `’`
+**It does not mean punctuation glyphs.** ASCII `'` and `"` versus curly `’`
 `“` `”` are typography, not content. This repo is GitHub-flavored Markdown and
 either form is acceptable. The four books are not even consistent with each
 other: the 2009 EPUB prints ASCII apostrophes, the other three print curly.
@@ -76,7 +76,7 @@ Do not "normalize" it.** The same rule is why the 1991 book's chapter titles
 are quoted as printed while its citations read `Chapter 3`.
 
 **A citation that glosses the title is still a citation.**
-`audit-checklist.md:178` reads `Challenge 4 "Writing in Rhythm & Rhyme"` with no
+`audit-checklist.md`'s "Stress & meter" heading reads `Challenge 4 "Writing in Rhythm & Rhyme"` with no
 hash, and that is correct, even though the book's own chapter title is
 `Challenge #4: Writing in Rhythm & Rhyme`. The line is citing the challenge and
 naming it for the reader, in the same shape as the 1991 citation beside it
@@ -119,7 +119,7 @@ which. Never edit one to agree with the other.
 
 ## File-header attribution template
 
-Every `context/*.md` file MUST have a header attributing source books:
+Every `context/*.md` file must have a header attributing source books:
 
 ```markdown
 # <Concept name>
@@ -143,7 +143,7 @@ or, with the attribution as a lead-in:
 > "<quote ≤25 words>"
 
 Do not write `"<quote>" (Pat Pattison, *Book*, Chapter N)`. A parenthetical
-attribution is an interruption wearing a different mark.
+attribution interrupts the sentence the way an em dash does.
 
 Or shorter inline cite when book context is already established:
 
@@ -163,7 +163,7 @@ Form and Structure* (1991), Chapter 4 and extends them through five
 stability tiers in *Essential Guide to Rhyming* (2014), Chapters 4-6.
 ```
 
-NOT: "Pat introduces this in Book 1 and extends it in Book 4."
+Not: "Pat introduces this in Book 1 and extends it in Book 4."
 
 ## Public columns + articles (beyond-books context)
 
@@ -186,11 +186,11 @@ Pat Pattison — *What's in a Song* podcast, "Creating Metaphors" episode
 Date when relevant. Citation includes the publication / platform first,
 then the title.
 
-## Vocabulary that is NOT in the four books
+## Vocabulary that is not in the four books
 
 **"Not in the books" and "not Pat's" are different claims. Do not collapse
-them.** An earlier version of this table did, and was wrong. Pat teaches
-outside the books too, and terms he coins in a column are still his.
+them.** Pat teaches outside the books too, and terms he coins in a column are
+still his.
 
 Each corpus count below was measured wrap-safe against the extracted text of all
 four books:
@@ -211,7 +211,7 @@ book edition adopts the terms), which defines both:
 > "We'll call phrases that start after the downbeat back-heavy."
 
 So the correct caveat on these two is **"not in the four books, cite the
-column"**, not "not Pat's". `phrasing.md` had this right before this table did.
+column"**, not "not Pat's".
 
 `central emotion` is a distortion rather than an invention, which is why sweeps
 for fabricated quotes kept missing it. Pat's actual sentence is:
@@ -236,7 +236,7 @@ worked example of the correction.
   only be the 2014 book
 - "Chapter" spelled out forces the AI to pause and verify the chapter
   number, which catches off-by-one errors
-- File headers and inline cites use the SAME naming convention, so a reader
+- File headers and inline cites use the same naming convention, so a reader
   can grep for `Essential Guide to Rhyming (2014)` and find every reference
 
 ## Cross-references

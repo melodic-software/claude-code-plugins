@@ -28,7 +28,7 @@ missed-blocking findings from rung-C3 merges and human merges.
 
 ## Trusted seam (required)
 
-Promotion evidence MUST be resolved through a **trusted seam**: an agent-unwritable bootstrap
+Promotion evidence must be resolved through a **trusted seam**: an agent-unwritable bootstrap
 outside the target repository's blast radius, the same class of surface the autonomy setup skill
 names for security-binding resolution
 (`/autonomy:setup`, "Agent-unwritable bootstrap for security resolution"). Evidence read from repo-local, agent-writable, or otherwise forgeable
@@ -129,12 +129,12 @@ rung is known and before any PR enters the merge-eligible set.
 
 Report the resolution source, each cell's bound→effective pair, and any fail-closed reason in the
 cycle-start config report. Never treat a demotion as a standing rung lower; it is telemetry-driven
-exclusion for the affected class only.
+exclusion at the rungs that need the demoted cell only.
 
 ## Partition interaction
 
 Promotion resolution is a **gate on top of** the existing rung partition, not a substitute for it.
-A PR still requires a close-linked work item, label-enforced class, C5 hold and diff-class check, do-not-merge veto,
+A PR still requires a close-linked work item, the C5 hold and diff check, the do-not-merge veto,
 human blocking feedback withholdings, and every other step-3 rule. Effective-unpromoted
-`C2-auto-merge` makes a C2-mechanical PR ineligible exactly as if the rung were too low; it routes
-to the `safe` per-PR pass, never a merge-capable invocation.
+`C2-auto-merge` makes every PR ineligible at each rung that needs that cell, exactly as if the rung
+were too low; such a PR routes to the `safe` per-PR pass, never a merge-capable invocation.

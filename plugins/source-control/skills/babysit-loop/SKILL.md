@@ -82,11 +82,11 @@ config-resolution reference cited above owns the full token mechanics: why the r
 token, `c3-this-run` being invalid in every config layer, and `babysit_default_tier` never
 supplying this lane's tier ("The one named exception", "No config layer or key ever
 supplies the exception's tokens").
-**And that team-tracked layer is the TARGET repository's, never the caller's.** `<owner/repo>` may
+**And that team-tracked layer is the target repository's, never the caller's.** `<owner/repo>` may
 name a repository other than the current checkout (or the lane may launch from a neutral
 directory), and the config resolver's ambient team layer reads the current git root. So for every
 policy key that can raise behavior (above all the merge rung and its tracked-adoption activation),
-whenever the current checkout is not the target, the lane reads the TARGET repository's tracked
+whenever the current checkout is not the target, the lane reads the target repository's tracked
 `docs/conventions/source-control.yaml` from its default branch (the
 forge's contents read; provider reference: [GitHub](../../reference/providers/github/README.md)).
 For the stop mode, tier, merge rung and grace window, run
@@ -124,8 +124,8 @@ the `c2-mechanical` rung merges a gate-proven PR once that rung's promotion cell
 no work-class label is read, and only the untrusted-provenance hold names a class. Higher rungs
 (`c3-autonomous`, `full-autonomy`) are further tracked-seam flips, recorded and human-ratified, per
 the convention's autonomy ladder. The rung composes with the tier, never overrides it: a merge
-happens only when the resolved babysit-prs tier is merge-capable AND its deterministic gate proves
-the PR ready AND the effective rung's promotion cells are effective-promoted. The cycle's deterministic pre-partition
+happens only when the resolved babysit-prs tier is merge-capable and its deterministic gate proves
+the PR ready and the effective rung's promotion cells are effective-promoted. The cycle's deterministic pre-partition
 (Cycle shape, step 3) enforces the rung: merge-capable invocations only ever receive rung-eligible
 PR refs, never by standing instructions the invoked skill is trusted to honor.
 
@@ -159,7 +159,7 @@ the convention: `loop_started_at` in durable state makes the approaching expiry 
 
 - **Pointer**: when the wakeup ceiling or the loop expiry matters, fetch [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval) and [Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) live.
 
-**Drain (`--drain`).** The lane stops when the cycle-start snapshot shows **0 open PRs AND 0 open
+**Drain (`--drain`).** The lane stops when the cycle-start snapshot shows **0 open PRs and 0 open
 issues** in the target repository. This deliberately outlives the worker lane's exit (all issues
 closed or PR'd), so the merge lane merges the tail. Lane-infrastructure issues never gate
 the drain: the per-lane telemetry tracking issues (the `Lane telemetry: <lane>` title contract,
@@ -291,7 +291,7 @@ The telemetry home is a **per-lane tracking issue in the target repository**, re
 config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match) authored by
 the lane's write identity (the login the upsert script resolves), created with the forge's issue
 creation when none is left (announce the creation). Anyone can open an issue with that title, so
-skip an exact-title match by any other author and name it in the cycle report. Maintain exactly ONE
+skip an exact-title match by any other author and name it in the cycle report. Maintain exactly one
 status comment on it **per lane instance**, sentinel-identified and edited in place (the
 `harness-ops` lane-telemetry contract; one writer identity owns a marker).
 [reference/telemetry-upsert.md](reference/telemetry-upsert.md) owns the upsert itself:
@@ -410,7 +410,7 @@ A trip of an opted-in lane (the floor's **Pause threshold**) also latches `rate_
 at the idle ceiling and starts no new mutating work; clear it on a fresh healthy snapshot after the
 pause end, or on an account switch that resumes the lane. A lane not opted in clears
 `rate_limit_latch`, `paused_until`, and `latched_account` together at cycle start when its block
-carries them (left by the former default-on pause).
+carries them.
 
 While paused, apply the floor's **Account switch** bullet at pause entry, on every wake, and on every
 Monitor tick. The steps, the `latched_account` fingerprint written at pause entry, and the telemetry
@@ -486,7 +486,7 @@ token in them would reach the Bash tool unsubstituted, with no such variable to 
 - **The grace window is an overlay, not a substitute.** Excluding recently-active PRs at cycle
   level does not relax babysit-prs's expected-head pins or HEAD assertions inside the cycle; both disciplines hold at once.
 - **Drain counts issues, not just PRs.** 0 open PRs alone never exits a drain: the worker lane
-  may still be authoring; only 0 open PRs AND 0 open non-excluded issues (or the drain-terminal
+  may still be authoring; only 0 open PRs and 0 open non-excluded issues (or the drain-terminal
   state) ends the loop.
 - **Drain issue-author provenance.** Apply the `work-classes.md` issue-author `C5` test to every non-excluded open issue in the drain snapshot (telemetry and cordoned issues are the excluded ones); failures are human-gated for the terminal exit.
 - **An open telemetry issue is the lane operating, not backlog.** Never work, close, or wait on a `Lane telemetry: <lane>` issue, and never count one against the drain exit.

@@ -287,7 +287,7 @@ refrain can make a broader statement that the verses keep recoloring.
 The chapter attaches an instruction to the rule in the same breath: "Keep your
 verses specific and interesting."
 
-The rule constrains the CHORUS's grammar, not its imagination. Pat first offers
+The rule constrains the chorus's grammar, not its imagination. Pat first offers
 a deliberately dumb prototype to isolate the grammar:
 
 ```text
@@ -330,7 +330,7 @@ consequence from that definition rather than leaving it as etymology:
 This is why the fix for a stagnant chorus is always to develop the verses, never
 to rewrite the chorus first.
 
-Changing the repeat IS available as a last resort when a refrain proves
+Changing the repeat is available as a last resort when a refrain proves
 color-resistant and cannot be neutralized. Chapter 9 does exactly that before
 showing the better repair: *He lost the human race* becomes *He'll lose the
 human race* to survive a future-tense verse:
@@ -1038,7 +1038,7 @@ How will you know? Will you know?
 
 > (I'll leave it to you to fill out the other interrogative pronouns.)
 
-The deletion creates a fragment the listener hears as both repetition AND new
+The deletion creates a fragment the listener hears as both repetition and new
 content. Chapter 6's real-world instance is Joni Mitchell's "Roses Blue," where
 a declarative hides a question:
 
@@ -1139,7 +1139,7 @@ tense-neutralization above.
 > that takes the emotion to a new level. … When you're writing a song, stay alert
 > for chances to ask a question or give a command. It'll engage your listeners.
 
-The repetition is the vehicle; the change of sentence type is the cargo. A
+The change of sentence type is what makes the repetition work. A
 fragment that repeats without changing sentence type is just an echo.
 
 Pat closes the chapter by running the technique on his own prose:

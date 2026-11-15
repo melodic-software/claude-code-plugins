@@ -123,11 +123,14 @@ enforced by that script and covered by `run-state.test.sh`, negative tests inclu
 state digest and the input digest below by `scripts/state-digest.sh`, and §1's identity derivation
 and emitter guard by `scripts/finding-identity.sh`, each with tests beside it.
 
-One clause is enforced by nothing: stale-lease **adoption**, the `owner_epoch` compare-and-set.
-`run-state.sh` writes `owner_epoch` into the lease and names the partial after it, so the epoch is a
-value on disk rather than a notion. But nothing increments it or fences a previous holder, and a run
-performing an adoption is performing it itself. Stated here because the rest of this section reads as
-machinery, and a contract that reads as enforced while nothing enforces it misleads.
+Two clauses are enforced by nothing: stale-lease **adoption**, the `owner_epoch` compare-and-set,
+and the heartbeat's epoch re-read. `run-state.sh` writes `owner_epoch` into the lease and names the
+partial after it, so the epoch is a value on disk rather than a notion. But nothing increments it,
+`lease heartbeat` never compares it with the writer's own, and a run performing an adoption, or
+checking its epoch at a refresh, is performing it itself. The one fence the script applies is at
+`partial append`, which writes to the held epoch's file and exits 3 when the lease has moved on.
+Stated here because the rest of this section reads as machinery, and a contract that reads as
+enforced while nothing enforces it misleads.
 
 **An applying run writes its lease before it takes the lock**, and the order is normative rather
 than incidental: reclamation reads the holder's lease as its second conjunct, so a lock whose lease

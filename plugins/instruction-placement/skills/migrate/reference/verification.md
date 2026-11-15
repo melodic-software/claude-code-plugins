@@ -85,7 +85,7 @@ exfiltration request and gets refused, which proves nothing about the loader.
 never fires the nested trigger; a Read of the `AGENTS.md` itself puts the token in the transcript by
 hand, so the answer stops measuring the loader.
 
-**A trigger Read belongs to a NESTED surface only, and `--tools ""` to a root one.** The recipe
+**A trigger Read belongs to a nested surface only, and `--tools ""` to a root one.** The recipe
 above measures attachment: a nested instruction file attaches when a file in its directory is read,
 so the Read is the event under test and the tool has to be there. A **root** surface needs no such
 event, it is loaded at session start, and there a `Read` tool is a hole in the measurement: with the

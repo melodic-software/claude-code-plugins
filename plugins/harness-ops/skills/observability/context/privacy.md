@@ -49,7 +49,7 @@ Apply just before final stdout / file write, never to the raw JSONL input.
 (`--key=`, `--auth=`, `--encryption-key=`) except named non-secret ones such as `--sort-key=`, quoted assignment values, URL userinfo and control and bidi characters; its token rule leaves out `/` and needs a digit, so
 paths and hook file names stay readable.
 
-## What is NEVER redacted
+## What is never redacted
 
 - File paths (the whole point of `subject` is path-anchored signal)
 - Hook names, event names, exit codes, durations
@@ -59,9 +59,9 @@ paths and hook file names stay readable.
 
 ## Trust boundary
 
-Source files (the hook log root's `sessions/*.jsonl`, `hook-events.jsonl` and its rotated `hook-events.jsonl.1`) sit in a tree that carries its own self-ignoring `.gitignore`. They never leave the repo unless the user explicitly shares the `/harness-ops:observability` report or copies the JSONL elsewhere. A per-session file also carries `file_path` values (repo-relative, or the basename when the file is outside the repo) and, for a `reason`-bearing event, the reason text the hook was given; both pass through the same filter below before any report. Whenever the event log is on, its rows carry `cwd`, `transcript_path` and `scratchpad_dir` (and the other path-valued keys) as the payload's raw absolute values, username and home directory included. The `session_event_log_content` option is off by default; turned on, rows also carry the events' content strings: prompt text, Claude's last message on `Stop` and `SubagentStop`, notification messages, task subjects and descriptions, `PostToolUseFailure` error output, and the other keys data-sources.md lists, limited by the hook's 64 KB read cap: a cut string that follows only scalar members is kept as a prefix with a `<key>_truncated` marker, one that follows a nested value is not recorded, and any row whose payload reached the cap carries `content_truncated: true`. Turn it on only where those files may hold that text. The privacy filter assumes the report MAY be shared (e.g., pasted into chat, attached to issue) and prevents the worst leaks.
+Source files (the hook log root's `sessions/*.jsonl`, `hook-events.jsonl` and its rotated `hook-events.jsonl.1`) sit in a tree that carries its own self-ignoring `.gitignore`. They never leave the repo unless the user explicitly shares the `/harness-ops:observability` report or copies the JSONL elsewhere. A per-session file also carries `file_path` values (repo-relative, or the basename when the file is outside the repo) and, for a `reason`-bearing event, the reason text the hook was given; both pass through the same filter below before any report. Whenever the event log is on, its rows carry `cwd`, `transcript_path` and `scratchpad_dir` (and the other path-valued keys) as the payload's raw absolute values, username and home directory included. The `session_event_log_content` option is off by default; turned on, rows also carry the events' content strings: prompt text, Claude's last message on `Stop` and `SubagentStop`, notification messages, task subjects and descriptions, `PostToolUseFailure` error output, and the other keys data-sources.md lists, limited by the hook's 64 KB read cap: a cut string that follows only scalar members is kept as a prefix with a `<key>_truncated` marker, one that follows a nested value is not recorded, and any row whose payload reached the cap carries `content_truncated: true`. Turn it on only where those files may hold that text. The privacy filter assumes the report may be shared (e.g., pasted into chat, attached to issue) and prevents the worst leaks.
 
-Does NOT defend against:
+Does not defend against:
 
 - Adversarial hook authors deliberately writing secrets to `subject` (write-time deny list is the gate there)
 - File contents already on disk in unrelated paths (out of scope)

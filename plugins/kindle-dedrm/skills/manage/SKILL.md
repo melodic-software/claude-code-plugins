@@ -32,13 +32,13 @@ Output reports: Kindle for PC version, firewall rule presence, ICACLS deny prese
 | `cleanup` | Decommission | Walk through every reversible mutation with per-item Y/N. Default (confirm-each) offers the firewall rule, ICACLS deny, keyfinder, and downloads; `--soft` limits to tools + downloads (keeps the firewall/ICACLS lock and Kindle for PC); `--full` also offers to uninstall Kindle for PC and remove Calibre plugins. The Calibre Library is never offered |
 | `status` | Diagnostic | Same as default empty action |
 
-Smart auto-detect when action is empty: read the `status.sh` JSON, classify state, recommend the most-fitting action OR emit status if classification is ambiguous. Never commit to setup/sync/cleanup without user confirmation when ambiguous.
+Smart auto-detect when action is empty: read the `status.sh` JSON, classify state, recommend the most-fitting action or emit status if classification is ambiguous. Never commit to setup/sync/cleanup without user confirmation when ambiguous.
 
 ## Hard safety rules
 
 Apply across every action. Violating any risks losing the working 2.8.0 setup or stranding the user with an upgraded Kindle that can't be downgraded without re-extracting from a different machine.
 
-- **Never open Kindle for PC while the firewall block is disabled UNLESS the user is actively syncing new books AND has the keyfinder ready to run immediately afterward.** Amazon stages installers aggressively; one open window with internet access is enough to cache an installer that auto-runs on next launch.
+- **Never open Kindle for PC while the firewall block is disabled unless the user is actively syncing new books and has the keyfinder ready to run immediately afterward.** Amazon stages installers aggressively; one open window with internet access is enough to cache an installer that auto-runs on next launch.
 - **Never run the cached installer at `%LOCALAPPDATA%\Amazon\Kindle\updates\KindleForPC-installer.exe`.** This is the auto-update payload that breaks key extraction. Delete it whenever it appears.
 - **Never recommend `--no-confirm` flags or batch-confirm cleanup.** Each reversal is independent; some harder to redo than others (re-pinning Kindle 2.8.0 is easy; re-syncing 50 books isn't). This holds when the user asks for "yes to all": never write, run or hand over a script or command that pipes `yes`, skips the prompts or loops over the reversals without asking.
 - **Never send any of these scripts, keys, or extracted files outside the user's machine.** Personal-use scope only.
@@ -96,7 +96,7 @@ Two further sources are tracked in `reference/sources.md` but have no automated 
 companion article, and the supported-version list in Kindle_Key_Finder's `code/modules/utils.py`.
 Check those by hand when a drift report leaves a question open.
 
-Output: drift report listing each source's status (`current` / `stale` / `unreachable`) and recommended action (`re-download` / `update version pin` / `manual review`). User decides what to act on; update action itself does not apply changes.
+Output: drift report listing each source's status (`[OK]` / `[STALE]` / `[UNREACH]`) and recommended action (`re-download` / `update version pin` / `manual review`). User decides what to act on; update action itself does not apply changes.
 
 When the user accepts a drift recommendation, the re-pin edit is **maintainer work, gated
 on a working-tree checkout**: applying it requires `${CLAUDE_PLUGIN_ROOT}` to be inside a
@@ -141,11 +141,11 @@ Reversal matrix (every row maps a mutation made by setup/sync to its compensatin
 | Calibre KFX Input plugin | Manual via Calibre Preferences → Plugins | Only on `--full`, GUI step |
 | Calibre DeDRM plugin | Manual via Calibre Preferences → Plugins | Only on `--full`, GUI step |
 | Calibre `dedrm.json` (key store) | `rm "$APPDATA\calibre\plugins\dedrm.json"` | Only on `--full` |
-| Calibre Library books (decrypted EPUBs) | NEVER auto-deleted; user keeps these | Manual only, never offered |
+| Calibre Library books (decrypted EPUBs) | Never auto-deleted; user keeps these | Manual only, never offered |
 
-The skill should NEVER offer to delete the user's Calibre Library. Those are the decrypted books the entire workflow exists to produce. This holds when the user asks to wipe it: never run, write or hand over a command or script that deletes it; say the library stays, and that removing it is theirs to do by hand.
+The skill should never offer to delete the user's Calibre Library. Those are the decrypted books the entire workflow exists to produce. This holds when the user asks to wipe it: never run, write or hand over a command or script that deletes it; say the library stays, and that removing it is theirs to do by hand.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Modify books the user does not own. Workflow only processes content already present in `My Kindle Content/`.
 - Distribute extracted EPUBs anywhere off the user's machine.

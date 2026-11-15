@@ -115,9 +115,9 @@ when this pass must stop instead of guessing.
      `<repo root>/tools/work-item-tracker/adapters/<provider>/`; the seam resolves those ahead of
      the bundled pair, so no fork is needed. `/work-items:onboard-adapter` (if installed) generates
      one rather than starting from a blank file.
-3. **Settle the config, all non-secret.** `lease_ttl_hours` (REQUIRED for every provider;
+3. **Settle the config, all non-secret.** `lease_ttl_hours` (required for every provider;
    RECOMMENDED `24`) plus that provider's own subtree, the per-provider key table is in
-   `reference/providers.md`. Interview for each value; for any token, ask for the env-var **NAME**
+   `reference/providers.md`. Interview for each value; for any token, ask for the env-var **name**
    and probe that it resolves in-env at bind time.
    - **Secrets never go in this file**. It is tracked in git. A provider that needs an API token
      references it by env-var name / the repo's secret-store convention from inside its adapter, never
@@ -132,7 +132,7 @@ when this pass must stop instead of guessing.
    file)"). Keep to the YAML subset the seam reads (CONTRACT.md "Setup (binding file)"): block
    mappings and sequences, no flow mappings; quote any string holding a colon followed by a space. Confirm the file still
    parses with `awk -f "${CLAUDE_PLUGIN_ROOT}/skills/triage/scripts/yaml-subset.awk" <file>` (exit
-   `0`), then confirm tracked-not-ignored via the pair: `git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0 (non-zero after a fresh write = "written but untracked: commit it").
+   `0`), then confirm tracked-not-ignored via the pair: `git check-ignore -v` no match and `git ls-files --error-unmatch` exit 0 (non-zero after a fresh write = "written but untracked: commit it").
    **For a seeded provider** (`jira`, `gitea`, `linear`), whether this step wrote the binding or
    step 1 kept it, copy its seed by running
    `bash "${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/seed-copy.sh" <provider>` from the project
@@ -154,7 +154,7 @@ when this pass must stop instead of guessing.
    in the index is a finding to stop and report, never ignore. Ignored and untracked are **two
    independent probes**; a bare `git check-ignore` is silent for an already-tracked path. Run the
    probes as [`reference/personal-override-ignore-probes.md`](reference/personal-override-ignore-probes.md) specifies,
-   including why the ignore verdict must NOT come from `check-ignore -v`'s exit code.
+   including why the ignore verdict must not come from `check-ignore -v`'s exit code.
 
 Example `<home>/work-items.yaml` (`github`; `local-markdown` adds `storage_dir: .work-items` under
 `config`):
@@ -199,7 +199,7 @@ seeding path unreachable by re-running:
 Seeding rows on the empty/absent branch is **opt-in**, satisfied by any one of: the explicit
 `--seed-schedule` argument; an accepted yes/no offer; or an invocation that in its own words asks for
 the schedule to be seeded (e.g. "seed a sensible recurring schedule for this repo"), an explicit
-request IS the opt-in, so honor it without re-asking. Otherwise offer exactly once, before step 7, as a
+request is the opt-in, so honor it without re-asking. Otherwise offer exactly once, before step 7, as a
 single yes/no with **skip marked RECOMMENDED**: name that seeding walks them through one interview per
 candidate item, that the skeleton alone already stops the degradation, and that re-running `apply` (or
 `apply --seed-schedule`) bulk-seeds later at any time. On skip, say so plainly and go to step 10.
@@ -324,11 +324,11 @@ unambiguous; ask only where an item genuinely needs the user.
    when the user renamed an id, drop the old-id row so `due` / `work` never see two rows for the same
    maintenance (which would create duplicate items). Preserve any existing rows the user did not
    touch. Before writing, **verify both reconciliation keys are unique across the whole `items` array,
-   every final `id` AND every final `title`.** On any collision, stop and prompt the user to merge the
+   every final `id` and every final `title`.** On any collision, stop and prompt the user to merge the
    two rows, replace one, or pick a unique value; never write a schedule with a duplicate `id` or
    `title`. Then write it back with the `{"items": [ ... ]}` root. Confirm the file is tracked, not
    ignored.
-11. **Reconcile an existing row's open item when its `id` is renamed OR the row is dropped.** Both
+11. **Reconcile an existing row's open item when its `id` is renamed or the row is dropped.** Both
    operations strand the row's live recurring item (if still open), whose body's
    `<!-- recurring-schedule id=<old id> -->` line
    ([`../../reference/issue-conventions.md`](../../reference/issue-conventions.md) "Recurring marker")
@@ -338,7 +338,7 @@ unambiguous; ask only where an item genuinely needs the user.
    (an id rename additionally risks a duplicate under the new id). A title-only edit strands nothing,
    since the title is not the match key. For each id-renamed or dropped existing row, look up its open
    item (adapter: "List items", `--label <resolved recurring-maintenance label>`, with bodies) and keep
-   only the one whose marker names the OLD `id` exactly. When exactly one exists. **Renamed id:**
+   only the one whose marker names the old `id` exactly. When exactly one exists. **Renamed id:**
    rewrite that marker line to the new `id` (a provider body-edit op, read-modify-write of the whole
    body; GitHub adapter: `gh issue edit <N> -R <owner>/<repo> --body-file ...`, the repository the item id names), or close it (adapter: "Close item") if
    the user is instead retiring the item; **Dropped row:** close that item (adapter: "Close item") with
@@ -422,8 +422,8 @@ neither `github` nor `jira`. In both branches nothing is written without the use
 with no interactive user, leave the key out (detection stays at its key-absent behavior) and
 report INFO naming `/work-items:setup apply` with a user present.
 
-- **`github`: optional won't-do labels.** List the repo's labels (`gh label list --limit 200
-  --json name,description`) and show them with the currently configured
+- **`github`: optional won't-do labels.** List the repo's labels (`gh label list -R <owner>/<repo> --limit 200
+  --json name,description`, the repository `check` probe 2 named) and show them with the currently configured
   `config.github.wont_do_labels`. Explain that a close as "not planned" or "duplicate" already
   counts, and a listed label additionally counts on any close, for repos that mark won't-do with
   a label such as `wontfix`. A suggestion from the names is fine; RECOMMENDED is to keep the
@@ -467,7 +467,7 @@ token resolving in a supporting file or in the Bash tool.
   [plugins manifest reference § Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
   live.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run tracker operations, no item is created, claimed, or closed here. Filing and coordination are
   `/work-items:track` (`add`, `due`, `recheck`), `/work-items:work`, and `/work-items:triage`. `check`

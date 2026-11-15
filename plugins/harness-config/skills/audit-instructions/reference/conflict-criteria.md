@@ -112,7 +112,7 @@ is the set of surfaces the tree can enumerate, and such requests are not in it. 
 window, and a hypothetical request has no residency, no enumerability and no liveness the tree can
 determine. Admitting the axis would either drop that gate and reintroduce the noise it suppresses, or
 need a parallel liveness notion for imagined inputs. The population is also unbounded, so the
-false-negative rate cannot be measured. The owner adjudicated this in #3565 and rejected the reopen. A
+false-negative rate cannot be measured. A
 corpus of realistic prompts to test instruction surfaces against is a different artifact and would be
 filed separately, not as an I15 extension.
 **Claim:** I15 does not adjudicate standing instructions against plausible user requests.
@@ -276,8 +276,7 @@ Three consequences for residency, and each one bounds a pair rather than admitti
   re-injects; a hook registered only for `startup` does not. Treat a pair whose hook half is
   `startup`-only as conditional after a compaction, and say so rather than asserting permanent
   residency. Read the matcher values from
-  [hooks: SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live (as of 2026-10-11;
-  recheck when its matcher values change).
+  [hooks: SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live.
 - **Exit-2 stderr is turn-scoped error feedback, not a standing directive, and only some events
   have an act to block.** Where exit-2 stderr goes varies by event, so read whether Claude, the user
   or nobody sees it from the table below; at most it is a one-turn message, never a standing rule.
@@ -301,7 +300,7 @@ Three consequences for residency, and each one bounds a pair rather than admitti
     Reading any `PostToolUse` handler's exit-2 stderr as a prohibition on the tool it ran
     *after* would manufacture an unsatisfiable conflict against any instruction requiring that
     tool. The tool already ran, and the hook can neither block nor undo it. Registered instead on
-    `PreToolUse`, whose row blocks the tool call, the same handler WOULD enter the comparison set
+    `PreToolUse`, whose row blocks the tool call, the same handler would enter the comparison set
     as the act it blocks.
   - **The event has no row, or the table could not be reached.** Record the surface with its event
     as `blockability-unresolved` and report the pair as such, on the same terms the
@@ -365,9 +364,6 @@ its current behavior:
 
 - **Pointer**: when resolving a session's liveness controls, fetch the section each bullet names
   live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: one of those sections adds, removes or changes a control over which
-  instruction files load or which hooks run.
 
 A pass that skips this gate reports conflicts between instructions one side of which is dead, and
 misses live counterparts that were never inventoried. Both failures are silent, and both are
@@ -561,7 +557,8 @@ exception only a human can trigger is not reachable by an invoked skill, so the 
 
 `scripts/conflict-scan.sh` narrows the quadratic search space to a review queue. It decides only the
 four gates a text scan can decide: distinct files, same entity, opposed polarity, and the opt-in
-filter. It emits `fileA:lineA|fileB:lineB|entity|flags`, always exiting 0.
+filter. It emits `fileA:lineA|fileB:lineB|entity|flags` and exits 0 on every scan, 2 only when `awk`
+or `sort` is absent.
 
 An entity is a CamelCase identifier anywhere, or a single capitalized word **inside backticks**. The
 second form is what reaches single-word tools (`Bash`, `Read`, `Edit`); requiring the backticks is what

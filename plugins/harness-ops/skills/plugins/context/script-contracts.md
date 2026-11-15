@@ -40,7 +40,7 @@ at it rather than restating it.
 
 A second read-only script answers the question `fleet-state.sh` structurally cannot: whether the
 files in a plugin's cache directory actually match the commit its install record claims. Step 5b of
-`sync` and of `audit` calls it ONCE per marketplace:
+`sync` and of `audit` calls it once per marketplace:
 
 ```bash
 "<skill-dir>/scripts/cache-content-check.sh" --marketplace <name> [--scope user|project|all]

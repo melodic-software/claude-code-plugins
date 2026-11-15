@@ -5,7 +5,7 @@ artifacts, do not claim them.
 
 A box is passed when its output is **visible in this response or on disk at a named path**. A box
 named as passed with nothing to show is a failed box. For the source rows, what is shown is a
-citation of what the file settled in THIS line; a filename is not an artifact, and neither is the
+citation of what the file settled in this line; a filename is not an artifact, and neither is the
 claim that the method is known. Every row applies before any line is emitted; the rhyme row
 applies when the line sits in a rhyme position. The rows run in the order work happens: inputs,
 then the rubric's recorded passes, then the skeptic's refutation from a fresh context.
@@ -20,7 +20,7 @@ then the rubric's recorded passes, then the skeptic's refutation from a fresh co
 | Section mode named | stated in this response: does this section SHOW (verse) or TELL (chorus)? |
 | Positional template or stress map marked | the marked line. Or, when a sung melody already exists, the numbered-and-bracketed positional template per [meter](pat-pattison/research/meter.md) "fitting a replacement line to an already-sung melody", never an assertion that it scans. From `/songwriting:meter-prosody` |
 | Rubric cycled per candidate, pass 1 CLEAN | the pass-by-pass result visible in this response, or at the candidate's named path under the song's `variations/`, per [line-edit-rubric](pat-pattison/research/line-edit-rubric.md). Pass 1's artifact is the marked template above; on free-melody work the stress map stands in. Counts are run, not estimated: syllables per word from `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh syllables <word>`, and pass 2's repeated words from a word-frequency count over the draft file (a `sort \| uniq -c` pipeline) |
-| Skeptic refutation returned | the strongest case AGAINST each candidate, visible in this response or at a named path under the song's `variations/`, from a fresh subagent that READ [response-filter](pat-pattison/research/response-filter.md) §2, the marked map, and [line-edit-rubric](pat-pattison/research/line-edit-rubric.md) at those paths. A line survives when its refutation is stated and judged insufficient; a return holding nothing against anything has shown nothing |
+| Skeptic refutation returned | the strongest case against each candidate, visible in this response or at a named path under the song's `variations/`, from a fresh subagent that read [response-filter](pat-pattison/research/response-filter.md) §2, the marked map, and [line-edit-rubric](pat-pattison/research/line-edit-rubric.md) at those paths. A line survives when its refutation is stated and judged insufficient; a return holding nothing against anything has shown nothing |
 
 **Every row except the rubric row may be skipped**, and a skip is **named, with its reason, in
 the output**. A silent skip is the failure, and so is listing a box as passed while its artifact
@@ -47,8 +47,8 @@ melody, no rhyme position, no figure, no voiceprint on disk) are declared and st
 the pass running, not a skip. The response filter's own §1-§8 boxes stay skippable-with-reason.
 
 If a gate's input is missing, invoke the skill that produces it; do not proceed and note the
-absence. Lines written without their inputs are LLM defaults wearing the method's vocabulary,
-which is what the writer rejects. A source row's missing input is a file, so READ it: summarizing
+absence. Lines written without their inputs are LLM defaults that borrow the method's vocabulary,
+which is what the writer rejects. A source row's missing input is a file, so read it: summarizing
 what a craft file probably says, or working from a remembered version, is the same failure as an
 unnamed skip.
 
@@ -56,12 +56,12 @@ unnamed skip.
 
 A self-graded pass is indistinguishable from a real one
 when the same context produced both: a model running the response filter on its own output passes
-itself. So dispatch the skeptic to build the case AGAINST each candidate, and give it nothing but
+itself. So dispatch the skeptic to build the case against each candidate, and give it nothing but
 the candidate batch, the slot's positional template or marked scansion map, and the source paths
 to read: not the reasoning that produced the candidates, not which one you prefer. This is a hard
 boundary, not a default, the same blind-dispatch mechanic that makes
 `/songwriting:object-writing generate`'s fleet work. Its kill rules rank singability and verbosity
-ABOVE cleverness: a clever line that cannot be sung in the slot's length is refuted, not merely
+above cleverness: a clever line that cannot be sung in the slot's length is refuted, not merely
 ranked lower. The pass runs before the writer sees the batch and settles nothing; the writer's
 sing-check is still the last word. Any general subagent honors this today; no agent in this plugin
 is a skeptic, and a preloaded-skill skeptic agent is deliberately not shipped here.

@@ -32,7 +32,7 @@ REFS_LINES=""  # newline-separated `Refs #Y — <why>` bullets for the ## Relate
                 # not a linkage line — see §2.4.1 for routing.
 ISSUE_BODY=""
 if [[ "$ISSUE_NUM" =~ ^[0-9]+$ ]]; then   # the GitHub default needs an issue number
-  # Validate issue exists in current repo BEFORE shipping `Closes #N`.
+  # Validate issue exists in current repo before shipping `Closes #N`.
   # GitHub auto-close only fires when the issue exists, lives in this repo,
   # and is open at merge time. A typo'd branch like
   # `feat/99999-foo` would otherwise ship a misleading `Closes #99999` line.
@@ -97,8 +97,9 @@ from `gh api "repos/{owner}/{repo}/issues/${REFS_NUM}"` (state `open`) and the s
 repository gh resolves for the **current directory**, which in a fork checkout can be upstream
 ([target repository](../README.md#target-repository)). Once `target-repo.sh` has resolved the
 checkout's repository, the calls below name `$REPO` and the exported `GH_REPO` expands the
-placeholders. Before that, out of tree, run a placeholder call from the worktree
-(`( cd "$WT" && gh api … )`) or prefix `GH_REPO=<owner>/<repo>`.
+placeholders. Before that, out of tree, write the repository into the path
+(`gh api "repos/<owner>/<repo>/…"`) in place of the placeholders; when only the worktree is known,
+resolve the repository from it first with `target-repo.sh --dir "$WT"` (below).
 
 ## Body overrides the template
 
@@ -180,7 +181,7 @@ In a sandboxed session, take identity from the create response, or re-read it wi
 
 Resolve the repository for the worker's checkout, not the orchestrator's:
 `REPO=$(bash "<skill-dir>/scripts/target-repo.sh" --dir "$WT") || exit 1`, then
-`export GH_REPO="$REPO"`. `gh pr create` MUST pass `--head "$BRANCH"` explicitly, since the
+`export GH_REPO="$REPO"`. `gh pr create` must pass `--head "$BRANCH"` explicitly, since the
 invoker is not on the branch:
 
 ```bash
@@ -200,14 +201,13 @@ namespaced:
 
 ```bash
 BASE_REPO="<base-owner>/<repo>"                # the PR's target, not the push destination
-PR_JSON=$(GH_REPO="$BASE_REPO" gh api --method POST "repos/{owner}/{repo}/pulls" \
+PR_JSON=$(gh api --method POST "repos/$BASE_REPO/pulls" \
   -f title="<type>: <description>" -f head="<fork-owner>:$BRANCH" \
   -f base="$BASE" -F body=@"$BODY_FILE" -F draft=true)
 ```
 
-`GH_REPO` overrides the cwd-derived placeholders, so this form needs no `cd`. On a triangular flow
-resolve `$BASE` through `GH_REPO` too, as
-`BASE=$(GH_REPO="$BASE_REPO" gh api "repos/{owner}/{repo}" --jq '.default_branch')`, never from the
-worktree's own resolution: that reads the default branch of whichever repository gh resolves for
-the checkout, the fork or, where a fork clone recorded `upstream` as gh's default, upstream, and
-neither is guaranteed to be `$BASE_REPO`.
+Naming `$BASE_REPO` in the path needs no `cd` and no `GH_REPO` prefix. On a triangular flow
+resolve `$BASE` from it too, as `BASE=$(gh api "repos/$BASE_REPO" --jq '.default_branch')`, never
+from the worktree's own resolution: that reads the default branch of whichever repository gh
+resolves for the checkout, the fork or, where a fork clone recorded `upstream` as gh's default,
+upstream, and neither is guaranteed to be `$BASE_REPO`.

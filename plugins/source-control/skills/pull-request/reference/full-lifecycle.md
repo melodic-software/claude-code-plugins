@@ -27,7 +27,7 @@ Standalone `create` (not invoked inside `full`) ends after Phase 2, and after Ph
 | CI failure fix proposal | Fix approach has multiple options |
 | Merge confirmation | Irreversible action |
 
-**NOT gates (proceed automatically):**
+**Not gates (proceed automatically):**
 
 | Transition | Just do it |
 |-----------|-----------|
@@ -37,12 +37,12 @@ Standalone `create` (not invoked inside `full`) ends after Phase 2, and after Ph
 | Comment classified INCORRECT → react + reply | Evidence already gathered |
 | Fix pushed → re-monitor | New push = new cycle |
 
-**NEVER auto-proceed on these (even in `full` mode):**
+**Never auto-proceed on these (even in `full` mode):**
 
-| Condition | Why it's NOT a gate pass |
+| Condition | Why it's not a gate pass |
 |-----------|------------------------|
 | CI green + no comments yet | Reviewers may not have posted. Cooldown required |
-| CI green + failing security scan | Security findings MUST be evaluated before merge |
+| CI green + failing security scan | Security findings must be evaluated before merge |
 | CI green + unclassified failures | Every FAILURE needs explicit classification |
 
 In a non-interactive context (cloud session, CI action), minimize gates to merge-only.
