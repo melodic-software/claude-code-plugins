@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.4] - 2026-11-15
+
+### Changed
+
+- The worker role's mechanical-model reason now says the fix-docs measurement's cases did not check whether a fix changed a sentence's meaning, and records a six-case Sonnet 5.5 and Opus 5.5 measurement that left the default on Sonnet.
+
 ## [3.0.3] - 2026-11-15
 
 ### Changed
