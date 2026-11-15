@@ -59,8 +59,9 @@ Disposition is `take`, `adapt`, `already have`, `reject` or `watch`, with the re
 
 ## The guest talk on code health
 
-One session played Adam Tornhill's GOTO Copenhagen 2026 talk on code that agents can change
-safely. Its claim: agents break unhealthy code more often than healthy code, so code health
+One session played Adam Tornhill's
+[GOTO Copenhagen 2026 talk](https://gotocph.com/2026/speakers/4284/adam-tornhill) on code that
+agents can change safely. Its claim: agents break unhealthy code more often than healthy code, so code health
 gates agent speed. Two papers back it, both with Tornhill as an author:
 
 - Tornhill and Borg, "Code Red: The Business Impact of Code Quality",
