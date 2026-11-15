@@ -2755,9 +2755,13 @@ tokens the driven session of one capture job may spend, cache tokens counted in 
 `upstream-timeout-ms`, and the `betas`, `body-keys` and `block-types` it allows. The capture
 installs the Claude Code version `package-lock.json` pins, the one source of that version. The three
 lists were measured from the driven session's requests; the proxy refuses a value they do not list
-and names it, so the first capture after a version bump says what to add. When the key cannot capture (the
-credit gate skipped it, its probe handed off, or it is empty), `capture-subscription` uploads a
-capture recorded `blocked`: a subscription token cannot go behind the key proxy, so that job runs no
+and names it, so the first capture after a version bump says what to add. Before the credit gate,
+the job's match step runs main's `affected_features.py` over the changed path names the compare API
+lists: a change that touches no feature of main's control skill uploads a capture recorded
+`not-applicable`, and the job reads no key and starts no model session. A read or script that fails,
+or a compare at the API's 300-file limit, leaves the decision to the capture session. When the key cannot capture (the
+credit gate skipped it, its probe handed off, or it is empty), the job uploads a
+capture recorded `blocked`: a subscription token cannot go behind the key proxy, so it runs no
 model, and no fallback job follows it. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
 permission denial uploads nothing, and the run fails. A `fail` with a summary or note matching a
 shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), a `pass` or `pass-notes` holding a
@@ -3727,8 +3731,8 @@ runs on the key, and `check-intent-subscription` runs on the token, on a new run
 `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN` set, the subscription leg hands off once more (a limit stop, a
 credit stop, or a 401 or 402) with no permission denial, and `check-intent-fallback` judges on
 that token on a third runner, recording `fallback-reason` `limit-stop`, `credit-stop` or `auth`;
-with it empty, the subscription leg is the last. `pr-verify-capture` has two jobs: `capture` on
-the key, and `capture-subscription`, which records the capture `blocked` and runs no model
+with it empty, the subscription leg is the last. `pr-verify-capture` has one job, `capture`, on
+the key; when the key cannot capture it records the capture `blocked` and runs no model
 ([Verifier verdict](#verifier-verdict)). The lane sweep's judge, on the `automations`
 role, has the same three legs per unit (`judge`, `judge-subscription`, `judge-fallback`), each
 started by a route job from the previous leg's handoff markers
