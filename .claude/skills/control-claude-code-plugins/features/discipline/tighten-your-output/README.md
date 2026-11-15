@@ -27,7 +27,7 @@ None: the skill only answers in the transcript.
 
 1. Capture `logs` with the prompt
    `/discipline:tighten-your-output In order to be able to run the tests, you will first need to install all of the dependencies.`
-   Result: the driver prints `log: <path> (claude exit 0, apiKeySource <source>)` and exits 0,
+   Result: the driver prints its `log: <path>` line and exits 0,
    and the reply in the `.jsonl` restates the sentence in fewer words.
 2. For a terminal-session entry point, drive it as the driving tool's `skills/invoke` feature with
    the same prompt. Result: the steps there state theirs; the transcript shows the same rewrite.
