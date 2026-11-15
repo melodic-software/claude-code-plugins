@@ -6,6 +6,9 @@ description: "Launch, ready-check, capture and clean up the shop app."
 
 Run the `run-shop` skill (`.claude/skills/run-shop/SKILL.md`).
 
+Data: a new SQLite file per run, created by the `run-shop` skill's migrate and seed steps
+Side by side: yes, each run on its own port
+
 ## Ready
 
 `curl -fsS http://127.0.0.1:8080/healthz`

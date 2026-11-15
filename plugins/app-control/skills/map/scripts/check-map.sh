@@ -37,6 +37,9 @@
 #                      and no `none: <reason>` line; when the hub's `## Mask` is only the hand-off
 #                      line, the target the `Driving tool:` line names is checked instead, and a
 #                      target that cannot be read is a finding
+#   launch-model       the hub's `## Launch` has no unfenced `Side by side: yes` or
+#                      `Side by side: no: <reason>` line, or no `Data: <text>` line (`Data: none:`
+#                      needs a reason); the contract's "The launch model" says what they record
 #
 # A legacy `features/<f>.md` gets the index and link rules only: the contract keeps it working as
 # written. A README.md inside a feature's folder belongs to that feature, not to a new one. Hidden
@@ -438,5 +441,12 @@ if [[ -n "$image_kinds" ]]; then
     [[ "$mask_lines" != 0 ]] || finding mask-missing SKILL.md "## Capture records $image_kinds with no ## Mask line$mask_where"
   fi
 fi
+
+launch_lines="$(section_lines "$dir/SKILL.md" Launch)"
+grep -qiE '^[[:space:]]*side by side:[[:space:]]*(yes([^[:alnum:]]|$)|no:[[:space:]]*[^[:space:]])' <<<"$launch_lines" ||
+  finding launch-model SKILL.md "## Launch has no 'Side by side: yes' or 'Side by side: no: <reason>' line"
+grep -iE '^[[:space:]]*data:[[:space:]]*[^[:space:]]' <<<"$launch_lines" |
+  grep -qviE '^[[:space:]]*data:[[:space:]]*none:?[[:space:]]*$' ||
+  finding launch-model SKILL.md "## Launch has no 'Data: <how a run starts from empty data>' or 'Data: none: <reason>' line"
 
 exit 0

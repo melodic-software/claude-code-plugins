@@ -10,6 +10,7 @@ Skill tool; it reports one that carries more as a finding and runs none of it.
 ## Contents
 
 - Hub
+- The launch model
 - The Ready command
 - Writing the Capture section
 - The Mask section
@@ -32,8 +33,8 @@ optional `## Gotchas`, and an index:
 
 | Section | Holds |
 |---|---|
-| `## Launch` | A pointer to the launch recipe or the one command that starts the app |
-| `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, it is the expected build when the app exposes one, it uses the expected data. Each check in it exits non-zero when it fails, per [The Ready command](#the-ready-command). Also names the telemetry the app exposes |
+| `## Launch` | A pointer to the launch recipe or the one command that starts the app from empty data, and the launch model lines, per [The launch model](#the-launch-model) |
+| `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, the port it answers on belongs to this run's instance, the credentials the run uses are valid, it is the expected build when the app exposes one, it uses the expected data. Each check in it exits non-zero when it fails, per [The Ready command](#the-ready-command). Also names the telemetry the app exposes |
 | `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `animation`, `logs`) the tool that records it, or nothing when the project has none; one row per tier (such as `browser` and `server`) when the kind records differently on each; optionally a `frames` row, per [Writing the Capture section](#writing-the-capture-section) |
 | `## Cleanup` | How to stop what a run started and nothing else |
 | `## Mask` | What a `screenshot` or `video` capture hides, and the values drive looks for in it afterward, per [The Mask section](#the-mask-section). Required when `## Capture` records either kind |
@@ -49,8 +50,9 @@ optional `## Gotchas`, and an index:
 A hub may state, above its sections, the conventions every drive of the app follows, so each agent
 drives it the same repeatable way. Create writes these three, adjusted to the app:
 
-- Start from the baseline: run each feature's `## Reset`, or the launch from empty data, before its
-  first step, never from the state an earlier run left.
+- Start from the baseline: run each feature's `## Reset`, or the launch from empty data
+  ([The launch model](#the-launch-model)), before its first step, never from the state an earlier
+  run left.
 - Name a control by its role and accessible name, or by its label, test id (such as
   `[data-test=basket]`), prompt text or route, never by a styling or structural CSS selector, a
   screen coordinate or tab order, unless the app exposes nothing else.
@@ -113,6 +115,37 @@ in a subfolder too, loads as a command, so a feature file there would be one a m
 could invoke; one folder per command also keeps two commands in one commands folder from sharing
 one `features/` tree.
 
+## The launch model
+
+`## Launch` starts the app the way a user first meets it: from empty data, with the app's own
+migrations run and its seed data loaded, ending in an instance a user could work in. Where the app
+keeps data (a database, a data directory, a config folder), each run gets a new data directory of
+its own, outside the checkout, and the launch points the app at it, never at the state an earlier
+run or the person's own use left. `## Launch` records the model in plain lines outside any fenced
+block:
+
+```text
+Data: <the per-run data directory, and the migrate and seed commands the launch runs>
+Side by side: yes[, <how two instances stay apart, such as a port per run>]
+Session: build once with <build command>; one isolated session per drive, <how>
+```
+
+- `Data: none: <reason>` when the app keeps no data, or when its data cannot start empty, the
+  reason naming why (such as a signed-in account the run must reuse). A launch that cannot start
+  from empty data says so here.
+- `Side by side: no: <reason>` when two instances cannot run at once, such as on a fixed port or a
+  lock on a shared file, so a caller runs one drive at a time.
+- `Session:` for a short-lived command-line or terminal app, one that exits after each use: the run
+  builds it once, then gives each drive its own session, with its own data directory and process,
+  so one drive's state never reaches the next. A long-running server has no `Session:` line.
+
+A hub whose `## Launch` hands off to the driving tool's still writes these lines itself. Every
+value is the project's, kept in its control skill and config; the contract fixes only what the
+lines mean. `/app-control:map check` reports a `## Launch` with no `Side by side:` or no `Data:`
+line (`launch-model`); it cannot tell a short-lived app, so it does not check `Session:`. Basis:
+the launch and readiness rules of pstack's `create-verification-skill`, as the
+[upstream record](../../../docs/upstream/cursor-pstack.md) holds them.
+
 ## The Ready command
 
 Drive and `/testing:run-e2e` read the Ready command's exit status as the verdict, so each check in
@@ -125,6 +158,19 @@ never with the listing alone. A Ready with a url placeholder runs without a shel
 `cli/` command or a script that exits non-zero itself, and name that from Ready.
 `/app-control:map check` reports a Ready command whose last stage is a bare listing, and map's
 proof runs Ready once with the app stopped to show it exits non-zero.
+
+Ready shows a user could use the instance, not only that something answers:
+
+- **Port owner.** The port or socket Ready reaches belongs to this run's instance: for example, the
+  pid listening on the port is the one in drive's launch record, or a health field returns an
+  instance id the launch set. Another process holding the port makes Ready exit non-zero.
+- **Credentials.** Each credential the run uses is valid, shown by one read-only call that needs it
+  (such as a `whoami` request through `cli/`), not only by its variable being set. A credential
+  that can be checked only by signing in is checked at the run's sign-in step, under the Sign-in
+  floor, never by Ready.
+
+A check the app gives no way to make is written in Ready as `<check>: not exposed`, as
+`build: not exposed` is, and drive reports it as a capability gap.
 
 ## Writing the Capture section
 
