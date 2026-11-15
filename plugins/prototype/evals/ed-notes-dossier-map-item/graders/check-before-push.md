@@ -1,6 +1,7 @@
 ---
-type: tool_order
+type: regex
+target: trace
+match: not_contains
 arm: both
-before: { tool: Bash, input_match: 'check-secrets\.sh\s[^|&;>\n]*(?:\.html|prototype-notes\.md|prototype/|42-parcel-card-layout|notes-run|shots)' }
-after: { tool: Bash, input_match: '\bgit\s+(?:-[cC]\s+\S+\s+)*push\b' }
+pattern: '^(?:(?!"name":"Bash","input":\{"command":"(?:[^"\\\n]|\\.)*?check-secrets\.sh\s(?:[^|&;>"\\]|\\[^n]|\\\\\\n)*(?:\.html|prototype-notes\.md|prototype/|42-parcel-card-layout|notes-run|shots))[\s\S])*?"name":"Bash","input":\{"command":"(?:(?!check-secrets\.sh\s(?:[^|&;>"\\]|\\[^n]|\\\\\\n)*(?:\.html|prototype-notes\.md|prototype/|42-parcel-card-layout|notes-run|shots))(?:[^"\\\n]|\\.))*?(?:\b|\\[nt])git(?:\s|\\\\\\n)+(?:-[cC](?:\s|\\\\\\n)+\S+(?:\s|\\\\\\n)+)*push\b'
 ---
