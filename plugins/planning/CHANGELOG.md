@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.4.1] - 2026-11-15
+
+### Changed
+
+- The plan template's domain-specialist guidance cites a skill only when it is among the available skills (enabled, not merely installed), and lists the skills actually available.
+
 ## [5.4.0] - 2026-11-15
 
 ### Added
