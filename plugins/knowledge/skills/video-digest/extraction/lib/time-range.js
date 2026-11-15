@@ -124,6 +124,19 @@ function isFiniteNumber(value) {
 }
 
 /**
+ * The cues that overlap the range, still in full-video time.
+ *
+ * @template {{ startSec: number, endSec: number }} Cue
+ * @param {readonly Cue[]} cues - full-video time
+ * @param {TimeRange} range
+ * @returns {Cue[]}
+ */
+export function cuesInRange(cues, range) {
+  const endSec = range.toSec ?? Number.POSITIVE_INFINITY;
+  return cues.filter((cue) => cue.endSec > range.fromSec && cue.startSec < endSec);
+}
+
+/**
  * The cues that overlap the range, moved into media time (the range's start at 0),
  * for watching to run on the ranged media file.
  *
@@ -134,13 +147,11 @@ function isFiniteNumber(value) {
  */
 export function cuesInMediaTime(cues, range) {
   const endSec = range.toSec ?? Number.POSITIVE_INFINITY;
-  return cues
-    .filter((cue) => cue.endSec > range.fromSec && cue.startSec < endSec)
-    .map((cue) => ({
-      ...cue,
-      startSec: Math.max(0, cue.startSec - range.fromSec),
-      endSec: Math.min(endSec, cue.endSec) - range.fromSec,
-    }));
+  return cuesInRange(cues, range).map((cue) => ({
+    ...cue,
+    startSec: Math.max(0, cue.startSec - range.fromSec),
+    endSec: Math.min(endSec, cue.endSec) - range.fromSec,
+  }));
 }
 
 /**

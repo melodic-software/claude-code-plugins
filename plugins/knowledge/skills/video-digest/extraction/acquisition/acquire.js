@@ -22,6 +22,7 @@ import { allowTranslatedSubs, buildYtDlpArgs } from "./build-yt-dlp-args.js";
 import {
   captionsPendingMessage,
   captionWaitEndedNote,
+  captionWaitSkippedNote,
   decideCaptionWait,
   liveStreamInfo,
 } from "./caption-wait.js";
@@ -302,12 +303,13 @@ async function acquireFullStaged(deps, url, workDir, videoId, source, downloadSe
 
 /**
  * @param {string} url
- * @param {{workDir: string, mode?: AcquisitionMode, source?: SourceAcquisitionDeclarations, videoId?: string, captionWaitDeadline?: string|null, downloadSection?: string|null}} options -
+ * @param {{workDir: string, mode?: AcquisitionMode, source?: SourceAcquisitionDeclarations, videoId?: string, captionWaitDeadline?: string|null, downloadSection?: string|null, skipCaptionWait?: boolean}} options -
  *   `videoId` is the URL-claim id the adapter derived (`matchUrl`); this driver
  *   never re-derives it. `captionWaitDeadline` is the deadline a held queue row
  *   recorded, so the caption wait stays bounded across runs. `downloadSection`
  *   (`*<from>-<to>`) bounds the media download to a time range; captions and
- *   info.json still cover the whole video.
+ *   info.json still cover the whole video. `skipCaptionWait` turns an open wait
+ *   in full mode into a caption-less acquisition with a `captionWait` note.
  * @param {Partial<AcquireDeps>} [deps]
  */
 export async function acquireYouTubeMedia(
@@ -319,6 +321,7 @@ export async function acquireYouTubeMedia(
     videoId,
     captionWaitDeadline = null,
     downloadSection = null,
+    skipCaptionWait = false,
   },
   deps = {},
 ) {
@@ -401,25 +404,29 @@ export async function acquireYouTubeMedia(
     }
   }
 
+  // Full mode holds the downloaded video, so an exhausted ladder proceeds caption-less and the
+  // transcript strategy picks ASR or records a degradation. Transcript mode has no media and stops.
+  const captionOptional = mode === "full" && Boolean(artifacts.videoPath);
+
   // A live-derived video's captions can still be in post-stream processing: hold it while
-  // the wait is open, in either mode, rather than stop or digest caption-less.
+  // the wait is open, in either mode, rather than stop or digest caption-less. A caller
+  // that can transcribe the downloaded media itself skips the hold.
   /** @type {import('./caption-wait.js').CaptionWaitDecision} */
   let captionWait = { state: "none" };
+  let captionWaitNote = "";
   if (!captionResult.success) {
     captionWait = await readCaptionWait(artifacts.metadataPath, readFile, {
       deadline: captionWaitDeadline,
       nowMs: now(),
     });
-    if (captionWait.state === "wait") {
+    if (captionWait.state === "wait" && skipCaptionWait && captionOptional) {
+      captionWaitNote = captionWaitSkippedNote(captionWait);
+    } else if (captionWait.state === "wait") {
       return { ...failVideo(captionsPendingMessage(captionWait)), captionWait };
+    } else if (captionWait.state === "expired") {
+      captionWaitNote = captionWaitEndedNote(captionWait);
     }
   }
-  const captionWaitNote =
-    captionWait.state === "expired" ? captionWaitEndedNote(captionWait) : "";
-
-  // Full mode holds the downloaded video, so an exhausted ladder proceeds caption-less and the
-  // transcript strategy picks ASR or records a degradation. Transcript mode has no media and stops.
-  const captionOptional = mode === "full" && Boolean(artifacts.videoPath);
   if (!captionResult.success && !captionOptional) {
     return captionWaitNote
       ? { ...failVideo(`${captionResult.error}; ${captionWaitNote}`), captionWait }

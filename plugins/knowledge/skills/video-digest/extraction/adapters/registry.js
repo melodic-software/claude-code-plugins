@@ -114,14 +114,14 @@ export function resolveSourceAdapter(url) {
  * `acquire` is never called with an unclaimed URL.
  *
  * @param {string} url
- * @param {{workDir: string, mode: 'full'|'transcript', captionWaitDeadline?: string|null, timeRange?: import('../lib/time-range.js').TimeRange|null}} options -
+ * @param {{workDir: string, mode: 'full'|'transcript', captionWaitDeadline?: string|null, timeRange?: import('../lib/time-range.js').TimeRange|null, skipCaptionWait?: boolean}} options -
  *   a `timeRange` the owning adapter cannot honor (no `timeRange` capability) throws
  * @param {object} [deps] - adapter-specific injectable I/O (tests only)
  * @returns {Promise<AcquireOutcome>}
  */
 export async function acquireMedia(
   url,
-  { workDir, mode, captionWaitDeadline = null, timeRange = null },
+  { workDir, mode, captionWaitDeadline = null, timeRange = null, skipCaptionWait = false },
   deps = {},
 ) {
   const adapter = resolveSourceAdapter(url);
@@ -137,6 +137,7 @@ export async function acquireMedia(
     mode,
     captionWaitDeadline,
     ...(timeRange ? { timeRange } : {}),
+    ...(skipCaptionWait ? { skipCaptionWait } : {}),
     deps,
   });
 }
