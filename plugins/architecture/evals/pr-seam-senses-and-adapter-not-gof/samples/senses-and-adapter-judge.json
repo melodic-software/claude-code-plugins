@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "No. The report uses the module-design sense of seam, the only one an architecture finding uses. The tracker seam is one of four other senses this marketplace defines: the provider-neutral interface to a work-item tracker. A spot is a seam when an adapter can be swapped there with no edit, and it has an enabling point. Adapter: no, not the Gang of Four pattern. Here it is the code plugged in at a seam, and it may convert nothing.",
+      "why": "separates the senses and separates the adapter from the pattern"
+    },
+    {
+      "answer": "They are related but not the same. Read the report's seam in Feathers' sense; the tracker seam is a separate defined sense. Does adapter mean the Gang of Four Adapter pattern? No. It is whatever fills the slot at the seam.",
+      "why": "related-but-different wording still separates both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, both are seams in Feathers' sense: places where behavior changes without an edit. An adapter is the code plugged in at a seam, not the Gang of Four pattern.",
+      "why": "says the two seams are the same thing"
+    },
+    {
+      "answer": "The tracker seam is a different sense from the module-design seam. And yes, adapter means the Gang of Four Adapter pattern applied at the seam.",
+      "why": "says the adapter is the Gang of Four pattern"
+    },
+    {
+      "answer": "The tracker seam is a different sense from the module-design seam, which has an enabling point.",
+      "why": "leaves the adapter question unanswered"
+    }
+  ]
+}
