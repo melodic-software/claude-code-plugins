@@ -175,6 +175,8 @@ edit the canonical source, then rerun the script. -->
   /** Turn pick mode on for one kind ("element" or "region"), or off. */
   function setPick(kind) {
     picking = kind && live() ? kind : null;
+    // A pick's instructions are on the Notes tab, so a pick started from the Controls tab shows it.
+    if (picking) selectTab(tabs[0], false);
     for (const [k, b] of Object.entries(buttons)) b.setAttribute("aria-pressed", String(picking === k));
     toFrame({ type: "mode", on: !!picking, kind: picking || "element", max: schema?.properties.elements.maxItems });
     say(picking === "element" ? "Click an element in the mockup to pin a note to it. Esc cancels."

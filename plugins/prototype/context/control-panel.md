@@ -76,7 +76,7 @@ Top-right, fixed, clear of the switcher's bottom-center bar when the prototype h
 same posture as the switcher: harness chrome, not part of the design being judged; neutral,
 unbranded, no project tokens. If a variant occupies the top-right (a toast stack, a menu), move the
 panel to top-left rather than shrinking it.
-When the mockup is served through the notes host, its control panel is the dock's Controls tab.
+When the mockup carries the controls manifest and is served through the notes host, its control panel is the dock's Controls tab.
 
 ## Replay
 

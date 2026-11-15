@@ -2947,6 +2947,12 @@
       ]}},
       {"why": "a range default at its maximum, with no step", "manifest": {"controls": [
         {"id": "width", "label": "Width", "group": "layout", "type": "range", "target": "--width", "min": 320, "max": 1280, "default": "1280"}
+      ]}},
+      {"why": "a range default written 1.0, a number inside its bounds that the field reads back as 1", "manifest": {"controls": [
+        {"id": "scale", "label": "Scale", "group": "shape", "type": "range", "target": "--scale", "min": 0, "max": 2, "step": 0.1, "default": "1.0"}
+      ]}},
+      {"why": "a range with no min or max and a default inside the unset bounds 0 to 100", "manifest": {"controls": [
+        {"id": "opacity", "label": "Opacity", "group": "color", "type": "range", "target": "--opacity", "unit": "%", "default": "80"}
       ]}}
     ],
     "invalid": [
@@ -2979,6 +2985,15 @@
       ]}},
       {"why": "a toggle default outside its options", "manifest": {"controls": [
         {"id": "dense", "label": "Dense", "group": "layout", "type": "toggle", "target": "data-control-dense", "options": ["off", "on"], "default": "yes"}
+      ]}},
+      {"why": "a range with no max whose default is above the unset max of 100", "manifest": {"controls": [
+        {"id": "max-width", "label": "Max width", "group": "layout", "type": "range", "target": "--max-width", "unit": "px", "default": "960"}
+      ]}},
+      {"why": "a select default of the empty string, which is none of its options", "manifest": {"controls": [
+        {"id": "font", "label": "Typeface", "group": "typography", "type": "select", "target": "--font", "options": ["serif", "sans-serif"], "default": ""}
+      ]}},
+      {"why": "a radio default of the empty string, which is none of its options", "manifest": {"controls": [
+        {"id": "align", "label": "Alignment", "group": "layout", "type": "radio", "target": "data-control-align", "options": ["start", "center"], "default": ""}
       ]}},
       {"why": "two controls sharing an id", "manifest": {"controls": [
         {"id": "gap", "label": "Gap", "group": "spacing", "type": "range", "target": "--gap", "min": 0, "max": 48, "default": "12"},

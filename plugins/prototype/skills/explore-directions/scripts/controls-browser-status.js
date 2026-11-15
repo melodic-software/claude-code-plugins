@@ -12,8 +12,10 @@ async page => {
     ok("no manifest control is rendered", await page.locator("#controls-list .uifc-row input:not([type=checkbox]), #controls-list select").count() === 0);
     ok("the data controls stay", await page.getByRole("button", { name: "seed 10" }).count() === 1);
     await page.goto("__FILE__");
-    await page.waitForTimeout(300);
-    ok("opened alone, the page draws no panel from the same manifest", await page.locator('aside[aria-label="Controls"]').count() === 0);
+    const alone = page.locator('aside[aria-label="Controls"]');
+    await alone.waitFor({ timeout: 3000 }).catch(() => {});
+    const line = (await alone.count()) ? await alone.textContent() : "";
+    ok("opened alone, the page shows the same reason in a one-line panel and draws no control", line.includes("__WANT__") && await alone.locator("input, select").count() === 0, line);
   } catch (e) {
     R.push("ERROR " + String(e).split("\n")[0]);
   }

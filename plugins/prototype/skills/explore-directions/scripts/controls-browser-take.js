@@ -41,11 +41,14 @@ async page => {
     await page.keyboard.press("n");
     ok("N shows the dock again on the Controls tab, the focus on that tab", await page.isVisible("#controls-panel") && (await focused()) === "tab-controls", await focused());
     await page.keyboard.press("r");
+    ok("R from the Controls tab starts the pick on the Notes tab, its instructions in view", await selected("#tab-notes") === "true"
+      && await page.isVisible("#status") && /Drag a box/.test(await page.textContent("#status")), await page.textContent("#status"));
     await page.keyboard.press("ArrowRight");
     await page.keyboard.press("ArrowRight");
-    ok("during a region pick the arrows on a focused tab move the region, not the tabs", await page.getAttribute("#region", "aria-pressed") === "true" && await selected("#tab-controls") === "true");
+    ok("during a region pick the arrows on a focused tab move the region, not the tabs", await page.getAttribute("#region", "aria-pressed") === "true" && await selected("#tab-notes") === "true");
     await page.keyboard.press("Escape");
     ok("Esc ends that pick", await page.getAttribute("#region", "aria-pressed") === "false");
+    await page.click("#tab-controls");
 
     ok("the tab lists the manifest's five controls and says where they came from", /^5 control\(s\)/.test(await page.textContent("#controls-status")), await page.textContent("#controls-status"));
     ok("a manifest label holding markup is shown as text and makes no element", (await page.$$("#controls-panel img")).length === 0
@@ -84,7 +87,8 @@ async page => {
 
     await page.focus("#tab-controls");
     await page.keyboard.press("p");
-    ok("P starts a pick from the Controls tab, which stays selected until a note opens", await selected("#tab-controls") === "true" && await page.getAttribute("#pick", "aria-pressed") === "true");
+    ok("P from the Controls tab starts the pick on the Notes tab, its instructions in view", await selected("#tab-notes") === "true" && await page.getAttribute("#pick", "aria-pressed") === "true"
+      && await page.isVisible("#status") && /Click an element/.test(await page.textContent("#status")), await page.textContent("#status"));
     await inFrame.locator('[data-variant="A"] [data-testid="team-member-row"]').nth(1).click();
     await page.waitForSelector("#composer:not([hidden])", { timeout: 5000 });
     ok("a picked element opens the note on the Notes tab", await selected("#tab-notes") === "true" && await page.isVisible("#composer"));

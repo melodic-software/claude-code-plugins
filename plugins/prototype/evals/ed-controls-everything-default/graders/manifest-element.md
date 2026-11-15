@@ -2,5 +2,5 @@
 type: regex
 target: trace
 arm: with-only
-pattern: '"name":"(?:Write|Edit)","input":\{[^\n]*?<script(?=[^>]*type=\\"application/json\\")[^>]*id=\\"prototype-controls\\"|"name":"Bash","input":\{(?=[^\n]*?(?:<<|\btee\b|\s>>?\s))[^\n]*?<script(?=[^>]*type=\\"application/json\\")[^>]*id=\\"prototype-controls\\"'
+pattern: '"name":"(?:Write|Edit)","input":\{(?=[^\n]*?"file_path":"[^"]*\.html")[^\n]*?<script(?=[^>]*type=[\\"\x27]+application/json)[^>]*id=[\\"\x27]+prototype-controls|"name":"Bash","input":\{"command":"(?=(?:[^"\\]|\\.)*?(?:>>?\s*(?:\\"|\x27)?[^\s"\\\x27]*\.html|\btee\b(?:\s+-a)?\s+(?:\\"|\x27)?[^\s"\\\x27]*\.html|\bsed\s+-i|\.write(?:_text)?\())(?:[^"\\]|\\.)*?<script(?=[^>]*type=[\\"\x27]+application/json)[^>]*id=[\\"\x27]+prototype-controls'
 ---

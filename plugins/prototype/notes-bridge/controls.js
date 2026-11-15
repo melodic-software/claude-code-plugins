@@ -3,7 +3,8 @@
 // The controls runtime for a non-final page (docs/contracts/ui-feedback, "Controls"). One registry maps each control type
 // of controls.schema.json to its renderer and its value reader; the page's manifest, the JSON in its script element of
 // type application/json with id prototype-controls, is the one list of what can vary. A page inlines this file
-// whole: opened alone it draws its own panel top-right, and framed by the notes host page it draws nothing, since the
+// whole: opened alone it draws its own panel top-right, or top-left by the manifest's placement (or one line saying why
+// its manifest was refused), and framed by the notes host page it draws nothing, since the
 // host page renders the same registry in its Controls tab and the frame helper (proto-pin.js) sets values here. Every
 // string a control shows reaches the screen through textContent or a form field's value, never as markup.
 (() => {
@@ -56,11 +57,15 @@
     try { return s ? JSON.parse(s.textContent) : null; } catch { return false; }
   }
   /** Why `c` cannot hold `v`, or null when it can: its own field, set to `v`, must read `v` back (so a color the picker
-   *  cannot show, a number off the range or its step, or a choice outside the options does not fit), and a toggle needs
-   *  two options. The one check of a control's values beside the schema. */
+   *  cannot show, a number off the range or its step, or a choice outside the options does not fit; a range compares
+   *  the numbers, so 1.0 fits as 1 does), a select or radio value must be one of its options, and a toggle needs two
+   *  options. The one check of a control's values beside the schema. */
   function misfit(c, v, doc = document, what = "the value") {
     if (c.type === "toggle" && c.options?.length !== 2) return `${c.id}: a toggle needs two options`;
-    return TYPES[c.type].read(TYPES[c.type].render(doc, { ...c, dom: "" }, v), c) === v ? null : `${c.id}: its field cannot hold ${what}`;
+    const back = TYPES[c.type].read(TYPES[c.type].render(doc, { ...c, dom: "" }, v), c);
+    const fits = c.type === "range" ? v.trim() !== "" && Number(back) === Number(v)
+      : back === v && (!["select", "radio"].includes(c.type) || !!c.options?.includes(v));
+    return fits ? null : `${c.id}: its field cannot hold ${what}`;
   }
   /** Why a manifest's controls are refused whole, or null: two share an id, or one cannot hold its default. */
   function refused(list, doc = document) {
@@ -73,8 +78,9 @@
     }
     return null;
   }
+  const typed = m => (Array.isArray(m?.controls) ? m.controls.filter(c => TYPES[c?.type] && c.type !== "action") : []);
   function entries(doc = document) {
-    const list = Array.isArray(manifest(doc)?.controls) ? manifest(doc).controls.filter(c => TYPES[c?.type] && c.type !== "action") : [];
+    const list = typed(manifest(doc));
     return refused(list, doc) ? [] : list;
   }
   const defaults = list => Object.fromEntries(list.filter(c => c.type !== "action").map(c => [c.id, String(c.default ?? "")]));
@@ -139,17 +145,23 @@
   const reset = () => set(defaults(entries()));
 
   /** Opened alone: the page's own panel, harness chrome like the switcher, top-right unless the manifest's placement
-   *  moves it top-left. */
+   *  moves it top-left; a manifest that is not JSON or is refused gets one line saying why. */
   function mount() {
-    const list = entries();
-    if (window.parent !== window || !list.length) return;
+    const m = manifest(), list = entries();
+    if (window.parent !== window || m === null) return;
+    const why = m === false ? "the manifest is not JSON" : list.length ? null : refused(typed(m));
+    if (!list.length && !why) return;
     const aside = el(document, "aside");
     aside.setAttribute("aria-label", "Controls");
     aside.setAttribute("data-harness-chrome", "");
     Object.assign(aside.style, {
-      position: "fixed", top: "12px", [manifest().placement === "top-left" ? "left" : "right"]: "12px", zIndex: "2147483646", maxHeight: "80vh", overflow: "auto", padding: "8px 12px",
+      position: "fixed", top: "12px", [m && m.placement === "top-left" ? "left" : "right"]: "12px", zIndex: "2147483646", maxHeight: "80vh", overflow: "auto", padding: "8px 12px",
       background: "rgb(24 24 27 / 0.92)", color: "#fafafa", font: "12px/1.5 system-ui, sans-serif", borderRadius: "8px",
     });
+    if (why) {
+      aside.textContent = `Controls: refused (${why})`;
+      return document.body.append(aside);
+    }
     let rows = panel(document, list, now(), (c, v) => set({ [c.id]: v }));
     const copy = el(document, "button", { type: "button", textContent: "Copy config" });
     const again = el(document, "button", { type: "button", textContent: "Reset controls" });

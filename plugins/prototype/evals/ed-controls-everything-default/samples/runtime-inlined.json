@@ -11,7 +11,12 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 - <<'PY'\\nopen('/tmp/explore-directions-a1B2c3/explore-directions.html', 'a').write(open('/plugin/notes-bridge/controls.js').read())\\nPY\",\"description\":\"x\"}}]}}",
       "why": "appended by a heredoc script, with no redirect in the command"
-    }
+    },
+    {"answer":"{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat \\\"/plugin/notes-bridge/controls.js\\\" >> \\\"/tmp/explore-directions-a1B2c3/explore-directions.html\\\"\",\"description\":\"x\"}}]}}","why":"appended, with both paths quoted"},
+    {"answer":"{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -i '/<!-- runtime -->/r /plugin/notes-bridge/controls.js' /tmp/explore-directions-a1B2c3/explore-directions.html\",\"description\":\"x\"}}]}}","why":"read into the page by sed -i r"},
+    {"answer":"{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat /plugin/notes-bridge/controls.js | tee -a /tmp/explore-directions-a1B2c3/explore-directions.html >/dev/null\",\"description\":\"x\"}}]}}","why":"appended by tee -a"},
+    {"answer":"{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > /tmp/explore-directions-a1B2c3/explore-directions.html <<'EOF'\\n<!doctype html>\\n<script>\\n(() => {\\n  if (window.uiFeedbackControls) return;\\n  Object.defineProperty(window, \\\"uiFeedbackControls\\\", { value: Object.freeze({}) });\\n})();\\n</script>\\nEOF\",\"description\":\"x\"}}]}}","why":"the page written by a heredoc that holds the runtime's text"},
+    {"answer":"{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 -c \\\"p='/tmp/explore-directions-a1B2c3/explore-directions.html'; s=open(p).read(); open(p,'w').write(s.replace('</body>', open('/plugin/notes-bridge/controls.js').read() + '</body>'))\\\"\",\"description\":\"x\"}}]}}","why":"spliced in by python -c and .write("}
   ],
   "fail": [
     {
@@ -41,6 +46,8 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"wc -l /plugin/notes-bridge/controls.js > /dev/null\",\"description\":\"x\"}}]}}",
       "why": "a redirect that writes no page"
-    }
+    },
+    {"answer":"{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 - <<'PY'\\nprint('uiFeedbackControls' in open('/tmp/explore-directions-a1B2c3/explore-directions.html').read(), len(open('/plugin/notes-bridge/controls.js').read()))\\nPY\",\"description\":\"x\"}}]}}","why":"a read-only python heredoc naming both files"},
+    {"answer":"{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -c uiFeedbackControls /plugin/notes-bridge/controls.js /tmp/explore-directions-a1B2c3/explore-directions.html > /dev/null\",\"description\":\"x\"}}]}}","why":"a grep whose redirect writes no page"}
   ]
 }
