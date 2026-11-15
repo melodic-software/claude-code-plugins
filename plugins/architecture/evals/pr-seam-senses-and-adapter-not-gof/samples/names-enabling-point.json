@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Every seam has an enabling point, the place where the choice of adapter is made."
+    },
+    {
+      "answer": "Without an Enabling Point nothing can be swapped there, so it is not a seam."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A seam is a placement decision: the spot where one adapter comes out and another goes in."
+    },
+    {
+      "answer": "It is a seam when two adapters can be named for it."
+    }
+  ]
+}

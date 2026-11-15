@@ -19,7 +19,9 @@ than restating them. This skill reads no repository code.
 |---|---|
 | What a module, interface, implementation, seam or adapter is, and the word not to use for each | Naming the parts |
 | Deep vs shallow, leverage, locality | Judging a module |
+| A seam's enabling point, and which sense of "seam" a finding uses | Naming the parts, Seam |
 | How the terms connect | How the terms relate |
+| Modular monolith, vertical slice | Architecture styles |
 | Whether to add a seam, where a test may reach, whether a module earns its place, a change that edits many steps | Checks |
 | Where a term comes from | the Basis list at the top |
 
