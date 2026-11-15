@@ -3,6 +3,14 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.11] - 2026-11-15
+
+### Changed
+
+- The recheck trigger for the rule that no agent estimates the two human-attested fields is an
+  eval in the repository showing a model's estimates match human-attested bands. A model release
+  that claims calibrated estimates no longer fires it.
+
 ## [5.0.10] - 2026-11-15
 
 ### Changed
