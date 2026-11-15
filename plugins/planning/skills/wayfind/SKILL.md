@@ -16,7 +16,9 @@ metadata:
 Labels: resolve them first, once per session, with `/work-items:track wayfind-labels`, invoked via
 the Skill tool; the tracker owns where its binding lives and how it is read. `<prefix>` is the
 `prefix` it prints, default `wayfind:`; `<human-gated>` is its `human_gated`, default `needs-human`.
-Its `REFUSED:` reply is a stop: report it, never take the defaults. Every wayfind label is `<prefix>`, a space, then
+Its `REFUSED:` reply is a stop: report it, never take the defaults. So is a reply that shows the
+action table or calls the action unknown: that work-items release predates the action, so ask for
+the plugin to be updated. Every wayfind label is `<prefix>`, a space, then
 its kind (`<prefix> map`, `<prefix> research`), and every label this skill writes or queries uses
 those two values. Report both in one line, each with `(default)` or `(binding)`.
 
