@@ -267,8 +267,12 @@ allows, not a target.
   more responsive than a longer one.
 - Explanatory and marketing motion may run longer than any role.
 - Perceived speed matters as much as real speed: a snappy 180ms dropdown makes the whole app feel
-  faster. A spinner that feels slow even though load time is fixed: spin it faster, because
-  perceived speed counts even when the measured time is unchanged.
+  faster. A spinner that feels slow even though load time is fixed: speed it up when it turns
+  slower than about one rotation every two to four seconds, because perceived speed counts even
+  when the measured time is unchanged. Do not push it toward several rotations a second: on a wait
+  of unknown length a moderate speed felt shorter than a very fast one. Pointer: see
+  [Ding and Kyung, "Optimizing Animation Speed"](https://doi.org/10.1093/jcr/ucaf037) and
+  [Söderström, Bååth and Mejtoft](https://doi.org/10.1145/3232078.3232092).
 
 **Audit: Important.** A duration over its resolved role with no stated reason, on product UI (at
 the defaults, `duration-500`, `duration: 0.5` or `0.6s` on a dropdown or a modal), or a
