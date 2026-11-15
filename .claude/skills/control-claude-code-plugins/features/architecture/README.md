@@ -37,6 +37,8 @@ The `## Reset` of the driving tool's `skills/invoke` feature.
 
 Drive the skill as the driving tool's `skills/invoke` feature, with `<plugin>` set to `architecture` and
 `<skill>` from Parts. The skill's own `plugins/architecture/skills/<skill>/SKILL.md` gives its arguments.
+The action to drive for `improve` is `layout`, so `<args>` is `layout`: the co-change lens reads the
+checkout's git history and reports the candidates it finds.
 
 ## Gotchas
 
