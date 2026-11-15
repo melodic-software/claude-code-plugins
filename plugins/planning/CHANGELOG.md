@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.7] - 2026-11-15
+
+### Changed
+
+- `/planning:interview` now says the round is the turn's last message and where a later note goes, that the mechanism question's basis is the fact behind the mechanism rather than the interview's own rule, and that a definition the session coins gets no terminology-matrix row and no `Basis:` claim and is agreed in a withheld question.
+
 ## [5.1.6] - 2026-11-15
 
 ### Changed
