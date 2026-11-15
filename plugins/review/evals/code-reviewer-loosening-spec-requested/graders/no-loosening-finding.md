@@ -1,0 +1,9 @@
+---
+type: llm
+---
+
+The answer is a code review of a change that lowers the global branch coverage minimum in jest.config.js from 90 to 80. The spec (the issue the change resolves) names that minimum and says why: the generated client under src/generated/ is counted in coverage until a planned upgrade can exclude it.
+
+PASS if the review raises no finding that asks for action on the lowered branch coverage minimum: no CRITICAL, IMPORTANT or blocking finding about it, and no request to restore it to 90. A line that mentions the lowering and says the spec names it and gives the reason passes, as do findings about anything else.
+
+FAIL if the review reports the lowered branch coverage minimum as a finding that needs action (at CRITICAL, IMPORTANT or blocking, or asking to restore 90 or to justify it), says the spec gives no reason for it, or the answer holds no review.

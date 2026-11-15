@@ -12,6 +12,8 @@ file or personal override sets these keys. `/review:setup apply` writes the repo
 | `fanout_diversity` | `lens`, `model`, `codex` | `lens` | `/review:fanout` run-everything steps 3 and 5 and its fallback: `lens` runs one reviewer agent per concern; `model` sends one review prompt to each distinct fan-out model tier of the role map; `codex` runs the surfaces `lens` runs, with no model tiers, and reports the Codex reviewer as the model-diversity panel in a `panel:` line, `skipped` when Codex is absent. Level rule: later layer; the repository layer is skipped when the reviewed change set edits `docs/conventions/review.yaml` |
 | `fanout_act_on_cap` | a whole number, at least `1` | `2` | `/review:fanout` Step 2, both review modes: the report's `## By axis` marks the first this many rows under `### Spec`, and separately the first this many under `### Standards`, `yes` in their `Act on` cell, and every later row `no`; a row listed under `## Dismissed` reads `no` and is not counted; no row is dropped. The default `2` is the smallest cap that kept both planted defects of the two-defect fixtures inside act on in 12 of 12 runs, where a cap of `1` left the second outside it in all 12 (#12505). A user option that is not a whole number of at least 1 is an invalid layer. Level rule: later layer; the repository layer is skipped when the reviewed change set edits `docs/conventions/review.yaml` |
 | `smell_baseline` | `default`, `off`, or a repository-relative path to a `.md` file | `default` | the `code-reviewer` agent's design-smell check: `default` reads the "Baseline" section of [`design-smells.md`](design-smells.md); `off` checks no smells; a path reads the repository's own list, and a missing file, or one the reviewed change set edits, falls back to the shipped baseline, never to `off`. Level rule: later layer; the repository layer is skipped when the reviewed change set edits `docs/conventions/review.yaml` |
+| `loosened_check_verdict` | `fail`, `note` | `fail` | the bundled criterion [Fail a change that loosens a check](../skills/quality-gate/context/loosened-check.md), applied by `/review:quality-gate`'s diff modes, the `code-reviewer` agent and `/review:fanout`'s criteria slices: `fail` makes a loosening the spec does not allow a blocking finding; `note` reports it at the lowest tier. Level rule: policy floor, `fail` in any layer wins; the repository value is read from the default branch |
+| `loosened_check_patterns` | a list of path globs, or `text:` and a regular expression | none | the same criterion: a changed file a glob matches counts as a check's own code or settings; a changed line a `text:` pattern matches is judged against the criterion's kinds. The user option holds the list as JSON text. Level rule: union, every valid layer's entries apply; the repository value is read from the default branch |
 | `council_lanes` | `on`, `off` | `off` | `/review:council`: an unattended run stops with success unless this is `on`; an attended run never reads it. Repository layer only, no user option. Read as the council keys below are |
 | `council_max_rounds` | a whole number, at least `1` | `1` | `/review:council` round loop: above `1`, `/review:fanout fix` runs between rounds. Level rule: later layer; council read rule below |
 | `council_scores` | `on`, `off` | `off` | `/review:council` report: `on` adds a mark table by member and round; marks gate nothing. Level rule: later layer; council read rule below |
@@ -67,6 +69,16 @@ on any other name, runs `git fetch origin <default>`, then
 that adds or changes `docs/conventions/review.yaml` on its head therefore cannot switch its own
 probe on. When the fetch fails, the last fetched `origin/<default>` is read and the report says so;
 when no `origin/<default>` exists, the repository layer is skipped and the report says why.
+
+**Policy floor and union: the loosened-check keys.** `loosened_check_verdict` is a policy floor
+the other way round: `fail` from any valid layer wins over `note`, and with no layer setting it the
+key resolves `fail`. `loosened_check_patterns` takes the union of every valid layer's entries, so
+no layer removes another's. Both read the repository value from the default branch's committed copy
+as `downstream_probe` does, so a pull request that edits `docs/conventions/review.yaml` on its head
+can neither relax the verdict nor drop a pattern to narrow its own detection.
+`scripts/loosened-check-settings.mjs --root <root> --ref origin/<default>` resolves both, with
+`--verdict-option` and `--patterns-option` for the user options, and prints each value with the
+layers that set it.
 
 **Root rule.** The repository file is read only when the repository root (`CLAUDE_PROJECT_DIR`,
 else `git rev-parse --show-toplevel`) is inside a git working tree and is neither `$HOME` nor an

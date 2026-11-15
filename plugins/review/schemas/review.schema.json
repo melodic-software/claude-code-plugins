@@ -38,6 +38,17 @@
       "pattern": "^(default|off|(?!/)(?!.*\\.\\.)[^\\s\\\\]+\\.md)$",
       "default": "default"
     },
+    "loosened_check_verdict": {
+      "description": "Policy floor. What the bundled criterion 'Fail a change that loosens a check' makes of a loosening the spec does not allow. fail: a blocking finding. note: a finding at the lowest tier, which blocks nothing. fail in this file or in the user's option wins over note in the other. Read from the default branch's committed copy, so a pull request cannot relax it for its own review.",
+      "enum": ["fail", "note"],
+      "default": "fail"
+    },
+    "loosened_check_patterns": {
+      "description": "The repository's own entries for the bundled criterion 'Fail a change that loosens a check': each a path glob, whose matched files count as a check's own code or settings, or, starting with text:, a regular expression matched against each added or removed line. Every layer's entries apply. Read from the default branch's committed copy, so a pull request cannot drop one for its own review.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "default": []
+    },
     "council_lanes": {
       "description": "The council's lane switch. on: an unattended run (a lane, claude -p, an autonomous loop) may start /review:council in this repository. off: an unattended run stops with success and says the switch is off. An attended run never reads it. Repository only: no user option sets it.",
       "enum": ["on", "off"],

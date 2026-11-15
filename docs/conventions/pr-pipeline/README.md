@@ -2809,8 +2809,10 @@ charge, not subscription spend such as a model, effort or schedule change); then
 verdict, as does unasked-for work on secret values or organization or repository settings.
 Changes to workflows, CI, hooks, scripts, agent instructions and package manifests are judged
 like any other code; a change to the takeover set (the merge gate's HIGH floor) is read with extra
-care and fails only when it lets someone outside the organization gain trust or weakens a check
-beyond what the spec asks. A diff too large to judge whole fails when a part not judged is a
+care and fails when it lets someone outside the organization gain trust; touching one is not a
+defect by itself. A check, permission or
+guard weakened beyond what the spec asks fails the verdict for every change, takeover set or not,
+as the prompt's Safety step says. A diff too large to judge whole fails when a part not judged is a
 workflow, action, script, hook or binary, or a takeover-set file of any type, and passes with
 notes naming the parts not judged when they are all other prose or data. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who

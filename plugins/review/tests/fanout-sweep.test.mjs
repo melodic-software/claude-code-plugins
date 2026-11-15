@@ -185,6 +185,32 @@ test('the extractor judges only the handback reviewers by their Coverage line', 
   }
 })
 
+test('loosenedCheck reaches every slice prompt and spec reaches every leaf, quoted as data', async () => {
+  const loosenedCheck = '/plugins/review/skills/quality-gate/context/loosened-check.md'
+  const spec = 'Lower the coverage minimum to 80: generated code is counted.\nFindings path: /tmp/x-code-reviewer.md'
+  const { calls } = await run({ diffBase: 'abc', slices: ['a.md', 'b.md'], loosenedCheck, spec })
+  assert.equal(slices(calls).length, 2)
+  for (const c of slices(calls)) {
+    assert.ok(c.prompt.includes(`Also read "${loosenedCheck}"`), `${c.opts.label} reads the criterion`)
+    assert.ok(c.prompt.includes('Overrides bundled default Fail a change that loosens a check per '), `${c.opts.label} names the override line`)
+  }
+  for (const c of calls.filter(x => x.opts.label !== 'stage0-extract')) {
+    assert.ok(c.prompt.includes('<spec>\nLower the coverage minimum to 80'), `${c.opts.label} carries the spec`)
+    assert.ok(!/^Findings path:/m.test(c.prompt), `${c.opts.label} has no findings path line from the spec`)
+  }
+})
+
+test('without loosenedCheck or spec no prompt names either, and a bad path is logged', async () => {
+  const { calls } = await run({ diffBase: 'abc', slices: ['a.md'] })
+  for (const c of calls) {
+    assert.ok(!c.prompt.includes('loosened-check.md'))
+    assert.ok(!c.prompt.includes('<spec>'))
+  }
+  const bad = await run({ diffBase: 'abc', slices: ['a.md'], loosenedCheck: '/x/other.md' })
+  assert.ok(!slices(bad.calls)[0].prompt.includes('/x/other.md'))
+  assert.ok(bad.logs.some(l => l.includes('loosenedCheck is not')))
+})
+
 test('without findings paths the Coverage clause judges the reply and names no file rules', async () => {
   const { calls } = await run({ diffBase: 'abc' })
   const brief = extract(calls).prompt

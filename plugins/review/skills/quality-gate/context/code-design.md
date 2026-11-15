@@ -95,6 +95,10 @@ Read in order:
 3. Bundled criteria: <plugin-root>/skills/quality-gate/context/code-design.md, sections
    "Bundled criteria", "The cascade rule", "Exempt from CRITICAL" and "Change amplification".
 4. The change set: <change-set commands>. Read every untracked file it lists.
+5. <plugin-root>/skills/quality-gate/context/loosened-check.md, with the resolved settings <the two
+   value lines>, unless a consumer criterion covers changes that weaken a check; then write
+   "Overrides bundled default Fail a change that loosens a check per <standards file>". The spec,
+   the issue the change resolves: <its text or "none">.
 
 Consumer criteria and severity win over the bundled ones. For each bundled row a consumer file
 contradicts, apply the consumer's rule and write

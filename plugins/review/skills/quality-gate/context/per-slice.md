@@ -22,8 +22,14 @@ Read in order:
    unresolved and decline to grade rather than read an empty diff as clean),
    plus git ls-files --others --exclude-standard (Read any untracked files it lists).
    Bare `git diff HEAD` alone is empty on a clean committed branch.
+4. <plugin-root>/skills/quality-gate/context/loosened-check.md: the bundled
+   criterion "Fail a change that loosens a check", with the resolved settings
+   <the two value lines>. The spec, the issue the change resolves: <its text or "none">.
+   (The dispatcher drops this item when any consumer criteria document covers
+   changes that weaken a check, and adds instead: "Write `Overrides bundled default
+   Fail a change that loosens a check per <that document>`".)
 
-Review every changed file against only that slice's criteria.
+Review every changed file against only that slice's criteria and that bundled criterion.
 
 Report every finding those criteria reach, including ones you are uncertain
 about or consider low-severity. Severity and confidence label each finding;
