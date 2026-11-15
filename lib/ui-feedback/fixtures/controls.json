@@ -26,7 +26,7 @@
           {
             "id": "accent",
             "label": "Accent",
-            "group": "colour",
+            "group": "color",
             "type": "color",
             "target": "--accent",
             "default": "#0d9488"
@@ -2614,7 +2614,7 @@
           {
             "id": "card-gap",
             "label": "Card gap",
-            "group": "color",
+            "group": "colors",
             "type": "range",
             "target": "--card-gap",
             "min": 0,

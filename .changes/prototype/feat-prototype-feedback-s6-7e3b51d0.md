@@ -8,7 +8,7 @@ bump: minor
   arrow keys, Home and End move between them, and the dock button and N still hide and show it.
 - A mockup's controls come from one `prototype-controls` manifest, checked against the new
   `notes-bridge/controls.schema.json`, and are drawn by the controls runtime
-  `notes-bridge/controls.js` with one registry of control types (range, colour, select, toggle,
+  `notes-bridge/controls.js` with one registry of control types (range, color, select, toggle,
   radio). Each control writes a CSS variable or a `data-control-` attribute, on the page or on one
   variant, and shows its value. The Controls tab adds the page's Seed, Clear, Reset, list toggles
   and worst-content toggle as built-in entries, Copy config, and Reset controls, which leaves the

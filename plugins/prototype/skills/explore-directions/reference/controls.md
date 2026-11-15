@@ -28,16 +28,16 @@ Copy config and Reset controls all read it.
 
 - **An existing app:** the CSS custom properties and token files that
   "Find the app's design system" in SKILL.md already reads, each in the schema group it belongs to.
-- **No app:** each variant's declared direction (background, accent, typeface) seeds the colour
+- **No app:** each variant's declared direction (background, accent, typeface) seeds the color
   and typography controls.
 - **Every variant's structural knobs** inside its own arrangement: gap, columns, max width,
   alignment, density. Structure across variants stays the switcher's job, never a control.
 - **Motion:** durations and offsets as ranges, easing as a select of named curves, as the control
   panel's "What goes on the panel" says.
-- A page that has a layout, text and colour has controls in at least the layout, typography and
-  colour groups.
+- A page that has a layout, text and color has controls in at least the layout, typography and
+  color groups.
 
-Pick each control's type by its value: a number on a range, a colour on a colour picker, named
+Pick each control's type by its value: a number on a range, a color on a color picker, named
 choices on a select or radio buttons, on and off on a toggle. The schema's type list is the
 registry's; a type it does not list does not exist.
 
