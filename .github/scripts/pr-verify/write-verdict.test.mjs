@@ -21,6 +21,7 @@ import {
   artifactName,
   buildEvidence,
   buildVerdict,
+  captureLine,
   checkChunk,
   checkKeyLeg,
   failIndexNames,
@@ -176,6 +177,29 @@ test("run-e2e's e2e-summary.json is read into the capture keys, and a summary ou
     summary({ status: "done", reason: null, count: 2 }),
     summary({ status: "ran", reason: null, count: "2" }),
     { ...summary({ status: "ran", reason: null, count: 2 }), affected: undefined },
+  ]) {
+    assert.deepEqual(buildEvidence({ capture }), BLOCKED, JSON.stringify(capture));
+  }
+});
+
+// Issue #16193: a capture the key cannot make records its cause, one of
+// credit stop, empty key or probe handoff, and the verdict names it.
+test("a blocked capture's cause reaches the verdict, and a cause off the list or on another outcome is blocked unreadable", () => {
+  const summary = (capture) => ({ route: "none", app: "claude-code", affected: [], capture, entry_points: [], publishable: [] });
+  for (const cause of ["credit-stop", "empty-key", "probe-handoff"]) {
+    const reason = `why ${cause}`;
+    const built = buildVerdict({ ...ids, capture: summary({ status: "blocked", reason, cause, count: 0 }), output: ok });
+    assert.deepEqual(built.evidence, { capture: "blocked", reason, cause, capture_count: 0, features: [], local_loop: null }, cause);
+    assert.equal(captureLine(built.pr, built.evidence), `::notice title=pr-verify capture::pr=41 capture=blocked cause=${cause}`);
+  }
+  // A blocked capture with no cause recorded (a driver failure, find-capture's miss) says so; other outcomes carry none.
+  assert.equal(captureLine(41, buildEvidence({ captureBlocked: "left no capture artifact for this head" })), "::notice title=pr-verify capture::pr=41 capture=blocked cause=none");
+  assert.equal(captureLine(41, buildEvidence({ capture: summary({ status: "ran", reason: null, count: 1 }) })), "::notice title=pr-verify capture::pr=41 capture=ran");
+  for (const capture of [
+    summary({ status: "blocked", reason: "r", cause: "subscription", count: 0 }),
+    summary({ status: "blocked", reason: "r", cause: null, count: 0 }),
+    summary({ status: "ran", reason: null, cause: "credit-stop", count: 1 }),
+    summary({ status: "not-applicable", reason: "r", cause: "empty-key", count: 0 }),
   ]) {
     assert.deepEqual(buildEvidence({ capture }), BLOCKED, JSON.stringify(capture));
   }
@@ -618,6 +642,11 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     ],
     ["a blocked capture over find-capture's reason", { CAPTURE_FILE: file("capture-2.json", JSON.stringify(blocked)), CAPTURE_BLOCKED: "capture run 900's artifact 5001 did not download a summary" }, { ...blocked, local_loop: null }],
     ["an unparsable capture file", { CAPTURE_FILE: file("bad-capture.json", "{not json") }, BLOCKED],
+    [
+      "a capture the key could not make, with its cause",
+      { CAPTURE_FILE: file("caused.json", JSON.stringify({ route: "none", app: "claude-code", affected: [], capture: { status: "blocked", reason: "the key is empty", cause: "empty-key", count: 0 }, entry_points: [], publishable: [] })) },
+      { capture: "blocked", reason: "the key is empty", cause: "empty-key", capture_count: 0, features: [], local_loop: null },
+    ],
     ["a withheld PR body", { CONTEXT_FILE: file("withheld.json", JSON.stringify({ pr: { number: 41, title: "", body: null } })) }, NO_APP],
     ["an unparsable context file", { CONTEXT_FILE: file("bad-context.json", "{not json") }, NO_APP],
     ["another pull request's context", { CONTEXT_FILE: file("other.json", JSON.stringify({ pr: { number: 42, title: "t", body: "Evidence loop: 2/3" } })) }, NO_APP],
