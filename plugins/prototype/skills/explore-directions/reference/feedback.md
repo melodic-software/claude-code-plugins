@@ -86,6 +86,9 @@ whose `anchor.testid` is on no element of its variant is not found, and its `rec
    finds nothing, the result says `quoteMissing` and the match is not confirmed, because the text
    the person wrote about is gone. A region note's shot is the box the person drew, and `region`
    is set.
+7. A note taken on a mockup with controls carries `controls`, and the script sets them before the
+   anchors run; a false `restored.controls` is a reason to ask, as in step 4
+   ([controls.md](controls.md)).
 
 ## Text and region notes
 

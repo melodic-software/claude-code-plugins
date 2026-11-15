@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "level: standard (default)\nPlan: design-system preview, HTML mockup, variants A to C, states populated, empty.",
+      "why": "report line names the default layer"
+    },
+    {
+      "answer": "level: standard (default; resolver unavailable: node missing)\nPlan: design-system preview, HTML mockup.",
+      "why": "the fallback report line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "level: sketch (prompt)\nPlan: two variants.",
+      "why": "another level"
+    },
+    {
+      "answer": "Here is the mockup with its controls panel.",
+      "why": "no report line"
+    }
+  ]
+}

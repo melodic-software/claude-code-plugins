@@ -56,6 +56,12 @@
           "enum": ["per-variant", "per-state"],
           "description": "per-variant: one handover screenshot per variant. per-state: one more per state."
         },
+        "controls": {
+          "type": "string",
+          "enum": ["brief", "everything"],
+          "default": "brief",
+          "description": "brief: a control panel only for the numbers the brief names. everything: controls for everything that can vary."
+        },
         "offers": {
           "type": "array",
           "items": { "type": "string", "enum": ["review-mode", "real-stack"] },

@@ -57,6 +57,7 @@ in a notice and is not a level, so a `level` naming it is invalid.
 | `states` | yes | `core`, `planned` | `core` builds populated and empty; `planned` builds every state the screen has |
 | `extra_states` | no (`[]`) | list of `narrow-viewport`, `dark-scheme`, `reduced-motion` | states each variant also builds, each the populated state under that condition |
 | `evidence` | yes | `per-variant`, `per-state` | handover screenshots: one per variant, or also one per state |
+| `controls` | no (`brief`) | `brief`, `everything` | `brief` puts on the control panel only the numbers the brief names; `everything` adds controls for everything that can vary ([control panel](../context/control-panel.md)) |
 | `offers` | no (`[]`) | list of `review-mode`, `real-stack` | which offers the run may make when their condition holds |
 | `phrases` | no (`[]`) | list of strings | phrases a request uses to ask for this level's size of run, besides naming the level; never a word a screen's content would use, such as `full` or `quick` |
 

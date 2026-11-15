@@ -28,6 +28,14 @@ an interaction just by dragging it, which shortens the feedback loop and speeds 
 [DialKit](https://github.com/joshpuckett/dialkit) is the default panel in a React project; its
 README lists the controls it ships. Plain `<input type="range">` is fine everywhere else. Don't build a custom panel.
 
+On an explore-directions mockup whose level sets `controls: everything` (the level's definition,
+resolved as [levels.md](../skills/explore-directions/reference/levels.md) says from
+[levels.default.yaml](../reference/levels.default.yaml) and the repository's settings), controls
+for everything that can vary are the default: the panel covers every value that can vary, not only
+the brief's numbers, and "Nothing else" above holds at every other level and in every other skill.
+That panel is the bundled controls runtime drawing one manifest, not a custom panel:
+[controls.md](../skills/explore-directions/reference/controls.md).
+
 ## Two implementation rules
 
 **1. In a DOM or CSS prototype, controls write to CSS variables, not React state.**
@@ -68,6 +76,7 @@ Top-right, fixed, clear of the switcher's bottom-center bar when the prototype h
 same posture as the switcher: harness chrome, not part of the design being judged; neutral,
 unbranded, no project tokens. If a variant occupies the top-right (a toast stack, a menu), move the
 panel to top-left rather than shrinking it.
+When the mockup is served through the notes host, its control panel is the dock's Controls tab.
 
 ## Replay
 
