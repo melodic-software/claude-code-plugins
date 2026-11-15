@@ -17,7 +17,7 @@ one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion r
 [`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
 
 **This block only colors the save-point; nothing here is the dirty-tree gate.** That gate runs its
-own commands at delivery step 1 and reads a git failure as a reason NOT to launch, never carry this
+own commands at delivery step 1 and reads a git failure as a reason not to launch, never carry this
 block's shrug, or its non-`-uall` `git status` output, into it.
 
 ## Purpose
@@ -32,13 +32,13 @@ Same save-point engine as `handoff`, different delivery: `handoff` delivers a ma
 
 ## Hard gate. Launch only on explicit user intent
 
-Launching a detached session is a side effect the user must have asked for. Launch ONLY when the
+Launching a detached session is a side effect the user must have asked for. Launch only when the
 user explicitly requested background delegation: they invoked this skill by name, or asked in words
-("continue this in the background", "keep it moving while I'm away"). NEVER self-elected: the user
+("continue this in the background", "keep it moving while I'm away"). Never self-elected: the user
 merely going AFK, context being heavy, or this skill being model-invoked on a description match is
-NOT authorization. When invoked without that explicit request, produce the save-point, emit the
+not authorization. When invoked without that explicit request, produce the save-point, emit the
 rails resume prompt with the standard `/clear`-then-paste instruction, state that no agent was
-launched because background delegation was not explicitly requested, and STOP. The user can ask
+launched because background delegation was not explicitly requested, and stop. The user can ask
 for the launch or run `/session-flow:continue-in-background` themselves.
 
 ## Arguments
@@ -85,7 +85,7 @@ completion condition, armed as its `/goal`. Settle it while producing the save-p
    a `/goal` is active in this session) → the save-point's goal region holds the condition the
    launch arms. A checkable done condition the user states in this invocation ("done when …")
    is a fresh-goal request: it lands here, with no draft and no confirmation round. When the goal is active here, the report tells the user to run `/goal clear` in
-   this session, which otherwise keeps starting turns after the STOP. When the engine doc's
+   this session, which otherwise keeps starting turns after the stop. When the engine doc's
    condition check ("Check the condition before emitting the region") warns that the condition
    is conversation-bound, or omits the region because the goal is already met, that condition is
    not launched: redraft it as case 2 drafts one and take case 2, or take
@@ -137,7 +137,7 @@ fallback), then:
    specified, and everything else falls through to a deliberate default:
 
    - Prints `true` → there is a work tree; inspect it with the gate below.
-   - Fails *specifically* because this is not a git repository, AND no `WorktreeCreate` hook is
+   - Fails *specifically* because this is not a git repository, and no `WorktreeCreate` hook is
      configured (<https://code.claude.com/docs/en/hooks#worktreecreate>) → there is
      no uncommitted work to protect and no worktree isolation to lose, since we treat
      background sessions there as editing the working directory in place
@@ -145,7 +145,7 @@ fallback), then:
      launch, and state both in the launch report. That hook is the isolation path for non-Git source control, so a configured one,
      or an absence you cannot establish, puts the launched session in a workspace this
      checkout's local changes never reach: that is the default branch below, not this one.
-   - **Anything else** → the tree's state is UNKNOWN, which is not the same as clean → do NOT
+   - **Anything else** → the tree's state is unknown, which is not the same as clean → do not
      launch; fall back exactly as the dirty case does below, reporting what the command said.
      "Anything else" is the default on purpose, and it is wide: a failure for some other reason
      (dubious ownership, a damaged repository, git missing from `PATH`), and also a *successful*
@@ -160,17 +160,17 @@ fallback), then:
    Inspect the tree with `git status --porcelain -uall` in the consuming project (`-uall`
    lists files inside untracked directories individually; the default collapses a brand-new
    handoff directory into one directory entry, which both defeats the exemption below and can
-   hide other dirt behind it) and IGNORE save-point files under the handoff location, the
-   just-written one AND any prior sessions', with the shape-3 hop files under its `archive/`
+   hide other dirt behind it) and ignore save-point files under the handoff location, the
+   just-written one and any prior sessions', with the shape-3 hop files under its `archive/`
    subdirectory counted as save-point files (this skill never commits them; they are
    session-chain artifacts, part of the launch rather than disqualifying dirty state; the
    background session starts in this working directory, so it reads the handoff file before any
    edit moves it into a worktree). Before judging other changes, read the effective
    `worktree.bgIsolation` (below). Unless it is `none`, we treat a background session as editing
-   in an isolated worktree, a fresh checkout, so OTHER uncommitted changes in this checkout would
-   NOT carry into the launched agent's edits (pointer, for when isolation applies and when it is
+   in an isolated worktree, a fresh checkout, so other uncommitted changes in this checkout would
+   not carry into the launched agent's edits (pointer, for when isolation applies and when it is
    skipped: <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>). Any
-   such changes → do NOT launch: report why and fall back to the standard `/clear`-then-paste
+   such changes → do not launch: report why and fall back to the standard `/clear`-then-paste
    instruction (same checkout, dirty state intact), noting the user can commit or stash and
    re-run `/session-flow:continue-in-background`. Exception: launch anyway when the current session already
    runs inside a linked git worktree, where isolation is skipped per the same page.
@@ -185,7 +185,7 @@ fallback), then:
    read cannot find, are not covered: say so in the launch report. A `--settings` value cannot be
    read from files either, so whenever a launch report is written, say the read covered the files
    only. `none` is the value that turns isolation off; the pointer says what it does. When the value is `none`,
-   the "would NOT carry" refusal does not apply, since the launched session sees the uncommitted
+   the "would not carry" refusal does not apply, since the launched session sees the uncommitted
    changes: launch, and state in the launch report that the background session edits this
    checkout in place, alongside the user, so both may touch the same files at once; this holds
    inside a linked worktree too. Any other
@@ -212,8 +212,9 @@ fallback), then:
    Insert `--effort "<level>"` before the prompt argument when "What the launched session
    inherits" below calls for it.
 
-   `--permission-mode auto` is always passed, following the repository's rule to launch
-   unattended local lanes with `--permission-mode auto` (AGENTS.md). We rely on one denied
+   `--permission-mode auto` is always passed, following the marketplace's rule to launch
+   unattended local lanes with `--permission-mode auto` (loop-lane convention, "Permission
+   modes"). We rely on one denied
    action not stopping the launched session, which our probe observed: the denial came back to
    the model as a tool error, the session went on to its next step and ended its turn with no
    prompt, and the denial was in its transcript and `claude logs` output, reaching the final
@@ -243,7 +244,7 @@ fallback), then:
    travels in the process argument list, so it is briefly visible to other local processes
    (`ps`), inherent to `claude --bg "<prompt>"`. The mandatory redaction pass has already
    scrubbed the prompt by this point; this exposure is one more reason secrets never belong in
-   save-point output on ANY path.
+   save-point output on any path.
 3. Report the launch result: the command's output, the agent name, the `claude agents`
    management hint, any launched-session behavior the resumed work depends on (next
    section), and the denied-action statement step 2 defines, never a promise of the final
@@ -255,13 +256,13 @@ fallback), then:
 4. **Launch failure → fall back, never block.** Non-zero exit (e.g. the installed Claude Code
    predates `--bg`) → report the error and fall back to the standard `/clear`-then-paste
    instruction. The save-point already exists; nothing is lost.
-5. **STOP.** The background agent is the continuation; this session terminates the task. Do not
+5. **Stop.** The background agent is the continuation; this session terminates the task. Do not
    monitor, poll, or babysit the launched agent, and do not start new work items.
 
 ## Delivery variant: `--cloud`
 
 Same hard gate, completion condition gate, save-point, `/goal` payload, prompt file, failure
-fallback and STOP, plus one more condition: the user's own words asked for a cloud session.
+fallback and stop, plus one more condition: the user's own words asked for a cloud session.
 Whether a cloud session arms a `/goal` from its first prompt has not been probed, so the report
 says so and tells the user to confirm `◎ /goal active` when they open the session. A request for background work alone
 does not cover it; without that, drop `--cloud` and take the local delivery. Steps 1 to 3
@@ -305,7 +306,7 @@ matches its remote:
 
 ## What the launched session inherits (and what it does not)
 
-The launched agent is a NEW session, not a fork of this one. What it inherits is upstream
+The launched agent is a new session, not a fork of this one. What it inherits is upstream
 behavior; the rules below are ours, built on it.
 
 - **Pointer**: [Manage multiple agents with agent view § Settings and provider](https://code.claude.com/docs/en/agent-view#settings-and-provider)
@@ -313,10 +314,10 @@ behavior; the rules below are ours, built on it.
 
 Our rules:
 
-- **CLI configuration is NOT inherited.** It carries none of the current session's CLI flags
+- **CLI configuration is not inherited.** It carries none of the current session's CLI flags
   (e.g. `--mcp-config`, `--settings`, `--add-dir`, `--plugin-dir`). Mirror onto the launch
   command any such flags the resumed work depends on, and say so in the launch report.
-- **Model and effort are NOT inherited** from the current session's in-conversation choices.
+- **Model and effort are not inherited** from the current session's in-conversation choices.
   They resolve from the launch command's own `--model` / `--effort` flags and, absent those,
   from the settings of the directory it starts in (project/user settings, including `env`
   values such as `ANTHROPIC_MODEL`). When the resumed work depends on a specific model or
@@ -339,7 +340,7 @@ Our rules:
 - **Permission mode is set at launch, not inherited.** Step 2's command always passes
   `--permission-mode auto`, so a directory setting with another default mode does not set the
   launched session's mode.
-- **Directory settings ARE read normally.** The session reads its settings from the directory
+- **Directory settings are read normally.** The session reads its settings from the directory
   it runs in, the same as a fresh `claude` started there.
 
 ## Post-launch enforcement checklist
@@ -350,21 +351,21 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 - [ ] Explicit user intent for background delegation verified (hard gate). Absent intent →
   save-point + `/clear`-then-paste exit, no launch, reason stated
 - [ ] Position panel emitted per the engine doc ("Emit the position panel"), ahead of the rails
-  prompt, OR an explicit line saying the units would not resolve, and none of its text included in
+  prompt, or an explicit line saying the units would not resolve, and none of its text included in
   the prompt handed to the launched agent
 - [ ] Purpose text (when the invocation carried any) applied per the engine doc's tailoring rules
   full path: brief lead, Suggested-skills selection, Remaining-actions order; prompt-only: the
   inline `Purpose:` line between the rails, never discarded (the launched agent receives exactly
-  the rails prompt); a goal-conflicting purpose flagged rather than obeyed; never embedded in the
+  the `/goal` payload); a goal-conflicting purpose flagged rather than obeyed; never embedded in the
   launch command. No purpose given → nothing to tick
 - [ ] Worktree claims handed to the successor ("Produce the save-point"): each worktree whose
-  lock names this session carries the handover before `check-enter` (OR none held)
+  lock names this session carries the handover before `check-enter` (or none held)
 - [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
   `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
   location; effective `worktree.bgIsolation` read before judging other changes, and `none` → launch with the
   edits-this-checkout-in-place warning in the report (`--settings` tier named as not covered);
   otherwise other uncommitted changes without the linked-worktree exception → no launch, reason
-  reported, fallback to `/clear`-then-paste. Positively identified as not a git repository AND no
+  reported, fallback to `/clear`-then-paste. Positively identified as not a git repository and no
   `WorktreeCreate` hook configured → launch, that reading stated in the report; any other
   `rev-parse` result, failing or `false`, and any hook whose absence is not established → state
   unknown, no launch, same fallback
@@ -378,7 +379,7 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   the full path (validated first, exit 0 quoted), or on prompt-only the goal region then the
   resume region, counted within the limit; and the launch result reported (including any non-inherited flags mirrored or worth
   flagging, and step 2's denied-action statement: auto mode may deny an action, the session keeps going past a denial, which
-  is in its transcript and `claude logs`, not promised in the final hand-off), OR the non-zero
+  is in its transcript and `claude logs`, not promised in the final hand-off), or the non-zero
   exit reported with fallback to
   `/clear`-then-paste
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
@@ -433,7 +434,7 @@ context block), the no-inline-prompt rule and the session-persistence env requir
 command, step 2), slug sanitization ("Arguments"), and non-inheritance surprises. Model, effort,
 CLI flags ("What the launched session inherits").
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not launch without explicit user intent**. The hard gate above; the fallback exit is
   the sibling `handoff` skill's `/clear`-then-paste shape

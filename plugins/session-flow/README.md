@@ -1,6 +1,6 @@
 # session-flow
 
-A Claude Code plugin with nineteen skills for managing the lifecycle of a working session. The
+A Claude Code plugin with eighteen skills for managing the lifecycle of a working session. The
 skills answer where you are in the work, how to pause and resume it, how
 to recover it after an interruption, how to leave it durable before the machine goes away, how to
 retire finished work and reconcile the task ledger, where things stand and why, whether the
@@ -183,8 +183,9 @@ project directories the `transcript_scope` option allows (this worktree first by
 before any other project; see "Option details") (excluding the current session's own file, since `/clear` opens a new transcript in the same project
 dir and the pre-clear content is a sibling) for the handoff directive and dashed-rail markers, which
 `reference/save-point.md` documents as a stable detection contract, then a confirm-before-resume
-gate. Handles both output modes (file-based and prompt-only, which writes no file). A shape-2
-handoff file stores its own resume prompt as its final section, so the known-location rung hands
+gate. Handles both output modes (file-based and prompt-only, which writes no file). A shape-2 or
+shape-3 handoff file stores its own resume prompt as its final section, so the known-location
+rung hands
 it back from the file alone via `scripts/save_point.py emit`, no transcript needed; an unfinished
 skeleton (one still carrying fill slots) is named and skipped, never presented as the lost
 handoff. Read-only and redaction-aware: surfaces only the resume prompt and handoff metadata, never
@@ -493,12 +494,13 @@ The skills adapt to the consuming repo rather than imposing structure:
 
 ## Configuration
 
-`userConfig`. Four surfaces are configurable: the **detached observer** (eight keys, all defaulting
-to zero-config behavior; see `reference/observer.md` for full semantics), **audit-sessions**
-(five `audit_sessions_*` keys: store retention, excerpt length, the short-turn word limit, and the
-two drift-check bounds), `cloud_route`, whether the workflow's continuation advice offers a
-cloud session, and `retro_offer`, whether the workflow's wrap-up offers a retro (see the options
-reference below):
+`userConfig`. The **detached observer** has eight keys, all defaulting to zero-config behavior
+(see `reference/observer.md` for full semantics); **audit-sessions** has five `audit_sessions_*`
+keys (store retention, excerpt length, the short-turn word limit, and the two drift-check bounds);
+`cloud_route` and `retro_offer` set whether the workflow's continuation advice offers a cloud
+session and whether its wrap-up offers a retro; eight more keys tune single skills, and
+"Option details" explains `worker_continuation`, `wip_commit`, `retro_lenses` and
+`transcript_scope`. Every key is in the options reference below. The observer keys:
 
 | Key | Default | Effect |
 |---|---|---|

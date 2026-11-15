@@ -55,6 +55,8 @@ records behind these statements live in
   in the action's `claude_args` (`--allowedTools
   mcp__github_inline_comment__create_inline_comment`). Rely on the lane
   wrapper's grant; do not assume this frontmatter installed it.
+  Pointer: how `claude_args` installs and grants the inline-comment server is in
+  the [claude-code-action documentation](https://github.com/anthropics/claude-code-action).
 - The frontmatter's `gh` grants serve a wrapper that runs with Bash. A lane
   that runs without Bash cannot use them: there the files the wrapper names
   ("Inputs" below) are the only source of the diff, and skip-gate items 1, 2

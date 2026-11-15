@@ -20,6 +20,8 @@ history." and skip to step 6.
 
 ### 2. Compute aggregate statistics
 
+Compute them in code over the parsed rows (for example Python's `statistics` module), not by reading the table.
+
 | Dimension | Mean | Median | Min | Max | Trend (last 10) |
 |-----------|------|--------|-----|-----|-----------------|
 | Workflow | | | | | improving/stable/declining |
@@ -64,7 +66,7 @@ under that heading. When the skill runs and stops on an error, put its error lin
 when it stops because `origin/HEAD` is unset, also name `--branch` as the fix the person can rerun
 it with. The step is done when the `Delivery` heading holds the table, the not-read line or the error line.
 
-## What this action does NOT do
+## What this action does not do
 
 - No current-session analysis, no transcript metrics
 - No collect or sweep: the session store under `D/audit-sessions/` is not read

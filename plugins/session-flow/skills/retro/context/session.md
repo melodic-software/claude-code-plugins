@@ -12,12 +12,12 @@ session or after a PR merges.
 
 When handoff save-points exist (the sibling `handoff` skill's directory, meaning the resolved
 `<memory_dir>/handoffs/` (default `.work/handoffs/`), or the consuming repo's documented
-location), the retro analyzes EVERY chained session across
+location), the retro analyzes every chained session across
 `/session-flow:handoff` + `/clear` cycles, not just the current one. The parser walks the chain itself via
 `--chain-from` (newest handoff file → its `previous_handoff` pointer → repeat; breaks cleanly at
 the first entry lacking `session_id`).
 
-**Continuity gate first.** Use `--chain-from` ONLY when the newest handoff belongs to the current
+**Continuity gate first.** Use `--chain-from` only when the newest handoff belongs to the current
 work: this session resumed from it (the resume prompt loaded it), this session wrote it, or its
 `topic` frontmatter and stated goal clearly match the current task. A shared directory can hold
 save-points
@@ -29,40 +29,30 @@ single-session form.
 
 Resolve `SESSION_DATA_DIR` per SKILL.md "Paths", then:
 
-```bash
-PARSER="<plugin-root>/skills/retro/scripts/parse_transcript.py"
+Run each command as its own Bash call, with the plugin root, the session data directory, the
+session id (`printenv CLAUDE_CODE_SESSION_ID`) and every path written out as literal values: no
+variable, loop, `$( )`, redirect or chaining.
 
-# Pick an interpreter that is actually Python 3.10+ (a bare `python` may be older):
-PY=""
-for c in python3 python; do
-  if command -v "$c" >/dev/null 2>&1 \
-     && "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
-    PY="$c"; break
-  fi
-done
+1. Pick an interpreter that is Python 3.10 or newer (a bare `python` may be older): run
+   `python3 -c 'import sys; print(sys.version_info >= (3, 10))'`, and when that fails or prints
+   `False`, the same with `python`. With neither, skip metrics extraction and note why. The
+   parser is stdlib-only.
+2. Find the newest handoff with Glob on `<memory_dir>/handoffs/*-handoff-*.md` and take the last
+   name in sorted order. `<memory_dir>` is the memory-tier root: a working-docs convention you
+   inferred from `CLAUDE.md` / `.claude/rules`, else the plugin default `.work`. It is a root,
+   never a handoffs path, so `/handoffs` is always appended, matching the handoff skill's "Where
+   handoffs live".
+3. Multi-session form, when a newest handoff exists and passes the continuity gate above:
 
-# Single-session form:
-"$PY" "$PARSER" --sessions "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
+   ```bash
+   <python> "<plugin-root>/skills/retro/scripts/parse_transcript.py" --chain-from "<newest handoff>" --current-session "<session id>" --base "<session data dir>"
+   ```
 
-# Multi-session form (handoff chain exists). Derive HANDOFF_DIR from the memory
-# root. Resolution: a working-docs convention you inferred from CLAUDE.md /
-# .claude/rules (pass it as DECLARED_MEMORY_DIR; prose is an inference source) ->
-# the plugin default .work. DECLARED_MEMORY_DIR is a memory-tier ROOT, never a
-# handoffs path directly — HANDOFF_DIR always appends /handoffs below, at every
-# rung, matching the handoff skill's "Where handoffs live".
-MEMORY_DIR="${DECLARED_MEMORY_DIR:-.work}"
-HANDOFF_DIR="$MEMORY_DIR/handoffs"
-NEWEST=$(ls -1 "$HANDOFF_DIR"/*-handoff-*.md 2>/dev/null | sort | tail -1)
-if [[ -z "$NEWEST" ]]; then
-  echo "No handoff files found under $HANDOFF_DIR — falling back to single-session form." >&2
-  "$PY" "$PARSER" --sessions "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
-else
-  "$PY" "$PARSER" --chain-from "$NEWEST" --current-session "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
-fi
-```
+   Otherwise the single-session form, saying so when no handoff file was found:
 
-If `PY` resolves empty (no Python 3.10+ available), skip metrics extraction and note why. The
-parser is stdlib-only.
+   ```bash
+   <python> "<plugin-root>/skills/retro/scripts/parse_transcript.py" --sessions "<session id>" --base "<session data dir>"
+   ```
 
 ### Script contract
 
@@ -71,7 +61,7 @@ usage + rejections, compactions, turn durations, stop reasons, files modified, s
 and, in multi-session form, an `aggregate` block and a `chain_coverage` block. Exit codes:
 0 = success, 1 = warning, 2 = error.
 
-`--sessions` accepts its ids space-separated OR comma-joined; both spell the same list.
+`--sessions` accepts its ids space-separated or comma-joined; both spell the same list.
 
 ### Check chain coverage before presenting
 
@@ -91,7 +81,7 @@ When `ratio` is below ~0.5, say so before presenting the retro. Name `found` and
 offer to re-run with the ids enumerated:
 
 ```bash
-"$PY" "$PARSER" --sessions <sid1> <sid2> ... --base "$SESSION_DATA_DIR"
+<python> "<plugin-root>/skills/retro/scripts/parse_transcript.py" --sessions <sid1> <sid2> ... --base "<session data dir>"
 ```
 
 Do not silently scope a chain retrospective to what the walk happened to reach.
@@ -134,7 +124,7 @@ itself, unless the verification level is `light` or `off` (Phase 2, "Review lens
 
 ## Phase 2: Analyze (qualitative assessment)
 
-Analyze across five dimensions using BOTH Phase 1 metrics AND conversation context. Derive the
+Analyze across five dimensions using both Phase 1 metrics and conversation context. Derive the
 convention baseline from the consuming repo's own instruction files: its `CLAUDE.md`, the
 `.claude/rules/` files relevant to the ecosystems touched this session, and any review-criteria
 docs it names. Read only the relevant ones.
@@ -331,7 +321,7 @@ judged against it." A sentence saying only that the yardstick was not run does n
 Present as a GFM table with a **Scope** column distinguishing:
 
 - **project.** Git-tracked, shared with the team (the repo's `CLAUDE.md`, rules, skills, settings)
-- **personal.** Machine-specific, NOT committed (auto-memory, user settings)
+- **personal.** Machine-specific, not committed (auto-memory, user settings)
 
 | # | Target | Scope | Type | Recommendation | Justification | Priority |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -344,7 +334,7 @@ that would settle it. Contract:
 [`context/recommendation-basis.md`](../../../context/recommendation-basis.md);
 full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label).
 
-### Skill candidate analysis (REQUIRED, always include)
+### Skill candidate analysis (required, always include)
 
 Evaluate whether the session revealed a genuinely repeatable multi-step workflow worth
 encapsulating as a skill:
@@ -367,7 +357,7 @@ between sessions, and a skill written ad hoc at the end of a retro is the one mo
 miss the conventions that playbook exists to carry. It is a knowledge surface with no arguments
 and no actions, so it informs the drafting rather than doing it: there is nothing to hand it.
 
-### Follow-up candidates (REQUIRED, always include)
+### Follow-up candidates (required, always include)
 
 Evaluate whether the session produced follow-up work for the consumer's work-item tracker:
 deferred research, discovered gaps (missing tests, undocumented conventions), research context
@@ -384,12 +374,12 @@ score; until such a set exists for a surface, every change to it waits for the p
 
 - **Personal (not committed):** proposed auto-memory entries, created only on approval
 - **Project (already validated this session):** rule/instruction-file updates codifying what
-  HAPPENED (a gotcha discovered through failures, a convention established through implementation).
+  happened (a gotcha discovered through failures, a convention established through implementation).
   Apply on approval
 - **Queue for follow-up (needs further research):** recommendations beyond what this session
-  validated. List them; do NOT make those changes now
+  validated. List them; do not make those changes now
 
-Apply the team-shared-first lens: if a learning generalizes to ANY contributor, it belongs in a
+Apply the team-shared-first lens: if a learning generalizes to any contributor, it belongs in a
 tracked surface (the repo's instruction files), not personal memory. Reserve auto-memory for facts
 true only for this machine/person.
 

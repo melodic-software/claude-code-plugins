@@ -16,7 +16,7 @@ intent to orchestrate the work about to start, so the triggers get evaluated act
 sitting passively in background rules. That is the default: no paste, no rails, just preloaded
 context.
 
-The same imperatives also **export** as a self-contained, paste-ready brief for targets that LEAVE
+The same imperatives also **export** as a self-contained, paste-ready brief for targets that leave
 the session and therefore inherit none of its context: a spawned subagent/teammate, a fresh session
 you will `/clear` into, or a non-Claude-Code tool. Export is model- and tool-agnostic by
 construction. Nothing in the pasted text depends on a specific model, env var, or repo file.
@@ -28,19 +28,19 @@ Pointers behind each imperative: `context/sources.md`; observed failure modes:
 
 | Action | What it does |
 |---|---|
-| *(default. Optional `<task>`)* | **Prime THIS session.** The standing instructions below are now active for the upcoming task; respond with a terse acknowledgment and, if `<task>` is given, one line orienting to it. Do NOT re-emit the imperatives. Loading them IS the priming. |
+| *(default. Optional `<task>`)* | **Prime this session.** The standing instructions below are now active for the upcoming task; respond with a terse acknowledgment and, if `<task>` is given, one line orienting to it. Do not re-emit the imperatives. Loading them is the priming. |
 | `handoff [compact]` | **Export** the imperatives as a paste-ready dashed-rail brief framed for a fresh session. `compact` = headlines only. |
 | `worker [compact]` | **Export** framed for a spawned worker (prepends the did-not-inherit-context line). `compact` = headlines only. |
-| `coordinator [<area>]` | **Arm THIS session as the one coordinator for `<area>`** to delegate that area's work to workers. The coordinator keeps no store of its own: state lives in the tracker and the repository's durable files, so it creates no store file. It runs on whatever surface the user chooses, a plain CLI session included, so account rotation never strands it. Load `context/coordinator.md` and follow its four rules for the rest of the session. Respond with a terse acknowledgment that names the area and where state lives. |
+| `coordinator [<area>]` | **Arm this session as the one coordinator for `<area>`** to delegate that area's work to workers. The coordinator keeps no store of its own: state lives in the tracker and the repository's durable files, so it creates no store file. It runs on whatever surface the user chooses, a plain CLI session included, so account rotation never strands it. Load `context/coordinator.md` and follow its four rules for the rest of the session. Respond with a terse acknowledgment that names the area and where state lives. |
 
 ## Orchestration imperatives. Standing instructions
 
-At each decision boundary in this task, evaluate these and ACT on a match without waiting to be
+At each decision boundary in this task, evaluate these and act on a match without waiting to be
 told:
 
 1. DELEGATE / FAN OUT. Start with one agent; delegate only when work would flood context, fans
    across genuinely independent paths, or needs a tool-restricted specialist. Decompose by what
-   CONTEXT each piece needs, not by head-count or work-type. Sequential or shared-context steps stay
+   context each piece needs, not by head-count or work-type. Sequential or shared-context steps stay
    in one agent, and one feature is never split across agents. Our operating figure for a fan-out
    is 3–10× one agent's tokens (returns cost context too), and it is a floor: budget a
    research-shaped fan-out above it. Spend it on value + parallelism, not convenience. Pointer: for
@@ -71,16 +71,16 @@ told:
    runs, in what order), and its return repeats both beside the numbers; a measurement whose
    return leaves either out is not evidence. A brief for a worker that writes may state how long
    the work should take, which imperative 4 uses.
-3. FRESH-CONTEXT VERIFY, after an edit batch or a finding set, hand it to a SEPARATE verifier;
+3. FRESH-CONTEXT VERIFY, after an edit batch or a finding set, hand it to a separate verifier;
    never self-audit in the context that produced it. Give the verifier concrete pass/fail criteria
    ("run the full suite, report all failures"), scope it to correctness/requirements (not style),
-   and judge the final STATE, not the process, an uncriteriaed verifier just rubber-stamps. When
+   and judge the final state, not the process, an uncriteriaed verifier just rubber-stamps. When
    the verdict is high-stakes, prefer a different-vendor advisor when one is set up and able to
    judge this artifact, its blind spots are uncorrelated with yours, with the fresh-context
    same-vendor verifier as the fallback. A `light` or `off` verification level, where the session resolved
    one, skips this verifier. Scope it to what ships: a process record about the work
    (ledger, checklist, status log) is not the work and gets no verifier, however many of them a
-   batch touched, and a record OF a verification is never itself verified, that loop feeds itself.
+   batch touched, and a record of a verification is never itself verified, that loop feeds itself.
 4. RUN WORKERS WELL. Dispatch without blocking, and keep a worker across subtasks where the
    runtime allows; watch each worker and step in when it drifts. Pointer:
    [Parallel subagents](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#parallel-subagents).
@@ -107,7 +107,7 @@ told:
    chosen per work item by the execution-target contract
    (`docs/contracts/execution-target/README.md` in the marketplace repository).
 5. NESTED SUBAGENTS, a worker may spawn its own workers when a delegated task itself subdivides
-   AND the depth is non-load-bearing. Reliability
+   and the depth is non-load-bearing. Reliability
    degrades with depth and platforms cap it (for the cap, see
    <https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents>), so never author a tree that needs a specific or deep
    nesting level.
@@ -126,7 +126,7 @@ told:
    small/medium/large, a small ask stays single-agent, a medium one fans out a few, only a large
    genuinely-independent surface earns a wide or nested tree. Single-agent is the floor, not the
    fallback. Per-worker tier is part of sizing and follows the work: mechanical work runs on the
-   cheaper tier, which a wide mechanical fleet inherits as its DEFAULT because volume multiplies
+   cheaper tier, which a wide mechanical fleet inherits as its default because volume multiplies
    every notch of over-provisioning, and the standing exception is an explicitly hard stage
    (verify, judge/adjudicate, judgment-heavy synthesis), which keeps the parent tier. Tier is not only the
    model: match the reasoning depth (effort) to the subtask too, not the parent session,
@@ -141,7 +141,7 @@ told:
    and <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort>.
    Both judgments are ours.
 
-Discipline: trigger-evaluation is mandatory; the ACTION stays calibrated (delegate on value +
+Discipline: trigger-evaluation is mandatory; the action stays calibrated (delegate on value +
 parallelism, not convenience). Treat every worker's return as unverified synthesis: check its
 evidence before accepting it, verify load-bearing claims against a primary source before acting,
 and merge a many-item fan-out into one table (item, verdict, evidence). An item whose return
@@ -156,7 +156,7 @@ lead session; the docs do not state whether a fork of the lead can drive one; se
 [limitations](https://code.claude.com/docs/en/agent-teams#limitations)) and dynamic workflows (withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}`; if that value reads as a literal
 placeholder, resolve the session's effort yourself before using it. Feed the value
 into imperative 7's tier calibration: we treat it as the effort an unpinned spawn may run at when it
-passes no `effort`, and the pointer below says on which model that holds. Its gap from what a subtask needs IS
+passes no `effort`, and the pointer below says on which model that holds. Its gap from what a subtask needs is
 the over-provisioning imperative 7 exists to stop. Close that gap by passing the level on a
 non-fork spawn of an unpinned agent, and omit it on a pinned named agent. Never read ultracode from this value. Pointer: for
 the subagent `effort` field, see <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields>;
@@ -238,10 +238,12 @@ Push coordination to the lowest tier that can resolve it, and let each tier retu
 verdict rather than its reasoning.
 
 **Spec what crosses a boundary, not just what to do.** Every spawn already needs an objective and
-an output format (imperative 2). In a multi-tier tree the output format IS the context-economy
+an output format (imperative 2). In a multi-tier tree the output format is the context-economy
 lever: name the identifiers, the verdict, and where the bulky payload was parked, so the tier above
-can act without re-reading the work. Our magnitude for "compressed": a worker that explored across tens
-of thousands of tokens still aims to return roughly 1,000 to 2,000. Treat it as the shape a return
+can act without re-reading the work. "Compressed" means a return many times smaller than the work
+behind it, however much the worker explored: the identifiers, the verdict and the payload's
+location, never its reasoning transcript. Our magnitude: a worker that explored across tens of
+thousands of tokens still aims to return roughly 1,000 to 2,000. Treat it as the shape a return
 should aim for, never a budget to spend up to.
 
 - **Pointer**: for a subagent returning a summary in place of its verbose output, see
@@ -288,17 +290,17 @@ forbidden intermediate tier either. The version history behind the caps lives in
   see <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>.
 
 **Confirm nesting from behavior, not from one page** (why: `context/gotchas.md`). Have a
-worker of the SAME definition you plan to use as the intermediate tier attempt a trivial nested
+worker of the same definition you plan to use as the intermediate tier attempt a trivial nested
 spawn and report the outcome. The gate is definition-specific, so another agent type proves
 nothing, and holding `Agent` is necessary but not sufficient. Read a refusal: a depth rejection
 names depth; a permission refusal (classified pre-launch) does not. Pointers: `context/sources.md`.
 
 ## Export modes (handoff / worker). Paste-ready brief
 
-Only for a target that LEAVES the session. Emit the seven imperatives above between two full-width
+Only for a target that leaves the session. Emit the seven imperatives above between two full-width
 `─` (U+2500) dashed rails. Top rail, brief, bottom rail, nothing else between them; the
 `/clear`/paste instruction or any commentary sits above the top rail or below the bottom rail,
-never between (NOT a code fence, the user copies the text between the rails, not fence markers).
+never between (not a code fence, the user copies the text between the rails, not fence markers).
 
 Live shape: bare `─` rails, no fence. Shown inside a fence here for display only.
 
@@ -314,12 +316,12 @@ Discipline: [the Discipline line above, verbatim]
 ```
 
 - `handoff`, the opening line above already fits a fresh session; emit as-is.
-- `worker`, insert as the FIRST line between the rails: `You are a spawned worker and did NOT
+- `worker`, insert as the first line between the rails: `You are a spawned worker and did NOT
   inherit the parent session's context or the repo's conditional rules, these instructions are
   your only copy.` Then insert this waiting line directly after it, before the `ORCHESTRATION BRIEF` line,
   in full and `compact` exports alike: `Waiting: poll in the foreground with a bounded loop, or
   return what you have; never end your turn to wait on your own background job.`
-- `compact`. Emit only the seven numbered HEADLINES (`1. DELEGATE / FAN OUT`, `2. SPEC EVERY
+- `compact`. Emit only the seven numbered headlines (`1. DELEGATE / FAN OUT`, `2. SPEC EVERY
   SPAWN`, …) plus the closing Discipline line; drop every sub-clause. `worker compact` also keeps the
   `worker` did-not-inherit and waiting lines; compact drops neither.
 
@@ -327,11 +329,11 @@ Discipline: [the Discipline line above, verbatim]
 
 /planning:draft-goal-condition turns the coordinated work into a completion condition.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Default does not emit paste-text.** Priming the current session is a terse acknowledgment,
   the work happens because the imperatives loaded into context, not because anything was printed.
-  Use `handoff` / `worker` only when the target LEAVES the session.
+  Use `handoff` / `worker` only when the target leaves the session.
 - **Not a surface-selection guide.** Which parallel-execution surface to pick (subagents vs nested
   vs teams vs workflows) is a judgment the main session makes against current official docs; the
   export brief deliberately omits agent teams + dynamic workflows because a pasted target cannot

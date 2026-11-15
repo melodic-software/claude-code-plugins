@@ -41,26 +41,26 @@ any write.
 ## Pre-flight gate
 
 **Ask-shape check first, before any diff resolution:** when the ask is a whole-repository security
-audit rather than a change review, emit the deep-scan escalation below and STOP, regardless of diff
+audit rather than a change review, emit the deep-scan escalation below and stop, regardless of diff
 state. A tracked diff or open PR does not convert that ask into a change review; a diff-scoped
 review would answer a question the user did not ask.
 
-Otherwise resolve the review diff base and confirm it yields a non-empty diff BEFORE any surface is
+Otherwise resolve the review diff base and confirm it yields a non-empty diff before any surface is
 spawned:
 
 - **Unresolvable base**: an open PR's `origin/<baseRefName>` fails `git rev-parse --verify` even
-  after a fetch (do NOT silently substitute a different base; that reviews the wrong diff), or no
-  ladder ref resolves at all → report which ref failed and STOP.
+  after a fetch (do not silently substitute a different base; that reviews the wrong diff), or no
+  ladder ref resolves at all → report which ref failed and stop.
 - **Nothing to review**: decide whether anything is diffable.
-  1. **Truly clean**: `git status --porcelain` empty AND the branch is not ahead of its base AND no
+  1. **Truly clean**: `git status --porcelain` empty and the branch is not ahead of its base and no
      open PR → report "no changes to review", spawn nothing, write no findings file. A clean
      committed branch with no PR yet is reviewable, not this case.
-  2. **Untracked-only**: porcelain shows ONLY `??` entries AND the branch is not ahead of its base
-     AND no open PR → report: ``Only untracked files present. `git diff` cannot show them; `git add`
-     them to include in review.`` Spawn nothing. **Do NOT stage the files.**
-  3. **Reviewable**: tracked uncommitted changes OR ahead of base OR an open PR → proceed.
+  2. **Untracked-only**: porcelain shows only `??` entries and the branch is not ahead of its base
+     and no open PR → report: ``Only untracked files present. `git diff` cannot show them; `git add`
+     them to include in review.`` Spawn nothing. **Do not stage the files.**
+  3. **Reviewable**: tracked uncommitted changes or ahead of base or an open PR → proceed.
 
-Either stop spawns ZERO reviewers: a review against an empty or wrong change set spends the whole
+Either stop spawns zero reviewers: a review against an empty or wrong change set spends the whole
 panel to produce noise.
 
 ### Deep-scan escalation
@@ -76,7 +76,7 @@ output contract lives once, in the `quality-gate` skill's security context
 ## Size tier
 
 Deterministic diff-size thresholds, refined by a judgment layer. A 30-line change touching auth or
-crossing a module boundary is NOT "small" in risk even if small in size; promote it. Size = the SUM
+crossing a module boundary is not "small" in risk even if small in size; promote it. Size = the sum
 of the committed-vs-merge-base and the uncommitted shortstats, so dirty tracked edits count; when an
 open PR targets a non-default base, recompute the committed side against that `baseRefName` first.
 Print the tier with its reason, promotion included.
@@ -85,6 +85,6 @@ Print the tier with its reason, promotion included.
 |---|---|---|
 | **small** | <50 changed lines | never |
 | **medium** | 50–300 | small diff but security-sensitive, boundary-crossing, or high blast radius |
-| **large** | >300 OR cross-cutting (many dirs / many ecosystems) | medium diff that is cross-cutting |
+| **large** | >300 or cross-cutting (many dirs / many ecosystems) | medium diff that is cross-cutting |
 
 What each tier dispatches is the calling skill's choice.
