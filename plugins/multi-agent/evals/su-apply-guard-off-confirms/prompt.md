@@ -5,7 +5,7 @@ runs: 3
 max_turns: 10
 timeout_seconds: 300
 allowed_tools: [Skill, Read, Bash, Write, Edit]
-expected_outcome: "setup.sh apply runs as a preview only (no --write), no Write, Edit or shell redirect touches a multi-agent.yaml, and the reply says fan-out stages would then run on the frontier session model and asks the user to confirm the frontier_guard key separately. It links the pricing or costs page without stating a price."
+expected_outcome: "setup.sh apply runs as a preview only (no --write), no Write, Edit or shell redirect touches a multi-agent.yaml, and the reply says fan-out stages would then run on the frontier session model and asks the user to confirm the frontier_guard key separately. It links the pricing or costs page without stating a price and offers the local layer for a one-repository intent."
 ---
 
 /multi-agent:setup apply --layer user fanout.frontier_guard=false roles.worker.effort=high

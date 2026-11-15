@@ -14,8 +14,8 @@ already hold the extraction logic, and returns Markdown. No X account, no API ke
 
 ## Prerequisite
 
-`curl` on `PATH` is **required for correctness** at step 1. The xtomd endpoint is POST-only, so `WebFetch`
-cannot reach it (the observed GET response: [`context/failure-modes.md`](context/failure-modes.md#gotchas)).
+`curl` on `PATH` is **required for correctness** at step 1. The xtomd endpoint is POST-only (a GET to
+`/api/markdown` returns a stub reading `"method":"POST"`), so `WebFetch` cannot reach it.
 
 If `curl` is absent, say so, never a silent skip, then end the invocation, unless the URL roots a
 suspected chain, where step 2 alone may still recover it. Step 2 resolves chains only, so routing a single post

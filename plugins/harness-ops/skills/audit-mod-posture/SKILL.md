@@ -43,9 +43,10 @@ rather than reading the file to check.
 
 ### Phase 1: Inventory
 
-The installed tier alone takes a few seconds. The built-in tier needs the JSON report
-`/harness-ops:inventory` writes, which reads the Claude Code bundle and takes much longer, so
-produce it only when the operator wants built-ins covered, then pass its path. Without the report, a `# not read:` footer says built-in mods were
+The installed tier alone takes a few seconds (about 3.5 s for five mods on a measured host). The
+built-in tier needs the JSON report `/harness-ops:inventory` writes, which reads the Claude Code
+bundle and took about 41 s on the same host, so produce it only when the operator wants built-ins
+covered, then pass its path. Without the report, a `# not read:` footer says built-in mods were
 not read; say so in the report. Then run:
 
 ```bash

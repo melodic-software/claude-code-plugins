@@ -50,7 +50,7 @@ Claim metadata (`claimedAt`, `claimedBy`) lives in `claims/<n>.json`, not in the
 | `queue list` | Display table + list active claim files under `claims/`; name each `awaiting_captions` row with the next check time from its `notes` |
 | `watch` (no URL) | FIFO: first row `queue-claim.js next` lists with successful exclusive claim |
 | `watch <n>` | Claim row `#n` only (parallel path across terminals) |
-| `watch <url>` | Direct single-video watch, outside the queue |
+| `watch <url>` | Unchanged: direct single-video watch |
 
 ## Claim protocol (every dequeue)
 

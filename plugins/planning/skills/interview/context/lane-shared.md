@@ -213,7 +213,7 @@ frontier now; hold only the questions that pending async work can change.
 
 The watcher exits with one JSON line: `{"seq", "timedOut", "note", "events", "dataDir", "next"}`.
 What the wake notification carries is recorded in [`surface.md`](surface.md) "Wake payload:
-verification record". On exit 0, Read
+verification record" (pointer, as-of 2026-10-11, recheck trigger there). On exit 0, Read
 `'<data_dir>/.watch-wake.json'`: its one line is the JSON (a nonzero exit writes none, so the file
 still holds the previous wake's). When the watcher could not write the file, it removed it and its
 stderr says so: take the `{` line from the task's output file then. With `timedOut` true and no events, re-arm

@@ -293,7 +293,7 @@ Then, for the rest of the run:
 - **Save every `fleet-state.sh` report** the algorithm re-reads, rather than only reading it. These
   are the same calls the re-read-before-each-mutating-step rule already requires, so the journal
   costs a redirect, not an extra read, and `--from` never replaces one of them. It replaces only the
-  second process a step would otherwise launch to project its ids. Name them per marketplace:
+  second process a step used to launch to project its ids. Name them per marketplace:
 
   | File | The re-read it saves |
   |---|---|
@@ -395,8 +395,9 @@ ERROR: --ids cannot be combined with --all
   Run --ids once per marketplace with --marketplace <name>.
 ```
 
-(This is `fleet-state.sh`'s own argument guard, not Claude Code CLI behavior: the script exits 2
-with exactly this text.) `--all` exists for the JSON report, which nests one block per
+(This is `fleet-state.sh`'s own argument guard, not Claude Code CLI behavior. The earlier
+"verified on Claude Code 2.1.240" attribution was a category error. Re-verified 2026-09-05 by
+running the command: the script exits 2 with exactly this text.) `--all` exists for the JSON report, which nests one block per
 marketplace; `--ids` projects a single block, so it takes one marketplace at a time. Loop it.
 
 The per-marketplace failure rule from Step 1 carries through: a marketplace whose iteration fails is
@@ -406,7 +407,7 @@ reported inline and never aborts the loop for the rest.
 
 Steps 2–5 all do the same three things: take the live re-read the concurrency rule already requires
 and **redirect it to the run journal**, project the step's selector out of that file with `--from`,
-and loop the result. `--from` replaces only the second process a step would otherwise launch to project its
+and loop the result. `--from` replaces only the second process a step used to launch to project its
 ids; it never replaces the re-read.
 
 **The projection's exit status is checked before the loop: an empty projection is ambiguous and the

@@ -236,7 +236,8 @@ Emit a continuation prompt when pausing mid-pipeline (slug, first unticked phase
 
 - **A clean gate covers only what it printed.** Every bundled gate names the files, rows, and
   fields it exercised; silence is never a pass. All three fail loudly on unparsable or
-  unrecognized input (duplicate JSON keys included).
+  unrecognized input (duplicate JSON keys included). That behavior was verified adversarially
+  BEFORE the gates became required artifacts.
 - **Effort depends on the dispatch surface.** Which surfaces take a per-call effort setting is
   recorded in [Effort tiers](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md#effort-tiers), in its "Where
   per-task effort is set" record, which covers the Agent tool's per-spawn `effort` and Workflow;

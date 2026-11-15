@@ -128,7 +128,7 @@ So split the framing. Where effort is readable, say what it is and recommend fro
 advisor state is not, frame the recommendation as a delta the user applies rather than a fact about
 their current state: "if you are not already on X, consider it," plus how to apply it, `/model` for
 the model, the effort setting for effort, `/advisor` for the advisor. Do not instruct a capability
-that does not exist.
+that does not exist, and do not carry the old blanket claim that neither is readable.
 
 ## Both domains
 

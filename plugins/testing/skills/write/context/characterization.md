@@ -76,7 +76,8 @@ mismatches, the side-effect warning); tool docs for scrubbers and review:
 [Jest snapshot testing](https://jestjs.io/docs/snapshot-testing),
 [ApprovalTests](https://approvaltests.com/).
 
-Basis: the agent-self-check research slice (2026-10-06). The practices come from human-led
+Basis: the agent-self-check research slice (2026-10-06), prompted by Addy Osmani's 2026-10-05 post
+(<https://x.com/addyosmani/status/2106995301802541481>). The practices come from human-led
 rewrites; no accepted source shows an agent validating a rewrite this way, so the agent
 application is extrapolated. Recheck trigger: a measured study of agents validating rewrites by
 differential comparison.

@@ -40,7 +40,7 @@ Orchestrator consults this list after check execution and before any action.
 - **Abort conditions:**
   - `DryRun -eq $true`.
   - User-load heuristic tripped.
-  - `disk-space` no longer `WARN`/`CRIT`, so no action (idempotent re-run safety).
+  - Free space on `C:` >15%, no longer WARN/CRIT, so no action (idempotent re-run safety).
 - **Default state:** **DISABLED** until the user runs `/machine-health:setup apply approve=clear-temp-files` (see [`../shared/approvals.md`](../shared/approvals.md)). First run dry-modes it regardless.
 - **Output contract:**
   - `before`: `{ "temp_usage_bytes": <int>, "count": <int> }` for each target path.

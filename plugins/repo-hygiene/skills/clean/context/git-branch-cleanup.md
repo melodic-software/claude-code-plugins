@@ -52,7 +52,7 @@ bash <skill-dir>/scripts/git-branch-audit.sh
 
 The script applies rules in priority order (first match wins), then refines a REVIEW verdict into LOSSY when the loss is measured and positive (see the refinement below the table). Agent interprets output; do not duplicate the bash loop.
 
-<!-- ai-slop-ignore-start: the priority-4 Reason cell quotes the string scripts/git-branch-audit.sh emits verbatim ("checked out in worktree — clean up the worktree first"); the table is wrapped because a marker between rows would break it -->
+<!-- ai-slop-ignore-start: the priority-4 Reason cell quotes the string scripts/git-branch-audit.sh emits verbatim (line 263, "checked out in worktree — clean up the worktree first"); the table is wrapped because a marker between rows would break it -->
 | Priority | Condition | Tier | Reason |
 |----------|-----------|------|--------|
 | 1 | Branch = current | PROTECTED | current branch |

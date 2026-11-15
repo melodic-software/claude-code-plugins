@@ -93,4 +93,5 @@ Inputs: manifest path, inventory path, snapshot path. Checks, in order:
 Exit codes: 0 all checks passed; 1 one or more named check failures; 2 unusable input
 (parse/IO/schema-literal errors); 3 internal invariant violation. A clean run prints what it
 exercised (file names, row count, node count, field list). Silence is never a pass, and a pass
-covers only what was printed.
+covers only what was printed. The gate was written and tested to fail loudly on unparsable and
+malformed input BEFORE being made a required artifact.

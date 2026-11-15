@@ -63,10 +63,10 @@ WebFetch only finds which page to read; read the page itself by the [fetch-route
 - `urls`: normalized (see below), deduplicated, sorted lexicographically. Sorting is part of the
   determinism contract.
 
-**`repo-tree` within v1.** The `repo-tree` rung value (in discovery outputs and in link-map row
-`rungs`) and the `repository` key are part of `discovery-output/v1` and `link-map/v1`. A gate that
-predates them rejects a `repo-tree` output as an unknown rung, so the parser and gate ship
-together.
+**Schema change, kept at v1.** The `repo-tree` rung value (in discovery outputs and in link-map
+row `rungs`) and the `repository` key are additions to `discovery-output/v1` and `link-map/v1`.
+Every output and map that passed the gate before still passes; a gate from before the addition
+rejects a `repo-tree` output as an unknown rung, so the parser and gate ship together.
 
 URL normalization (mirrors `docpage-digest`'s canonical-URL rules, minus the redirect step a
 offline script cannot take): scheme+host lowercased, fragment dropped, tracking-only query

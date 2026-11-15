@@ -388,9 +388,9 @@ See `triage.md` "Verb-sense collision the blocklist cannot serve".
   comma, and nothing else. Verified: `plugins: { "<old>": {` and an indented `"<old>": {` match,
   `{"a":1,"<old>":{}}` matches on the comma, and `"other": { "<old>": "scalar" }` does not,
   because the value must open an object or array.
-- **The key-position alternative must have the manifest/catalog condition.** `"<key>": {` is the
-  commonest JSON line shape; for an ordinary-word container name an
-  unconditioned pattern would auto-rewrite unrelated configuration. Rate it Certain only inside a
+- **The key-position alternative MUST have the manifest/catalog condition.** `"<key>": {` is the
+  commonest JSON line shape (this repository carries 569); for an ordinary-word container name an
+  unconditioned pattern would auto-rewrite unrelated configuration. Rate it Certain ONLY inside a
   file established as a manifest or registry catalog, the file class the declaration exemption
   names. **Anywhere else it is Ambiguous**, unconditionally; no common-word escape hatch is
   needed because the demotion does not depend on the token.
@@ -408,8 +408,8 @@ See `triage.md` "Verb-sense collision the blocklist cannot serve".
   TOML, accept `id`. The key-position alternative needs no key list: the container name is the
   key.
 - **The `=` shape, and `id`, are why the manifest/catalog qualifier below is required.**
-  `name="<old>"` and `id="<old>"` are also shell and `.env` assignment syntax; this repository's
-  `id=` / `id:` string declarations are nearly all shell positional-argument binds in
+  `name="<old>"` and `id="<old>"` are also shell and `.env` assignment syntax; this repository
+  carries ~45 `id=` / `id:` string declarations, nearly all shell positional-argument binds in
   `.sh` files. They cannot collide unless the container's literal name is the assigned value.
   The exemption that makes a declaration Certain regardless of path applies only when
   the file is a manifest or catalog; in any other file the match is a title match and takes the

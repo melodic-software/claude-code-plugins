@@ -127,8 +127,8 @@ to compare against. The checker therefore compares only records whose `gitCommit
 clone's HEAD and gives every other record the `not-at-head` verdict, counted in `not_checked`. A
 deeper clone that does hold the older commit gets the same answer, so the report does not depend
 on clone depth. Expect a large `not_checked` share right after a refresh, through no fault of the
-fleet: on 2026-10-04 (#5941), 84 of 86 installs were recorded at a commit the clone did not
-hold.
+fleet: on 2026-10-04 (#5941), 84 of 86 installs read `sha-not-local`, the verdict the check then
+gave a record whose commit the clone did not hold.
 
 `not_checked` is its own number. It is not a match, and it is not `unverifiable`, which counts the
 other verdicts where the audit looked and could not decide, such as no clone, no source at the

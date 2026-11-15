@@ -35,8 +35,8 @@ checks first: re-derive the headline number and the differential before any seco
 report that ends short names what it did not reach under `Not covered:`. A verification that ran out
 of turns is not complete, so anything unreached stays NOT MET or unverified.
 
-Two independent verifiers routinely find different defects. One verifier is required; dispatch a
-second when a missed defect would cost more than the second verifier's run.
+Two independent verifiers routinely find different defects, so one verifier is the floor, not the
+target.
 
 ## 2. Prove behavior did not change, with a differential
 

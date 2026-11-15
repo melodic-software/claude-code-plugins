@@ -62,8 +62,8 @@ value and its unset fallback.
   there advances that unrelated branch while only the refspec push lands on the PR branch, leaving the
   other branch locally carrying this PR's work. Require the checkout to be on the PR branch or in
   detached HEAD (a coincidental same-tip match on another branch heals via the forge's PR checkout,
-  [GitHub](../../../reference/providers/github/babysit-prs/safety.md#true-pr-head-and-push-destination)). The
-  head-SHA re-check below covers the head moving *mid-work*; this assertion covers the moment
+  [GitHub](../../../reference/providers/github/babysit-prs/safety.md#true-pr-head-and-push-destination)). This
+  extends the head-SHA re-check below, which covered only the head moving *mid-work*, to the moment
   the worktree is first assigned. **One codified exception:** the conflict-resolution push in
   `orchestration.md`'s Orchestrator Contract. There `HEAD` is by construction the local merge commit
   the conflict worker produced, which the live PR does not carry yet, so the assertion is checked
@@ -583,8 +583,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   `--lane-logins` and `--approver-bot-logins` are non-empty and the effective block labels are
   non-empty (the `--block-labels` fallback plus the target repository's `babysit_merge_block_labels`;
   the gate checks that set after it reads the repository's policy). Supplying any of those three
-  flags without the umbrella is a usage error (exit `2`). Absent the flag the gate applies only
-  its base criteria, so worker and autopilot merges are gated as on the base path. This
+  flags without the umbrella is a usage error (exit `2`). Absent the flag the gate is
+  exactly its prior self, so worker/autopilot's existing gate-proven merges are unchanged. This
   tier is only ever wired when `babysit_autopilot_merge_tier` is enabled.
 - The resolve wrapper's mutating forms are `--autonomous --resolve` (worker tier, constrained by
   the pre-push-outdated rule in `orchestration.md`), `--resolve --include-human` (autopilot's
@@ -615,8 +615,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - **`--independent-resolver` is a third mode, not a widening of `--autonomous`.** `--autonomous`
   admits only `isOutdated` threads, and `isOutdated` means the referenced code moved, so on a
   prose or documentation PR, where a finding is normally addressed by rewriting elsewhere in the
-  file, the anchor never moves and the guard refuses a genuinely addressed finding forever, which
-  leaves an autonomous prose lane with no sanctioned route to zero unresolved threads. This mode
+  file, the anchor never moves and the guard refuses a genuinely addressed finding forever. That
+  left an autonomous prose lane with no sanctioned route to zero unresolved threads. This mode
   replaces `isOutdated` with two other properties. The first is **independence**: it is dispatched
   to a fresh context that is neither the merging worker nor the author of the fix, so the actor
   resolving is not the actor whose permission slip it is. That is a property of the dispatch and
@@ -943,7 +943,7 @@ standalone invocation, `/source-control:pull-request`. The one thing that does i
 `enable-auto-merge.mjs`, which arms the lanes App's own pull requests natively and re-arms one
 whose auto-merge an App turned off; a person's disarm keeps it off.
 
-A push by a writer leaves an auto-merge armed (by a person, or by `enable-auto-merge.mjs`), and the new head
+A push by a writer leaves an auto-merge armed (by a person, or before this rule), and the new head
 would merge on `CI Status` alone.
 Verified 2026-09-26 against GitHub's [Automatically merging a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request),
 which disables auto-merge only when "someone without write permissions pushes new changes to the
@@ -979,7 +979,7 @@ that path is this narrow:
   orchestrator-side independent resolution dispatch
   ([`independent-resolution.md`](independent-resolution.md)) is **not** a second path to it: the
   wrapper's severity bright line refuses a security/P1 thread on that route
-  (`skipped-severity-marked`), so it escalates.
+  (`skipped-severity-marked`), so it escalates exactly as it did before.
 - **Only a fresh, independent context.** The dispatch must share no conversation history with
   whatever produced the PR or previously replied on the blocking thread (the convention's §3
   independence requirement). A continuation of the authoring session, or a re-invocation of the
@@ -1242,8 +1242,9 @@ Named residuals:
   means one armed before it shipped, or one whose pin was edited or deleted after the enqueue.
 - A native merge's head is compared with no vetted head: a writer's push after the arm (the
   pr-unblock writers above) leaves auto-merge armed, and that head merges natively with no
-  read-back. `ci-status` still runs the hold rules on the merge-group head, including its
-  pr-verify pass at the queued head.
+  read-back. `ci-status` still runs the hold rules on the merge-group head. The pending
+  synchronize disarm in [#9450](https://github.com/melodic-software/claude-code-plugins/pull/9450)
+  closes this once it lands.
 - Event times have one-second resolution, so an identity arm in the same second as a gate enqueue
   counts as at or before it, and that gate merge reads as native and skips its read-back. So does
   an arm between the gate's disarm check and its enqueue.

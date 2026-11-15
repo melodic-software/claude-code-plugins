@@ -154,7 +154,7 @@ Promote only via vision-gated decisions:
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/vision-gated-promote.js "<slice-dir>"
 ```
 
-(`promote-key-frames.js` makes ad-hoc single copies; it is not the completion path.)
+(`promote-key-frames.js` remains for ad-hoc single copies, not the completion path.)
 
 ## Watch checklist
 
@@ -280,12 +280,14 @@ conversation nor the files already read.
 
 When `frameSelection.highVolume` is true, fan out vision subagents; do not truncate frames in temp.
 
-**Context-cost fan-out trigger** (independent of `highVolume`). Every `keep-detail` frame Pass 2
-escalates to 1920×1080 is a full-res Read that is not reused after the vision pass. When enough of
-them would flood main context with output you won't reuse, route to a per-sheet vision subagent
-that returns only JSON (triage rows), so the main watch context stays lean. No script counts these
-reads or sets a threshold: count the escalations yourself and decide. Do not force fan-out in a
-script, because the agent may have context reasons to process inline.
+**Context-cost fan-out trigger** (independent of `highVolume`). Pass 2 accumulates a read-count:
+every `keep-detail` frame escalated to 1920×1080 is a full-res Read that will not be reused after
+the vision pass. When that count is high enough that the reads would flood main context with
+output you won't reuse, route to a per-sheet vision subagent returning **only
+JSON** (triage rows), keeping the main watch context lean. The signal is deterministic (the skill
+surfaces the read-count, mirroring the `highVolume` boolean shape); the *decide-to-delegate* is the
+agent acting on that fact. Do not hard-force fan-out in a script. The agent may have context
+reasons to process inline; the skill documents the threshold, the agent routes.
 
 ## Phase 7: research stage
 

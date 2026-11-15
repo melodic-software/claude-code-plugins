@@ -39,7 +39,7 @@ curl -L -o KindleForPC-installer-2.8.70980.exe \
 # placeholder still in place, so a malformed URL can never be composed.
 LATEST_TAG=$(gh api repos/Satsuoni/DeDRM_tools/releases --jq '[.[] | select(.prerelease == true)][0].tag_name // empty' 2>/dev/null || true)
 if [[ -z "${LATEST_TAG}" || "${LATEST_TAG}" == "null" ]]; then
-  LATEST_TAG="PINNED_TAG_FROM_VERSIONS_MD" # substitute the literal pinned tag from reference/versions.md
+  LATEST_TAG="PINNED_TAG_FROM_VERSIONS_MD" # substitute the literal tag, e.g. v10.0.20
   if [[ "${LATEST_TAG}" == "PINNED_TAG_FROM_VERSIONS_MD" ]]; then
     echo "gh unavailable and no pinned tag substituted — read it from reference/versions.md, then rerun." >&2
     exit 1
@@ -126,7 +126,7 @@ powershell.exe -NoProfile -Command "(Get-Item '${LOCALAPPDATA}\Amazon\Kindle\app
 
 Expect `2.8.0.70980`. If anything else, installer ran an upgrade (see `reference/troubleshooting.md` "Installed wrong Kindle for PC version").
 
-## Step 4: Sign-in race window
+## Step 4: Sign-in race window (CRITICAL)
 
 Highest-risk window in the entire workflow. Amazon stages a 2.9.x installer aggressively when Kindle.exe phones home. Firewall block from step 5 stops the download, but at this point we don't have it in place yet. Sign-in requires network access, so we accept a small race window.
 

@@ -15,6 +15,7 @@
 - [Managed policy, and what it does not buy](#managed-policy-and-what-it-does-not-buy)
 
 Version: 1.1.0
+Last updated: 2026-08-28
 
 This file defines what `permission-merge.sh` may claim and which documented mechanic each claim
 points at. Each rule below is our decision in our words with a
@@ -345,8 +346,8 @@ fixed all three.
 | `C6-allowParam` | Fires on an **allow** rule in `Tool(param:value)` form, since we treat parameter matching as a deny-and-ask feature only; allow rules keep each tool's own specifier syntax. Pointer: [Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter). An operator writing one believes they narrowed a grant and has not. Fires only on parameters the page names for tools whose own syntax is a path or a command. `WebFetch(domain:host)` is the documented WebFetch form and `Bash(npm:*)` is a command prefix, so neither is distinguishable from a parameter by shape and neither fires |
 | `C6-uncoveredPath` | Fires on a path rule whose tool is `Write`, `NotebookEdit`, `Glob`, or the retired `MultiEdit`, since we treat file access as decided by `Read(path)` and `Edit(path)` rules alone; such a rule is accepted, never consulted, and warned about at startup (v2.1.210+; a `Glob` rule passed in `--allowedTools` is the stated exception). Pointer: [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit). **As of** 2026-10-13. **Recheck when** that section stops naming `MultiEdit` or changes which tools path rules cover |
 | `C6-colonStar` | Fires on a mid-pattern `:*`, as in `Bash(git:* push)`, since we treat `:*` as prefix syntax only at the end of a pattern: mid-pattern, the colon is a literal and the `*` a wildcard, so `Bash(git:* push)` matches `git:<anything> push` and none of the git commands its author meant. We saw no startup warning for such a rule in a `-p` run, so the lint reports it. **Pointer**: when the mid-pattern colon matters, fetch [Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns) live. **As of** 2026-10-10. **Recheck when** that section changes how a mid-pattern `:*` matches, or a release makes it prefix syntax. **Probe**: probed on Claude Code 2.1.296, 2026-10-10; evidence in the pull request that carries this change. The mechanic is about **command-prefix** patterns, so a documented parameter form is exempt: WebFetch's `domain:` prefix takes `*` wildcards ([WebFetch](https://code.claude.com/docs/en/permissions#webfetch)), and firing on `WebFetch(domain:*.example.com)` called a documented, working rule broken. A body that starts with `*` and holds no space, as in `PowerShell(*env:*lefthook*)`, is exempt too: it has no command prefix, so the literal colon is what it means to match. A space restores the prefix-then-words shape, so `Bash(* git:* push)` and `Bash(*foo:* rm)` still fire. **Ambiguous form:** in a deny or ask rule a mid-pattern `:*` with no space after it, as in `Bash(git:*push)`, does not fire this error; unless its tool and prefix are a known parameter, it is reported as the warning `C6-colonStarAmbiguous`, asking the author to say which they meant. It is structurally identical to the parameter form `Agent(model:*-haiku)`, so once the space is gone nothing in the rule text distinguishes them; the space was the only signal. The documented example is the space form, and the pages show no no-space mid-pattern rule anywhere. The exemption is by **grammar**, where in a deny or ask rule an `identifier:value` body is the parameter form, not by a list of parameter names: we treat parameter matching as working for any scalar parameter on any built-in tool, and an `mcp__` rule with parentheses in a settings file as a separate case this row does not judge ([Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter)), so an allowlist could only ever chase it and would flag documented forms such as `Agent(model:*-haiku)` |
-| `C6-malformed` | Fires on text after a specifier's closing parenthesis, as in `Bash(ls) x`, and on an unclosed specifier. A parenthesis inside the specifier does not fire, so `Edit(./Finance (2024)/**)` is one rule. **Pointer**: when deciding which rule shapes are accepted and how trailing text is treated, fetch [permissions: permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax) live. |
-| `C6-literalPath` | A Read or Edit path that is not a usable gitignore pattern, such as an unclosed `[`. As a deny or ask rule it protects only that literal path; as an allow rule it grants nothing |
+| `C6-malformed` | Fires on text after a specifier's closing parenthesis, as in `Bash(ls) x`, and on an unclosed specifier. A parenthesis inside the specifier does not fire, so `Edit(./Finance (2024)/**)` is one rule. The lint used to keep only the token and treat `Bash(ls) x` as `Bash(ls)`. **Pointer**: when deciding which rule shapes are accepted and how trailing text is treated, fetch [permissions: permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax) live. |
+| `C6-literalPath` | A Read or Edit path that is not a usable gitignore pattern, such as an unclosed `[`. As a deny or ask rule it protects only that literal path; as an allow rule it grants nothing. One such deny used to fail every file edit; that is not the current behavior |
 
 The version boundaries and field lists a row names are the ones its script emits; before acting
 on one, read it at the row's pointer.
@@ -431,9 +432,10 @@ page covers the related case of an ask rule matching one subcommand of a compoun
 subshell, including the version that fixed it; read it there. It is not a claim that every ask-rule
 miss is fixed.
 
-Upstream issue **anthropics/claude-code#83766** reports `permissions.ask` patterns auto-approved under
-`defaultMode: "auto"`; a reader acting on an `ask` finding reads its current state first. This plugin
-follows the auto-mode config page, the source with a stated contract.
+Upstream issue **#42797**, about auto mode ignoring `permissions.ask`, is closed. **#83766** remains
+open and still reports `permissions.ask` patterns auto-approved under `defaultMode: "auto"`. This
+plugin follows the auto-mode config page, the source with a stated contract. A reader acting on an
+`ask` finding should know #83766 is still open.
 
 **What this changes in practice:** an `ask` rule is reported here as outranking an `allow`, and as
 surviving auto mode. Treat `ask` as a prompt you *expect*, not a guarantee you *rely on*, and use

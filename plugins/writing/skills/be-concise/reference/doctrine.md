@@ -126,11 +126,14 @@ The seven revision techniques below are the practical how for this property.
 - Numbered lists for sequences, bulleted lists for everything else (Google).
 - **Bold a few keywords per screen at most, and never bold a restatement of the
   line it sits on.** This bound is written to stay inside the boundaries the
-  `ai-slop` catalog records, so that promoting either rule later does not fire
-  on prose written to this doctrine. When the `ai-slop` plugin is enabled,
-  `/ai-slop:audit` owns both, through the `rule-bold-overuse` and
-  `rule-inline-header-lists` entries in its catalog, which state each boundary
-  and whether it is live.
+  `ai-slop` catalog already records, so that promoting either rule later does
+  not fire on prose written to this doctrine. When the `ai-slop` plugin is
+  enabled, `/ai-slop:audit` owns both: `rule-bold-overuse` records "excessive
+  bolding of terms beyond emphasis convention" as a density candidate, and
+  `rule-inline-header-lists` draws the boundary at "a bold label whose colon
+  restates the line", while treating "a bold lead-in that ends in a period,
+  names the item, and is followed by genuinely new detail" as reference-doc
+  style rather than a tell.
 - Push depth one link away instead of inlining it. A short overview that links
   to the full record serves both the reader who wants the answer and the reader
   who wants the evidence.
