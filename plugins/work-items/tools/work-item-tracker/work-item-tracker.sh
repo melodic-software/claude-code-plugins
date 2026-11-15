@@ -68,6 +68,7 @@ Verbs:
   status-storage [--repo <owner>/<repo>]
   change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <owner>/<repo>]
   add-recurrence <id> --source-link <url> --note <text>
+  wayfind-labels
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
 EOF
@@ -209,6 +210,15 @@ main() {
 
   command -v jq >/dev/null 2>&1 ||
     fail_config "prerequisite missing: jq — see CONTRACT.md Prerequisites"
+
+  if [[ "$verb" == "wayfind-labels" ]]; then
+    # Core-derived from the binding alone: no adapter, and the defaults when none binds.
+    (($# == 0)) || fail_usage
+    local labels
+    labels="$(wit_wayfind_labels)" || exit "$EX_CONFIG"
+    jq -c --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv} + .' <<<"$labels"
+    exit 0
+  fi
 
   local binding_path
   binding_path="$(wit_find_binding)" ||

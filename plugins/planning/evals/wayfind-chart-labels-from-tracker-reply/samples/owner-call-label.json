@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "/work-items:track add --parent <map-id> --label 'decide: interview' --label 'owner-call' --body-file item-2.md \"Decide the promise\"",
+      "why": "owner-call written as a label"
+    },
+    {
+      "answer": "/work-items:track add --parent <map-id> --labels 'decide: interview, owner-call' --body-file item-2.md \"Decide the promise\"",
+      "why": "owner-call in a label list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Labels: human-gated `owner-call` (binding).\n/work-items:track add --parent <map-id> --label 'decide: interview' --label needs-human --body-file item-2.md \"Decide the promise\"",
+      "why": "owner-call named only in the report; the item gets the default"
+    }
+  ]
+}
