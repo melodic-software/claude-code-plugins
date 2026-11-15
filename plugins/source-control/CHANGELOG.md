@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.14.4] - 2026-11-15
+
+### Changed
+
+- `/source-control:pull-request create` calls commits pushed with no pull request the PR-less
+  state. "Save point" now names only the session-flow handoff save-point.
+
 ## [11.14.3] - 2026-11-15
 
 ### Changed

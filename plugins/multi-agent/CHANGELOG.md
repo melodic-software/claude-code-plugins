@@ -3,6 +3,13 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.3] - 2026-11-15
+
+### Changed
+
+- The mechanical worker default's measurement note in `reference/defaults.yaml` states its
+  limits: five cases, no Opus arm run, and no claim about how the two models compare.
+
 ## [3.0.2] - 2026-11-15
 
 ### Changed
