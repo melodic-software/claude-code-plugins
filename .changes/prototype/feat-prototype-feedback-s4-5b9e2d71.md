@@ -11,5 +11,3 @@ bump: minor
   beside it, and a polite live region announces each change of status.
 - The panel hides and shows with its dock button or N; closing the panel or the note editor
   returns the focus to the control that opened it.
-- `context/control-panel.md`: the notes panel docks outside the mockup's frame, so the control
-  panel keeps its place inside the mockup.
