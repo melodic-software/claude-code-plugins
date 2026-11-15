@@ -36,7 +36,7 @@ Agent-facing instruction markdown (`CLAUDE.md`/`AGENTS.md`, `.claude/rules/`, sk
 bodies, their bundled spokes) has a load cost set by its **tier**: always-loaded content is paid
 every session, invocation-loaded content recurs for the rest of the session once triggered, and
 on-demand content is free until read. This skill audits both directions: content that should move
-DOWN a tier (split opportunities), and hub/spoke structures whose pointers no longer let an agent
+down a tier (split opportunities), and hub/spoke structures whose pointers no longer let an agent
 pull exactly the file it needs (structure defects). It is a read-only classifier: findings carry
 treatment guidance; the author applies every edit.
 
@@ -51,7 +51,7 @@ threshold, routing rule, or citation posture (Anthropic-prescribed vs corroborat
 | split | `oversize` | File at/approaching its tier's size guidance (SKILL.md approaching the line cap `/playbooks:skill-authoring` `## Body` records and `/skill-quality:check` enforces; CLAUDE.md approaching the memory page's size target; references per the TOC bands). Ceilings, not targets. Size alone below the cap is no finding | 2 | Add a hierarchy layer: name the sections to push into spokes, each behind a conditioned pointer |
 | split | `mixed-concerns` | Mutually-exclusive contexts co-resident (content that never co-executes), category straddle, multi-topic rules file, cross-file contradiction | 2 | Split by concern. One topic per file; name the proposed split seams |
 | split | `tier-mismatch` | Content at the wrong tier: a procedure grown inside CLAUDE.md (→ skill), path-local rules in a global file (→ scoped rule), reference detail inline in a hub (→ spoke), always-loaded content not needed every session (→ demote behind a pointer) | 1 when an official routing rule decides it; else 2 | Route down-tier per the rule, unless owned upstream (see Hard rules); the finding names source section and destination surface |
-| structure | `blind-pointer` | Pointer with no when-to-read clause, unmarked execute-vs-read intent, or a vague target name (`doc2.md`, `utils`) | 2 | Attach the condition and intent; rename the target descriptively. On skill descriptions, a missing when-NOT-to-use clause is advisory color (community-sourced), never a violation |
+| structure | `blind-pointer` | Pointer with no when-to-read clause, unmarked execute-vs-read intent, or a vague target name (`doc2.md`, `utils`) | 2 | Attach the condition and intent; rename the target descriptively. On skill descriptions, a missing when-not-to-use clause is advisory color (community-sourced), never a violation |
 | structure | `orphan-spoke` | Bundled spoke no hub references. Unreachable by pointer | 2 | 3-way: add the missing pointer, merge the content up, or delete the spoke |
 | structure | `deep-nesting` | Spoke-to-spoke chain, required reading more than one level from the hub (documented partial-read failure) | 2; 1 when the chain is the only path to required content | Re-link the deep target directly from the hub, or flatten |
 | structure | `missing-toc` | Reference file with no TOC above both sources' TOC thresholds = definite; between the two thresholds = awareness only, citing the source conflict on the TOC threshold | 1 (above both) / 3 (between them) | Add a TOC at top (or a grep recipe for lookup-shaped content) |
@@ -92,12 +92,12 @@ Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../
 The rules below are what this skill runs; open the shared file only when editing them, for the
 sibling divergences it owns.
 
-1. Empty arg AND clean tree → OFFER a repo-wide audit (never auto-start). Prescribed defaults
+1. Empty arg AND clean tree → offer a repo-wide audit (never auto-start). Prescribed defaults
    (overridable): corpus = all tracked agent-facing instruction `.md` (CLAUDE.md/AGENTS.md,
    `.claude/rules/`, skill/agent/command trees) minus `**/evals/fixtures/**`, `**/vendor/**`, and
    `CHANGELOG.md`; scan via one `detect.sh` pass per top-level root; report-first. Unattended,
    surface the offer as blocked and stop.
-2. Empty arg AND uncommitted `.md` files → batch audit over ALL of them. Re-derive the full
+2. Empty arg AND uncommitted `.md` files → batch audit over all of them. Re-derive the full
    list in-session (`git status --porcelain`); the sample gathered above caps at 10 and is
    orientation, never the corpus.
 3. Single file path → single-file audit.
@@ -108,14 +108,14 @@ sibling divergences it owns.
 
 - **Read-only.** No `Edit`, no `Write`, no mutating `Bash` ops; the author owns every treatment edit.
 - **Tier semantics** (identical to the sibling audits): Tier 1 = definite; Tier 2 = review needed;
-  Tier 3 = likely legitimate, surfaced for awareness and carrying NO treatment.
+  Tier 3 = likely legitimate, surfaced for awareness and carrying no treatment.
 - **Citation posture.** Skill size and description caps are `/playbooks:skill-authoring`'s (`## Body`,
   `## Descriptions`); the other vendor-defined numbers (CLAUDE.md target, listing budget, per-skill metadata cost,
   compaction re-attach budgets) are cited as Anthropic-prescribed; their owning pages, as-of date, and recheck trigger live in the
   provenance record in [context/tier-model.md](context/tier-model.md), which is re-verified rather
   than trusted. Reserve consensus language for independently corroborated claims; label
   community-sourced signals as such and keep them advisory.
-- **Small-corpus guard.** Never flag a file for NOT using progressive disclosure when its content
+- **Small-corpus guard.** Never flag a file for not using progressive disclosure when its content
   fits comfortably at its tier.
 - **Skip surfaces.** `CHANGELOG.md`, `evals/fixtures/`, `vendor/` trees, YAML frontmatter, and
   fenced code blocks are never findings surfaces.
@@ -182,7 +182,7 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
   either source's number as the single official rule. Both are read at the pointer under the
   shapes table.
 
-## What this skill is NOT
+## What this skill is not
 
 - **Not `/docs-hygiene:compress`**. Flavor/wordiness inside a file is compression, not disclosure.
 - **Not `/docs-hygiene:audit-noise`**. In-page noise shapes (citations, ghost-refs, preambles).
@@ -208,4 +208,4 @@ carries its own as-of date and recheck trigger.
 - [How Skills work](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work). Just-in-time retrieval, pointer doctrine (correlate with [Anthropic engineering: context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents))
 - [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator). Approaching-the-limit split trigger, TOC guidance
 - [UC Davis disclosure study (arXiv 2607.17598)](https://arxiv.org/abs/2607.17598). Scale boundary, depth>1 harm (academic corroboration)
-- [happyskills](https://happyskills.ai). Community source for the when-NOT-to-use description clause (advisory color only); the listing drop order comes from the skills docs entry above
+- [happyskills](https://happyskills.ai). Community source for the when-not-to-use description clause (advisory color only); the listing drop order comes from the skills docs entry above

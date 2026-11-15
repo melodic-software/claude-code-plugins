@@ -93,7 +93,7 @@ Don't go directly from Big Picture to Design-Level. Process Modeling is the natu
 - Highest business priority (arrow voting winner)
 - Most complex area (most hotspots)
 - Area with highest uncertainty
-- **NOT** the simplest area, which wastes the method
+- **Not** the simplest area, which wastes the method
 
 **Timing:** Same day or next day is ideal (knowledge is fresh). More than a week gap requires replaying the model from photos.
 
@@ -102,7 +102,7 @@ Don't go directly from Big Picture to Design-Level. Process Modeling is the natu
 *Core flow from Brandolini's book (Ch. 17, 20). Steps marked `[BOURGAU]` are enrichments from Philippe Bourgau's verified agenda (EventStorming Journal). Steps marked `[SUPPLEMENTED]` are from community consensus, not directly from Brandolini.*
 
 **Step 1: Display "The Picture That Explains Everything"** (5 min)
-Draw or display the canonical reference: `Read Model → Actor → Command → Aggregate → Domain Event → Policy → Command...`. Keep it visible throughout. This IS the workshop's grammar.
+Draw or display the canonical reference: `Read Model → Actor → Command → Aggregate → Domain Event → Policy → Command...`. Keep it visible throughout. This is the workshop's grammar.
 
 **Step 2: Bring in Domain Events** (5-10 min)
 Carry over events from Process Modeling (or Big Picture). Place along timeline left-to-right. Add any missing events discovered since the last session.
@@ -114,15 +114,15 @@ For each event, add the command that triggers it. Often mechanical. Reverse the 
 
 - **Actors** (yellow): who issues each command?
 - **Policies** (lilac): which event-to-command transitions are reactive? ("Whenever X, then Y")
-- **External Systems** (pink): which commands are handled by something outside this bounded context? `[BOURGAU]` "In the scope of a bounded context, other contexts become external systems too!" Place a pink sticky between command and event when another BC handles it. This makes integration boundaries visible BEFORE aggregate discovery
+- **External Systems** (pink): which commands are handled by something outside this bounded context? `[BOURGAU]` "In the scope of a bounded context, other contexts become external systems too!" Place a pink sticky between command and event when another BC handles it. This makes integration boundaries visible before aggregate discovery
 
 **Step 5: Add Read Models and UX Mock-ups** `[BOURGAU]` (20-30 min)
 Place blank green stickies (Read Models) and optional white stickies (UX sketches) between events and actors. What information does the actor need to make a decision?
 
-This is one of the **two critical discussion moments** (Bourgau): "Design-Level Event Storming is the perfect workshop to discuss the UX of domain events." Domain experts and UX people can work in PARALLEL here. UX sketches interfaces while domain experts discuss data needs. Fill in each Read Model with the specific information required. Fill UX stickies with wireframe sketches when visual elements matter.
+This is one of the **two critical discussion moments** (Bourgau): "Design-Level Event Storming is the perfect workshop to discuss the UX of domain events." Domain experts and UX people can work in parallel here. UX sketches interfaces while domain experts discuss data needs. Fill in each Read Model with the specific information required. Fill UX stickies with wireframe sketches when visual elements matter.
 
 **Step 6: Place Blank Business Rules** (5 min)
-For every command-event pair NOT already linked by an External System (pink), place an **empty** pale yellow sticky between them. This is purely mechanical scaffolding. No thinking required yet.
+For every command-event pair not already linked by an External System (pink), place an **empty** pale yellow sticky between them. This is purely mechanical scaffolding. No thinking required yet.
 
 Brandolini's "Postpone Naming" principle starts here: "One of the most interesting tricks is to try to postpone aggregate naming. This is hard, because at this moment everybody is thinking they have a good name for it, and the habit of naming things is really too strong." `[BOURGAU]` "Please don't call them aggregates! It's going to work better if you call them Business Rules."
 
@@ -142,12 +142,12 @@ Brandolini's aggregate discovery approach looks for behavior, not data:
 "Some business rules are dead-simple, but others generate much discussion. This knowledge sharing between domain experts and developers is invaluable." `[BOURGAU]`
 
 **Step 8: Group Business Rules → Aggregates** (15-20 min)
-When two business rules deal with similar data or enforce related invariants, **move them on top of one another**. This BREAKS chronological order. The board transforms from a horizontal timeline into vertical stacks. That's expected: "the timeline breaks when you start grouping commands and events around aggregates. Timeline was for big-picture reasoning; responsibility is the driver for system design." (Brandolini)
+When two business rules deal with similar data or enforce related invariants, **move them on top of one another**. This breaks chronological order. The board transforms from a horizontal timeline into vertical stacks. That's expected: "the timeline breaks when you start grouping commands and events around aggregates. Timeline was for big-picture reasoning; responsibility is the driver for system design." (Brandolini)
 
 Commands that must enforce the same invariant share an aggregate. Look for units of **consistent behavior**: aggregates as little state machines that accept or reject commands based on current state.
 
 **Step 9: Name the Aggregates** (5-10 min)
-NOW name them. "How would I call a class with this information and purpose?" Add a label sticky on top of each group. Naming is the LAST thing, because "the habit of naming things is really too strong" and premature naming creates false confidence. (Brandolini)
+Now name them. "How would I call a class with this information and purpose?" Add a label sticky on top of each group. Naming is the last thing, because "the habit of naming things is really too strong" and premature naming creates false confidence. (Brandolini)
 
 **Step 10: Identify Bounded Context Contracts** (10 min)
 

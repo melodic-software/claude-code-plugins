@@ -1,6 +1,6 @@
 # Semantic-diff subagent dispatch template
 
-Agent tool prompt body + return-format contract for the default action's comparison pass. Private implementation surface: do NOT cite this file from outside the skill (external consumers invoke `/docs-hygiene:compress`).
+Agent tool prompt body + return-format contract for the default action's comparison pass. Private implementation surface: do not cite this file from outside the skill (external consumers invoke `/docs-hygiene:compress`).
 
 ## Dispatch shape
 
@@ -11,7 +11,7 @@ Spawn one `general-purpose` subagent per target file via `Agent` tool. Pass two 
 `{ARTICLES}` is the run's resolved `compress_articles` value, `keep` or `cut` (SKILL.md "Articles"). Under `keep` the prompt classes a dropped article as SEMANTIC LOSS, so the revert pass restores it; under `cut` it is a FALSE POSITIVE and the cut stays.
 
 ```text
-Compare two markdown files and classify every textual difference. ORIGINAL is the snapshot; CONDENSED is the candidate produced by a compression pass that intends to drop FLAVOR (filler, hedging, pleasantries, redundant restatement, and articles only when ARTICLES is cut) while preserving CONTENT (directives, qualifiers, examples, thresholds, exceptions, cross-references, identifiers, and every article when ARTICLES is keep).
+Compare two markdown files and classify every textual difference. ORIGINAL is the snapshot; CONDENSED is the candidate produced by a compression pass that intends to drop flavor (filler, hedging, pleasantries, redundant restatement, and articles only when ARTICLES is cut) while preserving content (directives, qualifiers, examples, thresholds, exceptions, cross-references, identifiers, and every article when ARTICLES is keep).
 
 ORIGINAL: {ORIG}
 CONDENSED: {COND}
@@ -29,11 +29,11 @@ Output schema (one block per finding, in CONDENSED line order):
 
   FINDING N: <SEMANTIC LOSS | AMBIGUITY | FALSE POSITIVE>
   ORIGINAL: "<verbatim quote from ORIGINAL, with surrounding sentence for context>"
-  CONDENSED: "<verbatim quote from CONDENSED, OR (removed) when fully cut>"
-  RATIONALE: <one sentence naming what changed AND why this classification>
+  CONDENSED: "<verbatim quote from CONDENSED, or (removed) when fully cut>"
+  RATIONALE: <one sentence naming what changed and why this classification>
   CITATION: <one of the four allowed tokens, see below>
 
-Allowed CITATION tokens (verify primary source THIS turn before quoting):
+Allowed CITATION tokens (verify primary source this turn before quoting):
 
   [<file>:<line>]              file read this turn (e.g. [README.md:142])
   [<bin> --help:<line N>]      CLI help output captured this turn
@@ -49,7 +49,7 @@ If a finding cannot be classified into exactly one of the three categories, emit
 End with a summary line:
   TOTAL: <N>; SEMANTIC LOSS: <K>; AMBIGUITY: <M>; FALSE POSITIVE: <P>; UNCERTAIN: <U>
 
-Do NOT propose revisions. Do NOT score quality. Classify only.
+Do not propose revisions. Do not score quality. Classify only.
 ```
 
 ## Required-pattern checklist (sanity-check grep targets)
@@ -63,7 +63,7 @@ grep -F '[<URL>]' context/semantic-diff-prompt.md
 grep -F '[TBD — <reason>]' context/semantic-diff-prompt.md
 ```
 
-All four MUST match.
+All four must match.
 
 ## Return-format contract
 
@@ -71,11 +71,11 @@ The main session parses the `TOTAL:` summary line; its counts feed the output sc
 
 ## Failure modes
 
-- **Subagent returns prose without the FINDING N: blocks**. Dispatch failure: surface error + revert entire candidate. Do NOT ship a partially-classified diff.
-- **Subagent uses forbidden citation token**. Treat ALL findings from that dispatch as unverified training recall; revert the entire candidate.
+- **Subagent returns prose without the FINDING N: blocks**. Dispatch failure: surface error + revert entire candidate. Do not ship a partially-classified diff.
+- **Subagent uses forbidden citation token**. Treat all findings from that dispatch as unverified training recall; revert the entire candidate.
 - **Subagent returns 0 findings**. Verify with `diff -u {ORIG} {COND}` that the files differ; 0 findings on a non-zero diff = dispatch failure (revert).
 
 ## Cross-references
 
 - `../SKILL.md` "Hard rules": semantic-diff dispatch mandatory for default action; forbidden-token list restated there as a hard rule
-- `context/flavor-vs-content-matrix.md`: the FLAVOR / CONTENT taxonomy this template operationalizes
+- `context/flavor-vs-content-matrix.md`: the flavor / content taxonomy this template operationalizes

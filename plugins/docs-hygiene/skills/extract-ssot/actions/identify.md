@@ -40,7 +40,7 @@ User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or
 
 ## Multiplicity buckets
 
-`identify` rosters candidates at EVERY multiplicity. The Rule of Three gates which remedies a
+`identify` rosters candidates at every multiplicity. The Rule of Three gates which remedies a
 candidate may be offered, never whether the candidate reaches the user. `N` is the count of full
 reproductions under the evidence discipline below (discriminating-phrase grep for literal clusters,
 reading-driven canonical-truth clustering for semantic ones), not keyword density and not
@@ -48,16 +48,16 @@ section-header count.
 
 | Bucket | What it means | Permitted `Suggested output` | Creates a new artifact? |
 |---|---|---|---|
-| **N=1** | An inline recap of an SSOT that ALREADY EXISTS, where one consumer restates the canonical instead of citing it | `trim-to-citation`, `normalize-wording` | never |
-| **N=2** | Two shapes: two consumers recap a canonical home that already exists (remedy: trim both to citations), OR two files assert the same contract and neither is the declared owner, so they drift, a bifurcation risk (remedy: name-an-owner) | `trim-to-citation`, `edit-existing-rule`, `name-an-owner`, `normalize-wording` | never |
+| **N=1** | An inline recap of an SSOT that already exists, where one consumer restates the canonical instead of citing it | `trim-to-citation`, `normalize-wording` | never |
+| **N=2** | Two shapes: two consumers recap a canonical home that already exists (remedy: trim both to citations), or two files assert the same contract and neither is the declared owner, so they drift, a bifurcation risk (remedy: name-an-owner) | `trim-to-citation`, `edit-existing-rule`, `name-an-owner`, `normalize-wording` | never |
 | **N≥3** | Rule of Three met | all of the above, plus `rule-file` / `new-skill` / `new-action` | only behind the 6-test gate (`context/decision-framework.md`) |
 
-**The N=1 bucket is NOT "report every paragraph".** A lone paragraph with no existing canonical
-home is not duplication, because nothing is being duplicated, and is NOT rostered. The N=1 bucket admits
+**The N=1 bucket is not "report every paragraph".** A lone paragraph with no existing canonical
+home is not duplication, because nothing is being duplicated, and is not rostered. The N=1 bucket admits
 a candidate only when the SSOT-existence check finds a canonical home the site should be citing.
 That precondition is what keeps a rule-of-one default from degenerating into report-everything.
 
-**N=1 and N=2 candidates can NEVER be routed to `rule-file` / `new-skill` / `new-action`.** A
+**N=1 and N=2 candidates can never be routed to `rule-file` / `new-skill` / `new-action`.** A
 sub-three candidate carrying an artifact-creating suggested output is a roster defect; correct it
 to the bucket's permitted set before emitting. `verify` Gate 1 refuses it independently
 (`REFUSE-rule-of-three-fails`).
@@ -78,7 +78,7 @@ It applies no edits. `batch` accepts the same flags and passes them through.
 |------|---------|----------|
 | `--min-instances=<N>` | `1` | Lowest bucket to roster. `--min-instances=2` drops the N=1 bucket; `--min-instances=3` rosters only N≥3 clusters and refuses sub-three candidates outright |
 | `--buckets=<list>` | all | Comma-separated bucket filter applied to the roster, e.g. `--buckets=1,2` for the non-abstracting work only. Composes with `--min-instances`; the narrower of the two wins |
-| `--fix` | off | Apply ONLY the non-abstracting remedies: `trim-to-citation` and `normalize-wording`. It NEVER creates a new artifact and never applies `name-an-owner` / `edit-existing-rule` (those change which file is canonical, a judgment call that stays with the user). Honors the per-bucket review gate unless `--yes` |
+| `--fix` | off | Apply only the non-abstracting remedies: `trim-to-citation` and `normalize-wording`. It never creates a new artifact and never applies `name-an-owner` / `edit-existing-rule` (those change which file is canonical, a judgment call that stays with the user). Honors the per-bucket review gate unless `--yes` |
 | `--dry-run` | off | Print the diff `--fix` would apply; write nothing. Implies no edits even if `--fix` is also passed |
 | `--yes` | off | Non-interactive; skip the per-bucket review gate. Only meaningful alongside `--fix` |
 | `--inline` | off | Survey in the main session with a Tier 0 grep per candidate instead of dispatching the survey subagent, whatever the corpus size. A small corpus already surveys inline without it (step 2) |
@@ -126,21 +126,22 @@ highest-volume bucket, from landing as one unreviewable diff.
 The subagent receives a self-contained prompt. Skeleton:
 
 ```text
-Goal: EXHAUSTIVE duplication survey for /docs-hygiene:extract-ssot. Find ANY and ALL duplication
-candidates across markdown in this repo. Apply Tier 0 discipline: see
-"Discrimination rules" below before adding any candidate to the roster.
+Goal: a complete duplication survey for /docs-hygiene:extract-ssot across the markdown in this
+repo. Roster every candidate that passes the "Discrimination rules" below, and only those:
+apply Tier 0 discipline before adding any candidate to the roster.
 
 Repo: <repo-root>
 
 ## Survey scope: git-tracked files only
 
-Use `git ls-files` to enumerate the survey universe. EXCLUDE:
+Use `git ls-files` to enumerate the survey universe. Exclude:
 - Gitignored files (anything `git check-ignore <path>` returns exit 0 for)
 - Ephemeral task/working-notes directories
-- Vendored/third-party verbatim content (upstream copies, NOT repo authoring)
-- Distilled external teaching material (course notes, book digests: content, NOT repo convention)
-- Test fixtures and eval data (test inputs, NOT call sites)
+- Vendored/third-party verbatim content (upstream copies, not repo authoring)
+- Distilled external teaching material (course notes, book digests: content, not repo convention)
+- Test fixtures and eval data (test inputs, not call sites)
 - Run logs and other generated output
+- Generator-owned regions inside a file (text between BEGIN/END GENERATED markers): they are not call sites. The candidate SSOT's own file stays in the survey but never counts toward its own reproduction count
 - Single-use / archived prompts
 
 In-scope authoring surfaces (adapt to what this repo actually has):
@@ -148,18 +149,18 @@ In-scope authoring surfaces (adapt to what this repo actually has):
 - .claude/rules/**/*.md (incl. nested subdirectories)
 - .claude/skills/**/*.md (SKILL.md, context/, reference/, actions/, templates/)
 - .claude/agents/*.md
-- Automation / routine / scheduled-agent prompts (NOT their run logs)
+- Automation / routine / scheduled-agent prompts (not their run logs)
 - ADRs and docs/**/*.md
 - .github/**/*.md and per-tool markdown (contributor docs, tool READMEs)
 
 ## Discrimination rules
 
-Each candidate MUST be classified by repetition form. Forms (a), (e)+(framing-only), and
+Each candidate must be classified by repetition form. Forms (a), (e)+(framing-only), and
 (i) count as duplication candidates. Form (c2) full-paragraph semantic reword also counts
 when the stability+reader-burden test passes.
 
 A form's YES/NO decides whether the thing is duplication at all. The instance count then decides
-the BUCKET, never whether the candidate is dropped: a YES at 1 or 2 instances lands in the N=1 or
+the bucket, never whether the candidate is dropped: a YES at 1 or 2 instances lands in the N=1 or
 N=2 bucket with that bucket's permitted remedies. A NO form is still discarded at any count.
 
 | Form | Counts as duplication? | Example |
@@ -168,53 +169,53 @@ N=2 bucket with that bucket's permitted remedies. A NO form is still discarded a
 | (b) Section-header presence (same `## X` heading, different body) | NO, convention/template | `## What this skill does NOT do` in 18 skills with unique non-goals each |
 | (c1) 1-line teaching reference / single concept mention | NO | A verification tier mentioned once in a paragraph |
 | (c2) Full-paragraph reword of same canonical truth (no verbatim ≥8 word phrase shared) | YES, a semantic cluster; gate via stability+reader-burden test | 4 skills each restate the same session-hygiene rule in their own wording |
-| (d) Correct citation to existing SSOT (`per X.md "Y"`) | NO, the desired state | Citation IS the architecture |
-| (e) Shared framing + per-instance unique data | BORDERLINE, so extract framing IF stability+reader-burden test passes | 5 agents share an intro paragraph; only the examples differ |
-| (f) Language-native dedup (bash `source`, Python `import`, MSBuild `<Import>`, JSON `$ref`) | NO, already extracted | 34 hooks `source hook-utils.sh` IS the dedup |
+| (d) Correct citation to existing SSOT (`per X.md "Y"`) | NO, the desired state | Citation is the architecture |
+| (e) Shared framing + per-instance unique data | BORDERLINE, so extract framing if stability+reader-burden test passes | 5 agents share an intro paragraph; only the examples differ |
+| (f) Language-native dedup (bash `source`, Python `import`, MSBuild `<Import>`, JSON `$ref`) | NO, already extracted | 34 hooks `source hook-utils.sh` is the dedup |
 | (g) Per-instance unique scope-specific list (exclusion lists, allowed-file lists, etc.) | NO, content unique even when section-header shared | Per-prompt exclusion lists are scope-specific |
 | (h) Domain-specific application of shared rule | NO, context-specific | Each skill applies a testing default in its own framing |
-| (i) Semantic-paraphrase cluster, where 2+ instances assert same canonical truth in different wording; no shared verbatim ≥8 word phrase but reader could not tell which is canonical | YES, roster iff stability OR reader-burden test passes | A commit-policy framing restated across the instruction file + 3 skills + 2 prompts in different words |
+| (i) Semantic-paraphrase cluster, where 2+ instances assert same canonical truth in different wording; no shared verbatim ≥8 word phrase but reader could not tell which is canonical | YES, roster iff stability or reader-burden test passes | A commit-policy framing restated across the instruction file + 3 skills + 2 prompts in different words |
 
-**Stability + reader-burden combined test, applied to forms (c2), (e), (i).** Roster iff EITHER:
-- Changing the canonical truth would force updates in 3+ places in lockstep (maintenance burden), OR
+**Stability + reader-burden combined test, applied to forms (c2), (e), (i).** Roster iff either:
+- Changing the canonical truth would force updates in 3+ places in lockstep (maintenance burden), or
 - Reader cannot tell which instance is canonical (ambiguity)
 
-If only ONE passes: borderline (mark WARN). If NEITHER: REFUSE-low-roi. At N=2 only the
+If only one passes: borderline (mark WARN). If neither: REFUSE-low-roi. At N=2 only the
 reader-burden branch can pass, which is exactly the N=2 bucket's defect (no declared owner).
 
-**Two-pass survey required.** Run BOTH:
+**Two-pass survey required.** Run both:
 - **Pass A, literal:** verbatim discriminating-phrase grep. Catches (a).
 - **Pass B, semantic:** for each known canonical SSOT (the repo's rule files and
-  always-loaded instruction files) AND for each topical concept the survey surfaces,
-  read consumer files looking for paragraphs that restate the rule in DIFFERENT WORDS.
+  always-loaded instruction files) and for each topical concept the survey surfaces,
+  read consumer files looking for paragraphs that restate the rule in different words.
   Cluster by canonical-truth, not by shared phrase. Catches (c2), (e), (i).
 
 Pass A alone systematically misses (c2)/(i).
 
 ## Per-candidate evidence requirement
 
-For EACH candidate, capture (NOT optional). Use ONE of two evidence shapes depending on form:
+For each candidate, capture (not optional). Use one of two evidence shapes depending on form:
 
 **Literal shape (forms a, e):**
 
 1. **Discriminating phrase** (≥8 words, verbatim, unique enough for clean grep)
-2. **Reproduction count** = distinct files containing the discriminating phrase in form (a) or (e). NOT keyword density. NOT section-header count.
+2. **Reproduction count** = distinct files containing the discriminating phrase in form (a) or (e). Not keyword density. Not section-header count.
 3. **Body excerpt** (first 2 reproductions verbatim) for human review
 
 **Semantic shape (forms c2, i):**
 
 1. **Canonical-truth one-sentence statement**: the single rule/fact each reproduction asserts in its own words
-2. **Reproduction count** = distinct files whose paragraph reproduces the canonical-truth in any phrasing. Reading-driven clustering, NOT phrase-grep counting.
+2. **Reproduction count** = distinct files whose paragraph reproduces the canonical-truth in any phrasing. Reading-driven clustering, not phrase-grep counting.
 3. **Body excerpt** (first 3 reproductions verbatim, and even though wording differs, capture each instance's actual phrasing so the reviewer can verify the semantic match)
 4. **Stability+reader-burden test result**: note which test passes and why
 
 **Both shapes also require:**
 
-5. **Citation state**: for each match, is the surrounding context "inline reproduction" or "citation to existing SSOT"? Count separately. For semantic shape: a paragraph that BOTH restates AND cites is form (d), so count it as already-cited.
-6. **SSOT existence check**: does a canonical file already exist? If yes, what % of call sites cite it? If 100% cite → REFUSE-already-cites-canonical. This check is also the N=1 bucket's admission gate: a single site is rostered ONLY when a canonical home exists that it recaps instead of cites; with no existing home, a lone paragraph is not duplication and is dropped.
+5. **Citation state**: for each match, is the surrounding context "inline reproduction" or "citation to existing SSOT"? Count separately. For semantic shape: a paragraph that both restates and cites is form (d), so count it as already-cited.
+6. **SSOT existence check**: does a canonical file already exist? If yes, what % of call sites cite it? If 100% cite → REFUSE-already-cites-canonical. This check is also the N=1 bucket's admission gate: a single site is rostered only when a canonical home exists that it recaps instead of cites; with no existing home, a lone paragraph is not duplication and is dropped.
 7. **Language-native check**: is the cluster a shared library, helper module, build-tool import, JSON $ref? If yes → out-of-scope.
 
-A candidate without the appropriate evidence shape fields populated is REFUSED automatically.
+A candidate without the appropriate evidence shape fields populated is refused automatically.
 
 ## Heuristic checklist (Pass A literal + Pass B semantic):
 
@@ -253,9 +254,9 @@ A candidate without the appropriate evidence shape fields populated is REFUSED a
 29. Common error message / status interpretations repeated
 30. Recheck-triggers / cross-references H2 boilerplate (structure-only)
 
-**Pass B, semantic clustering (catches forms c2, i; REQUIRED, not optional):**
+**Pass B, semantic clustering (catches forms c2, i; required, not optional):**
 
-For Pass B, the SUBAGENT MUST do reading-driven clustering, not phrase grep. Method:
+For Pass B, the subagent must do reading-driven clustering, not phrase grep. Method:
 
 a. **Concept-axis enumeration.** Pre-seed by enumerating the concepts asserted in the
    repo's always-loaded instruction surfaces (CLAUDE.md, AGENTS.md, always-loaded rules).
@@ -277,21 +278,21 @@ a. **Concept-axis enumeration.** Pre-seed by enumerating the concepts asserted i
      but check)
    - Hook/script authoring boilerplate across the rule that owns it + skills that author hooks
 
-b. **For each concept above, sample 3-5 candidate consumer files and READ the relevant
+b. **For each concept above, sample 3-5 candidate consumer files and read the relevant
    section** (not grep). Compare the paragraphs' assertions for semantic equivalence:
    - Same canonical truth asserted? → semantic cluster (form c2 or i)
    - Each file applies the rule to its own scope? → form (h) domain-specific application, REFUSE
    - Each file teaches the rule for its own audience with intentionally different framing?
      → intentional bifurcation, REFUSE
 
-c. **Don't stop at the pre-seeded list.** As reading progresses, surface NEW concept axes
+c. **Don't stop at the pre-seeded list.** As reading progresses, surface new concept axes
    the subagent notices being restated. Append them to the candidate list.
 
-For EACH candidate cluster (both passes), capture:
+For each candidate cluster (both passes), capture:
 - Cluster name (kebab-case slug)
 - File list with line ranges where possible
 - Instance count (full reproductions)
-- Bucket: N=1 | N=2 | N≥3, assigned from the instance count; MUST be emitted with every candidate
+- Bucket: N=1 | N=2 | N≥3, assigned from the instance count; must be emitted with every candidate
 - 1-line description
 - SSOT exists? (path or "no")
 - Suggested output, constrained to the bucket's permitted set:
@@ -309,9 +310,9 @@ For EACH candidate cluster (both passes), capture:
 field on the SSOT-existence check (the `SSOT exists?` capture field + per-candidate evidence item 6): if
 an existing rule/skill/doc already owns the concept and ≥1 consumer still recaps it inline, suggest the
 consolidation outputs, `edit-existing-rule` (extend the home only where a consumer carries nuance it lacks)
-and/or `trim-to-citation` (replace each inline recap with a citation), NOT a creation output. If the home
+and/or `trim-to-citation` (replace each inline recap with a citation), not a creation output. If the home
 is complete and 100% of sites already cite it → no work (`REFUSE-already-cites-canonical` per `verify`
-Gate 2). Reserve `rule-file` / `new-skill` / `new-action` for concepts with NO existing home **and** N≥3.
+Gate 2). Reserve `rule-file` / `new-skill` / `new-action` for concepts with no existing home **and** N≥3.
 
 Bucket routing of the pre-check:
 
@@ -324,14 +325,14 @@ Bucket routing of the pre-check:
   Gate 4).
 - **N≥3, no home** → creation output, subject to the 6-test gate.
 
-Output: ONE ranked table PER BUCKET (three labeled sections, ROI desc, dependency-grouped within
+Output: one ranked table per bucket (three labeled sections, ROI desc, dependency-grouped within
 each). Then a batch-sequencing recommendation grouping non-overlapping candidates that can run in
 parallel + dependency chains that must run sequentially.
 
-Mark with ⭐ any cluster where an SSOT already exists but call sites STILL inline
+Mark with ⭐ any cluster where an SSOT already exists but call sites still inline
 (highest signal, the quick wins).
 
-Do NOT edit files.
+Do not edit files.
 ```
 
 ## Output shape (exhaustive mode)
@@ -372,7 +373,7 @@ reads as "nothing found there".
 ## Dependency chains (must run sequential)
 <named chains>
 
-## Hot files (must NOT run candidates touching them in parallel)
+## Hot files (must not run candidates touching them in parallel)
 <file: candidate-count>
 
 ## Batch dispatch plan
@@ -403,8 +404,8 @@ No subagent dispatch. No batch sequencing. Single-cluster sanity check only.
 
 - **Premature exhaustive mode**: dispatching a survey subagent when the user already has 1-2 clusters in mind wastes a dispatch. Detect via the argument.
 - **Subagent survey on a small corpus**: dispatching the survey subagent over a corpus smaller than its own evidence-verification cost. The brief alone can outweigh the corpus, and every returned lead still needs a Tier 0 re-grep. Survey inline instead (step 2).
-- **Synthesis-only output**: a subagent return is unverified synthesis, not Tier 0 evidence. Each cluster MUST be promoted to Tier 0 (grep this turn) before `/docs-hygiene:extract-ssot plan` or `execute` runs. The `verify` action enforces this.
-- **Skipping the user-review gate**: exhaustive mode can emit a roster of dozens of candidates. NEVER auto-dispatch the whole roster without user confirmation. Default policy: present roster + recommend top wave; user picks scope.
+- **Synthesis-only output**: a subagent return is unverified synthesis, not Tier 0 evidence. Each cluster must be promoted to Tier 0 (grep this turn) before `/docs-hygiene:extract-ssot plan` or `execute` runs. The `verify` action enforces this.
+- **Skipping the user-review gate**: exhaustive mode can emit a roster of dozens of candidates. Never auto-dispatch the whole roster without user confirmation. Default policy: present roster + recommend top wave; user picks scope.
 - **Roster decay**: the survey is point-in-time. If `/docs-hygiene:extract-ssot batch` partial-completes and the user resumes weeks later, re-run `identify` rather than trusting a stale roster.
 - **Rule-of-one as report-everything**: rostering a lone paragraph that no canonical home duplicates. The N=1 bucket admits a candidate only when the SSOT-existence check finds the home it should be citing; without that, there is no duplication to report.
 - **Bucket leakage**: offering `rule-file` / `new-skill` / `new-action` to an N=1 or N=2 candidate. The reporting threshold moved; the abstraction threshold did not. Constrain the suggested output to the bucket's permitted set before emitting.

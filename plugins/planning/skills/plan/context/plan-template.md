@@ -179,7 +179,7 @@ Calibration examples by scale:
 - **Medium:** a new shared library; add a cache to a query handler; a new module in a modular monolith
 - **Large:** module extraction; auth-provider integration; a cross-cutting refactor touching multiple apps and libraries
 
-When a task sits between two scales, use the larger one: rework from a missed assumption costs more than reading a longer plan.
+When in doubt, err toward more detail. A plan that's "too detailed" wastes 30 seconds reading. A plan that's "too brief" wastes 30 minutes fixing assumptions.
 
 ## Script Repeatable Operations (default deliverable)
 

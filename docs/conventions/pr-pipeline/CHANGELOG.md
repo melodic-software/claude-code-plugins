@@ -1,5 +1,29 @@
 # Changelog for the PR pipeline convention
 
+## [10.3.8] - 2026-11-15
+
+### Changed
+
+- The Verifier verdict section says the capture job reads the key's credit history before its resolver, and while the credit gate skips the key it stops there and uploads no capture, so the verdict records the capture `blocked` with the reason "left no capture artifact for this head". The match step now runs before the key call, after the credit read.
+
+## [10.3.7] - 2026-11-15
+
+### Changed
+
+- The example config's `sweep-comments` activity passes `--unattended` to `/review:fanout`, which now accepts the flag, so a lane run proposes checks without running any.
+
+## [10.3.6] - 2026-11-15
+
+### Changed
+
+- Signal 6 (report-only audit) reads `maintenance-file-upstream-drift-issues`, the weekly drift workflow, in place of the deleted `maintenance-check-upstream-drift`, and says why each audit fails: the test-selection audit on findings, the drift filer on a failed issue write, an unreachable upstream or a check script that broke its exit contract, each after filing every issue, or in its report job with nothing filed when a drift check could not finish.
+
+## [10.3.5] - 2026-11-15
+
+### Changed
+
+- The PR pipeline contract docs state rules as current facts, with stale figures corrected and capital-letter emphasis removed.
+
 ## [10.3.4] - 2026-11-15
 
 ### Changed

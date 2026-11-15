@@ -25,10 +25,10 @@ point the tooling at wherever your copy lives (any path you choose):
 
 - EPUB / PDF: your local copy of the book. There is no assumed location, so supply the path when you
   run the COMPARE step
-- Extracted EPUB working dir: `$TMPDIR/eventstorming_epub/OEBPS/` (chap00-chap44.xhtml), where `$TMPDIR`
-  defaults to `/tmp` on Unix, `$TEMP` on Windows
+- Extracted EPUB working dir: `<extract dir>/OEBPS/` (chap00-chap44.xhtml), where `<extract dir>` is
+  the path the temp primitive returned in the Pre-Simulation Checklist's source-material item
 
-**IMPORTANT:** EPUB file names (`chap{N}.xhtml`) do NOT match book chapter numbers. The EPUB includes unnumbered section dividers. Always use the `<title>` tag inside each file for the actual chapter number. Key mapping:
+**Important:** EPUB file names (`chap{N}.xhtml`) do not match book chapter numbers. The EPUB includes unnumbered section dividers. Always use the `<title>` tag inside each file for the actual chapter number. Key mapping:
 
 | EPUB File | Book Ch. | Content | Book % | Skill Coverage | Notes |
 |-----------|----------|---------|--------|---------------|-------|
@@ -79,10 +79,10 @@ book, using the Bourgau and Vernon sources marked in Notes.
 
 ## Pre-Simulation Checklist
 
-Run these checks BEFORE starting any simulation:
+Run these checks before starting any simulation:
 
-- [ ] **MCP preflight:** Test Miro MCP with `miro_list_boards`. If it fails or no Miro server is connected, route to structured-markdown mode (SKILL.md "Miro availability & graceful degradation"). Do NOT fall back to a raw Miro REST/token/curl call, which would reintroduce the very dependency the markdown path exists to avoid
-- [ ] **Source material accessible** *(optional, authoring and source-comparison only; skip if you don't own the book)*: If running the COMPARE-against-source pass and you own the Leanpub book, extract your copy into the temp working dir, e.g. `cd "${TMPDIR:-/tmp}" && mkdir -p eventstorming_epub && cd eventstorming_epub && unzip /path/to/your/introducing_eventstorming.epub`. If you don't own the book, skip this item. The simulation runs without it.
+- [ ] **MCP preflight:** Test Miro MCP with `miro_list_boards`. If it fails or no Miro server is connected, route to structured-markdown mode (SKILL.md "Miro availability & graceful degradation"). Do not fall back to a raw Miro REST/token/curl call, which would reintroduce the very dependency the markdown path exists to avoid
+- [ ] **Source material accessible** *(optional, authoring and source-comparison only; skip if you don't own the book)*: If running the COMPARE-against-source pass and you own the Leanpub book, create the extract directory with the temp primitive and echo its path in the same call (`mktemp -d "${TMPDIR:-/tmp}/eventstorming-epub-XXXXXX"`), then extract into that literal path: `unzip -d "<echoed path>" /path/to/your/introducing_eventstorming.epub`. If you don't own the book, skip this item. The simulation runs without it.
 - [ ] **Previous boards documented:** Check the run-state store (`${CLAUDE_PLUGIN_DATA}/history.jsonl`) for prior version boards (comparison baseline)
 - [ ] **Domain research done:** At least 3 web-research searches (Perplexity MCP if present, else `WebSearch`) for domain context before building persona prompts
 - [ ] **Persona count validated:** 4-7 for simulation, with three-zone knowledge (DEEP/GREY/PRETEND) defined for each
@@ -116,7 +116,7 @@ trusting this line.
 |-----------|----------------|----------|--------------|--------|
 | Sorting strategy chosen | Ch. 4-5 | Pivotal Events, Temporal Milestones, Chapters, or Swimlanes selected with rationale | Document the choice and why | High |
 | Pivotal Events identified | Ch. 4 | 4-5 major phase transitions marked with dark_blue | Board check for dark_blue stickies | High |
-| Divergent phrasings preserved | Ch. 6 | Near-duplicate events placed side-by-side, NOT merged | Visual check: duplicates visible | Critical |
+| Divergent phrasings preserved | Ch. 6 | Near-duplicate events placed side-by-side, not merged | Visual check: duplicates visible | Critical |
 | Hot spots facilitator-only | Ch. 4 | No personas prompted for problems yet | Check hot spot attribution | High |
 | Events physically sorted | Ch. 4-5 | Events repositioned into timeline zones | Board check: events grouped by milestone | Medium |
 | Legend updated | Ch. 8 | Legend adds: Hot Spot, Pivotal Event, Temporal Milestone | Visual check | Medium |
@@ -137,8 +137,8 @@ trusting this line.
 | Narrator relay race | Ch. 4 | Different narrators for different segments | Check agent invocations per segment | High |
 | Natural language paragraphs | Ch. 4 (walking + speaking) | Connected narrative, not bullet lists | Read the narrative outputs | High |
 | [STUMBLE] markers | Ch. 4 (body feels weird) | 3+ gaps identified where story doesn't flow | Count [STUMBLE] markers | High |
-| New events from walk-through | Ch. 4 (30-40% additional) | 15-25 new events; target 30-40% of existing count | Count new events on the Walk-through row (see the Big Picture Y-Coordinate Table in `miro-integration.md`) | High |
-| Reverse narrative executed | Ch. 4 | 3+ terminal events traced backward | Check reverse narrative outputs | High |
+| New events from walk-through | Ch. 4 (bumpy storytelling adds events) | 15-25 new events | Count new events on the Walk-through row (see the Big Picture Y-Coordinate Table in `miro-integration.md`) | High |
+| Reverse narrative executed | Ch. 4 (30-40% additional) | 3+ terminal events traced backward; about 30-40% additional flow beyond what Walk-through found | Check reverse narrative outputs and count new events on the Reverse narrative row | High |
 
 ### Big Picture: Value Exploration
 
@@ -152,7 +152,7 @@ trusting this line.
 
 | Criterion | Source Reference | Expected | How to Check | Weight |
 |-----------|----------------|----------|--------------|--------|
-| 3 problems + 2 opportunities per persona | Ch. 4 | 18+ problems, 12+ opportunities | Count by color | Medium |
+| 3 problems + 2 opportunities per persona | Ch. 4 | 3 red problems and 2 green opportunities from each persona | Count by color and persona | Medium |
 | Arrow voting | Ch. 4 | 2 votes per persona, light_blue stickies | Count votes | Medium |
 | Winner identified | Ch. 4 | Clear winner marked, scopes Process Modeling | Check for winner marker | Critical |
 
@@ -183,26 +183,26 @@ trusting this line.
 
 | Criterion | Source Reference | Expected | How to Check | Weight |
 |-----------|----------------|----------|--------------|--------|
-| Blank Aggregates technique used | Ch. 17, Ch. 20 | Empty stickies first, rules written, THEN named | Check for gray business rule stickies | Critical |
+| Blank Aggregates technique used | Ch. 17, Ch. 20 | Empty stickies first, rules written, then named | Check for gray business rule stickies | Critical |
 | Aggregate consolidation | Ch. 20 | Aggregates <= Commands | Count aggregates vs commands | Critical |
 | Invariants documented | Ch. 20 | Each aggregate has explicit rules | Check for invariant stickies | High |
 | Alternative outcomes modeled | Ch. 17 | Rejection events for each command | Count failure events | High |
 | "What if?" challenges | Ch. 17 | Concurrency, edge cases, scale scenarios | Check for red hot spots | High |
 | Bounded context contracts | Ch. 17 | Published events (outbound) + consumed events (inbound) | Check for cyan contract stickies | High |
-| Naming postponed | Ch. 20 | Aggregates named LAST, not first | Verify blank→named sequence in transcript | Medium |
+| Naming postponed | Ch. 20 | Aggregates named last, not first | Verify blank→named sequence in transcript | Medium |
 | Legend complete | Ch. 17 | Includes Aggregate, Business Rule, BC Contract | Count legend entries | Medium |
 
-### LLM Behavioral Fidelity (cross-cutting, applies to ALL phases)
+### LLM Behavioral Fidelity (cross-cutting, applies to all phases)
 
 | Criterion | LLM Tension # | Expected | How to Check | Weight |
 |-----------|--------------|----------|--------------|--------|
 | Partial views, no comprehensive coverage | #1 Completeness | Each persona covers only their domain; visible gaps between personas | Check if any single persona wrote events spanning the entire flow | Critical |
 | Divergent vocabulary | #2 Convergence | 3+ moments where personas used different words for the same business event | Pairwise scan of event names near shared focal moments | Critical |
 | Genuine pushback / challenges | #3 Politeness | 3+ hot spots from inter-persona disagreement (facilitator-authored ones do not count; persona disagreements the facilitator prompted for still do) | Count hot spots with "[PersonaName] disagrees" attribution | High |
-| Messy organic output | #4 Clean flows | Chaotic Exploration produces unordered clusters, not a clean timeline | Visual check: events should NOT read as a process document | High |
+| Messy organic output | #4 Clean flows | Chaotic Exploration produces unordered clusters, not a clean timeline | Visual check: events should not read as a process document | High |
 | Sticky note brevity | #5 Verbosity | 90%+ of events are 2-5 words, past tense | Word count analysis; flag any >7 words | Critical |
 | Participant mode (no explaining) | #6 Expert/Teacher | Agents place stickies and react, not write explanations | Check agent output for paragraphs of explanation vs sticky-format events | Medium |
-| Disagreements preserved | #7 Consensus | Near-duplicate events placed side-by-side, NOT synthesized | Visual check: divergent phrasings still visible | High |
+| Disagreements preserved | #7 Consensus | Near-duplicate events placed side-by-side, not synthesized | Visual check: divergent phrasings still visible | High |
 | Asymmetric output | #10 Balanced | Domain Expert produced 2x+ events compared to New Hire | Count events per persona | Medium |
 | Grey-zone wrong events | #9 Gap-filling | At least 2-3 events that are plausible but wrong (from grey/pretend zones) | Manual check: do any events contradict expert knowledge? | High |
 
@@ -264,7 +264,7 @@ Rubric Score:
 
 The real comparison baseline is your own run history in `${CLAUDE_PLUGIN_DATA}/history.jsonl`. The
 numbers below are **illustrative examples only**, author-run figures for one domain (Developer
-Conference), shipped to show the *shape* of a version-progression record. Do NOT compare a fresh run
+Conference), shipped to show the *shape* of a version-progression record. Do not compare a fresh run
 (or any other domain) against them, or the evaluator will report bogus regressions/progress; use them
 solely as a format template until your own history accumulates.
 
@@ -275,7 +275,7 @@ solely as a format template until your own history accumulates.
 
 ## Post-Simulation Retrospective Protocol
 
-After EVERY simulation run, answer these questions:
+After every simulation run, answer these questions:
 
 ### Source Fidelity (compare against the book)
 
@@ -296,8 +296,8 @@ After EVERY simulation run, answer these questions:
 2. Did parallel vs sequential execution work well? Should anything change?
 3. Did MCP tools work? If not, was the fallback handled transparently?
 4. Were legends incrementally updated at each phase?
-5. Were ubiquitous language terms captured DURING the workshop (not added after)?
-6. Was bounded context discovery deferred to post-workshop analysis (labels added AFTER the workshop as the architect's homework, not prematurely during it, per Brandolini Ch. 6)?
+5. Were ubiquitous language terms captured during the workshop (not added after)?
+6. Was bounded context discovery deferred to post-workshop analysis (labels added after the workshop as the architect's homework, not prematurely during it, per Brandolini Ch. 6)?
 
 ### LLM Behavioral Fidelity (the 10 tensions, see agentic-simulation.md)
 
@@ -324,7 +324,7 @@ After EVERY simulation run, answer these questions:
 
 Screenshot verification applies **only on the live Miro-board path** and requires a browser MCP
 (e.g. chrome-devtools), an optional surface rather than a declared plugin dependency. When a browser MCP
-is connected, take a screenshot after EVERY phase transition and check the items below; it is a
+is connected, take a screenshot after every phase transition and check the items below; it is a
 strong quality gate for board runs. When no browser MCP is available, or the run is in
 structured-markdown mode, skip screenshot capture and verify against the markdown artifact instead.
 Do not block the run on an undeclared tool.
@@ -336,7 +336,7 @@ Do not block the run on an undeclared tool.
 | Color correctness | Each building block uses its correct color (orange=events, blue=commands, etc.) | Update miscolored stickies via `miro_update_sticky_note` |
 | Stickies outside expected zones | No stickies floating far from the main content area | Reposition outliers |
 | Density and readability | Stickies are not overlapping excessively; content is readable at normal zoom | Adjust spacing |
-| Milestone/pivotal positioning | Temporal milestones are ABOVE events (negative y), not below | Reposition milestones |
+| Milestone/pivotal positioning | Temporal milestones are above events (negative y), not below | Reposition milestones |
 | Emoji presence | No emoji characters visible on any sticky | Update sticky content to remove emojis |
 | Type prefix presence | No "COMMAND:", "EVENT:", "🔵" prefixes on stickies | Update sticky content to remove prefixes |
 
@@ -350,7 +350,7 @@ Examples: `bp-v7-chaotic-exploration.png`, `bp-v7-enforce-timeline.png`, `pm-v7-
 ## How to Run an Evaluation
 
 1. **Complete the simulation**: all 3 formats (BP, PM, DL) or the subset being evaluated
-2. **Read ALL boards**: one `miro_list_board_items` call per board with `limit=1000`. Export item lists with colors, positions, and content
+2. **Read all boards**: one `miro_list_board_items` call per board with `limit=1000`. Export item lists with colors, positions, and content
 3. **Score each rubric section in a fresh context**: the context that ran the simulation never
    scores it. Run the plugin's `lib/read-verification.sh --plugin event-storming --skill simulation`
    (the full command is in SKILL.md, "Scoring in a fresh context") and copy its line into the evaluation report

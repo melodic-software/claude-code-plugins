@@ -59,7 +59,7 @@ Both fan work out to parallel agents in isolated worktrees, so "run this in para
 
 **Routing.** When no approved plan or item list exists and the work is a large mechanical change that splits into independent units, offer it to the person at the prerequisite check, before any brief: If /batch is available in your session (gate basis: which settings hide it and what it needs to run are read live from the records in [reference/native-batch.md](reference/native-batch.md)), you can run `/batch <instruction>` instead of or alongside this skill. With an approved plan or an item list, this skill runs. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag it asks. This skill never triggers `/batch` on its own behalf.
 
-**Availability is never assumed.** Project settings can hide it, and it has requirements to run, both read live from the records named next; this section states what to do when it resolves, never that it is present. The records live in [reference/native-batch.md](reference/native-batch.md).
+**Availability is never assumed.** Project settings can hide it, and it has requirements to run, both read live from the records named next; this section states what to do when it resolves, never that it is present. The four-part records live in [reference/native-batch.md](reference/native-batch.md).
 
 ## Arguments
 

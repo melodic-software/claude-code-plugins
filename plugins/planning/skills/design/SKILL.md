@@ -259,6 +259,14 @@ naming during modeling does not replace it.
 - Adapter surfaces (infrastructure boundary)
 - Dependency direction enforcement per the project's declared layer rules
 
+When the work adds, splits, merges or moves a module or its interface, invoke
+`/architecture:principles` via the Skill tool (if enabled) before writing the topology, and name
+modules, interfaces, seams and adapters in its terms. For modules that already exist, name
+`/architecture:improve` (if enabled) as the step that finds which ones to reshape; this skill scans
+no code. When the architecture plugin is not enabled, say once that it would supply the
+module-design vocabulary and the friction scan, and proceed from
+[`design-principles.md`](${CLAUDE_PLUGIN_ROOT}/reference/design-principles.md).
+
 Produce: `library-topology.md` (library scope) or equivalent per scope.
 
 When the dependency graph reads more clearly visually, optionally also emit a self-contained HTML
@@ -463,6 +471,8 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 | `/domain-driven-design:ubiquitous-language curate` | **During.** Owns project-glossary updates when design resolves domain language; not type or boundary design |
 | `/visualization:visualize` (if enabled) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block |
 | `/naming:name-it-better` (if enabled) | **During.** Proposes candidates for a name the design leaves undecided; the human picks, and the pick is recorded in the terminology table |
+| `/architecture:principles` (if enabled) | **During.** Supplies the module-design terms the topology uses when the work changes module structure (Phase 4) |
+| `/architecture:improve` (if enabled) | **Before.** Finds which existing modules to reshape; design decides the new shape |
 | `/architecture:record-decision` (if enabled) | **During.** Records the ADR for a one-way door when its thread resolves ([`reference/reversibility.md`](reference/reversibility.md)) |
 | `/work-items:decompose` (if enabled) | **After.** Reads a typed artifact's `scope` and `dialect` label to inline it into the spec container with a provenance note, and quotes each slice's part of PLAN.md's `## Design` into that slice's body |
 | `/discovery:explore` (if enabled) | **Before.** Maps existing code; design creates what should exist |

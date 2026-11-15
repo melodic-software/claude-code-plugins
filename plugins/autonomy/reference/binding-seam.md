@@ -2,7 +2,7 @@
 
 Normative contract for how an adopting org maps the roles in `role-topology.md` (and every
 per-capability contract that follows) to its real instances: repositories, trackers, tools,
-and policies. The contract defines the SHAPE of a binding; every concrete value is org-supplied.
+and policies. The contract defines the shape of a binding; every concrete value is org-supplied.
 
 ## Binding shape
 
@@ -10,18 +10,18 @@ A binding is a written, schema-versioned record mapping contract vocabulary to o
 each topology role to a repository, each capability's seam to the org's chosen instance, plus
 the org's declared postures (budget, substrate availability). Bindings carry a
 `schema_version` field; consumers read the version before the body, and schema
-changes are reviewed migrations. A role MAY be bound to null: an unborn role (one whose birth
+changes are reviewed migrations. A role may be bound to null: an unborn role (one whose birth
 trigger has not fired) or a role the org has no instance for stays explicitly unbound.
 Consumers treat null as absent capability and never invent an instance.
 
-The org-policy-home pointer is a repository locator that MAY carry an explicit document path
+The org-policy-home pointer is a repository locator that may carry an explicit document path
 (`<repo-locator>#<path>`). Absent a path, the consumer discovers the binding instance
 document at bind time (by its schema-versioned binding shape, per the org repo's own layout)
-and PERSISTS the resolved path alongside the pointer so later fetches are deterministic.
+and persists the resolved path alongside the pointer so later fetches are deterministic.
 
 ## Resolution ladder
 
-A consumer resolves the effective binding as an ADDITIVE layer merge, where a later layer adds
+A consumer resolves the effective binding as an additive layer merge, where a later layer adds
 to or refines earlier layers per value, never wholesale replacement:
 
 1. **User-global base.** The consumer's own machine-level binding config.

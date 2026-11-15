@@ -26,7 +26,7 @@ axis, repo scope sets the `L2` unattended floor as the class prerequisite
 ## Output contract
 
 Advisory report, the period's pipeline-health assessment, plus work items filed into
-the governed queue for each finding warranting action. OPTIONALLY, a gated change: a
+the governed queue for each finding warranting action. Optionally, a gated change: a
 proposed fix to CI workflow/config, entering only through the guardrail matrix's merge
 policy for the derived row of that portion. The optional change is never a second merge
 path and never lands unreviewed.

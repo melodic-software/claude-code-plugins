@@ -44,7 +44,35 @@ assert_doc() {
 
 STUBS="$(mktemp -d)"
 EMPTY_PATH="$(mktemp -d)"
-trap 'rm -rf "$STUBS" "$EMPTY_PATH"' EXIT
+# Without CODE_METRICS_HOME the dispatcher reads the user-global layer from
+# $HOME/.claude, so a developer's own code-metrics.yaml or ecosystems/<lane>.yaml
+# would change lanes, thresholds and scope. Every case resolves against this
+# empty home unless it sets its own.
+TEST_HOME="$(mktemp -d)"
+export CODE_METRICS_HOME="$TEST_HOME"
+# HOME itself is a test-owned directory seeded with a user-global ecosystem file
+# that moves the python lane onto a glob no fixture matches. A dispatch call that
+# falls back to $HOME (CODE_METRICS_HOME dropped, or shadowed empty on a case's
+# command line) then moves cm_sample.py out of the python lane and fails a case,
+# instead of passing on every machine with an empty ~/.claude. It also keeps
+# persist-report.sh out of the real ~/.claude/plugins/data. The fixture name is
+# composed for the reason case 10 gives.
+GUARD_HOME="$(mktemp -d)"
+guard_lane=python
+mkdir -p "$GUARD_HOME/.claude/ecosystems"
+printf 'globs: ["*.cm-home-guard"]\n' >"$GUARD_HOME/.claude/ecosystems/$guard_lane.yaml"
+# A repository whose own team layer sets the python lane's globs (this one's
+# .claude/ecosystems does) outranks that user-global value, so the globs alone
+# would leave cm_sample.py in the python lane. `enabled`, which no team file
+# here sets, survives the merge and turns the python lane off. A guard lane the
+# user-global layer lists then claims the python fixture, keeping it measured
+# outside the python lane in any repository.
+printf 'enabled: false\n' >>"$GUARD_HOME/.claude/ecosystems/$guard_lane.yaml"
+guard_claim_lane=cm-home-guard
+printf 'lanes:\n  %s:\n    enabled: true\n' "$guard_claim_lane" >"$GUARD_HOME/.claude/code-metrics.yaml"
+printf 'globs: ["*.py"]\n' >"$GUARD_HOME/.claude/ecosystems/$guard_claim_lane.yaml"
+export HOME="$GUARD_HOME"
+trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$TEST_HOME" "$GUARD_HOME"' EXIT
 cat >"$STUBS/scc" <<EOF
 #!/usr/bin/env bash
 if [[ "\${1:-}" == "--version" ]]; then printf 'scc version 3.7.0\n'; exit 0; fi
@@ -66,6 +94,13 @@ else
   fail "no ladder collector is resolvable on the tool-free PATH" "none" "$leftover"
 fi
 unset CODE_METRICS_DISABLE_BUNDLED
+
+# 0. The HOME guard bites: with CODE_METRICS_HOME empty the dispatcher falls
+#    back to $HOME, and the seeded ecosystem file moves the python fixture out of
+#    its lane. Were the guard inert, a case that lost its isolation would pass.
+out="$(PATH="$EMPTY_PATH" CODE_METRICS_HOME='' bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
+assert_doc "a fallback to the guarded HOME moves cm_sample.py out of the python lane" "$out" \
+  'any(r["file"].endswith("cm_sample.py") for r in d["measures"]) and not any(r["file"].endswith("cm_sample.py") and r["lane"]=="python" for r in d["measures"])'
 
 # 1. scc absent: the bundled counter is used and the run row names it.
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"

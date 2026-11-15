@@ -28,7 +28,7 @@ writes only the **team** file; changes to the user-global layer or the personal 
 ## `check` (read-only)
 
 Inspect the effective merged config and report a PASS/FAIL/INFO table with one remediation line per
-FAIL. Modify nothing, and do NOT run an audit. That is `/codebase-health:audit`.
+FAIL. Modify nothing, and do not run an audit. That is `/codebase-health:audit`.
 
 1. **Config presence (effective, across layers)**. Load every layer you can access and report the
    *effective merged* result honoring opt-outs (dimensions present, glob counts, example-claim counts),
@@ -77,14 +77,14 @@ looks unambiguous, the turn that drafts the config ends by presenting it and ask
    last ("anything else this repo should audit as its own lane?").
 4. **Draft example-claims.** For each accepted dimension, read one or two representative
    primary-source files and propose 2–4 concrete `{ claim, verify-via }` rows drawn from real
-   sentences in them. Concrete rows teach the discovery pass what drift looks like in THIS repo, the highest-value part of the config. The user approves or edits each row.
+   sentences in them. Concrete rows teach the discovery pass what drift looks like in this repo, the highest-value part of the config. The user approves or edits each row.
 5. **Write the config, once the user has confirmed it.** Materialize `.claude/codebase-health.md` following the structure in
    [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md) (replace every placeholder comment
    with real values; drop unused placeholder rows).
 6. **Verify after remediation.** Re-run the `check` probes on the written file. Dimension source lists
    parse and name real paths, and both halves of the tracked-file pair hold:
    `git check-ignore -v .claude/codebase-health.md` reports no match (a match is FAIL; surface the
-   pattern and offer to fix `.gitignore` before reporting success) AND
+   pattern and offer to fix `.gitignore` before reporting success) and
    `git ls-files --error-unmatch .claude/codebase-health.md` exits 0 (non-zero means un-ignored but
    still untracked, the guaranteed state right after a fresh write, so report "written but
    untracked: commit it to share with the team", never success). Then **offer the personal override convention**: personal overrides go in
@@ -99,7 +99,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 A tracked `.claude/codebase-health.md` in the consuming repo, plus a one-paragraph summary of what
 was written and how to re-run this setup to reconfigure.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run an audit. That is `/codebase-health:audit`. `check` only inspects config.
 - Write machine-local state. Configuration lives in the consumer's tracked file, never in the

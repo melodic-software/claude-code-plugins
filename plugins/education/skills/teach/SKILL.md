@@ -44,9 +44,9 @@ unless the project itself declares one.
         └── exercise.md      colocated practice (optional)
 ```
 
-Path resolution rules every action MUST follow:
+Path resolution rules every action must follow:
 
-- **`<project-slug>`.** Canonicalize the project path FIRST, then derive both the basename-slug and
+- **`<project-slug>`.** Canonicalize the project path first, then derive both the basename-slug and
   the hash from that one canonical path, so a project opened via a symlink and via its real path
   map to one workspace. Canonical path:
   `(cd "${CLAUDE_PROJECT_DIR}" 2>/dev/null && pwd -P) || realpath "${CLAUDE_PROJECT_DIR}" 2>/dev/null || readlink -f "${CLAUDE_PROJECT_DIR}" 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR}"` <!-- portability-ok: readlink -f is a fallback rung after pwd -P and realpath -->
@@ -75,7 +75,7 @@ Path resolution rules every action MUST follow:
   truth for collision checks: `MISSION.md`'s `# Mission: {Topic}` title for a topic; for a concept,
   the `**Concept:**` line in `lesson.md` or `<meta name="concept" content="…">` in `lesson.html`.
   **Guard against slug collisions** (`C++` and `C#` → `c`): before creating a workspace whose slug
-  directory exists, read its recorded raw name; if it names a DIFFERENT subject, append `-` plus
+  directory exists, read its recorded raw name; if it names a different subject, append `-` plus
   `printf '%s' '<raw-name>' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-4` to the new
   slug.
 - **`learning-records/NNNN-<slug>.md`** keeps `NNNN-` numbering (an ADR-style append-only log).
@@ -111,14 +111,14 @@ surfaced to the user, never merged.
 
 1. **Project declaration.** A `teach workspace root: <path>` declaration in the consuming
    project's CLAUDE.md or rules files. The only rung that may name a path inside the consuming
-   repo. **The declared value is UNTRUSTED input** (a third-party repo's author controls it): it
+   repo. The declared value is untrusted input (a third-party repo's author controls it): it
    must be a plain path in rung 2's grammar (absolute, `~`-home-relative, `${NAME}`/`%NAME%` env
-   refs, or project-relative). Loudly REFUSE, falling to the next rung, any value containing shell
+   refs, or project-relative). Loudly refuse, falling to the next rung, any value containing shell
    metacharacters or substitution syntax (`$(`, backticks, `;`, `|`, `&`, `<`, `>`, quotes,
    newlines) or not parseable as a single path. Never execute, expand, or eval a declared value.
 2. **`workspace_root` userConfig.** The table above; validated by `/education:setup`.
-3. **Ask once (`topic` mode only).** On the first TOPIC workspace creation with rungs 1–2 unset in
-   an interactive session, ask ONCE where learning state should live, offering the rung-4 default.
+3. **Ask once (`topic` mode only).** On the first `topic` workspace creation with rungs 1–2 unset in
+   an interactive session, ask once where learning state should live, offering the rung-4 default.
    A `codebase` workspace never triggers this rung or offers a Documents root. First adopt without
    asking an existing `Claude Learning/` home at the rung-4 location or an existing workspace tree
    at a configured root. Persist the answer in the pointer file
@@ -151,7 +151,7 @@ and codebase lessons embed repo snippets that, for a private repo, must not sile
 
 **Migration and compat:** plugin-data workspaces stay readable forever; rung 5 is always scanned.
 When an interactive session resolves a higher root while plugin-data workspaces exist, offer a
-ONE-TIME migration (move the tree), record the outcome in the pointer file either way, and never
+one-time migration (move the tree), record the outcome in the pointer file either way, and never
 re-offer. Never force-migrate; if compat cannot stay scan-only, stop and ask the user.
 
 **Root hazards (documented, not silent):** in a cloud-synced root the same repo on two
@@ -163,7 +163,7 @@ roots put personal learning state in a shared repo (an explicit rung-1 team choi
 
 Gather with one Bash call. Keep `$`-expansion off this line; `/source-control:worktree` owns the
 accepted shapes, under "Accepted command shapes for body-time and subagent Bash".
-And `${user_config.*}` tokens must NEVER appear on this line: a surviving literal is a
+And `${user_config.*}` tokens must never appear on this line: a surviving literal is a
 bash `bad substitution` that kills the whole call before any fallback (**Pointer**: when deciding
 whether a saved value is substituted in skill content, fetch
 <https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value> and
@@ -194,7 +194,7 @@ action, remainder = args. If empty or ambiguous, detect from the conversation.
 | `glossary` | Review or update compressed terminology | [context/glossary.md](context/glossary.md) |
 | `resources` | Manage curated learning sources | [context/resources.md](context/resources.md) |
 | `explain <concept>` | Teach one tightly-scoped thing (a lesson) | Writes the concept's single lesson file (`lesson.html`/`lesson.md` per [context/lessons.md](context/lessons.md)), naming one `RESOURCES.md` entry as its primary source, with any others as further reading; distill a durable `reference.md` alongside |
-| `primer <domain>` | Single-session domain primer. NO workspace | See "Primer action" below |
+| `primer <domain>` | Single-session domain primer. No workspace | See "Primer action" below |
 | `exercise` | Colocated practice for a concept | Writes `concepts/<concept>/exercise.md`; design per [context/exercises.md](context/exercises.md) |
 | `assess` | Check understanding, update learning records | [context/assessment.md](context/assessment.md) |
 | `resume` | Resume a workspace from prior session | Reads workspace state, picks up where left off |
@@ -235,7 +235,7 @@ grading so I can direct the work"). The outcome is a precise spec in place of a 
   workspaces by most recent modification (git or filesystem mtime of the workspace files) and ask which to resume; never silently pick one when
   more than one exists. List `(closed)` workspaces after the active ones, labeled closed.
 - **`status`.** One line per workspace: mode, topic, `learning-records/` count, current frontier
-  concept, last-touched date, and a **due-for-review flag** from filename and mtime plus ONE cheap
+  concept, last-touched date, and a **due-for-review flag** from filename and mtime plus one cheap
   probe that excludes superseded records (`grep -l 'superseded by' learning-records/*.md`, which
   matches the `Status:` line without loading bodies), since a superseded record would raise false
   flags. Load no full file bodies; per-concept review detail loads only on `resume`. A `(closed)`
@@ -259,7 +259,7 @@ ZPD pacing rule. Every action below assumes it.
 
 ## Teaching Dialog
 
-Coach depth-first. Ask ONE question at a time, wait for the answer (silence means wait, not
+Coach depth-first. Ask one question at a time, wait for the answer (silence means wait, not
 assume), restate what is understood and what is still open, apply the relevant teaching move, and
 surface the next choice point. Questions before answers: "What do you think happens here?" before
 explaining what happens. The user's understanding is the goal, not coverage.
@@ -271,10 +271,10 @@ explaining what happens. The user's understanding is the goal, not coverage.
 1. Run the mission interview: why they are learning this, the concrete goal, what success looks
    like. **Harvest first:** confirm every field the opening message already answers in one
    restatement and ask only what is still open. The interview fixes the raw subject name the slug
-   and collision guard depend on, so it comes BEFORE creation.
+   and collision guard depend on, so it comes before creation.
 2. Create the workspace per "Workspace layout", at the root "Workspace root resolution" gives.
 3. Write `MISSION.md` with the answers.
-4. Seed `NOTES.md` from the interview's constraints and teaching preferences. Do NOT create
+4. Seed `NOTES.md` from the interview's constraints and teaching preferences. Do not create
    `GLOSSARY.md` yet; it starts with the first demonstrated term ([context/glossary.md](context/glossary.md)).
 5. Seed `RESOURCES.md`: high-trust sources for `topic` mode; discovered repo files and docs for
    `codebase` mode, per [Codebase Mode](#codebase-mode).
@@ -295,7 +295,7 @@ explaining what happens. The user's understanding is the goal, not coverage.
    revise it with a new goal before teaching anything new; the choice is the learner's. Choosing
    close writes `Status: closed` under the `MISSION.md` title.
 3. **Surface due-for-review concepts.** Weigh each floor concept's latest record age against the
-   domain's velocity ("Staleness"), list what is due for spaced retrieval practice BEFORE advancing the frontier, and open with
+   domain's velocity ("Staleness"), list what is due for spaced retrieval practice before advancing the frontier, and open with
    a quick retrieval question on one due concept when any exist (spacing builds storage strength;
    context/pedagogy.md).
 4. Pick the next concept from the zone of proximal development and open its `concepts/<concept>/`
@@ -352,7 +352,7 @@ verify-on-revisit, not stored metadata:
   established architecture). Judgment decides *whether* to re-verify, never *what* the current
   fact is.
 - **Treat durable artifacts as unverified on revisit.** If stale, re-fetch the inline citation,
-  update, THEN teach.
+  update, then teach.
 - **Store understanding plus citations, not frozen facts**: the user's compressed mental model,
   with inline citations to the authoritative source as the re-verify target.
 
@@ -369,7 +369,7 @@ substituted or expanded on the way to the Bash tool.
 - **Pointer**: when deciding whether a `${…}` token in a Read-delivered file resolves, fetch
   <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live.
 
-## What This Skill Does NOT Do
+## What This Skill Does Not Do
 
 - **Write production code.** It teaches understanding; code changes go through the project's own
   implementation workflow.

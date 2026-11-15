@@ -100,7 +100,7 @@ fails closed like every other guard-relevant unknown in this plugin.
    absolute interpreter path (guarded engine calls must use the same absolute interpreter
    the guard reports. Bash aliases and functions cannot substitute).
 
-   On Windows, confirm the name the guard resolves is real BEFORE anything executes it,
+   On Windows, confirm the name the guard resolves is real before anything executes it,
    including this floor check's own version probe. `python3` is the first rung of the ladder
    `hooks/run-python-hook.sh` walks for every guard surface, and on Windows that name can resolve
    to an App Execution Alias stub rather than an interpreter, so setup never executes it
@@ -119,7 +119,7 @@ fails closed like every other guard-relevant unknown in this plugin.
    against the parsed floor.
    Order of operations: (a) locate the resolution without executing it (`Get-Command python3`
    / `command -v python3`, locating is inspection; running is not); (b) classify it with the
-   bundled inspect-only probe, launched via an interpreter that is NOT the bare name
+   bundled inspect-only probe, launched via an interpreter that is not the bare name
    `python3` (`py -3`, `python`, or an absolute interpreter path, any interpreter already
    proven real):
    `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/python3_alias_probe.py"`; if no
@@ -211,7 +211,7 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run an audit or cleanup, that is `/disk-hygiene:clean`.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.

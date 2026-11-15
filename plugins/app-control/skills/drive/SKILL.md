@@ -243,6 +243,14 @@ it as step 9 does. The report names `affected.json`; the file's fields and its g
   records none. The proof step takes no action: record its stated result, take each capture kind
   its `Captures:` names with the tool `## Capture` names for it, and record as its observed text
   each capture's artifact path and what its sidecar or contents hold, adding nothing they do not.
+- **A command-line step records four things.** For a step that runs a command (a `cli/` command or
+  any other command line), record the exact command, its standard output as the observed text, its
+  standard error and its exit code (evidence.md's `steps` fields).
+- **Run the journey as written.** Never drop, skip or reorder a step, change its handle or entry
+  point, or reach its state another way to get past a failure. An optional step whose target is
+  absent is `skipped: optional` and a step that needs a person or a grant is `blocked: <reason>`;
+  nothing else is passed over. A step whose precondition the data
+  lacks (contract "Preconditions") fails like any other and is recorded with what it observed.
 
 ## Attach
 

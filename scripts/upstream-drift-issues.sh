@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Keep one GitHub issue per drifted upstream from a check-upstream-drift.sh
-# --report file.
+# Keep one GitHub issue per drifted upstream from a report file: the
+# check-upstream-drift.sh --report lines, then the
+# upstream-drift-vendored-report.sh lines.
 #
 #   scripts/upstream-drift-issues.sh [--dry-run] <report-file>
 #   scripts/upstream-drift-issues.sh --help

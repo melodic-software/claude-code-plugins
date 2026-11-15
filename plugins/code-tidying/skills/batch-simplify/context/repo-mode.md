@@ -331,7 +331,7 @@ what changed, so a reviewer, a bisect, or a revert can work at group granularity
 cannot be read end to end. This is also why the refutation verifier is mandatory here at `standard` and `strict`, and why a
 `light` or `off` level is the repository's explicit choice to drop it: with no
 human reading the whole diff, the per-group verifiers, the per-wave verification, and the union
-pass ARE the review.
+pass are the review.
 
 **Keep the branch current, because a repo-wide PR overlaps every path.** Any change landing on the
 base branch while the run is open puts the PR behind on overlapping paths, and stale-base and

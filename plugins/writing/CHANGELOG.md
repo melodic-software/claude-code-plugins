@@ -5,6 +5,12 @@ All notable changes to the `writing` plugin are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-11-15
+
+### Changed
+
+- The be-concise doctrine points at the `ai-slop` catalog entries for the bold-text boundaries instead of quoting them.
+
 ## [0.4.1] - 2026-11-14
 
 ### Changed

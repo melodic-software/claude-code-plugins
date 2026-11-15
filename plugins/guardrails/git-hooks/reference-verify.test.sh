@@ -10,9 +10,10 @@
 # unchanged line, in a file type the verifiers do not read, or in an eval
 # suite's samples/ folder (recorded model output), does not; a new
 # branch ranges from its merge-base with the remote's default branch, or from a
-# pushed branch it is stacked on, a pushed branch that merged main is judged
-# only on its own lines, and a deletion checks nothing; the failure names the
-# way out (decline the entry; the skip key covers only a missing jq);
+# pushed branch it is stacked on, a pushed branch that merged main or another
+# pushed branch is judged only on its own lines, and a deletion checks nothing;
+# the failure names the way out (decline the entry; the skip key covers only a
+# missing jq);
 # --worktree covers uncommitted files;
 # and the plugin's vendored installer wires the entry as a pre-push hook, so
 # `git commit` does not run it and `git push` does.
@@ -556,6 +557,64 @@ expect "after merging main, a line the branch adds is still judged" "1|topic.sh:
 expect "an awk that fails while narrowing to the branch's lines fails the push" \
   "1|reference-verify.sh: awk exited 2 while narrowing the changed lines to the branch, so this change was not fully checked; fix that failure, then push again" \
   "$(push_failing 'NR == FNR { n++; f[n]' 1 refs/heads/topic "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+git -C "$REPO" checkout -q main
+
+# A pushed branch that merged another pushed branch, not the default one: the
+# lines that branch brought in are on the remote already under its tracking ref,
+# so they are not judged, and a file it added is not judged whole. The lines the
+# merge resolution or the branch's own commits add still are. A plugin copy
+# whose dispatcher logs each file it is handed counts the verifier runs.
+cp -R "$PLUGIN" "$WORK/counting"
+mv "$WORK/counting/hooks/run-guards.sh" "$WORK/counting/hooks/run-guards-real.sh"
+cat >"$WORK/counting/hooks/run-guards.sh" <<'EOF'
+#!/usr/bin/env bash
+payload="$(cat)"
+jq -r '.tool_input.file_path' <<<"$payload" | sed 's#.*/##' >>"$JUDGED_LOG"
+exec bash "${BASH_SOURCE[0]%/*}/run-guards-real.sh" "$@" <<<"$payload"
+EOF
+judged_files() { # <ref> <local-sha> <remote-sha> -> the files the verifiers ran on, sorted
+  : >"$WORK/judged"
+  (cd "$REPO" && printf '%s %s %s %s\n' "$1" "$2" "$1" "$3" |
+    JUDGED_LOG="$WORK/judged" bash "$WORK/counting/git-hooks/reference-verify.sh" origin "$WORK/r$n.git" >/dev/null 2>&1)
+  sort "$WORK/judged" | tr '\n' ' ' | sed 's/ $//'
+}
+new_repo
+git -C "$REPO" checkout -q -b integ
+printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/run.sh"
+printf '#!/usr/bin/env bash\nfaketool --bogus\n' >"$REPO/integ-new.sh"
+commit_all integ-bogus
+git -C "$REPO" push -q --no-verify origin integ 2>/dev/null
+git -C "$REPO" checkout -q -b delivery main
+printf '#!/usr/bin/env bash\nfaketool --real\n' >"$REPO/delivery.sh"
+commit_all delivery
+git -C "$REPO" push -q --no-verify origin delivery 2>/dev/null
+pushed="$(git -C "$REPO" rev-parse HEAD)"
+git -C "$REPO" merge -q --no-ff --no-edit --no-verify integ >/dev/null
+merged="$(git -C "$REPO" rev-parse HEAD)"
+expect "a branch that merged a pushed non-default branch is not judged on that branch's lines" "0|" \
+  "$(push_check refs/heads/delivery "$merged" "$pushed")"
+expect "the merge push runs the verifiers on no file the merged branch changed" "" \
+  "$(judged_files refs/heads/delivery "$merged" "$pushed")"
+git -C "$REPO" reset -q --hard "$pushed"
+git -C "$REPO" merge -q --no-ff --no-commit integ >/dev/null 2>&1
+printf 'faketool --merged\n' >>"$REPO/integ-new.sh"
+commit_all merge-resolution
+expect "a line the merge resolution adds to a merged branch's file is judged, at that line" \
+  "1|integ-new.sh:3: ${FLAG_FINDING/in run.sh/in integ-new.sh}" \
+  "$(push_check refs/heads/delivery "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+git -C "$REPO" reset -q --hard "$merged"
+printf '#!/usr/bin/env bash\nfaketool --bogus\n' >"$REPO/own-new.sh"
+printf 'echo more\n' >>"$REPO/delivery.sh"
+commit_all delivery-own
+tip="$(git -C "$REPO" rev-parse HEAD)"
+expect "after merging a pushed branch, a file the branch adds is judged" "1|own-new.sh:2: ${FLAG_FINDING/in run.sh/in own-new.sh}" \
+  "$(push_check refs/heads/delivery "$tip" "$pushed")"
+expect "the push runs the verifiers only on the files the branch's own commits change" "delivery.sh own-new.sh" \
+  "$(judged_files refs/heads/delivery "$tip" "$pushed")"
+# A branch reset to the other pushed branch's tip adds no commit the remote lacks.
+git -C "$REPO" reset -q --hard integ
+expect "a branch reset to a pushed branch's tip is not judged on its lines" "0|" \
+  "$(push_check refs/heads/delivery "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
 git -C "$REPO" checkout -q main
 
 new_repo

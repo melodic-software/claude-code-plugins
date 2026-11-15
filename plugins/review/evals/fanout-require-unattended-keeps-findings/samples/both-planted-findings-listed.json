@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: orders-export\ntier: small\n---\n\nNothing could be checked: this run was unattended, so no finding was reproduced (2 checks proposed, none run). This is not a clean review.\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | low | src/calendar.js:2 | code-reviewer | isWeekend checks 6 and 7, but getDay() returns 0 for Sunday, so Sunday is no longer a weekend day. | Check 0 and 6 |\n| 2 | IMPORTANT | low | src/export-orders.js:4 | security-reviewer | The CSV export writes each customer's raw email address, personal data the export does not need. | Mask or drop the email column |\n\n## Dismissed\n\n- 1, src/calendar.js:2: not reproduced: unattended run, nothing ran\n- 2, src/export-orders.js:4: not reproduced: unattended run, nothing ran\n\n## Surfaces\n\nRan: [code-reviewer, security-reviewer]. Returned no result: [].\n",
+      "why": "both planted defects are ## Findings rows, demoted and listed under ## Dismissed as well"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: orders-export\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | low | src/calendar.js:2 | code-reviewer | isWeekend checks 6 and 7, but getDay() returns 0 for Sunday, so Sunday is no longer a weekend day. | Check 0 and 6 |\n\n## Dismissed\n\n- 1, src/calendar.js:2: not reproduced: unattended run, nothing ran\n- src/export-orders.js:4: writes raw customer emails into the CSV export; dropped as out of scope.\n\n## Surfaces\n\nRan: [code-reviewer, security-reviewer]. Returned no result: [].\n",
+      "why": "the email defect appears only under ## Dismissed, not as a ## Findings row"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: orders-export\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | low | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday, and the CSV export also leaks raw customer emails. | Fix both |\n\n## Dismissed\n\n- 1, src/calendar.js:2: not reproduced: unattended run, nothing ran\n\n## Surfaces\n\nRan: [code-reviewer]. Returned no result: [].\n",
+      "why": "the two defects are merged into one row"
+    },
+    {
+      "answer": "",
+      "why": "the file is empty"
+    }
+  ]
+}

@@ -36,7 +36,7 @@ reauthored derivative: [`user-interface`](../../plugins/user-interface/LICENSE),
   was read, and this page's git history records when.
 - **Recheck trigger**: a change, between the pinned commit and upstream HEAD, to a path a row we
   took or rejected something from links, a unit removed or added under the scope: re-audit the
-  affected rows. `scripts/check-upstream-drift.sh` detects these, and the monthly drift issue for
+  affected rows. `scripts/check-upstream-drift.sh` detects these, and the weekly drift issue for
   this upstream lists them
   ([upstream-drift convention, "Pinned git upstreams"](../contracts/upstream-drift/README.md#pinned-git-upstreams)).
 - **Re-pin procedure**: re-auditing the affected rows moves the pin and records the outcome per row,

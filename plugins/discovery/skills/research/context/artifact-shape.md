@@ -19,7 +19,7 @@ wants. A planning step chasing one settled fact should read one sidecar, not the
 
 Always the entry point. A consumer handed that filename must get a readable document.
 
-The index opens with a YAML frontmatter block carrying at least `abstract:` (ONE unwrapped line
+The index opens with a YAML frontmatter block carrying at least `abstract:` (one unwrapped line
 naming what the run covered; the same one-line rule the sidecar headers already follow). This is the
 indexable-artifact hook: a slice whose sole artifact is this index
 is an index-less leaf, and the parent slice's `INDEX.md` regeneration mirrors this header's abstract
@@ -120,7 +120,7 @@ Siblings of the index, inside the same slice directory. Each carries the Output 
 one section, opening with a machine-readable YAML header so a consumer can grep headers rather than
 prose.
 
-**The filename is keyed on the SECTION, not the topic or scope.** A run has exactly one topic and
+**The filename is keyed on the section, not the topic or scope.** A run has exactly one topic and
 many sections, so a topic-keyed name gives every sidecar in the run the same filename: later sections
 silently overwrite earlier ones, or the worker invents an undocumented name and the index's
 section → file table stops resolving. Use the same stable kebab-case id that the header's `section`
@@ -190,7 +190,7 @@ criterion 4. A repost of the primary is recorded under the primary's `pool`, so 
 second source. Definition and limits: `discipline.md`'s "Single-source first-party content claims".
 
 **`sources[]` is not redundant with `tiers[]`.** It is what lets outcome-gate criterion 4, "≥`research_corroborators`
-INDEPENDENT corroborators, not two cites of one upstream pool", be graded **by a verifier that never
+independent corroborators, not two cites of one upstream pool", be graded **by a verifier that never
 saw the run**. Independence is a property of the publishing pools behind a claim; a bare tier list
 encodes neither the URL nor the pool, so without `sources[]` the verifier can only take the run's
 word for the one criterion the whole discipline rests on. Two entries sharing a `pool` are one
@@ -279,19 +279,19 @@ confirms the method on the page it cites and records the result in `measures:`.
 because it is a **schema a verifier parses**, not a narrative, and because two outcome values that
 look interchangeable are not.
 
-**One entry per fetch, PER CLAIM:** `Claim | URL or command | artifact-ladder rung | tool used |
+**One entry per fetch, per claim:** `Claim | URL or command | artifact-ladder rung | tool used |
 outcome`. The claim key is not decoration. Criterion 9 is evaluated per accepted claim, and one
 artifact routinely carries claim A while lacking claim B, so an unkeyed outcome cannot show which
 claim it answers.
 
-**Each accepted claim carries the entry for the rung it came from AND one for every rung above it.**
+**Each accepted claim carries the entry for the rung it came from and one for every rung above it.**
 Each of those states its outcome as exactly one of five:
 
 | Outcome | Means | Earned by |
 |---|---|---|
 | carries the claim | the claim came from this rung | the fetch |
 | **does not exist** for this claim class | the normal result for rung 1 | the full first-party surface sweep criterion 9 specifies, never one clean surface |
-| **unresolved** | the sweep fell short, so absence is unproven | this is the **DEFAULT** whenever the sweep was not completed. A Gap row naming surfaces checked and unchecked, and never a license to source from below the rung |
+| **unresolved** | the sweep fell short, so absence is unproven | this is the **default** whenever the sweep was not completed. A Gap row naming surfaces checked and unchecked, and never a license to source from below the rung |
 | fetched and searched, does not carry the claim | settled only by the fetch | the artifact itself retrieved and searched, never a title, index entry, or snippet standing in for it |
 | unreachable after escalation | also a Gap row | the escalation ladder in `discipline.md` walked and failed |
 

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile .gitignore\nfile 41-return-reasons/findings.md\nfile 42-parcel-card-layout/explore-directions.html\nfile 42-parcel-card-layout/prototype-notes.md\nfile 42-parcel-card-layout/shots/1.png\nfile CONTRIBUTING.md\nfile README.md\nfile scripts/check-secrets.sh\n",
+      "why": "only the default branch's files and the two item folders"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile 41-return-reasons/findings.md\nfile 42-parcel-card-layout/prototype-notes.md\nfile notes-run/actions.json\n",
+      "why": "the raw run directory was committed outside the item's folder"
+    },
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile 41-return-reasons/findings.md\nfile prototype-notes.md\n",
+      "why": "the notes file is at the branch root"
+    }
+  ]
+}

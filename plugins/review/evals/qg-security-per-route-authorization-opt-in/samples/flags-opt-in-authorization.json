@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "1. IMPORTANT, src/routes/admin.js: each admin route calls isAdmin itself. Nothing on the router denies by default, so the next route added without the call is open to any caller. Fix: `admin.use(requireAdmin)` once on the router and drop the three inline checks.",
+      "why": "names the opt-in structure, the consequence and a single-place fix"
+    },
+    {
+      "answer": "Advisory: authorization is opt-in per handler in src/routes/admin.js, with no central decision point. All three routes are correct today. Mount the admin router behind one middleware so a new route is denied unless allowed.",
+      "why": "advisory severity still counts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No security findings. All three admin routes check isAdmin before acting and return 403 otherwise.",
+      "why": "passes the change because no check is missing"
+    },
+    {
+      "answer": "Minor: the isAdmin check is duplicated three times; extract a helper to reduce repetition.",
+      "why": "style point with no access-control consequence"
+    },
+    {
+      "answer": "CRITICAL: DELETE /admin/users/:id has no authorization check, so anyone can delete users. Add the isAdmin check.",
+      "why": "claims an existing route is missing its check"
+    }
+  ]
+}

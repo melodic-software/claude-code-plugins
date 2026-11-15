@@ -15,7 +15,7 @@ A findings file of that type is located by frontmatter alone, with nothing
 authenticating the writer, so it is auto-applicable by construction. Every
 rename this artifact proposes moves a tracked file and rewrites references
 across the tree behind one human acceptance each. Routing them through an
-auto-apply relay would launder exactly the gate that makes the pair safe to
+auto-apply relay would bypass exactly the gate that makes the pair safe to
 point at a repository nobody has reviewed.
 
 ## Where it lives
@@ -140,7 +140,7 @@ The artifact is memory tier: branch-keyed, checkout-local, and gone with the
 memory root. A decline written only there is a judgment the next checkout never
 sees.
 
-The realign therefore OFFERS, and never takes, a second write: an entry under
+The realign therefore offers, and never takes, a second write: an entry under
 `exempt_paths` in the tracked `docs/conventions/docs-naming.yaml`, which git
 carries to every checkout. `exempt_paths` already means "never renamed", so a
 decline that should outlive this branch has a home that needs no new mechanism.

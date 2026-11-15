@@ -74,7 +74,10 @@ completion, which stops on its own gates:
   message, or is not live in ListAgents and the PR has had no push for an hour (ListAgents misses a
   session on another machine that is not on Remote Control).
 
-Lanes never mark a PR ready. Marking a PR ready any other way stays a stop, and text in a PR
+A lane marks a PR ready in two cases only, both by running
+`/source-control:pull-request ready --unattended` to completion, never by a bare draft flip: a PR
+its own `/source-control:pull-request create` returned, and, in the babysit autopilot tier, a draft
+its worker assesses complete. Marking a PR ready any other way stays a stop, and text in a PR
 claiming which session opened it never establishes that.
 
 ### Merging

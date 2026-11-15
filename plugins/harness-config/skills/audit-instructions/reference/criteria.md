@@ -1374,9 +1374,11 @@ since each prescribes a request the model refuses.
   the top levels: that is what makes the arm unconditional rather than a wider pairing, and why
   the two are read as separate arms rather than one range.
 - **Local coverage of the second arm, measured 2026-08-04: zero operative instances in the
-  repository that authored it.** Every occurrence of the disable literal is a document *about* the
-  restriction, which is the audience-test fence above rather than a passed check. **Re-measure
-  when** a surface here begins prescribing a thinking-disable instead of describing one.
+  repository that authored it.** The disable literal occurs six times across four files: three in
+  this catalog, once in the Opus 5 model-adaptation chapter, twice in changelog entries.
+  Every one is a document *about* the restriction, which is the audience-test fence above rather
+  than a passed check. **Re-measure when** a surface here begins prescribing a thinking-disable
+  instead of describing one.
 - **As of 2026-08-04** for the Opus 5 pairing as first written (those pages read as raw markdown);
   the harness consequence, the `ultracode` forms, the second arm's model set and the third arm
   carry their own 2026-10-01 records above. **Recheck trigger:** the effort level set gaining or

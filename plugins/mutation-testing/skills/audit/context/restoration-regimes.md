@@ -1,7 +1,8 @@
 # Restoration verification and the three mutant-write regimes
 
 How Phase 3 of [`../SKILL.md`](../SKILL.md) proves the tree it mutated was restored, and when that
-proof can run.
+proof can run. Which of the three regimes applies is a property of the configured tool that Phase 0
+resolves from the project's config, never from the tool's reputation.
 
 **Verify restoration against the Phase 0 snapshot, not against a clean tree.** Phase 0 rejects a
 dirty *target* but permits unrelated dirty files elsewhere, so an unconditional "tree is clean" probe

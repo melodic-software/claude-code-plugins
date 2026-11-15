@@ -83,7 +83,7 @@ precision comes from fingerprint verification and the judge panel downstream, an
 nomination never proposes can never be found. A nomination is a question, not a claim.
 
 **Inputs to hand the subagent.** One chunk of corpus files, and the breadcrumb inventory for
-each file's whole DIRECTORY, not just the flagged file's own. Sibling breadcrumbs are the
+each file's whole directory, not just the flagged file's own. Sibling breadcrumbs are the
 point: a neighbor's citation is routinely what identifies an unfenced copy's source, and a
 per-file inventory loses exactly those. Both arrive under neutral labels, per "Neutral labels
 (required)" above.
@@ -102,7 +102,7 @@ per-file inventory loses exactly those. Both arrive under neutral labels, per "N
 > stamp that names a plausible source; a passage that explains an external product's behavior
 > rather than this repository's.
 >
-> For each nomination give: the file by its label, an APPROXIMATE line range, the suspected class
+> For each nomination give: the file by its label, an approximate line range, the suspected class
 > (`verbatim`, `near-verbatim`, `paraphrase`, `summary`, or `restated-fact`), candidate source
 > URLs in order of plausibility, and the specific signal that raised your suspicion, quoted.
 >

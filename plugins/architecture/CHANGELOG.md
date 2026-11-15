@@ -3,6 +3,63 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.5.0] - 2026-11-15
+
+### Added
+
+- **`reference/vocabulary.md`, Seam.** The entry states that it is the module-design sense, the
+  only one an architecture finding uses, and adds Feathers' enabling point: the place where the
+  choice of adapter is made.
+- **`reference/vocabulary.md`, Adapter.** The entry says an adapter is not the Gang of Four
+  Adapter pattern.
+- **`reference/vocabulary.md`, Architecture styles.** Modular monolith and vertical slice are
+  named with their sources; which style a repository follows comes from its own standards.
+- `/architecture:principles` routes questions on those three additions to their sections.
+
+## [4.4.2] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [4.4.1] - 2026-11-15
+
+### Changed
+
+- The enforcement ladder copy is at 3.1.0: the "Compiler or type settings" and "Tests" rows carry the rung ids `compiler-setting` and `behavior-test`.
+
+## [4.4.0] - 2026-11-15
+
+### Added
+
+- `/architecture:improve layout`, a fourth lens: it checks whether files that change together live
+  together. A tested script, `skills/improve/scripts/co-change.mjs`, reads the history once and
+  reports co-change pairs, clusters, spread, focus and mixed folders. The lens judges each cluster
+  against the layout style the repository records, banded by badge, interviews the target layout
+  of the picked card and hands it off as the deepening lens does. It never moves a file, and an
+  unattended run stops after the report (#15811).
+- `schemas/architecture.schema.json` gains a `layout` object (history window, code-maat's coupling
+  filters, excluded authors, folder depth, minimum cluster size and pattern cutoffs), documented in
+  `reference/config.md`. No `userConfig` entry is added.
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [4.3.2] - 2026-11-15
+
+### Changed
+
+- `setup check` names `adr_retirement` among the keys that belong in `architecture.yaml`.
+- Capital-letter emphasis is lower-cased; the map skills say they run the resolver and restate the
+  convention's ladder, and `map-dependencies` says it follows neither dialect key.
+
+## [4.3.1] - 2026-11-15
+
+### Changed
+
+- The enforcement ladder reference now points at the Claude Code memory docs for how rule files load, instead of restating it.
+
 ## [4.3.0] - 2026-11-15
 
 ### Added

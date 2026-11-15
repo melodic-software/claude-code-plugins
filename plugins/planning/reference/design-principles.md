@@ -33,9 +33,12 @@ or a labeled secondary where the primary could not be fetched.
   (2000), section "The Interface Segregation Principle (ISP)".
 - **DIP**: Make high-level policy depend on abstractions rather than on the details that
   implement them, and let the details depend on those same abstractions; in Markdown, a generic
-  skill names the capability it needs, not one vendor's tool. Source: Robert C. Martin,
+  skill names the capability it needs, not one vendor's tool. Constructing a collaborator in place
+  is a design decision, taken knowingly where no flexibility is expected: "Any time you use the
+  new keyword, you are gluing your code to a particular implementation." Source: Robert C. Martin,
   [Design Principles and Design Patterns](https://web.archive.org/web/20150906155800if_/http://www.objectmentor.com/resources/articles/Principles_and_Patterns.pdf)
-  (2000), section "The Dependency Inversion Principle (DIP)".
+  (2000), section "The Dependency Inversion Principle (DIP)"; Steve Smith,
+  [New is Glue](https://ardalis.com/new-is-glue/) (2012).
 - **Composition over inheritance**: Build behavior by combining parts rather than extending a
   base whose internals the extension then depends on, and inherit only for a true subtype (LSP);
   in Markdown, compose a skill from referenced files rather than copying and editing a parent.

@@ -1,0 +1,120 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "group --by producer,kind"
+          }
+        }
+      ],
+      "why": "the 2C applied-change read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "note \"A banned import recurs when no lint rule rejects it.\""
+          }
+        }
+      ],
+      "why": "a findings-buffer note"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:write-for-agents"
+          }
+        }
+      ],
+      "why": "a different skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "  group --by producer,kind"
+          }
+        }
+      ],
+      "why": "a group call with leading spaces in its args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "\"Imported moment in src/report.ts; this repo uses date-fns and moment is banned (corrected twice in one session)\""
+          }
+        }
+      ],
+      "why": "codify called with the mistake before the checkpoint"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "\"Importing the banned `moment` library in src/report.ts; this repo uses date-fns (a dependency in package.json) and moment is banned. Happened twice in one session and the user had to correct it both times.\""
+          }
+        }
+      ],
+      "why": "codify called with the mistake before the checkpoint"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "group --by producer,kind"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "corrections:codify",
+            "args": "\"importing moment instead of date-fns in src/report.ts; this repo uses date-fns and moment is banned (corrected twice in one session)\""
+          }
+        }
+      ],
+      "why": "an allowed group call, then codify called with the mistake"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "args": "\"Imported moment in src/report.ts; this repo uses date-fns and moment is banned (corrected twice in one session)\"",
+            "skill": "corrections:codify"
+          }
+        }
+      ],
+      "why": "codify called with the mistake, args serialized before skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "codify",
+            "args": "\"Imported moment in src/report.ts; this repo uses date-fns and moment is banned (corrected twice in one session)\""
+          }
+        }
+      ],
+      "why": "unqualified codify called with the mistake"
+    }
+  ]
+}

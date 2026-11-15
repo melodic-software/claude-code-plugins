@@ -59,18 +59,18 @@ table with one remediation line per FAIL. Do not modify anything.
    `firecrawl --status` auth line is authoritative, because `firecrawl login`/`config` state
    in the user-level config dir authenticates without any env var. Alongside it, report
    `FIRECRAWL_API_KEY` presence only: run `test -n "$FIRECRAWL_API_KEY"` alone (exit 0 = set); report
-   **set** or **unset**; NEVER print, echo, log, or persist the value. Verdicts, matching the
+   **set** or **unset**; never print, echo, log, or persist the value. Verdicts, matching the
    lazy-install design: status says authenticated → PASS (INFO-note when the source is
    persisted CLI config rather than the env var. Env-var auth is the plugin's preferred
-   single source of truth, but never direct the user to ADD an env key on top of working
+   single source of truth, but never direct the user to add an env key on top of working
    CLI-config auth; that would create the second source the plugin warns against). Status
    says unauthenticated (an answered probe) and the key is unset → FAIL with the unset-key
-   remediation. Status says unauthenticated while the key IS set → FAIL with the invalid-key
-   remediation (below), not the unset-key one. Status CANNOT answer (error, timeout, network
+   remediation. Status says unauthenticated while the key is set → FAIL with the invalid-key
+   remediation (below), not the unset-key one. Status cannot answer (error, timeout, network
    failure) → INDETERMINATE regardless of the key's state, never a FAIL: persisted
    `login`/`config` credentials may be valid and an unanswered probe proves nothing either
    way. Report the status error verbatim, suggest retrying `firecrawl --status`, and direct
-   no key change or key creation off an unanswered probe. CLI absent AND key unset → INFO: both arrive at first use, nothing is broken yet.
+   no key change or key creation off an unanswered probe. CLI absent and key unset → INFO: both arrive at first use, nothing is broken yet.
 3. **Optional env vars**. INFO the effective state of the other two the CLI reads
    (`FIRECRAWL_API_URL` for a self-hosted endpoint, `FIRECRAWL_NO_TELEMETRY`), presence only: run
    `test -n "$FIRECRAWL_API_URL"` and `test -n "$FIRECRAWL_NO_TELEMETRY"` each alone; print no value.
@@ -85,13 +85,13 @@ writes nothing, so every remediation is a pointer the user acts on:
 
 - **CLI absent**. Defer to the main skill's documented flow: `npm install -g firecrawl-cli`
   (stated guidance; the user runs it). Do not duplicate the update/rollback mechanics the main
-  skill owns. Avoid `firecrawl init --all --browser`, which installs a parallel shadow copy: the main skill IS the maintained integration.
+  skill owns. Avoid `firecrawl init --all --browser`, which installs a parallel shadow copy: the main skill is the maintained integration.
 - **`FIRECRAWL_API_KEY` unset**. Obtain a key from the <https://firecrawl.dev> dashboard and
   set `FIRECRAWL_API_KEY` as an OS user environment variable (Windows: `setx` or System
   Properties → Environment Variables; macOS/Linux: the login shell profile or a secret store).
   Prefer env-var auth over `firecrawl login` / `firecrawl config`, which write a second source
   of truth. This skill never writes the key anywhere. Persistent env changes (`setx`, a
-  profile edit) do NOT reach the already-running session. Tell the user the variable becomes
+  profile edit) do not reach the already-running session. Tell the user the variable becomes
   visible only in a new terminal/Claude Code session, and skip the immediate re-check for this
   remediation: report "set persistently; verify with `setup check` in a fresh session" instead
   of a false failure.
@@ -106,7 +106,7 @@ the pre-computed row (for the key, re-check `firecrawl --status` / presence, nev
 report its actual result. Re-running `apply` when everything already passes changes nothing and
 reports "already configured".
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Install `firecrawl-cli`, write `FIRECRAWL_API_KEY` or any environment variable, or print the
   key's value. `apply` is guidance-and-verify with no write path.

@@ -15,7 +15,7 @@ the consumer never scans that path.
 
 The skill body's read-only hard rule holds: **target mutation is forbidden unconditionally;
 artifact emission is not target mutation.** No audited file becomes writable. The findings file is
-a **proposal artifact**, a NEW file in the gitignored memory tier that reaches `review:fanout`'s
+a **proposal artifact**, a new file in the gitignored memory tier that reaches `review:fanout`'s
 `fix` action, itself human-gated. Persisting is opt-in behind `--persist-findings`; a bare
 invocation reports and stops. Never describe the findings file to an operator as a change that has
 been made.
@@ -103,7 +103,7 @@ findings still belong in the **human report**.
 - **`Action`** states the **rewrite to the positive target**. The remediation is never a deletion:
   the constraint survives and only its framing changes, so no `Action` cell may instruct removal of
   the instruction itself.
-- **`Tier`** is LOOKED UP from the rule's crosswalk row (IMPORTANT), then mapped to the consuming
+- **`Tier`** is looked up from the rule's crosswalk row (IMPORTANT), then mapped to the consuming
   project's severity vocabulary when it defines one. **`Confidence`** is `high` on every emitted
   row: a deterministic detector fired, and confidence is confidence-of-realness. That the repair
   needs authorial judgment is said in the crosswalk's `Auto-applicable` cell and the `Action`

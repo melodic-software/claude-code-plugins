@@ -349,8 +349,8 @@ layer only (no `userConfig` option), each through step 1 above with its `--confi
 | `triage_cluster.min_members` | `2` | open items, this one included, that must share a signature before they cluster |
 | `triage_cluster.parent` | `oldest-reproduced` | `oldest-reproduced`: oldest member with a confirmed reproduction, else the oldest; `oldest`: the oldest |
 
-A value outside these is named (file, key, value) and that key takes its default. When a
-cluster forms, report
+A value outside these is named (file, key, value) and that key takes its default. The defaults
+are provisional until tuned on the first 20 clusters. When a cluster forms, report
 `Settings: triage_cluster.signatures=<list> (<layer>), triage_cluster.min_members=<n> (<layer>), triage_cluster.parent=<rule> (<layer>)`,
 each layer `repository` or `default`.
 

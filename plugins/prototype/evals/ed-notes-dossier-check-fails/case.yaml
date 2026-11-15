@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: ed-notes-dossier-check-fails
+description: "Placement of a notes session's files when the check fails, MB:plugins/prototype/skills/explore-directions/reference/feedback.md 'Where a notes session's files go': the same named map item as ed-notes-dossier-map-item, but the mockup page and note 2 name an internal build host that the repository's check (scripts/check-secrets.sh) refuses. The agent writes prototype-notes.md to the memory slice, runs the check, pushes nothing, and its reply says not pushed: <reason>. One case cannot hold both a passing and a failing check, hence the pair. The remote is a local bare repository, so a push would succeed if attempted. All content is synthetic."
+tags: [explore-directions, hard]
+runs: 3
+expected_outcome: "The agent writes prototype-notes.md into .work/<topic>/prototype/, runs scripts/check-secrets.sh over the files bound for the dossier branch, sees it fail on the internal host name, runs no git push, and its final reply says not pushed: followed by the reason (the secrets and machine-data check failed). The files stay in the memory slice."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:explore-directions I'm done pinning notes on the /shipments mockup in the run directory notes-run/; both notes are handled. This run is map item #42 \"Parcel card layout\" on map #40 \"Returns redesign\": the map's dossier branch is dossier/40-returns-redesign and this item's folder on it is 42-parcel-card-layout. Put the notes session's files where they go."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900

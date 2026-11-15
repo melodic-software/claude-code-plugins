@@ -3,6 +3,36 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.4] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [1.2.3] - 2026-11-15
+
+### Fixed
+
+- `/code-metrics:setup check` reported every parsed ecosystem file
+  (`.claude/ecosystems/<lane>.yaml`) as honored for lane detection, but the resolver ignores a
+  file whose lane no layer lists under `lanes`. Such a file is now a WARN row that names the
+  missing `lanes.<lane>` entry. A file for a listed lane keeps its PASS row. A file whose name
+  is not a lowercase kebab-case lane id is a WARN row asking for a rename.
+
+## [1.2.2] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [1.2.1] - 2026-11-15
+
+### Changed
+
+- The report schema and audit skill state the schema-identifier and producer-id rules as they are,
+  without migration history, and the thresholds reference dates the vendor rule defaults with a
+  recheck instruction.
+
 ## [1.2.0] - 2026-11-15
 
 ### Added

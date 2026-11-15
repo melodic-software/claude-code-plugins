@@ -3,6 +3,18 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.4] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [0.18.3] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
 ## [0.18.2] - 2026-11-15
 
 ### Changed

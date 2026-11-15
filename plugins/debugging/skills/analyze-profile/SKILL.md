@@ -104,7 +104,7 @@ placeholder before running a command (where Claude Code substitutes it:
 4. **Input:** which file was read, its format, and its span (duration, samples, heap size).
 5. **Cleanup:** what was deleted, or what the user chose to keep and its path.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not fix.** It stops at the mechanism. A fix with a regression test is `/debugging:debug`;
   a measured speed-up is the performance plugin's chain.

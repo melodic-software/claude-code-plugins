@@ -66,7 +66,7 @@ Never invent them.
 This section is the one statement of the test: callers hand decisions here instead of carrying a
 copy (Composition below).
 
-A decision earns a record when **a real alternative was weighed** AND at least one of these holds:
+A decision earns a record when **a real alternative was weighed** and at least one of these holds:
 
 - it is **hard to reverse**: backing it out would take real rework (a migration, a public contract,
   data already written in the new shape);
@@ -222,7 +222,7 @@ the reference file, or into a record. When asked to paste one, decline, name the
 and offer the repository's own observed shape, or the bundled template, instead. The bundled
 `templates/adr.md` is this plugin's own text, not taken from the catalog.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Index generation.** README tables, `index.md`, or any catalog of records
 - **Status lifecycle** beyond what the convention already defines, except the retirement and

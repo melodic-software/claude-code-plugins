@@ -78,6 +78,8 @@ report. The neighbors do not:
 - **The `/design` canvas** is user-run, hand-editable artboards with no structured decision
   capture; SKILL.md's design-canvas offer stays as it is.
 - **A playground** returns one prompt to one user.
+- **The local notes host** ([reference/feedback.md](../reference/feedback.md)) takes one person's
+  notes, each pinned to an element of the mockup; review mode takes several reviewers' decisions.
 - **The bundled `prototype` skill**, where it resolves, publishes one proof-of-concept Artifact and
   iterates it on feedback, not a comparison of variants with recorded decisions. Basis: its
   description in Claude Code 2.1.284, as of 2026-09-29; recheck when a release ungates or

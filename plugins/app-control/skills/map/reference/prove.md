@@ -40,9 +40,13 @@ skill. Step 5's report must name
 
 ## Proving
 
-- A step that fails because the control skill is wrong (a handle, a route, a precondition): fix
-  the files and run step 5 again, once. The rerun stops before any sign-in step for an account that
-  already submitted an attempt in this run. A second failure leaves the skill written but unproven.
+- A step that fails because the control skill is wrong (a handle, a route, a state the steps need
+  that `Preconditions:` does not name): fix the files and run step 5 again, once. The rerun stops
+  before any sign-in step for an account that already submitted an attempt in this run. A second
+  failure leaves the skill written but unproven.
+- A step that fails because the data lacks a precondition the feature names: no edit to the steps,
+  their results or the proof step. Write the reason in that feature's `## Gotchas`; the feature
+  stays unproven until the data holds the precondition (the contract's "Preconditions").
 - A send to anyone not on the recipient allowlist is refused by the CLI's send command (exit 4):
   the run stops at the form and never presses send.
 - Create commits nothing, so every recipient allowlist is empty at HEAD and the CLI refuses every

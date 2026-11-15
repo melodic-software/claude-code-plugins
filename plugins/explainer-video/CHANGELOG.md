@@ -3,6 +3,12 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.2] - 2026-11-15
+
+### Changed
+
+- The produce skill runs the stills script by its plugin-root path, like every other script it calls.
+
 ## [2.5.1] - 2026-11-15
 
 ### Fixed

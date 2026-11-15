@@ -53,7 +53,7 @@ denotes that tool under whichever prefix the gate found.
   [Server names, tool names, and reloads](https://code.claude.com/docs/en/plugins/components#server-names-tool-names-and-reloads)
   live.
 
-When Miro IS available, query it for recent boards with that prefix's `miro_list_boards`. Look for boards with EventStorming-related names (containing "Big Picture", "Process Model", "Design-Level", "EventStorming", or domain-specific names from prior sessions). Sort by last modified.
+When Miro is available, query it for recent boards with that prefix's `miro_list_boards`. Look for boards with EventStorming-related names (containing "Big Picture", "Process Model", "Design-Level", "EventStorming", or domain-specific names from prior sessions). Sort by last modified.
 
 If recent boards exist, present them:
 > "I found these EventStorming boards:

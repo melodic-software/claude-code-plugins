@@ -1,31 +1,35 @@
 name: Maintenance File Upstream Drift Issues
 
-# Monthly drift issues for the docs/upstream pages pinned to a git commit: runs
-# scripts/check-upstream-drift.sh --report, puts the report in the job summary,
-# and hands it to scripts/upstream-drift-issues.sh, which keeps one issue per
-# upstream titled `Upstream drift: <owner>/<repo>` (opened on drift, updated in
-# place on later runs, closed once the upstream is clean). Informational: not
-# in pr-require-checks.yml and not behind `ci-status`, so nothing here can block
-# a merge. The run fails on a script error, a failed issue write, or a page
-# whose upstream stayed unreachable (reported `status=unreachable`, after the
-# other upstreams are filed); drift alone does not fail it.
+# Weekly drift issues for every upstream this repository records or vendors:
+# the docs/upstream pages pinned to a git commit, read by
+# scripts/check-upstream-drift.sh --report, and the vendored skills, whose own
+# check scripts scripts/upstream-drift-vendored-report.sh runs. Both reports go
+# to scripts/upstream-drift-issues.sh, which keeps one issue per upstream titled
+# `Upstream drift: <id>` (opened on drift, updated in place on later runs,
+# closed once the upstream is clean). Informational: not in
+# pr-require-checks.yml and not behind `ci-status`, so nothing here can block a
+# merge.
 #
-# Its token can write issues and nothing else; it reads repository contents. No
-# pull-request or issue text reaches it: the only triggers are the schedule and
-# a manual dispatch with no inputs, it runs no model, and the job-scoped
-# github.token runs on a fresh hosted runner. Report text reaches the helper as
-# a file and never through a `${{ }}` expression.
+# Two jobs. `report` runs the checks with a read-only token, held by the
+# docs/upstream step alone: the vendored check scripts fetch third-party
+# content and run with no token. It uploads the reports only when both
+# producers finished, so a partial report never reaches the filer, whose sweep
+# would close the missing upstreams' issues. `file` holds the only write
+# grant, issues, and runs no check script; it reads repository contents. It fails on a failed issue write, an
+# upstream left unreachable, or a check script that exited outside its 0/1/2
+# contract, each only after every issue is filed; drift alone does not fail it.
 #
-# maintenance-check-upstream-drift.yml is a different job: weekly, read-only,
-# it runs each vendored skill's own update script, fails on drift and never
-# opens an issue. This one is monthly, reads the docs/upstream git pins through
-# scripts/check-upstream-drift.sh, and files one issue per upstream.
+# No pull-request or issue text reaches either job: the only triggers are the
+# schedule and a manual dispatch with no inputs, it runs no model, and each job
+# runs on a fresh hosted runner. Report text reaches the filer as a file and
+# never through a `${{ }}` expression; the check scripts' own output goes only
+# to the job summary.
 #
-# 11:07 UTC on the 9th sits clear of the other scheduled runs.
+# Monday 10:29 UTC sits clear of the other scheduled runs.
 
 on:
   schedule:
-    - cron: "7 11 9 * *"
+    - cron: "29 10 * * 1"
   workflow_dispatch:
 
 permissions: {}
@@ -35,13 +39,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  file-upstream-drift-issues:
-    name: File Upstream Drift Issues
+  report:
+    name: Report Upstream Drift
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       contents: read
-      issues: write
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
@@ -51,15 +54,20 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Report upstream drift
+      - name: Set up Node
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .node-version
+      - name: Report pinned upstream drift
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          f="$RUNNER_TEMP/drift.txt"
+          mkdir -p "$RUNNER_TEMP/drift"
+          f="$RUNNER_TEMP/drift/records.txt"
           rc=0
           bash scripts/check-upstream-drift.sh --report >"$f" || rc=$?
           {
-            echo "### Upstream drift report"
+            echo "### Pinned upstream drift report"
             echo
             echo "check-upstream-drift.sh exit code ${rc} (0 clean, 1 drift, 2 error)."
             echo
@@ -70,17 +78,29 @@ jobs:
           if [ "$rc" -ge 2 ]; then
             exit "$rc"
           fi
-      - name: File drift issues
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: bash scripts/upstream-drift-issues.sh "$RUNNER_TEMP/drift.txt"
-      - name: Fail on an unreachable upstream
+      - name: Report vendored skill drift
         run: |
-          if grep ' status=unreachable ' "$RUNNER_TEMP/drift.txt"; then
-            echo "::error title=Upstream unreachable::An upstream refused both the token and an anonymous read; the page above was not checked."
-            exit 1
+          d="$RUNNER_TEMP/drift"
+          rc=0
+          bash scripts/upstream-drift-vendored-report.sh \
+            --output "$d/vendored.txt" --broken-contract "$d/broken-contract.txt" || rc=$?
+          if [ "$rc" -ge 2 ]; then
+            exit "$rc"
           fi
+          {
+            echo "### Vendored skill drift report"
+            echo
+            echo '```text'
+            cat "$d/vendored.txt"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+      - name: Upload the reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: upstream-drift-report
+          path: ${{ runner.temp }}/drift
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Log the API budget at the end
         if: always()
@@ -88,6 +108,62 @@ jobs:
         timeout-minutes: 1
         # actionlint rejects the $/ form zizmor asks for; the comment above
         # pr-require-checks.yml's Run zizmor step has the detail.
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  file:
+    name: File Upstream Drift Issues
+    needs: report
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download the reports
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: upstream-drift-report
+          path: ${{ runner.temp }}/drift
+      - name: File drift issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          d="$RUNNER_TEMP/drift"
+          cat "$d/records.txt" "$d/vendored.txt" >"$d/report.txt"
+          bash scripts/upstream-drift-issues.sh "$d/report.txt"
+      - name: Fail on an unreachable upstream
+        if: ${{ !cancelled() }}
+        run: |
+          if grep ' status=unreachable ' "$RUNNER_TEMP/drift/records.txt"; then
+            echo "::error title=Upstream unreachable::An upstream refused both the token and an anonymous read; the page above was not checked."
+            exit 1
+          fi
+      - name: Fail on a broken check-script contract
+        if: ${{ !cancelled() }}
+        run: |
+          f="$RUNNER_TEMP/drift/broken-contract.txt"
+          if [ ! -f "$f" ]; then
+            echo "::error title=Broken-contract list missing::The report artifact holds no broken-contract.txt."
+            exit 1
+          fi
+          if [ -s "$f" ]; then
+            echo "::error title=Drift check broke its contract::These check scripts exited outside 0/1/2; their rows were filed as untracked: $(tr '\n' ' ' <"$f")"
+            exit 1
+          fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
         uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token

@@ -40,8 +40,8 @@ resolution comment lists the interview's settled answers.>
 
 <One bullet per uncertainty you cannot yet phrase as a sharp question, each opening with a short
 bold label. A bullet graduates to a typed decision item only once working the map makes it
-sharp. Chart builds a map only for a foggy effort, so a young map normally holds fog; record
-only uncertainty you actually found.>
+sharp. Fog is expected. An empty fog section on a young map usually means you haven't looked
+hard enough.>
 
 - **<label>**: <what is uncertain, in a line or two>
 

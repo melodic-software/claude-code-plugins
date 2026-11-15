@@ -270,9 +270,9 @@ Fable 5.1 91.4% and 65.0%; on Context Arena's 8-needle MRCR (max effort), Claude
 row's `light` edge, 128000, is the last length at which those current-model scores were still near
 their best when we set it. Its `moderate` edge,
 500000, sits below 512K, the first MRCR length at which both Claude rows scored under one half.
-Between the two, scores sag without a measured cliff, so a reading there is `moderate`, not `heavy`: an
-`moderate` edge of 250000 read `heavy` at 26% of a 1M window on no evidence for current models
-or agentic work (#6644). The 200k row's `moderate` edge, 150000, is a declared judgment
+Between the two, scores sag without a measured cliff, so a reading there is `moderate`, not `heavy`: a
+`moderate` edge of 250000 would read `heavy` at 26% of a 1M window, with no evidence for current models
+or agentic work. The 200k row's `moderate` edge, 150000, is a declared judgment
 default with no measured basis. `zones.json` is the correction path, and
 the numeric agreement of the 200k row's percentage translation with the shipped 50/75 percentage
 defaults is coincidence, not validation.

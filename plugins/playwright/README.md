@@ -79,7 +79,8 @@ working-tree checkout of this plugin (the marketplace clone, or a directory
 loaded via `--plugin-dir`). Consumers receive updates through
 `/plugin marketplace update` once a new plugin version is published.
 The marketplace also runs every vendored skill's check weekly in its
-`maintenance-check-upstream-drift` workflow, which fails when upstream moves.
+`maintenance-file-upstream-drift-issues` workflow, which files one
+`Upstream drift: playwright/playwright` issue when upstream moves.
 
 ## Why this wraps the upstream skill
 

@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".work/split-invoicing/design/design-threads.md",
+            "old_string": "open",
+            "new_string": "resolved"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "billing/invoicing.py",
+            "old_string": "TAX_RATES",
+            "new_string": "_TAX_RATES"
+          }
+        }
+      ]
+    }
+  ]
+}

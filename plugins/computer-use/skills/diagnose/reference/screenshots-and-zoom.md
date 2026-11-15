@@ -21,7 +21,7 @@ megapixels, with the aspect ratio preserved, rather than a fixed scale factor:
 |---|---|---|---|
 | 2560x1440 (Windows, measured 2026-08-10) | 1456x816 | 1.19 | 1.76x |
 
-The worked example in the downscaling section above, on a larger display, is the second data point
+The worked example in the upstream downscaling section, on a larger display, is the second data point
 we compared against. The practical consequence: **a smaller monitor does not buy a sharper
 screenshot**. It buys the same ~1.2MP with less on it. That is occasionally worth doing for a dense
 UI, but it is a trade of coverage for density, never a quality win.
@@ -40,7 +40,8 @@ image.
 - **Pointer**: for the `zoom` action, see
   [Available actions](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#available-actions).
 
-Local behavior matches: while capture is failing, `zoom` returns
+Local behavior matches (observed 2026-08-10; recheck when the `zoom` action's failure message
+changes): while capture is failing, `zoom` returns
 `Screenshot capture failed after 3 attempts` rather than a blurry crop. A crop of the
 downscaled image would succeed and look bad; a re-capture fails outright. Two consequences
 follow from that single fact:

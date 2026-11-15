@@ -23,8 +23,8 @@ the pointer. A blog post is never the pointer; it appears only as a correlate be
 - Decompose by the context each piece needs, not by the kind of work. Sequential phases of one
   feature stay in one agent.
 - Coding parallelizes less than research: never split one feature across agents.
-- This plugin's operating cost figure for multi-agent work is 3–10× a single agent's tokens, a
-  floor that a research-shaped fan-out exceeds.
+- This plugin's operating cost figure for multi-agent work is 3–10× a single agent's tokens, and
+  roughly 15× for a research-shaped fan-out.
 - Delegate only for context protection, parallelism, or a tool-restricted specialist; outside
   those, coordination costs more than it returns.
 

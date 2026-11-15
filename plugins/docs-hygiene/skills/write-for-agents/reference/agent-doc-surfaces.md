@@ -18,11 +18,11 @@ write depends on one.
 | Project CLAUDE.md | `./CLAUDE.md` or `./.claude/CLAUDE.md` | Session start |
 | CLAUDE.local.md | `./CLAUDE.local.md` (also beside ancestor CLAUDE.md) | Session start |
 | Ancestor CLAUDE.md | every dir from filesystem root down to cwd | Session start; excludable via `claudeMdExcludes` |
-| Nested/subdirectory CLAUDE.md | `<subdir>/CLAUDE.md` below cwd | ON-DEMAND when Claude works with a file in that subdirectory (see [load triggers](#load-triggers)) |
+| Nested/subdirectory CLAUDE.md | `<subdir>/CLAUDE.md` below cwd | On demand when Claude works with a file in that subdirectory (see [load triggers](#load-triggers)) |
 | Project rules | `.claude/rules/**/*.md` | No `paths:` frontmatter → session start; with `paths:` globs → on-demand when Claude works with a matching file (see [load triggers](#load-triggers)) |
 | User rules | `~/.claude/rules/*.md` | Session start; load order relative to project rules: the user-rules pointer below. We keep the two consistent rather than rely on either ranking above the other |
 | `--add-dir` CLAUDE.md/rules | instruction files in each added directory | Session start only behind an opt-in; off by default |
-| `@` imports | `@path` inside CLAUDE.md/rules | Expanded at launch with the importing file, so an import does NOT reduce context vs inlining |
+| `@` imports | `@path` inside CLAUDE.md/rules | Expanded at launch with the importing file, so an import does not reduce context vs inlining |
 | AGENTS.md | `AGENTS.md` and `.claude/AGENTS.md` in cwd and ancestors; nested: attaches lazily; see the source-conflict record in [load triggers](#load-triggers) | Session start, but whether it loads depends on a Project instructions setting and on which CLAUDE.md files sit at or above cwd: read both, and its availability, which moves, at the AGENTS.md pointer below. Where it does not load natively: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
 | Auto-memory index | `MEMORY.md` in the auto-memory directory | Session start, head only; the excess is not loaded |
 | Auto-memory topic files | same dir, `*.md` | On-demand only |
@@ -130,6 +130,6 @@ vendor's current behavior before relying on details.
 | Gemini CLI | `GEMINI.md` hierarchy + `~/.gemini/GEMINI.md` | Concatenated into every prompt |
 | Windsurf | `.windsurf/rules/` (or `.devin/`); `global_rules.md` | Per-rule trigger modes |
 | Cline / Roo | `.clinerules` file-or-folder / `.roo/rules/` | Appended to system prompt; workspace wins |
-| Aider | `CONVENTIONS.md` | NOT auto-read; explicit `/read` / config only |
+| Aider | `CONVENTIONS.md` | Not auto-read; explicit `/read` / config only |
 | JetBrains Junie | `.junie/guidelines.md` | Auto-read during generation |
 | Amazon Q | `.amazonq/rules/*.md` | Auto-loaded on first interaction |

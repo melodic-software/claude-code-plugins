@@ -3,6 +3,25 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.3] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [0.44.2] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
+## [0.44.1] - 2026-11-15
+
+### Changed
+
+- The implement and implement-dispatch instructions use plain emphasis instead of capital letters, and stale facts in them are corrected.
+- The README says handoff notes go under `<memory_dir>/handoffs/`.
+
 ## [0.44.0] - 2026-11-15
 
 ### Added

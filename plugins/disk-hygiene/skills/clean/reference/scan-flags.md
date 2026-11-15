@@ -139,17 +139,9 @@ new as its newest inventoried descendant; incomplete coverage (not-walked, depth
 counts as in-flight.
 
 `ctime` is the inode change time on POSIX. On Windows it is whatever Python's `st_ctime_ns` reports,
-which is creation time for now, so read a Windows `ctime` window as creation time and as a value that
-can change meaning when the interpreter does.
-
-**Claim:** on Windows `st_ctime` is creation time today, is deprecated, and CPython plans to change it
-to the metadata change time or to zero. **Basis:** the `os.stat` and `os.stat_result` entries of
-https://docs.python.org/3/library/os.html (Python 3.14.7), fetched with `curl` and read from the saved
-HTML: "On Windows, st_ctime is deprecated. Eventually, it will contain the last metadata change time,
-for consistency with other platforms, but for now still contains creation time." and "in the future
-st_ctime may be changed to return zero or the metadata change time, if available." **As of:**
-2026-09-30. **Recheck:** the `os.stat_result` entry stops saying `st_ctime` still contains creation
-time on Windows, or a CPython release note announces the change.
+so read a Windows `ctime` window as the running interpreter defines that field, and as a value that
+can change meaning when the interpreter does. What it holds on Windows, and any planned change: the
+[`os.stat_result` entry](https://docs.python.org/3/library/os.html#os.stat_result).
 
 ## Coverage and hint fields
 

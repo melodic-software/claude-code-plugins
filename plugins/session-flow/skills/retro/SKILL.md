@@ -215,7 +215,8 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
   `AGENTS.md` or rules-file line, the guidance tier of
   [reference/enforcement-ladder.md](reference/enforcement-ladder.md)) names its proof in the PR:
   an eval case, or a deletion watch with a date (`/harness-config:unhobble`, when the
-  `harness-config` plugin is installed). A mechanical finding goes to `/corrections:codify` (when
-  the `corrections` plugin is installed), which proves its own check
+  `harness-config` plugin is installed). A mechanical finding goes to `/corrections:codify`, which
+  proves its own check (when the `corrections` plugin is installed), run once the user picks it at
+  Phase 4
 - **Phase 4 is an interactive checkpoint**, never persist codifications without explicit user
   approval
