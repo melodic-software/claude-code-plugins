@@ -27,8 +27,8 @@ landscape of repositories is `/architecture:map-landscape`.
 Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. Run
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"`
 and follow the exit code. Exit 0 means read `<home>/architecture/README.md` for
-`architecture_dir` and the optional `component_layers`. Any other exit (1 to 5)
-means there is no declared home.
+`architecture_dir` and the optional `component_layers`. Exit 1, 2, and 3 mean
+there is no declared home.
 
 `--out <dir>` wins for this run alone. Then a declared topic-doc value. Then
 one question. `architecture_dir` has no default: an undeclared, unconfirmed

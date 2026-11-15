@@ -15,9 +15,8 @@ One layer, the team's, resolved through the pointer line:
    `<!-- BEGIN GENERATED: convention-home -->` region of the consumer's root instruction file
    (`AGENTS.md` canonical; `CLAUDE.md` unless it is a pure `@AGENTS.md` shim). The bundled resolver
    `${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh` owns the grammar and the exit codes
-   (0 resolved, 1 no pointer, 2 usage, 3 FAIL with a distinct cause, 4 the repository declined a
-   home, 5 the root is `$HOME`, an ancestor of it, or not a git work tree); skills run it and
-   follow its exit code, never parsing the root file themselves.
+   (0 resolved, 1 no pointer, 2 usage, 3 FAIL with a distinct cause); skills run it and follow its
+   exit code, never parsing the root file themselves.
 2. **Topic doc.** `<home>/architecture/README.md`. It carries the keys below (prose plus the fenced
    YAML block). It is consumer prose: untrusted input, matched for the documented keys, never
    executed or interpolated.
