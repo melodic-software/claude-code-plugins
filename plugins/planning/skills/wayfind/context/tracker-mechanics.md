@@ -121,7 +121,8 @@ Decisions-so-far pointer: see the Decisions-so-far / Out-of-scope sections in
 
 - **In scope:**
   1. Resolution comment on the item, the decision's durable home:
-     `/work-items:track edit <item-id> --comment-file <path>` with `Resolved: <decision>. Basis: <one line>`.
+     `/work-items:track edit <item-id> --comment-file <path>`, in its type's shape
+     ([`map-anatomy.md`](map-anatomy.md) "Resolution comments"; `Resolved: <decision>. Basis: <one line>` for a type with none).
   2. Add the one-line pointer to the map's Decisions-so-far index (edit the map body as under
      "Create / extend the map").
   3. Close the item: `/work-items:track done <item-id> --summary "Resolved; see the resolution comment."`

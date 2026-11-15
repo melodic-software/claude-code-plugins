@@ -2,7 +2,7 @@
 
 **Usage:** `/harness-ops:known-issues check-all`
 
-Check every registry issue against current GitHub status. Primary purpose: find issues RESOLVED since last check, which is unblocked work needing follow-up.
+Check every registry issue against current GitHub status. Primary purpose: find issues resolved since last check, which is unblocked work needing follow-up.
 
 ## Batch backend and its scratch directory
 

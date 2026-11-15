@@ -34,7 +34,7 @@ To refresh this file against current official guidance, run the skill's `update`
 
 Every C-check here applies equally to each project root `AGENTS.md` that discovery emits as an
 `agents-md` surface (`AGENTS.md` and `.claude/AGENTS.md`; we audit both and assume no precedence
-between them): that file IS the project instructions for the session, so the same budget, content
+between them): that file is the project instructions for the session, so the same budget, content
 and currency criteria govern it. Discovery emits it only where Claude Code reads it, which
 is why a repo under a one-line `@AGENTS.md` shim has no such row (the import already counts inside
 the CLAUDE.md's expanded figure) and a displaced `AGENTS.md` has none either. Cite the finding
@@ -324,7 +324,7 @@ which are not repo-scoped.
 
 0. First ask whether the commands are stated on another loaded surface: a nested CLAUDE.md, a
    path-scoped rule, or auto memory. If they are, this is a C3 placement question, not a C9
-   finding for ABSENCE: do not WARN that CLAUDE.md omits them. The carve-out suppresses only the
+   finding for absence: do not WARN that CLAUDE.md omits them. The carve-out suppresses only the
    absence branch. Any command CLAUDE.md itself still states goes through steps 2-3 regardless,
    because a stale stated command misleads whether or not a correct one exists elsewhere
 1. Look for the repo's build and test invocations stated as runnable commands
@@ -400,7 +400,7 @@ frontmatter, note it as a path-scoping candidate: an always-loaded rule costs co
 ### RD1: Orphan always-loaded rule [WARN], deterministic
 
 **What**: An always-loaded `.claude/rules/*.md` file (no `paths:` frontmatter, so it costs context
-EVERY session) that carries no `description:` frontmatter AND that NO tracked file references. A rule
+every session) that carries no `description:` frontmatter and that no tracked file references. A rule
 nothing names and nothing describes has no owner anyone can find: per-session token tax until someone
 trips over it, or a candidate for a `description:` line, path-scoping (`paths:` frontmatter), or
 removal. The doc-derived checks (C7/R3/R4/M2) all run memory/rules → codebase; RD1 runs the reverse
@@ -454,10 +454,6 @@ fix where direct reading is unavailable, so the fix line names it in every case.
   and [When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable).
 - **As of**: 2026-09-19
 - **Recheck trigger**: a fetch of those sections changes which file names displace an `AGENTS.md`.
-
-The earlier basis for this check (verified 2026-09-08) was the page's former CLAUDE.md-only
-reading model. Its trigger fired: the page had changed when fetched 2026-09-19, and direct
-`AGENTS.md` reading shipped in v2.1.277. That basis is superseded and is no current claim.
 
 ---
 

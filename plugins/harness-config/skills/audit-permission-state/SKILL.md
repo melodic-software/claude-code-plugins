@@ -226,7 +226,7 @@ lint summary findings=<n> checks_run=<n> status=<read|incomplete>
 
 Eleven checks: three `C2-*` dead-config gates, `C5-disableType`, and seven `C6-*` rules-that-cannot-match, including a malformed Tool(content) rule and an uncompilable Read/Edit path.
 `reference/criteria.md` maps each to the docs section it follows from and lists the legitimate rule
-shapes the checks are written NOT to flag.
+shapes the checks are written not to flag.
 
 - **`C5-disableType` is the one to read first.** It flags any value other than the string
   `"disable"` as a false lockout: valid JSON the operator believes locks auto mode out. When deciding which value
@@ -256,10 +256,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/automode-block
 - **`C3-shadowed`**: an entry an earlier `hard_deny` already forecloses, so it can never fire.
 - **`C5-provenance`**: a date or issue reference in an entry you wrote.
 - **`--critique` surfaces `claude auto-mode critique`, wrapped and never replaced.** It owns the
-  semantic judgment. What this adds is honesty about it: measured across three consecutive runs on one
-  unchanged config, output was truncated mid-sentence twice and empty once, **exiting 0 every time**.
-  A mid-sentence cut is reported as truncated; an empty result says "critique returned nothing; run it
-  yourself" rather than implying your rules are clean.
+  semantic judgment. What this adds is honesty about it: measured on Claude Code 2.1.225 across three
+  consecutive runs on one unchanged config, output was truncated mid-sentence twice and empty once,
+  **exiting 0 every time** (as of 2026-08-12; recheck when a release note changes the critique
+  command's output or exit status). A mid-sentence cut is reported as truncated; an empty result says
+  "critique returned nothing; run it yourself" rather than implying your rules are clean.
 
 **This lane is optional.** It needs `python3` because
 `claude auto-mode config` emits raw control characters inside string values. `jq` rejects the output
@@ -323,10 +324,10 @@ collapse it in the report:
 - **Every scope and every managed surface emits a record on every OS**, including the ones that do
   not apply here (`not-applicable`). A surface missing from the output is a defect in this reader,
   not evidence about the machine.
-- **`managed` means the LOCAL managed surfaces.** The script does not fold the server-managed cache
-  at `~/.claude/remote-settings.json` into the effective set, and treats the Organization policy
-  line in `/status` as the failure read. The script says so on every run; carry it into the report
-  rather than implying completeness.
+- **`managed` means the local managed surfaces.** The script does not fold the server-managed cache
+  into the effective set (its path and dated record: `reference/criteria.md` §"Managed policy, and
+  what it does not buy"), and treats the Organization policy line in `/status` as the failure read.
+  The script says so on every run; carry it into the report rather than implying completeness.
 - **An `ask` finding names where the contract lives**: the auto mode config page, and the
   upstream issue anthropics/claude-code#83766 against it. Carry the caveat `reference/criteria.md` §"Ask rules under auto
   mode" words, with its pointer, when reporting an `ask` result, and point at

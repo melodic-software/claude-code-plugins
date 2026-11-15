@@ -176,12 +176,12 @@ rather than recomputing it, so the untriaged-material clause applies there too.
   every recent same-login event ledger-accounted again, the ordinary arms resume dispatching.
 - **`attribution_drift`** (a material-finding **reporter**, not a suppressor): the complement of
   `foreign_activity`. Where that arm reconciles same-login timeline events the ledger cannot
-  account for, this one reconciles the writes the ledger DID record: for each recorded write with a
+  account for, this one reconciles the writes the ledger did record: for each recorded write with a
   recoverable landed author, it checks that the author is the configured `--intended-write-identity`
   and not merely *some* accepted `<self-logins>` login. A recorded write that landed under a
   different self-login is surfaced as an attribution-drift material finding on that PR's status
   line. The canonical case is a bot write-identity that silently degraded to the operator's
-  personal login when a token mint failed. Unlike `foreign_activity` it does NOT suppress dispatch: the PR
+  personal login when a token mint failed. Unlike `foreign_activity` it does not suppress dispatch: the PR
   is still ours to babysit; only the authorship of a past write is wrong, so the finding is
   reported while normal processing continues. Dormant when no intended write-identity is configured.
   Coverage is bounded to the write class the ledger records with authorship (review-trigger
@@ -382,7 +382,7 @@ same-worktree protections.
   round that classifies only when an escalation is already being prepared leaves the tripwire
   nothing to read; the helper refuses an unclassified round for that reason. The snapshot's
   `advisory_fix_rounds.non_convergence_tripwire` reports where the PR already stood and the
-  helper's own return is what arms THIS round. Neither is reconstructed from GitHub, per that
+  helper's own return is what arms this round. Neither is reconstructed from GitHub, per that
   same section. Keep iterating while rounds make real progress against real findings; only when
   the helper reports the cap reached, the rare runaway-loop case, report the findings for user
   decision instead of fixing. Clear blocking defects are never capped.
@@ -697,7 +697,7 @@ On the conflict worker's return, and before pushing anything:
   verification byproducts left behind would make an integrated PR's worktree neither prunable nor
   reusable. The byproduct set spans both verification runs: the worker's own run precedes this
   snapshot, so its leavings are already on disk and would masquerade as pre-existing. Snapshot
-  `git -C <worktree> status --porcelain` before and after the verification re-run; on EVERY exit of
+  `git -C <worktree> status --porcelain` before and after the verification re-run; on every exit of
   the operation, after a successful push and equally as part of any no-push unwind below, delete
   exactly the union of the paths the re-run added and the untracked paths the worker's report names
   as its verification output (a targeted removal of named byproducts, never `git clean`). A
@@ -726,7 +726,7 @@ On the conflict worker's return, and before pushing anything:
   re-opens the window the check closes. A writer that resets the PR branch to an ancestor inside
   that window makes this push a valid fast-forward that silently restores the commits that writer
   removed. The base re-fetch is a network round trip, so it is exactly such a window and must not
-  sit inside it, which is why it runs FIRST here, ahead of the head check, rather than being
+  sit inside it, which is why it runs first here, ahead of the head check, rather than being
   revalidated "in the same breath". Run the three steps in this order and put nothing between 2
   and 3:
   1. **Base.** The second-parent check above proved the merge integrated the base SHA the worker
@@ -850,9 +850,9 @@ Each worker must:
     `fetch-all-pr-comments.sh`, the target repository's own build/test/lint commands): either
     re-`cd` into the worktree inside that same call or pass the command its own explicit target
     (`GH_REPO=owner/repo` for `gh`, `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` for the
-    comment fetcher). `GH_REPO` selects the *remote* repository only. `gh help environment` scopes
-    it to "commands that otherwise operate on a local repository," not to the local working tree,
-    so it is the escape for read-only and remote-only `gh` calls (`pr view`, `pr checks`,
+    comment fetcher). `GH_REPO` selects the *remote* repository only, never the local working tree
+    (for its scope, see `gh help environment`), so it is the escape for read-only and remote-only
+    `gh` calls (`pr view`, `pr checks`,
     `api`, `pr comment`). Any `gh` call that mutates the local checkout, such as checking out
     the PR head ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#remote-target-for-gh-calls)), takes a same-call `cd` into the worktree
     regardless, because `GH_REPO` would leave it fetching and switching branches in whatever

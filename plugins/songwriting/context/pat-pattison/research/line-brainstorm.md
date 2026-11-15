@@ -11,22 +11,22 @@
 - [Anchor quotes](#anchor-quotes)
 - [Cross-references](#cross-references)
 
-Single line stuck. Single section thin. Writer needs RAW MATERIAL: many
+Single line stuck. Single section thin. Writer needs raw material: many
 options, fast, filtered through Pat's discipline, before the revision pass.
 
-This is NOT the same as:
+This is not the same as:
 
 | Action | Volume | Output shape |
 |---|---|---|
 | `/songwriting:rhyme` / `rhyme-generation` | 8-15 rhyme candidates | rhyme-list per tier |
 | `/songwriting:diagnose variations` | 5-7 labeled line alternates | menu of polished alternates |
-| `/songwriting:co-write line-brainstorm` | 30-50+ across 5 columns | RAW pre-revision dump |
+| `/songwriting:co-write line-brainstorm` | 30-50+ across 5 columns | raw pre-revision dump |
 | `/songwriting:diagnose demo` | diagnosis of the line in song context | dominant-problem named |
 | `/songwriting:diagnose audit` | pre-lock checklist on a candidate line | go / no-go signal |
 | `/songwriting:object-writing` | timed sense-bound write | raw-image generation |
 
 `line-brainstorm` is the *between* tool: the writer knows the line needs
-to change but doesn't know what to change. Generate MANY options, sort
+to change but doesn't know what to change. Generate many options, sort
 later. The discipline applies (per [response-filter.md](response-filter.md)
 §1 + §2 + §7), but volume comes first; selection comes second.
 
@@ -46,26 +46,26 @@ Trigger phrases the AI should hear:
 - "what's the section saying, give me more ways to say it"
 
 If the writer says "the perfect alternative" or "the best one", that's
-`/variations`, not `line-brainstorm`. Brainstorm is volume; variations is
-curation.
+`/songwriting:diagnose variations`, not `line-brainstorm`. Brainstorm is
+volume; variations is curation.
 
 ## Two scope levels
 
-### Scope A: ONE LINE
+### Scope A: one line
 
-The writer points at a specific line. Generate across FIVE COLUMNS:
+The writer points at a specific line. Generate across five columns:
 
 1. **End-line word swaps** (~30): words that could replace the current
    end-line word, organized by stability tier (perfect / family / additive-
    subtractive / assonance / consonance / **mosaic, meaning multi-word combos
    across parts of speech, proper nouns OK** / from the song's developed
-   world). Mosaic tier is MANDATORY per
+   world). Mosaic tier is mandatory per
    [response-filter](response-filter.md) §1: at least 5 candidates from
    [mosaic-rhyme.md](mosaic-rhyme.md) per source word.
 2. **Content-word swaps** (~10): the word the line rests on (usually
    a verb, sometimes an image-noun) replaced with stronger / more
    specific / more surprising alternatives, generated common-stock-first
-   per *Discipline* below: the surprise comes from what the word is DOING
+   per *Discipline* below: the surprise comes from what the word is doing
    in this scene, not from how rare the word is
 3. **Internal rhyme partners** (~10): mid-line sonic-bonding candidates
    (assonance + consonance + alliteration with words inside the line)
@@ -76,10 +76,10 @@ The writer points at a specific line. Generate across FIVE COLUMNS:
    functional job (closes the section / sets up the next line / lands
    the title) while varying everything else
 
-### Scope B: ONE SECTION
+### Scope B: one section
 
 The writer points at a verse / chorus / bridge / refrain / transitional
-bridge. Run Scope A FOR EACH LINE. Then add:
+bridge. Run Scope A for each line. Then add:
 
 1. **Stability profile audit**: name the section's lyric stability
    pattern (stable / unstable / mixed); note which line carries which
@@ -96,15 +96,14 @@ bridge. Run Scope A FOR EACH LINE. Then add:
 *Provenance: the five columns, every target count in this file (~30, ~10, ~5,
 ≥5, top-3, 30-50+), and the checkboxes below are **this repo's tool spec**, not
 Pat's. He publishes no line-brainstorm procedure and no candidate quotas. What
-IS his is the craft each box invokes: identity, stability tiers, the seven
+is his is the craft each box invokes: identity, stability tiers, the seven
 senses, cliché scanning, verb strength. Each is sourced in the file it links to.
 Do not restate any of these numbers as Pat's. The two-pass generation order
 below is also this repo's, writer-derived from the Sofía sessions
 (2026-08-12).*
 
 Generation runs in two passes, in this order. The reverse order, dodging the
-familiar words up front, is what put `silt` in front of the writer
-(2026-08-12).
+familiar words up front, puts rare words such as `silt` in front of the writer.
 
 1. **Pass 1: generate from the common stock.** Draw first on the plain
    everyday words and the idiom stock a person would use telling this scene
@@ -120,19 +119,19 @@ familiar words up front, is what put `silt` in front of the writer
 A common-stock-first order raises cliche exposure deliberately: it puts the
 familiar words on the table so pass 2 can recontextualize them, instead of
 avoiding them and landing outside the vocabulary anyone sings. Whether a
-surviving candidate is SAYABLE is pass 8 of
+surviving candidate is sayable is pass 8 of
 [line-edit-rubric.md](line-edit-rubric.md).
 
-The brainstorm is fast and high-volume, but NOT undisciplined. Pre-dump:
+The brainstorm is fast and high-volume, but not undisciplined. Pre-dump:
 
 - [ ] **Stressed vowel of the end-line word identified** before Column 1
 - [ ] **Identity check** applied (rejected before listing)
-- [ ] **Cliche scan** applied per pair / per candidate as PASS 2, after the
+- [ ] **Cliche scan** applied per pair / per candidate as pass 2, after the
       common-stock pass has generated, never as a pre-filter on it (flag,
       don't always reject, but flag; a flagged candidate gets reframed, not
       swapped for a rarer word)
 - [ ] **Song's developed world** mined for Column 1 when the song has
-      established setting / era / character: ≥5 candidates from THAT
+      established setting / era / character: ≥5 candidates from that
       vocabulary
 - [ ] **Stress-count match** noted per column (most lines want a specific
       stress count to fit the meter, so flag candidates that break it)
@@ -145,10 +144,11 @@ The brainstorm is fast and high-volume, but NOT undisciplined. Pre-dump:
 Post-dump:
 
 - [ ] **No single winner imposed**: the writer picks
-- [ ] **Top-3 suggestions per column** offered separately AS A SUGGESTION,
+- [ ] **Top-3 suggestions per column** offered separately as a suggestion,
       not a verdict, labeled with the craft reason
-- [ ] **Hand-off** to `/variations` if the writer wants 5-7 polished
-      alternates next, or `/audit` for pre-lock check
+- [ ] **Hand-off** to `/songwriting:diagnose variations` if the writer wants
+      5-7 polished alternates next, or `/songwriting:diagnose audit` for
+      pre-lock check
 
 ## Output format
 
@@ -250,9 +250,9 @@ Cliche flags to watch:
 - <phrase> in any whole-line variant
 
 Hand-off:
-- /variations <line> — for 5-7 polished alternates
-- /audit <line> — for pre-lock check on a chosen candidate
-- /rhyme-generation - for more rhyme tiers if Column 1 felt thin
+- /songwriting:diagnose variations <line> — for 5-7 polished alternates
+- /songwriting:diagnose audit <line> — for pre-lock check on a chosen candidate
+- /songwriting:rhyme — for more rhyme tiers if Column 1 felt thin
 ```
 
 ## Section-level output additions
@@ -291,16 +291,16 @@ BOX-MODEL CHECK (if verse)
 Per [coaching-protocol.md](coaching-protocol.md):
 
 - Surface the columns
-- Name the TOP-3 directions as suggestions (per craft reason)
+- Name the top-3 directions as suggestions (per craft reason)
 - Ask the writer which direction feels closest to the song's pull
 - Hand off to the appropriate next action when the writer commits
 
-Do NOT make the writer wade through 50 unlabeled options. Per-column
+Do not make the writer wade through 50 unlabeled options. Per-column
 labels + top-3 suggestions + hand-off route. Volume + curation.
 
 ## Anchor quotes
 
-**Both quotes below are UNAUDITED: spoken interviews, outside the four books,
+**Both quotes below are unaudited: spoken interviews, outside the four books,
 unverifiable from the corpus.** Neither is in any book; do not cite either as a
 book quote. Each does, however, have a printed counterpart, and the printed one
 is what to quote when it matters:
@@ -331,7 +331,7 @@ sentence occurs exactly once in the corpus and `raw/` shows no italics.)
 `Eminem` returns zero hits in all four books, and so does the phrase
 "worksheet process".
 
-The brainstorm IS the worksheet process applied to a single line.
+The brainstorm is the worksheet process applied to a single line.
 
 ## Cross-references
 

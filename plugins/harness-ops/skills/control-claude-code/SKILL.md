@@ -6,9 +6,7 @@ disable-model-invocation: true
 App: Claude Code, the `claude` on PATH, with the plugin at `<plugin-dir>` loaded for the session.
 Driving tool: `driver/driver.mjs`, a terminal driver for Claude Code's TUI.
 Runs attended or unattended, and drives only the session it launches; it never attaches to a
-Claude Code session it did not start. This follows the
-[evidence-verification Brief](https://github.com/melodic-software/claude-code-plugins/issues/11364#issuecomment-6534933364),
-which supersedes #7581's 2026-10-23 attended-only criterion.
+Claude Code session it did not start.
 
 The run uses the account Claude Code is already signed in with. It never signs in, signs out or
 switches accounts, and it never drives Claude Desktop (Gotchas).

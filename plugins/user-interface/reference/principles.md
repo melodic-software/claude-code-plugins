@@ -15,9 +15,9 @@ it never relaxes these.
    `generic-defaults` concern covers.
 
    Left alone, an agent produces the average of everything it has seen. The average is fine, and
-   fine is exactly what everyone else is shipping. Your taste is what pulls the output away from
-   the average. Here that taste is the project's and the user's: their system and their stated
-   choices pull the output away from the average, not this agent's own preferences.
+   fine is exactly what everyone else is shipping. Choices that differ from the average are what
+   make the output distinct. Here those choices are the project's and the user's: their system and
+   their stated choices set the output, not this agent's own preferences.
 
    Being generic in product UI is partially intentional. The goal here is not to invent new
    patterns, we want our UI to be predictable and consistent, which means that we have to follow
@@ -25,39 +25,16 @@ it never relaxes these.
    familiar convention is not a habit: keep it.
 3. **Restraint.** Add the fewest elements that do the job. Every color, glyph, animation and line
    must carry information the user acts on. Remove what does not. Restraint reads as intent. Fewer
-   colors, fewer font weights, one icon library, three illustration colors instead of six. A
-   limited palette looks decided; a full one looks indecisive.
-4. **Stop the prompt loop.** While AI can help us create lots of variations of an idea, it's hard
-   to get exactly what we want from it. You ask it to create a thing you have in mind, when it
-   doesn't work, you ask it to create a few variants of the thing in the hope that increasing the
-   number of things built will increase the chance of getting something good. You stay stuck in
-   this loop forever.
-
-   **The two-round rule.** If you are mid-conversation and about to produce a *second* round of
-   prompted variants of the same visual idea, stop and propose a generating tool instead. Two
-   rejected rounds is the signal that the user is searching a space, not requesting an item:
-   every further prompted round costs more than the tool would. The earlier trigger governs: stop
-   before producing the second round, once one round has missed.
-
-   Making the tool itself is relatively easy, your agent can build one in minutes. The hard part
-   here is noticing the moment you need one, and knowing which tool to ask for. When the agent
-   can't reach the thing you want, don't ask for the thing again in different words. Ask which
-   tool would get you there, and then get there yourself. That paragraph is advice for the person;
-   the next one is what it means for this agent.
-
-   The two-round rule and the can't-reach rule come down to one move for this agent: when the next
-   answer would be a second round of prompted variants of the same idea, or the thing the user
-   wants is out of reach by prompting, say so and propose `/prototype:build-generator`, naming what
-   the tool would render and what the user would tune. A person runs that skill; never start it
-   yourself.
-
-   It's important to know what to delegate though. If it's a lot of code and you can spell out
-   what you want, delegate it. If the quality lives in your eye, or you're simply faster by hand,
-   build it yourself. Those three sentences are advice for the person choosing what to hand an
-   agent; they give this agent no permission to delegate work or to start a tool. For this agent:
-   when the quality lives in the user's eye (a spring's feel, an icon's optical alignment, an
-   accent color, a hero's composition), hand them the values to tune, or the tool that tunes them,
-   rather than another guess.
+   colors, fewer font weights, one icon library, three illustration colors instead of six. Each
+   extra color is another choice the user has to decode.
+4. **Stop the prompt loop.** Once one round of prompted variants of a visual idea has missed, the
+   user is searching a space, not requesting an item, and every further prompted round costs more
+   than a generating tool would. So when the next answer would be a second round of prompted
+   variants of the same idea, or the thing the user wants is out of reach by prompting, say so and
+   propose `/prototype:build-generator`, naming what the tool would render and what the user would
+   tune. A person runs that skill; never start it yourself. When the quality lives in the user's
+   eye (a spring's feel, an icon's optical alignment, an accent color, a hero's composition), hand
+   them the values to tune, or the tool that tunes them, rather than another guess.
 
 ## Usability heuristics
 

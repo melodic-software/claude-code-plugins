@@ -121,12 +121,12 @@ declines a row on this ground says where it routed, so "no row" never reads as "
   surface's own text rather than a model-era claim). A closed four-value set.
 - **Severity**: `error` / `warning` / `info`.
 
-**Model scoping.** A check or row sourced from a SINGLE model's guide is annotated
-`Model scope: <version>[, <version> ...]` and FIRES only when the run's resolved target
+**Model scoping.** A check or row sourced from a single model's guide is annotated
+`Model scope: <version>[, <version> ...]` and fires only when the run's resolved target
 model (the skill body owns `--target-model` resolution) exactly matches one of the listed tokens;
 otherwise it is inert and the report lists it as
 `skipped-for-target`. **The match is exact string equality of the normalized version token**
-(e.g. `opus-5`): a point release or a dated full model ID does NOT auto-match a base-version scope.
+(e.g. `opus-5`): a point release or a dated full model ID does not auto-match a base-version scope.
 Model guides are calibrated per version, and successive guides have reversed each other, so a
 near-miss target skips the row (reported `skipped-for-target`, naming the near-miss) rather than
 inheriting a sibling version's doctrine. The scope value is data: no check body branches on a
@@ -191,8 +191,7 @@ each only on the surfaces its row names.
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5>
 - Prompting Claude Fable 5.1:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1>.
-  The `fable-5-1` widenings below rest on it, in place of the bundled `claude-api` skill's
-  model-migration reference they first cited; that skill's record lives in
+  The `fable-5-1` widenings below rest on it; the bundled `claude-api` skill's record lives in
   [bundled-claude-api.md](bundled-claude-api.md).
 - What's new in Claude Fable 5.1 (its refusal categories, for I10):
   <https://platform.claude.com/docs/en/models/fable-5-1/whats-new-fable-5-1>
@@ -509,9 +508,9 @@ disagrees with it.
 - **Detect:** instructions telling the model to re-check work it already checks. The pre-scan's
   stems are `double-check`, `re-verify`, `final verification step`, and `subagent to verify`. Older
   harness text that bolts an extra checking pass onto every task counts too.
-- **Classify by reviewer INDEPENDENCE, not invocation source:** architected independent review,
+- **Classify by reviewer independence, not invocation source:** architected independent review,
   meaning a fresh-context reviewer blind to the producing rationale or a different-vendor verifier,
-  is NOT a finding; the anti-pattern is the instructed self-check. **Carve-out lanes (never
+  is not a finding; the anti-pattern is the instructed self-check. **Carve-out lanes (never
   flagged):** security review, destructive operations, managed-upstream-file changes, PR merge
   gates.
 - **Remediate:** propose removal; verify per Deletion tiers (a consequential removal needs a closed
@@ -554,22 +553,22 @@ on its second arm: a second model guide, the Sonnet 5 one, states the same claim
 trigger phrases (two of the three; see Source for the third's provenance), so this fires for every
 target model.
 
-- **Detect:** review/report instructions that gate severity at the FINDING stage, such as "be
+- **Detect:** review/report instructions that gate severity at the finding stage, such as "be
   conservative," "only report high-severity issues," and "don't nitpick", which current models
-  follow literally, withholding real findings. The gate is about WITHHOLDING findings from the
+  follow literally, withholding real findings. The gate is about withholding findings from the
   audit or report output: severity-based routing where everything is still reported somewhere
   ("only page on-call for high-severity; log the rest") and non-reporting uses of "conservative"
   ("conservative time estimates") are not findings.
-- **Two fences, OWNED HERE (the scanner over-produces by contract; the model lane adjudicates):**
-  1. **Restraint-clause shape**: a clause bounding when a TRANSFORMATION or action applies
+- **Two fences, owned here (the scanner over-produces by contract; the model lane adjudicates):**
+  1. **Restraint-clause shape**: a clause bounding when a transformation or action applies
      ("When NOT to apply…", "skip the change when…") is not a reporting gate; the canonical
      non-finding shape is a tidying catalog's restraint text (in this monorepo, the catalog
      `/code-tidying:tidy` loads; in a standalone install the shape, not the path, is the fence).
-  2. **Quoted/meta surfaces**: a document that DISCUSSES the conservative-reporting pattern
+  2. **Quoted/meta surfaces**: a document that discusses the conservative-reporting pattern
      (this criteria file, a model-adaptation chapter, verification records quoting it) is
      not a finding. Judge at the level of the instruction's audience: quoted text embedded inside
      an operative directive ("follow the maxim: 'only report high-severity issues'") is still
-     operative and IS a finding; the exemption is for documents about the pattern, never for
+     operative and is a finding; the exemption is for documents about the pattern, never for
      quotation as packaging.
 - **Remediate:** rephrase to report-everything + a separate filter/rank pass. Where a single-pass
   self-filter is genuinely wanted, keep it but **state the bar concretely**, as an enumerable test
@@ -705,9 +704,8 @@ choice, on the same reasoning I10 applies to a declined widening.
   it; a surface whose *instruction text* prescribes a short client timeout is the shape that would
   reach this catalog, and none is attested.
 - **Source:** Fable 5 guide, "Longer turns by default".
-- **Widened to `fable-5-1` on 2026-09-03**, first on the bundled `claude-api` skill's
-  model-migration reference. That basis's trigger fired when the Fable 5.1 guide was published. The
-  widening now rests on our rule that a Fable 5 row applies to Fable 5.1 unless the Fable 5.1 guide
+- **Widened to `fable-5-1` on 2026-09-03.** The
+  widening rests on our rule that a Fable 5 row applies to Fable 5.1 unless the Fable 5.1 guide
   names a difference on the row's subject, and on our reading of that guide on 2026-10-01 (read
   whole as raw markdown; no artifact stored): no section names a turn-length difference. Pointer:
   [Prompting Claude Fable
@@ -930,9 +928,8 @@ per model; promotion gate unmet, see "Unscoping considered" below).
   `## Sources`: the catalog-wide trigger then fires this row whenever that page changes, and no
   narrower per-row trigger is owed.
 
-- **Widened to `fable-5-1` on 2026-09-03**, first on the bundled `claude-api` skill's
-  model-migration reference. That basis's trigger fired when the Fable 5.1 guide was published.
-  The widening now rests on the refusal categories of the refusals and fallback page, which
+- **Widened to `fable-5-1` on 2026-09-03.**
+  The widening rests on the refusal categories of the refusals and fallback page, which
   lists Fable 5.1. Pointer: [Refusals and fallback, What a refusal
   looks like](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#refusal-response).
   Recheck trigger: that section stops covering the `reasoning_extraction`
@@ -1270,10 +1267,8 @@ since each prescribes a request the model refuses.
   inventories. **Count two `ultracode` forms as `xhigh`:** `--effort ultracode`, and
   `effortLevel: "ultracode"` sent through the Agent SDK. Count `/effort ultracode` and the
   `ultracode` setting only where the level already in effect is `xhigh` or `max`. Match on the
-  effort that reaches the request, not on the spelling. **Narrowed on 2026-10-01:** this row
-  formerly counted all four `ultracode` forms as `xhigh`. It now counts `/effort ultracode` and the
-  setting only on the condition above, because the row matches the effort that reaches the request
-  and we treat those two forms as leaving the level in effect unchanged.
+  effort that reaches the request, not on the spelling. We treat `/effort ultracode` and the
+  setting as leaving the level in effect unchanged, which is why they count only on that condition.
   Pointer: for which ultracode forms set the level, see
   [model configuration: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
   As of: 2026-10-01. Recheck trigger: that section changes which ultracode forms set the effort
@@ -1379,11 +1374,9 @@ since each prescribes a request the model refuses.
   the top levels: that is what makes the arm unconditional rather than a wider pairing, and why
   the two are read as separate arms rather than one range.
 - **Local coverage of the second arm, measured 2026-08-04: zero operative instances in the
-  repository that authored it.** The disable literal occurs six times across four files: three in
-  this catalog, once in the Opus 5 model-adaptation chapter, twice in changelog entries.
-  Every one is a document *about* the restriction, which is the audience-test fence above rather
-  than a passed check. **Re-measure when** a surface here begins prescribing a thinking-disable
-  instead of describing one.
+  repository that authored it.** Every occurrence of the disable literal is a document *about* the
+  restriction, which is the audience-test fence above rather than a passed check. **Re-measure
+  when** a surface here begins prescribing a thinking-disable instead of describing one.
 - **As of 2026-08-04** for the Opus 5 pairing as first written (those pages read as raw markdown);
   the harness consequence, the `ultracode` forms, the second arm's model set and the third arm
   carry their own 2026-10-01 records above. **Recheck trigger:** the effort level set gaining or
@@ -1672,7 +1665,7 @@ Tier `mechanical` · Severity `warning`.
   thinking blocks at all is unestablished; the harm there would in any case be the consumer's own
   logic rather than a rejected request, which is a code-correctness matter this catalog does not
   audit. **Re-scope when** the stored transcript's content-block shape is documented.
-- **Must NOT flag: text scoped to a legacy manual thinking budget AND to the final assistant
+- **Must NOT flag: text scoped to a legacy manual thinking budget and to the final assistant
   turn**, where the requirement is real. The page carves it out itself, and we treat the
   enforcement as exactly that wide: only the last assistant turn, and only when the request has
   thinking on. A
@@ -2004,9 +1997,8 @@ confident removals.
   the claim, which would meet the
   promotion gate and unscope this row, or that section ceasing to name the remaining-token
   countdown as the trigger, which is what joins the disclosure arm to the directive arm.
-- **Widened to `fable-5-1` on 2026-09-03**, first on the bundled `claude-api` skill's
-  model-migration reference. That basis's trigger fired when the Fable 5.1 guide was published. The
-  widening now rests on our reading of that guide on 2026-10-01 (read whole as raw markdown; no
+- **Widened to `fable-5-1` on 2026-09-03.** The
+  widening rests on our reading of that guide on 2026-10-01 (read whole as raw markdown; no
   artifact stored): no section names a context-budget difference from Fable 5, so we keep the
   Fable 5 claim for `fable-5-1`. Pointer: [Prompting Claude Fable
   5.1](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1),
@@ -2047,7 +2039,7 @@ confident removals.
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all. Unscoped.
 Promotion gate MET: two model guides state the identical claim (see Source).
 
-- **Detect:** instruction text that demonstrates or names ONE instance while the author's evident
+- **Detect:** instruction text that demonstrates or names one instance while the author's evident
   intent is a whole class, with no explicit scope statement: text a literal-minded executor would
   satisfy by doing exactly the one instance and stopping. We treat current models as reading
   instructions literally, more so at lower effort: an instruction about one item is not carried to
@@ -2176,7 +2168,7 @@ Model scope: `opus-5` (both statements of the property are qualified to Claude O
 and the effort page's inside its Opus 5 section; no model-agnostic page states it, so the promotion
 gate is unmet).
 
-- **Detect:** instruction text directing a reader or model to lower effort TO SHORTEN the
+- **Detect:** instruction text directing a reader or model to lower effort to shorten the
   visible response, such as "lower effort to keep replies short" or "reduce effort so answers stay
   concise", the premise being that the effort level controls response length. Seeded by the
   scanner's I27 family (an effort-lowering directive and a brevity token on one line); the lane

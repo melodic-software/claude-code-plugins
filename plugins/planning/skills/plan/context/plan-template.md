@@ -90,7 +90,7 @@ When a plan or phase touches `plan_inventory_min_files` or more files (default 1
 
 **Action vocabulary:** KEEP (audited, no change), MODIFY (edit content or frontmatter), CREATE (new file), DELETE (remove), MOVE (rename/relocate), MERGE (combine into another file).
 
-**Location:** per-phase in the plan body, not a separate top-level section. Each phase lists only the files IT touches. Files appearing in multiple phases get a row in each.
+**Location:** per-phase in the plan body, not a separate top-level section. Each phase lists only the files it touches. Files appearing in multiple phases get a row in each.
 
 **When to use KEEP:** include files audited and deliberately left unchanged. It documents completeness ("we looked at this and it's fine") vs omission ("we forgot about this").
 
@@ -106,9 +106,9 @@ When a plan or phase touches `plan_inventory_min_files` or more files (default 1
 
 #### Pre-flight consumer check (when migrating a contract)
 
-When a phase migrates a contract surface (frontmatter schema, JSON schema, public API, env-var shape, file format, exported function signature), list "Identify consumers" as the FIRST work item:
+When a phase migrates a contract surface (frontmatter schema, JSON schema, public API, env-var shape, file format, exported function signature), list "Identify consumers" as the first work item:
 
-1. **Pre-flight (FIRST item):** `Grep` + `Glob` for scripts/hooks/workflows/sibling components parsing the contract surface. Document parse paths.
+1. **Pre-flight (first item):** `Grep` + `Glob` for scripts/hooks/workflows/sibling components parsing the contract surface. Document parse paths.
 2. Migration work items follow.
 3. Consumer-update work items (if pre-flight surfaces affected consumers).
 
@@ -179,13 +179,13 @@ Calibration examples by scale:
 - **Medium:** a new shared library; add a cache to a query handler; a new module in a modular monolith
 - **Large:** module extraction; auth-provider integration; a cross-cutting refactor touching multiple apps and libraries
 
-When in doubt, err toward more detail. A plan that's "too detailed" wastes 30 seconds reading. A plan that's "too brief" wastes 30 minutes fixing assumptions.
+When a task sits between two scales, use the larger one: rework from a missed assumption costs more than reading a longer plan.
 
 ## Script Repeatable Operations (default deliverable)
 
 When any phase includes ≥3 sequential shell commands that could conceivably re-run (migrations, verifications, setup flows, audit sweeps, cleanup routines), the phase deliverable is a script (in the project's tooling directory, per its conventions), not copy-paste commands in PLAN.md.
 
-**Plan body shows:** script flow (pseudocode), expected inputs/outputs, `--dry-run` behavior, rollback path. NOT the raw commands a user would type manually.
+**Plan body shows:** script flow (pseudocode), expected inputs/outputs, `--dry-run` behavior, rollback path. Not the raw commands a user would type manually.
 
 **Script conventions:** `--help` (usage), `--dry-run` (preview), idempotent re-run, a co-located test where the project's conventions call for one, lint-clean.
 
@@ -203,16 +203,16 @@ When any phase includes ≥3 sequential shell commands that could conceivably re
 
 ## Sanity-Check Format (per-phase)
 
-Every phase ends with at least one `**Sanity Check:**` bullet. Criteria MUST be mechanically verifiable: a specific grep, file Read assertion, build exit code, test exit code, or runtime probe a fresh cleared session can execute without inferential judgment.
+Every phase ends with at least one `**Sanity Check:**` bullet. Criteria must be mechanically verifiable: a specific grep, file Read assertion, build exit code, test exit code, or runtime probe a fresh cleared session can execute without inferential judgment.
 
 **Verifiable format** (acceptable):
 
 - `**Sanity Check:**` `grep -c "<pattern>" <file>` returns 0
 - `**Sanity Check:**` build exit 0; tests exit 0 across <test projects>
-- `**Sanity Check:**` `<file>` line N matches `<regex>`; `<file>` does NOT contain `<deprecated-pattern>`
+- `**Sanity Check:**` `<file>` line N matches `<regex>`; `<file>` does not contain `<deprecated-pattern>`
 - `**Sanity Check:**` the project's pre-commit hooks pass against a staged sample fixture
 
-**Vague format (REJECTED, rewrite as verifiable):**
+**Vague format (rejected, rewrite as verifiable):**
 
 - ~~"Documentation looks appropriate"~~
 - ~~"Code behaves as expected"~~
@@ -238,7 +238,7 @@ A phase shows which code changes in a `shape` fence, anchored to the code it tou
 
 ## Sub-Topic Promotion Trigger
 
-Recommend promoting a phase to its own topic directory (with its own PLAN.md) when it exhibits ANY:
+Recommend promoting a phase to its own topic directory (with its own PLAN.md) when it exhibits any:
 
 - >5 distinct work items
 - >300 LOC delta estimate
@@ -256,13 +256,13 @@ Step 4.5 loads this section. For plans with ≥2 phases. Single-phase plans and 
 
 1. **File-overlap matrix**. For each phase pair (i, j), check whether their ALLOWED file lists intersect. Zero overlap = parallel-safe candidate
 2. **Dependency graph**. Explicit (Phase A produces output Phase B consumes; Phase A's contract change is cited by Phase B's Sanity Check) + implicit (semantic-source-before-mechanical-execution; sweep-before-detector-activation)
-3. **Identify Wave A (parallel-safe set)**. Largest subset with zero file overlap AND no inter-phase dependencies
+3. **Identify Wave A (parallel-safe set)**. Largest subset with zero file overlap and no inter-phase dependencies
 4. **Identify Wave B+ (sequential)**. Phases blocked by Wave A outputs
-5. **Recommend shape**. RECOMMEND parallel when ≥2 phases are parallel-safe AND the saving is material (roughly ≥100 LOC of independent work). Otherwise document sequential as the default. Sequential remains a valid choice even with opportunity present
+5. **Recommend shape**. Recommend parallel when ≥2 phases are parallel-safe and the saving is material (roughly ≥100 LOC of independent work). Otherwise document sequential as the default. Sequential remains a valid choice even with opportunity present
 6. **Author scope-fencing tables**. For each parallel agent: ALLOWED files (whitelist) + explicit FORBIDDEN (PLAN.md, other agents' territory) per "Scope-fencing tables" below
 7. **Surface the cost**. Parallel agents multiply token usage; state "N agents parallel vs sequential" so the user picks consciously
 8. **Document sequential fallback**. An explicit path back to sequential ordering if parallel orchestration fails (scope-fence violation, concurrent-edit race, an agent reports it cannot complete)
-9. **Assign per-phase execution surface and model**. Give each phase a routing row (`Phase | Surface | Model | Attempts | Basis`), with `Attempts` blank (one attempt) or `multi-shape` per "Per-phase routing table" below: main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Set `Model` per "Per-phase routing table" below: `sonnet` only when every eligibility condition holds, otherwise `opus`, and `frontier` for security-surface work. Route to agent team only when the environment has agent teams enabled (the dated record of how it is enabled is in "Composition risks" below); otherwise fall back to sub-agent workers or sequential
+9. **Assign per-phase execution surface and model**. Give each phase a routing row (`Phase | Surface | Model | Attempts | Basis`), with `Attempts` blank (one attempt) or `multi-shape` per "Per-phase routing table" below: main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Set `Model` per "Per-phase routing table" below: `sonnet` only when every eligibility condition holds, otherwise `opus`, and `frontier` for security-surface work. Route to agent team only when the environment has agent teams enabled (how it is enabled: the pointer in "Composition risks" below); otherwise fall back to sub-agent workers or sequential
 
 **Output:** PLAN.md's `## Execution shape` section, the one place the shape is written: the four-dimension table, the parallelism shape, the per-phase routing table, the scope-fencing tables and the sequential fallback. The user approves the shape at Step 5.
 
@@ -284,11 +284,11 @@ Step 4.5 loads this section. For plans with ≥2 phases. Single-phase plans and 
 
 ### Recommended shape
 
-**Sequential** (when phases share files OR have chain dependencies):
+**Sequential** (when phases share files or have chain dependencies):
 
 > Fully sequential: 1.1 → 1.2 → 1.3 → ..., <one-line rationale, e.g. "1.2 sweep state required clean before 1.3 detector activates">
 
-**Parallel** (when ≥2 phases are file-disjoint AND the independent work is material):
+**Parallel** (when ≥2 phases are file-disjoint and the independent work is material):
 
 > Wave A (parallel sub-agents, single message): {phases}
 > Wave B (sequential after Wave A returns): {phases}
@@ -313,7 +313,7 @@ Each agent gets an explicit ALLOWED whitelist + FORBIDDEN deny-list:
 
 Document a one-line fallback path if parallel orchestration fails:
 
-> If a scope-fence violation OR concurrent-edit race OR an agent reports cannot-complete, abort that agent + fall back to sequential N → M → ... for the affected phase only. Other parallel agents continue.
+> If a scope-fence violation or concurrent-edit race or an agent reports cannot-complete, abort that agent + fall back to sequential N → M → ... for the affected phase only. Other parallel agents continue.
 
 ### Per-phase routing table
 
@@ -355,9 +355,9 @@ This split is our routing rule. Two built-in levers sit beside it and are not pa
 
 ### Composition risks
 
-- Parallel orchestration depends on sub-agent compliance with scope-fence discipline. The sequential fallback path MUST be documented in PLAN.md's `## Execution shape`
+- Parallel orchestration depends on sub-agent compliance with scope-fence discipline. The sequential fallback path must be documented in PLAN.md's `## Execution shape`
 - PLAN.md edits stay main-session-only (status updates would race if agents edited PLAN); agents report back instead
-- **Design for an agent team when the parallel-safe workers must message each other** (cross-layer feature, competing-hypothesis debugging) rather than just fan out and report back. That execution shape is an **agent team**, not independent fan-out sub-agents. The file-overlap matrix above IS the team-safety check: decompose by **context boundary / disjoint clean-interface file-set, never by lifecycle role** (a planner/implementer/tester of one feature shares too much context). Dependency-order the task list so blocked tasks auto-unblock; disjoint file ownership is mandatory, not optional. Pointer: <https://code.claude.com/docs/en/agent-teams#avoid-file-conflicts>. For whether agent teams are available and how they are turned on, pointer: <https://code.claude.com/docs/en/agent-teams#enable-agent-teams>. Verify availability before routing a phase there, and keep the sub-agent fan-out or sequential path as the documented fallback
+- **Design for an agent team when the parallel-safe workers must message each other** (cross-layer feature, competing-hypothesis debugging) rather than just fan out and report back. That execution shape is an **agent team**, not independent fan-out sub-agents. The file-overlap matrix above is the team-safety check: decompose by **context boundary / disjoint clean-interface file-set, never by lifecycle role** (a planner/implementer/tester of one feature shares too much context). Dependency-order the task list so blocked tasks auto-unblock; disjoint file ownership is mandatory, not optional. Pointer: <https://code.claude.com/docs/en/agent-teams#avoid-file-conflicts>. For whether agent teams are available and how they are turned on, pointer: <https://code.claude.com/docs/en/agent-teams#enable-agent-teams>. Verify availability before routing a phase there, and keep the sub-agent fan-out or sequential path as the documented fallback
 - The user's commit policy is unchanged. Staging/commits happen per the consuming project's own rules, never silently by parallel agents
 
 ## Large-scale changes (migrations, library swaps, broad refactoring)
@@ -450,7 +450,7 @@ Review: code-design    # repeated facts, cascades, configurability, testability,
 
 Each tag maps to a `/review:quality-gate` mode: `architecture`, `security` and `code-design` to the mode of the same name, `concurrency` to `/review:quality-gate slice concurrency`. The review rates at the Brief's `Quality bar:` line, which implementation reads from the plan and passes with the phase diff; a phase never repeats it.
 
-Tag `Review: code-design` on any phase that adds or changes a contract, type, module, or a fact or rule several files read, skill and instruction Markdown included; omit it only for trivial edits. Stumble: phases that only changed Markdown or a shared value went untagged, so no phase-boundary review saw the copies they spread.
+Tag `Review: code-design` on any phase that adds or changes a contract, type, module, or a fact or rule several files read, skill and instruction Markdown included; omit it only for trivial edits. A phase that changes only Markdown or a shared value still takes the tag, because the copies it spreads are what that review catches.
 
 A phase that changes what users see or do can also carry one optional evidence value, written as a plain description of the evidence:
 
@@ -512,7 +512,7 @@ Raising the budget is a plan change that goes back to the user.
 
 ## Phase-entry checks for tracker writes
 
-When any phase ends in creating a work item (e.g. `/work-items:track add`), the plan body MUST structure that phase so the create call cannot dispatch without first verifying no duplicate exists. The pivot path (comment on the existing item) MUST be listed explicitly, not deferred to runtime judgment. Each step names a `/work-items:track` action, invoked via the Skill tool; without the `work-items` plugin, write the same three steps with the tracker's own tooling.
+When any phase ends in creating a work item (e.g. `/work-items:track add`), the plan body must structure that phase so the create call cannot dispatch without first verifying no duplicate exists. The pivot path (comment on the existing item) must be listed explicitly, not deferred to runtime judgment. Each step names a `/work-items:track` action, invoked via the Skill tool; without the `work-items` plugin, write the same three steps with the tracker's own tooling.
 
 Required phase shape:
 
@@ -524,14 +524,14 @@ Required phase shape:
 - [ ] **If search returns a match** → pivot: `/work-items:track edit <id> --comment-file <path>` instead of creating a duplicate. Skip the remaining create steps; close the phase with the comment URL as evidence
 - [ ] **If search returns empty** → proceed with create:
   `/work-items:track add --label '<label>' --body-file <path> "<title>"`
-- [ ] **Sanity Check:** the item ID (newly created OR pivoted-to) recorded in the phase notes; URL captured
+- [ ] **Sanity Check:** the item ID (newly created or pivoted-to) recorded in the phase notes; URL captured
 ````
 
-Opening a PR (`/source-control:pull-request create`) does NOT need an equivalent phase-entry check, because the forge refuses a second open PR from a branch that already has one, so duplicates are structurally prevented.
+Opening a PR (`/source-control:pull-request create`) does not need an equivalent phase-entry check, because the forge refuses a second open PR from a branch that already has one, so duplicates are structurally prevented.
 
 ## Checkbox inventory pattern
 
-When a plan involves moving, renaming, or modifying a GROUP of files (batch migrations, directory reorganizations, rename sweeps), emit per-file checkbox inventories per phase:
+When a plan involves moving, renaming, or modifying a group of files (batch migrations, directory reorganizations, rename sweeps), emit per-file checkbox inventories per phase:
 
 ```markdown
 ### Phase N: <slice name>
@@ -550,7 +550,7 @@ When a plan involves moving, renaming, or modifying a GROUP of files (batch migr
 - [ ] the project's test suite passes
 ```
 
-**When to use:** the plan involves ≥3 files being moved/renamed AND each file has downstream references requiring update. Checkbox granularity = one box per file move + one box per reference-update site + one box per sanity-check criterion.
+**When to use:** the plan involves ≥3 files being moved/renamed and each file has downstream references requiring update. Checkbox granularity = one box per file move + one box per reference-update site + one box per sanity-check criterion.
 
 **Why:** mechanical refactors across many files have high "forgot one reference" risk. Per-file checkboxes make progress trackable across cleared-context boundaries and make sanity-check grep patterns explicit. Implementation ticks boxes as work completes.
 

@@ -60,7 +60,7 @@ sentence at the end of the Challenge 1 introduction:
    - **where**: A Cliff by the Ocean, Park Bench in the City, Hotel Bar,
      Suburban Swimming Pool, The Old Fishing Hole, Under an Umbrella, On the
      City Bus, Wedding in an Old Church, Canoe on the River (Days 12–14)
-2. **Pick ONE seed word** in that category. Don't deliberate. First word
+2. **Pick one seed word** in that category. Don't deliberate. First word
    that arrives.
 3. **Set a 10-minute timer.** Pat runs three timed pieces per day, not one:
    *"three timed Object Writing exercises of five minutes, ten minutes and 90
@@ -85,7 +85,7 @@ sentence at the end of the Challenge 1 introduction:
 The mined material becomes input for `idea-to-title.md` or
 `fragment-development.md` in a later session.
 
-## Paths B, C and D: plugin scaffolding, not Pat's printed method
+## Paths B, C and D: plugin coaching prompts, not Pat's printed method
 
 <!-- unaudited: Paths B, C and D below are this plugin's own coaching
      scaffolding. None of them is printed in the four books; Path A is the only
@@ -107,7 +107,7 @@ If the writer resists timers, use the alternative input:
 - What feeling has been with you that you haven't named?
 - What contradicts what you usually believe?
 
-These are sourcing prompts. Pick ONE answer; treat it as a seed; route to
+These are sourcing prompts. Pick one answer; treat it as a seed; route to
 Path A's object-writing pass.
 
 ## Path C: Recent reading / listening / watching
@@ -142,7 +142,7 @@ they come from non-book sources and are not Pat's printed vocabulary. The
 counts (10 candidates, keep 2–3) are this plugin's, not his. *Stressed vowel*
 is genuine Pat vocabulary, from *Essential Guide to Rhyming* (2014).
 
-## What NOT to do in brainstorm mode
+## What not to do in brainstorm mode
 
 Pat's own prohibitions, verbatim. This is what he actually forbids during a
 timed object write:
@@ -171,11 +171,10 @@ than printed by Pat:
 
 ## Artifact pattern
 
-For a brand-new song that has no slug yet, the brainstorm material lands in
-`songwriting/songs/<slug>/ideation/seeds.md` (per the SKILL.md
-"Artifact Persistence" layout) if a slug exists, or in
-`songwriting/practice/<YYYY>/<YYYY-MM-DD>.md` if the writer is doing pure
-daily practice without a song target yet.
+Once the song has a slug, the brainstorm material lands in
+`songwriting/songs/<slug>/ideation/seeds.md` (per the layout in
+[artifact-persistence](artifact-persistence.md)). Pure daily practice without a
+song target lands in `songwriting/practice/<YYYY>/<YYYY-MM-DD>.md`.
 
 If no slug exists yet, the brainstorm output may simply live in the
 conversation until a title locks; then create the slug and write
@@ -193,7 +192,7 @@ After a brainstorm session:
 | Nothing usable yet | repeat Path A with a different seed; or shelve and try again tomorrow |
 | Multiple usable seeds | shelve all but one; choose the one that's pulling hardest |
 
-## When brainstorm IS the goal (no song target)
+## When brainstorm is the goal (no song target)
 
 The writer may want pure daily practice (`daily-practice.md`) with no song
 target. That's the whole of *Songwriting Without Boundaries* (2011): *"I

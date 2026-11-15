@@ -134,9 +134,10 @@ run never stops on it. An unrendered `${user_config.<key>}` reads as unset.
 
 ## Older releases
 
-A testing release older than these two keys does not read `docs/conventions/testing.yaml`, and it
-refuses an unknown key in the files it does read, which stops its test scan. So the two keys are
-never read from the `docs/conventions/testing.md` config block or `.claude/testing.yaml`, the team
-files an older teammate's release reads. Set them in `docs/conventions/testing.yaml`; set them
-in `~/.claude/testing.yaml` or `.claude/testing.local.yaml` only on a machine that runs this release
-or later. `browser_driver` follows the same rule.
+A testing release older than `e2e_driver` and `reuse_running_instance` does not read
+`docs/conventions/testing.yaml`, and it refuses an unknown key in the files it does read, which
+stops its test scan. So `e2e_driver`, `reuse_running_instance` and `browser_driver` are never read
+from the `docs/conventions/testing.md` config block or `.claude/testing.yaml`, the team files an
+older teammate's release reads. Set them in `docs/conventions/testing.yaml`; set them in
+`~/.claude/testing.yaml` or `.claude/testing.local.yaml` only on a machine that runs this release
+or later.

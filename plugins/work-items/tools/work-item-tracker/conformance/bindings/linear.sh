@@ -29,7 +29,7 @@ CB_BINDING_TMP=""
 # scope by accident. The `:?` guards in cb_setup have already run by the time this is
 # called, so host/scope/credential are known present.
 #
-# NOT YET EXERCISED AGAINST A LIVE WORKSPACE — no Linear instance is reachable from the
+# Not yet exercised against a live workspace — no Linear instance is reachable from the
 # environment this was written in. It is written against Linear's published schema and
 # reports failures loudly rather than continuing quietly, which is the property that
 # matters most here: a cleanup that silently does nothing leaves the suite asserting
@@ -84,8 +84,8 @@ _cb_clean_at_start() {
 
 cb_setup() {
   local host scope
-  host="${WIT_CONFORMANCE_LINEAR_HOST:?set WIT_CONFORMANCE_LINEAR_HOST to a throwaway Linear host; NEVER a coordination instance}"
-  scope="${WIT_CONFORMANCE_LINEAR_SCOPE:?set WIT_CONFORMANCE_LINEAR_SCOPE to a throwaway scope; NEVER a coordination scope}"
+  host="${WIT_CONFORMANCE_LINEAR_HOST:?set WIT_CONFORMANCE_LINEAR_HOST to a throwaway Linear host; never a coordination instance}"
+  scope="${WIT_CONFORMANCE_LINEAR_SCOPE:?set WIT_CONFORMANCE_LINEAR_SCOPE to a throwaway scope; never a coordination scope}"
   CB_REPO="$scope"
   CB_BINDING_TMP="$(mktemp)"
   jq -cn --arg h "$host" --arg s "$scope" \

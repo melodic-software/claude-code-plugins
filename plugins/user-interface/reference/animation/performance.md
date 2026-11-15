@@ -72,8 +72,8 @@ every frame.
 `height: auto` isn't animatable. Measure and animate the pixel value once, animate
 `grid-template-rows: 0fr → 1fr`, or clip an inner element. Animating `height` to expand panels
 triggers layout every frame; animate `transform: scaleY()` or use a clip, or measure and animate
-once. A sidebar that opens forty times a session and animates `width` is a blocker; a rarely opened
-settings accordion animating `height` is a should-fix. The measured accordion in `catalog.md`
+once. A sidebar that opens forty times a session and animates `width` is Blocking; a rarely opened
+settings accordion animating `height` is Important. The measured accordion in `catalog.md`
 ("Properties") is the sanctioned exception, not a finding.
 
 **Audit: Blocking.** A layout property (`width`, `height`, `margin`, `padding`, `top`, `left`,
@@ -89,7 +89,7 @@ accordion animating `height` outside the measured-height exception.
 bare `transition` class, which compiles to a broad property list in disguise), every style change
 becomes a candidate animation: the browser must track the entire style object, properties you never
 meant to tween (padding, shadow, colors) start tweening whenever they change, and the engine loses
-the optimizations a narrow, known property list allows. `transition: all 0.3s` is a bug factory: it
+the optimizations a narrow, known property list allows. `transition: all 0.3s` causes bugs: it
 silently animates width, height, and color, triggering layout recalculation, and a theme switch
 then animates every color at a different timing. List the properties:
 `transition: opacity 0.3s, transform 0.3s`.
@@ -205,14 +205,11 @@ container whose children read the variable in `transform`.
 
 ## Blur: `blur`
 
-Animated blur gets expensive fast, and its cost grows with the radius and the blurred area; some
-engines are slower than others. A small radius is enough to soften a crossfade. Measure a large or
-full-screen blur on the slowest target device before shipping it.
-
-`filter: blur()` cost explodes past `animation.blur_max_px`, in some engines more than others.
-`animation.blur_px.soften` masks a crossfade; anything larger on an animating or full-screen
-element is a frame-rate problem. Keep blurs subtle and off frequently-animating elements. No
-engine documents a radius limit, so `animation.blur_max_px` is a default a project may move.
+Animated blur gets expensive fast: its cost grows with the radius and the blurred area, explodes
+past `animation.blur_max_px`, and is higher in some engines than others. `animation.blur_px.soften`
+is enough to mask a crossfade; keep blurs that small and off frequently-animating elements, and
+measure a large or full-screen blur on the slowest target device before shipping it. No engine
+documents a radius limit, so `animation.blur_max_px` is a default a project may move.
 
 **Audit: Important.** `blur(` over `animation.blur_max_px` on an animated element;
 `backdrop-filter: blur()` on a full-viewport overlay or on a sticky header over a long scrolling
@@ -252,8 +249,8 @@ compositor owns; declaring it for layout-bound properties is a no-op.
 - Add it last, only after seeing the shift or measuring dropped frames. Browsers already promote
   elements animating transform or opacity, and every promoted layer costs GPU memory. Browsers have
   gotten good at managing layers themselves, so treat this as a targeted fix: reach for it after
-  you've observed a first-frame hiccup (some engines more often than others), never as routine
-  seasoning. A page peppered with `will-change` pays real cost for stutters it never had.
+  you've observed a first-frame hiccup (some engines more often than others), never by
+  default. A page peppered with `will-change` pays real cost for stutters it never had.
 - Put it on the element that animates, never on every element or on large containers. Add it only
   to an element that visibly hitches on its first frame, only for compositor properties
   (`transform`, `opacity`, `filter`, `clip-path`), and keep that layer small.

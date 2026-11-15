@@ -51,7 +51,7 @@ Views: G = every person, M = owner and leaders, O = owner only.
 | `myUploads`, `uploads` (O) | `myUploads`, `uploads` (O) | `cid` from `pid`, `ts` from `at`, `status` from `status.kind`; no path reaches the page |
 | `files` | `files` | same, merged over the files the page already holds |
 | `behind`, `aboutYou` (O), `myAbout` | `behind` (M), `aboutYou` (O), `me.aboutYou` | same |
-| (none) | `schemaVersion`, `rev`, `build` | read by `core.js` only: a version or build change reloads the page; `rev` feeds `?since=` |
+| (none) | `rev`, `build` | read by `core.js` only: a build change reloads the page; `rev` feeds `?since=` |
 | (none) | `me.reactions`, `cards[].reactions` | Gather reactions |
 
 ## Question

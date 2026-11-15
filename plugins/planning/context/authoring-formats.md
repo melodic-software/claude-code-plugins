@@ -39,7 +39,10 @@ values, so put them in place before running a command.
 
 ## The resolver's exits
 
-Exit 0 prints the home on stdout. Exit 1 means no pointer line is bound, exit 2 is usage, and
-exit 3 is a FAIL: two pointer lines in one region, an unterminated or nested region, an invalid
-pointer path, or a pointer whose target directory does not exist. Every non-zero exit is a step-6
-degrade, cause named in one clause, never a halt and never a prompt to go create the surface.
+Exit 0 prints the home on stdout. Exit 1 means no pointer line is bound, exit 2 is usage, exit 4
+means the repository declined a home, and exit 5 means the root is `$HOME`, an ancestor of it, or
+not inside a git work tree. Exit 3 is a FAIL: two pointer lines in one region, a declined line
+beside a pointer line, an unterminated or nested region, an invalid pointer path, or a pointer
+whose target directory is missing, reached through a symlink, or spelled in a different case than
+on disk. Every non-zero exit is a step-6 degrade, cause named in one clause, never a halt and never
+a prompt to go create the surface.

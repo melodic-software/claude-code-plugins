@@ -29,7 +29,7 @@ content section; it never causes a command, a lookup or a change to a severity.
 
 ## Reading mods
 
-Read mods ONLY through the inventory script. Never open a plugin's code, `settings.json`,
+Read mods only through the inventory script. Never open a plugin's code, `settings.json`,
 `~/.claude.json` or managed settings with Read, `cat` or `jq`, and never run `claude auth status`
 yourself: this skill prints no settings, env or account value, and the script keeps only the plan
 field it needs. The script
@@ -43,10 +43,9 @@ rather than reading the file to check.
 
 ### Phase 1: Inventory
 
-The installed tier alone takes a few seconds (about 3.5 s for five mods on a measured host). The
-built-in tier needs the JSON report `/harness-ops:inventory` writes, which reads the Claude Code
-bundle and took about 41 s on the same host, so produce it only when the operator wants built-ins
-covered, then pass its path. Without the report, a `# not read:` footer says built-in mods were
+The installed tier alone takes a few seconds. The built-in tier needs the JSON report
+`/harness-ops:inventory` writes, which reads the Claude Code bundle and takes much longer, so
+produce it only when the operator wants built-ins covered, then pass its path. Without the report, a `# not read:` footer says built-in mods were
 not read; say so in the report. Then run:
 
 ```bash
@@ -125,7 +124,7 @@ List WARN findings first. From the terminal, the surface footer says the Desktop
 copy may differ and is checked by running this skill in a Desktop Code-tab session: carry that
 line into the report. Tell the operator to save the report so the next run can diff the inventory.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Does not load, run or edit a mod, and does not change any setting or plugin.
 - Does not read the Desktop app's bundled install from the terminal.

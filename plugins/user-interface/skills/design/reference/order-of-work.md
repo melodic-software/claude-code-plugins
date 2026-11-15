@@ -59,7 +59,7 @@ pieces are built means redoing the pieces.
 The pieces that sit on the foundation.
 
 - **`shape-and-depth`**: shadows, borders, gradients, elevation, and the dark-mode versions of all
-  four. Cards, modals, dropdowns, images. The dark-mode surfaces are the `theming` concern's.
+  four. Cards, modals, dropdowns, images. Which colors the dark-mode surfaces take is the `color` concern's; a surface that breaks in the other theme is the `theming` concern's.
 - **`component-api`**: the *props API* of a component other people will reuse: composition over
   configuration, compound components, controlled/uncontrolled. Not how it looks.
 - **`forms`**: forms, inputs, buttons, validation timing, loading and disabled states, submit

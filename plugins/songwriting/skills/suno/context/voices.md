@@ -1,8 +1,8 @@
 # Voices: full guide
 
-Voices clones YOUR singing identity. v5.5 only. 18+, geographically gated.
+Voices clones your singing identity. v5.5 only. 18+, geographically gated.
 
-**Tier updated 2026-08-08: Pro / Premier, plus a free-plan TRIAL.** The release note says free plans can "try" Voices; **a trial is not all-tier entitlement, and this file must not describe it as one.** <https://suno.com/release-notes>, Aug 7 2026: "We brought Voices to both iOS and Android. Record your voice once and use it on any song. Now available to try on free plans." **Caveat:** that entry carries no `Web` tag (unlike other web-touching entries in the same window), `suno.com/pricing` lists no Voices bullet under Free, and both Voices help articles are silent on plan gating, so free-plan Voices may be mobile-only. Unresolved; verify in-app.
+**Tier: Pro / Premier, plus a free-plan trial.** The release note says free plans can "try" Voices; **a trial is not all-tier entitlement, so do not describe Voices as available on every tier.** <https://suno.com/release-notes>, Aug 7 2026: "We brought Voices to both iOS and Android. Record your voice once and use it on any song. Now available to try on free plans." **Caveat:** that entry carries no `Web` tag (unlike other web-touching entries in the same window), `suno.com/pricing` lists no Voices bullet under Free, and both Voices help articles are silent on plan gating, so free-plan Voices may be mobile-only. Unresolved; verify in-app.
 
 ## What Voices does
 
@@ -13,7 +13,7 @@ Voices clones YOUR singing identity. v5.5 only. 18+, geographically gated.
 
 ## Voice privacy: the "make this voice public" toggle
 
-**⚠ Applies to EVERY voice you create, on any route through this file, including the two-stage bootstrap below, which creates two voices and so needs the check at both creation steps.**
+**⚠ Applies to every voice you create, on any route through this file, including the two-stage bootstrap below, which creates two voices and so needs the check at both creation steps.**
 
 **The poster of the r/SunoAI thread cited here states the "make this voice public" toggle is ON by default when creating a voice. Turn it off before finishing.** Source: [r/SunoAI, "Another useful trick to use your own voice in Suno, even if you cannot sing well"](https://www.reddit.com/r/SunoAI/comments/1ujzbqj/another_useful_trick_to_use_your_own_voice_in/) (u/Physical-Dress8460, posted 2026-06-30), read 2026-08-11. LOW-MEDIUM confidence: a single post plus its own comment thread, not multi-source consensus. Unverified against Suno's documentation; asked about in the thread and **re-affirmed by the poster, contradicted by nobody**.
 
@@ -35,7 +35,7 @@ Clip length, 2-minute auto-selection, and acapella-preferred rows verified 2026-
 
 ## Best-practice recording session
 
-**Single 90-120 second clip with intentional vocal variety** (per community empirical testing). Tonal and emotional variety within ONE clip produces stronger clones than multiple separate flat-dynamic clips.
+**Single 90-120 second clip with intentional vocal variety** (per community empirical testing). Tonal and emotional variety within one clip produces stronger clones than multiple separate flat-dynamic clips.
 
 Record one continuous 90-120s acapella performance covering:
 
@@ -53,7 +53,7 @@ Sing actual melodies, not spoken word. The model learns your sung timbre, not yo
 
 ### Two-stage bootstrap for non-singers
 
-**LOW-MEDIUM confidence: a SINGLE community post plus its comment thread, not multi-source consensus.** Read 2026-08-11 from [r/SunoAI, "Another useful trick to use your own voice in Suno, even if you cannot sing well"](https://www.reddit.com/r/SunoAI/comments/1ujzbqj/another_useful_trick_to_use_your_own_voice_in/) (posted 2026-06-30, 152 votes, 58 comments). Not documented by Suno. Untested here.
+**LOW-MEDIUM confidence: a single community post plus its comment thread, not multi-source consensus.** Read 2026-08-11 from [r/SunoAI, "Another useful trick to use your own voice in Suno, even if you cannot sing well"](https://www.reddit.com/r/SunoAI/comments/1ujzbqj/another_useful_trick_to_use_your_own_voice_in/) (posted 2026-06-30, 152 votes, 58 comments). Not documented by Suno. Untested here.
 
 For a writer who cannot deliver the sung 90-120s session above, the reported route is to clone twice:
 
@@ -62,11 +62,11 @@ For a writer who cannot deliver the sung 90-120s session above, the reported rou
 3. Reported slider settings for that test generation: **Weirdness 0%, Style Influence 100%, Audio Influence ~95-100%.**
 4. From the generated take, **create a second voice from the part where the voice actually sings**. That second voice is the one to use. The poster notes you can also try the whole generated piece rather than a selected span.
 
-**⚠ This DOES conflict with "sing actual melodies, not spoken word" above, and the conflict is not resolvable from the source.** Both are recorded because both are reported; neither is edited to fit the other.
+**⚠ This does conflict with "sing actual melodies, not spoken word" above, and the conflict is not resolvable from the source.** Both are recorded because both are reported; neither is edited to fit the other.
 
 The rule at the top of this section gives a reason: the model learns your *sung* timbre, not your speaking voice. In this technique the only audio the writer ever performs is **speech**. The "singing" that voice #2 is built from is Suno's own extrapolation from a speech-trained clone: synthesized singing, not the writer's. So a reader following the rule records singing, and a reader following this technique never sings at all. **They are opposite instructions at the only step a human performs.** If you can sing the 90-120s session, the rule above is the better-supported route; this is a fallback for writers who cannot, and it is untested here.
 
-**Interaction with the verification phrase below is UNRESOLVED.** That guard compares a live spoken phrase against *your uploaded singing*. Stage 4 uploads **Suno-generated** audio, not your own recording. Whether that clears verification, and what the anti-impersonation check means when the singing was synthesized, is not addressed by the source and was not tested here.
+**Interaction with the verification phrase below is unresolved.** That guard compares a live spoken phrase against *your uploaded singing*. Stage 4 uploads **Suno-generated** audio, not your own recording. Whether that clears verification, and what the anti-impersonation check means when the singing was synthesized, is not addressed by the source and was not tested here.
 
 **Also unreconciled: the slider value.** Step 3's reported ~95-100% Audio Influence sits above the 85%+ tier in the table below, which this file describes as over-fitting to the recording environment. That may well be *desirable* when the goal is to capture a voice rather than produce a track, but no source says so, so it is flagged rather than explained.
 
@@ -105,14 +105,14 @@ Community reports also describe higher settings carrying more of the source reco
 | Slider | Effect |
 |--------|--------|
 | 40-50% | Voice still identifiable, room tone / mic artifacts start surfacing |
-| 60-80% | Voice character preserved BUT imports recording artifacts, breath sounds, room reverb from training clips |
+| 60-80% | Voice character preserved but imports recording artifacts, breath sounds, room reverb from training clips |
 | 85%+ | Voice clone over-fits to training audio's environment (mic, room), output sounds like the recording session, not a produced track |
 
 Raise Audio Influence when resemblance is poor. If artifacts increase, treat that as a community-reported tradeoff: compare outputs, back down as needed, and improve the source recording rather than relying on an official threshold that Suno has not published.
 
 ### Voice clone input: quality over quantity
 
-**90 seconds to 2 minutes total, with intentional vocal variety.** Pure repetition of one phrase or one emotional register produces a WEAKER clone than the same total length covering varied dynamics.
+**90 seconds to 2 minutes total, with intentional vocal variety.** Pure repetition of one phrase or one emotional register produces a weaker clone than the same total length covering varied dynamics.
 
 Best results from a single 90-120s clip containing:
 
@@ -136,7 +136,7 @@ When a Voice is active, style prompt's vocal descriptors **conflict** with the c
 
 - Style/genre tags (genre, mood, instrumentation, BPM, production)
 - Section tags in lyrics (`[Verse]`, `[Chorus]`, etc.)
-- Performance directives in lyrics parentheticals (`(whispered)`, `(softly)`): these tell the cloned voice HOW to deliver, not what to BE
+- Performance directives in lyrics parentheticals (`(whispered)`, `(softly)`): these tell the cloned voice how to deliver, not what to be
 
 Example style prompt with active Voice:
 
@@ -153,7 +153,7 @@ Notice: zero vocal descriptors. The Voice handles vocal identity entirely.
 For duets / call-and-response across two cloned voices:
 
 1. Both collaborators must each have their own Voice trained
-2. Each generates a section using THEIR voice
+2. Each generates a section using their voice
 3. Studio comps parts onto separate tracks
 4. Export as one mix
 
@@ -163,7 +163,7 @@ Suno doesn't support "select voice A for verse 1 and voice B for verse 2" in a s
 
 In-app report flow for misused voices. If someone clones your voice without consent (despite verification, an edge case), report → Suno reviews → voice profile takedown.
 
-## What's NOT documented
+## What's not documented
 
 These edge cases aren't surfaced in current help articles. Verify if you hit them:
 

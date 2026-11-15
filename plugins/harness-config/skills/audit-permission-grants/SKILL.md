@@ -77,8 +77,9 @@ continues.
 On an unresolvable project root, say the scan did not run and
 give the fix: run from inside the repository you mean to scan, or set
 `$PERMISSION_HYGIENE_SCAN_ROOT` explicitly. That variable is a supported operator lever, not a
-test-only seam; `$PERMISSION_HYGIENE_FIXTURE_DIR` still works as a back-compatible alias and the new
-name wins when both are set. Never report "no fragile permission grants found" on an exit 2.
+test-only seam; `$PERMISSION_HYGIENE_FIXTURE_DIR` is an alias for it, and
+`$PERMISSION_HYGIENE_SCAN_ROOT` wins when both are set. Never report "no fragile permission grants
+found" on an exit 2.
 `settings.local.json` is parsed for its `permissions.allow` array only, never echoed wholesale.
 
 ### Report the denominator, always
@@ -219,7 +220,7 @@ audit:
 1. **Disclosure.** Every declaration the run read is named in the report, with the file it came from
    and what it changed, whether or not it altered a single finding. A declaration that was read and
    left no trace in the report is indistinguishable from one that was never read.
-2. **Narrowing only in the report, never in the finding set.** A declaration may ADD fragile tokens
+2. **Narrowing only in the report, never in the finding set.** A declaration may add fragile tokens
    or path shapes. It may never delete a finding. An exemption downgrades a finding's severity and
    annotates it `exempt — <declaration source>: <stated reason>`; the row stays in the table and
    stays in the counts.

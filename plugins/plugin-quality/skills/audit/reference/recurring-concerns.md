@@ -30,13 +30,13 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
   to uninvolved parties (machine-local git hooks, user-scope config) with a clean migration path to
   shared enforcement later. Flag anything that imposes on non-adopters by default.
 
-## 3. Enforcement tiers: what CAN vs CANNOT be gated
+## 3. Enforcement tiers: what can vs cannot be gated
 
 - **Mechanics** (verifiable command shape, e.g. message-on-stdin): hook-enforceable → gate it.
 - **Declarative conventions** (a subject/title matches a pattern): hook-enforceable by inspecting
   content → gate it if the plugin claims to enforce it; a config file that's only read at draft
   time is not enforcement.
-- **Process** (rebase happened, triage occurred, footer assembled): NO command signature → NOT
+- **Process** (rebase happened, triage occurred, footer assembled): no command signature → not
   hook-enforceable. Advisory is the correct ceiling; the fix is making the advisory reliably fire,
   not hard-blocking. Never hard-block a command that has a documented legitimate direct use.
 - **Claimed property the producer can break.** If a skill asserts write-once, sealed, or immutable,

@@ -124,7 +124,7 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    Close-linkage is GraphQL-only, and `closingIssuesReferences` is unreadable wherever the forge refuses
    that GraphQL read (a cloud session behind the GitHub proxy; `skills/babysit-prs/SKILL.md` "Engine and
    degrade", and the upstream pointer in `reference/providers/github/README.md` "Sandboxed
-   sessions"). That is the no-close-linkage case below, so it partitions the same way: NOT
+   sessions"). That is the no-close-linkage case below, so it partitions the same way: not
    eligible, at any rung. It is also moot for merging there: the merge gate itself holds every PR
    as readiness UNPROVEN in such a session, because review-thread resolution has no REST
    equivalent. Report the restriction once per cycle, not per PR.
@@ -140,8 +140,8 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    nothing else. The helper reads the `promotion_evidence_*` values from the operator's
    managed and user settings itself (channel F,
    [the contract](promotion-evidence-bootstrap.md#allowed-source-class)), so the lane passes no
-   surface or checker path; it rejects the retired `--binding`, `--probe-evidence-root`,
-   `--evidence` and `--checker` arguments as a usage error. It refuses a path inside the checkout
+   surface or checker path; it rejects any `--binding`, `--probe-evidence-root`,
+   `--evidence` or `--checker` argument as a usage error. It refuses a path inside the checkout
    or a worktree root, or containing one. It refuses a surface, checker or supplying settings file
    the lane user can write, or owns, at the path or any directory above it
    (`lane-writable:<option or file>`), and every call on Windows
@@ -158,33 +158,33 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    findings (each option and its problem), or that the bootstrap is complete as far as that check
    can see. When a cell's `line` reports a demotion, report that line; the escalation it names
    follows Escalation below, and this step adds no write path. Effective rung: tracked rung, C3 raise when `autopilot` + `--merge c3-this-run` typed (other `--merge` floors), C5 hold, see "Explicit-`autopilot` widening" above. A PR with no
-   close-linked item is NOT eligible, at any rung, including the explicit-`autopilot` widening. A PR still
-   carrying the do-not-merge label at partition time is NOT eligible at any rung; the
+   close-linked item is not eligible, at any rung, including the explicit-`autopilot` widening. A PR still
+   carrying the do-not-merge label at partition time is not eligible at any rung; the
    label veto binds here, in the partition, because a merge-capable babysit-prs tier's ordinary
    gate has no label input (its `--block-labels` criterion is confined to the autopilot merge
    tier); such a PR routes to the `safe` per-PR pass like any other non-eligible PR. The one
-   ordered exception: when THIS invocation carries `--strip-do-not-merge`, the strip executes
+   ordered exception: when this invocation carries `--strip-do-not-merge`, the strip executes
    between the snapshot and this partition: the label is removed from the flag's target PRs and
    recorded in the cycle report, so a stripped PR partitions like any other; the
    flag is a per-invocation direct order and never persists (see do-not-merge below). This is a
    deterministic pre-partition, never narrative guidance handed to the invoked skill. Two further
    withholdings bind here, both because the downstream merge gate inspects neither surface: a PR
-   whose close-linked item wears the human-gated role label WITHOUT the machine escalation marker
-   is operator-*parked* (Escalation below), NOT eligible at any rung, routed to the `safe` pass;
+   whose close-linked item wears the human-gated role label without the machine escalation marker
+   is operator-*parked* (Escalation below), not eligible at any rung, routed to the `safe` pass;
    and a PR carrying human blocking feedback (a human `CHANGES_REQUESTED` review, explicit human
-   blocking language, or an unresolved inline human thread) is NOT eligible either, because a
+   blocking language, or an unresolved inline human thread) is not eligible either, because a
    merge-capable tier's own runbook widens thread scope to human threads, which under this lane
    stay stop-and-ask: `safe` pass plus escalation. At
    `human-only` (including the no-tracked-adoption default), or under a non-merge-capable tier,
    the eligible set is empty; the widening does not apply without tracked adoption either
    (config-resolution.md, "Baseline activation is tracked adoption").
-   **C5 hold and diff check:** a PR that is C5 (untrusted-provenance) is NEVER in the
+   **C5 hold and diff check:** a PR that is C5 (untrusted-provenance) is never in the
    eligible set, at any rung, under any invocation argument. It is checked before the rung test
    above, **as tests on the PR, not a lookup of the linked item's stamp**.
    - **C5, the code's provenance.** Two tests on the cycle-start snapshot, either one marking the
      PR C5, each failing closed to C5 when its field is missing or unreadable. **Fork test:** the
      head repository is not the base (`isCrossRepository: true`, or `headRepositoryOwner` differing
-     from the base owner). **Trust test:** C5 unless one arm positively passes, `authorAssociation` `OWNER`/`MEMBER`, or a structural bot (`[bot]` login suffix or provider `Bot` type) listed in the TARGET repository's team-tracked, default-branch `babysit_loop_trusted_internal_bot_logins` (read from `docs/conventions/source-control.yaml`; grammar, binding, fail-closed empty set: config-resolution reference, "the C5 trust test's one reviewed widening").
+     from the base owner). **Trust test:** C5 unless one arm positively passes, `authorAssociation` `OWNER`/`MEMBER`, or a structural bot (`[bot]` login suffix or provider `Bot` type) listed in the target repository's team-tracked, default-branch `babysit_loop_trusted_internal_bot_logins` (read from `docs/conventions/source-control.yaml`; grammar, binding, fail-closed empty set: config-resolution reference, "the C5 trust test's one reviewed widening").
      A listing never bypasses the fork test (a listed bot on a cross-repository head is still C5) and never weakens the dependency hold-merge invariant, which wins on intersection. Never test the author login against `babysit_watched_owners`: a repository-owner allowlist, never a trusted-author list. A fork PR closing an internally classified C2/C3 issue is still C5: the class travels with the code's provenance, not the issue it closes.
    - **Diff check.** The diff feeds no class into the rung test, since no rung compares classes.
      A PR whose diff cannot be read **fails closed** to escalation and stays out of the eligible
@@ -223,7 +223,7 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
      resolution dispatch ("Explicit-`autopilot` widening" above, Escalation below) ahead of its `autopilot` per-PR invocation, not instead of it, and only where the next bullet permits it.
    - **Dimension overrides bind by tier flooring, never narrative, and bind every capability this
      step exercises, not only the tier keyword it passes on.** Before invoking, lower the tier for
-     a PR to the highest babysit-prs tier whose behavior exceeds NO resolved dimension override
+     a PR to the highest babysit-prs tier whose behavior exceeds no resolved dimension override
      (babysit-prs's tier keyword is its only enforcement surface; a natural-language narrowing
      handed to a higher tier is not enforcement). **The pre-escalation resolution dispatch is inside
      that boundary**: the lane fires it directly rather than through that keyword, and it resolves
@@ -232,7 +232,7 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
      override-constrained; the deliberate cost, here and in the rung partition, is that coupled
      higher-tier actions (e.g. worker-tier bot-thread auto-resolution) are foregone on floored PRs;
      failing closed gives up only actions the overrides or rung already denied. The same limit cuts
-     the other way: an UPWARD override on a single dimension is unenforceable when honoring it would
+     the other way: an upward override on a single dimension is unenforceable when honoring it would
      exceed another; it is ignored and reported as override-unenforceable, never smuggled in as
      narrative to a higher tier. Raising one dimension means raising the preset (every dimension
      consents); the invoked mechanic exposes no per-dimension enforcement.

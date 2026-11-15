@@ -3511,7 +3511,7 @@ def main(argv=None):
     a, extra = p.parse_known_args(argv)
     if a.cmd in APPLY_ONLY:
         sys.exit(
-            f"refused: `{a.cmd}` takes no command-line text any more; write a "
+            f"refused: `{a.cmd}` takes no command-line text; write a "
             f'{{"op": "{a.cmd}", ...}} op to an ops file with the Write tool and run '
             f"`round.sh --dir DATA_DIR apply --file OPS` (fields: schema/ops.schema.json)"
         )

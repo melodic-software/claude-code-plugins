@@ -52,7 +52,7 @@ bash <skill-dir>/scripts/git-branch-audit.sh
 
 The script applies rules in priority order (first match wins), then refines a REVIEW verdict into LOSSY when the loss is measured and positive (see the refinement below the table). Agent interprets output; do not duplicate the bash loop.
 
-<!-- ai-slop-ignore-start: the priority-4 Reason cell quotes the string scripts/git-branch-audit.sh emits verbatim (line 263, "checked out in worktree — clean up the worktree first"); the table is wrapped because a marker between rows would break it -->
+<!-- ai-slop-ignore-start: the priority-4 Reason cell quotes the string scripts/git-branch-audit.sh emits verbatim ("checked out in worktree — clean up the worktree first"); the table is wrapped because a marker between rows would break it -->
 | Priority | Condition | Tier | Reason |
 |----------|-----------|------|--------|
 | 1 | Branch = current | PROTECTED | current branch |
@@ -95,7 +95,7 @@ Every missing or failed signal therefore lands in REVIEW, never in LOSSY and nev
 
 **No-upstream class (priority 9).** A never-pushed branch with commits not on `origin/<default>` is unmerged local work; it ranks above the generic stale/orphaned REVIEW reasons so the unpushed-commit count is the headline. Never SAFE or LIKELY-SAFE: with a measured positive loss it is LOSSY and appears in the loss block with its own confirmation; otherwise it stays REVIEW.
 
-**Protected branch patterns (priority 3):** exact names and globs that MUST NEVER be offered for deletion, namely `main`, `master`, `develop`, `release/*`, `hotfix/*`. Matched via bash `case` in `clean_branch_matches_protected_pattern`. Extend with repo-specific long-lived branches if needed (e.g. `staging`, `production`, `deploy/*`).
+**Protected branch patterns (priority 3):** exact names and globs that must never be offered for deletion, namely `main`, `master`, `develop`, `release/*`, `hotfix/*`. Matched via bash `case` in `clean_branch_matches_protected_pattern`. Extend with repo-specific long-lived branches if needed (e.g. `staging`, `production`, `deploy/*`).
 
 **Squash-merge handling:** priority 6 is not relied on for a squash-merged branch (what `git branch --merged` tests is in [git-branch `--merged`](https://git-scm.com/docs/git-branch#Documentation/git-branch.txt---mergedcommit)). `gh pr list` (priority 5) detects a squash-merged branch via PR state. Without a PR map (unavailable or truncated), the cherry step proves landing instead: a rebase or cherry-pick merge shows as `git cherry` finding every commit's patch-id on origin/<default> (row 8b), work that landed as differently split commits shows as the branch's tree being origin/<default>'s tree (row 8c), and a squash merge shows as the branch's combined diff finding its patch-id there (row 8d). Each yields LIKELY-SAFE with a `Landed:` line. A squash whose combined diff differs from the branch's (conflict resolution, edits on the base, a merge-from-base folded in) matches none of them and stays in REVIEW, so the `PRDataUnavailable:` and `PRDataTruncated:` lines still matter: surface them, because under either line the REVIEW split can hold landed branches the proof could not match.
 
@@ -206,7 +206,7 @@ Restore: git branch <branch> <tip> (tips in <capture> and <ledger>; pinned under
 
 Relay the `Restore:` line to the user verbatim after every deletion batch.
 
-After deletion, run `bash <skill-dir>/scripts/git-prune.sh --apply` to prune orphaned worktree metadata and compact loose objects. The pinned refs keep every deleted tip reachable through that step.
+After deletion, offer the §4.1 prune to clear orphaned worktree metadata and compact loose objects: run `bash <skill-dir>/scripts/git-prune.sh --dry-run`, then, after the [confirmation gate](../SKILL.md#confirmation-gate), `CLEAN_GUARD_ACK=1 bash <skill-dir>/scripts/git-prune.sh --apply`. The pinned refs keep every deleted tip reachable through that step.
 
 ## 4.8 Restore a deleted branch
 

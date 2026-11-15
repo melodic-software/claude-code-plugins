@@ -38,10 +38,7 @@ First hit wins:
 
 `/repo-fleet-hygiene:audit` uses the same fallback when it has no explicit or config scope.
 
-**Claim:** `ghq root --all` prints every configured root. **Basis:** the
-[ghq README](https://github.com/x-motemen/ghq#commands) (`ghq root [--all]`; "Without '--all' option,
-the primary one is shown") and `ghq help root` on ghq 1.10.1 ("--all  Show all roots"). **As of:**
-2026-11-10. **Recheck:** the README's `root` entry drops or renames `--all`.
+**Pointer:** which roots `ghq root --all` prints is in the [ghq README](https://github.com/x-motemen/ghq#commands).
 
 Every plan line and every skipped line ends with `rung=<rung>`, the rung that produced that
 repository: `repo`, `repos-from`, `root` (a bare path counts as `--root`), `config`, `named`, `ghq`,

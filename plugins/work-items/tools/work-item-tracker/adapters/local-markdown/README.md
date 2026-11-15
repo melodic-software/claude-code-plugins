@@ -1,7 +1,7 @@
 # local-markdown adapter operations reference
 
-The `local-markdown` adapter is **offline-only**: it is **NEVER a coordination
-surface** and never invokes `gh` or `curl`. Coordination verbs still go through
+The `local-markdown` adapter is **offline-only**: it is never a coordination
+surface and never invokes `gh` or `curl`. Coordination verbs still go through
 the dispatcher (`work-item-tracker.sh <verb>`; see [`../../CONTRACT.md`](../../CONTRACT.md)).
 This file covers the local-markdown operational mechanics a skill needs and does
 not restate the full contract.

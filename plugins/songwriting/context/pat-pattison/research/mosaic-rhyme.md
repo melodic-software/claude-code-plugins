@@ -11,8 +11,8 @@
 - [Identity check for mosaic rhyme](#identity-check-for-mosaic-rhyme)
 - [Stress pattern preservation](#stress-pattern-preservation)
 - [Mosaic risk register](#mosaic-risk-register)
-- [When mosaic rhyme is the RIGHT call](#when-mosaic-rhyme-is-the-right-call)
-- [When mosaic rhyme is the WRONG call](#when-mosaic-rhyme-is-the-wrong-call)
+- [When mosaic rhyme is the right call](#when-mosaic-rhyme-is-the-right-call)
+- [When mosaic rhyme is the wrong call](#when-mosaic-rhyme-is-the-wrong-call)
 - [Surfacing mosaic to the writer](#surfacing-mosaic-to-the-writer)
 - [Examples by source type](#examples-by-source-type)
 - [Cross-references](#cross-references)
@@ -27,7 +27,7 @@ hip-hop / rap craft tradition. Those extensions are marked as non-book where
 they appear below.
 
 **Mosaic rhyme is a rhyme where one (or both) of the rhyming units is
-COMPOSED OF MULTIPLE WORDS.** The rhyme works on stressed-vowel + post-
+composed of multiple words.** The rhyme works on stressed-vowel + post-
 vowel-consonant identity; the words being combined to produce that sound
 can cross parts of speech, mix proper nouns, slang, contractions, and
 phrase fragments.
@@ -46,11 +46,10 @@ he ate` is a three-syllable rhyme that Pat classifies as **masculine**, "since
 *how the rhyming unit was assembled*, which is orthogonal to where its stress
 falls. Never present mosaic as a peer of masculine and feminine.
 
-Mosaic rhyme is a construction the AI routinely skips. Generic LLM defaults
-pull single-word rhymes from a single part of speech (noun rhymes with noun,
-verb with verb) and miss the multi-word territory entirely. Mosaic
-SURFACE IS MANDATORY for any rhyme suggestion task per
-[response-filter](response-filter.md) §1.
+Every rhyme suggestion task surfaces mosaic candidates alongside single-word
+rhymes, per [response-filter](response-filter.md) §1: a search confined to one
+part of speech (noun with noun, verb with verb) misses the multi-word
+territory entirely.
 
 ## Pat's own mosaic examples
 
@@ -108,7 +107,7 @@ constructions, so run identity and meter checks per song):
 
 The pattern: stressed-vowel identity + post-vowel-consonant identity (or
 family / additive / kissin'-cousin tier per
-[rhyme-types](rhyme-types.md)) holds across the SOUND of the multi-word
+[rhyme-types](rhyme-types.md)) holds across the sound of the multi-word
 unit, not across the grammar.
 
 ## Cross-part-of-speech is the point
@@ -124,12 +123,12 @@ rhyme breaks that. The freedom comes from:
 | Proper noun | demonstrative + noun, verb + object, location phrase, slang phrase |
 | Abstract noun (love, hope) | concrete imperative, sense-bound action phrase, sound effect |
 
-The grammar mismatch is FEATURE, not bug. It creates surprise. Surprise
-is what makes a rhyme land instead of slide.
+The grammar mismatch is feature, not bug. It creates surprise. Surprise
+keeps the rhyme from passing unnoticed.
 
 ## Proper nouns are mosaic-rich
 
-Proper nouns rhyme MOSAIC-FIRST because:
+Proper nouns rhyme mosaic-first because:
 
 1. Proper nouns rarely have direct rhyme partners (`Texas` has few
    single-word rhymes; `wrecks us` opens the field)
@@ -190,7 +189,7 @@ When running the three-stage worksheet (per
 
 1. **Stage 1: Focus.** Same as standard.
 2. **Stage 2: Idea words.** Same as standard.
-3. **Stage 3: Rhyme search.** Add a MOSAIC COLUMN per seed word:
+3. **Stage 3: Rhyme search.** Add a mosaic column per seed word:
    - Single-word perfect / family / cousin (standard columns)
    - **Mosaic single-side (source word ↔ multi-word combo)**
    - **Mosaic both-side (multi-word combo ↔ multi-word combo)**
@@ -209,22 +208,22 @@ short `i` + `z` column and eleven from short `e` + `s`.)
 Pat's three-condition rhyme test applies per stressed vowel, not per
 word boundary. For mosaic:
 
-- **Vowel identity**: the stressed vowel of the LAST stressed syllable in
+- **Vowel identity**: the stressed vowel of the last stressed syllable in
   the multi-word unit must match the source's stressed vowel (or family /
   cousin per tier)
 - **Post-vowel consonant identity**: the consonant after the stressed
   vowel of the last word in the multi-word unit must match (or family /
   cousin per tier)
-- **Pre-vowel consonant DIFFERENCE**: the pre-vowel consonant of the
-  rhyming syllable must DIFFER. Identity rule does NOT pre-empt across
+- **Pre-vowel consonant difference**: the pre-vowel consonant of the
+  rhyming syllable must differ. Identity rule does not pre-empt across
   the multi-word boundary.
 
 Example identity-fail: `Texas` ↔ `text us`. The stressed vowel and post-
-vowel consonant match (`ĕks` + nothing distinct after), BUT the pre-vowel
-consonant `t-` is IDENTICAL on both sides. This is identity in disguise,
+vowel consonant match (`ĕks` + nothing distinct after), but the pre-vowel
+consonant `t-` is identical on both sides. This is identity in disguise,
 not rhyme. The mosaic-rhyme identity check must catch this.
 
-Example identity-pass: `Texas` ↔ `wrecks us`. Pre-vowel `t` vs `r`: DIFFER.
+Example identity-pass: `Texas` ↔ `wrecks us`. Pre-vowel `t` vs `r`: differ.
 Rhyme accepted.
 
 ## Stress pattern preservation
@@ -286,15 +285,15 @@ Mosaic rhyme has failure modes:
 
 | Risk | What it looks like | Correction |
 |---|---|---|
-| Phrase-containing-source-word default | Source `around` → list emits `sleep around`, `push me around`, `let me down`, `kicked around`, `messed around`. Every "mosaic" reuses the source word itself with a prefix. That's identity-with-prefix, NOT mosaic. Common LLM failure mode (defaults to search-and-find-phrase rather than sound-decomposition). | Decompose source SOUND first (stressed vowel + post-vowel consonants), then assemble a multi-word unit whose SYLLABLES match, WITHOUT reusing the source word. For `around` /əˈraʊnd/ → mosaic candidates = `the sound`, `the ground`, `they found`, `renowned`, `a hound`, multi-word units whose stressed syllable matches /aʊnd/ via different lexical content. |
+| Phrase-containing-source-word default | Source `around` → list emits `sleep around`, `push me around`, `let me down`, `kicked around`, `messed around`. Every "mosaic" reuses the source word itself with a prefix. That's identity-with-prefix, not mosaic. Common LLM failure mode (defaults to search-and-find-phrase rather than sound-decomposition). | Decompose source sound first (stressed vowel + post-vowel consonants), then assemble a multi-word unit whose syllables match, without reusing the source word. For `around` /əˈraʊnd/ → mosaic candidates = `the sound`, `the ground`, `they found`, `renowned`, `a hound`, multi-word units whose stressed syllable matches /aʊnd/ via different lexical content. |
 | Forced contraction | `gonna get a` for `agenda`, which feels squeezed | Either earn the colloquial register or pick a non-contraction partner |
 | Cute over earned | `lyrical / it'd be a miracle` when the song isn't playful | Match register to song; cute mosaic in a serious song reads as posturing |
-| Identity-in-disguise | Pre-vowel consonant repeats across the word boundary | Re-run identity check on the SOUND, not the spelling |
+| Identity-in-disguise | Pre-vowel consonant repeats across the word boundary | Re-run identity check on the sound, not the spelling |
 | Meter-break | Mosaic adds extra syllables outside the source's stress count | Sing-check; trim or replace |
 | Distracting from meaning | The mosaic move pulls attention from the line's content | The rhyme should serve the line, not perform |
 | Hot-spot misplacement | Mosaic landed in a verse-middle line, not a hot spot | Place mosaic moves in section-end positions where craft can be seen |
 
-## When mosaic rhyme is the RIGHT call
+## When mosaic rhyme is the right call
 
 **Generated, not Pat's.** These two lists are the plugin's decision aid. Pat
 prints no "use when" criteria for mosaic; in the book, mosaic is simply what
@@ -306,12 +305,12 @@ feminine target's unstressed syllable rhymes with a pronoun (Chapters 4 and 6).
 - The song's register is playful, conversational, or hip-hop-adjacent
 - A specific cliche-pair needs breaking and the mosaic provides a fresh
   partner
-- The song's world includes places / characters / brands that NEED to
+- The song's world includes places / characters / brands that need to
   appear in rhyme position (cement the world)
 - The writer wants the rhyme to feel surprising rather than expected
-- The writer wants prosodic forward motion via UNEXPECTED resolution
+- The writer wants prosodic forward motion via unexpected resolution
 
-## When mosaic rhyme is the WRONG call
+## When mosaic rhyme is the wrong call
 
 - The song's register is hymn-formal, classical, or strictly traditional
 - The rhyme position calls for closure / landing (a slick mosaic feels
@@ -328,7 +327,7 @@ anywhere from perfect down to subtractive.
 ## Surfacing mosaic to the writer
 
 The AI surfaces mosaic candidates in the standard rhyme list (per
-[rhyme-generation](rhyme-generation.md) Step 8) BUT labels them as
+[rhyme-generation](rhyme-generation.md) Step 8) but labels them as
 mosaic and shows the decomposition:
 
 <!-- phonetic vowel markings trip the spell-checker --><!-- spellchecker:off -->
@@ -435,7 +434,7 @@ when the proper noun has not yet earned its mention.
 >
 > Pat Pattison, *Essential Guide to Rhyming* (2014), Introduction
 
-Mosaic rhyme works because the ear hears the SOUND, not the spelling or
+Mosaic rhyme works because the ear hears the sound, not the spelling or
 the part of speech. Pat's craft applies the same identity check + tier
 walk + cliche scan to multi-word units. The AI must surface this construction
 or it has under-served the song.

@@ -1,5 +1,5 @@
 # Hand-rolled Bash test scripts: no per-case marker, so the whole file is one
-# test. Advisory in Release 1: its findings never gate --check without
+# test. Advisory: its findings never gate --check without
 # --strict. Schema and YAML subset: scripts/adapter-load.awk.
 id: bash-harness
 language: bash

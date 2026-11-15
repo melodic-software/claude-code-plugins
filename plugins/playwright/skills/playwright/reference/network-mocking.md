@@ -74,7 +74,7 @@ playwright-cli run-code "async page => {
 }"
 ```
 
-Options: `connectionrefused`, `timedout`, `connectionreset`, `internetdisconnected`, `addressunreachable`, `blockedbyclient`, `blockedbyresponse`, `namenotresolved`.
+- **Pointer**: for the error codes `route.abort` accepts, read the `errorCode` parameter of [Route.abort](https://playwright.dev/docs/api/class-route#route-abort).
 
 ### Delayed response (simulate slow backend)
 
@@ -93,4 +93,4 @@ playwright-cli run-code "async page => {
 - **Error-path coverage**: 500/401/timeout flows that are hard to trigger against real backends
 - **Offline-state UI**: test reconnect logic
 
-**When NOT to mock:** full end-to-end flows against a running locally-orchestrated stack. If already orchestrating the real backend, mocking network calls defeats the purpose. See [e2e-orchestrator-recipe.md](e2e-orchestrator-recipe.md).
+**When not to mock:** full end-to-end flows against a running locally-orchestrated stack. If already orchestrating the real backend, mocking network calls defeats the purpose. See [e2e-orchestrator-recipe.md](e2e-orchestrator-recipe.md).

@@ -1,4 +1,4 @@
-# Bundled portable default — go. Rung-4 fallback ONLY (a consuming repo's
+# Bundled portable default — go. Rung-4 fallback only (a consuming repo's
 # .claude/ecosystems/go.yaml overrides this key-by-key; this file is never
 # written into a consumer repo). Ecosystem-commands contract + schema:
 # https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
@@ -17,7 +17,7 @@
 # alone would miss exactly the CI/local-parity gap this ecosystem entry
 # exists to close.
 #
-# opt-in rationale: golangci-lint v2 with NO config file present still runs
+# opt-in rationale: golangci-lint v2 with no config file present still runs
 # its own fixed "standard" linter preset (linters.default: standard) rather
 # than erroring or running nothing — i.e. it imposes an opinionated
 # diagnostic set nobody explicitly chose, the same risk class the dotnet
@@ -43,4 +43,4 @@ gates:
     cmd: "go mod tidy -diff"
     trigger-globs: ["go.mod", "go.sum", "*.go"]
     remediation: "Run go mod tidy and commit the updated go.mod/go.sum. (go mod tidy -diff requires Go 1.23+; an older toolchain rejects the flag, so the gate reports skip rather than drift.)"
-notes: "gofmt / golangci-lint --fix receive only *.go paths from <files>, grouped by package directory for golangci-lint. govulncheck is intentionally not a rung-4 default (per the epic brief's \"optional\" framing) — add it as a consumer-local gate via .claude/ecosystems/go.local.yaml if desired."
+notes: "gofmt / golangci-lint --fix receive only *.go paths from <files>, grouped by package directory for golangci-lint. govulncheck is intentionally not a rung-4 default — add it as a consumer-local gate via .claude/ecosystems/go.local.yaml if desired."

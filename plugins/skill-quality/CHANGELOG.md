@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.19] - 2026-11-15
+
+### Changed
+
+- `check` and `setup` text drops all-caps emphasis, and the check-20 warning for an injected command without a `|| <fallback>` now links the upstream page on how an injected command fails instead of calling that behavior undocumented.
+
 ## [1.1.18] - 2026-11-14
 
 ### Changed

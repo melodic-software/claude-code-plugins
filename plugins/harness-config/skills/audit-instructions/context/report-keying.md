@@ -16,8 +16,8 @@ command of your own, against the plugin data directory.
 
 - **Pointer**: when deciding where `${CLAUDE_PLUGIN_DATA}` resolves, fetch
   [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
-  live; for why an inline command against the data directory is avoided, read the eval-trace
-  evidence in #12039.
+  live. An inline command against the data directory is avoided because the sandbox denied one in
+  an eval trace ([evidence](https://github.com/melodic-software/claude-code-plugins/issues/12039)).
 - **Recheck trigger**: a later eval trace shows an inline command against the data directory
   running undenied.
 

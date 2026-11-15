@@ -37,8 +37,7 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
   a reason against `true`. The rubric's
   [exception classes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md#exception-classes-the-only-reasons-to-write-true)
   decide: write `true` only under one of them, and a `setup` skill stays `true` under class (ii)
-  whatever starts it. Listing starvation alone is not a class: listing cost was rejected as one in
-  [#4659](https://github.com/melodic-software/claude-code-plugins/issues/4659). Why: the rule keys
+  whatever starts it. Listing starvation alone is not a class. Why: the rule keys
   on the starter, not on reach. Which starters can reach a user-invoked skill is the rubric's
   [first default bullet](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md#the-default-and-why),
   which carries the probe record and its recheck trigger.
@@ -95,8 +94,7 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
 ## Body
 
 - **Bare invocation.** Run with no action, a skill infers the action and its arguments from the
-  conversation. A read-only action proceeds and names what it inferred; the planned
-  bare-run setting calls this default `proceed`, and no settings key carries it yet. A state
+  conversation. A read-only action proceeds and names what it inferred. A state
   change proposes the action and waits for a yes, a fixed floor. With nothing to infer, ask one multiple-choice question. Unattended, a state change
   stops and reports instead of proposing. Why: a read-only guess costs a rerun at worst, while a
   guessed write needs the person's yes, and an unattended run has no one to give it.

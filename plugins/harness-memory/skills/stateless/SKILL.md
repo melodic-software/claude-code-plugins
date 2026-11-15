@@ -55,10 +55,10 @@ governs the `/memory` offer under "Boundary". Match the rest against this table.
 | Argument | Action |
 |----------|--------|
 | *(none)* or `status` | Report the auto-memory posture: effective enabled/disabled state, where the store lives, what it holds. Read-only. |
-| `status all` | Machine-wide: the `status` report plus a table of EVERY per-project memory store (`scripts/enumerate-all-projects.sh`). Read-only. |
+| `status all` | Machine-wide: the `status` report plus a table of every per-project memory store (`scripts/enumerate-all-projects.sh`). Read-only. |
 | `disable` | Turn auto memory off durably (`autoMemoryEnabled: false` + `CLAUDE_CODE_DISABLE_AUTO_MEMORY`). Edits settings. Confirm scope first. |
 | `purge` | **Destructive.** Delete the auto-memory files. Reads `autoMemoryDirectory` at every scope first, shows a manifest, offers an opt-in pre-delete backup, and deletes only after explicit confirmation. |
-| `purge all` | **Destructive, machine-wide.** Same flow with every per-project store as the candidate set, one combined manifest, and ONE combined gate stating the total count and every directory. |
+| `purge all` | **Destructive, machine-wide.** Same flow with every per-project store as the candidate set, one combined manifest, and one combined gate stating the total count and every directory. |
 
 ## Precedence
 

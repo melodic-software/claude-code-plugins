@@ -22,7 +22,7 @@ If the original problem description is vague, ask user to clarify before proceed
 
 ### 2. Confirm the fix addresses the root cause
 
-The fix should address ROOT CAUSE, not the symptom:
+The fix should address root cause, not the symptom:
 
 - **Root cause fix**: "Null check was missing because the query returned null for deleted users" → added null handling in the query
 - **Symptom fix**: "Added a try-catch around the null reference exception" → exception is suppressed but underlying issue persists
@@ -36,7 +36,7 @@ If the fix appears to be a symptom fix rather than a root cause fix, flag it.
 | **Reproduction test** | A test that fails on the pre-fix code and passes on the fix | Required |
 | **User-flow reproduction** | When the symptom was reported at user level (a UI, an API response), a user-flow test through that surface, not only a unit test at the guessed root | Recommended (PARTIALLY CONFIRMED without it) |
 | **Regression tests** | All existing tests still pass | Required |
-| **Root cause identified** | Explanation of WHY the bug occurred | Required |
+| **Root cause identified** | Explanation of why the bug occurred | Required |
 | **Fix is minimal** | Only the necessary change was made, no unrelated changes | Recommended |
 | **Sibling check** | Similar code paths checked for the same bug pattern | Recommended |
 

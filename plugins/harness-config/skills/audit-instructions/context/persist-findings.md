@@ -66,8 +66,8 @@ the contract's consumer-precedence rule.
 ## Which findings enter the file
 
 **The I28 and I29 families from the scan, and I30 to I33 from the lanes.** `instruction-scan.sh`
-marks thirteen check families and `restatement-scan.py` marks two more; the other eleven scanned
-families (I6, I8-a/b/c/f, I10, I23, I25, I27, I38, I40) and every other lane check have no
+marks fourteen check families and `restatement-scan.py` marks two more; the other twelve scanned
+families (I6, I8-a/b/c/f/g, I10, I23, I25, I27, I38, I40) and every other lane check have no
 severity-crosswalk row, and the contract admits no row whose tier cannot be looked up from one.
 They stay in the human report and are counted in `## Surfaces` as
 `reason=no-severity-crosswalk-row`. They are declined, never silently dropped.
@@ -118,7 +118,7 @@ out of `--from` the same way and counted through its own flag, `--declined-resid
 folded into the carve-out count, whose reason names a different ground. Zero held → omit the flag.
 
 The same rule binds the writer's own intake. A `--from` line that is not a scan row, whether a
-well-formed `path:line:I<n>` whose suffix sits outside `[a-c]`, a prose line, or a blank, still
+well-formed `path:line:I<n>` whose suffix sits outside `[a-g]`, a prose line, or a blank, still
 increments `Scan rows read` and is counted as `reason=unparsable-row`. It is never omitted from
 both the row count and every decline line. Intake strips a trailing CR before the pattern match
 (the same strip `descr()` and `source_line()` already do), so a mixed CRLF file is parsed rather
@@ -162,7 +162,7 @@ pipe-escaped the same way Finding and Action are.
   `CHANGELOG.md` as the target for any history kept, I32 repoints the route and keeps the routing
   sentence, and I33 deletes the opener and names the hub as the target for a loading condition its
   index row lacks. I31 and I33 are therefore off-site rows in the contract's sense.
-- **`Tier`** is LOOKED UP from the rule's crosswalk row, then mapped to the consuming project's
+- **`Tier`** is looked up from the rule's crosswalk row, then mapped to the consuming project's
   severity vocabulary when it defines one. **`Confidence`** is `high` on every scanner-fed row: a
   deterministic detector fired. It is omitted on every lane-fed row: a judgment selected it, and
   the contract gives a producer no grade below `high`, so the row ranks as `unscored`.

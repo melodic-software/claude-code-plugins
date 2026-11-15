@@ -42,7 +42,7 @@ leaves the team value standing. An invalid value never stops the run.
 | `levels` | a map of level name to its definition, below | the shipped levels in [`levels.default.yaml`](levels.default.yaml) | same |
 
 `level` is checked against the names `levels` resolves to, not a fixed list, so a team file can add
-a level. `/prototype:pressure-test` does not read either key yet.
+a level. `/prototype:pressure-test` does not read either key.
 
 `levels` merges per dimension: a file that sets `levels.full.variants` changes that one value and
 keeps the rest of `full`, and a new name adds a level beside the shipped ones. Both file layers may
