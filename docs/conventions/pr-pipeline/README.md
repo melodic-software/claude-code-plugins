@@ -186,7 +186,7 @@ reader applies.
 |---|---|
 | `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml`'s `refine` job, on the PR's own `pull_request_target` event (opened, reopened, ready for review or pushed), for each ready PR that changes Markdown, never had `fix-docs` and is not a `work-resolve-issue` PR tidied in its own run (within the tidy cutoffs), or a trusted human's dispatch; a push to the default branch or the dispatcher's half-hourly tick starts none, and `limits.fix-docs-per-run: 0` turns the dispatches off; on a listed human's event (never the lanes App's) the same job also dispatches each activity `refine-dispatch.activities` lists, from the allowlist in `refine-event-dispatch.mjs` (`fix-marker`), empty by default |
 | `pr-run-checks` | dispatch from `pr-refine` |
-| `pr-review`, `pr-review-security` | the PR's own `pull_request` run on a ready head (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`), whose `wait-refine` job first waits for this head's `pr-refine` run |
+| `pr-review`, `pr-review-security` | the PR's own `pull_request` run on a ready head (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`), whose `wait-for-refine` job first waits for this head's `pr-refine` run |
 | `pr-verify` | `workflow_run` on the completion of a successful, or hold-only, `pr-require-checks` run of a same-repository, non-draft PR ([Verifier verdict](#verifier-verdict)) |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |

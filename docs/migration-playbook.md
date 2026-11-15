@@ -187,7 +187,7 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      (`.claude/<concern>/**`). Plugin-naming would couple the other consumers and the consumer
      repo's tracked files to one plugin's name, and plugin boundaries are the volatile axis across
      restructures. A further one-increment PRECEDENT-EXTENSION; each instance records its schema and
-     resolution rules as a versioned contract under `docs/conventions/<concern>/` (template:
+     resolution rules as a versioned contract under `docs/contracts/<concern>/` (template:
      `docs/contracts/hook-telemetry/`; first instance:
      [`docs/contracts/ecosystem-commands/`](contracts/ecosystem-commands/README.md)).
    - **Profiled folder for audience/deployment variants.** When one plugin's tracked config varies by
