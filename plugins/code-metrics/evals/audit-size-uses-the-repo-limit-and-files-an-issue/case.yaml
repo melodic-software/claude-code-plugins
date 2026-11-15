@@ -14,7 +14,7 @@ graders:
   - name: ran-with-the-repo-limit
     type: tool_used
     tool: Bash
-    input_match: 'audit-size\.sh[^|;&]*--file-lines(?:\s+|=)400\b'
+    input_match: 'audit-size\.sh[^|;&]*--file-lines\s+400\b'
   - name: ran-the-commit-count
     type: tool_used
     tool: Bash
