@@ -541,8 +541,8 @@ jobs:
   # read of the call's run job (handoff-evidence.sh credit-stop), never from a
   # call's output. No job needs this one, so the read, which waits for the
   # jobs listing's steps, delays no handoff.
-  key-credit-markers:
-    name: Key Credit Markers
+  upload-key-credit-markers:
+    name: Upload Key Credit Markers
     needs: [resolve-issue]
     if: ${{ !cancelled() && (needs.resolve-issue.result != 'skipped') }}
     runs-on: ubuntu-24.04
@@ -906,7 +906,7 @@ jobs:
   # are all the lanes App's, with no pull request in any state, which the read
   # runner's earlier-work check named past the branch it reused, resumed or
   # started fresh past. The run job that named them ran the model, so the list
-  # is a claim, held to the lane-branch shape by issue-fields: prune-branches.mjs,
+  # is a claim, held to the lane-branch shape by check-issue-fields: prune-branches.mjs,
   # from the default branch tip, spares this run's own branches and the reuse
   # and resume branches, reads every named branch in one GraphQL request, and
   # deletes only one with no pull request, at the tip it read. Nothing here
@@ -1277,7 +1277,7 @@ jobs:
     needs: [admit, resolve-issue, resolve-issue-subscription, resolve-issue-fallback, resolve-issue-stale, apply-issue-patch, run-checks]
     # issue-run-started is set only by the read runner's own steps, before
     # any model turn, once the run chose to run the skill, and reaches this
-    # file through the read runner's issue-fields job, which checks it and
+    # file through the read runner's check-issue-fields job, which checks it and
     # every other issue output read here (the patch outputs come from its
     # scan job); a run that failed after that still reports, with
     # apply-issue-patch's branch when it made one.

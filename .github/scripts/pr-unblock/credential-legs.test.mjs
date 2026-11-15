@@ -1,6 +1,6 @@
 // pr-unblock.yml's adjudicate-feedback picks each disputed thread's leg
 // through ci-workflows' select-model-credential, fetched at the pin the
-// workflow names: adjudicate-key-credit's start call, one key, subscription
+// workflow names: check-adjudicator-key-credit's start call, one key, subscription
 // and fallback call for the whole job, and two next-leg calls per slot. This
 // truth table drives the workflow's own conditions and inputs through every
 // combination of credit verdict, secrets set or empty, slot count, and how
@@ -31,7 +31,7 @@ const parsed = workflowText(TEXT);
 const wf = { ...parsed, step: memo(parsed.step), outputs: memo(parsed.outputs), job: memo(parsed.job) };
 const S = await loadSelect(selectPin(TEXT));
 
-const GATE = "adjudicate-key-credit";
+const GATE = "check-adjudicator-key-credit";
 const JOB = "adjudicate-feedback";
 const SECRETS = { key: "PR_UNBLOCK_CLAUDE_API_KEY", sub: "PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN", fallback: "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN" };
 const SLOTS = Array.from({ length: MAX_THREADS }, (_, n) => n);
@@ -113,7 +113,7 @@ function oldRun(s) {
 
 // The job as the workflow now runs it.
 function newRun(s) {
-  // adjudicate-key-credit's start call runs under continue-on-error: a read
+  // check-adjudicator-key-credit's start call runs under continue-on-error: a read
   // that fails leaves its outputs empty, and the key runs.
   const credit = wf.step(GATE, "credit");
   assert.equal(credit.inputs.leg, "start");

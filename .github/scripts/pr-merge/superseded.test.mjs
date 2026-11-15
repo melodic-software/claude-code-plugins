@@ -207,7 +207,7 @@ test("an unreadable listing runs the gate, with a warning", async () => {
 });
 
 test("an unknown current event, or an unknown job, does its work without a listing call", async () => {
-  const unknown = await check({ job: "gate-check", runs: [pending(600, "schedule")] });
+  const unknown = await check({ job: "report-gate-checks", runs: [pending(600, "schedule")] });
   assert.equal(unknown.superseded, false);
   assert.deepEqual(unknown.calls, []);
   const run = await check({ event: "push", runs: [pending(600, "schedule")] });

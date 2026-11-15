@@ -814,7 +814,7 @@
       "properties": {
         "stage": {
           "const": "refine",
-          "description": "Makes the activity a Refine pass: pr-refine.yml's plan job runs it on a PR whose changed files match its applies-when paths and paths-ignore (README.md, Refine before review). Needs order and group."
+          "description": "Makes the activity a Refine pass: pr-refine.yml's select-passes job runs it on a PR whose changed files match its applies-when paths and paths-ignore (README.md, Refine before review). Needs order and group."
         },
         "order": {
           "type": "integer",
@@ -1305,7 +1305,7 @@
         "full-run-cap-bypass": {
           "type": "boolean",
           "default": true,
-          "description": "true: pr-merge's post-merge-dispatch starts a full run of main inside its 30-minute cap when the post-merge report lists an unverified lane merge that no started full run covers, one run for the whole uncovered batch. false: the cap holds for every merge. Absent is true."
+          "description": "true: pr-merge's dispatch-post-merge-runs starts a full run of main inside its 30-minute cap when the post-merge report lists an unverified lane merge that no started full run covers, one run for the whole uncovered batch. false: the cap holds for every merge. Absent is true."
         },
         "lane-prs": {
           "enum": ["native", "gate"],

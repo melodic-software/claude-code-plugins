@@ -1221,7 +1221,7 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     // label-unblocked's ACTIONS_TOKEN client records under github-token, so
     // that job logs both: [API_BUDGET_TOKEN, the tokens it logs].
     "work-unblock.yml": { "label-unblocked": ["lanes-app", "lanes-app github-token"], "sync-status": ["lanes-app", "lanes-app github-token"] },
-    "pr-merge.yml": { "post-merge-dispatch": "github-token" },
+    "pr-merge.yml": { "dispatch-post-merge-runs": "github-token" },
     "intake-reenter.yml": { reenter: "github-token" },
     "intake-label-outside-actor-activity.yml": { flag: "github-token" },
     "pr-dispatch-feedback.yml": { "post-verify-notes": "github-token", dispatch: "github-token", "rerun-ci-status": "github-token" },
@@ -1230,13 +1230,13 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "post-merge-file-demotion-issues.yml": { alert: "github-token", "report-red-main": "github-token" },
     // Every step job but the handoff jobs, whose shape callers.test.mjs pins.
     "pr-unblock.yml": Object.fromEntries(
-      ["resolve-conflicts-not-run", "conflict-scan-refusal", "address-feedback-not-run", "review-dependency-not-run", "fix-ci-not-run", "fix-ci-unreported", "report-stop-status"].map((job) => [job, "github-token"]),
+      ["resolve-conflicts-not-run", "check-conflict-scan-refusal", "address-feedback-not-run", "review-dependency-not-run", "fix-ci-not-run", "fix-ci-unreported", "report-stop-status"].map((job) => [job, "github-token"]),
     ),
-    "pr-review-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token", "wait-refine": "github-token" },
-    "pr-review-security-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token", "wait-refine": "github-token" },
+    "pr-review-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token", "wait-for-refine": "github-token" },
+    "pr-review-security-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token", "wait-for-refine": "github-token" },
     // Not run, which logs before its head checkout, or scan, which counts its
     // own calls (a key, and no other action from a checkout); both pinned below.
-    "pr-run-activity-read.yml": { "broker-check": "github-token", "issue-fields": "github-token", summary: "github-token", report: "github-token" },
+    "pr-run-activity-read.yml": { "broker-check": "github-token", "check-issue-fields": "github-token", "generate-reuse-summary": "github-token", report: "github-token" },
     "pr-run-activity-write.yml": { report: "github-token" },
     "maintenance-tidy-code-upkeep.yml": {
       gate: "github-token",
@@ -1267,8 +1267,8 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
       const steps = block.split(/\n {6}- name: /).filter((s) => !s.startsWith("Fail without a verdict\n"));
       // Less the blank and comment lines that lead into the next step or job.
       const last = steps.at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
-      // issue-fields checks out .base, where the action lives, only for a branch claim.
-      const gate = file === "pr-run-activity-read.yml" && job === "issue-fields" ? " && steps\\.base\\.outcome == 'success'" : "";
+      // check-issue-fields checks out .base, where the action lives, only for a branch claim.
+      const gate = file === "pr-run-activity-read.yml" && job === "check-issue-fields" ? " && steps\\.base\\.outcome == 'success'" : "";
       assert.match(last, new RegExp(`^Log the API budget[^\\n]*\\n {8}if: always\\(\\)${gate}\\n`), `${file} ${job} ends with the log step`);
       assert.match(last, /uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
       assert.match(last, new RegExp(`\\n {10}tokens: ${logged}\\n?\\s*$`), `${file} ${job} logs ${logged}`);
@@ -1293,13 +1293,13 @@ test("each shell step in the demotion alert job that calls gh wraps it first", (
   }
 });
 
-// pr-review-main's record job has no checkout of the action, and its only
+// pr-review-main's report-review-counts job has no checkout of the action, and its only
 // calls are one check-run POST per verdict file, so it counts them itself and
 // ends with the notice in api_budget_emit_calls' shape.
-test("pr-review-main's record job ends with its own api-calls notice in the emitter's shape", () =>
+test("pr-review-main's report-review-counts job ends with its own api-calls notice in the emitter's shape", () =>
   withDir((dir) => {
     const text = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
-    const block = /\n  record:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
+    const block = /\n  report-review-counts:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
     const last = block.split(/\n {6}- name: /).at(-1);
     assert.match(last, /^Log the API calls at the end\n {8}if: always\(\)\n/);
     const run = /\n {8}run: \|\n((?: {10}[^\n]*\n?)+)/.exec(last)?.[1].replace(/^ {10}/gm, "");

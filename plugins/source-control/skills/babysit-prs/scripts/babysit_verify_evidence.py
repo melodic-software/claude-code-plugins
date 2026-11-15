@@ -4415,7 +4415,7 @@ def _settle(
     so their clock is never earlier than it was with the room's rule first.
     With `fresh` as well, this job's own check just made the report from the
     verifying runs as they are, so their two reads are skipped, as a sweep
-    arms on the report post-merge-dispatch just made with no idle rule; the
+    arms on the report dispatch-post-merge-runs just made with no idle rule; the
     report checks and the quarantine and pin reads still apply.
     Prints `{"reuse", "reason", "outcome"}`, `outcome` being how
     `settle_shared` settled (None when it did not run); exit 0 when it
@@ -5889,7 +5889,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
 
     `settle --repo R --postmerge-result <file> --code-sha <sha>`: the same
     rule for the merge job's reuse of this run's report, which never reads it
-    again (`_settle`). With `--idle-tick`, post-merge-dispatch's reuse of an
+    again (`_settle`). With `--idle-tick`, dispatch-post-merge-runs's reuse of an
     earlier tick's report, which must also pass `postmerge.idle_refusal`;
     `--fresh` with it, for a report this job's check just made, skips that
     rule's verifying runs (`idle_runs_refusal`).

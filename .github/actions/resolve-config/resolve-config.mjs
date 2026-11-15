@@ -650,7 +650,7 @@ export function ownedBranchesFromBase(env) {
 }
 
 // The base config as resolve() loads it, after the same file checks, for
-// pr-refine's plan job and the readers below.
+// pr-refine's select-passes job and the readers below.
 export function configFromBase(env) {
   const { basePath, configPath } = pathsOf(env);
   return loadConfig(filesUnderBase(basePath, configPath), { configPath });

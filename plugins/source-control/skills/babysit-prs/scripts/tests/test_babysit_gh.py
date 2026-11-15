@@ -1280,7 +1280,7 @@ class CollectMainReviewsTests(unittest.TestCase):
 
 
 class CollectMainReviewCriticalTests(unittest.TestCase):
-    """The counts pr-review-main's record job left as check runs on each head:
+    """The counts pr-review-main's report-review-counts job left as check runs on each head:
     the most CRITICAL findings per lane, a title that does not read counting
     one."""
 

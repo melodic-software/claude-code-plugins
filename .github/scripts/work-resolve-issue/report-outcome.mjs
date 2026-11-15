@@ -1773,7 +1773,7 @@ const trustedAuthor = (author, { bot, humans }) =>
 //          A branch behind the default branch would carry its stale base into
 //          the runner's whole-branch checks, so it starts fresh instead
 //          (`stale` names it and the tip read) and is left as it is. With `keepBehind` it
-//          resumes anyway: the read runner's issue-fields job re-derives a
+//          resumes anyway: the read runner's check-issue-fields job re-derives a
 //          claim made before the model ran, and the default branch may have
 //          moved since;
 //   run    otherwise.

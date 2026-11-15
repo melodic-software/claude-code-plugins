@@ -3032,7 +3032,7 @@ test("a marked run's branch behind main starts fresh instead of resuming", () =>
   }
 });
 
-// The issue-fields job re-derives a resume claimed before the model ran;
+// The check-issue-fields job re-derives a resume claimed before the model ran;
 // main moving during the run must not void it.
 test("with keepBehind a marked run's branch behind main still resumes at its tip", () => {
   for (const behindBy of [0, 1, 865]) {
@@ -3389,7 +3389,7 @@ test("--find-prior holds when a read fails: green with a notice and proceed=fals
   assert.ok(!logged.some((line) => line.startsWith("::error")), logged.join("\n"));
 });
 
-// The issue-fields job's re-derive publishes a branch claim only on this
+// The check-issue-fields job's re-derive publishes a branch claim only on this
 // step's success (pr-run-activity-read.yml), so a read it could not make still
 // fails, and its job continues on the error.
 test("--find-prior re-deriving a claim (FIND_PRIOR_KEEP_BEHIND) still fails on a failed read, with no output", async () => {

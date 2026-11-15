@@ -62,7 +62,7 @@ const ALLOWED = new Map([
     `${NO_LOG}; step "File the revert demotion issue" calls gh without api_budget_wrap_gh`,
   ],
   [
-    "pr-review-main.yml:record",
+    "pr-review-main.yml:report-review-counts",
     `${NO_LOG}; step "Record the stops" calls gh without api_budget_wrap_gh; step "Record the counts" calls gh without api_budget_wrap_gh`,
   ],
   // Steps whose own gh calls run unwrapped, on the release App's

@@ -498,7 +498,7 @@ function expand(doc, slots, parent) {
 }
 
 // Each leaf of the lane, with its activity, predicates and enabled flag.
-// pr-refine's plan job (plan-passes.mjs) reads them too, so a pass is planned
+// pr-refine's select-passes job (plan-passes.mjs) reads them too, so a pass is planned
 // from the predicates its runner applies.
 export function laneSlots(doc, lane) {
   const section = laneSection(doc, lane);
@@ -816,7 +816,7 @@ export function resolveRoute(files, { route, configPath }) {
 
 // The changed paths a laneSlots entry with the changed-paths input is asked
 // to work on: those its ancestors' and its own predicates let through, less
-// what changedPathTargets keeps from it. pr-refine's plan job reads it too.
+// what changedPathTargets keeps from it. pr-refine's select-passes job reads it too.
 export function slotTargets({ activity, predicate, predicates }, changedTargets, codeowners) {
   // A composite's paths predicate narrows its leaves' targets too.
   const ancestors = predicate === undefined ? predicates : predicates.slice(0, -1);

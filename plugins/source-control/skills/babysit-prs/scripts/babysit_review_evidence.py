@@ -155,7 +155,7 @@ MAIN_REVIEW_SCHEMA = 1
 
 
 def main_review_check(lane: str) -> str:
-    """The check run pr-review-main.yml's record job posts for `lane` on each
+    """The check run pr-review-main.yml's report-review-counts job posts for `lane` on each
     head it reviewed, titled `findings=<n> critical=<m>`."""
     return f"{MAIN_REVIEW_PREFIX}: {lane}"
 
@@ -569,7 +569,7 @@ def _main_lane(
     bound when a counted main-run review names the pinned head
     (`_main_bound`) and the recorded counts were read, else unbound as
     `lane-source-changed`, or as `main-review-stop:<reason>` when no verdict
-    binds and the record job posted a designed stop on the head. The security lane's blocking count is the most of
+    binds and the report-review-counts job posted a designed stop on the head. The security lane's blocking count is the most of
     the main-run reviews' CRITICAL findings at this tree, any its
     pull_request review left open (`_carried_blocking`), and the most any
     main-run review recorded on another head of this pull request
@@ -598,7 +598,7 @@ def _main_lane(
 
 
 def _head_stop(lane: str, context: Mapping[str, Any] | None) -> str | None:
-    """The first designed stop pr-review-main's record job posted for `lane`
+    """The first designed stop pr-review-main's report-review-counts job posted for `lane`
     on the pinned head (`main_context["head_stops"]`, read from the closed
     set `babysit_gh.MAIN_REVIEW_STOP_TITLE` matches), or None. It only names
     why no verdict binds: a stop never binds a lane."""
@@ -635,7 +635,7 @@ def _main_bound(
     completed, successful run names `head`. It then counts the most findings,
     and the most CRITICAL ones, any counted review of the head's tree
     reported, so a re-run, a failed run, or an empty commit with the same
-    tree never clears one. The binding verdict also needs the record job's
+    tree never clears one. The binding verdict also needs the report-review-counts job's
     check run on `head` with the same counts (`context["head_records"]`), so
     a run cancelled before it recorded, whose CRITICAL would not carry,
     binds nothing."""
@@ -1838,7 +1838,7 @@ def _open_findings(
             # A draft-skipped, kill-switched or upstream-stopped run reviewed
             # nothing, nor did a lost one that never reached its lane job, nor
             # a successful one whose caller job was skipped: that job never
-            # ran, so the attempt has no record (Wait Refine skips it when the
+            # ran, so the attempt has no record (Wait For Refine skips it when the
             # head moved while it waited). At the pinned head such a run still
             # unbinds (`_bound_record`).
             if (
