@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Tests for count-checks.mjs over fixture repositories: the squash shape, a list-item line, trailing
 # prose, a malformed and a placeholder line, a guidance rung, the semgrep-rule alias, the two 3.1.0
-# rung ids, a promotion, reverts by hash and by pull request, --since and --bucket, an empty
-# history, usage that stops before history is read, and no file written.
+# rung ids, promotion by the advisory record's landing pull request, the task-list and code-span
+# forms, first-parent history, reverts by hash and by pull request scoped to origin's repository,
+# --since and --bucket, an empty history, usage that stops before history is read, and no file
+# written.
 # test-scope: plugins/corrections/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
@@ -108,7 +110,7 @@ commit 2026-02-04 "build: strict mode (#109)
 Codifies: #80 rung=compiler-setting advisory"
 commit 2026-02-10 "feat: analyzer blocks (#110)
 
-Codifies: #60 rung=custom-analyzer blocking"
+Codifies: #106 rung=custom-analyzer blocking"
 commit 2026-02-12 "feat: guard (#120)
 
 Codifies: #70 rung=action-guard blocking"
@@ -138,7 +140,10 @@ check "full history: the window row totals the window" has_line '| window | 3 | 
 DETAIL="out: $OUT"
 check "full history: no ratio is printed" test "$(grep -ciE 'ratio|%' <<<"$OUT")" -eq 0
 DETAIL="out: $OUT"
-check "full history: the promotion is listed" grep -qE '^  [0-9a-f]{12} 2026-02-10 #60 rung=custom-analyzer, advisory in [0-9a-f]{12}$' <<<"$OUT"
+check "full history: the promotion is listed" grep -qE '^  [0-9a-f]{12} 2026-02-10 #106 rung=custom-analyzer, advisory in [0-9a-f]{12}$' <<<"$OUT"
+DETAIL="out: $OUT"
+check "full history: with no origin remote, a qualified Reverts line is matched by number and the output says so" \
+  has_line 'no origin remote names this repository: 1 "Reverts <owner>/<repo>#<n>" line(s) matched by number alone'
 DETAIL="out: $OUT"
 check "full history: the alias is listed" grep -qE '^  [0-9a-f]{12} 2026-01-20 rung=semgrep-rule read as rung=syntax-pattern-rule$' <<<"$OUT"
 DETAIL="out: $OUT"
@@ -185,6 +190,93 @@ DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "--bucket week: one row per ISO week, from its Monday" has_line '| week of 2026-01-05 | 1 | 1 | 1 | 1 | 1 | 1 |'
 DETAIL="out: $OUT"
 check "--bucket week: an empty week keeps the cumulative" has_line '| week of 2026-01-12 | 0 | 0 | 1 | 1 | 0 | 0 |'
+
+# 3a. Promotion identity: a blocking record promotes the advisory record landed by the pull request
+# it names as its source, whatever that advisory record's own source was.
+new_repo
+commit 2026-04-01 "feat: advisory from a session (#200)
+
+Codifies: session rung=custom-analyzer advisory"
+commit 2026-04-10 "feat: make it blocking (#201)
+
+Codifies: #200 rung=custom-analyzer blocking"
+commit 2026-04-15 "feat: first check for issue 7 (#202)
+
+Codifies: #7 rung=architecture-test advisory"
+commit 2026-04-20 "feat: second check for issue 7 (#203)
+
+Codifies: #7 rung=architecture-test blocking"
+run "$R" --since 2026-04-01 --until 2026-04-30
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "promotion: a session-sourced advisory check made blocking is counted once; two checks sharing #7 are two" \
+  has_line '| 2026-04 | 2 | 1 | 2 | 1 | 1 | 2 |'
+DETAIL="out: $OUT"
+check "promotion: only the session-sourced check is promoted" has_line "promoted from advisory to blocking: 1"
+DETAIL="out: $OUT"
+check "promotion: the promoting line names the pull request that landed the advisory record" \
+  grep -qE '^  [0-9a-f]{12} 2026-04-10 #200 rung=custom-analyzer, advisory in [0-9a-f]{12}$' <<<"$OUT"
+
+# 3b. Every other line naming Codifies: is listed with its reason, the task-list form included.
+new_repo
+commit 2026-05-01 'feat: issue form (#300)
+
+- [ ] The PR body carries `Codifies: #9 rung=architecture-test blocking`.
+`Codifies: #9 rung=architecture-test blocking`
+Adds a `Codifies:` line to the body.'
+run "$R" --since 2026-05-01 --until 2026-05-31
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "placement: nothing is counted" has_line '| window | 0 | 0 | 0 | 0 |'
+DETAIL="out: $OUT"
+check "placement: all three lines are listed as not counted" has_line "not counted: 3"
+DETAIL="out: $OUT"
+check "placement: the task-list item form" \
+  grep -qF 'a list item quoting it in a code span, not a line of its own at column 0: "- [ ] The PR body carries `Codifies: #9' <<<"$OUT"
+DETAIL="out: $OUT"
+check "placement: a record inside a code span" \
+  grep -qF 'a code span, not a line of its own at column 0: "`Codifies: #9 rung=architecture-test blocking`"' <<<"$OUT"
+DETAIL="out: $OUT"
+check "placement: a mention inside prose" \
+  grep -qF 'a line of other text quoting it in a code span, not a line of its own at column 0: "Adds a `Codifies:` line' <<<"$OUT"
+
+# 3c. First-parent history: a branch commit and its merge commit both carrying the line count once.
+new_repo
+commit 2026-06-01 "chore: start"
+git -C "$R" switch -q -c topic
+commit 2026-06-02 "feat: branch work
+
+Codifies: #11 rung=behavior-test blocking"
+git -C "$R" switch -q main
+GIT_AUTHOR_DATE="2026-06-03T12:00:00Z" GIT_COMMITTER_DATE="2026-06-03T12:00:00Z" \
+  git -C "$R" merge -q --no-ff topic -m "Merge pull request #400 from topic" -m "Codifies: #11 rung=behavior-test blocking"
+run "$R" --since 2026-06-01 --until 2026-06-30
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "first parent: the merged line is counted once" has_line '| window | 1 | 0 | 1 | 0 | 1 |'
+
+# 3d. Reverts owner/repo#n reverts only when owner/repo is origin's (compared without case).
+new_repo
+git -C "$R" remote add origin git@github.com:Example/Repo.git
+commit 2026-07-01 "feat: guard (#500)
+
+Codifies: #90 rung=action-guard blocking"
+commit 2026-07-02 "feat: other guard (#501)
+
+Codifies: #91 rung=action-guard blocking"
+commit 2026-07-03 'Revert "a change elsewhere" (#502)
+
+Reverts other/project#500'
+commit 2026-07-04 'Revert "feat: other guard (#501)" (#503)
+
+Reverts example/repo#501'
+run "$R" --since 2026-07-01 --until 2026-07-31
+DETAIL="exit $RC; out: $OUT; stderr: $ERR"
+check "reverts by repository: another repository's #500 leaves this one's record counted" has_line '| window | 1 | 0 | 1 | 0 | 1 |'
+DETAIL="out: $OUT"
+check "reverts by repository: this repository's #501 is reverted" \
+  grep -qF '"Codifies: #91 rung=action-guard blocking" reverted by' <<<"$OUT"
+DETAIL="out: $OUT"
+check "reverts by repository: one record is reverted" has_line "reverted, not counted: 1"
+DETAIL="out: $OUT"
+check "reverts by repository: with origin read, no number-only note" test "$(grep -c 'no origin remote' <<<"$OUT")" -eq 0
 
 # 4. An empty history prints zeros.
 new_repo

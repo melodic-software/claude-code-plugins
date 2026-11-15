@@ -184,10 +184,12 @@ Codifies: #123 rung=architecture-test blocking
   line of its own, not in a list item, an indented line or a quote, and is at most 72 characters
   long so the squash commit's wrap cannot split it. It is a body line, not a git trailer.
 - **Promotion**: when an advisory check later becomes blocking, the change that makes it blocking
-  carries the line again with `blocking`, the same `#<n>` source and the same rung. `count-checks`
-  then moves the check from the advisory column to the blocking one and counts it once. A `session`
-  source cannot be promoted this way, so an advisory check meant to become blocking names its issue
-  or pull request.
+  carries the line with `blocking`, the same rung, and as its source `#<p>`, the pull request that
+  landed the advisory record (the `(#<p>)` that commit's subject ends with). `count-checks` then
+  moves the check from the advisory column to the blocking one and counts it once, whatever the
+  advisory record's own source was, `session` included. A blocking line whose source is any other
+  `#<n>` is a new check, even when an advisory record names the same `#<n>` and rung. An advisory
+  record whose commit subject ends with no `(#<p>)` cannot be promoted.
 - **Work filed as an issue**: the proposal also gives the task-list item for the issue's done-when
   list, which quotes the line in a code span and names the pull request body:
 

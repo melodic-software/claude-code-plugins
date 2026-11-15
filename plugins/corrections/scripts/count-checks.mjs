@@ -1,13 +1,16 @@
 #!/usr/bin/env node
-// Counts the checks merged changes record with a `Codifies:` line, from default-branch git history.
+// Counts the checks merged changes record with a `Codifies:` line, from the default branch's
+// first-parent git history.
 //   count-checks.mjs [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--bucket week|month]
 // A record is a whole message line, at column 0, matching
 //   Codifies: <#n | session> rung=<rung id> <blocking|advisory>
+// Any other line naming `Codifies:` is listed as not counted, with its reason.
 // Rung ids and their tiers are read from the plugin's copy of the enforcement ladder: codebase,
 // static-analysis and verification rungs count; guidance and human-review rungs are listed as not
-// counted. A blocking record with the same `#n` source and rung as an earlier advisory one is a
-// promotion: the check moves from the advisory column to the blocking one and is counted once. A
-// record whose commit a later default-branch commit reverts is listed as reverted, not counted.
+// counted. A blocking record whose source `#p` is the pull request that landed an earlier advisory
+// record of the same rung (the `(#p)` its commit subject ends with) is a promotion: the check moves
+// from the advisory column to the blocking one and is counted once. A record whose commit a later
+// default-branch commit reverts is listed as reverted, not counted.
 // Reads git history only: it calls no forge and writes no file. Commit text is data, printed escaped.
 // Exit: 0 ok (an empty history prints zeros), 2 usage, 1 no default branch, a failed git read or an
 // unreadable ladder.
@@ -24,9 +27,9 @@ const USAGE = "usage: count-checks.mjs [--since <YYYY-MM-DD>] [--until <YYYY-MM-
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const RECORD = /^Codifies: (#[1-9][0-9]*|session) rung=([a-z0-9-]+) (blocking|advisory)$/;
 const RECORD_PREFIX = /^Codifies: (?:#[1-9][0-9]*|session) rung=[a-z0-9-]+ (?:blocking|advisory)\s/;
-const LEAD = /^([ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?[ \t>]*)Codifies:/;
+const KEY = "Codifies:";
 const REVERTS_SHA = /^This reverts commit ([0-9a-f]{7,40})\b/;
-const REVERTS_PR = /^Reverts (?:[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+)?#([1-9][0-9]*)\b/;
+const REVERTS_PR = /^Reverts (?:([A-Za-z0-9._-]+\/[A-Za-z0-9._-]+))?#([1-9][0-9]*)\b/;
 const PR_SUFFIX = /\(#([1-9][0-9]*)\)\s*$/;
 const UNSAFE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
 
@@ -118,10 +121,34 @@ function defaultBranch() {
   return fail("no default branch found (origin/HEAD, main or master); run from inside the repository");
 }
 
+/** origin's `owner/repo`, lowercased, or null when no origin URL can be read. */
+function originRepo() {
+  const url = git(["remote", "get-url", "origin"]);
+  if (url.status !== 0) return null;
+  const m = /[/:]([^/:]+)\/([^/]+?)(?:\.git)?\/*$/.exec(url.stdout.trim());
+  return m ? `${m[1]}/${m[2]}`.toLowerCase() : null;
+}
+
+/** Why a line naming `Codifies:` other than at column 0 is not a record. */
+function placement(line) {
+  const before = line.slice(0, line.indexOf(KEY));
+  const lead = /^[ \t>]*/.exec(before)[0];
+  const quoting = before.endsWith("`") ? " quoting it in a code span" : "";
+  let where;
+  if (/^(?:[-*+]|\d{1,9}[.)])[ \t]/.test(before.slice(lead.length))) where = `a list item${quoting}`;
+  else if (lead.includes(">")) where = `a quoted line${quoting}`;
+  else if (lead !== "") where = `an indented line${quoting}`;
+  else if (before === "`") where = "a code span";
+  else where = `a line of other text${quoting}`;
+  return `${where}, not a line of its own at column 0`;
+}
+
 const ladder = readLadder();
 const ref = defaultBranch();
+const thisRepo = originRepo();
 const log = git([
   "log",
+  "--first-parent",
   "--format=%H%x1f%cI%x1f%s%x1f%B%x1e",
   "--grep=Codifies:",
   "--grep=^This reverts commit ",
@@ -149,13 +176,18 @@ for (const c of commits) {
   if (pr) byPr.set(pr, [...(byPr.get(pr) ?? []), c]);
 }
 // Only a commit whose subject starts `Revert ` reverts, and only a commit older than itself.
+// `Reverts owner/repo#n` names a pull request in this repository only when owner/repo is origin's;
+// with no origin URL to compare, the number alone is matched and the output says so.
 const revertersOf = new Map();
+let unscopedReverts = 0;
 for (const [index, c] of commits.entries()) {
   if (!c.subject.startsWith("Revert ")) continue;
   const older = commits.slice(0, index);
   for (const line of c.lines) {
     const sha = REVERTS_SHA.exec(line)?.[1];
-    const pr = REVERTS_PR.exec(line)?.[1];
+    const [, repo, number] = REVERTS_PR.exec(line) ?? [];
+    if (repo && thisRepo === null) unscopedReverts += 1;
+    const pr = repo && thisRepo !== null && repo.toLowerCase() !== thisRepo ? undefined : number;
     const targets = sha ? older.filter((t) => t.sha.startsWith(sha)) : pr ? (byPr.get(pr) ?? []).filter((t) => older.includes(t)) : [];
     if (sha && targets.length !== 1) continue;
     for (const t of targets) revertersOf.set(t.sha, [...(revertersOf.get(t.sha) ?? []), c]);
@@ -181,13 +213,11 @@ const aliased = [];
 for (const c of commits) {
   const seenLines = new Set();
   for (const line of c.lines) {
-    const lead = LEAD.exec(line);
-    if (!lead || seenLines.has(line)) continue;
+    if (!line.includes(KEY) || seenLines.has(line)) continue;
     seenLines.add(line);
     const entry = { commit: c, line };
-    if (lead[1] !== "") {
-      const why = /[-*+]|\d[.)]/.test(lead[1]) ? "a list item" : lead[1].includes(">") ? "a quoted line" : "an indented line";
-      notCounted.push({ ...entry, why: `${why}, not a line of its own at column 0` });
+    if (!line.startsWith(KEY)) {
+      notCounted.push({ ...entry, why: placement(line) });
       continue;
     }
     const m = RECORD.exec(line);
@@ -218,18 +248,23 @@ for (const c of commits) {
   }
 }
 
-// Events: each record adds a check; a promotion moves one from advisory to blocking.
+// Events: each record adds a check; a promotion moves one from advisory to blocking. An advisory
+// record is known by the pull request that landed it and its rung; a blocking record promotes it by
+// naming that pull request as its source.
 const openAdvisory = new Map();
 const events = [];
 const promotions = [];
 for (const r of records) {
-  const key = r.source === "session" ? null : `${r.source} ${r.rung}`;
   if (r.kind === "advisory") {
-    if (key) openAdvisory.set(key, [...(openAdvisory.get(key) ?? []), r]);
+    const landedIn = PR_SUFFIX.exec(r.commit.subject)?.[1];
+    if (landedIn) {
+      const key = `#${landedIn} ${r.rung}`;
+      openAdvisory.set(key, [...(openAdvisory.get(key) ?? []), r]);
+    }
     events.push({ day: r.commit.day, blocking: 0, advisory: 1, rung: r.rung, rungDelta: 1 });
     continue;
   }
-  const earlier = key ? openAdvisory.get(key) : undefined;
+  const earlier = r.source === "session" ? undefined : openAdvisory.get(`${r.source} ${r.rung}`);
   if (earlier?.length) {
     promotions.push({ ...r, from: earlier.shift() });
     events.push({ day: r.commit.day, blocking: 1, advisory: -1, rung: r.rung, rungDelta: 0 });
@@ -278,6 +313,9 @@ out.push(`Codifies: records on ${ref.replace(/^refs\/(?:heads|remotes)\//, "")},
 out.push(`window: ${since} to ${until}, bucket: ${bucket}`);
 out.push(`blocking checks: ${sum(windowEvents, (e) => e.blocking)} new in the window, ${allBlocking} cumulative; advisory: ${sum(windowEvents, (e) => e.advisory)} new, ${allAdvisory} cumulative`);
 out.push("new is the net change in the period: a promotion adds one blocking check and removes one advisory check");
+if (unscopedReverts > 0) {
+  out.push(`no origin remote names this repository: ${unscopedReverts} "Reverts <owner>/<repo>#<n>" line(s) matched by number alone`);
+}
 out.push("");
 out.push(`| period | blocking | advisory | cumulative blocking | cumulative advisory | ${rungs.map((id) => `${id} |`).join(" ")}`.trimEnd());
 out.push(`|---|---|---|---|---|${rungs.map(() => "---|").join("")}`);
