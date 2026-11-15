@@ -157,7 +157,7 @@ Source: https://x.com/trq212/status/2036959638646866021
 
 Claude Code has a built-in memory system. Run `/memory` to configure it.
 
-**Auto-memory:** When enabled, Claude auto-saves preferences, corrections, patterns between sessions. User memory → `~/.claude/CLAUDE.md`, project memory → `./CLAUDE.md`.
+**Auto-memory:** When enabled, Claude auto-saves preferences, corrections, patterns between sessions, in a store of its own separate from CLAUDE.md. For where it stores them, see [Storage location](https://code.claude.com/docs/en/memory#storage-location).
 
 **Auto-dream:** As memory accumulates, it gets messy: outdated assumptions, overlapping notes, low-signal entries. Auto-dream runs a subagent that periodically reviews past sessions, keeps what matters, removes what doesn't, merges insights into cleaner structured memory. Run `/dream` to trigger manually, or enable auto-dream in `/memory` settings.
 

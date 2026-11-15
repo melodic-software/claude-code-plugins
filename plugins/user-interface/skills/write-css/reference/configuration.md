@@ -1,6 +1,6 @@
 # Configuration
 
-Every `css` and `animation` setting, `spacing.control_padding` and `touch.both_axes_activation` resolves through the plugin's five config layers and reaches
+Every `css` and `animation` setting, `spacing.control_padding` and `touch.both_axes_activation` resolves through the plugin's four config layers and reaches
 this skill as `config.values`, with the layer behind each in `config.provenance`. The layer order,
 locations and merge rules belong to the resolver and the plugin README's Configuration section;
 keys and allowed values to `<plugin-root>/reference/team.schema.json`. Never name a layer path from

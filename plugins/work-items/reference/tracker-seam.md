@@ -1,6 +1,6 @@
 # Shared tracker context for every work-items skill
 
-The work-items skills (`track`, `triage`, `work`, `decompose`, `scan-todos`, `ship`) share one tracker
+The work-items skills share one tracker
 seam, one label taxonomy, one canonical-role remap, and one memory-tier write rule. Those invariants
 live here so each skill states them once by reference rather than restating them. Read this document
 (and the references it links) at the start of any work-items skill invocation.
@@ -39,7 +39,7 @@ routes rather than halting unconditionally.
   path by default; if it resolves at **neither** the plugin path nor the project-root fallback, the
   plugin install is incomplete: stop and surface that the plugin must be reinstalled or repaired,
   rather than improvising provider commands. `/work-items:setup` binds the provider and configures the
-  recurring schedule and label remaps but does NOT create the seam.
+  recurring schedule and label remaps but does not create the seam.
 - **The provider binding** (the `tracker` key of `<home>/work-items.yaml`, else the legacy
   repo-root JSON binding `/work-items:setup` writes). Unlike the two above, a missing binding has a legitimate recovery path, so it is
   **loud and actionable, never a silent default and never a raw mid-flow `exit 3`**, but it does not halt the
@@ -124,11 +124,11 @@ carries the rule and its failure modes. It is linked here because this is the do
 surface consults when it needs body text, and it would otherwise have to already know the
 reference exists.
 
-Coordination claims are race-safe at the seam (assignee + lease comment; `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol"). The hold→verify→claim label protocol is retired. Reads are non-mutating; writes route through the adapter's identity policy.
+Coordination claims are race-safe at the seam (assignee + lease comment; `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol"). Reads are non-mutating; writes route through the adapter's identity policy.
 
 ## Default = fix, not file
 
-Do NOT reflexively suggest `/work-items:track add` or `/work-items:scan-todos` for small / medium drift
+Do not reflexively suggest `/work-items:track add` or `/work-items:scan-todos` for small / medium drift
 discovered while working. Boy Scout scope (cosmetic, stale counts, broken links, single-line
 corrections, one-paragraph clarifications) and other small or medium fixes are made, not filed.
 <!-- contract-restatement-begin: D4.6-unrelated-fix-placement -->
@@ -139,7 +139,7 @@ finding came from one, leaving that thread unresolved) and reports it. A project
 placement in its own CLAUDE.md or AGENTS.md; the rule's owner is the D4.6 scope test in the
 source-control plugin's `reference/review-discipline.md`.
 <!-- contract-restatement-end: D4.6-unrelated-fix-placement -->
-File NEW items only when the work is
+File new items only when the work is
 structural (large enough to need its own `/planning:plan` pass), an urgent, real problem that
 cannot land in the current change, or blocked on research the current session isn't positioned to
 do. Auto-suggesting
@@ -148,15 +148,15 @@ surface what was fixed in the commit message / PR description.
 
 ## Label taxonomy
 
-Work items are classified along a prefix-axis grammar: UNIVERSAL axes (work in any repo) plus
-REPO-SPECIFIC axes carrying this repo's concrete values. Members are **not** snapshotted here:
+Work items are classified along a prefix-axis grammar: universal axes (work in any repo) plus
+repo-specific axes carrying this repo's concrete values. Members are **not** snapshotted here:
 discover them live through the bound tracker adapter. When the consuming repository declares a
 label-as-code source of truth, that system owns writes and this skill remains read-only. The **type
 axis may be a native GitHub Issue Type** (`Bug`/`Feature`/`Task`) when the repository exposes it;
-otherwise use the repository's live `type:` labels. Three meta labels, `autonomous-eligible`,
-`human-gated`, and `recurring-maintenance`, are **canonical roles** whose repo-actual strings resolve
+otherwise use the repository's live `type:` labels. Four labels, `autonomous-eligible`,
+`human-gated`, `recurring-maintenance` and `owner-decision`, are **canonical roles** whose repo-actual strings resolve
 from the tracker binding's `config.role_labels` (defaults `agent-ready` / `needs-human` /
-`recurring`; see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
+`recurring` / `needs-owner-decision`; see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
 "Canonical roles"). The grammar and citations live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md).
 
@@ -164,8 +164,8 @@ from the tracker binding's `config.role_labels` (defaults `agent-ready` / `needs
 |------|-----------|-------|-----------------|
 | Type | native Issue Type (org) · `type:` label (personal) | universal | `Bug` / `Feature` / `Task`, the kind of issue; commit-type granularity stays at the commit layer |
 | Priority | `Priority` issue field (org) · `priority:` label (no such field) | universal | urgency, members from the live set; written per "Setting an item's priority" below |
-| Status | `status:` | universal | exception + gate flags only (`needs-info`, `needs-decision`, `ready`); claim = assignee + lease, blocked = native edge (neither is a label). the triage floor is the bare label `needs-triage`, not a status or priority value; see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
-| Meta | (none) | universal | `automated`, `good-first-issue`, `migrated`, `stale`, plus the canonical-role labels (defaults `agent-ready`, `needs-human`, `recurring`) |
+| Status | `status:` | universal | exception + gate flags only (e.g. `confirmed`, `ready`); claim = assignee + lease, blocked = native edge (neither is a label). the triage floor is the bare label `needs-triage`, not a status or priority value; see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
+| Meta | (none) | universal | `automated`, `good-first-issue`, `migrated`, `stale`, plus the canonical-role labels (defaults `agent-ready`, `needs-human`, `recurring`, `needs-owner-decision`) |
 | Area | `area:` | repo-specific | the consuming repo's architecture surface, see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
 | Category | `category:` | repo-specific | the consuming repo's domain categorization, see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
 | Ecosystem | `ecosystem:` | repo-specific | the consuming repo's language/toolchain mix, see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) |
@@ -335,7 +335,7 @@ operations reference. For GitHub, that is
   on its own map sub-issues (`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md` "Skill-private
   routing markers").
 
-## What these skills do NOT do
+## What these skills do not do
 
 - Inline provider (`gh`) commands. Coordination goes through the seam, provider mechanics through
   the bound adapter reference.

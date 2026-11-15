@@ -73,7 +73,7 @@ opt-out; bundled defaults never set it. (A later layer can also flip `enabled` b
 per-key.)
 
 **Malformed consumer file → warn and degrade to rung 2**, never a hard stop: surface the parse/schema
-error, then infer as if the file were absent. (Consuming repos SHOULD validate their own files against
+error, then infer as if the file were absent. (Consuming repos should validate their own files against
 the schema in a gate; plugins fail soft.) Unknown keys are inert; missing optional keys fall back to
 defaults.
 

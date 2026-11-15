@@ -13,7 +13,7 @@ Adds entries to the config (default <project-dir>/.claude/repo-fleet-hygiene.con
 other entry and comment untouched. Re-running with the same arguments changes nothing.
 
   --skip <name>         writes fleet.skip, which REPLACES the audit's default skip list
-  --extend-skip <name>  writes fleet.skipAppend, which ADDS to whichever skip list is in effect
+  --extend-skip <name>  writes fleet.skipAppend, which adds to whichever skip list is in effect
 EOF
 }
 

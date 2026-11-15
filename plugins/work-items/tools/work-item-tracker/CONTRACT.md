@@ -67,9 +67,7 @@ dispatcher's presence gate exits `3` (the same first-run signal as a missing bin
 there is deliberately no silent fallback to another provider (the binding names the
 coordination surface; "Offline role activates only by manual binding switch" applies to
 degradation too). `capabilities` is the sole verb that still answers, since it reads the
-adapter manifest rather than the provider. Limitation, recorded 2026-08-17 (#2942):
-this repository's own spec board (#2933) had to be published through MCP tools with
-blocking edges as body text, because the publishing session had no `gh`.
+adapter manifest rather than the provider.
 
 **A too-old `gh` degrades differently from an absent one.** Where the binary is present but
 below 2.94, only the native-surface paths above are refused; the lease verbs, `get-item`,
@@ -77,7 +75,7 @@ and a `create-item` with no gated flags still run, so such a session can file a 
 item and hold a race-safe claim even though it cannot attach sub-issue or dependency
 edges or derive a frontier. Selection has to come from elsewhere (an operator-named item,
 or a list taken through another GitHub surface), but the claim itself is not degraded, and
-an item worked this way is NOT the unclaimed-coordination case the backfill ritual below
+an item worked this way is not the unclaimed-coordination case the backfill ritual below
 describes.
 
 Evaluated fallbacks, decided as follows:
@@ -95,7 +93,7 @@ Evaluated fallbacks, decided as follows:
   seam's value-add (leases, frontier derivation, normalization, conformance).
 
 **Supported path: the backfill ritual.** A `gh`-less session that must publish anyway
-(the #2933 case) publishes through whatever GitHub surface it has, and:
+publishes through whatever GitHub surface it has, and:
 
 1. records every blocking edge as a structured body line, `Blocked by: <qualified id>`
    ("ID grammar"; bare `#123` is never persisted), and parent linkage via the provider
@@ -105,7 +103,7 @@ Evaluated fallbacks, decided as follows:
 3. the next session with `gh ≥ 2.94` replays the recorded edges through the seam
    (`link-blocks` / `add-sub-item`) and strikes the note.
 
-Leases are NOT part of the ritual: a `gh`-less session must not simulate claims by
+Leases are not part of the ritual: a `gh`-less session must not simulate claims by
 body-editing. Claim/renew/reclaim stay seam-only, so an item worked this way is picked up
 as unclaimed coordination (acceptable for a publish, wrong for contended work).
 
@@ -160,9 +158,9 @@ value (named by file, key and value; the personal override when it set the value
   can anchor at different roots for the same checkout. Today that is latent: this seam ships
   no hooks and the var is unset in a plain shell, so the toplevel branch is what runs. But a
   consumer that installs a SessionStart hook while working in worktrees makes it live. Resolve
-  the anchor ONCE per invocation and pass it down; never re-resolve it by a different branch
-  partway through. Discovery is deliberately NOT a CWD-to-filesystem-root climb: a stray
-  ancestor/home binding would silently capture every repo beneath it (#2941). Nested
+  the anchor once per invocation and pass it down; never re-resolve it by a different branch
+  partway through. Discovery is deliberately not a CWD-to-filesystem-root climb: a stray
+  ancestor/home binding would silently capture every repo beneath it. Nested
   per-subdirectory bindings are unsupported until requested. Env override
   `WORK_ITEM_TRACKER_BINDING=<path>` (tests, conformance).
 - **Personal override**: an optional gitignored file beside the team binding,
@@ -195,7 +193,7 @@ value (named by file, key and value; the personal override when it set the value
 - Optional `docs` (either layer): a free-form self-describing pointer naming what the file
   is and where its contract lives, so the binding file explains itself to a teammate who
   finds it. `/work-items:setup` writes it by default; the seam never reads it.
-- Owner/repo are NEVER recorded in the binding. They are derived at runtime by `gh`'s own
+- Owner/repo are never recorded in the binding. They are derived at runtime by `gh`'s own
   repository resolution for the working directory (`gh api repos/{owner}/{repo}`): `GH_REPO`
   first, then the remote `gh repo set-default` recorded, then, with no default and no terminal,
   the first remote in gh's order by remote name, which is not necessarily `origin`. In a fork
@@ -209,13 +207,10 @@ value (named by file, key and value; the personal override when it set the value
   `work-items` plugin's setup skill (`/work-items:setup`) seeds this file, provider + non-secret
   config, as the once-per-repo binding step.
 - All defaults are externalized to `config`. Nothing numeric is baked into scripts.
-  `config.lease_ttl_hours` (lease TTL, hours) is REQUIRED; a binding without it is
+  `config.lease_ttl_hours` (lease TTL, hours) is required; a binding without it is
   invalid (exit `3`). Optional `config.lease_ttl_minutes` (0–59 additive minutes;
-  default `0`) combines with `lease_ttl_hours` for sub-hour leases (#1034).
-- `config.storage_dir` is REQUIRED when `provider` is `local-markdown` (no baked default).
-- Format stays JSON: `jq` is the seam's hard prerequisite and the hot readers are
-  shell + Node; YAML would cost a parser in three ecosystems. The comment-ergonomics gap
-  is covered by the `docs` key rather than a format change.
+  default `0`) combines with `lease_ttl_hours` for sub-hour leases.
+- `config.storage_dir` is required when `provider` is `local-markdown` (no baked default).
 
 ## Verbs (core public surface)
 
@@ -242,7 +237,7 @@ work-item-tracker.sh wayfind-labels
 work-item-tracker.sh capabilities
 ```
 
-`wayfind-labels` is a CORE-side read of the binding, the one place `/planning:wayfind` learns its
+`wayfind-labels` is a core-side read of the binding, the one place `/planning:wayfind` learns its
 labels: it prints `{schema_version, prefix, prefix_source, human_gated, human_gated_source}`, the
 `config.wayfind_label_prefix` and `config.role_labels.human-gated` values the seam resolves, each
 source `binding` or `default`. It resolves the convention home first (`wit_convention_home`) and
@@ -283,7 +278,7 @@ declare no state history.
 
 `create-item --body-file <path>` is core-side: the dispatcher reads the file and hands the adapter
 `--body <content>`, so adapters implement only `--body`. It lets a caller pass a body with no
-command substitution, a shape a worktree-isolated session refuses (#6929). `--body` together with
+command substitution, a shape a worktree-isolated session refuses. `--body` together with
 `--body-file`, or a path that is not a readable, non-empty file, exits `2`.
 
 `create-item --parent <id>` creates nothing when the parent already has a child with the same
@@ -358,7 +353,7 @@ configuration exits `3`; a read whose window may hide the counted event, or a co
 model does not map, exits `1` (adapter README "Work status trust"). Without that key the read is
 plain. An adapter that declares no `get-statuses` key exits `6`.
 
-`status-storage` is a CORE-side derivation that reports where the tracker stores an item's
+`status-storage` is a core-side derivation that reports where the tracker stores an item's
 status: in the `Work status` single-select issue field, or in labels. No adapter implements it,
 so it needs no manifest key. It prints `{schema_version, storage, field, reason}`, where
 `storage` is `field` or `labels`, `field` is `"Work status"` when `storage` is `field` and
@@ -377,7 +372,7 @@ its stderr, since a provider that did not answer has not said status lives in la
 --ttl-minutes 30` is a 24.5-hour lease. For a sub-hour lease pass `--ttl-hours 0 --ttl-minutes <n>`.
 
 `list-sub-items` enumerates a container's **direct** children as full normalized item objects
-(same envelope as `list-items`), each carrying the container as its `parent_id`. It is a RAW
+(same envelope as `list-items`), each carrying the container as its `parent_id`. It is a raw
 enumeration: closed children and nested-container children are kept (the closed-children
 invariant check and sub-map traversal both need them); frontier filtering is the separate
 core-side step below. The container is addressed by its qualified id, which carries the repo, so
@@ -395,7 +390,7 @@ a label the repository lacks). Filtering never clears `truncated`: an unfiltered
 ceiling stays truncated after the filter, because a labeled item may sit past the ceiling. With
 `--parent`, the label is filtered core-side only.
 
-`list-frontier` is a CORE-side derivation (no provider has a native counterpart): it calls
+`list-frontier` is a core-side derivation (no provider has a native counterpart): it calls
 the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` (so a
 blocker closed as won't-do keeps its dependent off the frontier) AND no
 assignee AND not a container (a container item is never its own frontier item, see
@@ -445,10 +440,11 @@ adapters/<provider>/list-items.sh [--state open|closed|all] [--repo <o>/<r>] [--
 adapters/<provider>/list-sub-items.sh <parent-id> [--state open|closed|all]
 ```
 
-- `list-items` returns RAW candidates (state, assignees, labels, blocker counts) and
+- `list-items` returns raw candidates (state, assignees, labels, blocker counts) and
   MUST have explicit pagination semantics: fetch up to the `limits.list_items_max`
-  declared in its `capabilities.json` (never a client default, since `gh` truncates at 30
-  silently). Exceeding the ceiling is a documented truncation, not an error, and the
+  declared in its `capabilities.json` (never a client default: `gh` truncates silently at its
+  default cap, read at [gh issue list § Options](https://cli.github.com/manual/gh_issue_list#options)).
+  Exceeding the ceiling is a documented truncation, not an error, and the
   envelope reports it: `truncated: true` when items past the ceiling exist and were not
   returned, `false` when the listing is complete. A listing that holds exactly
   `list_items_max` items is complete; an adapter that cannot tell the two apart (it
@@ -466,7 +462,7 @@ adapters/<provider>/list-sub-items.sh <parent-id> [--state open|closed|all]
   returns at most 1000 results, so a labeled listing that reaches 1000 reports `truncated: true`), gitea (the `labels` query parameter), jira
   (a `labels = "<name>"` JQL clause), linear (a `labels.some.name.eq` issue filter), and
   local-markdown (filtered in its walk before the ceiling check).
-- `list-sub-items` returns the RAW children of `<parent-id>` in the same `{items:[…]}`
+- `list-sub-items` returns the raw children of `<parent-id>` in the same `{items:[…]}`
   envelope, each item's `parent_id` set to the container. Where a provider's list surface
   omits parent linkage (GitHub's does, see "JSON output contract"), the adapter resolves
   children through the provider's native sub-item link (GitHub's `subIssues`) and intersects
@@ -518,7 +514,7 @@ which is read-only and replaced on plugin update. No seam state is written there
 generated adapter sits in the consuming repo while the engine dispatching it lives in the plugin, so
 that adapter's own `../../lib` points at a seam copy the consumer never vendored; sourcing
 `${WIT_SEAM_LIB_DIR}` instead resolves the libs of the engine actually dispatching it, the same
-engine its manifest handshook against a step earlier. A consumer-local adapter therefore does NOT
+engine its manifest handshook against a step earlier. A consumer-local adapter therefore does not
 require vendoring the seam. Bundled adapters resolve relatively and ignore it; an adapter run
 directly (outside the dispatcher) falls back to its own relative path. Seeds source it too, since a
 copied seed is a consumer-local adapter.
@@ -563,7 +559,7 @@ Normalized item object:
   none. The GitHub adapter reads it; local-markdown and the gitea, jira and linear seeds always
   emit `null`. Additive field: an adapter written before it emits none, which a reader treats
   as `null`.
-- `type` is the native issue-type NAME (the type axis, org-defined `Task`/`Bug`/
+- `type` is the native issue-type name (the type axis, org-defined `Task`/`Bug`/
   `Feature`), or `null` when the item has none. On GitHub it is the native Issue Type
   (`create-item --type` sets it; requires push access, silently dropped otherwise);
   the `local-markdown` adapter has no native-type registry, so `--type` is stored and
@@ -637,7 +633,7 @@ Per-verb result objects:
 ## ID grammar
 
 `<provider>:<owner>/<repo>#<number>`, e.g. `github:acme/webapp#1335`.
-Fully qualified, opaque to core, parsed only by the adapter. Bare `#123` is NEVER
+Fully qualified, opaque to core, parsed only by the adapter. Bare `#123` is never
 persisted in any durable artifact.
 
 ## Exit codes
@@ -657,9 +653,8 @@ persisted in any durable artifact.
 This table covers only codes the **script itself** returns. A harness-level denial of the Bash
 tool call that would have invoked the script (e.g. an auto-mode risk classifier refusing the
 invocation before the process starts) produces no exit code at all: the script never runs.
-Callers that branch on exit code (Step 0's reclaim loop is the current example, see
-`skills/work/SKILL.md` "Step 0") MUST treat that case separately from any code in this table, not
-coerce it into one. See work-loop finding #1381.
+Callers that branch on exit code (such as the reclaim loop in `skills/work/SKILL.md` "Step 0")
+MUST treat that case separately from any code in this table, not coerce it into one.
 
 ## Lease protocol
 
@@ -721,10 +716,10 @@ Claim sequence (race-safe, same-identity aware):
 
 1. Assign the authenticated user (`--add-assignee "@me"`, always the session identity,
    never the bot).
-2. Re-read assignees. Any OTHER login present → back off: unassign self, exit `7`.
+2. Re-read assignees. Any other login present → back off: unassign self, exit `7`.
 3. Post the lease comment; capture its comment ID (comment identity, not `session_id`,
    discriminates same-login sessions).
-4. Re-read all lease comments. If an EARLIER live lease exists that is not our own
+4. Re-read all lease comments. If an earlier live lease exists that is not our own
    comment, the foreign lease wins → supersede own comment, exit `7`. (Assignee is left
    in place on a same-login race: it belongs to the winner.)
    The back-off message prints the winner's holder with control characters removed.
@@ -944,7 +939,7 @@ GitHub itself links any `#N` mention without closing it.
 
 ## Identity routing (GitHub adapter)
 
-Tracker WRITES (item create, lease comments, reclaim notes) route through an optional bot wrapper
+Tracker writes (item create, lease comments, reclaim notes) route through an optional bot wrapper
 (`gh-bot.sh`) when a wrapper is found, and fall back to bare `gh` when neither location has one.
 Resolution is consumer-local-first, plugin-bundled fallback, mirroring "Adapter resolution", anchored
 at the same repo root (`${CLAUDE_PROJECT_DIR}`, else the git toplevel): the
@@ -959,7 +954,7 @@ not the bot); a lease-only claim assigns no one. Reads are bare `gh`.
 ## local-markdown adapter
 
 The `local-markdown` adapter is the conformance reference implementation and a
-degraded-offline surface. It is **NEVER a coordination surface**. It touches no
+degraded-offline surface. It is never a coordination surface. It touches no
 network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
 
 - **Storage.** One markdown file per item at `<storage_dir>/<number>.md`
@@ -1041,7 +1036,7 @@ tracker-published spec on a coordination provider, a spec container lane
 ## jira adapter
 
 The `jira` adapter binds a Jira Cloud project set behind the seam. It is **read/resolve-only
-by default** (issue #379 hard constraint): `get-item`, `list-items`, and `capabilities` are
+by default**: `get-item`, `list-items`, and `capabilities` are
 supported; `create-item`, `claim`, `renew-lease`, `release`, `reclaim`, `link-blocks`, `add-sub-item`,
 and `list-sub-items` are declared `false` in the manifest and exit `6` at the core capability
 gate: **no code path creates, claims, or mutates a Jira ticket by default.** Consequently
@@ -1059,8 +1054,10 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   tracked binding) and passed to curl via a stdin config (`-K -`) so it never appears in argv.
   Missing/empty token env var → exit `4`. `auth_env` must be a valid shell identifier
   (`[A-Za-z_][A-Za-z0-9_]*`), validated at config load (exit `3`) since it is dereferenced.
-  Tokens expire (1-year default since Dec 2024), so the adapter treats rotation as a normal
-  lifecycle event (a clear exit-`4` surface, re-bind in setup).
+  Tokens expire (lifetime read at
+  [manage API tokens for your Atlassian account](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/)),
+  so the adapter treats rotation as a normal lifecycle event (a clear exit-`4` surface, re-bind in
+  setup).
 - **Credential-egress guard.** `site` is the host the Basic-auth token is sent to, and the
   binding is tracked (PR-modifiable). It is validated at config load (exit `3`) to be a **bare
   hostname**, with no scheme, path, `@` userinfo, port, or control characters, so a binding cannot
@@ -1190,7 +1187,7 @@ Gitea / Forgejo, self-hosted, over the `/api/v1` REST surface. The first adapter
 template, so it carries the same guards as the `jira` adapter by construction.
 
 Binding subtree `config.gitea`: `host` (bare hostname), `scopes[]` (non-empty, each `owner/repo`,
-the declared read scope **and** the authorization boundary), `auth_env` (the env-var NAME
+the declared read scope **and** the authorization boundary), `auth_env` (the env-var name
 holding the API token, never the token). Optional: `page_size` (default 50), `host_suffix` (the
 consumer's own egress pin: Gitea is self-hosted, so there is no vendor domain to pin against by
 default), `allow_custom_domain`.
@@ -1224,7 +1221,7 @@ throwaway target.
 
 ## Conformance
 
-`conformance/run-conformance.sh --binding <name>` runs the SAME abstract suite over any
+`conformance/run-conformance.sh --binding <name>` runs the same abstract suite over any
 adapter through the core CLI only: every verb, valid + invalid input, exit-code +
 `schema_version` + JSON-shape assertions, claim-race back-off, CR-free stdout,
 capability-gated skips (declared-unsupported verbs asserted to exit `6`), and the list

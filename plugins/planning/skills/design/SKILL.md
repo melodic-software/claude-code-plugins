@@ -28,9 +28,9 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Design answers WHAT before `/planning:plan` answers HOW: types, boundaries and package topology the
+Design answers what before `/planning:plan` answers how: types, boundaries and package topology the
 user has validated through discussion. Exploration maps existing code, research gathers external
-facts, this skill turns both into a design. When the PROBLEM is still rough and no approach is
+facts, this skill turns both into a design. When the problem is still rough and no approach is
 chosen, diverge first via `/planning:brainstorm` (cheapest→most-ambitious candidates, user
 reacts), then design the direction that resonated.
 
@@ -387,7 +387,7 @@ artifact, through
 [`${CLAUDE_PLUGIN_ROOT}/context/authoring-formats.md`](../../context/authoring-formats.md)
 "Resolution ladder", where `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}` and `<project-root>` is `${CLAUDE_PROJECT_DIR}` (unexpanded or empty means unset). This skill takes no dialect argument, so the argument layer is always empty.
 `diagram_dialect.data` defaults to `mermaid`, and every degrade writes the data artifact in
-`mermaid`. `diagram_dialect.system` has NO default: unset or degraded, emit no C4 container view
+`mermaid`. `diagram_dialect.system` has no default: unset or degraded, emit no C4 container view
 and behave exactly as with no convention doc at all, reporting its provenance as
 `unset (no C4 view emitted)`.
 
@@ -435,7 +435,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
   as vendor guidance), then recommend from every principle
   [`design-principles.md`](${CLAUDE_PLUGIN_ROOT}/reference/design-principles.md) lists.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Implementation planning**: `/planning:plan` (phases, sanity checks, file-level work items)
 - **Code writing**: the implementation stage
@@ -465,7 +465,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 | `/naming:name-it-better` (if enabled) | **During.** Proposes candidates for a name the design leaves undecided; the human picks, and the pick is recorded in the terminology table |
 | `/architecture:record-decision` (if enabled) | **During.** Records the ADR for a one-way door when its thread resolves ([`reference/reversibility.md`](reference/reversibility.md)) |
 | `/work-items:decompose` (if enabled) | **After.** Reads a typed artifact's `scope` and `dialect` label to inline it into the spec container with a provenance note, and quotes each slice's part of PLAN.md's `## Design` into that slice's body |
-| `/discovery:explore` (if enabled) | **Before.** Maps existing code; design creates what SHOULD exist |
+| `/discovery:explore` (if enabled) | **Before.** Maps existing code; design creates what should exist |
 | `/discovery:research` (if enabled) | **Before + parallel.** Gathers external facts; deferred research items can run in parallel |
 | `/planning:design-handoff` | **The gate.** Owns the design→plan gate criteria and the plan-ready summary |
 | `/planning:plan` | **After the handoff gate.** Produces HOW; when design artifacts exist it consumes them instead of re-deriving design |

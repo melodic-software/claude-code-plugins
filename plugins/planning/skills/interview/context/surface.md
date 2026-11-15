@@ -175,7 +175,7 @@ The `frontierLock` setting ([Settings layers](#settings-layers)) governs a decis
 
 - `confirm` (the default): Save asks first, `Q100 depends on Q22, which is still open.`, with Go to Q22 and Answer anyway. Answer anyway sends the event with `outOfOrder: ["Q22"]`; the server keeps the ids still open, and the first decision on each marks Q100 `stale`, even after its `dependsOn` changes, so triage it like any stale dependent. The rail shows a padlock `Locked` chip in place of `Blocked`.
 - `hard`: Save stays disabled, and the server answers such a decision 409 `{"error": "blocked", "waitsOn": [<open ids>]}`.
-- `off`: no lock; the rail shows `Blocked`, as before.
+- `off`: no lock; the rail shows `Blocked`.
 
 Ask, Rephrase and Research this stay enabled in every mode, `reopen` is never locked, and accept-all already leaves out a question with an open prerequisite.
 
@@ -185,7 +185,7 @@ An `upstream-changed` question ([Changed answers](#changed-answers)) is locked u
 
 An archived question (the `archive` op, or a declined proposal) and a superseded one (its `supersededBy` set by a later question's `supersedes`) take no decision on the page. The page disables their Decide choices, Save and Reopen, and keeps Ask, Rephrase and Research this; an Ask is sent as typed. On a question with `supersededBy` it adds a primary `Go to <id>` button, and its banner says to answer that id instead, naming the end of the `supersededBy` chain: each hop is followed while the next id names a known question not already passed, so Q59 superseded by Q60, itself superseded by Q61, reads `Go to Q61`.
 
-The server answers a decision (`accept`, `alt`, `own`, `defer`, `hedged`, `reopen`) on a superseded question 409 `{"error": "superseded", "by": "<id>"}`, with `by` the same chain end, and on an archived one with no `supersededBy` 409 `{"error": "archived"}`; a decision on a declined proposal stays the 400 it was. Accept-all and accept-audit leave a superseded question out. An `undo`, `ask`, `rephrase`, `research` or `cancel-research` on one still saves.
+The server answers a decision (`accept`, `alt`, `own`, `defer`, `hedged`, `reopen`) on a superseded question 409 `{"error": "superseded", "by": "<id>"}`, with `by` the same chain end, and on an archived one with no `supersededBy` 409 `{"error": "archived"}`; a decision on a declined proposal gets a 400, not the archived 409. Accept-all and accept-audit leave a superseded question out. An `undo`, `ask`, `rephrase`, `research` or `cancel-research` on one still saves.
 
 `record-terminal` refuses every decision on such a question and writes nothing: it exits non-zero with `refused: <id> is superseded; answer <id> instead`, naming the same chain end, or `refused: <id> is archived`. Record a superseded question's answer on its chain end.
 

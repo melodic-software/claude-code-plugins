@@ -139,7 +139,7 @@ sibling still shares the store, the prune is reported `skipped`, not run. It is
 deferred, not lost: `git` prune/gc is non-destructive and idempotent, and a fresh
 dry-run → apply over the live siblings picks a new representative.
 
-### The batch plan IS the gated set
+### The batch plan is the gated set
 
 `--dry-run` writes a plan file enumerating exactly the repos and shared object
 stores to act on, plus a per-repo child manifest for `caches`/`build`, and prints

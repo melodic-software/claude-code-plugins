@@ -72,7 +72,7 @@ or `modified` entry): the entry runs at commit outside Claude Code and reads no 
    `PATH`. Test only what the hook tests. A binary the hook would not accept must not PASS
    here. FAIL when nothing the hook would resolve is present while a Ruff config governs the
    repo; the hook then skips the file, and the session-start probe is what reports the gap.
-4. **Consumer Ruff config.** Mirror the hook's opt-in walk: it stops at the FIRST
+4. **Consumer Ruff config.** Mirror the hook's opt-in walk: it stops at the first
    (closest) governing config found walking from the edited file's directory up to the repo
    root, honoring Ruff's own same-directory precedence and counting a `pyproject.toml` only
    when it carries a `[tool.ruff]` section or any `[tool.ruff.*]` subtable such as
@@ -180,7 +180,7 @@ Principles, in order. They decide every case, whatever the tool:
    (`https://docs.astral.sh/ruff/installation/`), matching the hook's own skip-notice
    text.
 
-After ANY remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
+After any remediation, re-run the relevant `check` probe live via Bash (a pre-computed row
 predates the remediation) and report its actual result.
 Never claim resolved on the install command's exit code alone. For everything else `apply`
 only points:
@@ -210,7 +210,7 @@ only points:
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run the formatter. Editing any `.py`/`.pyi` file exercises the hook end-to-end; `git commit`
   exercises the installed pre-commit entry.

@@ -43,9 +43,7 @@ Per-ecosystem gotchas and primary-source detail, read for each ecosystem that ru
 
 ### 0. Resolve repo root
 
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-```
+Run `git rev-parse --show-toplevel` as its own Bash call, and write its output in place of `$REPO_ROOT` in every later command. What persists between Bash calls: [Tools reference § What persists between commands](https://code.claude.com/docs/en/tools-reference#what-persists-between-commands).
 
 All commands use absolute paths. Never `cd` and lose context.
 
@@ -120,7 +118,7 @@ For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-
 
 **Tool presence.** Before each ecosystem runs, check that the tool its commands are invoked through is on `PATH` (python's `uv`, not the `ruff` and `pyright` behind it). Missing: report `skip (tool missing: <tool>)` with the ecosystem's `install-hint`, never `FAIL`. Do not probe the sub-tools inside a compound `check-cmd`: one that is absent fails at run time, and that real non-zero exit is reported as `FAIL`.
 
-**Opt-in gate (lint phase only).** Before `check-cmd`, evaluate the resolved `opt-in` condition, if any; build and test always run. When `opt-in` is ONE condition for the whole `check-cmd` (e.g. dotnet, python, go; any ecosystem whose resolved `opt-in` has this shape), unmet means the Lint cell reads `skip (opt-in unmet: <condition, one short phrase>)` and `check-cmd` does not run; never omit it silently. When `opt-in` lists several per-tool conditions bundled in one command string (bash: shellcheck always, shfmt only with an `.editorconfig` shell style), run `check-cmd` whole and report its real output: a command string cannot be partly skipped. An opt-in skip counts toward the ecosystem total, never toward the FAIL count, and never blocks a "done" claim.
+**Opt-in gate (lint phase only).** Before `check-cmd`, evaluate the resolved `opt-in` condition, if any; build and test always run. When `opt-in` is one condition for the whole `check-cmd` (e.g. dotnet, python, go; any ecosystem whose resolved `opt-in` has this shape), unmet means the Lint cell reads `skip (opt-in unmet: <condition, one short phrase>)` and `check-cmd` does not run; never omit it silently. When `opt-in` lists several per-tool conditions bundled in one command string (bash: shellcheck always, shfmt only with an `.editorconfig` shell style), run `check-cmd` whole and report its real output: a command string cannot be partly skipped. An opt-in skip counts toward the ecosystem total, never toward the FAIL count, and never blocks a "done" claim.
 
 **CI-parity gates.** When an affected ecosystem resolves a non-empty `gates` array, or the project documents CI-parity checks in its `CLAUDE.md`, `.claude/rules/` or a commands reference, read [context/gates.md](context/gates.md) and run them by its rules after build → test → lint. A gate runs even when an earlier phase failed, and a fired gate that fails makes the run `FAIL`.
 
