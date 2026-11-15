@@ -23,11 +23,20 @@ Undo what the hook wrote, the way the plugin's README says; a hook that only rep
 
 ## Drive
 
-1. Read the plugin's `hooks/hooks.json` for the event and matcher, and its README for what the hook
-   shows.
-2. `type "<a prompt that fires the event>" --key Enter --session <session>`.
-3. `wait-for "<text the hook shows>" --session <session>`, then capture `screenshot`.
-4. Capture `logs` with the same prompt.
+First read the plugin's `hooks/hooks.json` for the event and matcher, and its README for what the
+hook shows.
+
+1. `type "<a prompt that fires the event>" --key Enter --session <session>`. Result: the driver
+   prints `typed`.
+2. `wait-for "<text the hook shows>" --session <session>`, then capture `screenshot`. Result: the
+   hook's text shows in the session (for a hook that blocks, why it blocked), the driver prints
+   `seen: <that text>`, and `screenshot` prints the `.png` path; with no such text by `stepMs`,
+   `wait-for` exits 1.
+3. Capture `logs` with the same prompt. Result: the driver prints
+   `log: <path> (claude exit 0, apiKeySource <source>)` and exits 0, and the `.jsonl` holds the
+   turn the hook ran in.
+4. **Proof.** Result: the session shows the text the plugin's README says the hook shows when its
+   event fires. Captures: screenshot, logs
 
 ## Gotchas
 

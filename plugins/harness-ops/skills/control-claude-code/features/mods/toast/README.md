@@ -22,12 +22,19 @@ the mod's README says.
 
 ## Drive
 
-1. Read the mod's README for the action that raises a toast and its text (for
-   `plugins/context-budget`: `/context-budget nonsense` raises its usage line).
-2. Capture `video` from before the action, so the toast is on record however briefly it shows.
-3. `type "<command>" --key Enter --session <session>`.
-4. `wait-for "<toast text>" --session <session>`, then capture `screenshot`.
-5. `record stop --session <session>`.
+First read the mod's README for the action that raises a toast and its text (for
+`plugins/context-budget`: `/context-budget nonsense` raises its usage line).
+
+1. Capture `video` from before the action, so the toast is on record however briefly it shows.
+   Result: `record start` prints `recording: <path>.mp4`.
+2. `type "<command>" --key Enter --session <session>`. Result: the driver prints `typed`.
+3. `wait-for "<toast text>" --session <session>`, then capture `screenshot`. Result: the toast
+   shows the mod's name and that text, the driver prints `seen: <toast text>`, and `screenshot`
+   prints the `.png` path; with no such text by `stepMs`, `wait-for` exits 1.
+4. `record stop --session <session>`. Result: the driver prints `recording stopped` and writes
+   the `.mp4` with a `.mp4.txt` holding every frame's text.
+5. **Proof.** Result: the recording shows the toast with the mod's name and text appear, then go,
+   with no turn started. Captures: video, screenshot
 
 ## Gotchas
 
