@@ -1,10 +1,10 @@
 # planning
 
 A Claude Code plugin for the **pre-implementation planning pipeline**: everything
-between a rough idea and approved, executable work. Eleven pipeline skills covering
+between a rough idea and approved, executable work. Ten pipeline skills covering
 charting a too-big, foggy effort as a map of decision items, divergence, product intent, the
-engineering contract, contract validation, hand-off of a decision another person
-holds, goal authoring, design exploration, the design→plan gate, adversarial review,
+engineering contract (including hand-off of a decision another person holds), contract
+validation, goal authoring, design exploration, the design→plan gate, adversarial review,
 and the implementation plan itself, plus a re-runnable `setup` action that settles
 where artifacts land in the consuming repo.
 

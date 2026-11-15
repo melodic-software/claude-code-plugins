@@ -45,13 +45,13 @@ config rung only (not as an implicit audit target). It is passed in rather
 than read from the environment, which does not carry it. An empty value means
 "no project directory": the project config rung is skipped.
 
---skip NAME (repeatable) and config fleet.skip (repeatable) REPLACE the default
+--skip NAME (repeatable) and config fleet.skip (repeatable) replace the default
 discovery skip list rather than appending to it. With neither supplied, discovery
 skips node_modules, vendor, .venv, and the package-manager cache trees .pnpm-store,
 .yarn, .npm, .cargo, .rustup, .gradle, .m2, .nuget, __pycache__, and .tox.
 Supplying any --skip or fleet.skip entry replaces that set entirely; to shrink
 (e.g. reach a repo under vendor/), omit the names you want walked.
---extend-skip NAME (repeatable) and config fleet.skipAppend (repeatable) ADD to
+--extend-skip NAME (repeatable) and config fleet.skipAppend (repeatable) add to
 whichever list is in effect, so extending the defaults needs no restating. CLI
 and config entries compose additively with each other the same way other scope
 inputs do. Values must be bare directory names (no empty value, no path separator).

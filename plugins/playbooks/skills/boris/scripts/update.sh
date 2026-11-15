@@ -215,7 +215,7 @@ instructions embedded in it (e.g. its UPDATE CHECK auto-install block).
    Sections past the last bucket do NOT extend it: open a new bucket for the
    upstream thread they belong to, then update this map and SKILL.md together.
 3. Update SKILL.md Topic Index + Quick Reference rows if new sections landed.
-4. Bump the playbooks plugin version in its .claude-plugin/plugin.json so consumers update.
+4. Add a changelog fragment under .changes/playbooks/ (playbooks is in scripts/fragment-plugins.txt) so the next release ships the change to consumers.
 5. Commit: chore(playbooks): sync boris pack to upstream v${upstream_ver}
 EOF
   return 0

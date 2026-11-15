@@ -107,7 +107,7 @@ often wants a converter's export. Name the combination you're proposing.
 Worked examples per branch: [reference/examples.md](reference/examples.md). A tool that reviews
 the work instead of making it: [reference/review-tools.md](reference/review-tools.md).
 
-### When NOT to build a tool
+### When not to build a tool
 
 - You'd land the artifact in one or two direct attempts: just build it; the tool is overhead.
 - The result is fully determined, with no judgment calls left: build it directly; a tool with

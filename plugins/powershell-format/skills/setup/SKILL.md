@@ -183,7 +183,7 @@ actual result. Never claim resolved on the reader's report that they installed s
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run the formatter or linter. `git commit` of a `.ps1`, `.psm1`, or `.psd1` file exercises the
   installed pre-commit entry end-to-end. The `check` pwsh probes are read-only capability checks; they never format,

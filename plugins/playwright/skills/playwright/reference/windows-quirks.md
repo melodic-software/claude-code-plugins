@@ -73,4 +73,6 @@ Chromium under Playwright control has a fingerprint that Google, Cloudflare, and
 
 ## Cloud session limitation (inherited from infrastructure)
 
-In Claude Code cloud sessions (Ubuntu 24.04 sandbox), `playwright-cli install-browser` fails. The sandbox blocks browser downloads to `storage.googleapis.com/chrome-for-testing-public`. Local sessions on Windows/macOS/Linux are unaffected because they auto-detect system Chrome.
+In Claude Code cloud sessions, `playwright-cli install-browser` can fail because the sandbox's network policy can block the browser download. Local sessions on Windows/macOS/Linux are unaffected because they auto-detect system Chrome.
+
+- **Pointer**: which hosts a cloud session can reach, in [Claude Code on the web: cloud environments](https://code.claude.com/docs/en/claude-code-on-the-web#cloud-environments); read it when `install-browser` fails in a cloud session.

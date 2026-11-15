@@ -188,7 +188,7 @@ the recommendation covers only what the run settled. When the fork is itself a p
 instead of recommending from unqualified timing.
 
 The model auto-invoke gate in the shared discipline holds for `observe` too: when nobody asked
-for a prototype, STOP and confirm scope before writing any variant.
+for a prototype, stop and confirm scope before writing any variant.
 
 ## Process
 
