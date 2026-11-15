@@ -262,7 +262,7 @@ export function drawRegions(
         from: objectOf[moves[k].f].path,
         to: objectOf[moves[k].t].path,
         label: a.label,
-        when: a.label.endsWith("]") ? undefined : a.when,
+        when: a.when,
       });
     regions.push({ name, states: [...states.values()], steps, arrows });
     objects.push(objectOf);

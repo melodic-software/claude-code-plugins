@@ -74,7 +74,7 @@ export function lift(chart: Chart): Chart {
       const k =
         s.when === undefined && f < 2 ** 26 && t < 2 ** 26
           ? f * 2 ** 26 + t
-          : `${f},${t}:${s.when}`;
+          : `${f},${t}:${JSON.stringify(s.when ?? null)}`;
       const prior = merged.get(k);
       if (prior) prior.label += ` or ${s.label}`;
       else merged.set(k, { ...s });

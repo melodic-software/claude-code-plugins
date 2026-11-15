@@ -21,10 +21,13 @@ import {
   type Walk,
 } from "../ir.ts";
 
-const isLabel = (l: unknown): l is string =>
-  typeof l === "string" && l !== "" && !/\bundefined\b|\bNaN\b|\[object Object\]/.test(l);
+const isText = (l: unknown): l is string => typeof l === "string" && l !== "";
 
-const shapeOf = (shape: unknown, vars: Vars): Shape => {
+const isViewLabel = (l: unknown): l is string =>
+  isText(l) && l !== "undefined" && l !== "NaN" && l !== "[object Object]";
+
+const shapeOf = (shape: unknown, vars: Vars, fromView: boolean): Shape => {
+  const isLabel = fromView ? isViewLabel : isText;
   function fail(): never {
     throw new Error(
       `The view's state() returned ${JSON.stringify(shape) ?? "undefined"} for the state ${stateText(vars)}. Return a string, an array of strings, or an object of those.`,
@@ -47,7 +50,7 @@ const shapeOf = (shape: unknown, vars: Vars): Shape => {
 
 const stepOf = (view: View) => (action: string, from: Vars, to: Vars) => {
   const label = (view.step ?? ((a: string) => a))(action, from, to);
-  if (label === null || isLabel(label)) return label;
+  if (label === null || (view.step ? isViewLabel : isText)(label)) return label;
   throw new Error(
     `The view's step() returned ${JSON.stringify(label) ?? "undefined"} for the step ${action}.`,
   );
@@ -72,7 +75,7 @@ export function ask(graph: Graph, { states: tla, nameOf, from, to }: Walk, view:
   const state = view.state;
   const shapes = new Array<Shape>(n);
   for (let i = 0; i < n; i++)
-    shapes[i] = shapeOf(state ? state(tla[i].vars) : nameOf[i], tla[i].vars);
+    shapes[i] = shapeOf(state ? state(tla[i].vars) : nameOf[i], tla[i].vars, Boolean(state));
   const names = Object.keys(shapes[0] ?? { "": [] });
   const regionsKey = tupleKey(names);
   for (let i = 0; i < n; i++)
@@ -104,7 +107,7 @@ export function asParents(
   for (let i = 0; i < shapes.length; i++) {
     const path: string[] = [];
     for (const n of names) for (const p of shapes[i][n]) path.push(`${n} ${p}`);
-    parents[i] = shapeOf(path, tla[i].vars);
+    parents[i] = shapeOf(path, tla[i].vars, false);
   }
   return { names: [""], shapes: parents, labels, group };
 }

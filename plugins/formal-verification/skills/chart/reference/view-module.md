@@ -24,8 +24,9 @@ Two actions that end the same in the chart get the same label, so that they shar
 When a step can occur only in some conditions, end its label with the condition in brackets, in the
 reader's words, such as `you press play [while the file loads]`. In a regions chart, the command
 writes the condition on the other regions on the arrow, in the words of their labels, such as
-`[when Offline]`. Your brackets replace it, and two arrows from one state can then look the same. So
-in a regions chart, do not write brackets for a condition on another region. When a value that no
+`[when Offline]`. The command keeps that condition after your own brackets, so two arrows from one
+state never look the same. In a regions chart, do not write brackets for a condition on another
+region; the command writes it. When a value that no
 label shows decides where a step goes, name the result in the label, such as "the roster read
 fails".
 
