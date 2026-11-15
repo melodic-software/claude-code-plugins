@@ -11,9 +11,9 @@ JSON object. Every number on a candidate card comes from that object.
 |---|---|
 | Window | The newest `history_commits` non-merge commits. With a scope path, the commits that touch it, each counted by all the files it changed |
 | Kept commit | A commit in the window whose author name contains no `exclude_authors` string, that changes at most `max_changeset_size` files, and that changes at least one file inside the scope |
-| Revisions of a file | The kept commits that change it. A file with fewer than `min_revs` is in no pair |
+| Revisions of a file | The kept commits that change it. A file with fewer than `min_revs` is in no pair: this lens applies `min_revs` to each file by choice, where code-maat applies its revision threshold to the pair (`within-threshold?` in [coupling_algos.clj](https://github.com/adamtornhill/code-maat/blob/master/src/code_maat/analysis/coupling_algos.clj)) |
 | Shared commits of a pair | The kept commits that change both files. A pair with fewer than `min_shared_revs` is left out |
-| Degree | `floor(100 × shared / ((revs_a + revs_b) / 2))`, in percent. A pair outside `min_coupling` to `max_coupling` is left out. The formula is this plugin's: code-maat reports its degree as a percentage and the average revisions beside it, but its README gives no formula |
+| Degree | `floor(100 × shared / ((revs_a + revs_b) / 2))`, in percent. A pair outside `min_coupling` to `max_coupling` is left out. This is code-maat's logical-coupling degree, computed in [logical_coupling.clj](https://github.com/adamtornhill/code-maat/blob/master/src/code_maat/analysis/logical_coupling.clj) |
 | Citing commits | The pair's newest five shared commits |
 | Cluster | A set of files joined by passing pairs (a connected component). A cluster below `min_cluster_size` files is no candidate |
 | Folder | A file's parent folder; with `folder_depth` N above 0, its first N path segments. A root file's folder is `.` |
