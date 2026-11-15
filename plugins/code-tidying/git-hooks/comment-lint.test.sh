@@ -148,7 +148,8 @@ for marker in 'sync-managed: from lib/x.sh' 'DO NOT EDIT' '@generated'; do
   new_repo 'comment_lint: block'
   { printf '#!/bin/sh\n# %s\n' "$marker"; cat "$FIXTURES/shape2.sh.txt"; } >"$REPO/gen.sh"
   git -C "$REPO" add gen.sh
-  expect "a file carrying '$marker' in its first 10 lines is skipped" "0|" "$(check "$REPO")"
+  expect "a file carrying '$marker' in its first 10 lines is skipped, and the skip is named" \
+    "0|code-tidying: comment lint skipped gen.sh (sync-managed, do not edit or @generated in its first 10 lines)" "$(check "$REPO")"
 done
 
 new_repo 'comment_lint: report'

@@ -24,8 +24,8 @@ posture never reaches a git hook. explanatory (and strict, balanced, conservativ
 runs nothing; auto and aggressive read as necessary.
 
 Judges the files whose extension code-extensions.txt lists, except one whose first 10
-lines carry sync-managed, do not edit or @generated, through the pygments lexer for the
-file's name. Findings print as <path>:<line>: <message> on stderr; block exits 1,
+lines carry sync-managed, do not edit or @generated (each skip is named on stderr),
+through the pygments lexer for the file's name. Findings print as <path>:<line>: <message> on stderr; block exits 1,
 report exits 0. A missing python3, or a python3 that cannot import pygments, follows
 checks.skipmissing (tool names python3 and pygments).
 EOF
@@ -112,7 +112,10 @@ while IFS= read -r -d '' f; do
   [[ "$dir" == "$made" ]] || mkdir -p "$dir"
   made="$dir"
   checks_file_text "$f" >"$texts/$f" || continue
-  generated "$texts/$f" && continue
+  if generated "$texts/$f"; then
+    printf 'code-tidying: comment lint skipped %s (sync-managed, do not edit or @generated in its first 10 lines)\n' "$f" >&2
+    continue
+  fi
   printf '%s\0' "$f" >>"$CHECKS_TMP/paths"
 done < <(checks_files)
 [[ -s "$CHECKS_TMP/paths" ]] || exit 0

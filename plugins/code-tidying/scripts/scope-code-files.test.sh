@@ -177,8 +177,14 @@ out=$(cd "$bo" && bash "$SCRIPT" --branch-only --base main)
 assert_equal "--branch-only counts an untracked code file" "rung=branch base=main files=3" "$(printf '%s\n' "$out" | head -1)"
 assert_contains "--branch-only lists the untracked fresh.ts" "$out" "fresh.ts"
 assert_absent "--branch-only omits the untracked markdown" "$out" "fresh.md"
+mkdir -p "$bo/src" "$bo/lib"
+printf 'q=5\n' >"$bo/src/inner.ts"
+printf 'r=6\n' >"$bo/lib/other.ts"
+out=$(cd "$bo/src" && bash "$SCRIPT" --branch-only --base main)
+assert_contains "--branch-only from a subdirectory lists its own untracked file from the root" "$out" "src/inner.ts"
+assert_contains "--branch-only from a subdirectory lists an untracked file elsewhere" "$out" "lib/other.ts"
 git -C "$bo" checkout -q -- .
-rm -f "$bo/fresh.ts" "$bo/fresh.md"
+rm -rf "${bo:?}/fresh.ts" "${bo:?}/fresh.md" "${bo:?}/src" "${bo:?}/lib"
 
 git -C "$bo" checkout -q -b no-commits main
 out=$(cd "$bo" && bash "$SCRIPT" --branch-only --base main)

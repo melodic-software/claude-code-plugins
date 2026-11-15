@@ -106,7 +106,7 @@ if [[ -n "$BRANCH_ONLY" ]]; then
   }
   list=$({
     git diff --name-only --diff-filter=ACMR -z "$mb"
-    git ls-files --others --exclude-standard -z
+    git ls-files --others --exclude-standard --full-name -z -- ':/'
   } | nul_lines | code_only | LC_ALL=C sort -u)
   emit branch "$base" "$list"
   exit 0
