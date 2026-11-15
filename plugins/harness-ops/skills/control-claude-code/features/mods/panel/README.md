@@ -23,13 +23,22 @@ Close the pane, then return what the mod saved to its default the way the mod's 
 
 ## Drive
 
-1. Read the mod's README for the command that opens its pane and the text the pane shows (for
-   `plugins/context-budget`: `/context-budget live pane`).
-2. `type "<command>" --key Enter --session <session>`.
-3. `wait-for "<text the pane shows>" --session <session>`, then capture `screenshot`.
-4. For each key the README names, `type --key <Name> --session <session>`, `wait-for` its result,
-   and capture `screenshot`.
-5. Close the pane with the README's close action.
+First read the mod's README for the command that opens its pane, the text the pane shows, its keys
+and its close action (for `plugins/context-budget`: `/context-budget live pane`).
+
+1. `type "<command>" --key Enter --session <session>`. Result: the driver prints `typed`.
+2. `wait-for "<text the pane shows>" --session <session>`, then capture `screenshot`. Result: the
+   pane is open with the mod's title and that text, the driver prints `seen: <text the pane
+   shows>`, and `screenshot` prints the `.png` path, its `.png.txt` holding the pane's text; with
+   no such text by `stepMs`, `wait-for` exits 1.
+3. For each key the README names, `type --key <Name> --session <session>`, `wait-for` its result,
+   and capture `screenshot`. Result: the pane shows what the README says that key shows, and the
+   driver prints `seen: <that text>`.
+4. Close the pane with the README's close action. Result: the pane and its text are gone from the
+   screen.
+5. **Proof.** Result: the pane is closed and the transcript and prompt show without it; the step 2
+   and 3 screenshots show it open with the mod's title and content, then changed by each key.
+   Captures: screenshot
 
 ## Gotchas
 
