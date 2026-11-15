@@ -10,5 +10,3 @@ bump: minor
   modules to reshape. Without the architecture plugin it says once what the plugin would add.
 - **`/planning:plan`** names both skills in its prerequisite check when the plan reshapes existing
   modules.
-- **`/planning:interview` round header gains a `Later:` line** naming the topics of rounds already
-  known to follow, so the user sees what is coming without being asked it yet.
