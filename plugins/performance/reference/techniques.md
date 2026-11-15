@@ -654,7 +654,9 @@ accumulate with no owner. Used by: no skill step; the project's release process.
 **Staged rollout.** Expose a high-risk change in stages: internal users, then a fraction of users,
 then all. **Dogfooding catches what metrics miss**: internal users report defects no metric sees.
 In this marketplace the stages are main, dogfooded on the operator's hosts, then consumers, who get
-the change through a version bump when they update, with auto-update off by default. When: every
+the change through a version bump when they update; whether that update is automatic is the
+marketplace's auto-update setting, whose default is read live at
+[Which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update). When: every
 high-risk change. Counter: defects reported per stage. Fails when: a stage is skipped under time
 pressure. Used by: no skill step; the project's release process, in this marketplace the operator.
 

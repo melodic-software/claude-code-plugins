@@ -3,6 +3,27 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.1] - 2026-11-15
+
+### Changed
+
+- The session bridge watch, events and unwatch tool descriptions now say what each tool needs first, what it returns, and when it errors.
+
+- Prototype skill text reads in plain case instead of capital-letter emphasis, and explore-directions states plainly that `--unattended` makes no `/design` suggestion.
+- The `design` verification record lives only in `reference/bundled-design.md`, without the superseded 2.1.263 history row, and the skill's pointers name that file.
+
+## [0.31.0] - 2026-11-15
+
+### Added
+
+- The notes host page's Notes panel keeps drafts: Save draft lists a note without sending it, and
+  each draft can be edited, deleted or sent, or all sent at once with Send all drafts. A draft
+  stays out of Copy all notes until it is sent.
+- Each note's status (draft, sent, delivered to Claude, handled) and the session's reply show
+  beside it, and a polite live region announces each change of status.
+- The panel hides and shows with its dock button or N; closing the panel or the note editor
+  returns the focus to the control that opened it.
+
 ## [0.30.0] - 2026-11-15
 
 ### Added

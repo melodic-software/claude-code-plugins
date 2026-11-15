@@ -636,8 +636,8 @@ are the exercise being refused.
 
 Object writing is not journaling. Journaling can explain, evaluate, remember,
 or confess. Object writing stays inside sensory experience. It is also not a
-drafting method for finished lyric sections. It generates raw ore: images,
-verbs, physical details, surprising turns, and emotional weather.
+drafting method for finished lyric sections. It generates raw material: images,
+verbs, physical details, surprising turns, and emotional tone.
 
 When coaching, keep the user from turning the exercise into analysis. If a line
 says "I was lonely," ask for the body, room, weather, object, taste, pressure,
@@ -674,10 +674,10 @@ Rounds are not independent repetitions; each one raises the floor. Run the
 rounds in sequence and name what made the best write of each round work before
 starting the next.
 
-Both mechanisms transfer directly to multi-agent generation: fan several
-writers out over one seed with none of them seeing the others' output or the
-song in progress, then feed the round's strongest result forward as the
-standard for the next round.
+Both mechanisms carry over to generation when several independent writes on
+one seed are worth their cost: run them as separate writers so none sees the
+others' output or the song in progress, then feed the round's strongest result
+forward as the standard for the next round.
 
 Object-writing parties can use:
 
@@ -787,7 +787,7 @@ Challenge 1 broadens object writing through four prompt categories:
 | 12-14 | Where | Uses place to organize action and make abstraction physical. |
 
 This progression prevents "object writing" from becoming a narrow noun drill.
-The same sensory engine can generate lyric raw material from a room, a person,
+The same sensory method can generate lyric raw material from a room, a person,
 a holiday, a vehicle, a ceremony, or a place in motion.
 
 Challenge 1 daily seeds:
@@ -1100,9 +1100,8 @@ He also prints a warning about when to start using tells at all:
 > *Writing Better Lyrics* (2009), Chapter 1
 <!-- ai-slop-ignore-end -->
 
-The three-item "Use destination writing when:" list that stood here was
-**invented**. Pat gives no such criteria. What he actually gives is the
-reason it earns its place:
+Pat gives no "use destination writing when" criteria; do not invent any. What
+he gives is the reason it earns its place:
 
 > She recognizes that good song ideas, especially titles, come just as easily
 > from the "tell" side as the "show" side of your writing.

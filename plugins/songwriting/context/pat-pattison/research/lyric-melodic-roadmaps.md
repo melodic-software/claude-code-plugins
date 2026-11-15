@@ -19,27 +19,21 @@ Pat Pattison, *patpattison.com* "Lyric and Melodic Phrases", plus
 phrasing. Books bracket the music; this file is the bridge between a lyric's
 natural phrasing and a melody's actual phrasing.
 
-**Source status: the non-book source has now been READ.** The "roadmap" framing
-is not in the four books. Measured wrap-safe across all four: `roadmap` returns
-**one** hit, in *Essential Guide to Rhyming* (2014) and in a different sense
-("Rhyme creates a sonic roadmap"); `compatible roadmaps` and `maximum meaning`
-return **zero**.
+**Source status.** The "roadmap" framing is not in the four books. Measured
+wrap-safe across all four: `roadmap` returns one hit, in *Essential Guide to
+Rhyming* (2014) and in a different sense ("Rhyme creates a sonic roadmap");
+`compatible roadmaps` and `maximum meaning` return zero.
 
-It is, however, genuinely Pat's, from outside the books. The article
-"Lyric and Melodic Phrases" was fetched and read on 2026-08-11 at
+It is Pat's, from outside the books. The article "Lyric and Melodic Phrases"
+was fetched and read on 2026-08-11 at
 <https://www.patpattison.com/lyric-and-melodic-phrases> (recheck this and the quotes below
 attributed to it or to "The Art of Phrasing" when either page's wording or numbered options
-change), and it uses "roadmap"
-throughout as its governing metaphor. The "maximum meaning" quote below is
-**confirmed verbatim** against that page, and the three fixes below are **Pat's
-own numbered options**, not this file's invention. See that section.
+change), and it uses "roadmap" throughout as its governing metaphor. The "maximum
+meaning" quote below is verbatim from that page, and the three fixes below are
+Pat's own numbered options, not this file's invention. See that section.
 
-The `"body language"` quote further down is **also confirmed**, but to a
-different column, "The Art of Phrasing"
-(<https://www.patpattison.com/art-of-phrasing>), not this one. It was briefly
-demoted this session on the mistaken grounds that no source carried it; a
-refuting pass found the page immediately. Its tail "of your song" had been
-truncated and is restored.
+The `"body language"` quote further down is from a different column, "The Art of
+Phrasing" (<https://www.patpattison.com/art-of-phrasing>), quoted in full.
 
 The 1991 Chapters 1-2 citation above is sound (those chapters are "Number of
 Phrases" and "Length of Phrases"); it covers the phrase material, not the
@@ -82,35 +76,29 @@ When the lyric reads as one continuous thought even though the melody phrases it
 in two, the two roadmaps disagree. That can be a good effect (deliberate
 suspension) or a bad one (the listener has to re-parse to catch the meaning).
 
-<!-- CORRECTED: TERM HIJACK. This paragraph called that state "a
-     through-written character" and asserted "Pat names this state explicitly."
-     He does not. `through-written` has 10 hits, all in *Essential Guide to
+<!-- Not Pat's term. Do not call this state "a through-written character" or
+     say Pat names it: he does not. `through-written` has 10 hits, all in *Essential Guide to
      Lyric Form and Structure* (1991) Ch 3-4, and it means something else
-     entirely, a property of a rhyme/phrase STRUCTURE opposed to *fragmented*:
+     entirely, a property of a rhyme/phrase structure opposed to *fragmented*:
      "the structure is through-written: that is, there is no place of resolution
      before the end of the last phrase. The structure keeps pushing you
-     forward." Nothing to do with lyric-vs-melody disagreement. Borrowing his
-     word and then claiming he named this state was the fabrication; the
-     observation itself is fine, so it is kept, unattributed. -->
+     forward." Nothing to do with lyric-vs-melody disagreement. The observation
+     itself is this file's, kept unattributed. -->
 
 ## Ways out: Pat's options, with this file's decision aid layered on
 
-*Corrected 2026-08-11 after the source article was fetched and read.* Split the
-two things carefully, because an earlier pass got this backwards in both
-directions:
+Keep two things apart:
 
 - **Pat's, and citable.** The options themselves are his. "Lyric and Melodic
-  Phrases" lists **four**, and the first three are what this file calls Fix 1,
+  Phrases" lists four, and the first three are what this file calls Fix 1,
   Fix 2 and Fix 3: change the music to match the lyric's roadmap; change the
   lyric to match the melodic roadmap; repeat a word from the first line at the
-  beginning of the next line. An earlier pass demoted these as "this file's own
-  framing, not Pat's." That demotion was wrong.
-- **Still this repo's, and NOT citable.** No book or article supplies the
+  beginning of the next line.
+- **This repo's, and not citable.** No book or article supplies the
   `Use when:` and `Risk:` lines below, or the "Fix N" titles. Those are the
   decision aid and stay unattributed.
 - **Do not write "the three named alignment fixes."** Pat lists his options; he
-  does not name them, and there are four of them, not three. That phrasing was
-  the original fabrication and it is still wrong.
+  does not name them, and there are four of them, not three.
 
 When a roadmap mismatch is breaking the lyric, pick one:
 
@@ -157,20 +145,20 @@ Use when:
   listener to read past as a single thought,
 - a deliberate suspension effect is desired.
 
-<!-- REMOVED: FABRICATED ATTRIBUTION. This read: -->
+<!-- Do not restore this wording, a fabricated attribution: -->
 <!-- ai-slop-ignore-start: quoted retired wording, the removed fabricated attribution recorded verbatim -->
 <!-- 'Song example: Lady Antebellum "Love Don't Live Here" — Pat cites verses 1-3 lines 3-4 for this pattern.' -->
 <!-- ai-slop-ignore-end -->
 <!-- Measured wrap-safe across all four books: `Lady Antebellum` = 0 hits,
      `Love Don't Live Here` = 0 hits. Pat cites nothing of the kind anywhere in
-     the corpus. The song may well do what the bullet says, but "Pat cites" was
-     invented, and a bare verse-and-line reference reads as a book reference.
-     Left out rather than demoted, because there is nothing left once the false
+     the corpus. The song may well do what the bullet says, but "Pat cites" is
+     false, and a bare verse-and-line reference reads as a book reference. It
+     stays out rather than demoted, because nothing is left once the false
      attribution goes. -->
 
 Risk: overuse becomes a tic.
 
-### Pat's fourth option, recorded because leaving it out is what caused the error
+### Pat's fourth option
 
 The article's list does not stop at three. Its fourth option is:
 
@@ -182,8 +170,8 @@ The article's list does not stop at three. Its fourth option is:
 It is a joke, and it is doing real work: it names the thing a writer is
 actually tempted to do, so that declining to fix a mismatch is a visible
 choice rather than a silent default. Do not present it as a craft
-recommendation, and do not drop it again. Counting his four options as three
-is precisely what made an earlier pass conclude the taxonomy was invented.
+recommendation, and keep it in the list: counted as three, his options look
+like an invented taxonomy rather than his own.
 
 ## How to diagnose
 
@@ -237,14 +225,11 @@ the melody's.
      the important slots. So too-cold really is a word-choice failure, not a
      stress inversion, and the model-lyric frame above is right.
 
-     I first read the both-directions definition here as a regrown fabrication
-     and cut it. That was WRONG and it has been restored. The CHANGELOG records
-     a deliberate five-file adjudication splitting the two frames, and it names
-     this file as belonging to the melody frame, where both directions count.
-     What was actually missing was the frame label and Pat's printed text, both
-     now present. Anyone tempted to "fix" this again: read the CHANGELOG entry
-     beginning "Greedy spot was defined inconsistently across five files"
-     first. -->
+     The both-directions definition here is not a regrown fabrication. The
+     CHANGELOG records a deliberate five-file adjudication splitting the two
+     frames, and it names this file as belonging to the melody frame, where both
+     directions count. Before changing it, read the CHANGELOG entry beginning
+     "Greedy spot was defined inconsistently across five files". -->
 
 When you find a greedy spot, check whether the surrounding lyric phrase
 has its boundary in the wrong place. Often fixing the roadmap fixes the
@@ -259,25 +244,15 @@ Where the lyric phrase begins relative to the bar shapes the roadmap.
 - **Back-heavy**: phrase starts after the downbeat. Feels in motion,
   unstable.
 
-<!-- DEMOTED, THEN RESTORED, both on 2026-08-11. The demotion was WRONG and is
-     recorded here so it is not repeated. This quote was demoted on the grounds
-     that the "Lyric and Melodic Phrases" article does not contain it (true:
-     "body language" does not appear in THAT article) and that no other
-     patpattison.com page carrying it had been located (FALSE). A refuting
-     verification pass found the source on the first search: it is a DIFFERENT
-     column, "The Art of Phrasing". The lesson is that failing to find a source
-     is not evidence it does not exist. Search again before demoting. -->
+<!-- This quote is from "The Art of Phrasing", not "Lyric and Melodic Phrases",
+     which does not contain "body language". Failing to find a source is not
+     evidence it does not exist: search again before demoting a quote. -->
 
 > "Phrasing has the power to create emotion. It's the body language of your
 > song."
 >
 > Pat Pattison, patpattison.com, "The Art of Phrasing"
 > (<https://www.patpattison.com/art-of-phrasing>, fetched 2026-08-11)
-
-Note the tail: the plugin previously printed this as "It's the body language."
-and stopped. The article reads "the body language **of your song**", the same
-truncation this file made to the "maximum meaning" quote above. Both are now
-restored in full.
 
 A back-heavy lyric phrase against a front-heavy melodic phrase fights the
 section's body language. The fix is usually to shift the lyric's leading

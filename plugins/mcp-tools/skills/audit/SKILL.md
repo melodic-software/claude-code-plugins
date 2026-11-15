@@ -134,7 +134,7 @@ OPTIONAL in the spec (C12-C14) or Claude-Code-specific advisories (C17-C19); onl
 Claude Code silently ignores can FAIL (C18). Likewise an absent `x-mcp-header` passes, and only a
 declared one that breaks the spec's constraints can FAIL (C20).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Does not modify tool definitions. It reports. Use findings to guide manual improvements.
 - Does not test tool functionality. Use MCP Inspector for that.

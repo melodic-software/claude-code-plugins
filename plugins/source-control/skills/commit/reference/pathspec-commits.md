@@ -1,7 +1,7 @@
 # Pathspec-limited commits (dirty shared index)
 
 The default remains the plain index commit. Reach for this form **only** when the index verifiably
-holds staged files OUTSIDE this commit's scope, such as concurrent Claude Code sessions on the same
+holds staged files outside this commit's scope, such as concurrent Claude Code sessions on the same
 branch or pre-existing mixed WIP, where a bare `git commit` would sweep them all in.
 
 ```bash
@@ -19,7 +19,7 @@ EOF
 ## Semantics
 
 Per `git-commit(1)`'s default `--only` mode: the commit records the **working-tree content** of the
-named paths, disregarding what is staged for all OTHER paths. Concurrent-session staged work stays
+named paths, disregarding what is staged for all other paths. Concurrent-session staged work stays
 staged, untouched. A path with no `HEAD` entry that was never `git add`ed still errors out
 (`pathspec '<path>' did not match any file(s) known to git`). Pathspec alone never picks up a
 genuinely untracked file.
@@ -37,7 +37,7 @@ plain `git rm <path>`, or `git rm --cached` followed by an on-disk `rm`), the sa
 records the deletion. `--only` mode's worktree read only produces the right answer when the
 worktree already matches the deletion.
 
-## The exec bit does NOT survive this form under `core.filemode=false`
+## The exec bit does not survive this form under `core.filemode=false`
 
 **A path needing the exec-bit fix and the pathspec form are incompatible on a `core.filemode=false`
 repository, the default on Windows/NTFS.** This is a hard constraint, not a bug to work around.

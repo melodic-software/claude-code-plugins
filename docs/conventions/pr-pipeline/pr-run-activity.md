@@ -432,9 +432,9 @@ mints nothing. `collect-base-activity` fails red on a path outside that name set
 `reads-untrusted` activity the step gets the `select-trusted-text` output's path as
 `TRUSTED_CONTEXT_FILE`, and only there: the prompt holds the command line alone, so nothing after
 the slash command reaches the skill's arguments. A `reads-untrusted` skill must read PR text (title, body, comments,
-reviews, linked issues) only from that file, never through the API. Existing skills are not yet
-adapted to this and still read PR text themselves; until each is, its untrusted-text exposure is a
-known residual. Every skill runs in the read file, on run-claude-cli, whose steps pass it no
+reviews, linked issues) only from that file, never through the API. `verification:confirm` reads it
+there; a skill not yet adapted still reads PR text itself, and until it is, its untrusted-text
+exposure is a known residual. Every skill runs in the read file, on run-claude-cli, whose steps pass it no
 GitHub token; the write file runs no skill. `claude_args` passes `--setting-sources user`, so no
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
@@ -681,8 +681,8 @@ gate must judge the head it is posted on, unchanged.
 ### Two calls on one credential each
 
 Read file: a skill runs on ci-workflows'
-[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/7b362428c76085a160e28656cd2c75c3147a69ff/README.md)
-(v0.54.0), which takes exactly one credential and falls back to the subscription only as a second
+[`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/fc442ad3e808adafe3b195e9d12fff901220db50/README.md)
+(at the commit `pr-run-activity-read.yml` pins), which takes exactly one credential and falls back to the subscription only as a second
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`PR_UNBLOCK_CLAUDE_API_KEY`), and
 `fix-ci-subscription` passes only `claude-code-oauth-token`
@@ -1311,8 +1311,8 @@ base job selects the pull request; the model job, a read skill leaf whose config
 pushes a fix verdict's patch; and the verdict job, a `publish-artifact` script leaf with no
 model called with `dependency-verdict: true`, acts on the verdict. The scripts are the base's
 `.github/scripts/pr-unblock/review-dependency.mjs`, `apply-patch.mjs` and
-`apply-dependency-verdict.mjs`. Both this lane's dispatcher and select job sort pull requests with `dependency-classify.mjs`, a port of
-the pr-merge lane's `babysit_dependabot.py` and its content step, so the tiers, the content rule
+`apply-dependency-verdict.mjs`. Both this lane's dispatcher and select job sort pull requests with `dependency-classify.mjs`, which applies
+the pr-merge lane's `babysit_dependabot.py` rules and its content step, so the tiers, the content rule
 and the `directories` globs are the ones
 [README, "Dependabot pull requests"](README.md#dependabot-pull-requests) states. They read the
 same inputs: the pull request, its REST commits and files with patches, each non-Dependabot
@@ -1624,7 +1624,7 @@ holds `contents: read`, one secret (`SCAN_CARRIER_PRIVATE_KEY`, that environment
 caller passes by name as `scan-carrier-private-key`, read by its open step alone), no `id-token`, no cache, and nothing from the run job but its outputs. run-claude-cli's
 contract puts the reporting and uploads of a lane that grants unrestricted Bash in a downstream
 job that validates its inputs
-([`action.yml`](https://github.com/melodic-software/ci-workflows/blob/7b362428c76085a160e28656cd2c75c3147a69ff/.github/actions/run-claude-cli/action.yml)).
+([`action.yml`](https://github.com/melodic-software/ci-workflows/blob/fc442ad3e808adafe3b195e9d12fff901220db50/.github/actions/run-claude-cli/action.yml)).
 
 The carrier. After the collector, the run job stages each of `reply.txt`, `act-turns.json`,
 `patch.diff` and, for a `prepare: review-threads` skill, the review-thread tool's
@@ -1734,7 +1734,7 @@ Recorded, not fixed:
 - The scan blocks credential formats only (owner ruling Q37). Beside the per-line scan it reads
   each text with its NUL bytes removed, so a UTF-16LE credential is caught, and each pair of
   adjacent lines joined (in the patch, hunk lines without their `+`, `-` or space prefix), so a
-  credential split across two lines is caught (N16). The split-line pass leaves out the OpenAI key
+  credential split across two lines is caught. The split-line pass leaves out the OpenAI key
   pattern (`sk-` and 20 token characters): it is too loose to join safely, since a line ending in
   an `sk-` word joined to the next line's first word matches it, and a false block fails fix-ci
   closed and asks for a rotation. A split OpenAI key and a credential wrapped in base64 still
@@ -1746,7 +1746,7 @@ Recorded, not fixed:
   text.
 - On a resumed issue run the scan covers this run's patch and outcome, not the earlier run's
   commits on the branch it resumes. Those commits were scanned when their run made them, against
-  the pattern list of that day, unless the branch predates issue-mode scanning (GAPS X5). A reused branch's
+  the pattern list of that day, unless the branch predates issue-mode scanning. A reused branch's
   commits are scanned again at reuse: `run-checks` runs the same `scanLeak` on the diff from the
   branch's merge base with the default branch tip and on every file that diff makes, and
   `report-outcome` holds the PR on any result but clean. A plain `password or secret assignment`,

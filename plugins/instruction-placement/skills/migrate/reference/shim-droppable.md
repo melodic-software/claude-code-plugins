@@ -8,8 +8,10 @@ Report each condition as held, failed or unknown, with its evidence. **Unknown i
 failed or unknown condition keeps the recommendation at "keep the shim" and names the condition.
 This recommends, never removes: `remove-shims` and its `--confirm` gate stay the only path.
 
-The pointers, dates and recheck triggers behind every condition are in [`sources.md`](sources.md),
-"The built-in agents-md plugin".
+The pointers, dates and recheck triggers behind every condition are in [`sources.md`](sources.md):
+"The built-in agents-md plugin", with condition A's nested walk under "Blockers between the root and
+a nested `AGENTS.md`", condition F's scan under "Frontmatter hooks and `InstructionsLoaded`", and
+condition G under "The nested write trigger".
 
 ## The user roots
 

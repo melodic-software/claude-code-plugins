@@ -34,7 +34,10 @@
 # merge-queue run 43621221444 and whole-tree main run 43624597608 (first
 # attempt), and block-root-delete-target.test.sh and the unlisted
 # lib/media-render/media-render.test.sh 2026-11-15 from the TIME lines of
-# whole-tree main runs 43678799491, 43681005110 and 43683312225. A shell suite
+# whole-tree main runs 43678799491, 43681005110 and 43683312225, and
+# explainer-video.test.sh again 2026-11-15 from the TIME lines of whole-tree
+# main runs 43688557371, 43691447805, 43694100722, 43696900162, 43709756644 and
+# 43716007105. A shell suite
 # runs from the moment run-plugin-tests.sh could start it (three at a time) to
 # its result block, a Python suite from its pytest command to the next one, at
 # least 1. A suite not listed counts the mean of the listed suites of its
@@ -248,7 +251,7 @@ plugins/evals/skills/validate/scripts/test_validate_cases.py 8
 plugins/evals/skills/validate/scripts/validate-cases.test.sh 4
 plugins/event-storming/skills/simulation/scripts/build-bc-view.test.sh 1
 plugins/explainer-video/hooks/install-python-deps.test.sh 3
-plugins/explainer-video/scripts/explainer-video.test.sh 320
+plugins/explainer-video/scripts/explainer-video.test.sh 160
 plugins/explainer-video/scripts/test_explainer_video_narration.py 1
 plugins/explainer-video/scripts/test_explainer_video_pydeps.py 6
 plugins/explainer-video/scripts/test_explainer_video_render.py 1

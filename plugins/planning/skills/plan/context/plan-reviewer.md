@@ -1,6 +1,6 @@
 # Plan Reviewer: Sub-Agent Dispatch
 
-Fresh-context plan stress-test for `/planning:plan` Step 3. The producing planner MUST NOT run this checklist inline.
+Fresh-context plan stress-test for `/planning:plan` Step 3. The producing planner must not run this checklist inline.
 
 ## Orchestrator inputs
 
@@ -16,9 +16,9 @@ The brief carries the divergence-escalation clause `/implementation:implement-di
 ## Sub-agent prompt template
 
 ```text
-You are a fresh-context plan reviewer. You did NOT author this plan.
+You are a fresh-context plan reviewer. You did not author this plan.
 
-Keep reasoning **brief**. Return the findings table below, not a narrative essay.
+Return the findings table below, not a narrative essay.
 
 Read in order:
 1. The consuming project's review conventions (rules / review checklists), when provided

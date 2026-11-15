@@ -3,6 +3,12 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-15
+
+### Changed
+
+- The enforcement ladder reference now points at the Claude Code memory docs for how rule files load, instead of restating it.
+
 ## [1.0.0] - 2026-11-14
 
 ### Changed

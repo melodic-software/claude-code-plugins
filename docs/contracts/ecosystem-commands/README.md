@@ -21,11 +21,11 @@ by demonstrated fact, so the contract lives here in marketplace conventions (the
 
 The contract covers exactly one layer and deliberately excludes the other:
 
-- **Canonical verb, ONE concern, owned here.** Which tool and flags constitute "lint Python in this
+- **Canonical verb, one concern, owned here.** Which tool and flags constitute "lint Python in this
   repo" (`uv run ruff check . --no-fix`). When the verb changes, every surface that runs it must
   change together; divergence is always a bug. The verb belongs in exactly one place per repo: the
   `.claude/ecosystems/<ecosystem>.yaml` file.
-- **Context binding, SEVERAL concerns, owned elsewhere.** Which file set, when, with what wrapper:
+- **Context binding, several concerns, owned elsewhere.** Which file set, when, with what wrapper:
   git hooks bind verbs to staged files (`{staged_files}` templating), CI binds them to the full
   solution with gate-specific flags, an agent binds them to a targeted project or single test.
   Bindings legitimately differ per surface and stay in that surface's own config (lefthook lanes, CI
@@ -38,7 +38,7 @@ across contexts.
 
 ## File layout and resolution
 
-One file per ecosystem, named by ecosystem identifier (lowercase kebab-case; the filename stem IS the
+One file per ecosystem, named by ecosystem identifier (lowercase kebab-case; the filename stem is the
 identifier):
 
 ```text
@@ -73,7 +73,7 @@ or `.claude/<plugin>/**`). This contract intentionally names the folder by **con
   concern name is the stable one. A plugin split must not force consumer repos to migrate config.
 
 General rule this instance establishes: **when a tracked-config concern is consumed by more than one
-plugin, name the folder by concern and record the contract in `docs/conventions/`**, per
+plugin, name the folder by concern and record the contract in `docs/contracts/<name>/`**, per
 `docs/migration-playbook.md` "Extensibility contract v2.1".
 
 The directory is `.claude/`-scoped but not Claude-walled: it is ordinary tracked YAML any agent or
@@ -115,8 +115,8 @@ autofixes belong in optional `code-fix-cmd` and are invoked only by `/toolchain:
 behind that skill's confirmation / `--yes` gate, never by bare `--fix`.
 
 Consumers are tolerant readers: unknown keys are inert, missing optional keys fall back to defaults.
-Consuming repos SHOULD validate their files against the schema in their own gates (a
-`check-jsonschema` hook or CI lane); plugins SHOULD fail soft: a malformed file degrades to rung 2
+Consuming repos should validate their files against the schema in their own gates (a
+`check-jsonschema` hook or CI lane); plugins should fail soft: a malformed file degrades to rung 2
 of the ladder with a warning, never a hard stop. Tolerant reading has a known edge: a misspelled
 key (`check_cmd` for `check-cmd`) passes the default schema check as an inert unknown key, so repos
 that want typo protection run `check-jsonschema --no-additional-properties` in their gate.
@@ -180,7 +180,7 @@ change. The demotion path is designed in.
 
 - The same logical verb's command string is maintained across 3+ execution surfaces such that one
   command bump requires 3+ coordinated edits; or
-- lefthook's `ai:` agent-settings key reaches stable AND the org's standards repo extends its managed
+- lefthook's `ai:` agent-settings key reaches stable and the org's standards repo extends its managed
   lefthook components to cover agent invocation, in which case the runner is lefthook itself, not a
   new tool.
 

@@ -76,7 +76,7 @@ row launches `node`, and the gate runs only after `hooks/exec-bash.mjs` starts.
    npm](https://code.claude.com/docs/en/setup#install-with-npm) and [Exec form and shell
    form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form).
 4. **Per-OS `os_toast` dependency**. Take the current OS family from the pre-computed `uname -s` row
-   and probe ONLY that family's requirement (the hook's `case "$(uname -s)"` does exactly this):
+   and probe only that family's requirement (the hook's `case "$(uname -s)"` does exactly this):
    - **Linux**. `command -v notify-send` (libnotify). FAIL only if the `os_toast` channel is
      enabled and it is absent; otherwise INFO. Absent → the `os_toast` channel is a
      documented silent no-op; remediation is the missing-`notify-send` entry under `apply`.
@@ -131,7 +131,7 @@ result. Never claim resolved on the user's say-so alone.
 Re-running `apply` when everything already passes changes nothing and reports "already
 configured".
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Install Node.js, `jq`, `libnotify`, or any system package. `apply` is guidance-and-verify with no
   write path.

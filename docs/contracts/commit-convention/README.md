@@ -96,7 +96,7 @@ pr_title_pattern: Same as `subject_pattern`.
 
 Contract points:
 
-- **Read only while git TRACKS it, a policy floor.** An untracked or gitignored file at the path
+- **Read only while git tracks it, a policy floor.** An untracked or gitignored file at the path
   is a generated/local artifact, not team convention; honoring it would let a personal/local file
   pose as team convention and drive the gate. Enforcement checks this with
   `git ls-files --error-unmatch`: git absent, or the file untracked, means the file is not a layer.
@@ -109,10 +109,10 @@ Contract points:
   YAML escape processing. `sed -n 's/^subject_pattern:[[:space:]]*//p'` (plus quote-strip) is the
   reference extraction. Write patterns that need no quote escaping (prefer single quotes; a pattern
   containing a single quote goes unquoted or double-quoted). Full-line `#` comments are inert;
-  trailing `#` is NOT comment-stripped, because a regex may contain `#`.
+  trailing `#` is not comment-stripped, because a regex may contain `#`.
 - **The `Conventional Commits` keyword and the `` Same as `subject_pattern`. `` deferral marker
   work identically in both team files**: one literal each, owned here, no per-file variants.
-- **`dialect:`** (optional, default `posix-ere`) declares the regex dialect for NON-enforcement
+- **`dialect:`** (optional, default `posix-ere`) declares the regex dialect for non-enforcement
   consumers (a JS CI runner, a PCRE hook) so they know what they are reading instead of silently
   misreading it. Enforcement itself stays POSIX-ERE-only: a declared non-`posix-ere` dialect
   disables this seam's enforcement with a diagnostic, exactly like a PCRE-ism in the pattern.
@@ -123,7 +123,7 @@ Contract points:
   and a symlink escape would let untracked external content steer the gate.
 - **Monorepo per-directory scoping is out of scope** (recorded, not designed for).
 
-**Incumbent steelman, walked before replacing.** Markdown-H2 was chosen (#913) so the config file
+**What the incumbent format was for, checked before replacing it.** Markdown-H2 was chosen (#913) so the config file
 doubles as human-readable documentation: a self-describing preamble, prose beside values, one file
 readable with no schema knowledge. Those purposes survive the move: YAML `#` comments carry the
 preamble and per-value prose (the example above is self-describing), and the human document proper

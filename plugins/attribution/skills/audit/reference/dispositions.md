@@ -178,7 +178,7 @@ Convert like this, in order:
    it is not about the sweep's convenience. A fixture holding real externally-owned prose would
    make this repository carry the exact defect this plugin exists to find, in the one tree that
    is categorically excluded from its own scan and so could never report it. Invent a fictional
-   product and rewrite the passage against it, preserving nothing but the SHAPE that produced
+   product and rewrite the passage against it, preserving nothing but the shape that produced
    the wrong verdict: the rotation density, the citation distance, the register, and the ratio
    of copied text to host file. If the shape cannot survive the rewrite, the case is not
    ready; say so rather than shipping the original.

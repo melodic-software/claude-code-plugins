@@ -4,9 +4,9 @@ edit the canonical source, then rerun the script. -->
 # Plugin Reconfiguration Convention
 
 The single owned source for how a consumer changes a plugin's native `userConfig` options after
-install, the guidance every setup skill used to restate (with drift) and now cites. Setup skills
-print the short form and cite this doc; the version-verification record below lives ONLY here, so
-a re-verification against a newer Claude Code release is a one-file edit.
+install. Setup skills print the short form and cite this doc rather than restating it, so their
+copies cannot drift; the version-verification record below lives only here, so a re-verification
+against a newer Claude Code release is a one-file edit.
 
 ## Boundary
 

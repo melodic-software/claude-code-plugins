@@ -175,12 +175,12 @@ With no argument in an interactive session, run the interview:
      boundary (e.g. `ticket-prefix 78.8% recent vs 71.9% older · Conventional Commits 0%`): a
      rising recent share is the live convention even when all-time volume says otherwise. Present
      the evidence table and let the user pick from it; never silently promote a bucket into config.
-     Generic caveats. Handle each and STATE it in the report whenever it applies:
+     Generic caveats. Handle each and state it in the report whenever it applies:
      - **Shallow clone** (`git rev-parse --is-shallow-repository` → `true`): history is truncated, so
        report the actual covered span rather than presenting a partial window as the full one.
      - **Young repo** (fewer classifiable subjects than the min-commits threshold): widen to full
        history; still below it, mark the inference low-confidence rather than authoritative.
-     - **Squash-merge-only repo**: subjects ARE the PR titles, one signal, not two independently
+     - **Squash-merge-only repo**: subjects are the PR titles, one signal, not two independently
        corroborating ones; say so when recommending both `subject_pattern` and `pr_title_pattern`
        from the same history.
    Present the inferred candidate as the recommendation, naming its source. If nothing is inferable,
@@ -234,7 +234,7 @@ With no argument in an interactive session, run the interview:
      that as the literal keyword `none` (a resolved value overriding any lower layer's list, parallel
      to `trailer_policy`/`pr_body_attribution`). Omitting the section would inherit or fall through
      to the portable default instead.
-     **Omitting this section does NOT always mean "use the portable default".** Per-key fallthrough
+     **Omitting this section does not always mean "use the portable default".** Per-key fallthrough
      (config-resolution.md's "Merge semantics: per-key override") means an omitted section keeps whatever an *earlier*
      layer already resolves to. Check the effective merge from step 1 first: omit only when the layers
      *below* the one being written already resolve to the portable default (or the key is unset
@@ -323,13 +323,12 @@ With no argument in an interactive session, run the interview:
    `<type>/<N>-<slug>` convention>
    ```
 
-   Drop any section with no content rather than leaving it empty. Writing a non-`team` layer, add one
-   line under the heading naming which layer this file is and that it overrides per key. The file
-   sits next to (or looks identical to) the team file, and the next reader has no other signal.
+   Drop any section with no content rather than leaving it empty. Add one line under the heading
+   naming which layer this file is (`user` or `local`) and that it overrides per key: the two
+   markdown layers look identical, and the next reader has no other signal.
 
-   The self-describing preamble above the first `##` heading exists for the reader who does NOT run
-   these plugins. The team file lands in shared history, and a teammate opening it deserves to know
-   it binds nothing on its own. It is part of the template, not an append: a reconfiguration run
+   The preamble above the first `##` heading tells a reader who does not run these plugins that the
+   file binds nothing on its own. It is part of the template, not an append: a reconfiguration run
    rewrites the whole header block in place, never stacks a second copy. Prose above the first H2 is
    inert to every consumer by construction: the enforcement resolver reads only the first non-empty
    body line under a `## <key>` heading (`lib/resolve-convention-pattern.sh` parse contract), and the
@@ -459,7 +458,7 @@ With no argument in an interactive session, run the interview:
 
    For a `team` write, the report also states plainly what the file is and is not: a drafting aid
    (plus CC-layer enforcement input) for teammates who run these plugins, inert for everyone else,
-   NOT team-wide enforcement. Committers without the plugin are bound only by a commit-msg hook or CI
+   not team-wide enforcement. Committers without the plugin are bound only by a commit-msg hook or CI
    check; when the team wants that, point at the guardrails plugin's opt-in commit-msg hook or the
    repo's own hook manager rather than implying this file enforces anything by itself.
 
@@ -490,7 +489,7 @@ this skill's part:
   multi-line preamble; the flat YAML is self-describing and the human document proper lives in
   CONTRIBUTING/AGENTS.md, not in ceremony comments.
 - **Migration retires duplicates.** When `.claude/source-control.md` already carries a key the neutral
-  file now declares, REMOVE it from that file in the same apply. The resolver would prefer the
+  file now declares, remove it from that file in the same apply. The resolver would prefer the
   neutral value anyway, but leaving both invites hand-edit drift, which is the disease this shape
   cures. Plugin-only keys (`trailer_policy`, `pr_body_attribution`) stay in the team YAML.
 - **Verification adds two probes.** (1) The neutral file round-trips through the enforcement
@@ -504,5 +503,5 @@ this skill's part:
   or a `convention_source` pointer without its YAML) would hand every fresh checkout the missing-file
   fail-closed path and silently disable enforcement repo-wide. Run the same ignore-check + stage +
   `git diff --quiet` sequence against the neutral file's path (the well-known default path, or the
-  pointer target when relocated), and treat an ignore-rule match on it as the same hard STOP as an
+  pointer target when relocated), and treat an ignore-rule match on it as the same hard stop as an
   ignored team file.

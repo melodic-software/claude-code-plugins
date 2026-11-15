@@ -33,7 +33,7 @@ explicit `--apply`, then interactive confirmation **or** `--yes` for non-interac
 - Own batched `merged-local-branch` deletion here (repo-hygiene branch deletion stays interactive /
   per-repo and is not batched).
 - Order: `delete-merged-local-branches`, `cleanup-worktrees`, then `delete-remote-branches`.
-- Default is unchanged: no remote branch is deleted unless `--remote-branches` is passed.
+- No remote branch is deleted unless `--remote-branches` is passed.
 
 ## Arguments
 
@@ -45,8 +45,8 @@ Parse `$ARGUMENTS` and pass them through to the bundled script. Supported flags:
 - `--yes` / `-y`: skip the interactive prompt (required for non-interactive `--apply`).
 - `--remote-branches`: opt in to `delete-remote-branches` rows (`unmerged-remote-branch` findings of
   class `never-pr` or `closed-unmerged`). Without it those rows are skipped with
-  `remote deletion requires --remote-branches`, no remote is contacted, and local operations behave
-  exactly as before. `--yes` never answers this flag's prompts.
+  `remote deletion requires --remote-branches`, no remote is contacted, and the local rows run under
+  the confirmation gate alone. `--yes` never answers this flag's prompts.
 
 Reject any other flag. Run exactly once:
 
@@ -102,7 +102,7 @@ Scope is fixed by the audit: only never-PR and closed-unmerged branches are plan
 merged PR (`merged-remote-branch`) are out of scope and are rejected if they appear in a
 `delete-remote-branches` row.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Re-run fleet discovery or GitHub evidence collection. That is `/repo-fleet-hygiene:audit`.
 - Add execution flags to `audit-fleet.sh`.

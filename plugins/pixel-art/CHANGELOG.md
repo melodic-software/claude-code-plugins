@@ -3,6 +3,13 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.20] - 2026-11-15
+
+### Changed
+
+- The animate, scene and vfx skills say to judge motion from the preview sheet, not the GIF, and
+  drop a restated claim about one browser tool's `file:` URL handling.
+
 ## [0.7.19] - 2026-11-14
 
 ### Changed

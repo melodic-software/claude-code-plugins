@@ -16,7 +16,7 @@ data directory.
 GitHub's `mergeStateStatus` is a single-valued field (GraphQL `MergeStateStatus` enum: `BEHIND` =
 "The head ref is out of date."; `BLOCKED` = "The merge is blocked.", per
 https://docs.github.com/en/graphql/reference/pulls#enum-mergestatestatus). When a PR is simultaneously
-behind its base AND blocked by another gate (a failing required check, a missing review, ...),
+behind its base and blocked by another gate (a failing required check, a missing review, ...),
 GitHub reports `BLOCKED` and the `BEHIND` signal is lost. This precedence is not documented by
 GitHub anywhere this skill's authors could find. It was observed live: a PR sat eleven commits
 behind its base (the compare API reported `status: diverged` with `behind_by: 11`) while its
@@ -50,7 +50,7 @@ inferred "blocked *because* stale" judgment. The tool cannot and does not attemp
 causation between the two; refreshing a genuinely-behind branch is always safe regardless of why
 it also happens to be `BLOCKED`.
 
-The base compare **must** use the base ref's NAME, never the PR's cached `baseRefOid`: that field
+The base compare **must** use the base ref's name, never the PR's cached `baseRefOid`: that field
 lags once the base branch advances past the PR's last sync, and a compare against a stale OID
 silently understates or hides real divergence (verified empirically, see the single-PR
 diagnostic below).
@@ -132,7 +132,7 @@ snapshots.
 ## Single-PR Diagnostic
 
 For an ambiguous single PR, inspect it without changing anything. Compare against the base ref's
-NAME (`baseRefName`), not `baseRefOid`: the cached OID lags the base branch's live tip once the
+name (`baseRefName`), not `baseRefOid`: the cached OID lags the base branch's live tip once the
 base advances past the PR's last sync (empirically: a real PR's head compared as up to date
 against its own stale `baseRefOid` while comparing the same head SHA against the live base tip
 correctly reported `status: diverged` with a positive `behind_by`). Read the PR's
@@ -163,7 +163,7 @@ so a base that is strict or queue-gated only through classic protection still ge
 
 The check runs only when the gate runs. Once the gate has armed auto-merge (`--auto`), GitHub
 merges the PR when its checks pass without the gate running again, so a base that moves after
-arming is not re-checked; that race predates this check. A compare that keeps failing on a loose
+arming is not re-checked. A compare that keeps failing on a loose
 base holds the PR until a human acts, because the snapshot does not report the head `behind`
 without a compare that proves it, so no refresh clears the hold.
 

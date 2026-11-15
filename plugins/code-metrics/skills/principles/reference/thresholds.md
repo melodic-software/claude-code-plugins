@@ -77,7 +77,9 @@ measure it is applied to, in any source this plugin cites.
 
 Sources not checked for any of these rows: vendor products behind a login, and standards bodies
 other than ISO, OMG, NIST, and MITRE. A reader who finds an authoritative source for one of these
-values should send it; the row changes only on a citation.
+values should send it; the row changes only on a citation. The vendor rule defaults in the first
+row (ESLint, ReSharper, CA1502, NDepend, NASA SWEHB) are as read on 2026-09-11; recheck a vendor's
+page before citing its number as that vendor's current default.
 
 Two of the shipped defaults, 20 for cyclomatic and 1000 for lines per file, exist because a citation
 exists for them, not because the empirical literature validates them. No study reviewed in

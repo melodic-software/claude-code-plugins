@@ -28,7 +28,7 @@ And stop repeating yourself. Older models leaned on repetition and end-of-contex
 
 ## 114. Applying It to Your Own Context
 
-The stack Claude assembles for a request, and what belongs in each layer: **your prompt** (the one specific thing you want now); **references** (@-mentioned files, specs, mockups, codebases, artifacts); the **system prompt** (product-tied, so spend real time here only if you are building your own harness); **CLAUDE.md** (lightweight: what the repo is for and the gotchas, skipping the obvious and pushing detail into skills); **skills** (lightweight guides for your opinions and practices, avoiding over-constraint outside high-stakes areas); and **memory** (now automatic). When you cannot tell what to cut, `claude doctor` rightsizes skills and CLAUDE.md automatically, the context-engineering twin of `/checkup` (Section 104).
+The stack Claude assembles for a request, and what belongs in each layer: **your prompt** (the one specific thing you want now); **references** (@-mentioned files, specs, mockups, codebases, artifacts); the **system prompt** (product-tied, so spend real time here only if you are building your own harness); **CLAUDE.md** (lightweight: what the repo is for and the gotchas, skipping the obvious and pushing detail into skills); **skills** (lightweight guides for your opinions and practices, avoiding over-constraint outside high-stakes areas); and **memory** (now automatic). When you cannot tell what to cut, `/doctor` rightsizes skills and CLAUDE.md automatically, the context-engineering twin of `/checkup` (Section 104).
 
 ## 115. Opus 5, and the Model That's Hardest to Inject
 

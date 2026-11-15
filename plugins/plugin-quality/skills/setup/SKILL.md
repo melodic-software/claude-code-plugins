@@ -1,5 +1,5 @@
 ---
-description: "Verify the plugin-quality plugin's prerequisites on this machine: gh presence and the ACTING account, the context-usage snapshot seam, the convention-home binding and effective config with provenance, retired-convention leftovers, and the effective sink; apply converges the pointer-line region and the plugin-quality topic doc at the consumer's convention home. Use when: 'set up plugin-quality', 'which sink will audits use', 'is the audit context-gate live', before a first audit in a repo, after changing the convention home or topic doc, or to migrate the retired .claude/plugin-quality.md. Actions: check (read-only), apply (writes the pointer region and topic doc, on explicit request)."
+description: "Verify the plugin-quality plugin's prerequisites on this machine: gh presence and the acting account, the context-usage snapshot seam, the convention-home binding and effective config with provenance, retired-convention leftovers, and the effective sink; apply converges the pointer-line region and the plugin-quality topic doc at the consumer's convention home. Use when: 'set up plugin-quality', 'which sink will audits use', 'is the audit context-gate live', before a first audit in a repo, after changing the convention home or topic doc, or to migrate the retired .claude/plugin-quality.md. Actions: check (read-only), apply (writes the pointer region and topic doc, on explicit request)."
 argument-hint: "[check|apply] [home=<dir>] [sink=<gh-issues|markdown-dir|local-fallback>] [markdown_dir=<path>]"
 user-invocable: true
 disable-model-invocation: true
@@ -11,7 +11,7 @@ Setup for the `audit` skill's two external dependencies (`gh`, `context-usage`) 
 configuration, which lives as a convention doc at the consumer's convention home per the
 consuming marketplace's config-cascade expression doctrine.
 `check` inspects and reports PASS/FAIL/WARN/INFO with one remediation line per finding; `apply`
-converges exactly TWO consumer artifacts, the marked pointer-line region in the root instruction
+converges exactly two consumer artifacts, the marked pointer-line region in the root instruction
 file and the topic doc `<home>/plugin-quality/README.md`, and nothing else.
 
 Action routing: no argument or `check` runs the check.
@@ -22,7 +22,7 @@ against that contract rather than restating it.
 
 ## `check` (read-only)
 
-1. **`gh` + acting identity**. `command -v gh`, then `gh auth status`. Report the ACTING account
+1. **`gh` + acting identity**. `command -v gh`, then `gh auth status`. Report the acting account
    and host explicitly: machines can hold multiple GitHub identity domains, and the audit's emit
    gate surfaces this same account before any `gh issue create`, a surprise here is a
    cross-pollination incident later, so surface it at setup time too. `gh` absent → INFO, not
@@ -88,7 +88,7 @@ Converge, in order, each write individually gated on operator confirmation:
    consumer's own convention directory); no evidence → ask. **Only the operator's confirmation
    binds a home**. Inference proposes, never writes. Write the pointer line inside the marked
    `<!-- BEGIN GENERATED: convention-home -->` region of the root instruction file, creating the
-   region when absent by APPENDING it; never edit a single byte outside the region. `AGENTS.md`
+   region when absent by appending it; never edit a single byte outside the region. `AGENTS.md`
    is canonical when present. When neither root file exists, or only a non-shim `CLAUDE.md`
    does, root-file shape is the downstream repository's call: recommend AGENTS.md-canonical with
    a pure `@AGENTS.md` `CLAUDE.md` shim (the instruction-placement shape), but write the region
@@ -115,7 +115,7 @@ Converge, in order, each write individually gated on operator confirmation:
 `.claude/plugin-quality*` file (that surface is retired; the convention-doc surface has no
 personal override channel).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run an audit (that is `/plugin-quality:audit`).
 - Install `gh` or `jq`, or set up context-usage (that plugin's own setup owns it).

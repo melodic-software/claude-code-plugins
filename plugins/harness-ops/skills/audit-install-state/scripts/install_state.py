@@ -666,7 +666,7 @@ def find_deliberate_state(root: Path) -> list[dict]:
                 "age_days": round((time.time() - st.st_mtime) / 86400, 2),
                 "evidence": MEASURED,
                 "note": (
-                    "A ledger like this is frequently the ONLY copy of a revert path. "
+                    "A ledger like this is frequently the only copy of a revert path. "
                     "Its own claims are not authoritative -- diff against the stored "
                     "baseline before believing what it says was changed."
                 ),
@@ -1060,7 +1060,7 @@ def staleness_reading(entry: dict, retention_days: int) -> dict:
                 f"{retention_days}-day window."
             ),
             "why": (
-                "That count is a measurement of mtimes. It is NOT proof the sweep is failing, and "
+                "That count is a measurement of mtimes. It is not proof the sweep is failing, and "
                 "the step from one to the other is an inference this engine will not make for you: "
                 f"the sweep's unit for this path is {unit}. Report the count and investigate; do "
                 "not hand-prune, and do not read this as a deletion authorization."
@@ -1319,7 +1319,7 @@ def summarize_numeric(
         "unknown_by_parent": dict(sorted(by_parent.items())),
         "note": (
             "Liveness was attempted for the pid_typed rows only. Every other row reads "
-            "not_applicable BY CONSTRUCTION, not because a lookup missed. The unknown sample "
+            "not_applicable by construction, not because a lookup missed. The unknown sample "
             "is grouped by name shape (digit runs collapsed to <n>); the full per-file "
             "classification is in the CSV artifact."
         ),
@@ -1818,7 +1818,7 @@ def scan(
         "content_reads": {
             "paths": [*CONTENT_READ_ALLOWLIST, *CONTENT_READ_GLOBS],
             "note": (
-                "The ONLY files whose bytes this engine opens. Everything else in the tree is "
+                "The only files whose bytes this engine opens. Everything else in the tree is "
                 "stat-only: name, size, mtime. Sibling-plugin state under this root is inventoried "
                 "by name and never parsed, and its owner is not attributed."
             ),
@@ -2004,7 +2004,7 @@ def main(argv: list[str] | None = None) -> int:
             "evidence": MEASURED,
             "note": (
                 "No --csv given, so no per-file listing was written anywhere. The JSON below is "
-                "a summary: one line per top-level entry, never a file listing. Do NOT describe "
+                "a summary: one line per top-level entry, never a file listing. Do not describe "
                 "this run as covering every file."
             ),
         }

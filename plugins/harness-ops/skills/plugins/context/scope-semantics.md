@@ -5,13 +5,13 @@
 - [Scope-by-cwd loading](#scope-by-cwd-loading)
 - [Divergence is not automatically actionable](#divergence-is-not-automatically-actionable)
 - [`plugin list` / `plugin details` version output is misleading](#plugin-list--plugin-details-version-output-is-misleading)
-- [`plugin update -s project` does NOT write committed settings](#plugin-update--s-project-does-not-write-committed-settings)
+- [`plugin update -s project` does not write committed settings](#plugin-update--s-project-does-not-write-committed-settings)
 - [Every call that touches `enabledPlugins` at project scope writes committed settings](#every-call-that-touches-enabledplugins-at-project-scope-writes-committed-settings)
 - [Project scope: the CLI keys on the cwd, `fleet-state.sh` matches on the checkout root](#project-scope-the-cli-keys-on-the-cwd-fleet-statesh-matches-on-the-checkout-root)
 - [A `projectPath` outlives its directory, and no CLI verb reaps the record](#a-projectpath-outlives-its-directory-and-no-cli-verb-reaps-the-record)
 - [Where project-scope records come from, and why the skill cannot reap them](#where-project-scope-records-come-from-and-why-the-skill-cannot-reap-them)
 - [`/reload-plugins`: bare by default, `--force` for the MCP-cache-invalidation case](#reload-plugins-bare-by-default---force-for-the-mcp-cache-invalidation-case)
-- [`pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules](#pluginconfigs-and-enabledplugins-have-opposite-scope-rules)
+- [`pluginConfigs` and `enabledPlugins` have opposite scope rules](#pluginconfigs-and-enabledplugins-have-opposite-scope-rules)
 - [`userConfig` has no `enum` type; `options` is a picker](#userconfig-has-no-enum-type-options-is-a-picker)
 - [`userConfig`: an unset key renders the literal placeholder](#userconfig-an-unset-key-renders-the-literal-placeholder)
 - [Renames are CC-native](#renames-are-cc-native)
@@ -96,7 +96,7 @@ probe, never from `list`/`details` text.
 - **Recheck trigger**: a release note that changes `claude plugin list` or `claude plugin details`
   output, or adds a scope or project column to the text form.
 
-## `plugin update -s project` does NOT write committed settings
+## `plugin update -s project` does not write committed settings
 
 **Empirically verified** (hash-compared a real repo's `.claude/settings.json` and
 `.claude/settings.local.json` before and after): `claude plugin update <id> -s project` updates only
@@ -307,7 +307,7 @@ section above records as unreapable.
 **Nothing on either side of the boundary reaps the result.** `git worktree remove` deletes the
 directory and does not touch `~/.claude`, and the section above records that no CLI verb removes a
 record by path (`-s project` acts on the cwd only, `prune` is dependency-only). We treat the
-product's own retention sweep as not covering them either. The swept-path list now names paths
+product's own retention sweep as not covering them either. The swept-path list names paths
 under `~/.claude/plugins/`; we read none of those rows as the live per-project records (what each
 row holds is read at the pointer below). A swept copy aging out is cleanup of the copy; it is no
 evidence that a stranded record in the live file is ever reaped, so the claim above stands until
@@ -352,7 +352,7 @@ and LSP servers in-process, but not monitors. Recommend bare `/reload-plugins` b
 a session restart only when an updated plugin ships a monitor. Pointer:
 [plugin loading: which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update).
 
-**An install can now activate itself, but not the installs this skill issues.** An install started
+**An interface install can activate itself; the installs this skill issues do not.** An install started
 from the in-session `/plugin` interface reports its activation state, and this skill reads two
 lines of that summary: `Plugin is now active.` and `Run /reload-plugins to apply.`. What the
 interface does after each line, including whether it reloads on its own or leaves the plugin
@@ -395,7 +395,7 @@ warning.
 - **Recheck trigger**: a release note changes when `/reload-plugins` warns, or what `--force`
   applies.
 
-## `pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules
+## `pluginConfigs` and `enabledPlugins` have opposite scope rules
 
 This skill reads both surfaces, and they do not agree on which scopes count. Getting this backwards
 is silent in both directions, so the asymmetry is stated here once and pointed at from everywhere
@@ -473,7 +473,7 @@ default substitutes into skill content, so the two do not conflict.
   substitution, or a change to the reference's `default` field or its substitution surfaces.
 
 **Probe recipe.** The `pluginConfigs` payload must nest the key under `options`, in the shape
-"`pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules" above gives; a key placed directly
+"`pluginConfigs` and `enabledPlugins` have opposite scope rules" above gives; a key placed directly
 under the plugin id is ignored without warning, and a control set that way renders literal, which
 looks exactly like a substitution failure. With the right shape, `--settings` substitutes the same
 as user settings (our probe on 2.1.263, alongside a sibling key set in user settings), so either source is a valid
@@ -529,7 +529,7 @@ docs say nothing about clone depth), and an update replaces the clone rather tha
 has no object in the clone to compare against, so the check compares only installs recorded at the
 clone's HEAD and reports the rest as `not-at-head`, counted `not checked (recorded at an older
 commit)` rather than unverifiable, on a fleet with nothing wrong with it. Observed 2026-10-04
-(#5941): 84 of 86 installs read `sha-not-local`, the verdict the check then gave a record whose commit the clone did not hold, right after a refresh. That is the steady state, not an edge case, and it caps how much any single
+(#5941): 84 of 86 installs were recorded at a commit the clone did not hold, right after a refresh. That is the steady state, not an edge case, and it caps how much any single
 run of the check can establish. The check never fetches the missing commit: a fetch is a network
 mutation, and it would repair the condition being reported. **Recheck trigger:** a change to the
 host-marketplace page's update or clone description, or to how Claude Code clones a marketplace.

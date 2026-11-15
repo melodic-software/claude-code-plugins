@@ -78,7 +78,7 @@ rm_or_show() {
 echo "=== kindle-dedrm: cleanup (mode=${MODE}, dry-run=${DRY_RUN}) ==="
 echo
 echo "Reversal walkthrough. Each item is confirmed independently."
-echo "The user's Calibre Library (decrypted EPUBs) is NEVER offered for deletion."
+echo "The user's Calibre Library (decrypted EPUBs) is never offered for deletion."
 echo
 
 if [[ "${MODE}" != "soft" ]]; then
@@ -158,7 +158,7 @@ if [[ "${MODE}" == "full" ]]; then
     Option 2: Settings → Apps → Amazon Kindle → Uninstall
 
   Note: uninstall typically clears %USERPROFILE%\Documents\My Kindle Content\.
-  Your decrypted EPUBs in %USERPROFILE%\Calibre Library\ are NOT affected.
+  Your decrypted EPUBs in %USERPROFILE%\Calibre Library\ are not affected.
 EOF
     echo
     if ask_yn "Open the uninstaller now?"; then
@@ -180,7 +180,7 @@ EOF
     5. Restart Calibre.
     6. Optional: rm '${DEDRM_JSON}'
 
-  Calibre Library (decrypted EPUBs) is NEVER deleted by this skill.
+  Calibre Library (decrypted EPUBs) is never deleted by this skill.
 EOF
   if [[ -f "${DEDRM_JSON}" ]] && ask_yn "Delete Calibre's dedrm.json (key store)?"; then
     run_or_show "rm -f '${DEDRM_JSON}'"

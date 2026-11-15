@@ -147,14 +147,18 @@ rationale in two or three sentences or the evidence as a list.
 
 Words like "reasonably", "tasteful" and "where appropriate" are too soft to force the agent to
 follow them, so it falls back to its defaults: those sentences don't change behavior. State the
-number, the condition or the boundary instead, which narrows the answers the agent has to choose
-from. An example of the form:
+condition or the boundary instead, which narrows the answers the agent has to choose from. State a
+number only where the requirement itself fixes one (a field limit, a count a parser checks), not as
+a cap on prose length. An example of the form:
 
 ```text
 Bad:  Keep the summary reasonably short and mention the tests where appropriate.
-Good: The summary is at most three sentences. Name each test command you ran with its
-      pass and fail counts.
+Good: The summary says what changed and why, and nothing else. Name each test command you ran
+      with its pass and fail counts.
 ```
+
+- **Pointer**: why prose-length caps are left out,
+  [Prompting Claude Fable 5.2: review instructions written for earlier models](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#review-instructions-written-for-earlier-models).
 
 Strict means precise, not loud. State each rule in plain words with its scope and reason, and
 write no all-caps and no marker words (`IMPORTANT`, `MUST`, `NEVER`, `ALWAYS`, `CRITICAL`) to make

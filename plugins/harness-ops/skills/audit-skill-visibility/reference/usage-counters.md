@@ -43,7 +43,7 @@ o.skillUsageLastWriteAt.set(t, u),
 - `usageCount` is a lifetime total since install. It never resets and is never
   windowed, which is why the engine's `T-baseline` tier supports a lifetime
   claim and refuses a windowed one.
-- **The 60-second per-skill throttle DROPS the increment, it does not coalesce
+- **The 60-second per-skill throttle drops the increment, it does not coalesce
   it.** A skill invoked five times in one minute records one. The undercount is
   unbounded and unrecoverable, so for loop-driven or rapid-fire skills this
   counter is a floor rather than a count. Divergence from OTEL is expected here
@@ -51,7 +51,7 @@ o.skillUsageLastWriteAt.set(t, u),
 - **Keys are inconsistent between qualified and bare form.** One machine held
   both `babysit-prs` (378) and `source-control:babysit-prs` (97) as separate rows
   for the same skill. Every consumer has to resolve both spellings. Note that the
-  product's own listing scorer does NOT do this fallback, which is why the
+  product's own listing scorer does not do this fallback, which is why the
   starvation band deliberately does not either.
 
 ## `pluginUsage`, machine-global, per plugin
@@ -103,7 +103,7 @@ totals, web-search requests, session id and start time, frame-duration
 percentiles, and `lastModelUsage` broken down per model id.
 
 **The decisive fact for per-project usage questions:** `skillUsage` and
-`pluginUsage` are top level ONLY. Nothing under `projects` carries them, so this
+`pluginUsage` are top level only. Nothing under `projects` carries them, so this
 file structurally cannot answer "which skills does this project use". That
 question needs the plugin's own `skill-usage.jsonl` store, whose rows carry
 `project`, `project_id`, and `branch`, or OTEL.

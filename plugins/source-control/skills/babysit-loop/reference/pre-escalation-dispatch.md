@@ -79,10 +79,10 @@ The invoked mechanic's own contract already owns each, and this exception does n
 
 ## After the dispatch
 
-If the dispatch resolves the blocker, **re-snapshot the PR and rerun step 3's provenance, diff-class and
+If the dispatch resolves the blocker, **re-snapshot the PR and rerun step 3's provenance, diff and
 rung partition before** its normal `autopilot`-tier invocation and gate. The first partition read
 the cycle-start diff, and a resolution that pushed code can have changed what the diff shows or
-made its class unreadable, which the downstream merge gate does not class-check. A PR
+made it unreadable, and step 3's diff check is where an unreadable diff fails closed. A PR
 that leaves the eligible set on that second partition escalates instead of merging. The normal
 worker's own final push obeys the same head-pinning rule (`SKILL.md` Cycle shape, step 3, "The
 verdict authorizes a head SHA, not the PR"). If the dispatch cannot resolve the blocker, including

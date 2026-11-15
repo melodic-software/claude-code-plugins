@@ -40,7 +40,7 @@ failing-check blocker rather than through an automatic trigger comment.
 
 Therefore, keep both records. Verify completion only from a submitted review or inline review
 comment whose own commit ID equals the current head SHA and whose author carries an exact login
-from `<review-bot-logins>` AND is a bot, either by the authoritative GitHub `Bot` type or because
+from `<review-bot-logins>` and is a bot, either by the authoritative GitHub `Bot` type or because
 the operator declared that login in `<extra-bot-logins>`, the standing slot for an automation account
 GitHub types as a `User`. Both halves are required, so declaring an account a bot never promotes
 it to reviewer, and with `<extra-bot-logins>` unset the rule is the authoritative type alone.

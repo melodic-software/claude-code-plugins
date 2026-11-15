@@ -1,7 +1,16 @@
 {
   "pass": [
     {
-      "answer": "Row 1: editorconfig-severity. Row 6: action-guard."
+      "answer": "Row 1: editorconfig-severity. Row 6: action-guard.",
+      "why": "hand-written: both rows on their rungs"
+    },
+    {
+      "answer": "Row 1\nRung: `editorconfig-severity`\nMessage: \"Field ordering or brace placement breaks .editorconfig; run the formatter.\"\nProof: unproven.\n\nRow 6\nRung: `harness-setting`\nMessage: \"The generated cheat sheet is stale; regenerate it before committing.\"\nProof: unproven.",
+      "why": "hand-written: labeled rung lines with check messages, both unproven"
+    },
+    {
+      "answer": "| Row | Rung | Message |\n|---|---|---|\n| 1 | `editorconfig-severity` | Reorder the fields and fix brace placement per .editorconfig. |\n| 6 | `architecture-test` | Regenerate the cheat sheet; the committed copy is stale. |",
+      "why": "hand-written: both rungs in a table"
     }
   ],
   "fail": [
@@ -9,7 +18,20 @@
       "answer": ""
     },
     {
-      "answer": "Row 1: instruction."
+      "answer": "Row 1: instruction.",
+      "why": "hand-written: a different rung for row 1 and none for row 6"
+    },
+    {
+      "answer": "Row 1: not editorconfig-severity. Row 6: not action-guard, not harness-setting, not architecture-test. Both go to instruction.",
+      "why": "hand-written: every id named only to set it aside"
+    },
+    {
+      "answer": "Row 1: editorconfig-severity. Row 6: Tests should catch the stale file.",
+      "why": "hand-written: row 6 names only a bare Tests word, no rung id"
+    },
+    {
+      "answer": "Row 1: editorconfig-severity. Row 6: automated-review rather than action-guard.",
+      "why": "hand-written: action-guard named as the rung not taken"
     }
   ]
 }

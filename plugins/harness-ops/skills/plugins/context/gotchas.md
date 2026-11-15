@@ -29,24 +29,15 @@ observed on. Where a section carries no version of its own, it was last checked 
 Code 2.1.240**. **Recheck trigger:** any minor-version bump touching the plugin CLI, plugin
 loading/caching, or `userConfig` substitution. A date, on its own, is not a trigger.
 
-A re-verification pass ran 2026-09-05 against **Claude Code 2.1.261**. Read the per-section stamps
-rather than the pass date, because the pass was partial. Re-run and now carrying 2.1.261: the
-subdirectory-install section and the outlived-`projectPath` section. **Changed**, and saying how:
-the bare-name `update` section. **Not re-run on 2.1.261**: the mid-session self-update section,
-because observing it needs an interactive session, and the spoke-substitution section, for the
-reason it now states. The `plugin list` / `plugin details` section was not part of this pass and
-carries no version of its own.
-
 ## Always pass the full id to `claude plugin update`: bare-name resolution is version-dependent
 
-**This claim changed under re-verification and the change is the point.** It was verified
-empirically on an earlier CLI that a bare name failed: `claude plugin update <name> -s user` →
-`Plugin "<name>" not found`, while `claude plugin update <name>@<marketplace> -s user` succeeded,
-same scope, same machine, back to back. **On Claude Code 2.1.261 the bare name resolved instead**:
-`claude plugin update <name> -s project` and the fully-qualified form both succeeded against the
-same install, back to back, in a throwaway repo. The 2.1.261 re-run was at `project` scope, not the
-`user` scope of the original probe, so it does not prove `user` scope also changed. What it does
-prove is that "a bare name always fails" is no longer a safe thing to assert.
+Bare-name resolution has differed across CLI versions and scopes. On an earlier CLI,
+`claude plugin update <name> -s user` failed with `Plugin "<name>" not found` while
+`claude plugin update <name>@<marketplace> -s user` succeeded, same scope, same machine, back to
+back. On Claude Code 2.1.261, `claude plugin update <name> -s project` and the fully-qualified form
+both succeeded against the same install, back to back, in a throwaway repo; that run did not cover
+`user` scope, so it does not show how `user` scope resolves there. Neither "a bare name fails" nor
+"a bare name resolves" is safe to assert.
 
 The rule is unchanged and does not depend on which way the CLI resolves: **always pass the
 fully-qualified `<name>@<marketplace>` id**, exactly as `fleet-state.sh`'s `installed[]` and
@@ -57,7 +48,7 @@ reason. Never shorten an id to the bare name when constructing an actual
 `claude plugin update|install|uninstall|enable` command, even for readability in a report.
 
 Caveat on the same symptom with a different cause: a `Plugin "<name>" not found` failure with the
-**fully-qualified** `<name>@<marketplace>` id passed is NOT this gotcha. On Windows that is almost
+**fully-qualified** `<name>@<marketplace>` id passed is not this gotcha. On Windows that is almost
 always a trailing `\r` silently corrupting the marketplace suffix (`<marketplace>\r`). See
 "[Captured values on Windows carry `\r`](#captured-values-on-windows-carry-r-strip-it-before-embedding-in-any-command-or-json)"
 below. Check the id for a trailing CR before concluding the id form is wrong.

@@ -56,10 +56,10 @@ call. This paragraph is a boundary, not a routing verdict.
 Where a phase names an adjacent capability (a research skill, an implementation-planning skill, a
 work-item tracker, an outcome verifier), it is optional: use your setup's equivalent if it has one,
 else follow the inline guidance, which stands on its own. Neighboring questions belong to the
-sibling `audit` skill (are the config FILES correct?) and the `audit` skill in the `harness-memory`
+sibling `audit` skill (are the config files correct?) and the `audit` skill in the `harness-memory`
 plugin (is the instruction layer healthy?).
 
-This skill proposes NEW automation. Whether automation already in place still earns its carry cost
+This skill proposes new automation. Whether automation already in place still earns its carry cost
 is owned by `/overengineering:audit`, whose evidence-earned-keep walk treats every incumbent as a
 retirement candidate until evidence keeps it. Send a retirement question there when the
 `overengineering` plugin is installed; when it is not, the **Already enforced** gate still names the
@@ -86,7 +86,7 @@ verdict as out of scope and name its owner, rather than widening this audit's ca
 For any deep-dive run (Phases 1-4), keep a phase checklist and tick each phase and every anti-noise
 doctrine check as it completes, in-response or in a copy of
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/templates/checklist.md` wherever the consuming
-repo keeps working task notes. Phase 4 is SKIPPED in default `--recommend-only` mode.
+repo keeps working task notes. Phase 4 is skipped in default `--recommend-only` mode.
 
 ## Phase 1: Discover Candidates (Self-Generated)
 
@@ -104,12 +104,12 @@ installed on the machine from outside this repository. Then read:
 
 | What | Source |
 |------|--------|
-| Hooks | Every hook location: user + project + local `settings.json` → `hooks`, managed policy settings when readable, each enabled plugin's `hooks/hooks.json`, and skill or agent frontmatter `hooks:`. Also record which hook EVENTS you considered: the documented set is far wider than `PreToolUse` and `PostToolUse`, and an event nobody looked at cannot surface a candidate, so a no-gaps hooks verdict names the events it examined |
+| Hooks | Every hook location: user + project + local `settings.json` → `hooks`, managed policy settings when readable, each enabled plugin's `hooks/hooks.json`, and skill or agent frontmatter `hooks:`. Also record which hook events you considered: the documented set is far wider than `PreToolUse` and `PostToolUse`, and an event nobody looked at cannot surface a candidate, so a no-gaps hooks verdict names the events it examined |
 | MCP servers | `.mcp.json` + `settings.json` → `disabledMcpjsonServers` |
 | Permissions | `settings.json` → `permissions` (deny/ask/allow) |
 | Enforcement | Ecosystem-specific build config (`<root-build-config>`, e.g. `Directory.Build.props` for .NET, `pyproject.toml` for Python, `package.json` for TS/JS), `.editorconfig` (top 20 lines), any enforcement-hierarchy section in the repo's own instruction files |
 | Codebase shape | File counts per language: `find . -name "*.cs" \| wc -l`, same for `.py`, `.ts`, `.sh`, `.ps1` |
-| Incident history | `git log --oneline \| wc -l` for the denominator, then a `--grep` count for the concern. That count is a CEILING, never a frequency: read a sample before citing one, and carry the match count, the denominator, the sample size and what the sampled commits actually were into the verdict |
+| Incident history | `git log --oneline \| wc -l` for the denominator, then a `--grep` count for the concern. That count is a ceiling, never a frequency: read a sample before citing one, and carry the match count, the denominator, the sample size and what the sampled commits actually were into the verdict |
 
 ### 1.2 Gap Analysis
 
@@ -161,7 +161,7 @@ Research splits by who owns the fact.
 Claude Code surface gets its harness facts fetched before its verdict, however settled the local
 evidence looks. That covers hook event semantics and what each event can and cannot block,
 `async` and `timeout` behavior, MCP server scope and configuration, and skill, agent or plugin
-frontmatter fields. Collect every such question across every surviving candidate into ONE fetch
+frontmatter fields. Collect every such question across every surviving candidate into one fetch
 pass. The batch is mandatory because a docs pass routinely reshapes a candidate that local evidence
 had settled: a per-event exit-code gate can look settled locally while the event's decision
 control upstream says it never fires, which no local reading surfaces.
@@ -199,7 +199,7 @@ gates in 2.3 read that evidence and decide.
 
 ### 2.3 Vet / Validate (Quality Gates)
 
-A candidate **fails** if ANY gate triggers.
+A candidate **fails** if any gate triggers.
 
 **Run this gate in a fresh context.** Phase 1 generated these candidates in the context now asked
 to refuse them, and a context that produced work is a biased judge of it. Dispatch a fresh-context
@@ -459,8 +459,8 @@ Principles that govern every verdict:
 
 ## Gotchas
 
-Five failure modes this skill has produced, each with its evidence and dated upstream records: a partial inventory anchoring every later verdict, keyword counts read as
+Six failure modes this skill has produced, each with its evidence and dated upstream records: a partial inventory anchoring every later verdict, keyword counts read as
 frequencies, `PostToolUse` candidates phrased as gates, an `exit 2` gate on `PermissionRequest` that
-is silently inert, and a candidate generator that reaches four of the
+is silently inert, an `exit 1` refusal counted as a gate before its event's semantics are read, and a candidate generator that reaches four of the
 [documented hook events](https://code.claude.com/docs/en/hooks#hook-events).
 Read [context/gotchas.md](context/gotchas.md) before any run whose verdicts a human will act on.

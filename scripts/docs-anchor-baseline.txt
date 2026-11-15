@@ -36,7 +36,6 @@ plugins/discipline/skills/sweep-all/reference/batched-pass.md 1
 plugins/discovery/skills/research/context/artifact-shape.md 1
 plugins/discovery/skills/setup/SKILL.md 2
 plugins/disk-hygiene/skills/clean/reference/safety-model.md 5
-plugins/disk-hygiene/skills/clean/reference/scan-flags.md 1
 plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md 1
 plugins/event-storming/skills/simulation/reference/miro-integration.md 2
 plugins/evals/skills/design/SKILL.md 1
@@ -117,7 +116,6 @@ plugins/playwright/skills/playwright/reference/test-generation.md 1
 plugins/playwright/skills/playwright/reference/tracing-and-video.md 2
 plugins/plugin-quality/skills/audit/reference/component-types/command.md 1
 plugins/prototype/skills/explore-directions/reference/claude-design-tool.md 1
-plugins/prototype/skills/explore-directions/reference/design-canvas.md 1
 plugins/repo-fleet-hygiene/skills/apply/SKILL.md 1
 plugins/repo-fleet-hygiene/skills/audit/SKILL.md 1
 plugins/repo-fleet-hygiene/skills/audit/reference/official-sources.md 10

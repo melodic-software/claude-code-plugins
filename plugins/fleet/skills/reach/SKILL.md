@@ -212,9 +212,9 @@ on-demand tasks FLEET.md lists.
 | This skill | Every lane other than this session's: the other lane on this machine, and both lanes on other machines |
 | Built-in `ListAgents` / `SendMessage` | Sessions in this lane, under this lane's account |
 | Built-in Remote Control | Human use of a lane's session from a phone or the web, under that lane's account. Not agent-to-agent across accounts |
-| `session-flow:continue-in-background` | A detached session in THIS lane |
+| `session-flow:continue-in-background` | A detached session in this lane |
 | `session-flow:orchestrate` | Delegation inside one session, to subagents |
-| `repo-fleet-hygiene:audit` | Fleets of REPOSITORIES. Same word, different subject |
+| `repo-fleet-hygiene:audit` | Fleets of repositories. Same word, different subject |
 
 ## Gotchas
 
@@ -228,7 +228,7 @@ on-demand tasks FLEET.md lists.
   [Run Claude Code programmatically](https://code.claude.com/docs/en/headless#pipe-data-through-claude),
   and the piped-content row of [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands).
 - **Escape apostrophes in `<prompt>`.** Every SSH row single-quotes the prompt in
-  `printf '%s\n' '<prompt>'`, and R4 single-quotes the whole command, on the LOCAL shell, so a `'`
+  `printf '%s\n' '<prompt>'`, and R4 single-quotes the whole command, on the local shell, so a `'`
   in the prompt ("what's") closes that quote early. The rule follows the origin shell, not the
   lane:
   - **bash, zsh, and Git Bash** (a native-Windows Claude's Bash tool, R4 to R6): replace each `'`

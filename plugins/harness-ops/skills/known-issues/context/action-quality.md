@@ -73,4 +73,4 @@ Pointer: for which models fall back, to what, and the recovery settings, see
 
 ## Fragility note
 
-Marginlab and status.claude.com embed data as JavaScript objects, not REST APIs. HTML scraping via WebFetch is the only option. If either source changes page structure, extraction breaks. Fall back to manual browser check and note breakage for repair. Add to quarterly drift check.
+We read both sources by fetching their pages and extracting the fields above. If either source changes page structure, extraction breaks. Fall back to manual browser check and note breakage for repair.

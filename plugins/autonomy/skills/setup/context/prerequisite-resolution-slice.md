@@ -96,6 +96,6 @@ the config-audit surface. This record holds the upstream pointer for the enablem
 }
 ```
 
-Absent-section tolerance holds. The section MUST NOT carry a `surfaces` map, because
+Absent-section tolerance holds. The section must not carry a `surfaces` map, because
 [`check-signal-envelope.mjs`](../scripts/check-signal-envelope.mjs) merges every section's
 `surfaces` map and treats duplicates as ambiguous.

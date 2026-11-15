@@ -3,6 +3,12 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2] - 2026-11-15
+
+### Changed
+
+- The generate skill's approval gate is written in plain case instead of capital-letter emphasis; the gate itself is unchanged.
+
 ## [0.10.1] - 2026-11-14
 
 ### Changed

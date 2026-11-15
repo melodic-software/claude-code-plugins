@@ -28,7 +28,7 @@ as separate body Bash calls, not pre-compute lines. The dated record for why is 
 
 Authoring discipline for tests: what to test, how to name it, which test type fits, and where it
 lives. `/implementation:implement` calls this skill during its TDD cadence; `/toolchain:check` owns
-test INVOCATION (the actual commands, SSOT). Test STRUCTURE (frameworks, project locations, naming,
+test invocation (the actual commands, SSOT). Test structure (frameworks, project locations, naming,
 fixtures) belongs to the consuming project: read its testing conventions (its `CLAUDE.md`, rules,
 test-structure docs) before writing tests, and infer from existing test projects when nothing is
 documented.
@@ -92,7 +92,7 @@ conventions for per-ecosystem naming, locations, and fixtures.
 - **Test behavior, not implementation**. Assert on what the user sees or what the API returns, not internal state (Kent C. Dodds: "The more your tests resemble the way your software is used, the more confidence they can give you")
 - **Four Pillars** (Vladimir Khorikov): protection against regressions, resistance to refactoring, fast feedback, maintainability. Resistance to refactoring is non-negotiable and maintainability stays high; protection and fast feedback trade off, so no test maxes the first three at once (`/tdd:principles`)
 - **Naming**. Use the project's documented naming pattern; when undocumented, mirror the consuming ecosystem's own idiom (never impose one language's convention on another). Illustrative forms (.NET/xUnit), with casing and separators adapted to the target ecosystem: unit `{Method}_Should{Behavior}_When{Condition}`, integration `{Subject}_{Behavior}`, architecture `{Subject}_Should{Constraint}`
-- When uncertain about a testing decision (mock or not, output vs state test), load `/tdd:principles` (when the `tdd` plugin is enabled) for authoritative Beck/Khorikov guidance
+- For a testing decision such as whether to mock or whether to test output or state, load `/tdd:principles` (when the `tdd` plugin is enabled) for Beck and Khorikov's guidance
 - Where each expected value comes from and which tests earn their keep: `testing:test-value` (if enabled)
 
 ## Handoff
@@ -102,7 +102,7 @@ conventions for per-ecosystem naming, locations, and fixtures.
 - After an `organize` decision: proceed to authoring for the new test project
 - Coverage gaps still open → invoke `/testing:plan` via the Skill tool; failures while running → invoke `/testing:diagnose` via the Skill tool
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not run test commands**. `/toolchain:check` is SSOT for CLI invocation
 - **Does not diagnose failures**. `/testing:diagnose`

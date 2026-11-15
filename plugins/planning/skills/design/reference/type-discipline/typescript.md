@@ -59,10 +59,11 @@ TypeScript; read that file first.
   ```
 
 - **Narrow with a check the compiler runs; write a claim only where none can.** A type predicate
-  and an `as` are claims: the compiler takes your word for them. This repository's context-usage
-  hooks show where each one belongs, in the order a value meets them:
+  and an `as` are claims: the compiler takes your word for them. The `context-usage` plugin's hooks
+  in the claude-code-plugins marketplace repository (the paths below are in that repository, not the
+  consumer's) show where each one belongs, in the order a value meets them:
 
-  | Where the value is | What this repository does | Kind |
+  | Where the value is | What those hooks do | Kind |
   |---|---|---|
   | Just arrived as `unknown` and no compiler check settles it | `isZone(word: unknown): word is Zone` tests the word against the closed `ZONES` list (`plugins/context-usage/hooks/zone.ts`) | claim |
   | Data a validation step has already checked | `asRule` casts `v.action as Action` only after `ACTIONS.includes(...)` passed (`plugins/context-usage/hooks/register.tsx`) | claim |

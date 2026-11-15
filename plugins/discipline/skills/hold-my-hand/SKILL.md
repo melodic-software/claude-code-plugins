@@ -13,7 +13,7 @@ Once invoked, this is a standing instruction for the rest of the session. Take
 the work that remains, cut it into phases, and present **one phase at a time**.
 The user never sees Phase 2 until Phase 1 is presented and done.
 
-## A declared species in this plugin: NOT a corrector
+## A declared species in this plugin: not a corrector
 
 This skill is a **standing session posture** over how future work is
 delivered, not a re-anchor/audit/correct loop. It audits nothing; it changes

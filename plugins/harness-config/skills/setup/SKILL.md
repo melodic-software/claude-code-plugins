@@ -74,9 +74,11 @@ for `awk` and `sort`; the rest call those with no guard, so read each script's a
 speak for the plugin.
 
 1. **`jq`**, from the pre-computed `jq` row. FAIL if absent: the JSON-parsing scripts need it (`inventory.sh` degrades
-   to an empty inventory; the others `exit 2` with an install remediation). Missing `jq` blocks every
+   to an empty inventory; `run-state.sh` falls back to python3, then to a structural scan that says so;
+   the others `exit 2` with an install remediation). Missing `jq` blocks every
    skill whose scripts parse JSON (`audit`, `audit-automation-gaps`, `audit-permission-grants`,
-   `audit-permission-state`, `draft-auto-mode-rules`, and `audit-pass`'s run-state helper); `audit-instructions` scans markdown and is unaffected.
+   `audit-permission-state` and `draft-auto-mode-rules`); `audit-pass`'s run-state helper degrades
+   rather than stops, and `audit-instructions` scans markdown and is unaffected.
 2. **`curl`**, from the pre-computed `curl` row. FAIL if absent, but scoped: only the plugin-drift check
    (`check-plugin-drift.sh`) uses it and `exit 2`s without it. The rest of `audit` and every other
    skill still run; say so in the remediation line.
@@ -115,7 +117,7 @@ tracked/ignored question has opposite correct answers per layer, so verify each 
 
 - **user-global** `~/.claude/audit-pass.md`: outside the worktree; no git command applies. INFO only.
 - **team** `<home>/harness-config.yaml`: must be tracked, probed as the pair:
-  `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
+  `git check-ignore -v` reports no match (a match is FAIL with the pattern) and
   `git ls-files --error-unmatch` exits 0. Untracked while present is a hard STOP:
   teammates never receive the shared suppressions. Parse it with
   `awk -v STRICT=1 -f ${CLAUDE_PLUGIN_ROOT}/lib/yaml-subset.awk <file>`, the parser the audit engine
@@ -214,7 +216,7 @@ check an edited profile, run `... wsl-profile.sh lint <file>`.
 - **An install command's exit code is not verification.** After any install, re-run the probe and
   report its actual result.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run an audit; that is the plugin's audit and drafting skills (`/harness-config:audit`,
   `audit-automation-gaps`, `audit-instructions`, `audit-pass`, `audit-permission-grants`,

@@ -3,6 +3,30 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.15.3] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+- Shared `publish-gate.mjs` synced where this plugin carries it: a comment now names the fold-corpus test that guards its backslash fold; the gate's behavior does not change.
+
+- Skill and reference text for commit, pull-request, worktree, babysit and setup drops capital-letter emphasis and history notes, and corrects stale paths, commands and claims the repository contradicts.
+- The babysit docs now say the resolve wrapper's severity screen applies under `--autonomous` and `--independent-resolver` only, so in the other resolve modes the agent itself escalates a security or P1 thread.
+
+### Fixed
+
+- The babysit risk rating no longer reads a renamed workflow job as a permission widening. A job
+  under a new id pairs with one removed job whose body is the same apart from its display `name`
+  and `permissions`. Only a scope the old id did not hold counts as a gain. A new job, a copied
+  job, or a renamed job whose steps changed still rates every write scope it holds as HIGH
+  `permission-widening-review`.
+- The secrets check on a workflow patch reads each hunk on its own, with its unchanged context
+  lines, and compares the hunk's new lines against its old ones. An expression whose closing lines
+  are unchanged is no longer joined to a later hunk, where a comment's apostrophe read as an
+  unclosed literal and rated HIGH `secret-exposure-review` with no secrets reference in the change.
+  A reference split across a changed line and an unchanged one still rates HIGH.
+
 ## [11.15.2] - 2026-11-15
 
 ### Changed

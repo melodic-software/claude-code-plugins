@@ -6,7 +6,7 @@ This file owns the metrics-family measurement discipline; the phase table, invoc
 
 ## Quality metrics (measurable proxies)
 
-Quality is partly subjective, but some aspects ARE measurable:
+Quality is partly subjective, but some aspects are measurable:
 
 | Quality aspect | Measurable proxy | How to check |
 |---------------|-----------------|--------------|
@@ -24,7 +24,7 @@ Produce every count with a command or script whose output goes into the report (
 ## `baseline` phase (at planning time)
 
 1. **Map the claim to a proxy:** "simpler" → fewer lines / lower complexity / less nesting; "cleaner" → better naming / less duplication; "more maintainable" → fewer deps / better cohesion / more tests; "better organized" → feature-aligned structure / reduced coupling.
-2. **Capture pre-change metrics** for the chosen proxies. Invoke the matching `/code-metrics:audit-<measure> --json --base <base>` when the `code-metrics` plugin is enabled and keep the document (the comparison is INCONCLUSIVE under the rule in the table above); otherwise the manual counts (line count of each file at the base revision, with `git show <base>:<file>` run on its own and its output written to a scratch file and counted in a second call, since a worktree-isolated session refuses a pipe around git; complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model", machine-bound, never committed) and record in the plan.
+2. **Capture pre-change metrics** for the chosen proxies. Invoke the matching command from the table above with `--json --base <base>` (`/code-metrics:audit <size|complexity>`, `/code-metrics:audit-duplication` or `/code-metrics:audit-coverage`) when the `code-metrics` plugin is enabled and keep the document (the comparison is INCONCLUSIVE under the rule in the table above); otherwise the manual counts (line count of each file at the base revision, with `git show <base>:<file>` run on its own and its output written to a scratch file and counted in a second call, since a worktree-isolated session refuses a pipe around git; complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model", machine-bound, never committed) and record in the plan.
 
 ## `compare` phase (at `/verification:measure metrics`)
 
@@ -67,7 +67,7 @@ Produce every count with a command or script whose output goes into the report (
    - **`Ruled out:`** names at least one other thing the delta could reflect (files moved out of the scan root, generated or vendored code entering or leaving the count, a different tool version or configuration between the runs, code moved rather than removed), each with the command output that excludes it.
 
 4. **Verdict:**
-   - **CONFIRMED**: measurable metrics improved AND no significant trade-offs, with `Limiter:` and `Ruled out:` both filled
+   - **CONFIRMED**: measurable metrics improved and no significant trade-offs, with `Limiter:` and `Ruled out:` both filled
    - **MIXED**: some improved, some degraded (document both)
    - **NOT CONFIRMED**: metrics neutral or worse despite the claim
    - **INCONCLUSIVE**: `Limiter:` or `Ruled out:` reads `unknown` (an `unknown` line only blocks CONFIRMED; MIXED and NOT CONFIRMED stand without either line), or the pair meets the INCONCLUSIVE rule in the table above

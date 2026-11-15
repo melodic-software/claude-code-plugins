@@ -23,7 +23,7 @@ Aim for **storage strength**, what the learner still holds weeks later, over **f
 ## Knowledge (declarative. What is it?)
 
 - Provide clear explanations with examples and counterexamples
-- Ground per "Research grounding" below. Never parametric recall at any tier. A claim that drives a lesson is verified against a source fetched or a file Read THIS turn, not recalled from training data; the ladder decides *which* fetch, never *whether*
+- Ground per "Research grounding" below. Never parametric recall at any tier. A claim that drives a lesson is verified against a source fetched or a file Read this turn, not recalled from training data; the ladder decides *which* fetch, never *whether*
 - Use retrieval practice: ask the user to restate in their own words
 - Add to `GLOSSARY.md` only when the user demonstrates understanding
 
@@ -54,7 +54,7 @@ Adjacent intake and sources, each invoked via the Skill tool and each only if in
 - Prompt transfer: "Where else could this pattern apply?"
 - Metacognitive reflection: "What tripped you up? What pattern did you learn?"
 - For `codebase` mode: connect to the repo's ADRs, architecture decisions, design philosophy
-- **Delegate to community.** Wisdom comes from real-world interaction outside the learning environment. Something an AI tutor structurally cannot provide. When a question requires wisdom, attempt to answer but also find relevant communities (subreddits, Discord servers, local meetups, courses, open-source projects) where the user can test skills in practice. Record community preferences in `RESOURCES.md`. Respect opt-outs. If the user declines community participation, don't re-suggest
+- **Delegate to community.** Wisdom comes from real-world interaction outside the learning environment, which an AI tutor structurally cannot provide. When a question requires wisdom, give your own best answer, then find relevant communities (subreddits, Discord servers, local meetups, courses, open-source projects) where the user can test skills in practice. Record community preferences in `RESOURCES.md`. If the user declines community participation, record that and don't suggest communities again
 
 ## Lessons and Reference
 

@@ -20,7 +20,7 @@ the binary the row invokes stops resolving to it.
 | Claude in Chrome | `mcp__claude-in-chrome__tabs_context_mcp` | Optional | The user's logged-in browser and GIF demos, on a native host, or from WSL under `claude --chrome` (see the rubric) |
 | App running | orchestrator's resource-list call shows healthy resources | YES | Something to test |
 
-**If the project's orchestrator MCP is not connected:** STOP. Report what's missing and how to fix it. Attempt no workaround: a substitute path produces unverified pass/fail results, defeating live verification.
+**If the project's orchestrator MCP is not connected:** stop. Report what's missing and how to fix it. Attempt no workaround: a substitute path produces unverified pass/fail results, defeating live verification.
 
 **If app not running:** when the default branch declares a Workspace environment entry, start it with that entry's `up` (see [Workspace environment](#workspace-environment)); otherwise suggest the project's documented start command, then re-check via the orchestrator's health/resource-list call.
 

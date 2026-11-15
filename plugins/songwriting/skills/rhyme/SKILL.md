@@ -12,7 +12,7 @@ in body.
 ## Mandatory pre-flight. Response Filter
 
 Before emitting any rhyme suggestion or rhyme list, run **§1 Rhyme suggestion filter** of
-[response-filter](../../context/pat-pattison/research/response-filter.md). NAME each box's
+[response-filter](../../context/pat-pattison/research/response-filter.md). Name each box's
 pass / fail / skip-with-reason (aloud or in reasoning); correct before emission. Skips are valid;
 silent skips are not. Without the filter, generic LLM defaults ship instead of Pat's craft:
 perfect rhymes, predictable end-lines, single-winner picks.
@@ -29,7 +29,7 @@ No action → generate rhymes for the word/line in context (the `rhyme` default)
 
 | Action | Use when the user asks for | Load |
 | --- | --- | --- |
-| `rhyme` (default) | rhyme choice, rhyme stability, rhyme types, family rhyme | [rhyme-generation](../../context/pat-pattison/research/rhyme-generation.md) PRIMARY, [rhyme-fundamentals](../../context/pat-pattison/research/rhyme-fundamentals.md), [rhyme-types](../../context/pat-pattison/research/rhyme-types.md), [rhyme-strategy](../../context/pat-pattison/research/rhyme-strategy.md), [rhyme-sonic-bonding](../../context/pat-pattison/research/rhyme-sonic-bonding.md) |
+| `rhyme` (default) | rhyme choice, rhyme stability, rhyme types, family rhyme | [rhyme-generation](../../context/pat-pattison/research/rhyme-generation.md) primary, [rhyme-fundamentals](../../context/pat-pattison/research/rhyme-fundamentals.md), [rhyme-types](../../context/pat-pattison/research/rhyme-types.md), [rhyme-strategy](../../context/pat-pattison/research/rhyme-strategy.md), [rhyme-sonic-bonding](../../context/pat-pattison/research/rhyme-sonic-bonding.md) |
 | `mosaic` | multi-word rhymes, proper nouns, cross-part-of-speech, "rhyme like Eminem", polysyllabic/rare words | [mosaic-rhyme](../../context/pat-pattison/research/mosaic-rhyme.md), [rhyme-generation](../../context/pat-pattison/research/rhyme-generation.md) Step 3b |
 | `types` | the rhyme taxonomy and stability tiers | [rhyme-types](../../context/pat-pattison/research/rhyme-types.md) |
 | `datamuse` | live rhyme lookup, syllable count, synonyms/semantic field via API. Supplemental | [ai-tools](../../context/pat-pattison/research/ai-tools.md), `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh` |
@@ -39,12 +39,12 @@ No action → generate rhymes for the word/line in context (the `rhyme` default)
 
 ## Handlers
 
-- Load [rhyme-generation](../../context/pat-pattison/research/rhyme-generation.md) FIRST for any
-  rhyme request and apply its discipline: identity check (pre-vowel consonants MUST differ;
-  identity is NOT rhyme), vowel-FIELD walk (Step 1b: the source word's own coda is ONE row of the
+- Load [rhyme-generation](../../context/pat-pattison/research/rhyme-generation.md) first for any
+  rhyme request and apply its discipline: identity check (pre-vowel consonants must differ;
+  identity is not rhyme), vowel-field walk (Step 1b: the source word's own coda is one row of the
   field, not the search), stability-tier walk, vowel triangle, song's-world vocabulary, cliche scan.
   Surface 8-15 labeled candidates across tiers, never a single winner.
-- Internal generation is PRIMARY. Use [ai-tools](../../context/pat-pattison/research/ai-tools.md)
+- Internal generation is primary. Use [ai-tools](../../context/pat-pattison/research/ai-tools.md)
   (Datamuse) only as a supplement for vocabulary breadth, syllable verification, or semantic-field
   mining. The script degrades gracefully when `bash`/`curl`/`jq` are absent.
 - Proper nouns and polysyllabic/rare words are mosaic territory: route to `mosaic`.
@@ -58,7 +58,7 @@ one. Before loading any bundled `templates/<name>.md`, check
 `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md` first: a project-level
 override wins over the bundled default, first match, per that file's "Template override".
 
-## Boundary. What this skill must NOT emit
+## Boundary. What this skill must not emit
 
 This skill surfaces rhyme candidates and stress-tests them. It does not decide, and it does not
 write the line the rhyme lands in.
@@ -80,6 +80,6 @@ recalling it.
 ## Related skills
 
 - Scansion, stress, meter paradigms → `/songwriting:meter-prosody meter`
-- High-volume swaps for ONE line (end-line × content × internal × image × whole-line) →
+- High-volume swaps for one line (end-line × content × internal × image × whole-line) →
   `/songwriting:co-write line-brainstorm`
 - Cliche repair for images/metaphors → `/songwriting:object-writing cliche`

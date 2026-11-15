@@ -5,7 +5,7 @@ report should say so and severity should reflect the correlation. This
 file defines the rules; `Invoke-FindingCorrelation.ps1` applies them.
 
 Rules are cross-OS concepts (pending reboot + failing updates is the same
-problem on macOS/Linux even though check ids differ). The ORCHESTRATOR
+problem on macOS/Linux even though check ids differ). The orchestrator
 applies rules after check dispatch, before severity aggregation.
 
 ## Rule structure

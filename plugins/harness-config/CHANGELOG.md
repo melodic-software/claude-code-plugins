@@ -5,6 +5,19 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.0.4] - 2026-11-15
+
+### Changed
+
+- The audit skills' instructions and script notes use plain emphasis instead of capital letters, and point at the live Claude Code docs for settings scopes, server-managed settings and version gates instead of restating them.
+- Stale paths and facts in the audit, permission and auto-mode instructions are corrected, and copied version gates now carry an as-of date and a recheck trigger.
+
+## [5.0.3] - 2026-11-15
+
+### Changed
+
+- The enforcement ladder reference now points at the Claude Code memory docs for how rule files load, instead of restating it.
+
 ## [5.0.2] - 2026-11-15
 
 ### Changed

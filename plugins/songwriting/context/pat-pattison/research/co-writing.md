@@ -13,7 +13,7 @@ session opener and seminar copy on technical-talk discipline.
 
 ## Core idea
 
-Co-writing works best when the room protects idea flow. The first job is not to
+Co-writing works best when ideas keep coming and nobody judges them early. The first job is not to
 be smart, polished, or defensible. The first job is to keep material moving
 until both writers hear something worth keeping.
 
@@ -209,17 +209,14 @@ done.
 
 ## Solo applications
 
-Two of the four rules apply to solo drafting:
+All four rules apply to solo drafting; § Inner critic operating under
+No-Free Zone below maps each one. Rules 1 and 4 in solo practice:
 
 - Rule 1 (say everything): write the dumb idea down; do not delete
   during the draft pass.
 - Rule 4 (no technical talk): during drafting, do not name what
   rhyme type you are using or what meter you are in. Naming during
   drafting invites defensiveness over revision.
-
-The other two (silence-means-keep-going; yes advances the line) are
-co-write-only. § Inner critic operating under No-Free Zone below revisits this
-and rules the other way: treat all four as applicable solo.
 
 ## When the rules break
 
@@ -273,15 +270,11 @@ Most writer's block is the inner critic refusing to honor Rule 1 or
 Rule 4. The discipline is the same in co-write or solo: separate
 generation from revision; do not let critique kill the generative phase.
 
-**This section and § Solo applications above disagree, and § Solo applications
-is the stricter reading.** That section calls rules 2 and 3 co-write-only and
-maps just rules 1 and 4 onto solo work; this one maps all four. The Appendix
-supports the looser reading. It says outright that the discipline helps every
-time Pat writes, not only when co-writing, and names the inner critic as his
-most frequent co-writer. Treat all four as applicable solo, with the caveat
-that rule 2's spoken `yes` has no literal solo equivalent beyond keeping the
-line. What the Appendix does not do is rank them, so neither should coaching
-built on it.
+Treat all four as applicable solo: the Appendix says the discipline helps
+every time Pat writes, not only when co-writing, and names the inner critic as
+his most frequent co-writer. Rule 2's spoken `yes` has no literal solo
+equivalent beyond keeping the line. The Appendix does not rank the four, so
+neither should coaching built on it.
 
 ## Cross-references
 

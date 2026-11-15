@@ -102,7 +102,9 @@ wait
 playwright-cli -s=site1 snapshot
 playwright-cli -s=site2 snapshot
 playwright-cli -s=site3 snapshot
-playwright-cli close-all
+playwright-cli -s=site1 close
+playwright-cli -s=site2 close
+playwright-cli -s=site3 close
 ```
 
 **A/B comparison**: two sessions, identical flow, diff screenshots:

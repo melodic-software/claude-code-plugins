@@ -9,7 +9,7 @@ convention churn, and most repositories ship no such file.
 
 | Layer | Tool | What it gives the skill | Absent |
 |---|---|---|---|
-| count | [`scc`](https://github.com/boyter/scc) | Per-file comment and code lines plus a complexity estimate, one pass, 300+ languages. Feeds the census and the repo-wide ranking | Census lines come from pygments; complexity is unavailable |
+| count | [`scc`](https://github.com/boyter/scc) | Per-file comment and code lines plus a complexity estimate, in one pass across many languages. Feeds the census and the repo-wide ranking | Census lines come from pygments; complexity is unavailable |
 | extract | [`pygments`](https://pygments.org/) | Every comment with its line and bytes, in every language through one token stream. Correct on heredocs, trailing comments and block comments. Feeds the census byte and token estimate | Comment bytes and the token estimate are unavailable; with `scc` also absent, the census and the ranking cannot run (exit 3) |
 | attach | [`tree-sitter`](https://tree-sitter.github.io/tree-sitter/) + a grammar per language | What a comment sits on (exported symbol, private member, statement). Powers `change-shape.py`'s token proof and `commented-out-code.py`'s reparse | Deletions and renames lose their proof and fall to proposals; the exported-symbol exemption becomes a prefix heuristic |
 | proof-powershell | [`pwsh`](https://github.com/PowerShell/PowerShell) 7+ | The same two things for `.ps1` and `.psm1`, through PowerShell's own `Parser::ParseFile` rather than a grammar. `#Requires` is kept as its own leaf; a here-string is one token, so a `#` inside one is never a comment | Every PowerShell deletion and rename is a proposal (exit 2, an unproven edit, never a tacit pass); `commented-out-code.py` skips those files |
@@ -31,8 +31,8 @@ Probe `ast-grep`, never `sg`: shadow-utils ships `/usr/bin/sg` (a symlink to `ne
 historically installed its own now-deprecated `sg` shim, so on a machine carrying both, PATH order
 alone decides which one answers.
 
-Prefer the per-language tree-sitter wheels over `tree-sitter-language-pack`. The pack covers 371
-grammars from one install but downloads its parser bundle at first use, which fails behind a
+Prefer the per-language tree-sitter wheels over `tree-sitter-language-pack`. The pack bundles many
+grammars in one install but downloads its parser bundle at first use, which fails behind a
 restricted proxy; the per-language wheels need no network after `pip install`.
 
 ## What was measured, and when
@@ -77,6 +77,7 @@ Six things this skill ships its own scripts for, because nothing packaged does t
   structured slice is covered per language by the C# compiler's CS1572/CS1573, Ruff's `DOC` rules
   (preview) and `eslint-plugin-jsdoc`, and only where a repository already runs them.
 
-Prose quality of kept comments has one candidate, [Vale](https://vale.sh/), which lifts comments out
-of source through tree-sitter for about 25 languages. It covers none of Bash or YAML, so it is
+Prose quality of kept comments has one candidate, [Vale](https://vale.sh/), which lints comments
+in the languages its [Code format page](https://docs.vale.sh/formats/code) lists. That list named
+neither Bash nor YAML as of 2026-11-15 (recheck it before making Vale more than optional), so it is
 named here as an optional lane, never a dependency.

@@ -58,7 +58,7 @@ Interview until each criterion is **specific, measurable, achievable, relevant**
    tone/style, privacy, context use, latency, price); keep the ones with a real user need. Most
    targets are multidimensional. Press for at least fidelity plus one guardrail dimension.
 3. What is achievable? Anchor each target to a baseline (current behavior, prior experiment, or a
-   published benchmark); when no baseline exists, record the first run AS the baseline.
+   published benchmark); when no baseline exists, record the first run as the baseline.
 
 Write the result to `docs/eval-criteria/<target>.md` in the consumer repo (create the directory if
 absent; respect an existing consumer convention for criteria docs if one is documented in the
@@ -211,7 +211,7 @@ For how the arms run and which graders are scored, read
 
 Before finishing, confirm and record in the criteria doc:
 
-- LLM-graded cases name a grader model DIFFERENT from the generator and constrain the verdict
+- LLM-graded cases name a grader model different from the generator and constrain the verdict
   format. Add a reasoning-then-discard instruction only where the grader model does not already
   think before answering; a grader with always-on thinking reasons before it decides, so an
   output-side reasoning block buys nothing and roughly doubles the output tokens every re-run
@@ -244,7 +244,7 @@ agreement rate and every disagreement in the criteria doc.
 - **Recheck trigger**: a commit to `anthropics/skills` changes either section, or a docs page starts
   covering grader validation; then the pointer moves there.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not run or score a suite.** Scaffolding is where this skill stops; the grader check grades
   a handful of sample outputs and nothing more. A skill or plugin suite is run by

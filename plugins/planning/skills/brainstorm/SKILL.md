@@ -23,7 +23,7 @@ the cheapest→ambitious spread is the cheapest artifact that surfaces criteria 
 recognizes when seen (rationale and sources: `docs/finding-your-unknowns.md` in the marketplace
 repository).
 
-Distinct neighbors: `/planning:design` Phase 1 decomposes the problem space WITHIN a design task
+Distinct neighbors: `/planning:design` Phase 1 decomposes the problem space within a design task
 already chosen; a proactive architecture-friction scan (e.g. `/architecture:improve`, if enabled)
 hunts on its own lanes; a UI-variation prototyper (e.g. `/prototype:explore-directions`, if
 enabled) builds visual variations of a chosen direction. This skill is the general, problem-shaped
@@ -50,11 +50,10 @@ requests". Its `time_units` user layer is `${user_config.time_units}` (unexpande
      ownership of them. Keep the user's wording for their ideas.
 
    A solution the user named is one of their ideas; one question may ask whether to rethink it or
-   keep it. Beyond these, ask at most ONE question, only to learn where the user is starting from.
+   keep it. Beyond these, ask at most one question, only to learn where the user is starting from.
    Propose no approach of your own until the user answers. If the user asks to skip the questions,
    restate the problem, record the intent as `not stated`, and go on.
-2. **Ground**. Fast breadth pass (`Glob`/`Grep`/targeted Read; survey the file landscape before
-   reading anything in depth) over where the problem lives: entry points, existing mechanisms that
+2. **Ground**. A fast breadth pass over where the problem lives: entry points, existing mechanisms that
    already partially address it, prior art in the repo. Optional landscape pass, when it would
    change the candidates: `/discovery:research` for how others solve this problem,
    `/discovery:blindspot` when the domain is unfamiliar to the user, `/discovery:explore` for a
@@ -131,7 +130,7 @@ routes write nothing.
 - Type and module decisions, with the contract already locked: /planning:design.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not decide**. User reactions drive selection; the skill recommends, marked (RECOMMENDED)
   with basis

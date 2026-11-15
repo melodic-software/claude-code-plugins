@@ -49,14 +49,13 @@ extraction waits for the third (Rule of Three).
   byte-exact and never repairs them. The reader-facing exception under **Archive-reading
   conventions** covers escaped links: a downstream artifact written *for a reader* repairs the
   corruption and discloses that it did.
-- **Cite a LIVE page by anchor, never by line number.** These pages gain and lose rows between
+- **Cite a live page by anchor, never by line number.** These pages gain and lose rows between
   reads and the `.md` channel renumbers with them, so a `<page>.md:<line>` citation rots silently
   into a pointer at an unrelated row. Cite the heading, the table row's key, or the variable name,
-  something the page itself carries. Rows on these pages move by a few lines between reads, so a
-  citation recorded as a line number points at an unrelated row within weeks. Where an earlier record
-  names a line number, resolve it to the row's key before relying on it. Line numbers into an
-  **archived snapshot** this pipeline captured are
-  unaffected: that file is immutable, which is exactly what makes its line numbers citable.
+  something the page itself carries. Where an earlier record names a line number, resolve it to
+  the row's key before relying on it. Line numbers into an **archived snapshot** this pipeline
+  captured are unaffected: that file is immutable, which is exactly what makes its line numbers
+  citable.
 - **Blog posts (`claude.com/blog/...`, correlate-only):** no raw-markdown channel known; fetch rendered and
   extract. Record the channel used. **Three extraction artifacts may reproduce on this channel;
   record each one that does, never repair it.** `source.*` is immutable, so the fix belongs in whatever reads the
@@ -123,13 +122,13 @@ extraction waits for the third (Rule of Three).
   [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
   live). The
   asymmetry is what makes this binding: a fetch that misses part of a page cannot fabricate a
-  PRESENCE, only an ABSENCE. A re-fetch through the same channel reproduces
+  presence, only an absence. A re-fetch through the same channel reproduces
   the blind spot rather than testing it, so the recheck uses the raw channel, not a repeat of the
   rendered one. This is a
   [noted source artifact, not a repaired one](#archive-reading-conventions): an observation is
   qualified where it is thin, never rewritten. This rule is the fleet-wide
   [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route)'s
-  rung 1, which the upstream-drift convention now owns for every surface; the asymmetry above stays
+  rung 1, which the upstream-drift convention owns for every surface; the asymmetry above stays
   here because it is this pipeline's reason for binding the rung to absence claims specifically.
 
 ## Archive-reading conventions
@@ -165,7 +164,8 @@ archive wrong in a way its own verification cannot catch:
 Anthropic docs mix API-surface guidance with harness-relevant guidance. Every digest tags each
 claim's applicability (`cc-applicable` / `api-only` / `mixed`, or the tag-exempt disposition
 below for material the vocabulary does not adjudicate), with evidence scaled to what the tag
-asserts:
+asserts. Where a rule below changes an already-verified slice's tag, that retag executes inside a
+graduation-time verification cycle, never as a bare edit.
 
 - **`cc-applicable` / `mixed` (positive claims):** verified against live code.claude.com docs at
   tag time. Cite the URL consulted in the digest row. A positive tag assigned by inference,
@@ -200,7 +200,7 @@ asserts:
   surface for **the claim's own specific assertion**, so only the corpus documenting *that
   assertion* falsifies it; topical overlap never does. Below that falsifying line sits the
   **near-miss**: a harness page covers the row's subject without stating the row's specific rule.
-  The tag survives, the row MUST name the near-miss by page and line, and an affirmative "no
+  The tag survives, the row must name the near-miss by page and line, and an affirmative "no
   surface" or "undisclosed" phrasing in
   such a row is simply false and goes. A row that says nothing about an adjacent surface reads as
   "no surface at all", which is the defect this notation exists to prevent.
@@ -218,7 +218,7 @@ asserts:
   doc line describing some *other* model's tier is not harness-internal behavior toward the subject,
   fails (3)'s own test, and is disclosed as a near-miss without entering this list.
 - **`tag-exempt (<sub-shape>)`: material the vocabulary does not adjudicate.** One disposition
-  for rows carrying no guidance for ANY surface the applicability vocabulary adjudicates, with the
+  for rows carrying no guidance for any surface the applicability vocabulary adjudicates, with the
   sub-shape named at the row. Five sub-shapes: `consumer-surface` (a different product surface,
   e.g. claude.ai web/mobile), `archive-descriptive` (an archive's own apparatus and entry
   structure), `metadata` (dates, titles, version labels), `navigation-pointer` (links and
@@ -226,7 +226,7 @@ asserts:
   covers, figure controls, slider labels, preset names, related-post cards). The disposition
   describes the material's genre and asserts nothing about harness applicability. It is not a positive tag and not a negative claim, so it owes no
   live-doc citation and no absence basis, and the near-miss disclosure burden never attaches.
-  `api-only` remains reserved for rows that DO assert a harness absence for their own specific
+  `api-only` remains reserved for rows that do assert a harness absence for their own specific
   assertion.
   - **`consumer-surface` is a documented-subject test, not a hosting test.** It fires only when
     claude.ai-the-product is what the page documents, not because a page is served from a
@@ -253,9 +253,8 @@ asserts:
     its target covers asserts a fact about the target. Worked examples: a Next steps bullet such
     as "Test a mod: catch problems before they reach a session", and a "For X, see Y" line,
     take a vocabulary tag; a See also link carrying only a topic label stays
-    `navigation-pointer`. An already-verified slice tagged the other way retags only inside a
-    graduation-time verification cycle.
-- **`cc-applicable`/`mixed` boundary:** a claim row is `mixed` only when that row's OWN quoted
+    `navigation-pointer`.
+- **`cc-applicable`/`mixed` boundary:** a claim row is `mixed` only when that row's own quoted
   text names one of the four API surfaces: an API **request** parameter, an endpoint, an SDK
   call, or a model ID. That holds even when its guidance transfers to the harness. `cc-applicable` is
   reserved for claims naming none of those four. The four-surface list is closed; nothing
@@ -273,8 +272,7 @@ asserts:
     `cc-applicable`.
   - **A hostname is a name, not an endpoint.** An endpoint is a callable address. Worked pair:
     `prUrlTemplate` names `github.com` and stays `cc-applicable`; `skipWebFetchPreflight` names
-    `api.anthropic.com` and is also `cc-applicable`. Any retag of an already-verified slice
-    executes inside a graduation-time verification cycle, never as a bare edit.
+    `api.anthropic.com` and is also `cc-applicable`.
   - **A response field is not a request parameter.** Worked pair: a mod event's token-usage
     field such as `result.usage` stays `cc-applicable`; a row that quotes a literal model ID
     beside it is `mixed` on the model ID.
@@ -292,8 +290,7 @@ asserts:
   tables (Name / Description / Example). The Example cell is part of the claim's own quoted
   text for the four-surface letter rule above. A row whose Example names an API request
   parameter, endpoint, SDK call, or model ID is `mixed` even when the Name/Description cells
-  do not. Where this rule changes an already-verified slice's tag, that retag executes inside a
-  graduation-time verification cycle, never as a bare edit.
+  do not.
 - **The vocabulary binds digest prose, not only claim rows.** The evidence burden a tag asserts,
   a live-doc citation for a positive tag or an absence basis for `api-only`, applies to
   Summary, Implications, and candidate-artifact text as well as to Key-claims rows.
@@ -333,7 +330,7 @@ asserts:
   exemption.
 - **Vendor-blog attestation:** a `claude.com/blog` or `claude.dev/blog` page is a correlate-only
   source in marketing-adjacent vendor voice, not reference documentation. Any assertion of fact
-  that exists ONLY in the blog (no harness or platform doc states the same assertion) additionally
+  that exists only in the blog (no harness or platform doc states the same assertion) additionally
   carries
   `vendor-claimed (blog, <fetch date> fetch)` beside its vocabulary tag. That covers behavioral,
   performance, figure/percentage, comparative, frequency, methodological/definitional,

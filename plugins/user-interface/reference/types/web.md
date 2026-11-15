@@ -54,8 +54,8 @@ When a project has none of this, ship it first: it's the floor for any app a pho
 ```
 
 `viewport-fit=cover` is what makes `env(safe-area-inset-*)` non-zero.
-`interactive-widget=resizes-content` makes the software keyboard shrink the layout viewport on
-Android Chrome, so `100dvh` and bottom-pinned inputs react the way they do on iOS. Neither
+`interactive-widget=resizes-content` makes the software keyboard shrink the layout viewport, so
+`100dvh` and bottom-pinned inputs move above it; the pointer says which browsers honor it. Neither
 `maximum-scale` nor `user-scalable` appears, ever. Why each matters on a phone is the `touch`
 concern (`touch-web.md`).
 

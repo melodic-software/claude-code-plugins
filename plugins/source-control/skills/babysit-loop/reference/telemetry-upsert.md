@@ -1,6 +1,6 @@
 # Telemetry comment upsert (per-instance singleton, race-converging)
 
-The exact upsert this lane runs at cycle-shape step 6 to maintain its ONE sentinel-identified status
+The exact upsert this lane runs at cycle-shape step 6 to maintain its one sentinel-identified status
 comment **for this lane instance**. `SKILL.md`'s "Telemetry and durable loop state" owns where the
 comment lives and what goes in it; this file owns how the singleton is maintained and how a creation
 race converges.
@@ -97,11 +97,11 @@ stderr only and retried next cycle.
 
 **Creation race reconcile (in the script).** Two sessions racing the first-ever upsert can both
 see an empty lookup and both POST, forking the singleton. The upsert converges duplicates on every
-cycle that sees them: the LOWEST comment id is canonical (numeric sort, deterministic for
+cycle that sees them: the lowest comment id is canonical (numeric sort, deterministic for
 every session), the canonical comment receives the current cycle's full state, and every other
 sentinel comment is edited to a one-line tombstone, only once the canonical write verifies, so
 it never matches a lookup again. This covers a racer that died between its POST and its own
-re-list, because the NEXT session's ordinary upsert performs the same reconcile. A crashed
+re-list, because the next session's ordinary upsert performs the same reconcile. A crashed
 racer's unmerged counters are an accepted loss (durable state re-derives over a cycle); nothing
 is deleted. The reconcile converges duplicates **within one instance's own sentinel set**, written
 by its own identity; a sibling instance's comment carries a different marker, and a foreign

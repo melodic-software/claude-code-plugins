@@ -86,7 +86,8 @@ Ship:      PR lifecycle: prep → create → monitor CI → merge (runs after st
 12. Retrospective (optional, /session-flow:retro)
 ```
 
-Work that does not take the quick-change on-ramp starts at stage 1, the interview. Explore,
+Each kind of task starts at the first stage of its row in the Task kinds table
+(`context/steps.md`); on the full path that is stage 1, the interview. Explore,
 research and a PRD are detours it calls only when a question needs them, then the interview
 resumes; none runs before it. Conditional stages run only on their trigger (`context/steps.md`):
 Explore when a question turns on what the code does now, Research when it rests on an external
@@ -133,11 +134,19 @@ satisfies, then continue from there.
 
 ### 3. Suggest next stage
 
-Based on what's been done, recommend the next stage with rationale. For new work whose diff fails
-either quick-change test, with nothing done, suggest stage 1, the interview; explore, research
-and a PRD then run as detours the interview calls. A change that passes both tests takes the quick-change on-ramp below
-instead. If the consuming repo has a
-skill for that stage, name it; otherwise describe the inline work. Add that stage's effort advice per "Effort per stage" in `context/steps.md`.
+Based on what's been done, recommend the next stage with rationale. First name the kind of task
+and read its row in the Task kinds table at the end of `context/steps.md`: that row is the stage
+list, in order, and the stages it skips, each skip with the row's reason. Never state a kind's
+stages from memory. With nothing done, suggest the row's first stage; on the full path that is
+stage 1, the interview, and explore, research and a PRD then run as detours the interview calls.
+A change that passes both quick-change tests takes the quick-change on-ramp below. If the
+consuming repo has a skill for that stage, name it; otherwise describe the inline work. Add that
+stage's effort advice per "Effort per stage" in `context/steps.md`.
+
+To look a kind's sequence up together with the skills that run each stage and their arguments,
+point the user at the "By kind of task" table of the skill cheat sheet,
+[`docs/skill-cheat-sheet.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/skill-cheat-sheet.md#by-kind-of-task)
+in the marketplace repository, generated from that same Task kinds table.
 
 ### 4. Route the continuation mechanism at a phase boundary
 
@@ -164,7 +173,7 @@ the gather above are presence-gated pointers to the siblings that own them; the 
 ### 5. Track progress (tasks ≥3 stages)
 
 For work expected to span 3+ stages, when this session has the task tools (`TaskCreate` is in its
-tool list; branch on that, never on the model), create a task per applicable stage via TaskCreate,
+tool list; branch on that, never on the model), create a task per stage in the kind's Task kinds row via TaskCreate,
 mark completed stages `completed` and the current one `in_progress`. With `TodoWrite` instead,
 keep the same stage list in `TodoWrite`. A stage that will not run stays listed as
 `skip: <reason>`, never deleted. With neither, the checklist
@@ -187,16 +196,18 @@ forcing every session through stage 1. Common classes:
 
 - **A quick change**, one whose diff will be quick to review and cheap to retry. Those two tests
   decide, not size; a diff that adds types, public contracts, or module boundaries is not cheap
-  to retry and takes the full path. It enters at stage 8 (reading the code it needs is part of
-  implement), then the diff is reviewed and aligned on there, with test and verify at full
-  rigor. When the diff is tiny, a wrong build costs almost nothing, so aligning on the diff after
+  to retry and takes the full path. Its stages are the Small fix row of the Task kinds table in
+  `context/steps.md`; the diff is reviewed and aligned on once it exists, with test and verify at
+  full rigor. When the diff is tiny, a wrong build costs almost nothing, so aligning on the diff after
   it exists beats aligning before it. If the diff turns out not to be quick to review, stop and route to the interview. Basis for adopting this rule:
   the "Session-start flow and main flow" section of `docs/upstream/mattpocock-skills.md` (under Map)
   in the marketplace repository.
-- **Incoming bug or issue intake**, a report or request that arrived raw from outside. An
-  already-diagnosed, agent-ready item merges at implement; observed-but-undiagnosed breakage routes
-  through a diagnosis capability first (if the consuming setup installs one, e.g. from a diagnose
-  or debugging plugin), then rejoins at implement with the root cause in hand.
+- **Incoming bug or issue intake**, a report or request that arrived raw from outside. A bug takes
+  the Bug row of the Task kinds table in `context/steps.md`. An already-diagnosed, agent-ready
+  item carries its Brief and root cause, so position detection credits the stages before
+  implement; observed-but-undiagnosed breakage is diagnosed through a diagnosis capability (if the
+  consuming setup installs one, e.g. from a diagnose or debugging plugin) before that row reaches
+  implement.
 - **A foggy, too-big-to-plan effort**, the destination is clear but the route is not, and no
   single plan can hold it yet. Start at the interview anyway; when that interview
   outgrows one session, escalate to a wayfinding or route-charting capability (if installed, e.g.
@@ -247,8 +258,9 @@ the menu. When a request could be either, "what comes next" is a stage question 
 - **Marking a stage done from conversation vibes**. Verify the artifact or output exists before
   suggesting the next stage.
 - **Skipping the interview on behavior-changing work that takes the full path**. Fuzzy
-  intent becomes silent plan assumptions; lock the goal and acceptance criteria first. Only the
-  quick-change on-ramp skips it, and only while its diff stays quick to review.
+  intent becomes silent plan assumptions; lock the goal and acceptance criteria first. Only a
+  Task kinds row that skips the interview skips it, and the small fix only while its diff stays
+  quick to review.
 - **Skipping design because the task is small**. Size does not decide it: on the full path, new
   types, contracts, or module boundaries go through the design stage, or the implementer gets no
   design guardrails.

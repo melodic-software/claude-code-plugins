@@ -23,7 +23,7 @@ Rules that keep the ranking honest:
 - Compare candidates against each other in this run, not against an absolute bar, and re-rank
   every run (a recurring sweep re-ranks; rankings are not sticky).
 - The size band (S/M/L) is also the row's published size; when a size-band narrowing
-  (`--small` / `--medium` / `--large`) is in effect, filter before ranking, with ONE
+  (`--small` / `--medium` / `--large`) is in effect, filter before ranking, with one
   exemption: the instrument-first candidate (below) is never filtered out by the band. When the
   target is unmeasured, that candidate is surfaced and top-ranked regardless of the requested
   band, marked `outside requested band` when it is. The hard rule wins over the filter, never

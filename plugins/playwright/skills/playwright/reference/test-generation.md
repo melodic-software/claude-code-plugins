@@ -48,7 +48,7 @@ test('login flow', async ({ page }) => {
 
 1. **Open and explore**: `playwright-cli open <url>` + `snapshot` to see the page
 2. **Perform the flow**: each click/fill/press emits code into stdout
-3. **Collect the emitted code**: copy the `### Ran Playwright code` blocks from the output (do NOT use `--raw`, which strips them)
+3. **Collect the emitted code**: copy the `### Ran Playwright code` blocks from the output (do not use `--raw`, which strips them)
 4. **Wrap in a test**: add `test(...)` + `import` + assertions
 5. **Run to verify**: `PLAYWRIGHT_HTML_OPEN=never npx playwright test tests/e2e/login.spec.ts`
 
@@ -64,7 +64,7 @@ playwright-cli generate-locator e5 --raw   # prints the Playwright locator for r
 
 ### Add assertions manually
 
-CLI captures what you DID, not what you EXPECTED. The expected value comes from the requirement or acceptance criterion the test checks, not from what the page shows today: an expectation copied from the running app records its actual behavior, bugs included (see [Where expectations come from](#where-expectations-come-from)). After pasting generated code into a test, add:
+CLI captures what you did, not what you expected. The expected value comes from the requirement or acceptance criterion the test checks, not from what the page shows today: an expectation copied from the running app records its actual behavior, bugs included (see [Where expectations come from](#where-expectations-come-from)). After pasting generated code into a test, add:
 
 ```typescript
 await expect(page).toHaveURL(/.*dashboard/);
@@ -109,7 +109,9 @@ Upstream's healer agent carries the same guardrail: when it believes the functio
 
 ## Running generated tests
 
-For the `npx playwright test --debug=cli` debugging flow, see upstream `../vendor/references/playwright-tests.md`. Attach `playwright-cli` to a paused test and step through interactively.
+To debug a test, run `npx playwright test --debug=cli` in the background, wait until it prints the debugging instructions naming a `tw-...` session, attach `playwright-cli` to that paused test and step through interactively, then stop the background run when done.
+
+- **Pointer**: the `--debug` option in [Playwright: command line § All options](https://playwright.dev/docs/test-cli#all-options); recheck when a Playwright release changes `--debug=cli` or `playwright-cli attach`.
 
 Short version:
 

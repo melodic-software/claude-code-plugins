@@ -3,7 +3,7 @@
 # a run-open marker scopes it to a clean run.
 # Blocks destructive Bash and PowerShell commands unless the invocation is
 # acknowledged with a CLEAN_GUARD_ACK=1 assignment at the very start of the
-# command, which the skill body adds ONLY after the dry-run -> user-confirmation
+# command, which the skill body adds only after the dry-run -> user-confirmation
 # gate has passed. The spelling is per tool, because each one has to be a real
 # assignment that takes effect for the command it prefixes:
 #   Bash tool:        CLEAN_GUARD_ACK=1 <command>
@@ -775,7 +775,7 @@ if command_is_destructive; then
   esac
   {
     echo "BLOCKED by the clean skill's destructive guard (session-scoped skill hook)."
-    echo "Destructive commands during a clean run go ONLY through the skill's dry-run -> user-confirmation gate."
+    echo "Destructive commands during a clean run go only through the skill's dry-run -> user-confirmation gate."
     if [[ -n "$ack_form" ]]; then
       echo "After the user has explicitly confirmed, re-issue with the acknowledgement prefix for this tool: $ack_form"
     else

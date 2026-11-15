@@ -3,6 +3,13 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.17] - 2026-11-15
+
+### Changed
+
+- The find, improve and setup instructions use plain emphasis instead of capital letters, and stale facts in them are corrected.
+- The README says an improvement pull request opens ready or draft by the repository's open-state rule, not always as a draft.
+
 ## [0.4.16] - 2026-11-13
 
 ### Changed

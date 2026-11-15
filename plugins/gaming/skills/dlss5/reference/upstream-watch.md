@@ -6,7 +6,8 @@ updating each row's Checked date.
 
 ## Watch items
 
-Every row is rechecked on each `refetch` run; the As of column is the last check that read it.
+Every row is rechecked on each `refetch` run. The As of column is the date the plugin last checked
+that row; a run records its own result in the ledger's Checked column, not in this file.
 
 | Item | Known value | As of |
 |---|---|---|

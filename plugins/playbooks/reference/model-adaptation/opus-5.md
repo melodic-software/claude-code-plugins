@@ -173,13 +173,5 @@ Our reads, recorded so a re-read can tell whether a source moved:
 - <https://code.claude.com/docs/en/model-config>, read 2026-09-23 (MD5
   `459c915e18892813e484986ada64efd7`) and re-read 2026-10-01 for the fallback section.
 
-Re-baselined to the Claude Fable 5.2 author on 2026-11-09: every delta above is stated against
-this model's own guide or card, none against a Fable 5.1 behavior, so all are kept unchanged. Two
-doctrine folds of 2026-11-01 were checked against this chapter: the verification chapter's
-independent-oracle check is architected review in the sense of "Verification" above, not an
-instructed self-check line, so that section stands; the communication chapter's prompt-authoring
-note on progress updates removes narration-suppressing lines rather than adding narration rules,
-so "Output length" above stands.
-
 Recheck trigger for the whole chapter: a revised card, or a re-read of any pointed section no
 longer supporting the decision beside it.
