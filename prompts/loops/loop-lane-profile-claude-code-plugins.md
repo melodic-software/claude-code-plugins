@@ -598,7 +598,7 @@ to the template re-renders here too.
 >    the exclusions is what closes that window.
 > 3. Trigger sweep, **over populations 1 and 2 only**, plus decision
 >    comments on items closed in the last 90 days: any text naming a
->    revisit trigger ("after <date> if …", "when <capability> exists").
+>    recheck trigger ("after <date> if …", "when <capability> exists").
 >    Evaluate every trigger against today, live, never from memory. A
 >    fired trigger on an OPEN item joins the queue; a fired trigger on a
 >    CLOSED item reopens it or files a successor open item (never mutate a
