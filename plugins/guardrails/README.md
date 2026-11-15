@@ -358,7 +358,7 @@ out of scope until such a signal exists.
   Three local-only gates are deliberately not applied on this lane, because an
   MCP write names `owner/repo` and a repo-relative path and has no local file:
   the project-scope guard (a relative path is never under `CLAUDE_PROJECT_DIR`,
-  so applying it would skip every MCP write, a silent hole rather than a scope), the
+  so applying it would silently skip every MCP write instead of scoping them), the
   git-working-tree requirement, and `git check-ignore` (which answers what THIS
   checkout ignores, not the destination repo). The path ALLOWLIST is the same
   list, asked of the repo-relative path: an `.env.example` or a test fixture
@@ -1464,7 +1464,7 @@ One further option tunes the hooks' shared plumbing rather than a single guard:
 
 ## Consumer seams
 
-The guards scope and tune themselves to **your** repository. They ship no
+The guards scope and tune themselves to your repository. They ship no
 repo-specific policy of their own:
 
 - **Project scoping.** `secret-pattern-detection` and `hardcoded-path-check`

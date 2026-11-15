@@ -15,7 +15,7 @@ A findings file of that type is located by frontmatter alone, with nothing
 authenticating the writer, so it is auto-applicable by construction. Every
 rename this artifact proposes moves a tracked file and rewrites references
 across the tree behind one human acceptance each. Routing them through an
-auto-apply relay would launder exactly the gate that makes the pair safe to
+auto-apply relay would bypass exactly the gate that makes the pair safe to
 point at a repository nobody has reviewed.
 
 ## Where it lives

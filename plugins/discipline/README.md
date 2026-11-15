@@ -356,7 +356,7 @@ context you were missing, talks in ASD-STE100 Simplified Technical English
 (short sentences, one meaning per word, technical terms exact), and uses the
 project's ubiquitous language, read through
 `/domain-driven-design:ubiquitous-language lookup` when installed, degrading
-silently when no glossary exists. Re-pitch means re-ground, not compress: it stays out of the batch
+silently when no glossary exists. Re-pitch means re-ground, not compress. It stays out of the batch
 sweep, and a shorter-but-blunter reply is the failure it exists to avoid.
 
 ```shell

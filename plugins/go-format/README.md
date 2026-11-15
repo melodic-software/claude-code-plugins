@@ -112,8 +112,8 @@ Then verify prerequisites with `/go-format:setup check`.
 
 ## Configuration
 
-There are no rules to configure. `goimports` runs with no consumer-config
-surface to read. Three `userConfig` options tune the hooks themselves:
+There are no rules to configure. `goimports` runs with no consumer
+configuration to read. Three `userConfig` options tune the hooks themselves:
 
 | Option | Default | Effect |
 |--------|---------|--------|

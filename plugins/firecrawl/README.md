@@ -31,7 +31,7 @@ plain fetch is blocked by anti-bot protection or a page needs JS rendering.
 `/firecrawl:firecrawl` skill. Consolidation over per-subcommand proliferation.
 Split it into a dedicated `parse` skill only if local-file extraction discovery
 demonstrably fails under the general skill, or a non-credit extraction backend
-appears worth its own surface.
+appears worth its own skill.
 
 ## Requirements
 
