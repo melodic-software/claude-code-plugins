@@ -87,8 +87,9 @@ export const CAPTURES = Object.freeze(["ran", "skipped", "blocked", "not-applica
 // Why the key could not capture, which only the capture job's own "Write the
 // blocked capture" step records (its collect step strips one from the driven
 // session's summary).
-export const CAUSES = Object.freeze(["credit-stop", "empty-key", "probe-handoff"]);
-const CAPTURE_KEYS = ["capture,capture_count,features,reason", "capture,capture_count,cause,features,reason"];
+export const CAUSES = Object.freeze(["credit-stop", "empty-key", "probe-handoff", "unrecognized"]);
+const CAPTURE_KEYS = "capture,capture_count,features,reason";
+const CAUSED_KEYS = "capture,capture_count,cause,features,reason";
 const REASON_MAX = 1000;
 const FEATURE_MAX = 200;
 const FEATURES_MAX = 30;
@@ -119,8 +120,9 @@ export function fromE2eSummary(summary) {
 }
 
 // The capture summary as recorded, and anything outside the schema,
-// credential-shaped text included, blocked. A cause stands only on a blocked
-// capture and only from CAUSES. With no summary, find-capture's
+// credential-shaped text included, blocked. A cause stands only in run-e2e's
+// nested shape, the one the capture job writes, on a blocked capture and
+// from CAUSES; it is advisory. With no summary, find-capture's
 // blocked reason (CAPTURE_BLOCKED, which it writes for every miss with the
 // app set) is blocked with that reason, and only no reason at all, the app
 // unset, is no-app.
@@ -129,9 +131,10 @@ function captureEvidence(raw, blocked) {
     return blocked ? captureEvidence({ capture: "blocked", reason: blocked, capture_count: 0, features: [] }) : noApp();
   }
   const summary = fromE2eSummary(raw);
+  const nested = isObject(raw) && isObject(raw.capture);
   if (
     !isObject(summary) ||
-    !CAPTURE_KEYS.includes(Object.keys(summary).sort().join()) ||
+    !(nested ? [CAPTURE_KEYS, CAUSED_KEYS] : [CAPTURE_KEYS]).includes(Object.keys(summary).sort().join()) ||
     (Object.hasOwn(summary, "cause") && (summary.capture !== "blocked" || !CAUSES.includes(summary.cause))) ||
     !CAPTURES.includes(summary.capture) ||
     !stringOrNull(summary.reason) ||

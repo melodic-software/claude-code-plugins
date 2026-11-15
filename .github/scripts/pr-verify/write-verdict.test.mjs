@@ -186,7 +186,7 @@ test("run-e2e's e2e-summary.json is read into the capture keys, and a summary ou
 // key or probe handoff, and the verdict names it.
 test("a blocked capture's cause reaches the verdict, and a cause off the list or on another outcome is blocked unreadable", () => {
   const summary = (capture) => ({ route: "none", app: "claude-code", affected: [], capture, entry_points: [], publishable: [] });
-  for (const cause of ["credit-stop", "empty-key", "probe-handoff"]) {
+  for (const cause of ["credit-stop", "empty-key", "probe-handoff", "unrecognized"]) {
     const reason = `why ${cause}`;
     const built = buildVerdict({ ...ids, capture: summary({ status: "blocked", reason, cause, count: 0 }), output: ok });
     assert.deepEqual(built.evidence, { capture: "blocked", reason, cause, capture_count: 0, features: [], local_loop: null }, cause);
@@ -200,6 +200,8 @@ test("a blocked capture's cause reaches the verdict, and a cause off the list or
     summary({ status: "blocked", reason: "r", cause: null, count: 0 }),
     summary({ status: "ran", reason: null, cause: "credit-stop", count: 1 }),
     summary({ status: "not-applicable", reason: "r", cause: "empty-key", count: 0 }),
+    // The flat shape is not the one the capture job writes, so it carries no cause.
+    { capture: "blocked", capture_count: 0, cause: "empty-key", features: [], reason: "x" },
   ]) {
     assert.deepEqual(buildEvidence({ capture }), BLOCKED, JSON.stringify(capture));
   }

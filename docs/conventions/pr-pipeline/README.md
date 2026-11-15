@@ -2766,12 +2766,15 @@ touches no feature of main's control skill uploads a capture recorded `not-appli
 job sets up no key and starts no model session. A read or script that fails, or a compare at the
 API's 300-file limit, leaves the decision to the capture session. Both of the capture's legs stay
 on the key, so when the key cannot capture the job runs no model and no fallback job follows it: it
-uploads a capture recorded `blocked` whose `cause` is `credit-stop` (the credit gate held the key
-off, or its probe hit a credit stop), `empty-key`, or `probe-handoff` (the probe handed off on
-auth), each with its own reason. The cause comes only from the job's credit read and next-leg call;
-the collect step drops a `cause` from the driven session's summary, and the writer records one only
-on a `blocked` capture and only from that list, so `evidence` carries `cause` exactly when the
-capture recorded one, and the verdict step's `pr-verify capture` annotation names the outcome and,
+uploads a capture recorded `blocked` whose `cause` is `credit-stop` (the credit gate's
+credit-stop marker held the key off, or its probe hit a credit stop), `empty-key`, `probe-handoff`
+(the probe handed off on auth), or `unrecognized` (a next-leg reason outside those, which is printed
+nowhere), each with its own reason. The job writes the cause from its credit read and next-leg call;
+the collect step drops a `cause` from the driven session's summary in either shape the writer
+reads, and the writer records one only in the nested shape the job writes, on a `blocked` capture
+and from that list, so `evidence` carries `cause` exactly when the capture recorded one. The cause
+is advisory: the strip that keeps it the job's own runs after the head checkout, so it informs an
+operator and gates nothing, and and the verdict step's `pr-verify capture` annotation names the outcome and,
 for a blocked capture, the cause (`none` when it recorded none). A credit stop on the probe raises
 the warning annotation every lane raises on its key's handoff, naming the pr-verify role's key and
 the run, also in the run summary. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any

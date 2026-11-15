@@ -1560,6 +1560,23 @@ test("the collected capture is run-e2e's summary and its listed regular files, o
   const stripped = collect({ DRIVE_OUTCOME: "success", OUTPUT_FILE: forgedOutput });
   assert.deepEqual(stripped.summary, { ...forgedSummary, capture: { status: "blocked", reason: "the key hit a credit stop on this run's probe", count: 0 } });
   assert.deepEqual(readdirSync(stripped.out), ["e2e-summary.json"]);
+  // The flat shape write-verdict.mjs also reads loses its cause too.
+  const flat = path.join(runDir, "flat");
+  mkdirSync(flat);
+  writeFileSync(path.join(flat, "e2e-summary.json"), JSON.stringify({ capture: "blocked", capture_count: 0, cause: "empty-key", features: [], reason: "x" }));
+  const flatOutput = path.join(workspace, "structured-flat.json");
+  writeFileSync(flatOutput, JSON.stringify({ summary: path.join(flat, "e2e-summary.json") }));
+  assert.deepEqual(collect({ DRIVE_OUTCOME: "success", OUTPUT_FILE: flatOutput }).summary, { capture: "blocked", capture_count: 0, features: [], reason: "x" });
+  // A strip that fails records the capture blocked and leaves no temporary file behind.
+  const tmp = tempDir("capture-collect-tmp-");
+  const bin = tempDir("capture-collect-bin-");
+  const realJq = spawnSync("bash", ["-c", "command -v jq"], { encoding: "utf8" }).stdout.trim();
+  writeFileSync(path.join(bin, "jq"), `#!/bin/bash\ncase "$*" in *"del(.cause)"*) exit 5 ;; esac\nexec '${realJq}' "$@"\n`, { mode: 0o755 });
+  const failedOut = path.join(workspace, "out-strip-failed");
+  const failedStrip = runStep(capStep("Collect the capture"), { PATH: `${bin}:${process.env.PATH}`, GITHUB_WORKSPACE: workspace, APP: "claude-code", OUT: failedOut, TMPDIR: tmp, DRIVE_OUTCOME: "success", OUTPUT_FILE: forgedOutput });
+  assert.equal(failedStrip.status, 0, failedStrip.stderr);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(failedOut, "e2e-summary.json"), "utf8")), { route: "none", app: "claude-code", affected: [], capture: { status: "blocked", reason: "the summary could not be read without its cause", count: 0 }, entry_points: [], publishable: [] });
+  assert.deepEqual(readdirSync(tmp), []);
   const blocked = (status, reason) => ({ route: "none", app: "claude-code", affected: [], capture: { status, reason, count: 0 }, entry_points: [], publishable: [] });
   assert.deepEqual(collect({ DRIVE_OUTCOME: "failure", DRIVE_CLASS: "timeout" }).summary, blocked("blocked", "the capture session ended without a result (timeout)"));
   assert.deepEqual(collect({ DRIVE_OUTCOME: "skipped" }).summary, blocked("blocked", "the capture session ended without a result (skipped)"));
@@ -2308,11 +2325,14 @@ test("the blocked capture records its cause: credit stop, empty key or probe han
   };
   const shape = (reason, cause) => ({ route: "none", app: "claude-code-plugins", affected: [], capture: { status: "blocked", reason, cause, count: 0 }, entry_points: [], publishable: [] });
   const cases = [
-    [{ HELD: "subscription", ORIGIN_RUN: "43742536648" }, "credit-stop", "the key is in a credit stop, so the credit gate held it off; the stop was hit in run https://github.com/o/r/actions/runs/43742536648"],
-    [{ HELD: "subscription", ORIGIN_RUN: "" }, "credit-stop", "the key is in a credit stop, so the credit gate held it off"],
+    // The marker is forgeable by a same-repository workflow, so the reason names the marker, not an observed stop.
+    [{ HELD: "subscription", ORIGIN_RUN: "43742536648" }, "credit-stop", "the credit gate's credit-stop marker held the key off; the marker names run https://github.com/o/r/actions/runs/43742536648"],
+    [{ HELD: "subscription", ORIGIN_RUN: "" }, "credit-stop", "the credit gate's credit-stop marker held the key off"],
     [{ HELD: "key", WHY: "credit-stop" }, "credit-stop", "the key hit a credit stop on this run's probe"],
     [{ WHY: "no-key" }, "empty-key", "the key (PR_VERIFY_CLAUDE_API_KEY) is empty"],
     [{ WHY: "auth" }, "probe-handoff", "the probe leg handed off: the API refused the key (class auth)"],
+    // A reason off the next-leg call's list keeps the capture blocked and the job green, and is printed nowhere.
+    [{ WHY: "limit-stop $(id)" }, "unrecognized", "the key could not capture, for a reason the capture does not recognize"],
   ];
   const reasons = new Set();
   for (const [env, cause, reason] of cases) {
@@ -2328,12 +2348,9 @@ test("the blocked capture records its cause: credit stop, empty key or probe han
   assert.equal(reasons.size, cases.length);
   assert.doesNotMatch(capStep(BLOCKED), /subscription token cannot go behind the proxy|R41/);
   // A credit read's run id that is not a run id is left out of the reason.
-  assert.equal(write({ HELD: "subscription", ORIGIN_RUN: "1; rm -rf /" }).summary.capture.reason, "the key is in a credit stop, so the credit gate held it off");
-  // A reason the next-leg call never gives fails the step rather than guess a cause.
-  const unknown = write({ WHY: "limit-stop" });
-  assert.equal(unknown.status, 1);
-  assert.equal(unknown.summary, null);
-  assert.match(unknown.stdout, /^::error::the next-leg call gave no reason the capture knows$/m);
+  assert.equal(write({ HELD: "subscription", ORIGIN_RUN: "1; rm -rf /" }).summary.capture.reason, "the credit gate's credit-stop marker held the key off");
+  const unknown = write({ WHY: "limit-stop $(id)" });
+  assert.doesNotMatch(unknown.stdout + unknown.stderr + JSON.stringify(unknown.summary), /limit-stop|\$\(id\)/);
   // With no pull request and head to name it by (an event with no pull request), nothing is written or uploaded.
   for (const ids of [{ PR_NUMBER: "" }, { HEAD_SHA: "main" }, { PR_NUMBER: "41 x" }]) {
     const none = write({ HELD: "subscription", ...ids });

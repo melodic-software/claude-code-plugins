@@ -44,10 +44,12 @@ name: PR Verify Capture
 # Both legs stay key-only (an owner decision): a subscription token cannot
 # go behind the key proxy. When the key cannot capture, the same job
 # uploads a capture recorded blocked with its cause: credit-stop (the credit
-# gate held the key off, or its probe hit a credit stop), empty-key, or
-# probe-handoff (the probe handed off on auth). The cause comes only from
-# this job's own calls, never from the driven session's summary, which the
-# collect step strips of one. When the credit gate skips the key the job
+# gate's marker held the key off, or its probe hit a credit stop),
+# empty-key, probe-handoff (the probe handed off on auth), or unrecognized
+# (a next-leg reason outside those). The cause is advisory: the job writes
+# it from its own calls, and the collect step strips one from the driven
+# session's summary, but that strip runs after the head checkout, so the
+# cause informs an operator and gates nothing. When the credit gate skips the key the job
 # stops before the resolver, so that capture is named from the event's pull
 # request and head. A driver
 # that stops at the usage limit after the head checkout leaves a blocked
@@ -1159,11 +1161,12 @@ jobs:
 
       # The key could not capture, so no leg captures: the blocked capture in
       # run-e2e's shape, which write-verdict.mjs reads as any other, with the
-      # cause (credit-stop, empty-key or probe-handoff) taken only from this
-      # job's trusted calls: the credit gate's held key (HELD; the job stopped
-      # before the resolver, so the pull request and head come from the
-      # event), else the next-leg call's closed-list reason (WHY). No head
-      # code is checked out after it.
+      # cause (credit-stop, empty-key, probe-handoff or unrecognized) taken
+      # only from this job's calls: the credit gate's held key (HELD; the job
+      # stopped before the resolver, so the pull request and head come from
+      # the event), else the next-leg call's reason (WHY), which is printed
+      # only when it is one of the known values. No head code is checked out
+      # after it.
       - name: Write the blocked capture
         id: handoff-capture
         if: steps.next.outputs.next-leg == 'subscription' || steps.credit.outputs.next-leg == 'subscription'
@@ -1179,9 +1182,9 @@ jobs:
         run: |
           if [ "$HELD" = subscription ]; then
             cause=credit-stop
-            reason="the key is in a credit stop, so the credit gate held it off"
+            reason="the credit gate's credit-stop marker held the key off"
             if [[ $ORIGIN_RUN =~ ^[1-9][0-9]{0,19}$ ]]; then
-              reason="$reason; the stop was hit in run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$ORIGIN_RUN"
+              reason="$reason; the marker names run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$ORIGIN_RUN"
             fi
           else
             case "$WHY" in
@@ -1198,8 +1201,8 @@ jobs:
                 reason="the probe leg handed off: the API refused the key (class auth)"
                 ;;
               *)
-                echo "::error::the next-leg call gave no reason the capture knows"
-                exit 1
+                cause=unrecognized
+                reason="the key could not capture, for a reason the capture does not recognize"
                 ;;
             esac
           fi
@@ -1610,10 +1613,13 @@ jobs:
             blocked "the summary changed while it was copied"
           fi
           # A cause comes only from "Write the blocked capture", never from
-          # the driven session's summary.
+          # the driven session's summary, in either shape write-verdict.mjs
+          # reads.
           uncaused=$(mktemp)
-          jq 'if (.capture | type) == "object" then del(.capture.cause) else . end' "$OUT/e2e-summary.json" >"$uncaused" ||
+          if ! jq 'del(.cause) | if (.capture | type) == "object" then del(.capture.cause) else . end' "$OUT/e2e-summary.json" >"$uncaused"; then
+            rm -f -- "$uncaused"
             blocked "the summary could not be read without its cause"
+          fi
           mv -f -- "$uncaused" "$OUT/e2e-summary.json"
           kept=0
           while IFS= read -r rel; do
