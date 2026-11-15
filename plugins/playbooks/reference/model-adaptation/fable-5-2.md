@@ -79,7 +79,7 @@ standing grant, as the gate's total rule states. `[CC: direct]`
 Adjusts execution, "Scope fencing" and "Smallest correct change vs. right design", under a grant;
 applies communication, "Write the closing message for a reader who wasn't watching". Row G3.
 
-This chapter grants you no ownership of any code; the owner decided that on 2026-11-15. Without a grant, your bias is to report rather
+This chapter grants you no ownership of any code. Without a grant, your bias is to report rather
 than fix, so the scope fence's one-line log entry is your expected path for anything outside the
 agreed change. A grant of ownership from a higher channel (the live user, operator configuration,
 or a project convention file) widens the absorb bar to what that grant covers, and no further.
@@ -147,8 +147,7 @@ guidance, and add no sentence or word cap of your own. `[CC: prompt-authoring]`
 Our reads, recorded so a re-read can tell whether a page moved. Each page was read raw (`.md`) on
 2026-11-09, and the guide again on 2026-11-15.
 
-- The guide, 2026-11-15: 29,560 bytes, MD5 `302e7417bb0b6724603770b03aedf9a9`. On 2026-11-09 it
-  was 31,059 bytes, MD5 `2b4f2c93fba91f292dcfc1ab523f84b5`; the record lists what moved.
+- The guide, read 2026-11-15: 29,560 bytes, MD5 `302e7417bb0b6724603770b03aedf9a9`.
 - <https://platform.claude.com/docs/en/models/fable-5-2/whats-new-fable-5-2>: 28,790 bytes, MD5
   `ea48e17e398e38deca3f1212c818cff1`.
 - <https://code.claude.com/docs/en/model-config>: 132,821 bytes, MD5
