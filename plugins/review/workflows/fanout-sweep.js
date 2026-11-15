@@ -158,7 +158,7 @@ const AGENT_PROMPT =
 
 function slicePrompt(slice) {
   return 'Read the project review criteria document "' + slice + '". Run `git diff ' + DIFF_BASE + '` ' +
-    'yourself to see the changes. Review the diff against ONLY that document\'s criteria. List each finding ' +
+    'yourself to see the changes. Review the diff against only that document\'s criteria. List each finding ' +
     'with file:line, a severity tier, a confidence level (high / medium / low), and a one-line description. ' +
     'If the diff does not touch this concern, reply "No findings for ' + slice + '."' +
     COVERAGE_CLAUSE
@@ -264,8 +264,8 @@ if (returned.length || fileLeaves.length) {
   const extracted = await agentRetry(
     'You are the Stage-0 extraction step of a review-findings pipeline. Below are raw free-text findings from ' +
     'several review surfaces, each under a "### Surface:" header. Emit one record per finding (surface, file, ' +
-    'line, line_basis, category, native_severity, native_confidence, raw_text). Do NOT crosswalk severity or ' +
-    'confidence (later stages do that). Preserve EVERY finding, never drop one.' + fileClause + coverageClause + '\n\n' + extractInput,
+    'line, line_basis, category, native_severity, native_confidence, raw_text). Do not crosswalk severity or ' +
+    'confidence (later stages do that). Preserve every finding, never drop one.' + fileClause + coverageClause + '\n\n' + extractInput,
     // stage-normalizer inherits the model and pins no effort, so the routed variant applies to it.
     { agentType: 'review:stage-normalizer', schema: RECORD_SCHEMA, label: 'stage0-extract', phase: 'Extract', ...opts(EXTRACT) }
   )

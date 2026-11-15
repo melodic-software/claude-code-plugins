@@ -7,7 +7,7 @@ importantly, vocabulary from the song's developed world. A generic rhyming
 dictionary misses most of that. See `rhyme-generation.md` for the internal
 discipline.
 
-This file documents EXTERNAL tools that supplement internal generation when
+This file documents external tools that supplement internal generation when
 specific limits are hit. They do not replace Pat's craft application; they
 plug specific gaps.
 
@@ -22,13 +22,13 @@ plug specific gaps.
 | Identity vs rhyme check | YES: once applied | n/a |
 | Cliche detection | YES | n/a |
 | Vowel triangle / diphthong decomposition | YES: Pat's framework is internal | n/a |
-| HIGH volume (50+) brainstorm candidates | PARTIAL | YES: Datamuse for breadth |
+| High volume (50+) brainstorm candidates | PARTIAL | YES: Datamuse for breadth |
 | Syllable count on rare polysyllabic words | UNRELIABLE | YES: Datamuse `syllables` |
 | Verifying word actually exists / current usage | UNRELIABLE | YES: Datamuse |
 | Statistical semantic field for metaphor | INTUITIVE only | YES: Datamuse `trg` |
 | Stress pattern detection on rare words | UNRELIABLE | YES: pronouncing library |
 
-**Rule:** use the internal discipline (per `rhyme-generation.md`) FIRST.
+**Rule:** use the internal discipline (per `rhyme-generation.md`) first.
 External tools come in to verify, expand, or fill specific gaps.
 
 ## Datamuse: vocabulary breadth + verification
@@ -110,9 +110,9 @@ co-occurrences (winter, weight, river, ash, hollow), broader and more
 metaphor-ready.
 
 ```bash
-datamuse.sh trg grief | head -20
-datamuse.sh jja grief | head -20    # adjectives for grief (heavy, raw, old)
-datamuse.sh jjb heavy | head -20    # nouns described by "heavy" (load, silence, hand)
+bash "${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh" trg grief | head -20
+bash "${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh" jja grief | head -20    # adjectives for grief (heavy, raw, old)
+bash "${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh" jjb heavy | head -20    # nouns described by "heavy" (load, silence, hand)
 ```
 
 Feed candidates into Pat's metaphor recipes (`metaphor.md`).
@@ -138,13 +138,13 @@ stresses = pronouncing.stresses(phones[0])            # e.g., "20010"
 CMUdict misses neologisms, proper nouns, and slang. For those, `pyphen`
 provides a typographic-hyphenation fallback (`pip install pyphen`).
 
-The skill does NOT require the user to install pronouncing. Datamuse's
+The skill does not require the user to install pronouncing. Datamuse's
 `numSyllables` covers routine needs. Pronouncing is the upgrade path for
 stress-pattern work.
 
 ## Genius API: exemplar analysis (optional)
 
-For lyric-exemplar study (NOT reproduction): <https://docs.genius.com>.
+For lyric-exemplar study (not reproduction): <https://docs.genius.com>.
 Requires free account + access token. Annotations data is ToS-compliant;
 lyrics scraping is not. Use Genius for community annotation insights, not
 for lyric reproduction.
@@ -166,7 +166,7 @@ For rhyme requests, the model:
 For syllable / stress on rare words: verify via Datamuse `syllables` or
 pronouncing library. Do not guess.
 
-## What this file does NOT do
+## What this file does not do
 
 - It does not assert that Datamuse is the primary rhyme tool. It isn't.
   The model's internal vocabulary plus Pat's framework is primary.

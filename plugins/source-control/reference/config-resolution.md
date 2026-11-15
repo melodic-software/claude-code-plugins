@@ -95,7 +95,7 @@ repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
     `Tradeoffs`, `Risk` and `Verification` in that order, and requires `Why`, `What changed`,
     `Scope` and `Verification`. `Tradeoffs` and `Risk` appear only when they have something to say,
     and the gate never requires them.
-  - `summary-test-plan`: requires `Summary` and `Test plan`, the default before `briefing` replaced it.
+  - `summary-test-plan`: requires `Summary` and `Test plan`.
   - `none`: no required sections. The draft emits no section scaffold and the pre-create gate
     requires nothing.
 
@@ -151,12 +151,10 @@ repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
 
 Absent sections are absent, never empty.
 
-- `convention_source`: not read when drafting. The pointer was a `## convention_source` H2 of the
-  retired `.claude/source-control.md`, and the team YAML has no such key (the schema allows no
-  other key). The pointer and the neutral convention file it names
-  (`docs/conventions/source-control/commit-convention.yml` by default) are enforcement legacy
-  surfaces: the guardrails resolver reads them for one release, only for a key the team YAML
-  lacks. Their rungs and fail-closed contract are owned by the
+- `convention_source`: not read. The pointer was a `## convention_source` H2 of the retired
+  `.claude/source-control.md`, and the team YAML has no such key (the schema allows no other key).
+  The guardrails resolver reads the git-tracked `docs/conventions/source-control/commit-convention.yml`
+  only for a key the team YAML lacks. Its rungs and fail-closed contract are owned by the
   [commit-convention enforcement README](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/commit-convention/README.md).
 
 ## YAML keys (`docs/conventions/source-control.yaml`)
@@ -731,8 +729,8 @@ This document owns **drafting** resolution: how `/source-control:commit` and `/s
 compose a compliant subject/title, reading all three layers with the per-key merge above. A separate
 concern owns **enforcement**: how a zero-dependency guardrails hook decides whether an
 *already-formed* subject/title is allowed. Both read the team values in
-`docs/conventions/source-control.yaml` (enforcement also reads, for one release, the legacy files
-its README names) but differ on
+`docs/conventions/source-control.yaml` (enforcement also reads the git-tracked
+`docs/conventions/source-control/commit-convention.yml` for a key that file lacks) but differ on
 purpose: enforcement reads the **team-tracked layer** (a gitignored `*.local.md` must never weaken
 a blocking gate), and only where it sets no `subject_pattern` falls back to the operator's
 git-ignored `docs/conventions/source-control.local.yaml`, never merged with a team pattern.
@@ -765,4 +763,6 @@ never edits it and fails with a recommendation when the personal override is exp
   since an ignore rule never applies to a file already in the index.
 - **A layer is malformed** (a non-machine-checkable `subject_pattern`, an unparsable section) →
   surface the error, name the layer, and resolve as if that layer were absent. Unknown H2 sections
-  are inert.
+  are inert. Two exceptions stop instead of falling back: a team YAML the shared reader rejects
+  stops the lookup for that key ([The config files](#the-config-files)), and a malformed
+  `branch_issue_pattern` section stops resolution.

@@ -14,7 +14,7 @@ limited (post-compaction, short session), or the user explicitly requests a quic
 
 ### 1. Skip metrics extraction
 
-Do NOT run the parser. Use conversation context only.
+Do not run the parser. Use conversation context only.
 
 ### 2. Behavioral quick-check
 
@@ -58,7 +58,7 @@ mode format.
 If auto-memory exists, read up to 10 recent `feedback_*.md` files (not all, for budget) and
 flag any regression prominently.
 
-## What this mode does NOT do
+## What this mode does not do
 
 - No parser run (no Phase 1), no full 5-dimension analysis
 - No skill/follow-up candidate generation (unless something jumps out)

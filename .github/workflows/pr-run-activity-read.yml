@@ -1,7 +1,7 @@
 name: PR Run Activity Read
 
 # Runs one read activity of one PR pipeline lane and reports it as the check
-# run `<lane> / <activity>`. The broker-check job asks the lanes token broker's
+# run `<lane> / <activity>`. The check-broker job asks the lanes token broker's
 # check endpoint whether the lane may run, and fails closed. The run job gates,
 # resolves the base-SHA config, fails red on any effect but `read` before the
 # PR head is checked out, and runs a skill or a script with the job's
@@ -15,7 +15,7 @@ name: PR Run Activity Read
 # 401 or 402), and its third call, started the same way, passes the central
 # fallback token, FALLBACK_CLAUDE_CODE_OAUTH_TOKEN, and never hands off.
 # Secrets are scrubbed per workflow run, so this file references no App key.
-# Only the broker-check job, which runs no PR head code, requests an OIDC
+# Only the check-broker job, which runs no PR head code, requests an OIDC
 # token; the run job that runs head code holds neither. Write activities run
 # in pr-run-activity-write.yml.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
@@ -85,7 +85,7 @@ on:
       start-gate:
         description: >-
           `true` for a caller whose call starts new work (the issue lane):
-          broker-check's kill-switch gate then also stops on a low
+          check-broker's kill-switch gate then also stops on a low
           GITHUB_TOKEN budget, on the first call in the slot only (fallback
           empty or `credit-stop`); a call that takes over a handed-off turn,
           and every call of a caller that leaves this `false`, checks the
@@ -114,7 +114,7 @@ on:
           The first call only: the key job's name for ci-workflows
           check-key-credit, the activity's own (`fix-ci`, `resolve-issue`), so
           the activities of one caller file keep separate credit-stop markers.
-          broker-check reads the key's credit history before any model turn,
+          check-broker reads the key's credit history before any model turn,
           and a credit stop inside vars.KEY_CREDIT_WINDOW_HOURS skips the key:
           the call hands off at once and the caller's next call runs on the
           subscription. Empty runs no gate.
@@ -330,9 +330,10 @@ on:
         value: ${{ jobs.scan.outputs.feedback-sha256 }}
       feedback-disputed:
         description: >-
-          `true` when the review-thread replies the scan job uploaded hold an
-          INCORRECT reply or a line that is not JSON, else empty. Only the
-          scan job sets it, from the bytes it uploaded.
+          `true` when the review-thread replies the scan job uploaded hold a
+          reply whose disposition is `INCORRECT`, `UNCERTAIN` or `VALID-defer`,
+          or a line that is not JSON, else empty. Only the scan job sets it,
+          from the bytes it uploaded.
         value: ${{ jobs.scan.outputs.feedback-disputed }}
       dependency-attempt:
         description: >-
@@ -418,25 +419,25 @@ on:
           a limit stop, a credit stop, or a 401 or 402), so it skipped the
           scan job, uploaded nothing, recorded no lane outcome and posted no
           check, and the next call runs the activity. Empty, as is every
-          other run job output, when broker-check handed the first call off
+          other run job output, when check-broker handed the first call off
           before its run job (skip-run): that call posts no check either.
         value: ${{ jobs.run.outputs.handed-off }}
-      # Set by broker-check, which runs no model, so a caller may act on them.
+      # Set by check-broker, which runs no model, so a caller may act on them.
       skip-reason:
         description: >-
           `kill-switch` when the broker refused the check because a lanes kill
-          switch is on, `budget` when broker-check's start gate stopped on a
+          switch is on, `budget` when check-broker's start gate stopped on a
           low GITHUB_TOKEN budget, so no lane ran; empty otherwise.
-        value: ${{ jobs.broker-check.outputs.skip-reason }}
+        value: ${{ jobs.check-broker.outputs.skip-reason }}
       lease:
         description: >-
-          Issue mode: `held` when broker-check posted this call's lane lease,
+          Issue mode: `held` when check-broker posted this call's lane lease,
           `already-leased` when it backed off; empty otherwise.
-        value: ${{ jobs.broker-check.outputs.lease }}
+        value: ${{ jobs.check-broker.outputs.lease }}
       lease-comment-id:
         description: >-
           Issue mode, lease `held`: the lease comment's id, for the caller's release.
-        value: ${{ jobs.broker-check.outputs.lease-comment-id }}
+        value: ${{ jobs.check-broker.outputs.lease-comment-id }}
 
 permissions: {}
 
@@ -458,8 +459,8 @@ jobs:
   # but an allow, or none, fails this job, which skips the run job and fails
   # the check. issues: write is for the issue lease alone, posted before any
   # model turn (CONTRACT.md "Lease protocol").
-  broker-check:
-    name: Broker Check
+  check-broker:
+    name: Check Broker
     if: >-
       !(github.event_name == 'pull_request'
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
@@ -470,7 +471,7 @@ jobs:
       contents: read
       id-token: write
       issues: write
-    # "Re-run failed jobs" reuses a successful broker-check and its outputs,
+    # "Re-run failed jobs" reuses a successful check-broker and its outputs,
     # so the run job also checks that the allow came from its own attempt.
     outputs:
       allowed: ${{ steps.broker.outcome == 'success' && steps.broker.outputs.allowed == 'true' }}
@@ -682,11 +683,11 @@ jobs:
           echo "lease-comment-id=$id" >>"$GITHUB_OUTPUT"
 
       # Issue mode, once the run holds its slot and its lease: the caller's
-      # admit job checked the issue's blockers before the slot wait, which
+      # check-admission job checked the issue's blockers before the slot wait, which
       # can last an hour, so a blocker added since is read here, by the same
       # check-blockers.mjs in its RECHECK mode (one blocked_by read unless
       # only closed blockers are listed). An open blocker, or a read that
-      # fails, stops the run as admit's does: no model turn, no outcome
+      # fails, stops the run as check-admission's does: no model turn, no outcome
       # marker, agent-ready kept, and work-unblock's sweep re-fires the issue
       # once no blocker is open, matching the stop step below by name. The
       # report job ends the lease. The first call in the slot alone checks:
@@ -720,13 +721,13 @@ jobs:
 
   # Job-level evidence of the broker's allow for a caller's handoff read
   # (.github/scripts/lib/handoff-evidence.sh): this job succeeds only on
-  # broker-check's allowed output and is skipped otherwise, and the Actions
+  # check-broker's allowed output and is skipped otherwise, and the Actions
   # API returns a job's conclusion as it ends, where a step's can stay empty
-  # for minutes. It needs broker-check alone, so no run job output reaches it.
-  broker-allowed:
-    name: Broker Allowed
-    needs: broker-check
-    if: needs.broker-check.outputs.allowed == 'true'
+  # for minutes. It needs check-broker alone, so no run job output reaches it.
+  record-broker-allow:
+    name: Record Broker Allow
+    needs: check-broker
+    if: needs.check-broker.outputs.allowed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -736,15 +737,15 @@ jobs:
 
   run:
     name: Run
-    needs: broker-check
+    needs: check-broker
     # The lanes App's own pull_request events never start a lane, and nor does
-    # a broker kill-switch refusal, nor a first call whose key broker-check's
+    # a broker kill-switch refusal, nor a first call whose key check-broker's
     # credit read skipped (skip-run).
     if: >-
       !(github.event_name == 'pull_request'
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
-      && needs.broker-check.outputs.skip-reason == ''
-      && needs.broker-check.outputs.skip-run != 'true'
+      && needs.check-broker.outputs.skip-reason == ''
+      && needs.check-broker.outputs.skip-run != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.timeout-minutes }}
     cache-mode: read
@@ -919,15 +920,15 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # A broker-check allow from an earlier attempt, reused by "Re-run failed
-      # jobs", or a broker-check that skipped the broker because its own kill
+      # A check-broker allow from an earlier attempt, reused by "Re-run failed
+      # jobs", or a check-broker that skipped the broker because its own kill
       # switch read stopped, is not an allow for this attempt: fail red as a
       # kill-switch stop. Re-running all jobs asks the broker again.
       - name: Assert the broker allowed this attempt
         if: steps.kill.outputs.proceed == 'true'
         env:
-          ALLOWED: ${{ needs.broker-check.outputs.allowed }}
-          ALLOWED_ATTEMPT: ${{ needs.broker-check.outputs.attempt }}
+          ALLOWED: ${{ needs.check-broker.outputs.allowed }}
+          ALLOWED_ATTEMPT: ${{ needs.check-broker.outputs.attempt }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           if [ "$ALLOWED" != true ] || [ "$ALLOWED_ATTEMPT" != "$RUN_ATTEMPT" ]; then
@@ -1217,18 +1218,18 @@ jobs:
           inputs.issue-number != '' && steps.config.outputs.applies == 'true'
           && steps.config.outputs.kind == 'skill'
           && steps.workflow-current.outputs.stale != 'true'
-          && needs.broker-check.outputs.lease != 'already-leased'
-          && needs.broker-check.outputs.blocked != 'true'
+          && needs.check-broker.outputs.lease != 'already-leased'
+          && needs.check-broker.outputs.blocked != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
 
-      # Issue mode: broker-check found a live lease older than its own, so
+      # Issue mode: check-broker found a live lease older than its own, so
       # another session holds the issue and the run stops before any model turn.
       - name: Stop on an existing issue lease
-        if: steps.config.outputs.applies == 'true' && needs.broker-check.outputs.lease == 'already-leased'
+        if: steps.config.outputs.applies == 'true' && needs.check-broker.outputs.lease == 'already-leased'
         env:
           ISSUE_NUMBER: ${{ inputs.issue-number }}
         run: |
@@ -1236,7 +1237,7 @@ jobs:
 
       # Whether the activity runs: it applies, and in issue mode neither stale
       # workflow files, an earlier run's work, another session's lease nor an
-      # open blocker (broker-check's in-slot re-check) stops it. Every step
+      # open blocker (check-broker's in-slot re-check) stops it. Every step
       # below that touches the activity keys on this.
       - name: Decide whether the activity runs
         id: go
@@ -1244,8 +1245,8 @@ jobs:
         env:
           PRIOR: ${{ steps.issue-prior.outputs.proceed }}
           STALE: ${{ steps.workflow-current.outputs.stale }}
-          LEASE: ${{ needs.broker-check.outputs.lease }}
-          BLOCKED: ${{ needs.broker-check.outputs.blocked }}
+          LEASE: ${{ needs.check-broker.outputs.lease }}
+          BLOCKED: ${{ needs.check-broker.outputs.blocked }}
         run: |
           run=true
           if [ "$PRIOR" = false ] || [ "$STALE" = true ] || [ "$LEASE" = already-leased ] || [ "$BLOCKED" = true ]; then
@@ -1725,7 +1726,7 @@ jobs:
       # call runs on the central fallback token (act-fallback), the last leg.
       # Only whether the secret is set leaves these steps, never its value.
       # Each is ci-workflows select-model-credential's leg call: the key leg
-      # is held off when broker-check's credit read skipped the key, and the
+      # is held off when check-broker's credit read skipped the key, and the
       # subscription leg checks the caller's fallback input as its reason.
       # Whether the subscription leg may hand off stays the caller's
       # fallback-ready, so no fallback-set is passed.
@@ -1739,7 +1740,7 @@ jobs:
           leg: key
           role: ${{ inputs.role }}
           credential-set: ${{ secrets.claude-api-key != '' }}
-          selected: ${{ needs.broker-check.outputs.skip-key == 'true' && 'subscription' || '' }}
+          selected: ${{ needs.check-broker.outputs.skip-key == 'true' && 'subscription' || '' }}
 
       - name: Check the OAuth token
         id: token-present
@@ -3824,13 +3825,13 @@ jobs:
 
   report:
     name: Report
-    needs: [broker-check, run, check-issue-fields, scan, generate-reuse-summary]
+    needs: [check-broker, run, check-issue-fields, scan, generate-reuse-summary]
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
     # lanes App's own pull_request events skip the run job. Issue mode has no
     # PR head to post a check on, and a run that handed off leaves the check
-    # to the caller's fallback call, as does a call broker-check handed off
+    # to the caller's fallback call, as does a call check-broker handed off
     # (skip-run), whose skipped run job leaves handed-off empty. In issue
-    # mode this job only ends the lane lease broker-check posted, whatever
+    # mode this job only ends the lane lease check-broker posted, whatever
     # the other jobs' results, unless the caller ends it: in
     # caller-releases-lease mode, a call that did not hand
     # off and whose check-issue-fields job set issue-run-started or reuse-branch
@@ -3838,13 +3839,13 @@ jobs:
     # caller's write runner, and every other call releases it here.
     if: >-
       always() && (inputs.issue-number == '' && needs.run.outputs.handed-off != 'true'
-      && needs.broker-check.outputs.skip-run != 'true'
+      && needs.check-broker.outputs.skip-run != 'true'
       && !(github.event_name == 'pull_request'
       && github.event.pull_request.head.repo.full_name != github.repository)
       && !(github.event_name == 'pull_request'
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
-      || inputs.issue-number != '' && needs.broker-check.outputs.lease == 'held'
-      && needs.broker-check.outputs.lease-comment-id != ''
+      || inputs.issue-number != '' && needs.check-broker.outputs.lease == 'held'
+      && needs.check-broker.outputs.lease-comment-id != ''
       && !(inputs.caller-releases-lease && needs.run.outputs.handed-off != 'true'
       && (needs.check-issue-fields.outputs.issue-run-started == 'true'
       || needs.check-issue-fields.outputs.reuse-branch != '')))
@@ -3961,7 +3962,7 @@ jobs:
       # run head (the run stopped before its
       # trigger gate passed, or the gate read a head other than the caller's,
       # a supersede) never posts failure, which babysit would read as
-      # a merge blocker: after the broker-check job's refusal, which includes
+      # a merge blocker: after the check-broker job's refusal, which includes
       # its own kill switch read (a trusted decision no run job output can
       # write, and one a switch flipped mid-run cannot change here), it keeps
       # the old rule (on pull_request the event's head, otherwise no post);
@@ -3982,8 +3983,8 @@ jobs:
           EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
           API_HEAD: ${{ steps.pr-head.outputs.sha }}
           PR_MISMATCH: ${{ steps.pr-head.outputs.pr-mismatch }}
-          TRUSTED_SKIP: ${{ needs.broker-check.outputs.allowed != 'true' }}
-          BROKER_STOP: ${{ needs.broker-check.outputs.skip-reason == 'kill-switch' || needs.broker-check.outputs.skip-reason == 'budget' }}
+          TRUSTED_SKIP: ${{ needs.check-broker.outputs.allowed != 'true' }}
+          BROKER_STOP: ${{ needs.check-broker.outputs.skip-reason == 'kill-switch' || needs.check-broker.outputs.skip-reason == 'budget' }}
           POST_DECLINE: ${{ inputs.post-decline }}
         run: |
           out() { printf 'post=true\nsha=%s\nforged=%s\n' "$1" "$2" >>"$GITHUB_OUTPUT"; }
@@ -3993,7 +3994,7 @@ jobs:
             valid "$gated" || gated=$EVENT_HEAD
             if [ "$TRUSTED_SKIP" = true ] || [ "$POST_DECLINE" = false ] || ! valid "$gated"; then
               out "" false
-              # The broker's kill-switch refusal, or broker-check's budget
+              # The broker's kill-switch refusal, or check-broker's budget
               # stop, skipped the run job: neutral, under the skip-reason
               # enum's kill-switch.
               if [ "$BROKER_STOP" = true ]; then echo "not-run-reason=kill-switch" >>"$GITHUB_OUTPUT"; fi
@@ -4063,14 +4064,14 @@ jobs:
         with:
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
-          # A broker-check failure skips the run job and leaves no verdict, so
-          # the check fails; a cancelled broker-check reads as cancelled. A
+          # A check-broker failure skips the run job and leaves no verdict, so
+          # the check fails; a cancelled check-broker reads as cancelled. A
           # scan job that failed (a credential, a withheld or oversize
           # payload) fails the check after a run job that succeeded.
           run-result: >-
             ${{ steps.head.outputs.forged == 'true' && 'failure'
             || steps.head.outputs.not-run-reason != '' && 'skipped'
-            || needs.broker-check.result != 'success' && needs.broker-check.result
+            || needs.check-broker.result != 'success' && needs.check-broker.result
             || needs.run.result != 'success' && needs.run.result
             || needs.scan.result }}
           not-run-reason: ${{ steps.head.outputs.not-run-reason }}
@@ -4087,7 +4088,7 @@ jobs:
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}
           github-token: ${{ github.token }}
 
-      # Issue mode: the lease handle comes only from broker-check, which ran
+      # Issue mode: the lease handle comes only from check-broker, which ran
       # before any model turn. A failure warns and leaves the lease to expire
       # at its TTL without failing the job.
       - name: Release the lane lease
@@ -4098,7 +4099,7 @@ jobs:
           REPO: ${{ github.repository }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           HOLDER: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-          LEASE_COMMENT_ID: ${{ needs.broker-check.outputs.lease-comment-id }}
+          LEASE_COMMENT_ID: ${{ needs.check-broker.outputs.lease-comment-id }}
           TRACKER: .base/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
           CLAUDE_PROJECT_DIR: ${{ github.workspace }}/.base
         run: |
@@ -4117,7 +4118,7 @@ jobs:
       # post, warns and leaves the job green. A broker kill-switch refusal or
       # budget stop ran no lane, so it posts none.
       - name: Post the lane run report comment
-        if: always() && needs.broker-check.outputs.skip-reason != 'kill-switch' && needs.broker-check.outputs.skip-reason != 'budget'
+        if: always() && needs.check-broker.outputs.skip-reason != 'kill-switch' && needs.check-broker.outputs.skip-reason != 'budget'
         continue-on-error: true
         env:
           LANE: ${{ inputs.lane }}

@@ -76,10 +76,3 @@ gate makes ([`../skills/triage/SKILL.md`](../skills/triage/SKILL.md) "Direction
 gate"). Whether an autonomous lane prefixes each item and comment it creates with the lane-neutral
 AI disclaimer, and its form, are in [`ai-disclaimer.md`](ai-disclaimer.md); substitute this lane's
 short name for `{lane}`.
-
-## Reconciliation note
-
-The authoritative wording of this rule currently also lives in the external v4 standing-loop prompts,
-where `source-control:babysit-prs` has not yet absorbed its lane rules (`#477`). This document is the
-in-repo surface those prompts and the lane-absorption skills reference; when the remaining absorption
-lands, its self-observation wording reconciles against this contract rather than adding a fourth copy.

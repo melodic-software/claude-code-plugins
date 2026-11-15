@@ -68,7 +68,8 @@ on:
   workflow_dispatch: {}
   # Starts fix-docs on a PR's own event, the only start it has: the refine
   # job below. From 2026-12-02 GitHub blocks pull_request_target in public
-  # repositories unless an Actions event policy allows it for this file;
+  # repositories unless an Actions event policy allows it for this file
+  # (https://github.blog/changelog/2026-11-02-pull_request_target-blocked-by-default-december-2/);
   # without one, fix-docs stops while reviews still run. pull_request_target
   # runs this file and its checkout from main, never the PR's copy
   # (ADR 0090). Opened, reopened or turned ready, and a push, which may

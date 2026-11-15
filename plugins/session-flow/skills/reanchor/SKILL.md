@@ -58,14 +58,14 @@ back up.
    step neither re-does settled work nor chases a closed thread.
 5. **The recorded goal, and whether the planned work still serves it.** A
    handoff's `Original goal` is a premise like any other, a documented claim
-   about what the work is FOR, and the cross-link comparison below is the one
+   about what the work is for, and the cross-link comparison below is the one
    test only reanchor performs (the other resume-path checks read a single
    document). Confirm it is present; confirm a document that chains from another
    carries the prior link's quote **unchanged**, read from that file rather than
    from the current document's own wording; then confirm the planned next
    actions still connect to it, stated in one sentence. A quote that was
    re-derived instead of copied is reported as drift between the links, the
-   paraphrase IS the drift, and it is invisible at any single hop because each
+   paraphrase is the drift, and it is invisible at any single hop because each
    rewording is individually plausible. For a shape-3 handoff (`handoff_shape: 3`)
    that comparison is
    `python3 -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" validate <file>`
@@ -96,7 +96,7 @@ back up.
    the re-anchored picture. Surface it; do not silently rewrite the plan or
    auto-fix. The session re-plans on the corrected reality.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not inventory worktrees.** Enumerating every worktree by
   path / branch / PR / commit-age staleness is `/source-control:worktree`

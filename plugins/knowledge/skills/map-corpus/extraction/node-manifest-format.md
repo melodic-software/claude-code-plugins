@@ -64,12 +64,12 @@ Serialization: JSON, `indent=2`, keys sorted, ASCII-escaped, trailing newline, U
 ## Node fields
 
 - `id`: `n<index 4-digit zero-padded>-<first 8 hex of content_sha256>`. Deterministic for one
-  snapshot; NOT stable across snapshot revisions (an upstream edit re-partitions). Cross-revision
+  snapshot; not stable across snapshot revisions (an upstream edit re-partitions). Cross-revision
   identity is out of scope for v1.
 - `kind`: `frontmatter` | `preamble` | `section` | `document`.
   - `frontmatter`: a leading `---`-fenced block (markdown only).
   - `preamble`: bytes between frontmatter (or byte 0) and the first heading.
-  - `section`: a heading plus its body, running to the next heading of ANY level. Sections are
+  - `section`: a heading plus its body, running to the next heading of any level. Sections are
     leaf-granular; coarser granularity is a downstream roll-up over `level`/`parent_id`, never a
     re-extraction.
   - `document`: the whole snapshot, used when the format yields no outline (opaque formats, or a
@@ -126,7 +126,7 @@ extractions where outline structure either does not exist or is not recoverable 
 
 - Cross-revision node identity (see `id`).
 - Sub-heading granularity (paragraph/sentence nodes). The partition floor is the heading section;
-  finer evidence lives in evidence-token spans INSIDE a node's byte range.
+  finer evidence lives in evidence-token spans inside a node's byte range.
 - Format sniffing. The extension map (or `--format`) is trusted absolutely; content is never
   sniffed beyond the BOM checks above. An unknown extension fails loudly instead of guessing,
   but a wrong extension (binary bytes named `.html`) is honored, deterministically yielding a

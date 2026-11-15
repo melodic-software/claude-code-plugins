@@ -5,7 +5,6 @@ The skills of `plugins/discovery`. Each one is driven with `<plugin-dir>` set to
 ## Parts
 
 - `blindspot`: Surface your unknown-unknowns and sharpen the prompt before unfamiliar work.
-- `check`: Report whether node resolves and the WebFetch truncation hook is registered. Never installs.
 - `explore`: Explore code, history, tests, and config before changing anything.
 - `read-docs`: Read an upstream docs page through the shared lookup and cache.
 - `report`: The return contract every agent a plugin skill dispatches reports in. No slash command.

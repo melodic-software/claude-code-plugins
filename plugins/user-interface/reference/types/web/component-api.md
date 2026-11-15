@@ -93,7 +93,7 @@ Implementation in `component-api/implementation.md`.
 **Audit: Important.** A multi-part component that drills every part through props on one root
 instead of compound parts sharing context.
 
-## 3. The Goldilocks level of customization
+## 3. How much customization to offer
 
 Too little customization and users fork your component or add hacky workarounds. Too much and the
 API becomes confusing and a maintenance nightmare. Aim for the middle:
@@ -154,11 +154,9 @@ had them. Tell the model which variants exist, and that it must not use ones tha
 
 A component is one agents write against when the project's agent instructions or design-system
 guidelines name it as a component to build with. For those, leave out the `className` escape hatch
-in the layers above; keep it for components only people compose. Avoid escape hatches where you
-can. If every component accepts an arbitrary `className`, there's a chance for the agent to use it
-to "fix" spacing and colors. Try to reduce the margin for error as much as possible. You can even
-go further and disallow the use of HTML elements and enforce the use of your components
-exclusively.
+in the layers above, because an agent given an arbitrary `className` can use it to "fix" spacing
+and colors; keep it for components only people compose. A project can go further and allow only its
+own components, never raw HTML elements, in agent-written code.
 
 - **Pointer**: Figma, design-system guidelines for Make kits, the example `button.md`,
   <https://help.figma.com/hc/en-us/articles/43602393097239-Write-design-system-guidelines-for-Make-kits#h_01S60MHT1T2MH1K3JKFQJCMAK8>

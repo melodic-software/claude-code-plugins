@@ -110,7 +110,9 @@ Gather all four before any edit, and write the candidate list to `decisions.md`:
    Quote every path in a command, each as its own argument. Every row is a candidate, report-only
    rules included. `Location` is repo-relative.
 2. Judge-pass findings, when `/testing:audit --judge --persist-findings` wrote any. Read every
-   `.work/reviews/*/*.md` whose frontmatter has `type: review-findings` and a `branch:` equal to
+   `<memory_dir>/reviews/*/*.md` (`<memory_dir>` is `.work/` unless the project's instructions
+   declare another root, as `/testing:audit` resolves it) whose frontmatter has
+   `type: review-findings` and a `branch:` equal to
    the current branch exactly (the frontmatter, not the directory, proves the branch), and keep
    the `testing/judge/rule-restated-expectation` rows whose `Location` is under the folder. A FLAG
    makes its test a candidate; a PASS clears no scanner finding.

@@ -5,9 +5,9 @@
 - [Where save-points live](#where-save-points-live)
 - [Locate the position first](#locate-the-position-first)
 - [Choosing the path: full save-point vs prompt-only](#choosing-the-path-full-save-point-vs-prompt-only)
-- [Redaction pass, mandatory on BOTH paths](#redaction-pass-mandatory-on-both-paths)
-- [Claim provenance, mandatory on BOTH paths](#claim-provenance-mandatory-on-both-paths)
-- [Original goal, mandatory on BOTH paths](#original-goal-mandatory-on-both-paths)
+- [Redaction pass, mandatory on both paths](#redaction-pass-mandatory-on-both-paths)
+- [Claim provenance, mandatory on both paths](#claim-provenance-mandatory-on-both-paths)
+- [Original goal, mandatory on both paths](#original-goal-mandatory-on-both-paths)
 - [The purpose argument tailors emphasis only](#the-purpose-argument-tailors-emphasis-only)
 - [Writing the handoff file (full path)](#writing-the-handoff-file-full-path)
 - [Emit the position panel](#emit-the-position-panel)
@@ -23,7 +23,7 @@ semantics. Neither skill restates this content; both walk it in order.
 ## Where save-points live
 
 Save-points are memory-tier, concern-scoped by session. A consumer-declared `memory_dir` (a
-working-docs convention in `CLAUDE.md` / `.claude/rules/`) wins as the memory-tier ROOT; save-points always live
+working-docs convention in `CLAUDE.md` / `.claude/rules/`) wins as the memory-tier root; save-points always live
 at **`<memory_dir>/handoffs/`** (default `.work/handoffs/`), in files named `<TS>-handoff-<topic>.md`
 with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic, Windows-safe, sortable). A shape-3 hop also
 writes one archive file under `<memory_dir>/handoffs/archive/` (structure doc, "Shape 3"), which
@@ -43,18 +43,18 @@ data included.
 ## Locate the position first
 
 Before emitting anything, establish where the work stands: if a plan or checklist artifact backs
-the work (see the sibling `workflow` skill), read it THIS turn and name the next unfinished stage.
+the work (see the sibling `workflow` skill), read it this turn and name the next unfinished stage.
 The resume prompt points at the next stage, not just "continue here". Ground every status claim in
 a fresh read, never a prior session's assertion. With no plan artifact, name the next concrete
 action from the conversation.
 
 ## Choosing the path: full save-point vs prompt-only
 
-**A resume prompt is ALWAYS emitted.** The only decision is whether to ALSO write a durable handoff
+**A resume prompt is always emitted.** The only decision is whether to also write a durable handoff
 file. Full save-point = prompt + file (prompt `@`-references the file); prompt-only = the same
 prompt carrying its detail inline, no file.
 
-**Default: write the file.** Skip it only when NO plan artifact backs the work AND all of these
+**Default: write the file.** Skip it only when no plan artifact backs the work and all of these
 clearly hold:
 
 - Remaining follow-ups fit as a short bullet list in the prompt
@@ -76,12 +76,12 @@ backs the work; eligibility and shape are in that skill's `reference/tracker-sho
 still the resume prompt, so the rule above holds. Findings not yet on the tracker take the full
 path.
 
-ANY doubt → full save-point. A wrongly-skipped file loses state the fresh session must rediscover;
+Any doubt → full save-point. A wrongly-skipped file loses state the fresh session must rediscover;
 a wrongly-written one costs nothing. An explicit method argument overrides auto-detect, but
 `prompt` leaves a gap in the session-id chain that `/session-flow:retro` walks (no file, no chain
 pointer).
 
-## Redaction pass, mandatory on BOTH paths
+## Redaction pass, mandatory on both paths
 
 Before writing the handoff file or emitting the resume prompt, sweep everything outbound
 for secrets, API keys, tokens, credentials, connection strings, and PII, and redact each hit with
@@ -96,7 +96,7 @@ acceptable to persist. This pass gates the write: no artifact or prompt is emitt
 embeds its credential in the URL's userinfo component (`https://<token>@host/…`), where it reads as
 one more path segment rather than as a secret, the shape this sweep is likeliest to walk past. So
 every **git remote** URL in the outbound set is checked for an `@` ahead of its host. **Drop the
-userinfo and keep the rest. Do NOT replace the URL with a shape marker. This is a deliberate
+userinfo and keep the rest. Do not replace the URL with a shape marker. This is a deliberate
 exception to the rule above, and it wins for git remote URLs and nothing else.** The general rule
 redacts to a marker because the whole value is secret and nothing downstream needs it; here the
 opposite holds. The scheme, host, and path are not secret, and recovery needs them:
@@ -116,9 +116,9 @@ re-resolves from a database host, so preserving it discloses infrastructure for 
 Strip-and-keep applies where something downstream needs the remainder; everywhere else the marker
 still wins.
 
-## Claim provenance, mandatory on BOTH paths
+## Claim provenance, mandatory on both paths
 
-A status claim earns plain statement only when THIS session verified it: a command run, a file
+A status claim earns plain statement only when this session verified it: a command run, a file
 read, an output observed. Anything inherited, whether a prior handoff's assertion, an issue label,
 or a remembered state, carries an explicit `UNVERIFIED (<source>)` marker instead: the resuming session
 treats an unmarked claim as fact and builds on it, so an inherited claim is a claim to falsify, not
@@ -139,7 +139,7 @@ remaining-work bullet carries the inherited status; a bullet that folds in an in
 "blocked" without `UNVERIFIED (<source>)` reproduces the exact failure this rule exists to prevent,
 with no file left behind for a later review to catch it in.
 
-## Original goal, mandatory on BOTH paths
+## Original goal, mandatory on both paths
 
 The goal in the user's own words travels with every save-point, and a chain of them carries it
 forward unchanged. A save-point serializes the machinery in front of it: the phase, the
@@ -155,7 +155,7 @@ only the follow-ups is the exact shape that loses the goal.
 
 **Amendments travel too.** A bare single goal line is valid only while the goal has no recorded
 amendment (`Amended: None.` on the full path). Once an amendment exists, the prompt-only form
-carries the original dated quote plus EVERY dated amendment, compact, one line each,
+carries the original dated quote plus every dated amendment, compact, one line each,
 `amended <date>: "<verbatim quote>"` under the original, still verbatim, still copied unchanged on
 later hops. The full path preserves that history in §1's `Amended:` field; a prompt-only hop that
 collapses it back to a single line discards the record of what the goal was and when it stopped
@@ -188,7 +188,7 @@ This is content between the rails, not a shape change: every detection-contract 
 (the rails, the copy-instruction line, the `Read @…` directive, the `Prior session:` line) is
 untouched.
 
-What purpose may NEVER do:
+What purpose may never do:
 
 - It never drops, renames, or reorders the mandatory section set ([`structure.md`](structure.md)'s
   ordered body sections). The structure is the anti-drift contract; every section is still present,
@@ -202,7 +202,7 @@ What purpose may NEVER do:
   goal and ask whether the goal has changed. The goal moves only by the explicit dated amendment
   the structure doc's `Amended:` field records, never because a purpose pointed elsewhere.
 
-Absent purpose text, nothing here applies and the engine behaves exactly as it always has.
+Absent purpose text, nothing in this section applies.
 
 ## Writing the handoff file (full path)
 
@@ -280,7 +280,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   the keys. Same-session `new` refuses to rewrite a hop file that holds amended or retired
   content, so `amend` is the only way to fold a late event in.
 
-The rails on screen are the `emit` output, so the file is validated BEFORE the prompt exists on
+The rails on screen are the `emit` output, so the file is validated before the prompt exists on
 screen and the two cannot disagree ("Emit the copy/paste resume prompt", full-path block).
 
 `new` never overwrites, so there is no "extend an earlier turn's write" path: a skeleton that an
@@ -292,7 +292,7 @@ and refuses without.
 
 ## Emit the position panel
 
-A save-point is written for the NEXT session, but a human reads the turn that produces it, and at
+A save-point is written for the next session, but a human reads the turn that produces it, and at
 that moment they decide two things the save-point never tells them: whether this is a sane place
 to stop, and whether the work is still pointed where they wanted it. Everything needed to answer
 both was already established by "Locate the position first" and the sections above; without this
@@ -305,7 +305,7 @@ fact not good enough for the file is not good enough here, and the panel never t
 save-point did not already need. That separates it from `/session-flow:orient`, which sweeps
 durable and off-thread state on demand; this is the free exit-side view.
 
-**One call is exempt, and only one:** the `TaskList` fetch a FORCED prompt-only save-point never
+**One call is exempt, and only one:** the `TaskList` fetch a forced prompt-only save-point never
 made (unit ladder, rung 4), in a session that has the task tools. It reads the session's own task ledger rather than the world outside
 the conversation, so it cannot turn the panel into an orientation sweep, which is the thing this
 rule exists to prevent. Nothing else is exempt: no `gh`, no ledger re-read, no artifact this turn
@@ -347,7 +347,7 @@ rail long enough to scroll is one the operator will not read.
 
 The whole panel is capped at 16 lines, blocks included.
 
-**The count is of COMPLETED units, and an in-progress unit is not one.** The example above reads
+**The count is of completed units, and an in-progress unit is not one.** The example above reads
 `2 of 5` with a `[~]` third phase for that reason: `[~]`, `[ ]`, and `[!]` all count against the
 total, and only `[x]` counts toward it. Rounding the current unit up is the one arithmetic a
 progress read is most tempted into and least allowed. It reports work as landed while the operator
@@ -355,8 +355,8 @@ is looking at the line that says it is not.
 
 ### Resolving the units
 
-Units are whatever THIS work is actually divided into, which is why the panel reads differently on
-different tasks. Take the FIRST that applies, and name the unit kind in the rail so the operator
+Units are whatever this work is actually divided into, which is why the panel reads differently on
+different tasks. Take the first that applies, and name the unit kind in the rail so the operator
 knows what they are looking at:
 
 1. Workflow-checklist stages: the stage ledger at `<memory_dir>/<slug>/` the sibling `workflow`
@@ -370,7 +370,7 @@ knows what they are looking at:
    fall through to 5. That costs almost nothing, because "no non-trivial task list to reconstitute"
    is one of the criteria that selects prompt-only in the first place ("Choosing the path"). A
    session with a task list worth drawing was supposed to be on the full path. When prompt-only was
-   FORCED by the explicit `prompt` argument, so that criterion was never tested, make the one
+   forced by the explicit `prompt` argument, so that criterion was never tested, make the one
    `TaskList` call rather than guessing from the conversation. A session with `TodoWrite` instead
    reads the list from its latest `TodoWrite` call; one with neither has no live list on either
    path: skip to 5 (structure.md's tool-presence branch).
@@ -381,15 +381,15 @@ knows what they are looking at:
 
 ### Rules the panel inherits
 
-- **Claim provenance** ("Claim provenance, mandatory on BOTH paths") governs it. An inherited
+- **Claim provenance** ("Claim provenance, mandatory on both paths") governs it. An inherited
   status carries its `UNVERIFIED (<source>)` marker, and the completeness line says how many of its
   marks are unverified. A bare count reads as measured when it is partly remembered.
-- **Redaction** ("Redaction pass, mandatory on BOTH paths") sweeps it with everything else
+- **Redaction** ("Redaction pass, mandatory on both paths") sweeps it with everything else
   outbound. The panel is screen output, and screen output is copied, pasted, and screenshotted.
 - **Divergence is surfaced, not resolved.** Where the rail and the durable record disagree, say so
   in one line and point at `/session-flow:reanchor`; do not pick a side inside the panel.
 
-### The panel NEVER gates the rails prompt
+### The panel never gates the rails prompt
 
 If the units will not resolve, a count cannot be grounded, or anything else about the panel is
 uncertain, emit an abbreviated panel, or none, saying so in a line, and continue immediately to
@@ -404,11 +404,11 @@ Where the panel sits in the response belongs to the citing skill, which owns its
 **Copy-region clarity (both paths), dashed rails per region, no fence:**
 
 - Each region sits between two full-width `─` (U+2500) rails: top rail, text, bottom rail. Use
-  literal `─`, NOT markdown `---` (turns the adjacent line into a heading) and NOT a code fence
+  literal `─`, not markdown `---` (turns the adjacent line into a heading) and not a code fence
   (the user copies the text between the rails, not fence markers).
-- The ONLY thing between a region's rails is its text, with no labels and no padding lines.
+- The only thing between a region's rails is its text, with no labels and no padding lines.
   Commentary sits above the top rail or below the bottom rail, never between.
-- One plain-language instruction sits directly ABOVE each region's top rail. The resume region's is
+- One plain-language instruction sits directly above each region's top rail. The resume region's is
   "`/clear`, then copy everything between the dashed lines:". A goal region has its own, below.
 - **Goal region:** when a goal applies, the prompt holds a second railed region for it, unless
   the condition check below omits it. A goal
@@ -430,7 +430,7 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   4. Full path: the resume region's `Read @…` directive line, byte for byte. Setting a goal starts
      a turn at once with the condition as the directive, so the goal paste has to carry the resume
      pointer itself. Prompt-only: the verbatim goal quote with its dated amendment lines
-     ("Original goal, mandatory on BOTH paths") in its place, since there is no file to point at
+     ("Original goal, mandatory on both paths") in its place, since there is no file to point at
      and so no `Read @` line.
   5. The bottom rail.
 
@@ -470,10 +470,7 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   <https://code.claude.com/docs/en/goal#evaluation-model-and-cost> ("It
   does not call tools, so it can only judge what Claude has already surfaced in the
   conversation"); as of 2026-10-29; recheck when that section says the evaluator reads files or
-  runs commands. Observed stumble: a condition requiring every proof "shown by output you
-  produced" was carried word for word into a goal region; pasted after `/clear`, with the proofs
-  already at a recorded commit and only the user's decisions left, the Stop hook blocked about 30
-  turns in a row.
+  runs commands.
 
   **Order follows what the user asked for.** The region for the payload the user asked for comes
   first, so a fresh-goal request puts the goal region above the resume region. When the user asked
@@ -514,17 +511,17 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   nothing about the loop runs the continuation once and silently loses the recurring behavior, the
   same failure class `/goal` re-arm exists to prevent.
 
-  **Enumerate every surviving loop, and only the surviving ones.** A session can hold up to 50
-  scheduled tasks at once (<https://code.claude.com/docs/en/scheduled-tasks#manage-scheduled-tasks>),
+  **Enumerate every surviving loop, and only the surviving ones.** A session can hold many
+  scheduled tasks at once (pointer: <https://code.claude.com/docs/en/scheduled-tasks#manage-scheduled-tasks>),
   so treat the launch turns as a set, not a single find: `/clear` takes them all, and a note that
   re-arms one silently drops the rest. Two conditions retire a launch from that set. A later stop for
-  that specific loop, as above. And elapsed time: a recurring task expires seven days after creation
-  (<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>), so a launch turn older than
+  that specific loop, as above. And elapsed time: a recurring task expires a fixed period after creation
+  (read the period live at <https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>), so a launch turn older than
   that is already gone on its own. Reading it as active would have the note resurrect a schedule the
   operator's session had already stopped running. Emit one re-arm message per loop left standing, and
   nothing at all when none is.
 
-  **The re-arm is a SECOND message, and it carries the ORIGINAL loop prompt, never the resume
+  **The re-arm is a second message, and it carries the original loop prompt, never the resume
   directive.** `/loop` re-runs the prompt it was given on *every* iteration
   (<https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-%2Floop>), and a
   save-point is an immutable record of one moment. Wrapping the resume directive in `/loop` would
@@ -562,7 +559,7 @@ Where the panel sits in the response belongs to the citing skill, which owns its
     holding a blank line, a dashed rail, or the literal text `Re-arm 2 of 3` passes through intact.
   - `<n>` is not needed to find the entries, since the lengths already do that, but it makes recovery
     self-checking: a consumer can prove it holds the whole set instead of hoping so.
-  - Put the re-arm block LAST in the message, after the paste-condition note, so the entries are
+  - Put the re-arm block last in the message, after the paste-condition note, so the entries are
     contiguous and nothing interleaves them.
   - The no-launch-signal fallback is a single entry with the same header, so a consumer parses one
     shape rather than two.
@@ -574,7 +571,7 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   `/clear` destroys the session-scoped schedule, so a delivery that never clears needs none: a
   successful `/session-flow:continue-in-background` launch hands the rails prompt straight to a
   detached agent, clearing nothing, and the loop stays armed on the session still sitting there.
-  But the engine emits this prompt BEFORE that skill runs its dirty-tree gate or its launch, and
+  But the engine emits this prompt before that skill runs its dirty-tree gate or its launch, and
   both can fall back to the standard `/clear`-then-paste instruction, so the delivery path is not
   yet knowable here, and keying the note off the citing skill's identity would drop the re-arm on
   exactly the fallbacks that do clear. Word the note conditionally instead, so it is correct
@@ -583,7 +580,7 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   list this session's scheduled tasks, and only if this loop is not among them, send
   `/loop [<interval>] <original prompt>` as a separate message afterwards to re-arm it; a
   background launch that succeeds clears nothing, so the loop keeps running here and needs no
-  re-arm." Transferring the loop INTO the launched agent is deliberately not done: that would arm a
+  re-arm." Transferring the loop into the launched agent is deliberately not done: that would arm a
   recurring schedule inside a detached session the operator is not watching, which is a new
   behavior to decide on its own merits, not a side effect of writing a save-point.
 - **Combining both:** a command is recognized only at the start of a message
@@ -595,7 +592,7 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   the loop's later iterations too); the `/loop` re-arm follows as the separate message described
   above. Where a loop note says "the block above", a two-region prompt means whichever region was
   pasted. On prompt-only, the verbatim goal quote, with its dated amendment lines, sits above the
-  remaining-work bullets in the resume region, per "Original goal, mandatory on BOTH paths".
+  remaining-work bullets in the resume region, per "Original goal, mandatory on both paths".
 
 Full-path shape (live: bare `─` rails, no fence; shown inside a fence here for display; the
 `Next:` headlines and the goal condition are illustrative; the goal region appears only when a goal
@@ -634,8 +631,8 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
   attempts; the file is not the resume prompt until it passes. Quote the outcome in the citing
   skill's checklist (`validate: exit 0`, WARN lines listed).
 - **Three failed attempts do not withhold the rails.** The observed failure class is an operator
-  left with nothing to paste, and "A resume prompt is ALWAYS emitted" wins: print an
-  `UNVALIDATED: <validator output>` banner ABOVE the copy instruction (outside the copy region, so
+  left with nothing to paste, and "A resume prompt is always emitted" wins: print an
+  `UNVALIDATED: <validator output>` banner above the copy instruction (outside the copy region, so
   the detection contract below holds), mark the checklist box `validate: FAILED`, and still emit
   the rails from the file's `## Resume prompt` section. Never green-silent.
 - **The on-screen block is the `emit <file>` output pasted verbatim.** Each region's copy
@@ -650,7 +647,7 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
   sentence is the successor's license to write handoffs: through the skill only. The
   "then execute /<skill>" swap the prompt-only rule below allows is expressed on the full path by
   the `Then:` line instead, so the directive never changes shape.
-- **`Handoff origin:` has ONE form:** `Handoff origin: <remote URL, userinfo stripped> <repo-relative path>`,
+- **`Handoff origin:` has one form:** `Handoff origin: <remote URL, userinfo stripped> <repo-relative path>`,
   two whitespace-separated slots, a slot that contains whitespace double-quoted. The script
   computes both at write time from the repository the file was actually written into: the
   `origin` remote sanitized per `<repo-identity>` below, else the root directory name; and
@@ -674,7 +671,7 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
   and the `/loop` re-arm notes the rules above prescribe follow it, unchanged in shape; it is
   outside the copy regions and outside the detection contract.
 
-### The directive path is ROOTED, and that is the whole point
+### The directive path is rooted, and that is the whole point
 
 `<handoffs-dir>` is the **absolute** path of the directory the write step actually used: the
 resolved `<memory_dir>/handoffs/` (default `.work/handoffs/`) with the root it hangs off rendered
@@ -696,10 +693,10 @@ host and `D:/repos/<owner>/<repo>/.work/handoffs/…` on Windows, never with bac
 survives into transcript JSONL, where a backslash is escaped again, and `find-handoff` greps that
 record.
 
-**The `@` is an accelerator, not the mechanism.** Official docs state an `@` reference's path "can
-be relative or absolute"
-(<https://code.claude.com/docs/en/common-workflows#reference-files-and-directories>), and expansion
-pre-loads the file. They document no drive-letter or whitespace-bearing form, so treat expansion as
+**The `@` is an accelerator, not the mechanism.** An `@` reference pre-loads the file it names; which
+path forms expand is read at
+<https://code.claude.com/docs/en/common-workflows#reference-files-and-directories>, which documents no
+drive-letter or whitespace-bearing form, so treat expansion as
 unverified for those: the same line states the absolute path in full either way, and a resuming
 session that sees no expanded content reads the path directly. Write the directive so it is
 actionable without expansion. That is what makes rooting a strict improvement over the rootless
@@ -708,9 +705,9 @@ form rather than a trade.
 **`<repo-identity>` keeps the prompt usable off this machine.** An absolute path is machine-local,
 and a save-point's own "When to invoke" includes sharing state with another machine, so the third
 line names what the path can be re-derived from: the repository's `origin` remote URL when it has one
-AND that URL can be sanitized with confidence (the test is below), else its root directory name, and
+and that URL can be sanitized with confidence (the test is below), else its root directory name, and
 the repo-relative path under it. It is computed at write time by `save_point.py new`
-from the repository actually written into. When cwd is NOT that repository, it names the repository
+from the repository actually written into. When cwd is not that repository, it names the repository
 the file was actually written to, never the one cwd happens to sit in (`--repo-root` defaults to the
 git top level of the resolved memory dir, never cwd). It is stored exactly once, inside the file's
 `## Resume prompt` section, because that section stores the whole emitted block; nothing in the
@@ -720,7 +717,7 @@ re-resolves from line 3.
 **Strip the remote URL's userinfo before embedding it.** A remote URL routinely carries a credential
 in its userinfo component: `https://<token>@github.com/<owner>/<repo>.git` for HTTPS-with-PAT,
 `https://<user>:<token>@host/…` for a stored password, and the `x-access-token:<token>@` form a
-credential helper writes. This line sits INSIDE the rails, in the region the operator is told
+credential helper writes. This line sits inside the rails, in the region the operator is told
 to copy, so an embedded credential travels into the next session and onto every machine the prompt
 is forwarded to. Take `git remote get-url origin` and remove the credential-bearing userinfo,
 everything from `://` up to and including the `@`, before embedding what is left, so a PAT-bearing
@@ -744,7 +741,7 @@ nearly as well.
 When the next stage is a specific skill in the consuming repo, the full path names it on the
 `Then: /<skill>` line (full-path block above; the directive itself is fixed text).
 The `@`-reference is mandatory on the full path, since the fresh session
-loads it; do NOT inline the file's detail in the prompt. Prompt-only carries its remaining-work
+loads it; do not inline the file's detail in the prompt. Prompt-only carries its remaining-work
 bullets inline between the rails instead, and needs no origin line: it references no file.
 
 **The alignment clause rides in the directive because the directive is the one thing every resume
@@ -787,29 +784,27 @@ consumer that ignores it entirely recovers exactly what it recovered before. Add
 therefore not a contract change and needs no `find-handoff` edit, stated explicitly because
 everything else in this section treats a shape change as a knowing break.
 
-**Signal 1 carries a rooted path now, and a consumer must still accept the rootless form.** Every
-handoff emitted before this rule shipped states a repo-relative path, and those files and
-transcripts are on disk unchanged. A detector that recognizes only rooted directives stops
-recovering the entire existing corpus. So the directive is matched on its `…handoffs/<TS>-handoff-…`
+**Signal 1 is rooted or rootless, and a consumer accepts both.** Older handoffs state a
+repo-relative path, and those files and transcripts stay on disk, so a detector that recognizes
+only rooted directives misses them. The directive is matched on its `…handoffs/<TS>-handoff-…`
 shape, and the two forms diverge only at the existence check: a rooted path is checked as given,
-while a rootless one keeps the old rule of resolving against the SOURCE transcript's `cwd`. That
-resolution is inference, since the producer's cwd is not necessarily the repository it wrote into, which
-is exactly the defect rooting removes, so a rootless candidate whose file is not found is
-**UNRESOLVED, never discarded**: dropping it is what made the recovery ladder unable to recover the
-failure it was written for.
+while a rootless one resolves against the source transcript's `cwd`. That resolution is inference,
+since the producer's cwd is not necessarily the repository it wrote into, so a rootless candidate
+whose file is not found is **UNRESOLVED, never discarded**: a discarded candidate is a handoff the
+recovery cannot return.
 
 The `Handoff origin:` line is a **resolution input, not a detection signal**. It cannot admit or
 reject a candidate, so it is neither a fourth key nor the conditional slot the `/loop` re-arm note
 holds below. A consumer reads it only after a candidate has qualified, at the existence check: when
-the ROOTED path does not exist on this machine, as on a resume on another machine or another checkout,
+the rooted path does not exist on this machine, as on a resume on another machine or another checkout,
 which is the one failure mode absolute paths have and relative ones do not, the line names the
 repository and repo-relative path to re-resolve from. **A rooted path that is not found is therefore
 the same not-found-here condition as a rootless one that does not resolve, and gets the same
 UNRESOLVED treatment**; a consumer that reports it as a missing file reintroduces the defect on the
-new path. The line is emitted by the file-mode shape only and only from this version on, so its
-absence disqualifies nothing: prompt-only never emits it, and no handoff written before this has it.
+new path. The line is emitted by the file-mode shape only, and older file-mode handoffs lack it, so its
+absence disqualifies nothing: prompt-only never emits it.
 
-**The recoverable unit is the resume region PLUS the goal region PLUS every below-rail `/loop`
+**The recoverable unit is the resume region plus the goal region plus every below-rail `/loop`
 re-arm message.** The goal region, when a goal applies, is a second rail pair headed by its own
 instruction line (the fixed goal-region line under "Emit the copy/paste resume prompt"), placed
 above or below the resume region. It is not a keyed signal, since the resume region is always
@@ -835,8 +830,8 @@ a prompt that quotes the marker. A count cannot collide with what it delimits. `
 self-check that the whole set came back, not the scanner. The verbatim prompt also means the same
 redaction pass applies here as to everything else surfaced from a transcript.
 
-**Shape 2 changed the emitted block in these ways, and `find-handoff` moved with it** (the
-signals above are unchanged: signal 1 still matches the `…handoffs/<TS>-handoff-…` shape, signal 2
+**The shape-2 and shape-3 block carries these elements, and `find-handoff` reads them** (the
+keyed signals above are the same for every shape: signal 1 matches the `…handoffs/<TS>-handoff-…` shape, signal 2
 the rails plus the copy line, signal 3 the `Prior session:` UUID):
 
 - The directive continues after `then continue them.` with the sentence `For the next save-point

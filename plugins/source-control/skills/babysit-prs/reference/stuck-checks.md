@@ -1,7 +1,7 @@
 # Stuck Checks
 
 Routing for checks that degrade `mergeStateStatus` to `UNSTABLE` without ever completing, blocking
-a clean merge-readiness read even when every REQUIRED check is green, and for checks held for
+a clean merge-readiness read even when every required check is green, and for checks held for
 approval (§Held For Approval). Use this only when the snapshot reports a non-empty `checks.stuck`
 or `checks.approval_held` array for a PR. That field is the queue signal, and it
 is a **report/escalation** signal, never an auto-fix trigger.
@@ -80,7 +80,7 @@ and [Actions holds potentially malicious workflows](https://github.blog/changelo
 
 A different failure with the same surface complaint ("CI is not finishing"), and the two are
 distinguished by the merge state, not by the check list. Everything above concerns checks that are
-PRESENT and never settle, detected only under `UNSTABLE`. This section is the opposite: checks that
+present and never settle, detected only under `UNSTABLE`. This section is the opposite: checks that
 never appear at all, under `DIRTY`.
 
 **Its queue signal is therefore not `checks.stuck`, which is empty here by construction.** A
@@ -102,7 +102,7 @@ gates does not schedule at all. The result is a short all-green check list with 
 anywhere: a PR that reads as "passing" or "not started yet" while nearly every gate is simply
 missing. Resolving the conflict makes the absent lanes appear and the count jumps.
 
-So read `mergeStateStatus` BEFORE reasoning about a check list that looks too short. `DIRTY`
+So read `mergeStateStatus` before reasoning about a check list that looks too short. `DIRTY`
 explains the absence completely, and the remedy is to merge the base branch or rebase, not to
 investigate CI. Diagnosing the missing lanes as a trigger, permissions, or App-token problem is
 time spent on a mechanism that is not involved.
@@ -113,7 +113,7 @@ changes which side it lands on.
 
 ## Before Acting: Confirm Required-Green
 
-`UNSTABLE` alone does not prove the required gates are green for THIS decision. Re-confirm against
+`UNSTABLE` alone does not prove the required gates are green for this decision. Re-confirm against
 the guarded merge wrapper's own read rather than inferring it: [`../scripts/babysit_merge.py`](../scripts/babysit_merge.py)
 emits a `requiredChecks` field in its snapshot JSON. Only once required checks are green is a stuck
 non-required check the sole thing holding `UNSTABLE`, and even then the merge gate correctly

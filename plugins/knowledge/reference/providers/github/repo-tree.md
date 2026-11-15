@@ -23,7 +23,7 @@ gh api "repos/<owner>/<repo>/git/trees/<sha>?recursive=1" > discovery/repo-tree.
 ```
 
 The snapshot is immutable like every other discovery snapshot. Per
-[Get a tree](https://docs.github.com/en/rest/git/trees#get-a-tree) (read 2026-11-02): any value of
+[Get a tree](https://docs.github.com/en/rest/git/trees#get-a-tree) (read 2026-11-02; recheck when that page changes its truncation limits): any value of
 `recursive` returns the whole subtree, each `tree` entry carries `path`, `mode`, `type` and `sha`,
 and a recursive listing is capped at 100,000 entries and 7 MB. Past the cap the response sets
 `truncated` to `true`, and the parser refuses it: a truncated listing is not a complete

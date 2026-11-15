@@ -24,8 +24,9 @@ posture never reaches a git hook. explanatory (and strict, balanced, conservativ
 runs nothing; auto and aggressive read as necessary.
 
 Judges the files whose extension code-extensions.txt lists, except one whose first 10
-lines carry sync-managed, do not edit or @generated (each skip is named on stderr),
-through the pygments lexer for the file's name. Findings print as <path>:<line>: <message> on stderr; block exits 1,
+lines match a generated-marker.ere line (sync-managed, @generated, or a whole-file
+"do not edit" notice; each skip is named on stderr), through the pygments lexer for
+the file's name. Findings print as <path>:<line>: <message> on stderr; block exits 1,
 report exits 0. A missing python3, or a python3 that cannot import pygments, follows
 checks.skipmissing (tool names python3 and pygments).
 EOF
@@ -43,6 +44,7 @@ asset() {
 judge="$(asset comment-lint.py git-hooks)"
 settings="$(asset comment-settings.sh scripts)"
 extensions="$(asset code-extensions.txt scripts)"
+marker="$(asset generated-marker.ere scripts)"
 
 checks_init pre-commit "$@" || exit 0
 
@@ -85,17 +87,7 @@ texts="$CHECKS_TMP/text"
 mkdir -p "$texts"
 : >"$CHECKS_TMP/paths"
 generated() {
-  local line i=0 hit=1
-  shopt -s nocasematch
-  while ((i < 10)) && IFS= read -r line; do
-    i=$((i + 1))
-    if [[ "$line" == *sync-managed* || "$line" == *"do not edit"* || "$line" == *@generated* ]]; then
-      hit=0
-      break
-    fi
-  done <"$1"
-  shopt -u nocasematch
-  return "$hit"
+  grep -qiE -f "$marker" < <(head -n 10 "$1")
 }
 code_ext() {
   local rc=1
@@ -113,7 +105,7 @@ while IFS= read -r -d '' f; do
   made="$dir"
   checks_file_text "$f" >"$texts/$f" || continue
   if generated "$texts/$f"; then
-    printf 'code-tidying: comment lint skipped %s (sync-managed, do not edit or @generated in its first 10 lines)\n' "$f" >&2
+    printf 'code-tidying: comment lint skipped %s (a generated or sync-managed marker in its first 10 lines)\n' "$f" >&2
     continue
   fi
   printf '%s\0' "$f" >>"$CHECKS_TMP/paths"

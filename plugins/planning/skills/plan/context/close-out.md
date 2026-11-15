@@ -9,7 +9,7 @@ Spoke for `/planning:plan`. Read this file when the skill is invoked with the `c
 
    **ADRs.** For each decision the plan made about the system over a weighed alternative, invoke `/architecture:record-decision` via the Skill tool with the decision, its rationale and the alternatives, when the `architecture` plugin is enabled. That skill owns and applies the admission test, the template and convention discovery; this step carries no copy of the test. Prefer invoking it the moment the decision crystallizes during planning over batching candidates at graduation; this step then just links the already-written file from the PR body. Without the `architecture` plugin, list the decisions as ADR candidates in the PR body for a human to judge.
 3. Spec-container ship ritual (presence-gated. Only when the `work-items` plugin is enabled
-   AND the topic's decomposition published a spec container). **Detect the container
+   and the topic's decomposition published a spec container). **Detect the container
    mechanically, never from in-session memory** (close-out often runs in a fresh session):
    first read the topic's PLAN.md for the `**Spec container:** <qualified-id>` line
    `/work-items:decompose` records under `## Brief` at publish time; absent that line, query

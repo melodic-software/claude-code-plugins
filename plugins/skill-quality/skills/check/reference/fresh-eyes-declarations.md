@@ -32,13 +32,13 @@ The wording must be **visible prose**: an HTML comment is stripped before this d
 hidden `<!-- dispatch this to a fresh-context agent -->` declares nothing. It would be exactly the
 parallel marker Form 1 exists to rule out.
 
-Both `fresh-context` and `fresh context` are canonical, and the same line must NAME the worker or
+Both `fresh-context` and `fresh context` are canonical, and the same line must name the worker or
 the dispatch as a whole word (with inflections): `agent(s)`/`subagent(s)`, `worker(s)`,
 `advisor(s)`, `reviewer(s)`, `verifier(s)`, `dispatch(es|ed|ing)`, `delegate(s|d)`/`delegating`/
 `delegation`. "dispatch a fresh-context subagent" declares; a bare "think about it in a fresh
 context" assigns the judgment to no one and does not. Both halves need whole-word matches, so an
 embedded stem counts for neither: "agentless" names no worker, and "Refresh context" is not the
-fresh-context wording. The wording is visible prose, not a marker. It IS the model's
+fresh-context wording. The wording is visible prose, not a marker. It is the model's
 instruction, so a parallel hidden marker would be a second source of truth that drifts.
 
 ## Form 2: exemption directive (HTML comment)
@@ -64,7 +64,7 @@ Rows evaluate top-down; the first match wins per detection site.
 |---|---|
 | Exemption directive with unknown class or malformed syntax | FAIL |
 | Exemption directive missing the `-- <reason>` | FAIL |
-| Judgment-language hit with BOTH delegation wording AND a directive in window | pass (INFO: contradictory declaration, hand-verify) |
+| Judgment-language hit with both delegation wording and a directive in window | pass (INFO: contradictory declaration, hand-verify) |
 | Judgment-language hit with delegation wording in the proximity window | pass (INFO) |
 | Judgment-language hit with a valid exemption directive in the proximity window | pass (INFO) |
 | Judgment-language hit with neither | WARN |
@@ -75,7 +75,7 @@ Rows evaluate top-down; the first match wins per detection site.
 - **Surface:** `SKILL.md` plus markdown under the skill's own `context/`, `templates/`,
   `reference/`, `references/`, `actions/`, `lanes/`, and `catalog/` directories. `vendor/` and
   `evals/` are excluded (vendored content is byte-frozen; evals fixtures contain arbitrary prose).
-  Plugin-level shared files outside the skill directory are NOT scanned. Anchor your declaration
+  Plugin-level shared files outside the skill directory are not scanned. Anchor your declaration
   in the skill's own files even when the judgment mechanics live in a shared spoke.
 - **Markdown structure:** see the parsing contract below. Keep literal directive examples inside
   fences. A bare `<class>` placeholder in live prose would FAIL as an unknown class.

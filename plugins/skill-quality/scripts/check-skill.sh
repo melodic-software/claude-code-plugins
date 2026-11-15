@@ -1897,9 +1897,10 @@ if ((${#INJECTIONS[@]} > 0)); then
   fi
 
   # --- Check 20: injected commands carry a defensive fallback ----------------
-  # Injection failure/timeout/stderr semantics are undocumented, so an unguarded
-  # command can inline an error string (or nothing) into the prompt. The pinned
-  # convention is a `|| <fallback>` on every injected command; match the `||`
+  # An unguarded injected command can inline an error string (or nothing) into
+  # the prompt. Pointer: for how an injected command fails, times out and reports
+  # stderr, see https://code.claude.com/docs/en/skills#when-an-injected-command-fails.
+  # The pinned convention is a `|| <fallback>` on every injected command; match the `||`
   # continuation, not the literal `echo` (`|| printf`/`|| true` are valid too).
   missing_fallback=0
   for inj in "${INJECTIONS[@]}"; do
@@ -1907,7 +1908,7 @@ if ((${#INJECTIONS[@]} > 0)); then
   done
   if ((missing_fallback > 0)); then
     # shellcheck disable=SC2016  # single quotes deliberate: the backticked tokens in the message are literal
-    warn "$missing_fallback \`!\`-injected command(s) carry no \`|| <fallback>\` — injection failure/timeout/stderr semantics are undocumented, so an unguarded command can inline an error string into the prompt. Add a \`|| echo \"<fallback>\"\` (or shell-appropriate) continuation"
+    warn "$missing_fallback \`!\`-injected command(s) carry no \`|| <fallback>\` — an unguarded command can inline an error string into the prompt (see https://code.claude.com/docs/en/skills#when-an-injected-command-fails). Add a \`|| echo \"<fallback>\"\` (or shell-appropriate) continuation"
   fi
 fi
 

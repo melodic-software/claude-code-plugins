@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.15.2] - 2026-11-15
+
+### Changed
+
+- The babysit safety reference names the hosted review callers' kill-switch job by its new id,
+  `check-kill-switch` (display name `Check Kill Switch`). The merge gate's lane-run reads match
+  that name, the earlier `Kill Switch` and the id `kill-switch` as before.
+
 ## [11.15.1] - 2026-11-15
 
 ### Changed

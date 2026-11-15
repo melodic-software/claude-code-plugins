@@ -1,7 +1,7 @@
 # PLAN.md anatomy
 
-The skeleton of the PLAN.md file [`../SKILL.md`](../SKILL.md) writes at its final step, once the
-user has approved the plan, and the status-tag grammar that file carries from then on. This is the
+The skeleton of the PLAN.md file [`../SKILL.md`](../SKILL.md) writes as a draft at Step 4.7 and
+updates at its final step once the user has approved the plan, and the status-tag grammar that file carries from then on. This is the
 PLAN.md *file* shape; the plan *body* template scaled by task size is a different artifact, at
 [`../context/plan-template.md`](../context/plan-template.md).
 
@@ -69,13 +69,13 @@ Process criteria: <the criterion ids no behavior shows, e.g. a PR-body rule; omi
 <...>
 
 ## Blast radius
-<LOW / MEDIUM / HIGH with reasoning>
+<LOW / MEDIUM / HIGH / CRITICAL with reasoning>
 
 ## Stress-test summary
 <Step 4 output, or "Skipped: blast radius LOW, no triggers matched">
 
 ## Execution shape
-<Step 4.5 output, the only section that records it, each choice tagged `[EXEC-SHAPE]` per Step 4.6: the four-dimension table; Wave A/B shape with agent rosters, ALLOWED/FORBIDDEN scope-fencing tables, cost note and sequential fallback, OR "fully sequential — phase X gates phase Y" one-liner; any sub-topic promotion; PLUS the per-phase routing table (Phase | Surface | Model | Attempts | Basis), Model one of sonnet / opus / frontier. Skipped for single-phase plans>
+<Step 4.5 output, the only section that records it, each choice tagged `[EXEC-SHAPE]` per Step 4.6: the four-dimension table; Wave A/B shape with agent rosters, ALLOWED/FORBIDDEN scope-fencing tables, cost note and sequential fallback, or "fully sequential — phase X gates phase Y" one-liner; any sub-topic promotion; plus the per-phase routing table (Phase | Surface | Model | Attempts | Basis), Model one of sonnet / opus / frontier. Skipped for single-phase plans>
 
 ## Handoff to implementation
 
@@ -83,7 +83,7 @@ Approval: <attended: approved by <who> on <date>; unattended: standing mandate <
 Reader depth: <guardrails, standard or step-by-step, and the layer that supplied it; written at the first publish or paste>
 
 ### User-approval gates
-<actions implementation MUST surface for confirmation before executing: any [FALLBACK] tags, any scope-expansion proposals, any mid-flight pivots that change acceptance criteria. At each gate, ask or stop + flag. An empty section is valid — small tasks may have zero gates beyond the initial plan approval>
+<actions implementation must surface for confirmation before executing: any [FALLBACK] tags, any scope-expansion proposals, any mid-flight pivots that change acceptance criteria. At each gate, ask or stop + flag. An empty section is valid — small tasks may have zero gates beyond the initial plan approval>
 
 ### Mechanical work
 <commit boundaries and verification checkpoints. Standard implementation boilerplate — rarely needs user-specific override>

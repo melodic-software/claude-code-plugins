@@ -21,7 +21,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/question-shape.js`, `/core.css`, `/app.css`, `/question-shape.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when the build changes, builds the state `app.js` reads, and words errors by their code. `question-shape.js` and `question-shape.css` hold what the 1:1 page (`surface/interview_server.py` serves both) shares with this one: the markdown renderer, the composer kit, the visual-viewport fit, and the own-option id. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_server_live.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_proto_versions.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_speech.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align-a.test.sh`, `align-b.test.sh` and `align-c.test.sh` (with `align-run.sh` and `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | Python suites (`test_*.py`, with `support.py`); browser suites (`ui_*.js`; `ui_inputs.js` with `harness-open.js`), run in parts by `ui-run.sh` through `ui-a.test.sh` to `ui-c.test.sh` as `ui-parts.txt` assigns them; `tracer.test.sh`, `tracer-live.test.sh`; `align-a.test.sh` to `align-c.test.sh` (with `align-run.sh` and `align.js`); `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -410,7 +410,7 @@ reopened while `late-disagree` entries follow its last other entry. Only the own
 owner's snapshot as `decisions`: a History fold under each question and Decisions in Help (More on
 a phone). A session saved before the log starts with none.
 
-There is no device or address blocking (C35): Remove stops a person's secret, and Approve new joins
+There is no device or address blocking: Remove stops a person's secret, and Approve new joins
 or a new guest link stops a removed person rejoining under a new name.
 
 ## Claude's merge and admit proposals
@@ -664,7 +664,7 @@ whole session; "@Claude" in chat or a Discussion always asks for everyone.
 
 ## Connect your Claude
 
-A guest can run a request on their own Claude instead of the host's (R2-12; Brief C18-C20): in
+A guest can run a request on their own Claude instead of the host's: in
 Ask Claude, "Run it on my own Claude" sends `POST /api/request` with `runner: "self"`. Such a
 request never enters the owner's queue, never makes an event or a notification (a mention in it
 tells nobody), and is read, claimed, answered or failed only by its requester, with their secret
@@ -746,7 +746,7 @@ host, and takes off, naming it, a file declined, withdrawn, failed or removed me
 drops only the chips it sent. While Uploads is off no upload control shows and a pasted picture adds
 nothing.
 
-What carries files (C44, at most four, each an upload of the writer's own the owner accepted, each
+What carries files (at most four, each an upload of the writer's own the owner accepted, each
 once): `attachments` on `POST /api/answer` and `POST /api/pick` replaces the list, left out it is
 kept. On `POST /api/answer`, empty `text` with `attachments` saves a picture-only answer, shown and
 voted on like any other and listed in the digest with its `attachments` (so are a lock of it,
@@ -772,8 +772,9 @@ older messages reads them again.
    "Withdrawn", and whatever arrived is deleted. Removing a person declines each of their files
    not yet received (`why: removed`) the same way.
 3. Accepted, the browser sends the file in order as raw pieces (`POST /api/upload/chunk`,
-   `application/octet-stream`, 8 MiB each, below the quick tunnel's 100 MB request limit) with
-   `X-Upload-Id`, `X-Chunk-Index`, `X-Chunk-Total`, `X-Chunk-Sha256`, and `X-File-Sha256` on the
+   `application/octet-stream`, 8 MiB each, below the quick tunnel's 100 MB request limit,
+   [upload limits](https://developers.cloudflare.com/cache/concepts/default-cache-behavior/#upload-limits)
+   as of 2026-11-15; recheck when that table changes the Free value) with `X-Upload-Id`, `X-Chunk-Index`, `X-Chunk-Total`, `X-Chunk-Sha256`, and `X-File-Sha256` on the
    last. A piece the server has is answered `{received}` unread; one past the next is 409
    `chunk-gap` with `received`, so a reload or a dropped connection resumes from there.
 4. The last piece makes the file `done` under `uploads/accepted/` (on Windows marked as from the
@@ -1188,7 +1189,7 @@ Where each token can be seen:
 | Tunnel API token (named tunnel) | The file `tunnel_api_token_file` names, which only `share.py` and the server's restart read, sending it in the Authorization header of the connector and route calls to Cloudflare's API; never on a command line, in output or in a log, and an API error quoting it prints `[token]` |
 | Cloudflare API token | The owner's secret store, and `cfdns.py`'s `Authorization` header to Cloudflare's API; never on a command line or in its output |
 | Watcher key | The guest's clipboard and their own Claude's context, where they paste it; the `X-Watcher-Key` header, which Cloudflare's edge sees. It reads and answers only that guest's own self requests |
-| Control token | `.shared-secrets.json`, `.shared-session.json`, `.shared-session.env` (0600); the `curl` command line `watch.sh` runs (the generated session-bridge watcher puts the header on argv). A command line is readable by other local users on Linux without `hidepid` and on macOS, not only by the same user; moving that token off argv is tracked in #7693 |
+| Control token | `.shared-secrets.json`, `.shared-session.json`, `.shared-session.env` (0600); the header `watch.sh` hands `curl` on stdin (`-H @-`), never on its command line |
 
 Neither token is on the server's command line: the server reads both from the secrets file.
 `stop` drops the control token, so the next start makes a new one; `restart` keeps it.
@@ -1232,35 +1233,12 @@ gzip.
 python3 -m unittest discover -s plugins/planning/shared/tests
 bash plugins/planning/shared/tests/tracer.test.sh
 bash plugins/planning/shared/tests/tracer-live.test.sh [CLOUDFLARED]
-node plugins/planning/shared/tests/ui_journey.js
-node plugins/planning/shared/tests/ui_formats.js
-node plugins/planning/shared/tests/ui_presence.js
-node plugins/planning/shared/tests/ui_layout.js
-node plugins/planning/shared/tests/ui_keyboard.js
-node plugins/planning/shared/tests/ui_inputs.js
-node plugins/planning/shared/tests/ui_chat.js
-node plugins/planning/shared/tests/ui_chat_history.js
-node plugins/planning/shared/tests/ui_lists.js
-node plugins/planning/shared/tests/ui_moderation.js
-node plugins/planning/shared/tests/ui_acceptance.js
-node plugins/planning/shared/tests/ui_proto.js
-node plugins/planning/shared/tests/ui_proto_versions.js
-node plugins/planning/shared/tests/ui_connect.js
-node plugins/planning/shared/tests/ui_uploads.js
-node plugins/planning/shared/tests/ui_attach_paste.js
-node plugins/planning/shared/tests/ui_report.js
-node plugins/planning/shared/tests/ui_claude_proposals.js
-node plugins/planning/shared/tests/ui_general.js
-node plugins/planning/shared/tests/ui_advance.js
-node plugins/planning/shared/tests/ui_askbox.js
-node plugins/planning/shared/tests/ui_myreports.js
-node plugins/planning/shared/tests/ui_welcome.js
-node plugins/planning/shared/tests/ui_per_device.js
-node plugins/planning/shared/tests/ui_review.js
-node plugins/planning/shared/tests/ui_rail_header.js
-node plugins/planning/shared/tests/ui_reopen.js
+bash plugins/planning/shared/tests/ui-run.sh <part>
+node plugins/planning/shared/tests/<suite>.js
 node plugins/planning/shared/tests/align.js
 ```
+
+`ui-run.sh <part>` runs every `ui_*.js` that `ui-parts.txt` puts in that part; `node` runs one suite alone.
 
 `ui_connect.js` checks Connect your Claude for a desktop guest and a 390x844 phone guest: the
 watcher and Desktop chat links and their decoded prompts, Copy prompt, Paste answer, the answer
@@ -1391,7 +1369,7 @@ per-person view, and Approve new joins. `ui_acceptance.js` checks the Brief acce
 suite drives in a browser: the join note and a refused join, Claude's take, the round states and toasts, Follow,
 Reconnecting, the new guest link, the ended session, the Host view per role, the phone header and height, and
 the views sharing data.
-`align.js` (about 3 minutes) is the C41 pixel pass over 49 views; `ALIGN_VIEWS` and
+`align.js` (about 3 minutes) is the pixel pass over 49 views; `ALIGN_VIEWS` and
 `ALIGN_SIZES` narrow it. CI runs it in three parts by size, `align-a.test.sh` to `align-c.test.sh`, each
 the sizes its `PARTS` puts in that part.
 

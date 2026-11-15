@@ -5,7 +5,7 @@ The probe set behind the `check` action of [`../SKILL.md`](../SKILL.md), in the 
 re-deriving them.
 
 Probe the binding, the schedule config, and the seam's entry gates, and report a PASS/FAIL/INFO table
-with one remediation line per FAIL. Modify nothing, and do NOT bind, file items, or run a recurring
+with one remediation line per FAIL. Modify nothing, and do not bind, file items, or run a recurring
 check.
 
 1. **`jq` entry gate**, the authoritative check is
@@ -102,7 +102,7 @@ check.
    degrade to "no recurring schedule configured"; `apply` seeds it. Present → continue.
 4. **Schedule validity**, a present file parses as JSON with the root `{"items": [ ... ]}` shape
    (FAIL otherwise), and **both reconciliation keys are unique across the whole `items` array, every
-   `id` AND every `title`**. A duplicate `id` (the key `recheck <id>` resolves against and an
+   `id` and every `title`**. A duplicate `id` (the key `recheck <id>` resolves against and an
    item's recurring marker names) or duplicate `title` (the key `recheck <text match>` resolves
    against) silently breaks
    reconciliation, FAIL, naming the collision. A valid file whose `items` array is empty is the
@@ -111,7 +111,7 @@ check.
    shape validates, probe 3 establishes file presence alone and cannot tell empty from malformed.)
 5. **Tracked, not ignored**, a present schedule (and a present `<home>/work-items.yaml`) must be committed to be
    team-shared. Probe the pair per path: `git check-ignore -v` (match = FAIL with the pattern)
-   AND `git ls-files --error-unmatch` (non-zero = FAIL: un-ignored but untracked; "commit it").
+   and `git ls-files --error-unmatch` (non-zero = FAIL: un-ignored but untracked; "commit it").
 6. **Recurring-maintenance role label**. Role-label resolution is an action-entry invariant per the
    tracker-seam reference; probe it. With no binding (probe 2 INFO) the role remap has nothing to
    configure. INFO. With a binding present, resolve

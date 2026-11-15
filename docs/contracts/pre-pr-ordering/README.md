@@ -5,12 +5,6 @@ Owner doc for the ordered pre-PR sequence that more than one plugin routes into.
 pre-PR sequence that implements this order, and remains the place to read *what*
 each step does.
 
-This convention exists because the registry's own trigger fired: a second plugin adopted an
-ordering. `implementation:implement`'s completion step, titled "Hand off to the pre-PR sequence,"
-prescribed outcome verification *before* review; `pre-pr.md` places review at step 2 and outcome
-verification at step 7, and declared its order unreorderable. Two surfaces, one order, in
-disagreement. That is the exact failure this registry prevents (#3047).
-
 ## The order
 
 1. Test thoroughly
@@ -36,12 +30,10 @@ What outcome verification adds is the *result-versus-intent* judgment with evide
 judgment is only true of the final artifact. So "does it work" stays first; "did it achieve what
 we set out to do" stays last.
 
-The fleet had already settled this everywhere except the one site: `verification`'s own chaining
-table triggers on "review gate passes (no blocking findings)" and *then* suggests
-`/verification:confirm`, and suggests the PR flow only after a CONFIRMED verdict.
 The skill that renders the verdict, the skill that lists the sequence, and the plugin that opens
-the PR all agreed; `implementation:implement`'s handoff step was the lone dissenter. That made
-this a correction of one surface rather than a choice between two doctrines.
+the PR all follow this order: `verification`'s own chaining table triggers on "review gate passes
+(no blocking findings)" and *then* suggests `/verification:confirm`, and suggests the PR flow only
+after a CONFIRMED verdict.
 
 ## Who is bound
 

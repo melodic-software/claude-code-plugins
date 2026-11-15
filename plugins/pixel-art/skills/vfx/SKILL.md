@@ -56,7 +56,7 @@ Keep the spec and the generator beside the output.
 
 ## 5. Review loop
 
-Read `preview.png` (the Read tool shows a GIF's first frame only, so judge motion from the sheet).
+Read `preview.png` and judge motion from the sheet, which shows every frame at once, not from the GIF.
 Check the timing table: the silhouette grows or breaks on purpose, the impact frame is held, and
 colors stay on the locked palette. Fix the generator, re-render, re-read. Stop when it reads at 1x
 or after the user's direction says so; typically 2 to 4 rounds. Name the remaining weaknesses honestly.

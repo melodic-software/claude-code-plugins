@@ -687,7 +687,7 @@ test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason
   // workflow itself, so producer and parser are one contract.
   const workflow = readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8");
   const notices = [...workflow.matchAll(/echo "(::notice title=pr-review-main::held: [^"]*)"/g)].map((m) => m[1].replace("$retry_call_unknown", "HTTP 502"));
-  assert.equal(notices.length, 4, "the trigger job's select step and each of three legs'");
+  assert.equal(notices.length, 4, "the check-trigger job's select step and each of three legs'");
   for (const line of notices) assert.deepEqual(parseHold(...annotation(line)), { item: null, reason: "file list unread" });
   // Another title's text, and a pr-review-main notice that is no hold, parse to nothing.
   assert.equal(parseHold("pr-verify", annotation(notices[0])[1]), null);
@@ -701,13 +701,18 @@ test("signal 13: pr-review-main's unread file-list hold parses to a fixed reason
   assert.equal([...workflow.matchAll(/- name: Note the hold\n {8}id: note-hold\n {8}if: steps\.select\.outputs\.held == 'true'\n/g)].length, 4);
   // A matrix leg is listed as `<job> (<values>)` and counts as that job.
   assert.equal(holdJob(lane.names, "Review (claude-review, claude-review)"), true);
-  assert.equal(holdJob(lane.names, "Trigger"), true);
+  assert.equal(holdJob(lane.names, "Check Trigger"), true);
   assert.equal(holdJob(lane.names, "Review Handoffs"), false);
   assert.equal(holdJob(lane.names, "Record"), false);
   // A run from before the job rename lists the ids.
   assert.equal(holdJob(lane.jobs, "review (claude-review, claude-review)"), true);
-  assert.equal(holdJob(lane.jobs, "trigger"), true);
+  assert.equal(holdJob(lane.jobs, "check-trigger"), true);
   assert.equal(holdJob(lane.jobs, "review-handoffs"), false);
+  // A run from before the rename to check-trigger lists its earlier name or
+  // id, which the workflow no longer carries (collect.mjs reads them).
+  assert.deepEqual(lane.earlier, ["Trigger", "trigger"]);
+  assert.doesNotMatch(workflow, /\n {2}trigger:\n/);
+  assert.doesNotMatch(workflow, /\n {4}name: Trigger\n/);
 });
 
 test("signal 13: each hold lane's names are its jobs' names in its workflow, in the order of its ids", () => {

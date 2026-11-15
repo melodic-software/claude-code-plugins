@@ -6,7 +6,6 @@ The skills of `plugins/multi-agent`. Each one is driven with `<plugin-dir>` set 
 
 - `assess`: Decide workflow, subagents or one context for a task.
 - `audit-defaults`: Recheck the routing defaults against their upstream sources.
-- `check`: Report whether node resolves and the drift-checker fetch gate is registered. Never installs.
 - `route`: Resolve model and effort per agent role for a multi-agent run.
 - `setup`: Check the multi-agent role map or write confirmed keys into the user, team or local multi-agent.yaml layer. No plain-words entry.
 

@@ -39,8 +39,8 @@ adapter's subtree, in the JSON form the adapter reads:
 
 ## Security posture
 
-Generated from the skill's hardened skeleton, which tracks the bundled `jira`
-adapter's guards:
+Generated from the skill's hardened skeleton, which tracks the `jira` seed's
+guards:
 
 - **The credential never appears in `argv`.** It is read from the env var named by
   `auth_env` and passed to curl through a stdin config (`-K -`). Process arguments are

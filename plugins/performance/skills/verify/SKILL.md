@@ -35,8 +35,8 @@ checks first: re-derive the headline number and the differential before any seco
 report that ends short names what it did not reach under `Not covered:`. A verification that ran out
 of turns is not complete, so anything unreached stays NOT MET or unverified.
 
-Two independent verifiers routinely find different defects, so one verifier is the floor, not the
-target.
+Two independent verifiers routinely find different defects. One verifier is required; dispatch a
+second when a missed defect would cost more than the second verifier's run.
 
 ## 2. Prove behavior did not change, with a differential
 
@@ -51,7 +51,7 @@ produced output. Run it from the Bash tool, whose shell resolves `python3` (`com
 the one it found); a bare name inside another process's `subprocess` call searches a different
 `PATH` (harness-integrity rule 6). The module docstring documents the config.
 
-**Cover every MODE the subject runs in.** A differential that covers one of two modes can miss
+**Cover every mode the subject runs in.** A differential that covers one of two modes can miss
 a deny -> ask downgrade in the other and still report byte-identical output. Enumerate the modes
 first and record which the differential actually exercised; an unexercised mode is an unverified
 mode, and it is reported as such rather than assumed fine.
@@ -165,7 +165,7 @@ Reproduced by an independent verifier: yes/no, and what diverged
 
 Rules that bind the report:
 
-- **IF `Correlation:` is `unproven`, THEN the `Counter:` line shows `unproven` beside the
+- **If `Correlation:` is `unproven`, then the `Counter:` line shows `unproven` beside the
   headline.** An unproven counter win is a counter win, not a user-perceived one.
 - **`Scaling:`, `Event:`, and `Unit:` repeat the goal's lines of the same name, `n/a` where the
   goal says `n/a`.** A `Scaling:` bound not demonstrated at every size the goal recorded is not

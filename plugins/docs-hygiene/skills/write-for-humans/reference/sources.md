@@ -52,7 +52,7 @@ The instruction-length rule is a target, not a hard cap: a sentence may run over
 would cut one action or its condition into fragments. For the guidance behind this choice, see the
 pointer below.
 
-- **Pointer**: [Prompting Claude Fable 5.2: review instructions written for earlier models](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#review-instructions-written-for-earlier-models).
+- **Pointer**: [Prompting Claude Fable 5.2: review prompts and harnesses designed for earlier models](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2#review-instructions-written-for-earlier-models).
 - **Recheck trigger**: that section changes its advice on hard style limits, or a new model's
   prompting guide addresses sentence-length rules.
 

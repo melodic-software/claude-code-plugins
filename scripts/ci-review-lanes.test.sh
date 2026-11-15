@@ -295,7 +295,7 @@ status() { jq -cn --arg n "$1" --arg st "$2" --arg c "$3" --arg h "${4:-success}
   '{id: 9, name: $n, status: $st, conclusion: (if $c == "" then null else $c end),
     steps: [{name: "Publish the review", conclusion: $c}, {name: "Apply the hold", conclusion: $h}, {name: "Upload the shadow report", conclusion: "skipped"}]}'; }
 # kill <conclusion> <report-step-conclusion> [job name]
-kill_job() { jq -cn --arg c "$1" --arg r "$2" --arg n "${3:-Kill Switch}" '{id: 1, name: $n, status: "completed", conclusion: $c,
+kill_job() { jq -cn --arg c "$1" --arg r "$2" --arg n "${3:-Check Kill Switch}" '{id: 1, name: $n, status: "completed", conclusion: $c,
   steps: [{name: "Check the kill switch", conclusion: $c}, {name: "Report the kill switch", conclusion: $r}]}'; }
 jobs() { local IFS=,; printf '{"jobs":[%s]}' "$*"; }
 
@@ -353,9 +353,9 @@ JOBS_20="$(jobs "$(kill_job success skipped kill-switch)" "$(status "$OLD_SEC_CH
 expect "a head tested before the rename passes under the job ids" 0 "'$CODE_CHECK' passed on $HEAD" "::error::"
 JOBS_10="$(jobs "$(kill_job success success kill-switch)")"
 expect "a kill switch job named by its id still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started."
-# The kill switch job's planned name.
-JOBS_10="$(jobs "$(kill_job success success 'Check Kill Switch')")"
-expect "a kill switch job under its planned name still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started."
+# The kill switch job's name before its rename to Check Kill Switch.
+JOBS_10="$(jobs "$(kill_job success success 'Kill Switch')")"
+expect "a kill switch job under its name before the rename still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started."
 JOBS_10="$PASS_CODE" JOBS_20="$PASS_SEC"
 
 # The status job named review-status, before its Title Case name, still counts,

@@ -9,7 +9,7 @@
 # Exit: 0 clean, 1 a violation or a stale baseline entry, 2 usage.
 #
 # WHY. The repo's fixture idiom is `git -C "$fixture" ...`. It is a good
-# readability and copy-paste guard. It is NOT an isolation guarantee: `-C` only
+# readability and copy-paste guard. It is not an isolation guarantee: `-C` only
 # changes directory, while an exported ABSOLUTE GIT_DIR overrides repository
 # DISCOVERY outright, and `git config` writes its default --local scope to
 # whatever gitdir finally resolves to. So a suite that inherited such an
@@ -109,12 +109,12 @@
 # declaration in scripts/check-shell-portability.sh: a doc sentence explaining
 # the mechanism, or a string literal inside a detector, must not silently exempt
 # a whole file for a reason it never actually declared. This escape is for a
-# file that IS this gate's counter-fixture, NOT for excusing a real suite.
+# file that is this gate's counter-fixture, not for excusing a real suite.
 #
 # BASELINE. scripts/fixture-git-isolation-baseline.txt grandfathers the suites
 # that predate this gate, so shipping it does not red-line the corpus. Entries
 # are exact paths and the gate FAILS on a stale one, so a line cannot outlive
-# the debt it records. A declared scope is NOT a baseline entry: the baseline
+# the debt it records. A declared scope is not a baseline entry: the baseline
 # records debt to be drained, the declaration records a permanent property of
 # the file.
 set -uo pipefail
@@ -136,7 +136,7 @@ case "${1:-}" in
 esac
 
 # Git Bash pays a high per-process spawn cost, so every classification below is
-# ONE bulk awk pass over the whole tracked set rather than a grep per file.
+# one bulk awk pass over the whole tracked set rather than a grep per file.
 #
 # CLEARS: a shell file that unsets every load-bearing variable (GIT_DIR,
 #   GIT_WORK_TREE, GIT_CONFIG) on one logical line via `unset` (process-wide),
@@ -259,7 +259,7 @@ scan() {
       hd_line = 0
       before = HD_N
       hd_scan(codeline)
-      # The operator line itself IS code; its body starts on the next line.
+      # The operator line itself is code; its body starts on the next line.
       if (HD_N > before) HD_ACTIVE = 1
     }
 
@@ -664,7 +664,7 @@ Fix by clearing the environment once, at the top of the suite:
     unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 or by sourcing a harness that already does (scripts/test-git-helpers.sh).
-Do NOT add a new suite to $BASELINE — it records pre-existing debt only.
+Do not add a new suite to $BASELINE — it records pre-existing debt only.
 EOF
   } >&2
 fi

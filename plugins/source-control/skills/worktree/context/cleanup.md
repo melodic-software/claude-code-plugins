@@ -45,11 +45,11 @@ Run `status` logic internally and identify candidates:
 
 | Reason | Detection method |
 |--------|-----------------|
-| **Orphaned directory** | A row of `bash "<scripts-dir>/worktree-root-scan.sh" --repo-dir <each canonical repo>` classed `empty` or `husk`: a directory under a worktree root that no repository registers. Only a row the scan proposes (`proposed` = `yes`) is a candidate: `empty`, or a `husk` whose only entry is its `.git` file. Each must also pass its class's qualifying tests in Step 4a, run again at removal, and a `husk` is removed only after those tests and then the file-lock release, both in Step 4a. A `husk` row with other content, and `foreign`, `live`, `symlink` and `unknown` rows, are never candidates: report them. Those tests are not optional: the external root is shared across repositories, so another repository's live worktree is absent from this one's list, and a live worktree whose main clone is unreachable fails the `rev-parse` test while still holding all its work: it is `unknown`, never a `husk`. Scan every root your project uses. Common layouts: (1) the **configured external root** (`worktreeroot.path`, then the `worktree_root` plugin option, then the plugin data dir) where `create` actually places every worktree, and which is shared across repositories; (2) `<repo-root>/.worktrees/`; (3) Claude Code's default `<repo-root>/.claude/worktrees/`; (4) bare-clone hub `<hub-root>/<name>/`, siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default and `create` pre-flight use). Empty shells remain when Claude Code's built-in cleanup removes worktree contents but the directory husk persists, from a terminal kill without clean exit OR a file lock blocking deletion (release per Step 4a, after its guards and class tests pass). Safe to remove once unlocked |
+| **Orphaned directory** | A row of `bash "<scripts-dir>/worktree-root-scan.sh" --repo-dir <each canonical repo>` classed `empty` or `husk`: a directory under a worktree root that no repository registers. Only a row the scan proposes (`proposed` = `yes`) is a candidate: `empty`, or a `husk` whose only entry is its `.git` file. Each must also pass its class's qualifying tests in Step 4a, run again at removal, and a `husk` is removed only after those tests and then the file-lock release, both in Step 4a. A `husk` row with other content, and `foreign`, `live`, `symlink` and `unknown` rows, are never candidates: report them. Those tests are not optional: the external root is shared across repositories, so another repository's live worktree is absent from this one's list, and a live worktree whose main clone is unreachable fails the `rev-parse` test while still holding all its work: it is `unknown`, never a `husk`. Scan every root your project uses. Common layouts: (1) the **configured external root** (`worktreeroot.path`, then the `worktree_root` plugin option, then the plugin data dir) where `create` actually places every worktree, and which is shared across repositories; (2) `<repo-root>/.worktrees/`; (3) Claude Code's default `<repo-root>/.claude/worktrees/`; (4) bare-clone hub `<hub-root>/<name>/`, siblings of `.bare/`, found by detecting the hub (`git rev-parse --git-common-dir` ends in `.bare`) and resolving `<hub-root>` as its parent (same detection the Smart Default and `create` pre-flight use). Empty shells remain when Claude Code's built-in cleanup removes worktree contents but the directory husk persists, from a terminal kill without clean exit or a file lock blocking deletion (release per Step 4a, after its guards and class tests pass). Safe to remove once unlocked |
 | **Prunable** | The `prunable` column of `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` is `yes` |
 | **PR merged** | The forge lists a merged PR for the branch ([GitHub](../../../reference/providers/github/README.md#resolve-a-pull-request)) |
 | **Stale** | Last commit > threshold days, no open PR, no locked flag. A `pr-unknown` row (PR lookup incomplete) is never Stale |
-| **Reap age** | Proposed by default only when ALL hold: the row is a linked worktree (`linked=yes` in `worktree-facts.sh list`, so never the primary checkout or a bare hub); Work is `safe`; Status is `merged` **or** the engine shows zero unpushed commits (`unpushed=0`); last-commit age exceeds `worktree_reap_after_hours` (`status.md` data-collection step 4); and, when the worktree is locked, its row of the stale batch below the table has exit `0`, the liveness proof a **Stale lock** needs. Every helper-created worktree is locked at creation, so this is the common case; a lock that proof does not cover (this session's own, a live lane's, another host's) keeps the row **Locked**: report it, never propose it. `stranded`, `superseded`, `unknown`, `in-progress`, `dirty` and `notgit` rows are never proposed by this reason, however old. Every Step 4 guard still runs on an accepted row, and a locked one is confirmed and unlocked as Step 4a describes |
+| **Reap age** | Proposed by default only when all hold: the row is a linked worktree (`linked=yes` in `worktree-facts.sh list`, so never the primary checkout or a bare hub); Work is `safe`; Status is `merged` **or** the engine shows zero unpushed commits (`unpushed=0`); last-commit age exceeds `worktree_reap_after_hours` (`status.md` data-collection step 4); and, when the worktree is locked, its row of the stale batch below the table has exit `0`, the liveness proof a **Stale lock** needs. Every helper-created worktree is locked at creation, so this is the common case; a lock that proof does not cover (this session's own, a live lane's, another host's) keeps the row **Locked**: report it, never propose it. `stranded`, `superseded`, `unknown`, `in-progress`, `dirty` and `notgit` rows are never proposed by this reason, however old. Every Step 4 guard still runs on an accepted row, and a locked one is confirmed and unlocked as Step 4a describes |
 | **Stranded** | `landed-work.sh` reports `risk=STRANDED` or `risk=UNKNOWN`. **Not a cleanup candidate.** Listed here because it is the row most easily mistaken for `Stale`: both are old and quiet, but this one holds unpushed commits whose content is not on the base |
 | **In-progress operation** | `landed-work.sh` reports `risk=in-progress`, or its `inprogress` column is anything but `none`. **Not a cleanup candidate.** A rebase, merge, cherry-pick, revert, or bisect is mid-flight, probed via `git rev-parse --git-path` (`rebase-merge`, `rebase-apply`, `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `BISECT_LOG`). Clean does not mean idle: an interactive rebase paused at a `break` leaves `git status --porcelain` empty, and plain `git worktree remove` then deletes it silently, since git refuses only dirty trees. Report the operation; the owner finishes or aborts it first |
 | **Locked** | `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` shows `locked=yes` (with or without a reason) and neither the **Stale lock** test below nor the locked case of **Reap age** holds. **Not a cleanup candidate.** `worktree-create.sh` and `worktree-claim.sh` both encode that reason through `worktree_lock_reason`. Present the reason; only on explicit confirmation that the owner is done, disarm with `git worktree unlock <path>` and re-classify. Never bypass with `--force --force` |
@@ -115,14 +115,14 @@ git worktree remove <path>
 
 **The session's own worktree is deferred.** When the candidate path equals `git rev-parse --show-toplevel`, skip only the `git worktree remove` line here; Step 4b removes it before deleting its branch. Both guards, the file-lock release, the workspace `down` and the reap still run here, in the order below, while the directory is on disk: the reap takes `--worktree-path <path>` and enters it itself, so it cannot follow the removal, and plain removal loses gitignored files with exit 0.
 
-**Two guards, the file-lock release, the workspace `down` and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → file-lock release → `down` → reap → removal.** For a locked candidate, the `worktree-claim.sh stale` proof (exit 0) is part of guard 2: it is a read-only check, and a row where it fails is kept before the release, `down` and the reap. The guards only read state, so a row any guard keeps has no side effects: no process is stopped, no `down` runs and nothing is reaped. The file-lock release and `down` follow the guards so a worktree they keep keeps its processes and services. The stranded-work guard runs first because it can abort the removal outright; running the carried-file comparison first would reconcile files for a worktree that won't be removed, and an aborted removal loses nothing that needed syncing. The reap runs last before the removal for the inverse reason: the process stop and the reap are *not* undoable, so neither may fire for a worktree the guards are about to save.
+**Two guards, the file-lock release, the workspace `down` and one reap run before any removal, plain or forced, in this order: guard 1 → guard 2 → file-lock release → `down` → reap → removal.** For a locked candidate, the `worktree-claim.sh stale` proof (exit 0) is part of guard 2: it is a read-only check, and a row where it fails is kept before the release, `down` and the reap. The guards only read state, so a row any guard keeps has no side effects: no process is stopped, no `down` runs and nothing is reaped. The file-lock release and `down` follow the guards so a worktree they keep keeps its processes and services. The stranded-work guard runs first because it can abort the removal outright; running the carried-file comparison first would reconcile files for a worktree that won't be removed, and an aborted removal loses nothing that needed syncing. The reap runs last before the removal for the inverse reason: the process stop and the reap are *not* undoable, so neither may fire for a worktree the guards are about to save.
 
 **1. Stranded-work guard:** removal itself is recoverable (`git worktree remove` unregisters the directory and leaves the branch ref intact), but a detached-HEAD worktree has no branch ref holding its commits, and for every other candidate the `git branch -D` that Step 4b runs (Linux and macOS) or emits for the user (Windows, or when a hook blocks it) finishes the job one step later. This guard covers both while the candidate is still on disk.
 
 Read the candidate's row from the record collected in Step 2:
 
 - `risk=landed`, `ok`, or `bare` → proceed.
-- `risk=STRANDED`, `UNKNOWN`, or `superseded` → **stop and do not remove.** Present the count, the `base` stamp, the `reason`, and the commit subjects (`git -C <path> log HEAD --not --remotes --oneline`), then get explicit per-worktree confirmation naming those commits. `UNKNOWN` means the engine could not prove landedness, not that it proved absence. `superseded` means only that a MERGED pull request carried this branch's NAME; a name reused after that merge makes the evidence describe different commits than these, and the row is `landed=no` either way. Treat both exactly as `STRANDED`.
+- `risk=STRANDED`, `UNKNOWN`, or `superseded` → **stop and do not remove.** Present the count, the `base` stamp, the `reason`, and the commit subjects (`git -C <path> log HEAD --not --remotes --oneline`), then get explicit per-worktree confirmation naming those commits. `UNKNOWN` means the engine could not prove landedness, not that it proved absence. `superseded` means only that a merged pull request carried this branch's name; a name reused after that merge makes the evidence describe different commits than these, and the row is `landed=no` either way. Treat both exactly as `STRANDED`.
 - `risk=in-progress` → **stop.** A merge, rebase, cherry-pick, revert, or bisect is mid-flight here. Its staged tree is recomputable, but the operator's conflict resolutions are not, and the operation's position is lost with the directory. The tree can be completely clean too: an interactive rebase paused at a `break` leaves `--porcelain` empty, which is why this row outranks `landed` and never reads as disposable. Report the operation and let the user finish or abort it first.
 - `risk=dirty` → **stop.** Nothing is unpushed, but the working tree carries uncommitted edits; the same value is emitted when the working-tree status could not be read at all (the `-` or `?` in the count columns). Neither is safe to remove without the user looking.
 - **Any value not listed above → treat it as `STRANDED`.** The list is closed on the safe side only: an unrecognized risk value is one this file cannot vouch for, and an unproven verdict never authorizes a removal.
@@ -137,15 +137,15 @@ Offer the non-destructive resolution first: `git -C <path> push -u origin HEAD` 
 succeeds on a worktree whose only edits are gitignored files, which `status --porcelain` does not
 show, so plain removal silently discards them. When the repo root has a `.worktreeinclude`, run
 the same per-pattern comparison as `/source-control:pull-request create`'s pre-flight, expanding each pattern from
-the worktree toplevel (skip unmatched globs) AND from `MAIN_ROOT`, before removing. Differing or
-new carried file → offer the copy-to-main sync; main-side file ABSENT in the worktree → offer
+the worktree toplevel (skip unmatched globs) and from `MAIN_ROOT`, before removing. Differing or
+new carried file → offer the copy-to-main sync; main-side file absent in the worktree → offer
 removing main's copy only on explicit confirmation of a deliberate deletion (default keep, since the
 file may simply never have been carried). Removal without this pass loses the edits with exit 0.
 
-**File-lock release (Windows-critical).** Once both guards have cleared, and for a locked candidate once `bash "<scripts-dir>/worktree-claim.sh" stale <path>` has exited 0 (run for that candidate just before its release, not read from the Step 2 batch, and after any owner-is-done confirmation, as the Escalation guard below describes; any other exit keeps the row, with nothing stopped), release the candidate's OS file locks. `git worktree remove --force` overrides git's dirty/locked-worktree check but does NOT release OS file handles: on Windows any process holding a file under the worktree blocks directory deletion ("Permission denied" / "being used by another process"), and `--force` then unregisters the worktree but leaves a husk on disk. Stop the processes rooted in the candidate's path:
+**File-lock release (Windows-critical).** Once both guards have cleared, and for a locked candidate once `bash "<scripts-dir>/worktree-claim.sh" stale <path>` has exited 0 (run for that candidate just before its release, not read from the Step 2 batch, and after any owner-is-done confirmation, as the Escalation guard below describes; any other exit keeps the row, with nothing stopped), release the candidate's OS file locks. `git worktree remove --force` overrides git's dirty/locked-worktree check but does not release OS file handles: on Windows any process holding a file under the worktree blocks directory deletion ("Permission denied" / "being used by another process"), and `--force` then unregisters the worktree but leaves a husk on disk. Stop the processes rooted in the candidate's path:
 
 - **Build servers** holding compiled output, e.g. `dotnet build-server shutdown` (.NET / VBCSCompiler + MSBuild), Gradle `--stop`, or your stack's equivalent. They hold bin/output DLLs open.
-- **Long-lived daemons / MCP servers** started inside the worktree: identify processes whose executable path or command line is under the candidate directory, and stop ONLY those (never processes belonging to other live worktrees).
+- **Long-lived daemons / MCP servers** started inside the worktree: identify processes whose executable path or command line is under the candidate directory, and stop only those (never processes belonging to other live worktrees).
 
 An orphaned-directory candidate (`empty` or `husk`) takes this release after its class's qualifying tests below pass and before the `rm -rf`. Skipping the release is the usual reason an earlier `/source-control:worktree cleanup` left husks; Step 5 then reports them honestly rather than hiding the failure.
 
@@ -202,18 +202,17 @@ Five rules govern this step; each closes a way it could do real harm:
 - **The trigger is this teardown, never path liveness.** Reap a worktree *this cleanup is removing*,
   never "a path that does not currently resolve": a project-scope record for a live repository
   on an unmounted network share or detached external volume is indistinguishable from a dead
-  worktree to a bare existence check, and destroying those records is unrecoverable data loss. Pre-existing orphans from worktrees removed before this step existed are **reported by
+  worktree to a bare existence check, and destroying those records is unrecoverable data loss. Orphans from worktrees removed any other way are **reported by
   `audit`, not reaped here**. See [audit.md](audit.md).
 - **A non-zero exit is a no-op to report, never an escalation.** The CLI's own failure text for an id
-  with no project-scope record here reads `Plugin "<id>" is installed in user scope, not project.
-  Use --scope user to uninstall.` Following that suggestion would uninstall the plugin **fleet-wide**.
+  with no project-scope record here suggests re-running with `--scope user`. Following that suggestion would uninstall the plugin **fleet-wide**.
   Never run `-s user`, and never `--prune` (which reaches past project scope into shared
   auto-installed dependencies).
 - **Every uninstall carries `--keep-data`, and the helper passes it unconditionally.** The CLI
   deletes a plugin's `${CLAUDE_PLUGIN_DATA}` directory when the uninstalled scope was its last, so
   without the flag this step destroys stored state of plugins it only meant to un-record, and the
   report cannot show it happened. This step
-  reaps records; a record is not data.
+  reaps records; a record is not data. Pointer: [plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall).
 - **Never hand-edit `installed_plugins.json`.** It is Claude Code's internal state, not a published
   contract. Every removal goes through the CLI; the helper only reads the file, and only to report
   survivors.
@@ -238,7 +237,7 @@ only gate between a live directory and an unrecoverable reap plus `rm -rf`.
 right now, do not scan or classify anything under it: the volume is detached, and every path under
 it would qualify on identical evidence.
 
-**Normalize `<path>` FIRST, stripping every trailing separator, and run every test against the
+**Normalize `<path>` first, stripping every trailing separator, and run every test against the
 normalized form.** POSIX pathname resolution forces a trailing-slash path to resolve *through* a
 symlink to a directory, so `test -L "link/"` reports **false** for a symlink and the disqualifier
 below silently passes. Measured on this plugin's own host
@@ -264,7 +263,7 @@ matters in the other direction: off Windows a trailing `\` is part of the direct
 stripping it there would re-point every test below, and the reap plus `rm -rf`, at a sibling
 path while leaving the actual candidate behind.
 
-**Four tests, ALL of which must hold** for an `empty` row, against that normalized `<path>`. The first
+**Four tests, all of which must hold** for an `empty` row, against that normalized `<path>`. The first
 three are negatives and prove nothing alone; the last is the only positive evidence available,
 and it is what the presentation row's "(scan class `empty`, no git ref)" claims:
 
@@ -318,7 +317,7 @@ alone: do not reap, do not remove. Deriving deadness from the negatives alone is
 [audit.md](audit.md) refuses on the same evidence, and the acting path may not be more permissive
 than it.
 
-**Escalation guard (before any `--force`):** when plain removal fails, inspect why: `git -C <path> status --porcelain` (uncommitted edits) and `git -C <path> log HEAD --not --remotes --oneline | head` (unpushed commits). `HEAD`, not `--branches`: on a detached HEAD, the one case where removal makes commits unreachable *immediately* with no branch ref left holding them, `--branches` reports every other branch in the repository and nothing about this worktree's own commits, so the guard reads clean exactly when it matters most. If either is non-empty, present the summary and get explicit per-worktree confirmation BEFORE forcing, since forced removal permanently discards those changes. Only after confirmation (or when the failure is a lock/metadata issue with a verifiably clean tree):
+**Escalation guard (before any `--force`):** when plain removal fails, inspect why: `git -C <path> status --porcelain` (uncommitted edits) and `git -C <path> log HEAD --not --remotes --oneline | head` (unpushed commits). `HEAD`, not `--branches`: on a detached HEAD, the one case where removal makes commits unreachable *immediately* with no branch ref left holding them, `--branches` reports every other branch in the repository and nothing about this worktree's own commits, so the guard reads clean exactly when it matters most. If either is non-empty, present the summary and get explicit per-worktree confirmation before forcing, since forced removal permanently discards those changes. Only after confirmation (or when the failure is a lock/metadata issue with a verifiably clean tree):
 
 ```bash
 git worktree remove --force <path>   # dirty-tree override — only after the confirmation above
@@ -333,7 +332,7 @@ On explicit confirmation that the owner is done, first re-run `bash "<scripts-di
 confirmed-dirty tree). The unlock is a separate deliberate act naming the lock, so no flag
 silently answers a question it was not asked.
 
-Do NOT swallow stderr with `2>/dev/null`. A failed removal must surface so Step 5 can report it honestly.
+Do not swallow stderr with `2>/dev/null`. A failed removal must surface so Step 5 can report it honestly.
 
 ### Step 4b: Branch + current-worktree deletion (run inline on POSIX, emit on Windows or a hook block)
 
@@ -372,7 +371,7 @@ test -d <path> && echo "HUSK REMAINS: <path>" || echo "removed: <path>"   # Powe
 
 Report honestly, and never count a husk as removed:
 
-- **Fully removed**: directory gone AND metadata pruned.
+- **Fully removed**: directory gone and metadata pruned.
 - **Unregistered, husk remains**: `git worktree list` is clean but the directory is still on disk (a lock survived Step 4a). Surface the path; the user removes it after closing the holding process.
 
 - **Records reaped**: the count the reap step returned per candidate, plus any it could not remove.

@@ -296,7 +296,7 @@ const GATES = {
   "maintenance-measure-skill-edit-pass.yml": { "run-eval": "switch", "run-eval-subscription": "switch", "run-eval-fallback": "switch" },
   "intake-reenter.yml": { reenter: "start" },
   "intake-triage.yml": {
-    "kill-switch": "start",
+    "check-kill-switch": "start",
     "apply-verdict": "switch",
     "refine-select": "start",
     "refine-issue": "switch",
@@ -325,12 +325,12 @@ const GATES = {
   "pr-dispatch-feedback.yml": { "post-verify-notes": "switch", dispatch: "switch", "rerun-ci-status": "switch" },
   "pr-merge.yml": { "dispatch-post-merge-runs": "switch", merge: "switch", "enable-auto-merge": "switch" },
   "pr-rate-merge-risk.yml": { "rate-merge-risk": "switch", "rate-merge-risk-subscription": "switch", "rate-merge-risk-fallback": "switch" },
-  "pr-review-hosted.yml": { "kill-switch": "switch" },
-  "pr-review-main.yml": { trigger: "switch", "collect-trusted-text": "switch", review: "switch", "review-subscription": "switch", "review-fallback": "switch" },
-  "pr-review-security-hosted.yml": { "kill-switch": "switch" },
-  // broker-check reads the budget only for a caller passing start-gate, and
+  "pr-review-hosted.yml": { "check-kill-switch": "switch" },
+  "pr-review-main.yml": { "check-trigger": "switch", "collect-trusted-text": "switch", review: "switch", "review-subscription": "switch", "review-fallback": "switch" },
+  "pr-review-security-hosted.yml": { "check-kill-switch": "switch" },
+  // check-broker reads the budget only for a caller passing start-gate, and
   // only on a call that is the first in its slot (FIRST_CALL).
-  "pr-run-activity-read.yml": { "broker-check": "first-call", run: "switch" },
+  "pr-run-activity-read.yml": { "check-broker": "first-call", run: "switch" },
   "pr-run-activity-write.yml": { run: "switch" },
   "pr-unblock-dispatch.yml": { dispatch: "switch", refine: "switch" },
   "pr-unblock.yml": {
@@ -354,10 +354,10 @@ const GATES = {
     "push-branches": "switch",
     publish: "switch",
   },
-  // The issue lane's budget is read at broker-check's first call (START_CALLS),
-  // the one place label-unblocked reads a budget stop from; admit and pick-slot
+  // The issue lane's budget is read at check-broker's first call (START_CALLS),
+  // the one place label-unblocked reads a budget stop from; check-admission and pick-slot
   // check the switches only.
-  "work-resolve-issue.yml": { admit: "switch", "pick-slot": "switch" },
+  "work-resolve-issue.yml": { "check-admission": "switch", "pick-slot": "switch" },
   "work-unblock.yml": { "label-unblocked": "start", "publish-lane-level": "switch", "sync-status": "switch" },
 };
 

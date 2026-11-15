@@ -51,7 +51,7 @@ const actionSteps = Object.values(wf.jobs).flatMap((job) => job.steps ?? []).fil
 say(actionSteps.length === 0, `no step runs claude-code-action and its allowed_bots (found ${actionSteps.map((s) => s.id).join(", ")})`);
 
 // request-lane-token's check mode refuses a dispatcher run id.
-const broker = wf.jobs["broker-check"].steps.find((s) => s.id === "broker")?.with ?? {};
+const broker = wf.jobs["check-broker"].steps.find((s) => s.id === "broker")?.with ?? {};
 say(!("dispatcher-run-id" in broker), "the broker check sends no dispatcher run id");
 EOF
 )

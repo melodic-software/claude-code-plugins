@@ -22,9 +22,9 @@ argument tier, so the skill builds it whatever the policy says.
 Whatever the policy, the digest never posts to the pull request, never comments on it, and never
 sets a check status. It does not gate merge.
 
-After a pull request is ready, the next push to the default branch can start `pr-unblock`'s
-`fix-docs`, once per pull request. It can push a docs-fix commit to the branch, so a digest built
-then may describe a head that is about to change.
+After a pull request is ready, its own `opened`, `reopened`, `ready_for_review` or `synchronize`
+event can start `pr-refine`'s `fix-docs`, once per pull request. It can push a docs-fix commit to
+the branch, so a digest built then may describe a head that is about to change.
 
 ## The triggers
 

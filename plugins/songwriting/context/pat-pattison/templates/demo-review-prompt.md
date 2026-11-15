@@ -75,7 +75,7 @@ Run sequenced diagnose:
 9. Hook check
 10. Read aloud, final pass
 
-Identify the DOMINANT problem. Stop there.
+Identify the dominant problem. Stop there.
 
 ### Near-final / polish
 
@@ -94,7 +94,7 @@ Lyric-melodic alignment per `lyric-melodic-roadmaps.md`:
 - Stable/unstable per section
 - Three alignment fixes
 
-## Step 4: Surface ONE focused next move (writer-facing)
+## Step 4: Surface one focused next move (writer-facing)
 
 ```
 **Stage:** <detected stage>
@@ -103,7 +103,7 @@ Lyric-melodic alignment per `lyric-melodic-roadmaps.md`:
 - <specific element working: line, image, rhythm, prosodic move>
 
 **Dominant next move:**
-- <ONE specific revision direction, not a list>
+- <one specific revision direction, not a list>
 
 **Why this move:**
 - <addresses the highest-leverage problem>

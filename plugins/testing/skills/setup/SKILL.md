@@ -101,7 +101,7 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
    - Bash, PowerShell and Go: no maintained rule.
    - Any other detected language: named with `setup has no lint check for this language`, not a
      finding.
-3. **instruction**: the optional line, naming the one file Claude Code loads at the repository
+3. **instruction**: the optional line, naming one file Claude Code loads at the repository
    root: `CLAUDE.md`, else `.claude/CLAUDE.md`, else `CLAUDE.local.md`, else `AGENTS.md`, else `CLAUDE.md` in
    `${CLAUDE_CONFIG_DIR:-~/.claude}` (the script's order). Which files load, and when `AGENTS.md` is
    read: [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md). Offer it; do not paste it anywhere.
@@ -145,7 +145,7 @@ missing launcher.
 /testing:audit
 Runs the scan with the config this skill wrote.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Edit `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, or any lint config. It prints what to add.
 - Install a lint plugin or analyzer.

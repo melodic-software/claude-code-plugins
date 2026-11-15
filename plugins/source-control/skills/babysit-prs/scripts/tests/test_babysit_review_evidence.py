@@ -2359,7 +2359,7 @@ class KillSwitchRerunTests(Base):
         )
         self.assertTrue(result["claude-review"].bound)
 
-    def test_a_stop_by_the_kill_switch_job_under_its_planned_name_binds(
+    def test_a_stop_by_the_kill_switch_job_under_its_current_name_binds(
         self,
     ) -> None:
         for lane in LANES:

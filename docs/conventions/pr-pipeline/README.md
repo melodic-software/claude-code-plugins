@@ -71,7 +71,7 @@ no renumbering.
 | `pre-ready` | The implementer writes the change and may push draft checkpoints at any time. Local today; the design assumes no particular implementer. | the implementer |
 | `refine` | Behavior-preserving changes that make the PR review-ready: simplify, tidy, docs and format fixes. One push at the end. | ready (or opened ready) |
 | `verify` | Checks, reviews and outcome verification on the refined commit. Mechanical and judgment lanes start together; a failed mechanical gate cancels the running judgment lanes, and `pr-require-checks` aggregates the results into `ci-status`. | dispatch from `refine` |
-| `unblock` | Take the action that unblocks a PR: today, resolve conflicts with the base branch. Fixing failing CI and addressing review feedback join as composites. | see [Lanes](#lanes) |
+| `unblock` | Take the action that unblocks a PR: resolve conflicts with the base branch, fix failing CI, address review feedback, review a Dependabot update, or sync shared copies. | see [Lanes](#lanes) |
 | `merge` | Merge, within the configured rung. | final check green, or a hold removed |
 | `post-merge` | Verify the default branch and sweep late comments into issues. | push to the default branch |
 
@@ -186,8 +186,8 @@ reader applies.
 |---|---|
 | `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml`'s `refine` job, on the PR's own `pull_request_target` event (opened, reopened, ready for review or pushed), for each ready PR that changes Markdown, never had `fix-docs` and is not a `work-resolve-issue` PR tidied in its own run (within the tidy cutoffs), or a trusted human's dispatch; a push to the default branch or the dispatcher's half-hourly tick starts none, and `limits.fix-docs-per-run: 0` turns the dispatches off; on a listed human's event (never the lanes App's) the same job also dispatches each activity `refine-dispatch.activities` lists, from the allowlist in `refine-event-dispatch.mjs` (`fix-marker`), empty by default |
 | `pr-run-checks` | dispatch from `pr-refine` |
-| `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
-| `pr-verify` | dispatch from `pr-refine` |
+| `pr-review`, `pr-review-security` | the PR's own `pull_request` run on a ready head (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`), whose `wait-for-refine` job first waits for this head's `pr-refine` run |
+| `pr-verify` | `workflow_run` on the completion of a successful, or hold-only, `pr-require-checks` run of a same-repository, non-draft PR ([Verifier verdict](#verifier-verdict)) |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread, or a trusted human's dispatch |
@@ -215,7 +215,7 @@ a trusted human's `workflow_dispatch`:
 - A read that fails holds, whatever GitHub answered. A listing it cannot read dispatches nothing,
   and a PR whose holds or check runs it cannot read is skipped, each with a warning, and the next
   tick reads them again. This holds for every dispatch the run sends, the ones below included,
-  with one exception kept from before: `fix-ci` still dispatches under its caps when it cannot
+  with one exception: `fix-ci` dispatches under its caps when it cannot
   read its required run or the head's check runs for a reason other than a `5xx` or a rate limit,
   or when the verifier reader fails. A failed read does not fail the run. A dispatch that failed
   or named no run id, config the run cannot read, or a rate limit (the shared rate guard fails
@@ -427,7 +427,7 @@ serves an adopted owner PR, posting its replies as the lanes App:
   work the PR (`gate-source.mjs` `prHold`): not after an `address-feedback` escalation, and not
   once a person commented or reviewed after the label went on. Held, the round works only a thread
   a trusted person with write access asked the lane to fix. On a lanes App PR a lane escalation's
-  label still lets the round work, as before.
+  label lets the round work.
 - What: the round is the App PR round, unchanged: the same threads (only the reviewer bot's, a
   listed review bot's, or a lane's, under the same trusted-person rules), the same CRITICAL and
   security holds, the same `apply-feedback-patch` push under the same patch rules, and no merge.
@@ -469,8 +469,8 @@ reviewer bot's finding makes the thread one `address-feedback` works, as long as
 comment is the reviewer bot's or a trusted person's; their comments from the first fix request on
 are direction. A thread such a person opened is worked the same way: their own fix request in it,
 first comment or a later one, asks the lane to fix what it names (a failing check, say, on a PR
-no review bot commented on), so the lane no longer stops on it with `feedback-untaken-threads`.
-A thread anyone else opened, or one without a fix request, is left alone as before. Such a
+no review bot commented on), so the lane works it instead of stopping with `feedback-untaken-threads`.
+A thread anyone else opened, or one without a fix request, is left alone. Such a
 thread, and one a trusted person answered after the lane escalated it, is
 worked even when its review is on an earlier head than the one the reviewed-head markers name.
 On a lanes App PR, the next half-hourly tick picks up a fix request on an unresolved thread the
@@ -660,7 +660,7 @@ nor a listed human, a re-run) waits for its next event.
 
 A `fix-docs` run whose run job emits an empty head posts no check (`post-decline: false`). The
 event dispatcher reads and saves no dispatch record, so the per-head cap of
-`limits.limit-stops-per-head` broker-allowed runs that posted no check holds only within one
+`limits.limit-stops-per-head` record-broker-allow runs that posted no check holds only within one
 run, where it never binds: each event starts at most one run, and a new head arrives as a new
 event.
 
@@ -693,7 +693,7 @@ Every lane:
   reader refuses any other. Its change reaches the branch only through a script activity
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)), which gets the write access its
   job needs through a short-lived, job-scoped App token, revoked when the job ends. Local lanes keep
-  auto mode (AGENTS.md). Capability is never removed for safety: a lane's scope comes from how
+  auto mode ([loop-lane, Permission modes](../../contracts/loop-lane/README.md#permission-modes)). Capability is never removed for safety: a lane's scope comes from how
   granular its activity is, the PR is the review step, and safety comes from who can trigger a
   lane, token lifetime and scope, workflow execution protections, the kill switch, and a
   `ci-status` no lane can write (below).
@@ -1121,7 +1121,7 @@ each entry once.
 | Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
 | `pr-unblock-dispatch` | One run at a time; a push cancels the run going, and a tick or hand run waits behind it; any newer run replaces one still waiting | workflow group `pr-unblock-dispatch`, `cancel-in-progress: ${{ github.event_name == 'push' }}` |
 | `pr-dispatch-feedback` | One run per group at a time: one per pr-verify run, one for all sweeps, and one per reviewed head otherwise; waiting runs queue and none is replaced | workflow group `pr-dispatch-feedback-verify-<run id>`, `-sweep` or `-<head SHA>`, `queue: max` |
-| `pr-merge` `enable-auto-merge`, across PRs | One run at a time, sweeps and verdict wakes alike, since the lane-room check is not re-read after arming; none is cancelled, and a waiting sweep, or a newer wake for the same PR, does a wake's work. At the measured peak of 31 `pr-verify` completions in 15 minutes, all of them wakes, the job's 44-minute ceiling queues about 91, under GitHub's cap of 100; a run past the cap leaves its PR to the next scheduled run | job group `pr-merge-enable-auto-merge`, `queue: max` |
+| `pr-merge` `enable-auto-merge`, across PRs | One run at a time, sweeps and verdict wakes alike, since the lane-room check is not re-read after arming; none is cancelled, and a waiting sweep, or a newer wake for the same PR, does a wake's work. At the measured peak of 31 `pr-verify` completions in 15 minutes, all of them wakes (as of 2026-11-03; recheck when the wake rate or the job's ceiling changes), the job's 44-minute ceiling queues about 91, under GitHub's cap of 100 queued runs ([Control the concurrency of workflows and jobs](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)); a run past the cap leaves its PR to the next scheduled run | job group `pr-merge-enable-auto-merge`, `queue: max` |
 
 The write group sits on each caller job, behind an `if:` that leaves out the lanes App's own
 `pull_request` events, so a lane's push never queues a job in it.
@@ -1184,7 +1184,7 @@ the human.
 
 `merge.authority` names the repository's one merge authority: `local-babysit`, the babysit wrapper
 run by the local babysit lane (loop-lane), or `pr-merge`. When it is absent the authority is
-`pr-merge`, the meaning a rung had before this key existed. The babysit wrapper merges only when it
+`pr-merge`. The babysit wrapper merges only when it
 reads the authority the wrapper runs as: `local-babysit` by default, `pr-merge` under
 `--authority pr-merge` (below). `merge.report-only: true` makes that authority report each
 decision and write nothing. `merge.rung` is a pacing cap: `off` merges nothing without a human,
@@ -1480,7 +1480,7 @@ the rules that only tighten in
   does, and for a pull request whose changed files include a lane source runs both lanes on the
   head's diff as data, each lane's criteria and the standards copied from main, with a read-only
   token and a model that may only Read its data directory. A head both lanes already reviewed,
-  where the merge gate's own predicate (`_main_bound`) binds each lane on what the trigger job
+  where the merge gate's own predicate (`_main_bound`) binds each lane on what the check-trigger job
   reads, is not reviewed again, and no leg starts for a pull request with no lane source. A verdict
   counts there only when its run's main commit has no diff from main's tip over what the review
   reads from main (`.github/scripts/pr-review-main/criteria.txt`, which the copy steps also read),
@@ -1714,7 +1714,7 @@ the rules that only tighten in
   lines carrying the nonce that step prints; a failed job whose suites cannot be named (a token
   without GitHub's `Actions` read permission cannot read the log, so it names none), a set that
   cannot be computed, and the merge gate's own suites
-  (`GATE_SUITE_PREFIXES` in `babysit_postmerge.py`) demote as before. A suite outside the set that
+  (`GATE_SUITE_PREFIXES` in `babysit_postmerge.py`) demote. A suite outside the set that
   failed again on a re-run also demotes, unless it passed on an earlier attempt of the same commit
   (it is non-deterministic) or a full run at the last green commit failed it on some attempt (the
   merges did not cause it).
@@ -2145,10 +2145,10 @@ leaves no file.
 `merge.lane-prs` (default `native`) decides whether the merge gate still handles the lanes App's
 pull requests. Under `native` the `merge` job's candidate listing does not ask for them, so the gate
 never scores, escalates, toggles or enqueues one; native auto-merge and `ci-status` are their whole
-merge path. Owner pull requests the lane adopts and Dependabot's are listed and gated as before,
-and the post-merge check, the full-run dispatch, re-firing refused runs and clearing escalations
-run unchanged. `gate` lists the lanes App's pull requests for the gate as well, which is how the
-lane ran before this setting; the `enable-auto-merge` job arms them in both modes.
+merge path. Owner pull requests the lane adopts and Dependabot's are listed and gated in both
+modes, and the post-merge check, the full-run dispatch, re-firing refused runs and clearing
+escalations run in both modes. `gate` lists the lanes App's pull requests for the gate as well;
+the `enable-auto-merge` job arms them in both modes.
 
 While the lanes kill switch is on (`CLAUDE_LANES_DISABLED` or `CLAUDE_LANES_REPO_DISABLED` reads
 anything but `false`), `ci-status` fails every lanes App pull request, so one armed before the switch
@@ -3212,7 +3212,7 @@ them on every `pull_request` run, contract-only runs included:
   the lanes switch.
   No admin bypass exists: the ruleset requires ci-status and the merge queue even for an admin
   merge. Only runs from this repository's head count, never a
-  fork's run on the same commit, and a PR whose head is a fork fails as a fork before any run is read. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
+  fork's run on the same commit, and a PR whose head is a fork fails as a fork before any run is read. A check-kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
   author id, except that their PR fails when a changed file (or a renamed file's old path) is a
@@ -3697,9 +3697,8 @@ sends one already parked on `SIZE_SPLIT_DONE` back to intake once its sub-issues
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the triage and
 summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
 (`code-xhigh`) for a high-Complexity issue and fix-ci's one retry, and Fable above it. The Fable
-rung is off: the schema admits neither `fable` nor `best` (Fable on Claude Code before v2.1.321;
-CI pins 2.1.319) for `model` or `subagent-model`, so the config reader rejects a profile naming
-either and no route, rung or Complexity reaches it. It
+rung is off: the schema admits neither `fable` nor `best` for `model` or `subagent-model`, so the
+config reader rejects a profile naming either and no route, rung or Complexity reaches it. It
 waits on an owner decision and a per-week Fable allowance for the lanes; the schema admits the two
 values again when that allowance is set.
 

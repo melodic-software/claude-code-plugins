@@ -1,0 +1,15 @@
+p="${p%%\?*}"
+/^[ \t]*\|/ {
+.replace(/<[^<>]*>/g, "")
+// footer, `<!-- claude-lane-run id=<run> sha=<head> -->`, and its status job
+BOM = "\ufeff"
+pattern: '\u2014'
+CODE_EXT="\\.($EXTS)\$"
+d="${d//\\u002d/-}"
+const CUT = "…";
+.replaceAll("#", "＃")
+.replaceAll("@", "@​")
+.replace(/^﻿/, "")
+return text.replace(/\|/g, "&#124;");
+// Claim: the five HTML-significant characters encode as &amp; &lt; &gt; &quot;
+<h2 id="install"><div class="anchor"><a href="#install" aria-label="Link to Install">&#8203;</a></div>Install</h2>

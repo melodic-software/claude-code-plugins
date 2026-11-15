@@ -2,7 +2,7 @@
 
 When to invoke `/planning:devils-advocate` on a plan under `plan_stress_test`'s `auto`, where a matching trigger, or a MEDIUM or higher blast radius, also runs the Step 3 `plan-reviewer`; the other values decide without these criteria (SKILL.md Step 3b). The goal is to catch plans that carry enough risk to warrant systematic adversarial review, without stress-testing every trivial change.
 
-## Always stress-test when ANY of these match
+## Always stress-test when any of these match
 
 - **Infrastructure changes:** hooks, CI/CD workflows, build configuration, deployment scripts, MCP server config. These affect every session or every build
 - **Architecture decisions affecting multiple projects:** new shared libraries, dependency direction changes, layer boundary modifications

@@ -81,7 +81,7 @@ Narrowed deliberately, and worth knowing because the narrowing is the finding:
 **SBR dominates**, accounting for roughly 68% of generated mutants in their corpus. That matters for
 any language without an off-the-shelf tool: deleting a statement or a block is the single
 highest-yield operator, it is trivial to apply to any language, and it is exactly the operator used
-by hand in this repository's own `lib/hook-utils.test.sh` mutation notes.
+by hand in the marketplace repository's `lib/hook-utils.test.sh` mutation notes.
 
 ## Choosing operators when there is no tool
 

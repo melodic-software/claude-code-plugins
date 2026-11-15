@@ -111,7 +111,7 @@
 // (check-blockers.mjs), so the close path above, which leaves an agent-ready
 // issue alone, never re-runs it. The sweep does: an agent-ready issue a
 // blocker still blocks is never re-fired, stranded or handed to a person, and
-// a run the blocker gate skipped, at admit or at the read runner's in-slot
+// a run the blocker gate skipped, at check-admission or at the read runner's in-slot
 // re-check, is re-fired like a run that did no work once none blocks. An umbrella, an issue with an open sub-issue, is skipped and
 // waits the same way until none is open; the listing's sub_issues_summary
 // answers for one with none open at no extra call. A run the gate stopped on
@@ -169,14 +169,14 @@
 // It re-fires the same way an open agent-ready issue whose newest
 // work-resolve-issue run (the one its newest agent-ready label started, by a
 // listed human or the App) did no work and left no lanes-App outcome marker since: a
-// crash before the report, a run cancelled after admit passed and before any
+// crash before the report, a run cancelled after check-admission passed and before any
 // resolve-issue job started (pick-slot's timeout, a slot queue past GitHub's limit),
 // or a run that stopped at the read runner's `Stop on stale workflow files`
 // step in any of its calls (it waited in its slot past a lane workflow change, so no model ran)
 // and whose report-outcome did not re-fire it at once (report-outcome.mjs
 // refireStale: its mint refused, or limits.limit-stops-per-issue re-fires already).
 // A run a newer agent-ready run replaced while it waited is never re-fired:
-// admit never ran in it. A rerun keeps its first event's workflow files, so only a
+// check-admission never ran in it. A rerun keeps its first event's workflow files, so only a
 // fresh label event runs on main's. Each issue is re-fired once per version
 // of the two lane workflow files on main with a marker comment posted before
 // the label moves, and after that on the stranded backoff, so a run that
@@ -185,7 +185,7 @@
 // A run that minted no lane token did no work and ran no model: the WIP cap
 // skipped its resolve-issue job, or its `Request the lane token` step failed
 // (GitHub's rate limit past the retry budget among the reasons), or
-// broker-check's `Ask the broker whether the lane may run` failed for any
+// check-broker's `Ask the broker whether the lane may run` failed for any
 // reason but the kill switch (a broker 5xx, a workflow-modified refusal of a
 // rerun, a log that names no reason): the read runner resolve-issue calls has
 // no `Request the lane token` step, so that is its failed mint, and a fresh
@@ -197,7 +197,7 @@
 // the issue lane's WIP cap check (check-wip-cap.mjs) does not pause it. It is no
 // limit stop, so it never counts toward failing the issue.
 //
-// So is a run whose admit, pick-slot, or a call's broker-check or run job
+// So is a run whose check-admission, pick-slot, or a call's check-broker or run job
 // failed on a GitHub API rate-limit stop, in a run where no model step ran
 // (the read runner's `Run the skill on` legs and its reused-branch summary
 // pass): the failed step's last line is rate-guard's or api-budget.bash's
@@ -208,18 +208,18 @@
 // hours after the run ended have passed. The same line where a model step ran,
 // or a log that cannot be read, leaves the run as before.
 //
-// A run the token broker refused for the lanes kill switch, at broker-check's
+// A run the token broker refused for the lanes kill switch, at check-broker's
 // `Ask the broker whether the lane may run` or at a `Request the lane token`
 // step, is a breaker trip, not a fault in the issue or the lanes; only the
 // refused job's log names the reason (the jobs listing reads the same for a
-// workflow-modified refusal). So is a run whose broker-check `Check the kill
-// switch` step saw a kill switch on and skipped the broker ask, or whose admit
+// workflow-modified refusal). So is a run whose check-broker `Check the kill
+// switch` step saw a kill switch on and skipped the broker ask, or whose check-admission
 // or pick-slot job's own `Check the kill switch` did and the job ended green
-// with its gated steps skipped (admit's `Install resolve-config's packages`
+// with its gated steps skipped (check-admission's `Install resolve-config's packages`
 // and `Check the trigger`, pick-slot's `Check the WIP cap`; a failed install
 // is a failed run, not the switch): that run ends green, and
-// the jobs listing alone shows it; both count as trips at broker-check. A
-// trip at broker-check ran no model, and the sweep runs only with the kill
+// the jobs listing alone shows it; both count as trips at check-broker. A
+// trip at check-broker ran no model, and the sweep runs only with the kill
 // switch off, so the first sweep after the switch clears re-fires it; a trip at a mint ran the model and is
 // re-fired limits.reset-clamp-min hours after the run ended. A run whose
 // report-outcome mint alone stopped, after another mint took its token, is a
@@ -228,8 +228,8 @@
 // agent-ready or a run last reported, waits the kill-switch
 // limits.stranded-backoff-hours after the run ended, flat, never doubled,
 // with no cap on trips and no fail route. A run whose start gate stopped it
-// on the GITHUB_TOKEN budget (BUDGET_STEP green in a call's broker-check,
-// from the jobs listing) is a breaker trip at broker-check whose record
+// on the GITHUB_TOKEN budget (BUDGET_STEP green in a call's check-broker,
+// from the jobs listing) is a breaker trip at check-broker whose record
 // carries BUDGET_TAG: it never counts toward that bound or that wait, and
 // re-fires once the window reset its step names has passed. A sweep re-fires breaker trips,
 // oldest run end first, only while the work-resolve-issue runs not yet
@@ -249,7 +249,7 @@
 // counts: a refusal for another reason, or a log that cannot be read, is a
 // failed mint.
 //
-// A run admit's upstream-status stop skipped (check-upstream-status: Actions
+// A run check-admission's upstream-status stop skipped (check-upstream-status: Actions
 // or npm installs listed an outage) ran no model either. Once the status pages
 // read clear the sweep re-fires it with no wait, paced with the breaker trips
 // by limits.refire-queue-per-slot; while they list an outage or cannot be
@@ -399,28 +399,29 @@ const STALE_STEP = "Stop on stale workflow files";
 // work-resolve-issue.yml's calls of the read runner: the API key leg, then
 // the subscription and fallback legs a handoff starts.
 const RESOLVE_CALLS = ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"];
-// work-resolve-issue.yml's admit job, by its id and its planned id.
+// work-resolve-issue.yml's check-admission job, by its id before the rename
+// and its id.
 const ADMIT = ["admit", "check-admission"];
-// The admit job's step that skips a run while the issue has an open blocker,
+// The check-admission job's step that skips a run while the issue has an open blocker,
 // or its blockers cannot be read (check-blockers.mjs); pick-slot then skips.
 const BLOCKER_STEP = "Wait for open blockers";
-// The admit job's step after BLOCKER_STEP, which runs only once the blockers
+// The check-admission job's step after BLOCKER_STEP, which runs only once the blockers
 // pass; green with pick-slot skipped, it found an upstream outage
-// (check-upstream-status), since admit's proceed then fails on nothing else.
+// (check-upstream-status), since check-admission's proceed then fails on nothing else.
 const UPSTREAM_STEP = "Check upstream status";
-// The read runner's broker-check step a run stops at, green, when its in-slot
+// The read runner's check-broker step a run stops at, green, when its in-slot
 // re-check (check-blockers.mjs RECHECK) finds an open blocker added while it
 // waited for its slot, or cannot read them; no model ran and no marker follows.
 const RECHECK_STOP_STEP = "Stop on an open blocker";
-// The admit job's step a run stops at for good on untrusted provenance.
+// The check-admission job's step a run stops at for good on untrusted provenance.
 const UNTRUSTED_STEP = "Stop on untrusted provenance";
-// broker-check's step, which asks the broker before any resolve-issue run job.
+// check-broker's step, which asks the broker before any resolve-issue run job.
 const BROKER_STEP = "Ask the broker whether the lane may run";
-// broker-check's step before BROKER_STEP, which skips it while a kill switch is on.
-// admit and pick-slot run it first too, and while a switch is on skip their
-// gated steps: INSTALL_STEP and TRIGGER_STEP in admit, WIP_STEP in pick-slot.
+// check-broker's step before BROKER_STEP, which skips it while a kill switch is on.
+// check-admission and pick-slot run it first too, and while a switch is on skip their
+// gated steps: INSTALL_STEP and TRIGGER_STEP in check-admission, WIP_STEP in pick-slot.
 const KILL_STEP = "Check the kill switch";
-// broker-check's step that runs exactly when KILL_STEP stopped on the
+// check-broker's step that runs exactly when KILL_STEP stopped on the
 // GITHUB_TOKEN budget (cause budget). Its name carries the window's reset,
 // in epoch seconds, from the gate's reset output.
 const BUDGET_STEP = /^Stop on a low GITHUB_TOKEN budget(?: until (.*))?$/;
@@ -457,11 +458,11 @@ const RATE_LIMITED = stamped(
 // minted; a MINT_STEP success with it skipped is a mint that stopped green.
 const STAGE_STEP = "Stage the activity from the base";
 // request-lane-token's notice when kill-switch-ok ends a kill-switch refusal
-// green with no token, at a mint or at broker-check's check.
+// green with no token, at a mint or at check-broker's check.
 const STOPPED = stamped(
   String.raw`##\[notice\]lane-(?:token-stopped: the broker refused the token|check-stopped: the broker refused the check) because a lanes kill switch is on(?:,|$)`,
 );
-// broker-check's step after BROKER_STEP that runs in issue mode exactly on
+// check-broker's step after BROKER_STEP that runs in issue mode exactly on
 // the broker's allow; a BROKER_STEP success with it skipped is a check that
 // stopped green.
 const LEASE_STEP = "Claim the issue with a lane lease";
@@ -471,7 +472,7 @@ const LEASE_STEP = "Claim the issue with a lane lease";
 const MINT_START = stamped(String.raw`##\[start-action display=Request the lane token;id=([\w-]+\.request)\]$`);
 const mintEnd = (id) => stamped(String.raw`##\[end-action id=${id.replace(".", "\\.")};`);
 const BREAKER = "kill-switch";
-// The refused jobs' logs on 2026-10-24 were 45 KB (broker-check) and 94 KB
+// The refused jobs' logs on 2026-10-24 were 45 KB (check-broker) and 94 KB
 // (apply-issue-patch); a longer one is left unread.
 const LOG_CAP_BYTES = 1_048_576;
 // The line a sweep prints once it has read the closed-issue listing, and that
@@ -1860,27 +1861,27 @@ export function sharedLaneRuns(actions, repo) {
 // null when one did some: no job minted a lane token (a run that minted, then
 // had report-outcome's mint alone stop with the STOPPED notice in its log, is
 // `breaker` at `token`, since the switch left it unreported), and the
-// agent-ready run either had its `Request the lane token` step or broker-check's BROKER_STEP
+// agent-ready run either had its `Request the lane token` step or check-broker's BROKER_STEP
 // fail for a reason other than the kill switch, or with no reason in its log,
 // or had that mint step stop green with no token and no STOPPED notice in its
 // log (`mint-failed`, which wins; the read runner resolve-issue calls has no
 // MINT_STEP, so its broker ask is the one the broker can fail), had the broker
-// refuse it for the kill switch at broker-check or a mint (failed, or stopped
-// green with its STOPPED notice: at broker-check, BROKER_STEP succeeded and
-// LEASE_STEP skipped), or had broker-check skip its broker ask, a green admit
+// refuse it for the kill switch at check-broker or a mint (failed, or stopped
+// green with its STOPPED notice: at check-broker, BROKER_STEP succeeded and
+// LEASE_STEP skipped), or had check-broker skip its broker ask, a green check-admission
 // its INSTALL_STEP and TRIGGER_STEP or a green pick-slot its WIP_STEP for the
 // kill switch (`breaker`), or,
-// with no MODEL_STEP run, had admit, pick-slot or a call's broker-check or run
+// with no MODEL_STEP run, had check-admission, pick-slot or a call's check-broker or run
 // job fail on a RATE_LIMITED last line (`mint-failed`, with `reset` the latest
 // reset named), was skipped by the WIP
 // cap (`capped`: pick-slot ran, no resolve-issue call did), or was skipped by the
-// admit job's blocker gate (`blocked`: its BLOCKER_STEP ran and pick-slot did
-// not, or a call's broker-check stopped at RECHECK_STOP_STEP), or by admit's
-// upstream-status stop (`outage`: a green admit whose UPSTREAM_STEP ran and
+// check-admission job's blocker gate (`blocked`: its BLOCKER_STEP ran and pick-slot did
+// not, or a call's check-broker stopped at RECHECK_STOP_STEP), or by check-admission's
+// upstream-status stop (`outage`: a green check-admission whose UPSTREAM_STEP ran and
 // pick-slot skipped). A run another gate stopped before its mint (an open closing PR, a reused
 // branch) is none of these, so it is never re-fired here. Returned as
 // `stalled`, with `run` the run that made it a breaker trip and `stage`
-// where: `check` at broker-check, before any model turn, or `token` at a mint.
+// where: `check` at check-broker, before any model turn, or `token` at a mint.
 async function didNoWork(jobsOf, refusalOf, runs) {
   // A higher rank wins across runs; between equal ranks the first stays.
   // `outage` ranks lowest, so a run of any other class keeps that class's wait.
@@ -1923,9 +1924,9 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       continue;
     }
     const named = (name) => namedJobs(jobs, name);
-    // Any call's broker-check: a later leg asks the broker again for its slot.
+    // Any call's check-broker: a later leg asks the broker again for its slot.
     const calls = RESOLVE_CALLS.flatMap(named);
-    // A budget stop at broker-check: no model ran.
+    // A budget stop at check-broker: no model ran.
     const budgetSteps = calls.flatMap((job) => (job?.steps ?? []).filter((step) => step?.conclusion === "success" && BUDGET_STEP.test(String(step?.name))));
     const budget = budgetSteps.length > 0;
     for (const step of budgetSteps) {
@@ -1937,7 +1938,7 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       }
     }
     const killedBefore = (step) => (job) => endedAt(job, KILL_STEP, "success") && endedAt(job, step, "skipped");
-    // admit's first gated step is INSTALL_STEP: a failed install also skips
+    // check-admission's first gated step is INSTALL_STEP: a failed install also skips
     // TRIGGER_STEP, and that job fails, so only a green job with both skipped
     // is the switch. pick-slot's gated WIP_STEP follows only continue-on-error
     // steps, so a green job with it skipped is the switch too.
@@ -1945,8 +1946,8 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const killed =
       budget ||
       calls.some(killedBefore(BROKER_STEP)) || ADMIT.flatMap(named).some(switchedOff(INSTALL_STEP, TRIGGER_STEP)) || named("pick-slot").some(switchedOff(WIP_STEP));
-    // A failed job before any model turn: admit, pick-slot, or a call's
-    // broker-check or run job, in a run where no model step ran.
+    // A failed job before any model turn: check-admission, pick-slot, or a call's
+    // check-broker or run job, in a run where no model step ran.
     const modelRan = jobs.some((job) => (job.steps ?? []).some((step) => MODEL_STEP.test(String(step?.name)) && step.conclusion && step.conclusion !== "skipped"));
     const preModel = [...ADMIT.flatMap(named), ...named("pick-slot"), ...calls.filter((job) => / \/ (?:broker-check|Broker Check|check-broker|Check Broker|run|Run)$/.test(String(job.name)))];
     const limited = modelRan ? undefined : preModel.find((job) => job.conclusion === "failure");
@@ -1967,7 +1968,7 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       ADMIT.flatMap(named).some((job) => job.conclusion === "success" && endedAt(job, UPSTREAM_STEP, "success")) &&
       named("pick-slot").length > 0 &&
       named("pick-slot").every((job) => job.conclusion === "skipped");
-    // One log per run: broker-check's when it refused, failed or stopped
+    // One log per run: check-broker's when it refused, failed or stopped
     // green, else the first failed mint's, else the first stopped mint's,
     // else the first failed job's before any model turn.
     const refused = await (killed
@@ -2125,7 +2126,7 @@ const JOB_NAMES = {
 const namedJobs = (jobs, id) =>
   jobs.filter((job) => [JOB_NAMES[id], id].some((name) => job?.name === name || String(job?.name).startsWith(`${name} /`)));
 
-// Whether one of `runs` stopped at the admit job's provenance stop.
+// Whether one of `runs` stopped at the check-admission job's provenance stop.
 const stoppedUntrusted = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => ADMIT.flatMap((id) => namedJobs(jobs, id)).some((job) => endedAt(job, UNTRUSTED_STEP, "success")));
 
 // Whether one of `runs` stopped at the read runner's stale-workflow stop, in
@@ -2141,12 +2142,12 @@ const stoppedStale = (jobsOf, runs) =>
 const neverStarted = (job) =>
   job?.conclusion === "skipped" || ((job?.steps ?? []).every((step) => step?.conclusion === "skipped") && (!job?.runner_id || !job?.started_at));
 
-// Whether one of `runs` was cancelled after admit passed and before any
-// resolve-issue job (pr-run-activity-read.yml's broker-check and run) started:
+// Whether one of `runs` was cancelled after check-admission passed and before any
+// resolve-issue job (pr-run-activity-read.yml's check-broker and run) started:
 // pick-slot cancelled (its timeout, or a person), or resolve-issue cancelled
 // while it waited for its slot (GitHub cancels a slot queue past its limit).
 // A run a newer agent-ready run replaced in the workflow's concurrency group
-// was cancelled while it waited, before admit ran, so it never counts.
+// was cancelled while it waited, before check-admission ran, so it never counts.
 const cancelledBeforeWork = (jobsOf, runs) =>
   someRunJobs(
     jobsOf,
@@ -2240,7 +2241,7 @@ async function runsInFlight(actions, repo) {
 }
 
 // Whether `run` has sat `queued` for `minutes` or more at `now`. The lane's
-// admit job runs on a GitHub-hosted runner and the slot wait is a job-level
+// check-admission job runs on a GitHub-hosted runner and the slot wait is a job-level
 // concurrency group after it (work-resolve-issue.yml), so a run that is still
 // queued this long never got a runner: GitHub lost it and it will never start.
 // An unreadable creation time is never stale, so the run still counts.
@@ -2472,7 +2473,7 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     );
     const trips = stalled === "breaker" && !budget ? markers.filter((marker) => marker.breaker && !marker.budget && marker.at > from).length : 0;
     const over = budget ? -1 : trips - limits["limit-stops-per-issue"];
-    // A broker-check trip ran no model, and this sweep runs only with the
+    // A check-broker trip ran no model, and this sweep runs only with the
     // kill switch off, so it re-fires now; a mint trip ran the model and
     // waits like any failed mint.
     // An upstream-status stop ran no model either, so it re-fires now once
@@ -2644,9 +2645,9 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
     })());
   // The issue lane's run pause; a read that fails never pauses.
   const wipCapped = () => status().then((s) => s.paused);
-  // Whether the status pages admit gates on read clear, read once per sweep
+  // Whether the status pages check-admission gates on read clear, read once per sweep
   // and only for a run its upstream-status stop skipped. Only a read that
-  // found every component (`ok`) and no outage is clear; admit fails open on
+  // found every component (`ok`) and no outage is clear; check-admission fails open on
   // an unreadable page, but here that keeps the wait.
   let upstreamRead;
   const upstreamClear = () =>

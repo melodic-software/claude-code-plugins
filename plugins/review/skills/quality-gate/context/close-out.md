@@ -49,7 +49,7 @@ Stop at the first rung that yields a container id. **Record which rung resolved 
 spec mode, a verdict is only as good as the artifact it judged against.
 
 1. **`--container <path|id>`**: an explicitly passed qualified work-item id, or a path to a spec
-   document, wins over everything. A passed ref that does not resolve is a **STOP**, never a silent
+   document, wins over everything. A passed ref that does not resolve is a **stop**, never a silent
    fall-through: reviewing a different container answers a question nobody asked.
 2. **The invoking route's argument**: `/work-items:ship` and `/work-items:decompose` both route
    here with the container already in hand; when they pass it, use it.
@@ -62,7 +62,7 @@ spec mode, a verdict is only as good as the artifact it judged against.
    topic slug. Ambiguous (more than one hit) → present the candidates and ask; never pick.
 5. **Ask**, interactive only. One question, then proceed.
 6. **Skip with a note**, non-interactive or declined: name every rung tried and what each returned,
-   and **STOP**. A close-out verdict without a container is a fabrication.
+   and **stop**. A close-out verdict without a container is a fabrication.
 
 Validate a harvested id exactly as [spec.md](spec.md) Rung 2 requires, with strict `^[0-9]+$` on the
 number, repo-name shape on any `<owner>/<repo>`, drop rather than repair, and components passed as
@@ -111,10 +111,10 @@ owns the shapes themselves).
 
 Selected by the `**Execution shape:**` line, not by the branch line's presence.
 
-**Branch line absent → UNRESOLVED, never a fallback to Shape B.** The shape line is authoritative,
+**Branch line absent → `UNRESOLVED`, never a fallback to Shape B.** The shape line is authoritative,
 so a missing branch is a gap to report, not a signal to re-read as the other topology: say the
 container records the integration shape but names no branch, point at the backfill step that fills
-it, and STOP. Inferring Shape B here would search for per-item closing PRs that this shape never
+it, and stop. Inferring Shape B here would search for per-item closing PRs that this shape never
 produces and misclassify every checkpoint as `no-code`, a confident verdict over the wrong commit
 set.
 
@@ -155,7 +155,7 @@ element makes "exactly one" indistinguishable from "several, arbitrarily picked"
 array it yields `null` rather than saying "none". Same discipline as rung 1 below, where a failed
 query is not an empty set.
 
-- **0 matches** → UNRESOLVED, same treatment as a missing branch line.
+- **0 matches** → `UNRESOLVED`, same treatment as a missing branch line.
 - **More than 1** → report the candidates and let the operator name the PR; never pick one.
 - **Exactly 1** → proceed on its `.state`.
 
@@ -172,7 +172,7 @@ One branch hosted the whole journey and one PR carries it, so the basis **is** a
 There is no shared branch and no single PR. Each closed sub-item shipped its own squash commit onto
 the default branch, interleaved with unrelated work from everyone else.
 
-**The basis is a commit SET, not a range, and that is deliberate.** A two-dot `<first>..<last>`
+**The basis is a commit set, not a range, and that is deliberate.** A two-dot `<first>..<last>`
 over the default branch sweeps in every foreign commit merged between the container's first and
 last item, and the review then reports findings against work the container never shipped. The
 reviewer reads the **union of the per-commit diffs**:
@@ -238,7 +238,7 @@ keyword**. Two very different things produce that, and they must not be collapse
   spin-offs it fully resolves.
 
 **So an empty rung-1 result falls to rung 2 as well**, not only a *failed* query. Classify
-`no-code` only when rung 2 ALSO finds nothing, and say which of the two rungs produced that
+`no-code` only when rung 2 also finds nothing, and say which of the two rungs produced that
 verdict. Reaching for `no-code` on rung 1's silence alone drops every `Refs`-linked item's diff
 from the basis while the report still claims to cover the shipped whole.
 
@@ -287,7 +287,7 @@ Three reductions this rung needs:
 operator to name the shipping PRs or commits. One question, then proceed.
 
 **Rung 4: skip with a note.** Non-interactive, or the operator declines: emit a skip note naming
-every rung tried and what each returned, and **STOP**. A cumulative verdict rendered over a basis
+every rung tried and what each returned, and **stop**. A cumulative verdict rendered over a basis
 that could not be resolved is worse than no verdict. It reads as coverage.
 
 ## Step 4: Pre-flight gate
@@ -295,19 +295,19 @@ that could not be resolved is worse than no verdict. It reads as coverage.
 Two conditions, both checked before any worker is dispatched.
 
 - **Container not finished.** Any sub-item still open → report the rollup (closed / total, and
-  which are open) and **STOP**. Close-out is the cumulative pass over a *shipped* whole; running it
+  which are open) and **stop**. Close-out is the cumulative pass over a *shipped* whole; running it
   at 12/20 manufactures `missing` findings for work that is merely not done yet, which is noise
   wearing a verdict's clothes. The one legitimate early run is an explicit dry run.
-- **Empty basis, but only when it is UNRESOLVED.** The resolved set or range yields no diff → say
-  so and STOP, as everywhere else in this skill. **The exception is a container whose journey
+- **Empty basis, but only when it is `UNRESOLVED`.** The resolved set or range yields no diff → say
+  so and stop, as everywhere else in this skill. **The exception is a container whose journey
   legitimately shipped no code:** when every closed sub-item classified `no-code` in Step 3, in an
   all-investigation or all-decision container whose criteria are judged against each item's
   closing comment rather than a diff, the basis is empty because the work *was* comment-resolved,
   not because resolution failed. That container proceeds to the verdict on its recorded comments.
   Gating it here would make a completed container permanently un-closeable: the ritual requires
   this review, and this review would refuse to render one. Distinguish the two by whether Step 3
-  resolved every sub-item (all `no-code` → proceed) or left any unresolved (→ STOP). Either STOP
-  outcome dispatches ZERO reviewers.
+  resolved every sub-item (all `no-code` → proceed) or left any unresolved (→ stop). Either stop
+  outcome dispatches zero reviewers.
 
 **Dry run (`--dry-run`).** Exercise Steps 1–3 and report what each resolved, meaning container, spec
 body, shape, basis, and the rung that produced each, then stop without dispatching. This is how the
@@ -351,16 +351,15 @@ plus, above it:
   alone cannot show. The pattern cell carries one of exactly five names, `ubiquitous`,
   `event-driven`, `state-driven`, `unwanted-behavior`, `optional-feature`, or nothing at all; a
   bracket holding anything else is an untagged criterion that looks tagged, so the cell stays empty
-  rather than echoing the raw text. The one exception is the retired British spelling of the fourth
-  name: a Brief or PRD written before the vocabulary moved to `unwanted-behavior` carries
-  <!-- spellchecker:off -->`[unwanted-behaviour]`<!-- spellchecker:on -->, and that spelling is still detected and rendered under the current name,
-  so an older artifact keeps its classification instead of silently losing it. Detection is
+  rather than echoing the raw text. The one exception is the British spelling of the fourth name,
+  <!-- spellchecker:off -->`[unwanted-behaviour]`<!-- spellchecker:on -->, which is detected and rendered as `unwanted-behavior`,
+  so an artifact using that spelling keeps its classification instead of silently losing it. Detection is
   otherwise a leading bracket holding one of those five names in the criteria as retrieved, nothing
   else: a checklist marker (`- [ ]`) is a bracket and not a tag, and no flag, no lever, and no
   convention key is read here. **Every criterion
   still gets a row.** A partially tagged set leaves the untagged rows' pattern cell empty rather
   than dropping them, which is the invisibility this rollup exists to remove; a set carrying no tag
-  at all renders exactly as it does today, with no pattern column. The column names the pattern and
+  at all renders with no pattern column. The column names the pattern and
   changes no verdict
 - the **`no-code` sub-items**: those the provider confirms closed without a PR, each with the
   closing comment its criteria were judged against. These are journey coverage, not gaps.

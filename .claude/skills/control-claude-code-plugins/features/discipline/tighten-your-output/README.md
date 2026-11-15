@@ -34,5 +34,4 @@ None: the skill only answers in the transcript.
 
 - The skill reads `plugins/discipline/context/re-anchor-audit-correct.md`, so start the run from the
   repository root. Where the restricted launch lets file tools read: the `--restricted` row of
-  <https://code.claude.com/docs/en/cli-reference#cli-flags> (as of 2026-10-28; recheck when that
-  row changes where file tools may read).
+  <https://code.claude.com/docs/en/cli-reference#cli-flags>.

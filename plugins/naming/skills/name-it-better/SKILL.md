@@ -1,5 +1,5 @@
 ---
-description: "Generate and evaluate fresh name candidates for anything: a variable, function, file, module, skill, repo, or domain term. Then let the human pick. Use when the target name is still UNDECIDED, whether the ask is a fresh name ('suggest names', 'what should I call this') or a retry on one just rejected ('name it better', 'that name is wrong', 'help me rename this to something better'). Not for an already-decided rename ('rename X to Y', 'I renamed X'). That routes to the rename-references sweep. Spawns blind fresh-context generators from distinct lenses; never auto-locks a name. Optional 'tournament' arg for high-stakes, hard-to-refactor names."
+description: "Generate and evaluate fresh name candidates for anything: a variable, function, file, module, skill, repo, or domain term. Then let the human pick. Use when the target name is still undecided, whether the ask is a fresh name ('suggest names', 'what should I call this') or a retry on one just rejected ('name it better', 'that name is wrong', 'help me rename this to something better'). Not for an already-decided rename ('rename X to Y', 'I renamed X'). That routes to the rename-references sweep. Spawns blind fresh-context generators from distinct lenses; never auto-locks a name. Optional 'tournament' arg for high-stakes, hard-to-refactor names."
 argument-hint: "[tournament]"
 user-invocable: true
 disable-model-invocation: false
@@ -17,7 +17,7 @@ identifier, file, module, skill, repo, or domain term. Then hand the
 human a scored shortlist to choose from. The dominant trigger is a
 reactive retry: a name was just suggested and rejected, and the same
 context that produced it will only produce more of the same. So the
-generators run BLIND to the conversation, from distinct lenses, to break
+generators run blind to the conversation, from distinct lenses, to break
 the anchor. A blank-slate naming request is the same machinery without a
 rejected incumbent.
 
@@ -32,8 +32,8 @@ its own context, never from a baked-in path:
 1. **Declared conventions win.** When the consuming project names where its
    naming and domain-language conventions live, its `CLAUDE.md`,
    `.claude/rules/`, or a shared standards source it points to, score against
-   THAT. Read the criteria there; do not restate them here. A criterion the
-   user wants that is missing from those conventions flows UP into them
+   that. Read the criteria there; do not restate them here. A criterion the
+   user wants that is missing from those conventions flows up into them
    (their standards change), not hardcoded into this skill.
 2. **None declared → the general criteria** grounded in
    [`context/sources.md`](context/sources.md), applied in this
@@ -63,7 +63,7 @@ every modality, and is what the generators and judges optimize. The
 **syntactic layer** covers casing, length budgets, and separator and affix
 conventions. It is modality- and vendor-specific; apply it as a final
 shaping pass over the semantic winners, never as a scoring axis that
-overrides meaning. Shaping can change the string, so RE-RUN the full
+overrides meaning. Shaping can change the string, so re-run the full
 merge-step filter set on the shaped forms: dedupe, collision, reject-list,
 word-blocklist. Two distinct candidates can normalize to one string
 (`SessionStore` and `session-store` → `session_store`), a normalization
@@ -88,14 +88,14 @@ pre-scoring filters could not match.
 
 ## Default pass
 
-1. **Build the structured context brief.** This brief, NOT the
+1. **Build the structured context brief.** This brief, not the
    conversation, is all the generators receive, so it must carry every
    field they need, each captured by name:
-   - **Target modality.** What KIND of thing is being named (function,
+   - **Target modality.** What kind of thing is being named (function,
      type, module, file, CLI command, skill, domain term): it fixes
      noun-for-a-thing vs verb-for-an-action and tells the final shaping
      pass which syntactic conventions apply.
-   - **Responsibility.** What the thing DOES, in one line.
+   - **Responsibility.** What the thing does, in one line.
    - **Domain terms.** When the target names a domain concept, the
      project's glossary entries for it: invoke
      `/domain-driven-design:ubiquitous-language lookup` via the Skill tool
@@ -108,26 +108,26 @@ pre-scoring filters could not match.
      it, so the merge step disqualifies a candidate that uses it.
    - **Firing / usage context.** When it is reached for, and how it reads
      at the call site.
-   - **Scope boundaries.** What it is NOT: the adjacent things it must not
+   - **Scope boundaries.** What it is not: the adjacent things it must not
      be confused with or blur into.
    - **Collision vocabulary.** The existing sibling names it must not
      duplicate.
    - **Terms of art.** The established names the field or domain already
-     uses for this act or thing, with their ACTUAL researched meanings, not
+     uses for this act or thing, with their actual researched meanings, not
      recalled ones. Research them before the fan-out: a term whose field
      meaning diverges from this target is misleading (criterion 1) and the
      divergence belongs in the brief so generators neither borrow it blindly
      nor miss the honest established term.
-   - **Word-level blocklist.** Individual words ruled out, each WITH its
-     reason (overloaded, misleading, collides, already rejected) AND its
+   - **Word-level blocklist.** Individual words ruled out, each with its
+     reason (overloaded, misleading, collides, already rejected) and its
      provenance: user-stated or agent-inferred. An agent-inferred entry is a
      proposal to confirm with the user, never a silently hard constraint. An
      assumed blocklist word can eliminate the honest winner.
 
-   Rejected incumbent NAMES deliberately stay out of the brief. The main
+   Rejected incumbent names deliberately stay out of the brief. The main
    thread holds them as its reject list and disqualifies matches at merge
    time (anti-anchoring: a generator shown a rejected name re-derives it).
-   Only the abstracted REASON a name failed enters the brief, as a
+   Only the abstracted reason a name failed enters the brief, as a
    blocklist entry or scope-boundary correction.
 
    The brief mirrors the replicated concept → word → structure naming model
@@ -135,7 +135,7 @@ pre-scoring filters could not match.
    fields fix the concepts and constraints; the generators then choose the
    words per concept and arrange the structure.
 2. **Fan out blind generators.** Spawn ~3 fresh-context subagents, each
-   seeded ONLY with the brief (blind to this conversation and to each
+   seeded only with the brief (blind to this conversation and to each
    other), each working a distinct lens:
    - **responsibility-literal.** Name exactly what it does;
    - **moment-of-use.** Name for how it reads at the call site;
@@ -153,12 +153,12 @@ pre-scoring filters could not match.
    presupposes completed work fails before scoring, however accurate it is
    once work exists. Then pool the candidates, dedupe, and disqualify any
    candidate that matches the rejected incumbent (if any), that contains a
-   USER-STATED word-level blocklist entry (a
+   user-stated word-level blocklist entry (a
    generator can miss the brief's constraint; the merge step enforces it),
    or that collides with the existing vocabulary. The rejected-incumbent list
    is carried by the main thread as an explicit reject list, never shared with
    the generators. A candidate containing
-   only an AGENT-INFERRED blocklist word is not disqualified. It stays in,
+   only an agent-inferred blocklist word is not disqualified. It stays in,
    flagged with the inferred concern, so the user's pick confirms or
    overrides the inference (provenance rule above). Score every
    surviving candidate against the criteria resolved above, breaking ties
@@ -181,7 +181,7 @@ pre-scoring filters could not match.
 ## Iterate on the rejection reason
 
 If the human rejects the shortlist or a specific candidate, the rejection
-is data, not a dead end. Capture the REASON as an explicit new constraint
+is data, not a dead end. Capture the reason as an explicit new constraint
 and fold it into the next round's brief before regenerating:
 
 - a word that drew the objection becomes a **word-level blocklist** entry,
@@ -210,7 +210,7 @@ models), then run elimination rounds with independent scoring judges until
 one candidate remains, and present it plus the runners-up for the human
 choice.
 
-The default pass's merge filters still apply BEFORE the elimination rounds
+The default pass's merge filters still apply before the elimination rounds
 begin, including the sentence-form and temporal-neutrality tests for
 utterance and cold-loadable names and the blocklist provenance rule: pool
 the widened candidates, fail contentless idioms and
@@ -229,8 +229,8 @@ independent judges then score against a standard the pool itself authored.
 A criterion found missing mid-bracket still routes upstream, and adding it
 means re-scoring the round it changes.
 
-HONEST FRAMING: a "naming tournament / bracket" is NOT a documented
-software-naming technique. This mode ADAPTS elimination brackets plus
+A "naming tournament / bracket" is not a documented
+software-naming technique. This mode adapts elimination brackets plus
 pairwise social-choice scoring as a convergence mechanism. See
 [`context/sources.md`](context/sources.md). Present it as such, not as an
 established standard.
@@ -238,7 +238,7 @@ established standard.
 ## Adjacent skills. Hand off, do not overlap
 
 - **The target is a domain concept.** Naming a domain term well depends on
-  first settling what the concept IS, not just its label. Route that to a
+  first settling what the concept is, not just its label. Route that to a
   domain-modeling capability, then name the settled concept once it
   returns. Pointer only. This skill does not do the domain modeling.
 - **A rename is already decided.** Sweeping references after the fact →
@@ -248,7 +248,7 @@ established standard.
 Invoke an adjacent capability through its slash command when present;
 degrade to prose guidance when it is absent.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Never auto-locks a name.** It always ends at a human choice.
 - **Does not apply the rename.** Propagating a chosen name across call
@@ -265,14 +265,14 @@ degrade to prose guidance when it is absent.
 
 - If the generators are fed the conversation instead of just the brief,
   the anti-anchoring purpose is defeated. They will re-derive the
-  rejected name. Seed them with the brief ONLY.
+  rejected name. Seed them with the brief only.
 - A blind generator can still independently re-derive the rejected
   incumbent (common for generic labels like `Manager` or `Context`). That
   is not a blinding failure. The main thread's reject list disqualifies
   it at merge time regardless of how a candidate was produced.
 - A candidate that scores well but collides with existing vocabulary is
   disqualified, not shortlisted. Collision-check before scoring.
-- A rejected candidate's REASON must become a brief constraint (a blocklist
+- A rejected candidate's reason must become a brief constraint (a blocklist
   word, a scope correction, a criteria reweight) before the next round, or
   the blind fan-out re-derives the same reject.
 - `tournament` costs several generators plus judges; reserve it for names

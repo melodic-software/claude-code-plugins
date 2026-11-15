@@ -94,12 +94,12 @@
 # What is left is content: blame the lines a merge deleted and see who had just
 # added them. Measured over the 500 first-parent commits of main ending at
 # 738791c45, the three known incidents score 853 / 451 / 346 lines against a
-# single recent commit -- plus a fourth attribution of 298 lines on the SAME
+# single recent commit -- plus a fourth attribution of 298 lines on the same
 # #2633 squash, whose deletions trace to two different culprits and are
 # reported separately. Unlike the two designs rejected above, this one fires on
 # all three rather than exonerating them.
 #
-# What it does NOT buy is a clean split between incidents and ordinary work.
+# What it does not buy is a clean split between incidents and ordinary work.
 # Measured below, the two populations OVERLAP on volume -- the smallest true
 # finding scores under both verified-legitimate fires. So what makes the
 # canary livable is the disposition path and the non-blocking posture, not a
@@ -111,7 +111,7 @@
 # Four constraints keep the firing rate near the true-incident rate:
 #
 #   1. VOLUME. Only a large block of removed content counts, and the lines must
-#      all trace to ONE culprit commit. Ordinary iteration deletes a handful of
+#      all trace to one culprit commit. Ordinary iteration deletes a handful of
 #      recent lines from several places; a wholesale revert deletes hundreds
 #      from one. Per-culprit aggregation is deliberate -- summing across
 #      culprits would re-admit the routine case.
@@ -123,10 +123,10 @@
 #      Widening the window buys little (deletions of older code are normal
 #      maintenance) and costs a lot of noise.
 #
-#   3. INTENT, matched in CONSTRAINED FORMS ONLY -- a `Revert "` subject, a
+#   3. INTENT, matched in constrained forms only -- a `Revert "` subject, a
 #      Conventional-Commits `revert:` / `revert(<scope>):` / `revert!:` subject,
 #      a `This reverts commit <sha>` line, or an explicit `Intentional-removal:`
-#      trailer. Deliberately NOT a substring search for "revert": a message
+#      trailer. Deliberately not a substring search for "revert": a message
 #      reading "this does not revert X" would silence a real finding, turning
 #      the false-positive fix into a false-negative hole. Every form is anchored
 #      at the start of the subject or of a body line for that reason.
@@ -209,7 +209,7 @@
 # State the uncomfortable part plainly: the cleared fires and the real
 # incidents OVERLAP. The smallest true finding is 298 -- #2642's share of
 # #2633's squash -- while both cleared fires score higher, at 323 (#2135) and
-# 447 (#2640). NO THRESHOLD SEPARATES THEM, and not because the gap is narrow:
+# 447 (#2640). No threshold separates them, and not because the gap is narrow:
 # there is no gap at all, only an inversion. Any number that silenced 323 would
 # silence a real incident first.
 #
@@ -234,7 +234,7 @@
 # within 76 minutes of each other on the one incident night. It measures a
 # burst, so dividing five by the window would invent a frequency the evidence
 # does not support, in either direction. Cheap requires a disposition path for
-# BOTH directions in time, which is why there are two:
+# both directions in time, which is why there are two:
 #
 #   PROSPECTIVE -- `Intentional-removal:` in the PR body, which GitHub carries
 #   into the squash message. Costs one line and the canary never fires.
@@ -278,7 +278,7 @@
 # path it must be found in, and --verify-restoration asserts every one of them
 # still resolves path-scoped against a rev (the working tree by default).
 #
-# This is NOT the curated-marker design rejected above, and the distinction is
+# This is not the curated-marker design rejected above, and the distinction is
 # the whole reason it works. That rejection is about DISCOVERY: a marker list
 # cannot find an incident nobody registered, because registration happens after
 # you already know a fix matters. These markers hang off a row that is ALREADY
@@ -289,17 +289,17 @@
 # Two cheaper designs were measured against the real instance and both fail:
 #
 #   PATH-LEVEL ("was this path revisited since?") is a false NEGATIVE here.
-#   9239f1541 touched BOTH files ten minutes after the incident, so the answer
+#   9239f1541 touched both files ten minutes after the incident, so the answer
 #   is yes for both on a tree where the content is gone.
 #
 #   VERBATIM HUNK ("is the deleted diff back byte-for-byte?") is permanently
 #   RED on the README half. #2828 records that #2635's README hunk was
-#   malformed and must NOT be restored byte-for-byte, and #2829 restored the
+#   malformed and must not be restored byte-for-byte, and #2829 restored the
 #   intent instead. A marker survives that rewrite; the hunk cannot.
 #
 # Markers resolve PATH-SCOPED, which is load-bearing rather than tidy. Each
 # marker on the f603880da row also occurs on current main in a file of the same
-# plugin that is NOT the file it binds to -- but not in the SAME files, so the
+# plugin that is not the file it binds to -- but not in the same files, so the
 # sites do not distribute across both. The README marker occurs in the engine
 # script and again in that script's test file, and not in CHANGELOG.md; the
 # evals marker occurs in CHANGELOG.md, and in neither the engine script nor its
@@ -314,7 +314,7 @@
 # marker matched nothing at any point during the absence. The README marker's
 # siblings are older than the restore: 94ae28728 (#2803) -- one of the two
 # re-lands that missed the README -- put that string into the engine script and
-# its test file, and never into README.md, and it did so BEFORE 7b47d2253 merged
+# its test file, and never into README.md, and it did so before 7b47d2253 merged
 # this canary. So for the entire tail of the absence that the replay actually
 # covered, a repo-wide grep for the README marker did match, on a tree whose
 # bound file did not have it. For that half the widened path is not a
@@ -329,7 +329,7 @@
 # instead of behind an on-demand flag. "Nobody thought to check" is the failure that produced #2828,
 # so an on-demand-only mode would reproduce it.
 #
-# The self-test (scripts/check-silent-revert.test.sh) runs BEFORE this script in
+# The self-test (scripts/check-silent-revert.test.sh) runs before this script in
 # CI, so a broken detector cannot mask a regression behind a green canary --
 # the same never-skip, self-test-first, fail-closed shape the pr-require-checks.yml gates use.
 set -uo pipefail
@@ -364,7 +364,7 @@ ACK_FILE="${SILENT_REVERT_ACK:-scripts/silent-revert-acknowledged.txt}"
 
 # Field separator of the parsed marker view (ASCII Unit Separator).
 #
-# Deliberately NOT a tab. A tab is an IFS *whitespace* character, so `IFS=$'\t'
+# Deliberately not a tab. A tab is an IFS *whitespace* character, so `IFS=$'\t'
 # read -r a b c d` collapses runs of tabs into one delimiter and drops empty
 # fields -- which silently shifts every field left whenever the optional
 # disposition reason is empty, i.e. on the ordinary row. Measured here: the
@@ -423,7 +423,7 @@ declares_removal() {
     printf 'the subject begins with a Revert quote, as git revert writes it\n'
     return 0
   fi
-  # The Conventional-Commits revert type, and the ONLY revert spelling that can
+  # The Conventional-Commits revert type, and the only revert spelling that can
   # reach main here (#2837). This repo is squash-only with
   # squash_merge_commit_title: PR_TITLE, so the squash subject is the PR title,
   # and the check-contract step of .github/workflows/pr-require-checks.yml's ci-status job gates
@@ -568,7 +568,7 @@ attribute_file() {
   #                            on the --name-only enumeration, which runs no
   #                            diff driver, so it is not pinned there.
   #   --no-textconv            this diff AND the blame. A `diff.<name>.textconv`
-  #                            reaches BOTH, and --no-ext-diff does not cover it.
+  #                            reaches both, and --no-ext-diff does not cover it.
   #   -M                       the --name-only enumeration in scan_commit, which
   #                            relies on a rename reporting as R. Measured INERT
   #                            here: this diff is pathspec-limited to one
@@ -589,10 +589,10 @@ attribute_file() {
   #   --no-show-signature      the `git log` reads. Protects INTENT DETECTION,
   #                            not the counts -- see declares_removal.
   #
-  # NOT a pin, stated rather than implied:
+  # Not a pin, stated rather than implied:
   #
   #   `--text` / `-a`. No command-line flag overrides a `-diff` or `binary`
-  #   attribute into hunks except `--text`, and `--text` MUST NOT be used:
+  #   attribute into hunks except `--text`, and `--text` must not be used:
   #   on a genuinely binary blob it manufactures hundred-line attributions
   #   out of random bytes (a 200 KB image is ~800 "lines"). `-diff` TEXT
   #   deletions are recovered by a blob-to-blob diff instead -- no path,
@@ -615,7 +615,7 @@ attribute_file() {
   #
   # Those are not rounding. 390 -> 447 is 15%, and the same drift can carry a
   # count across the 200-line threshold and make a commit fire on one machine
-  # and stay silent on another. The header's calibration describes ONE
+  # and stay silent on another. The header's calibration describes one
   # configuration, and these pins are what keep the shipped detector and those
   # numbers talking about the same thing. Found via #2833, whose exact-count
   # replay assertions turned a silent divergence into a red build.
@@ -629,7 +629,7 @@ attribute_file() {
   # Status is checked separately from output (#2880). A failed diff would
   # otherwise be byte-identical to "this file had no deleted lines": stderr
   # discarded, no @@ headers, no ranges, return 0. That is the quiet pass the
-  # header contract forbids. git-diff(1) `--exit-code` is deliberately NOT passed
+  # header contract forbids. git-diff(1) `--exit-code` is deliberately not passed
   # -- without it, two-commit diff exits 0 on success even when the files
   # differ -- so a non-zero status here is a real failure.
   local diff_out
@@ -726,7 +726,7 @@ attribute_file() {
   # `FAIL ... NOT as recorded` on a clean tree.
   #
   # It has to be the --no-ignore-revs-file OPTION. `-c blame.ignoreRevsFile=`
-  # does NOT clear it: the documented "an empty file name resets the list"
+  # does not clear it: the documented "an empty file name resets the list"
   # applies to the option, and the -c form was measured leaving the hostile
   # value fully in effect (853 -> 259 with the reset supposedly applied). The
   # negated option is the only form that actually resets, so the obvious
@@ -741,12 +741,12 @@ attribute_file() {
   # ranges at the wrong lines. Measured in check-silent-revert.test.sh's
   # t_textconv_pin_is_load_bearing, on a 300-line finding sitting behind 150
   # lines of earlier content and a textconv that doubles every line: stripping
-  # BOTH pins reports 600, twice the truth but still a finding, while stripping
+  # both pins reports 600, twice the truth but still a finding, while stripping
   # either one alone drops the surviving count under the threshold and the
   # commit reports ok with an empty sink. The mixed arms are the dangerous
   # ones -- not a wrong number a reader might notice, a true finding suppressed
   # outright. That case owns the figures; do not restate them here.
-  # --no-ext-diff is deliberately NOT here: blame accepts it but never runs an
+  # --no-ext-diff is deliberately not here: blame accepts it but never runs an
   # external diff driver, so it would be decoration.
   #
   # Same fail-closed contract as the diff above (#2880). git-blame(1) exits 0
@@ -1023,7 +1023,7 @@ report_finding() {
 #
 #   fires <sha> [<culprit-sha>=<lines>,<culprit-sha>=<lines>] <note>
 #
-# and the replay then asserts the run's findings are EXACTLY that set -- same
+# and the replay then asserts the run's findings are exactly that set -- same
 # culprits, same per-culprit line counts, no extras and no omissions. Full
 # 40-character culprit shas, the same discipline the acknowledgment file uses,
 # so an abbreviation can never widen to a commit nobody recorded. The counts
@@ -1046,13 +1046,13 @@ report_finding() {
 #
 # So a `clean` row may carry the same bracketed field. The replay then
 # asserts the run's largest *in-window, sub-threshold* attribution is
-# EXACTLY that set -- same culprit, same count. The row's pass/fail
+# exactly that set -- same culprit, same count. The row's pass/fail
 # does not change: nothing above the threshold is still what makes it
 # clean. The field only checks the number the note treats as measured
 # fact. Ties (two culprits at the same max) must all be listed, the
 # same extras-and-omissions rule the fires path uses.
 #
-# Do NOT loosen a count to a minimum or a tolerance to make CI pass. If a
+# Do not loosen a count to a minimum or a tolerance to make CI pass. If a
 # number legitimately changes, measure the new one and record it with the
 # reason -- that is a decision, not a threshold.
 # ---------------------------------------------------------------------------
@@ -1127,7 +1127,7 @@ report_mismatch() {
   printf '     what the detector reported:\n'
   sed 's/^/       /' "$4"
   printf '     %s is not a reproduction.\n' "$5"
-  printf '     Do NOT edit the row to match; find out why the attribution moved.\n'
+  printf '     Do not edit the row to match; find out why the attribution moved.\n'
 }
 
 verify_known_incidents() {
@@ -1284,7 +1284,7 @@ verify_known_incidents() {
 # marker whose distinguishing feature is its leading spaces would be recorded
 # without them and match more loosely than the reader intended.
 #
-# The ONE reserved position is a LEADING `[`, which commits the row to
+# The one reserved position is a leading `[`, which commits the row to
 # carrying a disposition, in the same positional slot-after-the-key the
 # attribution field uses on a `fires` row. An unterminated `[` is exit 2 rather
 # than being re-read as ordinary marker text: a row that quietly degrades into
@@ -1404,7 +1404,7 @@ parse_incidents_file() {
         ;;
       # Glob and pathspec metacharacters are refused rather than resolved.
       # They are the widening vectors, and refusing them at parse time is
-      # what keeps BOTH modes answering identically: `git cat-file` would
+      # what keeps both modes answering identically: `git cat-file` would
       # simply not find such a path (absent, exit 1) while `git ls-files`
       # would expand it (present, exit 0). A marker path is a literal file
       # path or it is a corpus error.
@@ -1461,7 +1461,7 @@ parse_incidents_file() {
 # marker_present <rev> <path> <marker>
 # 0 present, 1 absent. An empty rev means the working tree.
 #
-# The path is resolved to EXACTLY ONE FILE, never handed to a pathspec.
+# The path is resolved to exactly one file, never handed to a pathspec.
 #
 # That is the difference between this assertion meaning something and meaning
 # nothing, and it is not theoretical. `git grep -- <path>` reads its argument as
@@ -1594,7 +1594,7 @@ verify_restoration() {
     die "$INCIDENTS_FILE records no 'fires' row -- the restoration assertion would pass while covering nothing"
 
   # The whole file is validated, and both directions of the sha binding are
-  # checked, BEFORE any marker is resolved -- so a corpus problem can never
+  # checked, before any marker is resolved -- so a corpus problem can never
   # pre-empt the walk and leave a partially reported failure looking complete.
   # cut's delimiter is SEP, never its TAB default: the parsed view is
   # SEP-delimited, so `cut -f1` would hand back the WHOLE line and the
@@ -1661,7 +1661,7 @@ verify_restoration() {
     echo "If it is deliberately staying out, say so on its marker row -- with a"
     echo "reason, the same shape an Intentional-removal: trailer needs:"
     echo "  marker <incident-sha> <path> [not-restored: <why>] <marker text>"
-    echo "Do NOT delete the marker row. That is the mute button this corpus"
+    echo "Do not delete the marker row. That is the mute button this corpus"
     echo "exists in order not to have."
     return 1
   fi
@@ -1724,7 +1724,7 @@ main() {
     echo
     echo "One or more merges removed a large block of content that had just"
     echo "landed on main, without declaring the removal. See each finding above."
-    echo "This check NEVER blocks a merge -- the merge has already happened."
+    echo "This check never blocks a merge -- the merge has already happened."
   fi
   exit "$rc"
 }

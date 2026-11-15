@@ -59,9 +59,6 @@ recurred (#2870).
 
 ## Never `export` a path-conversion suppressor
 
-Rule 5, added after #2870, and the one that has actually fired since the rest of this document
-shipped.
-
 Git Bash normally rewrites POSIX-looking argv into Windows form before spawning a native binary, so
 `git worktree add /d/worktrees/x` reaches `git.exe` as `D:/worktrees/x` and lands correctly. Two
 environment variables switch that off: `MSYS_NO_PATHCONV` and `MSYS2_ARG_CONV_EXCL`. They exist for a

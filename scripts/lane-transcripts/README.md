@@ -66,7 +66,7 @@ a record. A zip must hold exactly `transcript.json.gz.sealed`. A record that doe
 key, the artifact's run id and its job id (moved, tampered with, or sealed under a rotated key) is
 counted as `sealed_mismatch` and skipped. The summary line counts each kind.
 
-A `gh` call that fails is tried 3 times, 2 and then 4 seconds apart. An artifact whose download,
+A `gh` call that fails is retried, the wait doubling from 2 seconds: a listing page gets 10 tries with the wait capped at 5 minutes, any other call 5 tries. An artifact whose download,
 unzip or run read still fails counts as `fetch_failed` and the pull goes on. It has no metrics row
 and the last success stays where it was, so the next pull lists back far enough to fetch it. The
 last success is therefore the last complete pull: an artifact that keeps failing holds it until

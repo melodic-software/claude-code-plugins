@@ -17,7 +17,7 @@ rhyming dictionary misses. **Internal generation is primary.** External
 APIs (`ai-tools.md`) supplement when vocabulary is thin or verification is
 needed. They do not replace the model's craft application.
 
-The key is to apply Pat's discipline to internal generation, NOT to skip the
+The key is to apply Pat's discipline to internal generation, not to skip the
 discipline and trust intuition.
 
 ## Source
@@ -58,12 +58,12 @@ it exactly:
 The rhyme search is fundamentally a stressed-vowel search. Pre-vowel and
 post-vowel consonants come second.
 
-### Step 1b: Search the vowel FIELD, not the source word's own coda
+### Step 1b: Search the vowel field, not the source word's own coda
 
-Those two sentences are the instruction that failed in production. Anchoring on the
-stressed vowel and then searching the source word's OWN post-vowel consonant returns
+Those two sentences are not enough on their own. Anchoring on the
+stressed vowel and then searching the source word's own post-vowel consonant returns
 one column of the field and stops. Enumerate the field first; Steps 3, 4, 4b and 5
-then LABEL what the field produced, rather than each re-running the source coda.
+then label what the field produced, rather than each re-running the source coda.
 
 - The **column** is one post-vowel consonant (or cluster) on the stressed vowel:
   `et`, `il`, `isk`.
@@ -79,9 +79,9 @@ full in [rhyme-worksheets.md](rhyme-worksheets.md) "The complete Chapter 7 searc
 Read them there rather than reproducing them; their strategic reading is in
 [rhyme-strategy.md](rhyme-strategy.md) "The full rhyme search".
 
-**The walk ORDER below is this plugin's assembly, not a printed list.** Pat prints
+**The walk order below is this plugin's assembly, not a printed list.** Pat prints
 two search orders and neither one is a walk across codas: Chapter 4 orders the search
-WITHIN one phonetic family (perfect, then partner, then companions, then the
+within one phonetic family (perfect, then partner, then companions, then the
 remaining members), and Chapter 5 orders additive rhyme by how much sound gets added:
 voiced plosives, then unvoiced plosives, then unvoiced fricatives, under the
 guideline "In general, the more sound you add, the less stable the rhyme becomes."
@@ -120,33 +120,33 @@ No coda count is prescribed. The stopping rule is already in place: §1 of
 sets the posture: over-generate, then trim ("The list will have to be trimmed down
 later").
 
-**Writer-caught in production, 2026-08-12 (the Sofía sessions).** A search run on the
-source word's own rime (`et`, and separately `il`) missed the ladder across codas on
-the same vowel. The quartet `chest / dress / picturesque / forget` spans four codas
-(`st` / `s` / `sk` / `t`) on one ĕ, and all four survive the Step 2 identity check
-because their pre-vowel consonants (`ch` / `dr` / `r` / `g`) all differ.
+**What a column search misses.** A search run on the source word's own rime (`et`, or
+`il`) misses the ladder across codas on the same vowel. The quartet
+`chest / dress / picturesque / forget` spans four codas (`st` / `s` / `sk` / `t`) on
+one ĕ, and all four survive the Step 2 identity check because their pre-vowel
+consonants (`ch` / `dr` / `r` / `g`) all differ.
 
 Two cautions carried from elsewhere in this corpus rather than restated here. Family
-assonance, which lets the walk move to a NEIGHBORING vowel and start the field
+assonance, which lets the walk move to a neighboring vowel and start the field
 again, is one step along a leg of the vowel triangle; use Step 5 as printed and do
 not re-derive the figure. And before treating a polysyllabic candidate as a masculine
-rhyme, check that its PRIMARY stress is on the syllable you are rhyming: `picturesque`
+rhyme, check that its primary stress is on the syllable you are rhyming: `picturesque`
 qualifies, `sunset` does not, and [rhyme-types.md](rhyme-types.md) has the trap in
 Pat's own words on `lineage`.
 
 **Datamuse cannot run this walk.** No mode of
 `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh` accepts a phonetic
-post-vowel constraint: `pattern` (`sp`) matches SPELLING, and `near` (`rel_nry`),
+post-vowel constraint: `pattern` (`sp`) matches spelling, and `near` (`rel_nry`),
 `family` and `sounds` (`sl`) return opaque similarity rankings with no coda control.
-The walk is internal generation only. Datamuse supplements AFTER it: confirming a
+The walk is internal generation only. Datamuse supplements after it: confirming a
 walked candidate is a real current word, adding breadth the model did not recall, and
 verifying syllable counts (`syllables`). See [ai-tools.md](ai-tools.md).
 
-### Step 2: Apply the identity check FIRST
+### Step 2: Apply the identity check first
 
 Before adding any candidate, run the identity check from *Essential Guide to Rhyming* (2014), Chapter 1:
 
-- **Pre-vowel consonants MUST DIFFER.** `time/rhyme` rhymes; `time/sometime`
+- **Pre-vowel consonants must differ.** `time/rhyme` rhymes; `time/sometime`
   is identity (both pre-vowel `t`), not rhyme.
 - Suffix words (`-ation`, `-ing`, `-tion`, `-ly`, `-ness`) routinely produce
   identities that look like rhymes. Reject.
@@ -164,7 +164,7 @@ For each rhyme candidate, classify on Pat's scale:
 | Family | identical vowel + post-vowel consonant from the same phonetic family + different pre-vowel |
 | Additive / subtractive | identical vowel + one consonant added/removed |
 | Assonance | identical vowel + different post-vowel consonant |
-| Consonance | different vowel + IDENTICAL post-vowel consonant + different pre-vowel |
+| Consonance | different vowel + identical post-vowel consonant + different pre-vowel |
 
 That order is Pat's printed chart, *Essential Guide to Rhyming* (2014),
 Chapter 9, p.110, "Scale of Rhyme Types: Most Stable to Least Stable",
@@ -172,7 +172,7 @@ running Perfect / Family / Additive-Subtractive / Assonance / Consonance
 under a single axis labeled `Most Stable` at the left and `Least Stable`
 at the right. Five types. Partial and weak-syllable rhyme are not on it.
 
-**Do NOT attach a fixed use-case to a tier.** Chapter 9's whole argument is
+**Do not attach a fixed use-case to a tier.** Chapter 9's whole argument is
 that a tier's effect depends on *where you put it*: the same family rhyme
 lightens a push in one position and softens a landing in the other. See
 "Tier effect is position-conditional" below before labeling candidates.
@@ -255,16 +255,16 @@ One scheme-level note, p.109, on couplets:
 > couplets can make a song feel so long: we have to stop every two lines, then
 > start the car again until we hit the next stop sign.)
 
-### Step 3b: MOSAIC tier (mandatory surface)
+### Step 3b: Mosaic tier (mandatory surface)
 
-After walking the single-word stability scale, generate the MOSAIC tier
+After walking the single-word stability scale, generate the mosaic tier
 per [mosaic-rhyme.md](mosaic-rhyme.md). Mosaic = multi-word combos that
 rhyme with the source by sound, crossing parts of speech, including
 proper nouns and slang.
 
 Pat's masculine / feminine / mosaic taxonomy is named explicitly in
 *Essential Guide to Rhyming* (2014), Chapter 1. The AI's default is
-single-word-rhyme. Mosaic must be ACTIVELY generated, not assumed.
+single-word-rhyme. Mosaic must be actively generated, not assumed.
 
 For each source word:
 
@@ -306,7 +306,7 @@ Pat's three horizontal families (*Essential Guide to Rhyming* (2014), Chapter 4)
 Family rhyme search order for post-vowel consonant:
 
 1. Perfect (same consonant)
-2. Family partner OR companion (per family rules above)
+2. Family partner or companion (per family rules above)
 3. Remaining family members
 4. Multi-consonant cluster preservation
 
@@ -370,7 +370,7 @@ connected to the listener.
 
 This is the model's strongest territory and where Datamuse is weakest. The
 song establishes a world: setting, time, character, era, dialect, mood,
-genre. Pull rhyme candidates from THAT world before pulling from a generic
+genre. Pull rhyme candidates from that world before pulling from a generic
 list.
 
 If the song is set in a 1970s Tennessee bar, the rhyme candidates should
@@ -383,11 +383,11 @@ Chapter 1; *Songwriting Without Boundaries* (2011), Challenge 1) is
 prerequisite for rhyme work: object-writing generates the world's
 vocabulary, which becomes the worksheet input.
 
-### Step 6b: The final-stress Latinate/French family (writer-supplied, 2026-08-12)
+### Step 6b: The final-stress Latinate/French family
 
-**Writer-supplied observation from the Sofía sessions (2026-08-12).** It is not a
-sourced claim about pop vocabulary and not a measurement of it. No proportion, share,
-or count is claimed, and the members below are a starting stock, never an exhaustive
+**Writer-supplied observation, from one writer's sessions.** It is not a sourced
+claim about pop vocabulary and not a measurement of it. No proportion, share, or
+count is claimed, and the members below are a starting stock, never an exhaustive
 list.
 
 The observation: a body of multisyllabic Latinate/French words is in actual pop usage
@@ -395,10 +395,10 @@ and never surfaces from a column search. Named here as the **final-stress
 Latinate/French family**, because that is the phonetic property that both explains the
 miss and makes the words usable:
 
-- their PRIMARY stress falls on the final syllable, so they behave as masculine
+- their primary stress falls on the final syllable, so they behave as masculine
   rhymes on that syllable, which is what Chapter 3's selection rule asks for ("Find
   mostly masculine words");
-- and that final syllable's coda is usually NOT the source word's coda, so a search
+- and that final syllable's coda is usually not the source word's coda, so a search
   that sweeps the source column never reaches them. Step 1b's field walk does.
 
 Starting stock, grouped by the coda that carries them:
@@ -444,42 +444,38 @@ intent, not by your top guess.
 Format:
 
 ```
-Stressed vowel: long-O (as in "lonely")
+Stressed vowel: long-O (as in "lonely"), coda n
 Source stress: trochee (X.)
 
-Perfect (fully resolved, single-word):
-- only           — REJECT, identity risk (no pre-vowel difference)
-- holy           — perfect; HIGH cliche pair with "lonely"
-- slowly         — perfect; MED cliche pair
+Perfect (fully resolved: same vowel, same coda, different onset):
+- only           — perfect feminine; identical tail is normal; HIGH cliche pair (§1 lists lonely/only)
 
-Family (post-vowel consonant family-related):
-- (limited single-word options for -L-Y ending; mosaic territory)
+Family (coda from the same phonetic family; n is a nasal):
+- homely         — n → m; near-perfect pull, plain register
 
-Additive / subtractive (one consonant added or removed):
-- (this slot is never optional — it sits between Family and Assonance on
-   Pat's printed scale, and it is the tier to reach for when the source
-   ends in an open vowel; see Step 4b)
+Additive / subtractive (one consonant added or removed; this slot is never
+optional — it sits between Family and Assonance on Pat's printed scale, and it
+is the tier to reach for when the source ends in an open vowel; see Step 4b):
+- holy           — n removed; HIGH cliche pair with "lonely"
+- slowly         — n removed; MED cliche pair
 
-Assonance (vowel-only match):
-- broken         — long-O, different post-vowel; STRONG for forward motion
-- woven          — long-O, different post-vowel; STRONG
-- soaking        — long-O, voice-leading well to next vowel
+Assonance (same vowel, different coda):
+- broken         — long-O, coda k; STRONG for forward motion
+- woven          — long-O, coda v
 
-Consonance (post-vowel-only match):
-- (rare for this source; consider only if a specific echo is wanted)
+Consonance (different vowel, same coda):
+- keenly         — ē + n; remote, leaves the gate open
+- plainly        — ā + n; remote
 
-Mosaic (multi-word, cross-POS, ≥3 always):
-- only me        — adverb + pronoun; closure-soft; REJECT (identity)
-- show me        — verb + pronoun; openness; clean rhyme; STRONG
-- told me        — verb + pronoun; closure; pulls past tense
-- hold me        — verb + pronoun; closure-warm; STRONG for embrace theme
-- below me       — preposition + pronoun; spatial; world-fit if applicable
-- old story      — adj + noun; closure-with-history
-- own glory      — pronoun + noun; mosaic-with-internal-rhyme; ironic register
+Mosaic (multi-word, cross-POS, ≥3 always; each labeled with its tier):
+- own me         — verb + pronoun; perfect (tail differs, which feminine rhyme allows)
+- phone me       — verb + pronoun; perfect; modern register
+- show me        — verb + pronoun; subtractive (n removed); openness
+- hold me        — verb + pronoun; assonance (coda ld); closure-warm, STRONG for embrace theme
 
 From the song's world: [if context established]
-- [proper nouns, setting words, era-specific words sharing -ō- vowel]
-- e.g., "the Moonlight" / "the old highway" / "Joplin" if the song goes there
+- [proper nouns, setting words, era-specific words on the ō vowel]
+- e.g., a street, bar or town name stressed on -ōn- or -ō- if the song goes there
 ```
 
 ## Why the tier label carries the emotion: Pat's worked case
@@ -579,7 +575,7 @@ Generate against those, do not re-derive here.
 
 ## When to fall back to external data
 
-The model's internal vocabulary IS strong for:
+The model's internal vocabulary is strong for:
 
 - common words, proper nouns, pop culture, settings, eras
 - phonetic family relationships
@@ -589,7 +585,7 @@ The model's internal vocabulary IS strong for:
 
 The model is weaker / external lookup helps when:
 
-- the writer needs a HIGH volume of candidates (50+) for brainstorming
+- the writer needs a high volume of candidates (50+) for brainstorming
 - syllable counting on rare polysyllabic words (verify with Datamuse `syllables`)
 - semantic-field mining for metaphor that requires statistical word
   association (`datamuse trg <word>` returns words statistically near in

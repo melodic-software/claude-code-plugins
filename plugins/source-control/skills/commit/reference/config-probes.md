@@ -43,7 +43,8 @@ invocable from inside a worktree. The composition record is the
 
 **Every repo-scoped probe anchors at the repository root**, via the `:/` magic pathspec, never at
 the session's current directory. A session started in a subdirectory would otherwise look for
-`<cwd>/.claude/` and report both repo-scoped layers absent. Silently dropping the team convention
+`<cwd>/docs/conventions/source-control.yaml` and `<cwd>/.claude/source-control.local.md` and report
+both repo-scoped layers absent, silently dropping the team convention
 and `trailer_policy`, and producing a commit with the wrong subject shape or attribution. Never
 substitute a resolved root path into a probe instead: a repository root containing `$(…)`, a
 backtick, or a double quote is *not* made safe by wrapping the substituted text in double quotes

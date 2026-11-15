@@ -167,7 +167,7 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   unresolvable, the launcher exits 1: a non-blocking hook error and not a guard block, and the guard
   script does not run (the header of
   [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
-- **Scope.** The fleet's one `SessionStart` node-notice row, in `harness-ops` (the [prerequisites convention](../prerequisites/README.md#hook-notices)), and the `hook-failure-audit` Stop row in `harness-ops` stay shell form so they can report a missing `node`.
+- **Scope.** These rows stay shell form: the fleet's one `SessionStart` node-notice row and the `hook-failure-audit` Stop row, both in `harness-ops`, so they can report a missing `node` (the [prerequisites convention](../prerequisites/README.md#hook-notices)); harness-ops' `refresh-sink-launcher.sh` row; and every row that starts its script through `lib/node-or-skip.sh` (`git grep -n 'node-or-skip.sh' -- 'plugins/*/hooks/hooks.json'` lists them).
   Neither check script inspects a shell-form row; `scripts/node-notice-rows.test.sh` pins the node-notice
   row (and the matcher that skips it on compaction) and the hook test of `harness-ops` pins its Stop row, so a sweep back to `node` fails them. A plugin hook config carries no
   `${user_config.*}` token (the [philosophy Hooks row](../../plugin-philosophy.md#component-stances)),
