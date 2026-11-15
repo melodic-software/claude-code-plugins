@@ -247,7 +247,7 @@ const routes = () => [
   ],
 ];
 
-// A pr-merge-post-merge-report artifact's two files, as post-merge-dispatch
+// A pr-merge-post-merge-report artifact's two files, as dispatch-post-merge-runs
 // writes them: the exit code with a newline, and the check's JSON.
 // The reason a real exit-3 report carried (pr-merge run 41067582241, 2026-10-30).
 const CAP = "unreadable: post-merge-detect-silent-revert.yml push runs: total_count 1239, 1000 returned, at the 1000-run search cap";
@@ -984,7 +984,7 @@ test("post-merge reports: none from the last 70 minutes is a gap, not a clear", 
   }
 });
 
-// post-merge-dispatch keeps its report before the merge and enable-auto-merge
+// dispatch-post-merge-runs keeps its report before the merge and enable-auto-merge
 // jobs that need it finish, so the newest report usually comes from a run
 // still in progress (#11382 review).
 test("post-merge reports: a still-running sweep's report is read first; the budget source waits for it to complete", async () => {

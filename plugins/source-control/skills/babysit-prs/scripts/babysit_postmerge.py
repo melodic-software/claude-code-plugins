@@ -21,7 +21,7 @@ auto-merge (`native_auto_merge`, an immediate enqueue on arm included),
 verifies on the dispatch and canary runs alone. A red full run is attributed after one `rerun-failed-jobs` the
 wrapper triggers: red again is a failure, green is a flake. A red full run the
 pr-merge lane dispatched gets that one re-run from pr-merge.yml's own
-`post-merge-dispatch` job, which records it (`_Context.lane_rerun`); with
+`dispatch-post-merge-runs` job, which records it (`_Context.lane_rerun`); with
 `--lane-merges-only` a recent one gets it when no judged merge covers it,
 if a newly failing check demotes (`_lane_reruns`). It counts only
 for checks that were not already failing on the newest completed run of the
@@ -109,17 +109,17 @@ CANARY_PATH = f".github/workflows/{CANARY_WORKFLOW}"
 LANE_DISPATCH_WORKFLOW = ".github/workflows/pr-merge.yml"
 LANE_DISPATCH_ARTIFACT = "pr-merge-dispatched-"
 LANE_DISPATCH_ACTOR = "github-actions[bot]"
-# Its post-merge-dispatch job starts the one re-run of a red lane-dispatched
+# Its dispatch-post-merge-runs job starts the one re-run of a red lane-dispatched
 # full run, also under GITHUB_TOKEN, and records it in an artifact named
 # `<prefix><run id>-attempt-2`; `_Context.lane_rerun` reads it.
 LANE_RERUN_ARTIFACT = "pr-merge-rerun-"
 # The events of the pr-merge.yml jobs that upload each record: dispatch-full-run
-# (push, and after the merge job) and post-merge-dispatch (schedule and
-# workflow_dispatch) write the dispatch record; only post-merge-dispatch writes
+# (push, and after the merge job) and dispatch-post-merge-runs (schedule and
+# workflow_dispatch) write the dispatch record; only dispatch-post-merge-runs writes
 # the re-run record.
 LANE_DISPATCH_EVENTS = frozenset({"schedule", "workflow_dispatch", "push"})
 LANE_RERUN_EVENTS = frozenset({"schedule", "workflow_dispatch"})
-# post-merge-dispatch also sends a red full run to post-merge-file-demotion-issues.yml
+# dispatch-post-merge-runs also sends a red full run to post-merge-file-demotion-issues.yml
 # and records it in an artifact named `<prefix><run id>`, the one job and events
 # of the re-run record; `_Context.lane_alerted` reads it.
 LANE_ALERT_ARTIFACT = "pr-merge-alerted-"
@@ -135,7 +135,7 @@ LANE_RECORDS_VERSION = 1
 _LANE_RECORD_NAME = re.compile(
     r"pr-merge-(?:dispatched-[1-9][0-9]{0,15}|rerun-[1-9][0-9]{0,15}-attempt-2)"
 )
-# A completed attempt never changes, so pr-merge.yml's post-merge-dispatch
+# A completed attempt never changes, so pr-merge.yml's dispatch-post-merge-runs
 # names a file here holding the earlier attempts of re-run full runs that the
 # last check read (`_Context._attempt`), carried in its kept report. An entry
 # answers with no read only for the same run, attempt and head SHA, completed;
@@ -347,7 +347,7 @@ class Rerun:
     run_id: int
     url: str
     signal: str
-    # The pr-merge lane dispatched it, so its post-merge-dispatch job starts
+    # The pr-merge lane dispatched it, so its dispatch-post-merge-runs job starts
     # the re-run: the lanes App and so the lane's `--remediate` cannot.
     lane: bool = False
 
@@ -2068,7 +2068,7 @@ class _Context:
 
     def lane_rerun(self, run: Run) -> bool:
         """Whether pr-merge.yml started attempt 2 of this lane-dispatched run:
-        its post-merge-dispatch job uploads `pr-merge-rerun-<id>-attempt-2`
+        its dispatch-post-merge-runs job uploads `pr-merge-rerun-<id>-attempt-2`
         only after its own `rerun-failed-jobs` call made that attempt."""
         return self.lane_dispatched(run) and self._lane_record(
             run, f"{LANE_RERUN_ARTIFACT}{run.id}-attempt-2", LANE_RERUN_EVENTS
@@ -2096,7 +2096,7 @@ class _Context:
         return self.lane_cache[artifact]
 
     def lane_alerted(self, run_id: int) -> bool:
-        """Whether post-merge-dispatch already sent full run `run_id` to
+        """Whether dispatch-post-merge-runs already sent full run `run_id` to
         post-merge-file-demotion-issues.yml: its `pr-merge-alerted-<id>` artifact was
         uploaded by a run `_lane_sender` accepts. A same-name artifact any
         other run uploaded is no record. A failed read raises."""
@@ -2511,7 +2511,7 @@ class _Context:
         # clear a red attempt 1. Two github-actions[bot] re-runs can:
         # post-merge-file-demotion-issues.yml's single re-run, which re-runs no run
         # the bot started, and for a run the pr-merge lane dispatched, the one
-        # its post-merge-dispatch job recorded. That job uploads the record
+        # its dispatch-post-merge-runs job recorded. That job uploads the record
         # just after its re-run starts, so a bot attempt 2 of a lane-dispatched
         # run still in progress waits for its record instead of reading red.
         if (
@@ -4436,7 +4436,7 @@ def verdict_exit(verdict: PostMergeVerdict) -> int:
 # commit or a demotion clear, so at the lane's merge rate the merged walk
 # reaches MERGED_PAGE_LIMIT and every lane check reads unreadable. The anchor
 # moves the lane's floor past merges a trusted run judged final.
-# post-merge-dispatch's check writes it to the file ANCHOR_ENV names, and
+# dispatch-post-merge-runs's check writes it to the file ANCHOR_ENV names, and
 # that job alone uploads it as ANCHOR_ARTIFACT; the next lane check reads it
 # back over REST (`read_anchor`). It is rebuilt and re-checked on every run
 # from GitHub state only main's pr-merge.yml can produce: an unexpired
@@ -4499,7 +4499,7 @@ def read_anchor(
     repo: str, identity: str, *, branch: str | None = None, now: datetime | None = None
 ) -> Anchor | None:
     """The newest unexpired ANCHOR_ARTIFACT whose uploading run passes
-    `_lane_sender` for post-merge-dispatch's events, keyed to this repository,
+    `_lane_sender` for dispatch-post-merge-runs's events, keyed to this repository,
     branch (default: the default branch) and identity, read once per process.
     At most ANCHOR_LISTING_PAGES listing pages and ANCHOR_READ_LIMIT REST
     reads; a read past them, a failed read, a refused or expired artifact and
@@ -4662,7 +4662,7 @@ def anchor_needs(anchor: Anchor | None) -> Callable[[AutoMerge], bool]:
 def write_anchor(
     path: str, anchor: Anchor, repo: str, branch: str, identity: str
 ) -> bool:
-    """Write `anchor` for post-merge-dispatch to upload."""
+    """Write `anchor` for dispatch-post-merge-runs to upload."""
     return _replace_json(
         path,
         {
@@ -4899,7 +4899,7 @@ def pending_runs_unchanged(
 
 # How much of `policy.SHARED_MAX_AGE` a report reused from an earlier tick
 # must have left: the merge gate (`assess`, per candidate) and the lane room
-# read the same report after post-merge-dispatch ends, and one past the age
+# read the same report after dispatch-post-merge-runs ends, and one past the age
 # sends them to the full check. Over 72 scheduled runs on 2026-10-26/27 the
 # gate ended a median 17.7 minutes after a reuse tick's check would start;
 # replayed on those runs, 10 minutes reuses as often as 5 and leaves fewer
@@ -5554,7 +5554,7 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         metavar="RUN_ID",
         help=(
-            "with --branch: exit 0 when pr-merge.yml's post-merge-dispatch on the "
+            "with --branch: exit 0 when pr-merge.yml's dispatch-post-merge-runs on the "
             "branch already sent full run RUN_ID to post-merge-file-demotion-issues.yml "
             "(its pr-merge-alerted-<id> record, from a sender `_lane_sender` "
             "accepts), 4 when not, 3 unreadable; read-only"

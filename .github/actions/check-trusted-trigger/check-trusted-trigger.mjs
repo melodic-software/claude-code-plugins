@@ -147,7 +147,7 @@ export const detailSuffix = (error) => (typeof error?.detail === "string" && err
 // past the cap is not taken, though a call's first attempt always goes out.
 // With 20 s attempts, retrying adds at most about 46 s to one call, inside the
 // shortest step that runs one (3 minutes,
-// pr-merge.yml's gate-check and clear-escalations). The last answer is
+// pr-merge.yml's report-gate-checks and clear-escalations). The last answer is
 // returned, or the last error thrown. Any other request, a mutation among
 // them, is sent once and never timed out; a 4xx is the caller's to handle, a
 // rate limit is the rate guard's (rate-guard.mjs), whose latch waits out a

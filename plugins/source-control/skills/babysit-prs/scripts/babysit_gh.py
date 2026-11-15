@@ -2765,7 +2765,7 @@ def collect_main_reviews(
     return records
 
 
-# The check run pr-review-main.yml's record job posts per lane on each head it
+# The check run pr-review-main.yml's report-review-counts job posts per lane on each head it
 # reviewed, titled with its counts, or with the designed stop that left that
 # head without a verdict (a diff the review cannot read whole, or a chunked
 # review one of whose chunks left no verdict).
@@ -2812,7 +2812,7 @@ def collect_main_review_counts(
             )
             counts: list[MainReviewRecord] = []
             for check in runs:
-                # Only the record job's own token posts as github-actions.
+                # Only the report-review-counts job's own token posts as github-actions.
                 app = json_object(check.get("app")).get("slug")
                 if check.get("name") != name or app != "github-actions":
                     continue

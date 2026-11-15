@@ -138,7 +138,7 @@
     "key-credit-stop-pr-unblock.yml-adjudicate-feedback": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/pr-unblock.yml adjudicate-key-credit's \"Read the key's credit history\" step runs ci-workflows select-model-credential's start call (check-key-credit's gate), which reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers"
+        ".github/workflows/pr-unblock.yml check-adjudicator-key-credit's \"Read the key's credit history\" step runs ci-workflows select-model-credential's start call (check-key-credit's gate), which reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers"
       ],
       "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
       "scan": "upload"
@@ -146,7 +146,7 @@
     "key-credit-stop-pr-run-plugin-evals.yml-eval": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/pr-run-plugin-evals.yml eval-key-credit's \"Read the key's credit history\" step runs ci-workflows select-model-credential's start call (check-key-credit's gate), which reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers"
+        ".github/workflows/pr-run-plugin-evals.yml check-key-credit's \"Read the key's credit history\" step runs ci-workflows select-model-credential's start call (check-key-credit's gate), which reads the newest marker of this exact name inside its window: KEY_CREDIT_WINDOW_HOURS (1 hour unset), doubled after each further credit stop up to 24 hours, which this retention covers"
       ],
       "reason": "The marker only says the key hit a credit stop; the gate counts it for its window, an hour by default, so a day covers any window up to 24 hours and an expired marker runs the key, as before the gate.",
       "scan": "upload"
@@ -191,7 +191,7 @@
       "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
       "reason": "A verdict that reported findings must outlive a later clean review of the same tree, or its expiry would lower the count the gate reads; the gate counts the most findings any unexpired verdict of the tree reported.",
       "scan": "upload",
-      "pending-cut": "About 238 a day, 21,400 at 90 days. CRITICAL counts already carry on the record job's check runs (babysit_merge.py carried_critical), but the below-CRITICAL total security_review_clean reads does not; a short window needs that total read from the check runs first.",
+      "pending-cut": "About 238 a day, 21,400 at 90 days. CRITICAL counts already carry on the report-review-counts job's check runs (babysit_merge.py carried_critical), but the below-CRITICAL total security_review_clean reads does not; a short window needs that total read from the check runs first.",
       "uploads": [
         ".github/workflows/pr-review-main.yml#review",
         ".github/workflows/pr-review-main.yml#review-subscription",
@@ -229,7 +229,7 @@
     "pr-merge-alerted-*": {
       "retention-days": 1,
       "readers": [
-        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py LANE_ALERT_ARTIFACT (`--lane-alerted`), asked by .github/workflows/pr-merge.yml post-merge-dispatch only for full runs created within LOOKBACK_HOURS (6)"
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py LANE_ALERT_ARTIFACT (`--lane-alerted`), asked by .github/workflows/pr-merge.yml dispatch-post-merge-runs only for full runs created within LOOKBACK_HOURS (6)"
       ],
       "reason": "Read back only for full runs created in the last 6 hours (pr-merge.yml LOOKBACK_HOURS), and each record is uploaded after its run was created; 1 day, the minimum, outlasts that window.",
       "scan": "upload"
@@ -311,7 +311,7 @@
     "pr-merge-gate-rows": {
       "retention-days": 1,
       "readers": [
-        ".github/workflows/pr-merge.yml gate-check job, same run",
+        ".github/workflows/pr-merge.yml report-gate-checks job, same run",
         ".github/scripts/pr-merge/gate-check.mjs"
       ],
       "reason": "Read by its own run; 1 day is the minimum.",

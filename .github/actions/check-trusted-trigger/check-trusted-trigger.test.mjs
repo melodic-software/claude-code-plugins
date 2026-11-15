@@ -2271,7 +2271,7 @@ test("createGitHub waits at most 60 s on 5xx answers across all its calls", asyn
 });
 
 // A connection that never answers: undici would wait its own header timeout
-// per attempt, past a 3-minute gate step (pr-merge.yml's gate-check).
+// per attempt, past a 3-minute gate step (pr-merge.yml's report-gate-checks).
 const hung = (sent) => async (url, init) => {
   sent.push(url);
   return new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));

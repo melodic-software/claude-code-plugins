@@ -361,42 +361,42 @@ on:
         value: ${{ jobs.scan.outputs.collect-refused }}
       # Issue mode: the run job's fields that pick the issue's lane branch
       # and the commit its patch applies to. The run job sets them before any
-      # model turn, but its runner could forge them, so the issue-fields job
+      # model turn, but its runner could forge them, so the check-issue-fields job
       # checks each and re-derives any branch claim; a caller reads only these.
       scan-base-sha:
         description: >-
           Issue mode: the trusted base commit a new run's patch was made on,
-          as the issue-fields job checked it.
-        value: ${{ jobs.issue-fields.outputs.base-sha }}
+          as the check-issue-fields job checked it.
+        value: ${{ jobs.check-issue-fields.outputs.base-sha }}
       scan-resume-tip:
         description: >-
           Issue mode: the earlier run's lane branch tip a resumed run's patch
-          was made on, as the issue-fields job re-derived it; empty otherwise.
-        value: ${{ jobs.issue-fields.outputs.resume-tip }}
+          was made on, as the check-issue-fields job re-derived it; empty otherwise.
+        value: ${{ jobs.check-issue-fields.outputs.resume-tip }}
       scan-issue-run-started:
         description: >-
           Issue mode: `true` once the run passed its gates and chose to run
           the skill, so its outcome must be reported even when a later step
           or the scan failed.
-        value: ${{ jobs.issue-fields.outputs.issue-run-started }}
+        value: ${{ jobs.check-issue-fields.outputs.issue-run-started }}
       scan-reuse-branch:
         description: >-
           Issue mode: the lane branch an earlier run left with commits and no
           report, which this run reused instead of running the model; empty
           otherwise.
-        value: ${{ jobs.issue-fields.outputs.reuse-branch }}
+        value: ${{ jobs.check-issue-fields.outputs.reuse-branch }}
       scan-resume-branch:
         description: >-
           Issue mode: the earlier run's lane branch this run resumed; empty
           otherwise.
-        value: ${{ jobs.issue-fields.outputs.resume-branch }}
+        value: ${{ jobs.check-issue-fields.outputs.resume-branch }}
       scan-prune-branches:
         description: >-
           Issue mode: the space-separated lane branches of the issue's stopped
           runs, with no pull request, that the earlier-work check named for
           the caller's prune job to delete; empty otherwise. The prune job
           re-checks each.
-        value: ${{ jobs.issue-fields.outputs.prune-branches }}
+        value: ${{ jobs.check-issue-fields.outputs.prune-branches }}
       # From run-claude-cli and the credential steps, never from model text,
       # but set by the run job, which head code can forge: no caller starts
       # its fallback call on them.
@@ -791,7 +791,7 @@ jobs:
       dirty-tree: ${{ steps.tree.outputs.dirty-tree }}
       patch-collected: ${{ steps.patch.outputs.state }}
       # Issue mode, all from steps that run before any model turn; the
-      # issue-fields job checks each before a caller sees it.
+      # check-issue-fields job checks each before a caller sees it.
       issue-run-started: ${{ inputs.issue-number != '' && steps.go.outputs.run == 'true' }}
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
       resume-branch: ${{ steps.issue-prior.outputs.resume-branch }}
@@ -2446,8 +2446,8 @@ jobs:
   # continue-on-error, so the job ends green: a refusal leaves checked empty,
   # which fails the scan job and publishes nothing, and the report job reads
   # no outcome.
-  issue-fields:
-    name: Issue Fields
+  check-issue-fields:
+    name: Check Issue Fields
     needs: run
     if: always() && inputs.issue-number != '' && needs.run.result != 'skipped'
     runs-on: ubuntu-24.04
@@ -2659,7 +2659,7 @@ jobs:
   # https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments#using-environments-without-deployments
   scan:
     name: Scan
-    needs: [run, issue-fields]
+    needs: [run, check-issue-fields]
     if: >-
       !cancelled() && (needs.run.result == 'success' || needs.run.result == 'failure')
       && needs.run.outputs.handed-off != 'true'
@@ -2701,14 +2701,14 @@ jobs:
         || (steps.open.outcome == 'failure' || steps.decode.outcome == 'failure' || steps.leak-scan.outcome == 'failure') && 'output'
         || '' }}
     steps:
-      # Issue mode: the issue-fields job's check, or nothing is published.
+      # Issue mode: the check-issue-fields job's check, or nothing is published.
       - name: Require the checked issue fields
         if: inputs.issue-number != ''
         env:
-          CHECKED: ${{ needs.issue-fields.outputs.checked }}
+          CHECKED: ${{ needs.check-issue-fields.outputs.checked }}
         run: |
           if [ "$CHECKED" != true ]; then
-            echo "::error::bad-output: the run job's issue fields did not pass the issue-fields job; nothing is published"
+            echo "::error::bad-output: the run job's issue fields did not pass the check-issue-fields job; nothing is published"
             exit 1
           fi
 
@@ -2825,9 +2825,9 @@ jobs:
           DEPENDENCY_VERDICT_BYTES: ${{ needs.run.outputs.carry-dependency-verdict-bytes }}
           WORK_OUTCOME_BYTES: ${{ needs.run.outputs.carry-work-outcome-bytes }}
           LANE_BYTES: ${{ needs.run.outputs.carry-lane-bytes }}
-          # Issue mode, as the issue-fields job checked them.
-          ISSUE_STARTED: ${{ needs.issue-fields.outputs.issue-run-started }}
-          ISSUE_RESUME: ${{ needs.issue-fields.outputs.resume-branch }}
+          # Issue mode, as the check-issue-fields job checked them.
+          ISSUE_STARTED: ${{ needs.check-issue-fields.outputs.issue-run-started }}
+          ISSUE_RESUME: ${{ needs.check-issue-fields.outputs.resume-branch }}
           OPEN_DIR: ${{ steps.open.outcome == 'success' && format('{0}/scan-in', runner.temp) || '' }}
         with:
           retries: 0
@@ -2995,7 +2995,7 @@ jobs:
         if: steps.decode.outputs.patch == 'true' && inputs.merge-conflict-tree == ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.issue-number == '' && needs.run.outputs.head-sha || needs.issue-fields.outputs.start-sha }}
+          ref: ${{ inputs.issue-number == '' && needs.run.outputs.head-sha || needs.check-issue-fields.outputs.start-sha }}
           persist-credentials: false
 
       # PR mode: the skill ran Bash with the API key in reach, and artifacts
@@ -3036,7 +3036,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          HEAD_SHA: ${{ inputs.issue-number == '' && needs.run.outputs.head-sha || needs.issue-fields.outputs.start-sha }}
+          HEAD_SHA: ${{ inputs.issue-number == '' && needs.run.outputs.head-sha || needs.check-issue-fields.outputs.start-sha }}
           REPLY_DIR: ${{ steps.decode.outputs.dir }}
           PATCH_FILE: ${{ steps.decode.outputs.dir }}/patch.diff
           # The caller's input, never a run job output: a merge-base patch is
@@ -3475,15 +3475,15 @@ jobs:
 
   # Issue mode, reuse: the summary pass, in its own job with a read-only
   # GITHUB_TOKEN. It starts only when the run job's issue-prior step named a
-  # reused lane branch, as the issue-fields job re-derived it, so that job
+  # reused lane branch, as the check-issue-fields job re-derived it, so that job
   # ran no model. Every step is continue-on-error, and each pass step is
   # gated on the one before it: a failed pass leaves no summary and turns
   # nothing red, and report-outcome keeps the fixed text.
-  summary:
-    name: Summary
-    needs: [run, issue-fields]
+  generate-reuse-summary:
+    name: Generate Reuse Summary
+    needs: [run, check-issue-fields]
     if: >-
-      ${{ !cancelled() && needs.issue-fields.outputs.checked == 'true' && needs.issue-fields.outputs.reuse-branch != ''
+      ${{ !cancelled() && needs.check-issue-fields.outputs.checked == 'true' && needs.check-issue-fields.outputs.reuse-branch != ''
       && github.event.repository.default_branch != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -3555,8 +3555,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
-          REUSE_BRANCH: ${{ needs.issue-fields.outputs.reuse-branch }}
-          BASE_SHA: ${{ needs.issue-fields.outputs.base-sha }}
+          REUSE_BRANCH: ${{ needs.check-issue-fields.outputs.reuse-branch }}
+          BASE_SHA: ${{ needs.check-issue-fields.outputs.base-sha }}
           DATA: ${{ github.workspace }}/.summary
           SRC: ${{ runner.temp }}/reuse-summary-src
           ISSUE_FILE: ${{ github.workspace }}/.summary/issue.json
@@ -3779,7 +3779,7 @@ jobs:
         env:
           OUTPUT_FILE: ${{ steps.summary-key.outputs.structured-output-file || steps.summary-token.outputs.structured-output-file || steps.summary-fallback.outputs.structured-output-file }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
-          REUSE_BRANCH: ${{ needs.issue-fields.outputs.reuse-branch }}
+          REUSE_BRANCH: ${{ needs.check-issue-fields.outputs.reuse-branch }}
           TIP: ${{ steps.summary-data.outputs.tip }}
           OUT_DIR: ${{ runner.temp }}/reuse-summary
         run: |
@@ -3824,7 +3824,7 @@ jobs:
 
   report:
     name: Report
-    needs: [broker-check, run, issue-fields, scan, summary]
+    needs: [broker-check, run, check-issue-fields, scan, generate-reuse-summary]
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
     # lanes App's own pull_request events skip the run job. Issue mode has no
     # PR head to post a check on, and a run that handed off leaves the check
@@ -3833,7 +3833,7 @@ jobs:
     # mode this job only ends the lane lease broker-check posted, whatever
     # the other jobs' results, unless the caller ends it: in
     # caller-releases-lease mode, a call that did not hand
-    # off and whose issue-fields job set issue-run-started or reuse-branch
+    # off and whose check-issue-fields job set issue-run-started or reuse-branch
     # (the outputs the caller's report-outcome runs on) leaves it to the
     # caller's write runner, and every other call releases it here.
     if: >-
@@ -3846,8 +3846,8 @@ jobs:
       || inputs.issue-number != '' && needs.broker-check.outputs.lease == 'held'
       && needs.broker-check.outputs.lease-comment-id != ''
       && !(inputs.caller-releases-lease && needs.run.outputs.handed-off != 'true'
-      && (needs.issue-fields.outputs.issue-run-started == 'true'
-      || needs.issue-fields.outputs.reuse-branch != '')))
+      && (needs.check-issue-fields.outputs.issue-run-started == 'true'
+      || needs.check-issue-fields.outputs.reuse-branch != '')))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     # issues: write lets check-signed-commits add its label and comment, and

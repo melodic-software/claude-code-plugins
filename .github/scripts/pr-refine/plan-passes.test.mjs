@@ -115,7 +115,7 @@ test("a composite's predicate narrows its refine leaves' files", () => {
   assert.deepEqual(planPasses({ slots, changedPaths: ["README.md", "docs/a.md"] }).passes, [{ name: "fix-docs", order: 10, group: "docs", files: 1 }]);
 });
 
-// The plan job's step on this repository's own config, read as the job reads
+// The select-passes job's step on this repository's own config, read as the job reads
 // the base's: the outputs each pass's first job and record-passes read.
 test("write-pass-plan.mjs writes the plan's outputs, and only planned passes get <pass>=true", () => {
   const dir = mkdtempSync(join(tmpdir(), "write-pass-plan-"));

@@ -5,7 +5,7 @@ activities:
   fix-docs:
     skill: ai-slop:audit
     args: fix
-    # A Refine pass: pr-refine.yml's plan job runs it before review on a PR
+    # A Refine pass: pr-refine.yml's select-passes job runs it before review on a PR
     # whose changed files match applies-when's paths and paths-ignore.
     stage: refine
     order: 10
@@ -1523,7 +1523,7 @@ merge:
     - trust-path-hold-off[bot]
   # true: report each decision and write nothing.
   report-only: false
-  # true: post-merge-dispatch starts a full run of main inside its 30-minute
+  # true: dispatch-post-merge-runs starts a full run of main inside its 30-minute
   # cap when an unverified lane merge has no started full run covering it,
   # one run for the whole batch, so the lane's in-flight room frees after one
   # verify instead of waiting out the cap. false: the cap holds for every

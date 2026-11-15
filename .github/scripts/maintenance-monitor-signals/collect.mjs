@@ -381,7 +381,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   };
 
   // pr-merge's runs on main, any status, listed once for the sources that
-  // read them: post-merge-dispatch keeps its report while the run's merge
+  // read them: dispatch-post-merge-runs keeps its report while the run's merge
   // jobs still run, so the report source needs runs in progress too; the
   // budget source keeps completed ones only.
   let prMergeList = null;
@@ -623,7 +623,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     if (data.heldSweeps.length > 0) gaps.push(`pr-merge listed sweep: none in the ${LIMITS.sweepArtifacts} newest summaries`);
   });
 
-  // The report post-merge-dispatch keeps per sweep (pr-merge-post-merge-report:
+  // The report dispatch-post-merge-runs keeps per sweep (pr-merge-post-merge-report:
   // the post-merge check's exit code and JSON), from trusted pr-merge runs
   // only, a run still in progress included, newest first, stopping at the first that is not exit 3 or at
   // POST_MERGE_UNREADABLE_SWEEPS. A run that kept no report (not live, a rate

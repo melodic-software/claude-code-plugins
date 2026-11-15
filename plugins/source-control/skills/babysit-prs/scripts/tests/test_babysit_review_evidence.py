@@ -1039,7 +1039,7 @@ CONTEXT = {
 
 
 def recorded(reviews: Any, context: Any) -> Any:
-    """`context` with the record job's check runs for each review in
+    """`context` with the report-review-counts job's check runs for each review in
     `reviews` on the head, as a completed run leaves them, unless the test
     set `head_records` itself."""
     if not isinstance(context, dict) or "head_records" in context:
@@ -1438,7 +1438,7 @@ class MainRunReviewTests(Base):
         self,
     ) -> None:
         # A whitespace push makes a new tree whose clean review would bind at
-        # zero; the CRITICAL the record job left on the earlier head holds.
+        # zero; the CRITICAL the report-review-counts job left on the earlier head holds.
         context = dict(
             CONTEXT, carried_critical={"claude-review": 0, "claude-security-review": 2}
         )
