@@ -6,5 +6,4 @@ bump: patch
 
 - The audit skill's notes drop authoring history and describe the zero-expiry result without this
   repository's stamp dates; capital-letter emphasis is lower-cased.
-- The setup skill gains a `## Next` pointer to `/attribution:audit` and folds a repeated gotcha
-  about misplaced keys into the key reference.
+- The setup skill gains a `## Next` pointer to `/attribution:audit`.

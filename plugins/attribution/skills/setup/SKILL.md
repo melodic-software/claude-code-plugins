@@ -120,9 +120,9 @@ and its quoting, what each key controls, the eval-fixture exclusion, and when to
 measured first with
 `"${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-stamps.sh" --trigger-less`.
 
-`judge_samples` is deliberately a top-level key and not one of the `accuracy` dials; reject an
+`judge_samples` is deliberately a TOP-LEVEL key and not one of the `accuracy` dials; reject an
 `accuracy.judge_samples` loudly rather than writing it, since a misplaced key there would be a
-silent no-op that leaves the panel at its default while looking configured.
+silent no-op that quietly halves the panel.
 
 Reject any key not in this schema rather than writing it through. A typo that lands in the file
 reads as a setting and behaves as nothing.
@@ -135,6 +135,9 @@ It reads the config this skill writes.
 
 ## Gotchas
 
+- **A misplaced key reads like a setting and behaves like nothing.** `accuracy.judge_samples` is
+  the worked case: `judge_samples` is top-level, so the nested form silently leaves the panel at
+  its default while looking configured. Reject unknown keys loudly instead of writing them.
 - **Gates do not quiet a report.** Raising `fix_precision_bar` changes what may be auto-fixed and
   shows exactly the same findings. If someone asks for a shorter report, the honest lever is
   `excluded_paths` for a class of surface that should not be scanned at all.
