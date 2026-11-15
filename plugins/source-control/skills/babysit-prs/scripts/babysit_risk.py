@@ -87,13 +87,18 @@ A workflow patch that gains a `_SECRET_REF` (or a bare `secrets` inside a
 gains a `_MODEL_ACTION` or a `_MODEL_PACKAGE` run, in a workflow or a
 composite action's `action.yml`, rates HIGH as `agent-surface-review`, each
 counted against the lines it removes, an expression split across lines read
-whole, so a move or repin is not new; so does a composite action file with
+whole, so a move or repin is not new (a patch's secrets references are read
+hunk by hunk, context lines included, so an expression left open at a hunk's
+end is not read on into a later hunk); so does a composite action file with
 no patch, unless it is deleted, re-moded, or renamed from another composite
 action, with no line added. The secrets
 reference is also read from the head text against the base text, so a
 workflow with no patch is not skipped. A workflow whose token gains a write
 scope rates HIGH as `permission-widening-review`: its base and head text are
-parsed and each job's write scopes compared (a job left with no
+parsed and each job's write scopes compared (a job under a new id pairs with
+one base job gone from the head whose body, its display `name` and
+`permissions` aside, is the same, so a rename gains only a scope the old id
+lacked; a job left with no
 `permissions:` of its own or at the top level runs on the repository default
 and counts as a gain; an added file compares against none; unread text, a
 repeated key or an alias holds), with net-added `write` lines as a raw-text
@@ -1293,6 +1298,25 @@ def _patch_lines(patch: Any) -> tuple[list[str], list[str]] | None:
     return added, removed
 
 
+def _patch_hunks(patch: str) -> list[tuple[list[str], list[str]]]:
+    """(head, base) lines of each hunk of a unified patch: its context lines
+    with its added lines on the head side and with its removed lines on the
+    base side, so each side reads as the file's own adjacent lines."""
+    hunks: list[tuple[list[str], list[str]]] = [([], [])]
+    for line in patch.split("\n"):
+        head, base = hunks[-1]
+        if line.startswith("@@"):
+            hunks.append(([], []))
+        elif line.startswith("+") and not line.startswith("+++"):
+            head.append(line[1:])
+        elif line.startswith("-") and not line.startswith("---"):
+            base.append(line[1:])
+        elif line.startswith(" ") or not line:
+            head.append(line[1:])
+            base.append(line[1:])
+    return hunks
+
+
 def _unsafe_pipeline_lines(patch: str) -> list[str]:
     """The changed pr-pipeline.yaml lines off `_SAFE_PIPELINE_LINE`. A run of
     removed lines and the added lines that follow it pass together only when
@@ -1439,14 +1463,29 @@ def _net_added(
     """Each match `added` gains over `removed`, so a moved or repinned line
     is not new."""
 
-    def matches(lines: list[str]) -> Counter[str]:
-        return Counter(
-            re.sub(r"\s+", "", m).casefold()
-            for line in _logical_lines(lines)
-            for m in find(line)
-        )
+    return sorted(_matches(find, added) - _matches(find, removed))
 
-    return sorted(matches(added) - matches(removed))
+
+def _matches(find: Callable[[str], list[str]], lines: list[str]) -> Counter[str]:
+    return Counter(
+        re.sub(r"\s+", "", m).casefold()
+        for line in _logical_lines(lines)
+        for m in find(line)
+    )
+
+
+def _patch_secret_gains(patch: str) -> list[str]:
+    """Secrets references a workflow patch's head side gains over its base
+    side, each hunk read whole with its context lines, so an expression
+    split across a changed line and a context line reads as one, and one
+    left open at a hunk's end is not joined to a later hunk's lines, where a
+    comment's apostrophe would read as an unclosed literal."""
+    gained: Counter[str] = Counter()
+    lost: Counter[str] = Counter()
+    for head, base in _patch_hunks(patch):
+        gained += _matches(_secret_refs, _if_blocks(head))
+        lost += _matches(_secret_refs, _if_blocks(base))
+    return sorted(gained - lost)
 
 
 def _new_model_legs(added: list[str], removed: list[str]) -> list[str]:
@@ -1899,14 +1938,19 @@ def _text_gains(base: str | None, head: str) -> tuple[list[str], list[str]]:
     return widened, sorted((h_triggers - b_triggers) & PRIVILEGED_TRIGGERS)
 
 
-def _workflow_privileges(text: str | None) -> tuple[set[str], set[str]] | None:
-    """(job:scope write grants, triggers) of workflow text, None when it
-    does not read as one mapping with a `jobs` mapping and a readable `on`.
+_Jobs = dict[str, tuple[set[str], str | None]]
+
+
+def _workflow_privileges(text: str | None) -> tuple[_Jobs, set[str]] | None:
+    """(each job's write scopes and body, triggers) of workflow text, None
+    when it does not read as one mapping with a `jobs` mapping and a readable
+    `on`. A job's body is its parsed mapping as text, its display `name`
+    and `permissions` left out; None when the job is not a mapping.
     An absent side (None) and an empty document are the empty workflow. A
     repeated key, an anchor or an alias is unreadable, since GitHub's parser
     could read it otherwise."""
     if text is None:
-        return set(), set()
+        return {}, set()
     yaml = _yaml()
     if yaml is None:
         return None
@@ -1933,7 +1977,7 @@ def _workflow_privileges(text: str | None) -> tuple[set[str], set[str]] | None:
         return None
     if data is None:
         # An empty document runs nothing.
-        return set(), set()
+        return {}, set()
     if not isinstance(data, dict) or not isinstance(data.get("jobs"), dict):
         return None
     # PyYAML reads a plain `on` key as the YAML 1.1 bool; GitHub reads "on".
@@ -1963,13 +2007,36 @@ def _workflow_privileges(text: str | None) -> tuple[set[str], set[str]] | None:
         }
 
     top = writes(data.get("permissions"))
-    grants: set[str] = set()
+    jobs: _Jobs = {}
     for name, job in data["jobs"].items():
         own = writes(job.get("permissions")) if isinstance(job, dict) else {"?"}
         scopes = own if own is not None else top
-        for scope in scopes if scopes is not None else {_DEFAULT_TOKEN}:
-            grants.add(f"{name}:{scope}")
-    return grants, {t.casefold() for t in triggers}
+        body = (
+            repr({k: v for k, v in job.items() if k not in ("name", "permissions")})
+            if isinstance(job, dict)
+            else None
+        )
+        jobs[str(name)] = (scopes if scopes is not None else {_DEFAULT_TOKEN}, body)
+    return jobs, {t.casefold() for t in triggers}
+
+
+def _job_widenings(base: _Jobs, head: _Jobs) -> list[str]:
+    """`job:scope` write grants the head jobs gain over the base jobs. A head
+    job under an id the base lacks pairs with one base job the head lacks
+    whose body is the same: a rename, which gains only a scope the old id did
+    not hold. Each base job pairs once, so a copy of a job is a new job, and
+    a new job gains every scope it holds."""
+    gone = [old for old in base if old not in head]
+    widened: list[str] = []
+    for name, (scopes, body) in sorted(head.items()):
+        held: set[str] = set()
+        if name in base:
+            held = base[name][0]
+        elif same := [g for g in gone if body is not None and base[g][1] == body]:
+            gone.remove(same[0])
+            held = base[same[0]][0]
+        widened += [f"{name}:{scope}" for scope in scopes - held]
+    return sorted(widened)
 
 
 def _workflow_privilege_gains(
@@ -1991,7 +2058,7 @@ def _workflow_privilege_gains(
         head = _workflow_privileges(head_text)
         if base is None or head is None:
             return ["unreadable, malformed, a repeated key or an alias"], []
-        widened = sorted(head[0] - base[0])
+        widened = _job_widenings(base[0], head[0])
         triggers = sorted((head[1] - base[1]) & PRIVILEGED_TRIGGERS)
     lines = _patch_lines(patch)
     if lines is not None:
@@ -2087,7 +2154,7 @@ def _cost_reasons(
         if workflow:
             if not public:
                 charge += [s.strip() for s in added if _COST_PRIVATE_LINE.search(s)]
-            secret = _net_added(_secret_refs, _if_blocks(added), _if_blocks(removed))
+            secret = _patch_secret_gains(patch)
             if secret and f.path not in secret_files:
                 secrets.append(f"{f.path}: new secrets reference {', '.join(secret)}")
             agent = _new_model_legs(added, removed)
