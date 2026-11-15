@@ -24,12 +24,10 @@ Exit 2 on a usage error.
 EOF
 }
 
-case "${1:-}" in
--h | --help)
+if [[ "${1:-}" == -h || "${1:-}" == --help ]]; then
   usage
   exit 0
-  ;;
-esac
+fi
 if (($# > 0)); then
   usage >&2
   exit 2

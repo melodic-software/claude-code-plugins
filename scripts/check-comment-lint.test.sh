@@ -100,7 +100,7 @@ clone="$(new_clone rehomed block)"
 planted >>"$clone/src/app.py"
 mkdir -p "$clone/own"
 printf 'comment_lint: off\n' >"$clone/own/code-tidying.yaml"
-printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `own`.\n<!-- END GENERATED: convention-home -->\n' >"$clone/AGENTS.md"
+printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in %s.\n<!-- END GENERATED: convention-home -->\n' "\`own\`" >"$clone/AGENTS.md"
 commit_all "$clone" 'planted, convention home moved'
 run_gate "$clone" >/dev/null
 check 'a branch cannot move the convention home to its own team file' '1' "$?"
