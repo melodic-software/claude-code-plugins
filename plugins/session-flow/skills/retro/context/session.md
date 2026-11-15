@@ -300,13 +300,19 @@ Code configuration: verify it against current official docs before presenting, r
 docs lookup the catalog below describes. Never recommend features from training-data assumptions.
 
 **Load the catalog.** Read `<plugin-root>/skills/retro/reference/ecosystem-improvement-catalog.md`
-before filling the table. The placement decision tree and the per-target recommendation formats
-(memory, rules, hooks, skills, agents, MCP servers, settings) live there.
+before filling the table, and put each finding through its "Check first" step before choosing a
+target: a finding a check could decide gets a check row, not a CLAUDE.md or rules row. With the
+`corrections` plugin installed, a new check's row has as its action
+`/corrections:codify "<the mistake>"`, run only after the user picks the row at Phase 4: the retro
+neither makes that call while filling the table nor offers to write that check. The placement
+decision tree and the per-target recommendation formats (hooks, settings, rules, memory, skills,
+agents, MCP servers) live there.
 
 **Repeated corrections.** A finding that is a correction the session needed more than once is
 routed to `/corrections:codify "<the mistake>"` when the `corrections` plugin is installed, which
-counts it and picks its rung before its place; its row here names that route. Without it, the
-catalog's matching section takes the finding, as its "Owner skills" section says.
+counts it and picks its rung before its place; its row here names that route, run only once the
+user picks it at Phase 4. Without it, the catalog's matching section takes the finding, as its
+"Owner skills" section says.
 
 **Environment findings.** Look for each of these in the session, and give each one found a row
 with the route named here. The no-op row is the exception: it comes from reading the steering
@@ -393,8 +399,9 @@ Apply the team-shared-first lens: if a learning generalizes to ANY contributor, 
 tracked surface (the repo's instruction files), not personal memory. Reserve auto-memory for facts
 true only for this machine/person.
 
-**Every approved codification follows the workflow:** verify the claim, cross-reference existing
-content for duplication, then edit. No "just save it" shortcut.
+**With the `corrections` plugin installed, an approved new check's row runs `/corrections:codify`;
+every other approved codification follows the workflow:** verify the claim, cross-reference
+existing content for duplication, then edit. No "just save it" shortcut.
 
 **Guidance that existed but did not fire.** Sometimes the cross-reference turns up a rule or memory
 entry that already covered the finding, yet the session still went wrong: a 2C regression, or a

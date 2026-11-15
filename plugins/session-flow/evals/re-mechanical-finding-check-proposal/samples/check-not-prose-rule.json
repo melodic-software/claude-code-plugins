@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "## Phase 3: Recommendations\n\nCheck first: could a check decide the moment import? Yes. An import of a named module is a fixed pattern, so this gets a check row and no CLAUDE.md row.\n\n| # | Target | Scope | Type | Recommendation | Justification | Priority |\n|---|---|---|---|---|---|---|\n| 1 | `/corrections:codify \"imported moment in src/ instead of date-fns\"` | project | Check | Codify counts it (two this session), picks the strongest rung, likely `analyzer-pack-rule` via ESLint `no-restricted-imports`, and proves it fails on a moment import. CI already runs `npm run lint`. | Basis: verified. `eslint.config.js` bans no import; `ci.yml` runs lint. | High |\n\nWhich should I execute now? Reply with the numbers, `all`, or `skip`.",
+      "why": "check-first, codify route, no prose row"
+    },
+    {
+      "answer": "R1: add `no-restricted-imports` with `paths: [{ name: \"moment\", message: \"Use date-fns\" }]` to eslint.config.js. CI's `npm run lint` then blocks it.\n\nConsidered and dropped: a CLAUDE.md line saying \"use date-fns, not moment\". The lint rule decides it, so the line adds nothing.",
+      "why": "a lint rule, and the prose line named only as dropped"
+    },
+    {
+      "answer": "| 1 | Hooks / lint | project | Check | Route to /corrections:codify to pick and prove a check that fails on `import ... from \"moment\"` | Basis: verified | High |\n| 2 | CLAUDE.md | project | Pointer | Name where the integration tests live, which the session searched for at length | Basis: verified | Low |",
+      "why": "a CLAUDE.md row for a different finding does not count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| 1 | CLAUDE.md | project | Rule | Add: \"Dates use date-fns. Never import moment.\" | Basis: verified, two corrections | High |",
+      "why": "prose rule only, no check"
+    },
+    {
+      "answer": "R1: hand the moment import to /corrections:codify for an ESLint no-restricted-imports rule.\nR2: add a line to .claude/rules/typescript.md: \"moment is banned; use date-fns.\"",
+      "why": "check plus a rules-file line for the same finding"
+    },
+    {
+      "answer": "R1: ESLint `no-restricted-imports` for moment.\nR2: one CLAUDE.md pointer: \"`npm run lint` bans moment; use date-fns.\"",
+      "why": "a CLAUDE.md pointer about the same finding is still a prose line"
+    },
+    {
+      "answer": "I'd save a feedback memory: this user wants date-fns, not moment.",
+      "why": "memory only, no check"
+    }
+  ]
+}
