@@ -23,7 +23,9 @@ default, never from a lower layer.
 
 The consumer's ecosystem files (`.claude/ecosystems/<lane>.yaml`, the
 marketplace-wide ecosystem-commands convention) resolve through the same three
-layers for their `globs` and `enabled` keys.
+layers for their `globs` and `enabled` keys. Only a lane in the resolved
+`lanes` mapping reads its ecosystem file: the bundled lanes, plus any id a
+layer lists under `lanes`. A record whose id no layer lists creates no lane.
 
 Usage:
   resolve-config.py [options] [<user.yaml> [<team.yaml> [<local.yaml>]]]
@@ -65,7 +67,7 @@ import os
 import re
 import subprocess
 import sys
-from typing import Any
+from typing import Any, Callable
 
 MIN_PYTHON = (3, 9)
 
@@ -93,6 +95,10 @@ yaml_subset = _module("yaml_subset")
 pathglob = _module("pathglob")
 
 CONTROL = re.compile(r"[\n\r\t]")
+# The ecosystem-commands convention's identifier form (lowercase kebab-case).
+# A listed lane id names a file under `.claude/ecosystems/`, so anything else
+# (a slash, `..`) is refused rather than joined into a path.
+LANE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 # Lists whose items the schema types as strings; a number or a nested value
 # in one is a wrong shape, not a rule id.
 STRING_LISTS = {"suppressions.correctness_rules"}
@@ -145,6 +151,15 @@ def _invalid(
         )
     if key in threshold_keys and not (value is None or _is_number(value)):
         return "a reference must be a number or null"
+    if parts[0] == "lanes" and len(parts) > 1 and not LANE_ID.fullmatch(parts[1]):
+        return "a lane id must be lowercase kebab-case"
+    # A listed lane has no bundled default to say it is a mapping, and the
+    # readers below call `.get` on it and on its `collectors`.
+    lane_node = parts[0] == "lanes" and (
+        len(parts) == 2 or (len(parts) == 3 and parts[2] == "collectors")
+    )
+    if lane_node and value is not None:
+        return "must be a mapping"
     default = _lookup(defaults, parts)
     if isinstance(default, dict):
         return "must be a mapping"
@@ -255,7 +270,7 @@ def surface_layer_paths(home: str, root: str) -> list[tuple[str, str]]:
 def resolve(
     defaults_path: str,
     layer_files: list[tuple[str, str]],
-    ecosystem_files: dict[str, list[tuple[str, str]]],
+    ecosystem_paths: Callable[[str], list[tuple[str, str]]] | None,
     ladder_path: str | None,
     warnings: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -327,10 +342,13 @@ def resolve(
                         )
                 collectors[measure] = kept
     ecosystems: dict[str, Any] = {}
-    for lane, files in ecosystem_files.items():
+    listed = [
+        lane for lane in (config.get("lanes") or {}) if LANE_ID.fullmatch(str(lane))
+    ]
+    for lane in listed if ecosystem_paths else []:
         eco: dict[str, Any] = {}
         eco_layers: dict[str, str] = {}
-        for layer, path in files:
+        for layer, path in ecosystem_paths(lane):
             if not os.path.isfile(path):
                 continue
             override = _load_layer(path, warnings)
@@ -562,18 +580,16 @@ def main(argv: list[str]) -> int:
                     file=sys.stderr,
                 )
                 return 2
-        ecosystem_files: dict[str, list[tuple[str, str]]] = {}
     else:
         layer_files = surface_layer_paths(args.home, root)
-        with open(args.defaults, encoding="utf-8") as handle:
-            lane_names = list((json.load(handle).get("lanes") or {}).keys())
-        ecosystem_files = {
-            lane: layer_paths(args.home, root, os.path.join("ecosystems", lane))
-            for lane in lane_names
-        }
+
+    def discovered(lane: str) -> list[tuple[str, str]]:
+        return layer_paths(args.home, root, os.path.join("ecosystems", lane))
+
+    ecosystem_paths = None if args.layers else discovered
     try:
         config = resolve(
-            args.defaults, layer_files, ecosystem_files, args.ladder, warnings
+            args.defaults, layer_files, ecosystem_paths, args.ladder, warnings
         )
     except OSError as exc:
         print(f"resolve-config.py: {exc}", file=sys.stderr)
