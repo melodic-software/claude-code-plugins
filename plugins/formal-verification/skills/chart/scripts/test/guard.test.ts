@@ -34,7 +34,7 @@ test("fence is one backtick longer than the longest run in the text, and never u
   assert.equal(fence("x `````` y"), "```````\nx `````` y\n```````");
 });
 
-test("escapeMarkdown neutralises Markdown and HTML", () => {
+test("escapeMarkdown escapes Markdown and HTML", () => {
   assert.equal(escapeMarkdown("<img src=x>"), "&lt;img src=x&gt;");
   assert.equal(escapeMarkdown("[a](b) *c* `d`"), "\\[a\\]\\(b\\) \\*c\\* \\`d\\`");
   assert.equal(escapeMarkdown("a & b"), "a &amp; b");
