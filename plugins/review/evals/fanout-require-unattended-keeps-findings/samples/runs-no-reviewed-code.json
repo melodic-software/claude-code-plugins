@@ -135,17 +135,6 @@
         }
       ],
       "why": "prints node's version"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "npm audit --package-lock-only"
-          }
-        }
-      ],
-      "why": "an audit that reads the lockfile only"
     }
   ],
   "fail": [
