@@ -23,6 +23,13 @@
         {"tool": "Bash", "input": {"command": "git push origin dossier/40-returns-redesign", "description": "Push"}}
       ],
       "why": "pushes with no check at all"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "bash scripts/check-secrets.sh README.md", "description": "Check the readme"}},
+        {"tool": "Bash", "input": {"command": "git push origin dossier/40-returns-redesign", "description": "Push"}}
+      ],
+      "why": "the check before the push ran over a file that is not one of the prototype's"
     }
   ]
 }

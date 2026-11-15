@@ -23,6 +23,18 @@
     },
     {
       "answer": [
+        {"tool": "Bash", "input": {"command": "git push -fu origin dossier/40-returns-redesign", "description": "x"}}
+      ],
+      "why": "force among combined short flags"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git push origin '+HEAD:dossier/40-returns-redesign'", "description": "x"}}
+      ],
+      "why": "a quoted forced refspec"
+    },
+    {
+      "answer": [
         {"tool": "Bash", "input": {"command": "git push origin +HEAD:dossier/40-returns-redesign", "description": "x"}}
       ],
       "why": "a forced refspec"

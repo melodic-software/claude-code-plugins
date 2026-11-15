@@ -61,6 +61,7 @@ while read -r old new ref; do
 done
 SH
 chmod +x remote.git/hooks/post-receive
+git -C remote.git config core.hooksPath hooks
 
 mkdir -m 700 notes-run
 cat >notes-run/explore-directions.html <<'HTML'

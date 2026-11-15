@@ -134,21 +134,23 @@ you:
 
 When the person is done pinning notes, keep what the run directory holds before it goes:
 
-1. **Memory slice.** Write `prototype-notes.md`, one row per note as step 5 restates it, and copy
-   `shots/` beside it, into `prototype/` in the memory slice: the topic's folder under the
-   repository's gitignored working-notes directory, `.work/` unless the repository names another
-   (with the `planning` plugin installed, its artifact protocol, "Ownership and placement", owns
-   the folder). The mockup stays in its run directory.
+1. **Memory slice.** Write `prototype-notes.md`, one row per note as step 5 of the first list
+   restates it with each shot's path written as `shots/<seq>.png`, and copy `shots/` beside it,
+   into `prototype/` in the memory slice: the topic's folder (when nothing names a topic, the
+   screen's route in kebab-case, such as `shipments`) under the repository's gitignored
+   working-notes directory, `.work/` unless the repository names another (with the `planning`
+   plugin installed, its artifact protocol, "Ownership and placement", owns the folder). The
+   mockup stays in its run directory.
 2. **Map item.** Only when the invocation names a map item (a `/planning:wayfind` prototype item),
-   also put those files and the mockup page in that item's folder on the map's dossier branch,
-   with the branch, folder and push as `/planning:wayfind` says under "Shared files". This push is not the evidence step's branch, which still
-   leaves the mockup out.
-3. **Check first.** Before that commit, run the repository's secrets and machine-data check over
-   every file in it, found as the [evidence step](../../../context/discipline.md#evidence-step)
-   finds it. Push only when it passes. When it fails or there is none, push nothing; the files stay
-   in the memory slice and your reply says `not pushed: <reason>`.
-4. **Real stack.** A real-stack shot may show real records: it stays in the memory slice and is
-   never pushed.
-5. **Cleanup.** When the session ends, run `stop` (step 7 of the first list). The run directory
+   first run the repository's secrets and machine-data check, found as the
+   [evidence step](../../../context/discipline.md#evidence-step) finds it, over every file the
+   commit would add: `prototype-notes.md`, the shots and the mockup page, less any real-stack shot,
+   which may show real records and is never pushed. Only when it passes, commit those files to that
+   item's folder on the map's dossier branch and push, with the branch, folder and push as
+   `/planning:wayfind` says under "Shared files". When it fails or there is none, or nothing names
+   the branch and the folder, push nothing: the files stay in the memory slice and your reply says
+   `not pushed: <reason>`. This branch is not the evidence step's, which still leaves the mockup
+   out.
+3. **Cleanup.** When the session ends, run `stop` (step 7 of the first list). The run directory
    (the mockup, `actions.json`, `replies.json`, `shots/`, the `relocate-<seq>.js` scripts) goes
-   only when SKILL.md step 5 carries out "When the exercise ends", after steps 1 to 3 here.
+   only when SKILL.md step 5 carries out "When the exercise ends", after steps 1 and 2 here.

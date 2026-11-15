@@ -62,6 +62,11 @@ holds the evidence only when the repository's own secrets and machine-data check
 files; otherwise nothing is pushed, and the note records where the files were and why they were not
 pushed.
 
+A fifth exception, to rule 6, for `/prototype:explore-directions`'s notes session on a named map
+item: the distilled notes, shots and mockup page can stay on the map's dossier branch, pushed only
+when the same check passed over them
+([reference/feedback.md](../skills/explore-directions/reference/feedback.md#where-a-notes-sessions-files-go)).
+
 ## Clean-state proof and check list
 
 `/prototype:pressure-test` and `/prototype:explore-directions` run this before they hand a
