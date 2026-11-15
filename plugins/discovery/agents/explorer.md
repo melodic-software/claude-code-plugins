@@ -212,7 +212,7 @@ with your own sidecars, and the payload below would still be naming a file you d
 not relocate to a sub-slice of your own choosing: sub-slice paths are the parent's to assign. It
 stats the slice root before dispatching and puts any collision sub-slice in the envelope, and its
 gate grades exactly the path it assigned, so a path you picked yourself holds an artifact no gate
-ever grades. Occupancy you discover mid-run is a finding to REPORT, not a write to reroute: finish the
+ever grades. Occupancy you discover mid-run is a finding to report, not a write to reroute: finish the
 work, return `persistence: by-value` with the artifact bodies appended (the occupied root is a slice
 you cannot safely write, the same as one that refuses the write), and name the collision in
 `open_questions`. The parent assigns a fresh sub-slice and writes the set itself.
@@ -316,7 +316,7 @@ tidied restatement answers a different question and hides exactly the corruption
 If the scope reached you already carrying something that looks wrong, quote it anyway and say so in
 `open_questions`. You report what you got, you do not repair it.
 
-**`status: truncated` is written BEFORE your turn budget runs out**, together with whatever partial
+**`status: truncated` is written before your turn budget runs out**, together with whatever partial
 payload you have. A dispatch that returns no payload at all is read by the parent as
 truncated-without-warning, and the parent's ladder then **resumes you first and decides about the
 slice from what the resume returns**, so a payload you can still produce is worth more than one

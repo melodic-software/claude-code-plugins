@@ -12,7 +12,7 @@ plain fetch is blocked by anti-bot protection or a page needs JS rendering.
 
 ## What it provides
 
-- **Ten CLI subcommands** routed through one skill, with a decision table for
+- **Fourteen CLI subcommands** routed through one skill, with a decision table for
   when to escalate from a plain fetch to a managed scrape and when NOT to
   spend Firecrawl credits at all.
 - **Write-to-disk pattern**. Examples for scrape/search/interact all land in
@@ -27,11 +27,11 @@ plain fetch is blocked by anti-bot protection or a page needs JS rendering.
 
 ## Revisit condition
 
-`parse` (local-file extraction) is one of the ten subcommands behind the single
+`parse` (local-file extraction) is one of the fourteen subcommands behind the single
 `/firecrawl:firecrawl` skill. Consolidation over per-subcommand proliferation.
 Split it into a dedicated `parse` skill only if local-file extraction discovery
 demonstrably fails under the general skill, or a non-credit extraction backend
-appears worth its own surface.
+appears worth its own skill.
 
 ## Requirements
 

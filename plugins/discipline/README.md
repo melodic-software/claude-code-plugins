@@ -356,7 +356,7 @@ context you were missing, talks in ASD-STE100 Simplified Technical English
 (short sentences, one meaning per word, technical terms exact), and uses the
 project's ubiquitous language, read through
 `/domain-driven-design:ubiquitous-language lookup` when installed, degrading
-silently when no glossary exists. Re-pitch means re-ground, not compress: it stays out of the batch
+silently when no glossary exists. Re-pitch means re-ground, not compress. It stays out of the batch
 sweep, and a shorter-but-blunter reply is the failure it exists to avoid.
 
 ```shell
@@ -446,9 +446,11 @@ of truth:
 
 ## Configuration
 
-No persistent state. Each skill reads the conversation and the consuming
-project's own instruction layer. `follow-our-standards` may fetch a remote
-standards source when the consumer declares one and no local checkout exists.
+The plugin keeps no state of its own, with two exceptions: `recheck-against-upstream`'s mid-run
+checkpoint to a durable topic-memory slice, when one exists, and the repository file
+`/discipline:setup apply` writes. Each skill reads the conversation and the consuming project's own
+instruction layer. `follow-our-standards` may fetch a remote standards source when the consumer
+declares one and no local checkout exists.
 
 The correctors themselves are zero-config. Three skills expose optional
 `userConfig` scalars. The `sweep-all` runbook adds three that

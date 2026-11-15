@@ -26,7 +26,7 @@ These values orient this session only; resolve files against the project root wh
 
 ## Workflow
 
-This skill builds the USER's knowledge, not the agent's: the deliverable is the user's
+This skill builds the user's knowledge, not the agent's: the deliverable is the user's
 understanding plus one improved implementation prompt, calibrated to their disclosed starting
 point rather than a fixed depth.
 
@@ -45,7 +45,7 @@ point rather than a fixed depth.
      a card type. Each axis becomes a prompt-fix line in the improved prompt, which the user keeps or
      deletes like any other fix. A criterion the user's framing never named may also appear as a
      **Missing concept** card.
-3. **Output**. Blindspot cards, then ONE improved implementation prompt assembled from their
+3. **Output**. Blindspot cards, then one improved implementation prompt assembled from their
    prompt-fix lines (Output format below).
 4. **Escalate when depth warranted**. A domain too deep for a lightweight ladder gets a
    recommendation to learn it in a structured way: `/education:teach topic <domain>` when it is
@@ -63,7 +63,7 @@ Present each blindspot as a card:
 - **Why it matters here**, the concrete consequence in this codebase or domain, not a generic caution.
 - **Prompt-fix**, a single copyable line the user can drop into their prompt to close the gap.
 
-Then assemble every prompt-fix into ONE improved implementation prompt, wrapped in clear
+Then assemble every prompt-fix into one improved implementation prompt, wrapped in clear
 copy-start / copy-end markers so the exact text to reuse is unambiguous.
 
 End with one scan-scope disclosure line: which lane(s) ran and what was and was not scanned (areas
@@ -97,7 +97,7 @@ steps 1, 2, 4 and 6 and its "Discovery: blindspot" section. The resolver above r
 
 This skill makes no changes and runs no open-ended external research: the domain lane fetches
 official docs only to ground the ladder and quality axes, and anything deeper routes to
-`/discovery:research`, invoked via the Skill tool. It does NOT write `EXPLORE.md`. When the scan's findings also serve
+`/discovery:research`, invoked via the Skill tool. It does not write `EXPLORE.md`. When the scan's findings also serve
 as stage-1 codebase exploration, offer to hand off to `/discovery:explore`, invoked via the Skill
 tool, to persist the `EXPLORE.md` artifact.
 
@@ -112,7 +112,7 @@ tool, to persist the `EXPLORE.md` artifact.
 - **Presenting training recall as domain fact**. The domain lane grounds its vocabulary ladder
   and quality axes, good-vs-bad examples included, in sources fetched this session (repo files,
   official docs).
-- **Surfacing the agent's gaps instead of the user's**. Cards name what the USER's framing missed,
+- **Surfacing the agent's gaps instead of the user's**. Cards name what the user's framing missed,
   calibrated to their intake disclosure, not a generic audit of the area.
 - **Generic cautions in "why it matters"**. Each card's consequence is concrete to this codebase or
   domain; a caution that would read the same in any repo is not a blindspot.

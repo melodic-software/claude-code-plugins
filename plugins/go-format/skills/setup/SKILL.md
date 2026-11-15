@@ -185,7 +185,7 @@ re-verifying. For everything else `apply` only points:
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Run the formatter. Editing any `.go` file exercises the hook end-to-end; `git commit`
   exercises the installed pre-commit entry.

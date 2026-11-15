@@ -116,7 +116,7 @@ never raises it: write the lower of the token and `${CLAUDE_EFFORT}`, and write 
 and trace-intent write neither line. A research worker that does not receive `Source breadth:`
 treats the run as `high` and names that default in the artifact, the same fallback as an
 unsubstituted body. Record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
-"`${CLAUDE_EFFORT}` is the loading context's level".
+"`${CLAUDE_EFFORT}` in a preloaded skill is the session's level".
 
 Write `Evidence use: publish` when the output will be quoted outside this session: a
 pull-request review reply, an issue, a design document, a message to a third party. Otherwise
@@ -255,10 +255,7 @@ one.
   for the analogue, see
   [skills: run skills in a subagent](https://code.claude.com/docs/en/skills#run-skills-in-a-subagent).
 
-**Re-check both pages before restating any mechanism here.** Through 0.14.0 this plugin asserted a
-specific empty-string rendering of the placeholder on the preload path as settled fact, at five
-sites plus a weaker sixth and in two evals files: the operational conclusion was right and the
-stated reason was never sourced.
+**Re-check both pages before restating any mechanism here.**
 
 ### A different question: `${CLAUDE_…}`-shaped text a *caller* supplies
 
@@ -368,8 +365,7 @@ plus a version bump, a price worth paying for an artifact several plugins read a
 stays here.
 
 **This is the single statement of where a dispatched agent may write.** All three agent definitions
-point here rather than restating it; three earlier restatements disagreed with each other about
-whether scratch was inside the boundary or outside it. The dispatched agents, including a
+point here rather than restating it. The dispatched agents, including a
 research deep-tier subagent, cannot ask, so any assumed destination is flagged in the return rather than
 silently adopted.
 

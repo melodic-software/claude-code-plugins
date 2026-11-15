@@ -78,7 +78,7 @@ unavailable command until `node` is installed or the plugin registration is disa
    analog: resolution is entirely `.gitattributes`-driven.
 5. **Consumer `.gitattributes` `eol=` policy.** Using the hook's own resolver
    (`git check-attr eol` anchored at the repo root), confirm whether any `eol=lf`/`eol=crlf`
-   rule governs paths the hook would touch. `check-attr` answers for ANY candidate path,
+   rule governs paths the hook would touch. `check-attr` answers for any candidate path,
    tracked or not. The hook normalizes a first write to a brand-new file the same as an
    edit to a tracked one, so probe representative candidate paths (or report the declared
    patterns), never a tracked-files listing that would miss untracked matches. Report what
@@ -121,7 +121,7 @@ tool, so `apply` installs nothing and writes nothing. It only points:
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Normalize any file. Editing a file exercises the hook end-to-end.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. Nor `.gitattributes`.
