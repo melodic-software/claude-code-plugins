@@ -13,7 +13,7 @@ const READ_WORKFLOW = `${WORKFLOWS}/pr-run-activity-read.yml`;
 // The one job of the read workflow that may name id-token. It runs no PR head
 // code, so it may only check out the default branch tip: by name, or as the
 // SHA an unconditional tip step before it resolves from this repository's refs.
-const CHECK_JOB = "broker-check";
+const CHECK_JOB = "check-broker";
 const TIP_REF = "${{ github.event.repository.default_branch }}";
 const TIP_STEP_REF = "${{ steps.tip.outputs.sha }}";
 const TIP_BRANCHES = new Set(["main", TIP_REF]);
@@ -333,7 +333,7 @@ function isTipCheckout(values, index) {
 }
 
 // The read workflow's shape: an empty top-level grant, an explicit
-// permissions map on every job, and a broker-check job made of steps whose
+// permissions map on every job, and a check-broker job made of steps whose
 // checkouts can only fetch this repository's default branch tip.
 function checkReadShape(file, doc, lineCounter) {
   const lineOf = (node) =>

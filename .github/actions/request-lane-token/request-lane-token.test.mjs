@@ -509,7 +509,7 @@ test("with kill-switch-ok, an allow still mints the token unchanged", () => {
   assert.doesNotMatch(run.output, /skip-reason/);
 });
 
-// The read file's broker-check: the broker's kill-switch refusal (run
+// The read file's check-broker: the broker's kill-switch refusal (run
 // 41576258964's 403) ends green as a stop with no allow, which the job reads
 // from `allowed`, never from the step's outcome.
 const CHECK = { MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "" };

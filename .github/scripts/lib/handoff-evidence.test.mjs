@@ -21,7 +21,7 @@ const answer = (status, headers = {}, body) =>
   [`HTTP/2.0 ${status}`, ...Object.entries(headers).map(([name, value]) => `${name}: ${value}`), "", body === undefined ? "" : JSON.stringify(body)].join("\r\n");
 const listing = (...jobs) => ({ total_count: jobs.length, jobs });
 
-const BROKER = { name: "Fix Docs / Broker Check", conclusion: "success", steps: [] };
+const BROKER = { name: "Fix Docs / Check Broker", conclusion: "success", steps: [] };
 // A report job the listing shows before its steps, then with them.
 const UNLISTED = { name: "Fix Docs / Report", conclusion: "success", steps: [] };
 const POSTED = { name: "Fix Docs / Report", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] };
@@ -105,8 +105,8 @@ test("a run started before the rename is read by its job ids", () => {
 
 // The broker allow job alone answers `allowed`; with it absent, the broker
 // check job answers through its broker step. Each is read under its name and
-// its id, current and planned.
-test("the broker jobs are read under their current and planned names and ids", () => {
+// its id, current and from before the rename.
+test("the broker jobs are read under their current and earlier names and ids", () => {
   const ask = [{ name: "Ask the broker whether the lane may run", conclusion: "success" }];
   for (const [check, allow] of [
     ["Fix Docs / Broker Check", "Fix Docs / Broker Allowed"],

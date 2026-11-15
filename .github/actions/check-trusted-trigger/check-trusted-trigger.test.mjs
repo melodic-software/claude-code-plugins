@@ -3212,7 +3212,7 @@ test("re-runner by id: app-label, a failed own-run read stops", async () => {
   assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
 });
 
-// work-resolve-issue.yml's admit job: require-pr false, require-kind human,
+// work-resolve-issue.yml's check-admission job: require-pr false, require-kind human,
 // app-label agent-ready and the lanes App id.
 test("re-runner by id: the admit inputs admit a listed human's or the App's agent-ready label", async () => {
   assert.deepEqual(await appLabel({ sender: KYLE, triggeringActor: "kyle-sexton", deniedActorIds: "" }), {

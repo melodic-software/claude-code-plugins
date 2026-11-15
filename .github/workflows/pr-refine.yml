@@ -534,7 +534,7 @@ jobs:
         with:
           tokens: github-token
 
-  # The key's credit-stop markers, read by the read runner's broker-check in
+  # The key's credit-stop markers, read by the read runner's check-broker in
   # later runs (each first call's key-credit-job). Each comes from a jobs-API
   # read of the call's run job (handoff-evidence.sh credit-stop), never from a
   # call's output. No job needs this one, so the read, which waits for the

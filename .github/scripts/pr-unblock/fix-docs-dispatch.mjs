@@ -44,7 +44,7 @@
 // on each head; refine-event-dispatch.mjs keeps none, so each event's run
 // starts from an empty one;
 // once `limit-stops-per-head` are kept, each one's status and jobs are read
-// through the Actions API, and a head with that many whose broker-allowed job
+// through the Actions API, and a head with that many whose record-broker-allow job
 // succeeded (which no run job can write: handoff-evidence.sh's allowed) goes
 // into the dispatch record with one `::warning::`, until a new push. For this
 // cap, a run the broker refused, or one a hold skipped, ended with no model
@@ -56,7 +56,8 @@ import { allLaneCommits, laneBranchIssue } from "../work-resolve-issue/report-ou
 import { isHandled, markHandled, emptyRecord, sendDispatch } from "./dispatch-record.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 
-// pr-run-activity-read.yml's broker-allowed job id, then its planned id.
+// pr-run-activity-read.yml's record-broker-allow job id: its id before the
+// rename, then its id.
 const ALLOW_JOBS = ["broker-allowed", "record-broker-allow"];
 
 export const DEFAULTS = Object.freeze({
@@ -75,8 +76,8 @@ export const DEFAULTS = Object.freeze({
   actionsAppId: 15368,
   // fix-docs's applies-when labels-absent (docs/conventions/pr-pipeline.yaml).
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
-  // pr-refine.yml's first fix-docs call's broker-allowed job, by its id and its
-  // planned id; the other legs run only after it succeeded.
+  // pr-refine.yml's first fix-docs call's record-broker-allow job, by its id
+  // and its id before the rename; the other legs run only after it succeeded.
   allowedJobs: Object.freeze(ALLOW_JOBS.map((id) => `fix-docs / ${id}`)),
   // fix-docs runs with a broker allow one head gets:
   // limits.limit-stops-per-head's default, which refine-event-dispatch.mjs passes resolved.
@@ -279,7 +280,7 @@ async function docsRunsEnded(runs, title, readRunJobs, activity, maxRuns) {
 }
 
 // What a fix-docs run (its status and the REST listing's latest jobs) shows:
-// "allowed" when its broker-allowed job succeeded, "done" when it ended
+// "allowed" when its record-broker-allow job succeeded, "done" when it ended
 // without that or is gone (null), else "going".
 export function docsRunState(run, allowedJobs = DEFAULTS.allowedJobs) {
   if (run === null) {

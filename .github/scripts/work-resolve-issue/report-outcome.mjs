@@ -110,7 +110,7 @@
 //             step, with no person: research-first and probe-first park at
 //             status: confirmed, and split-required goes back through intake,
 //             whose split files its sub-issues. No outcome file is read.
-//   outside  the admit job stopped the run because the issue's author is
+//   outside  the check-admission job stopped the run because the issue's author is
 //             neither a listed human nor the lanes App (DIMENSION_SKIP
 //             outside-author): comments that a listed human re-files the work
 //             as a new issue (once: a re-run finds its own comment) and
@@ -154,11 +154,11 @@
 //                       uploaded no outcome (see readScanRefusal)
 //   DIMENSION_SKIP      split-required, research-first or probe-first when
 //                       the issue dimensions skipped the run, or
-//                       outside-author when the admit job stopped it on the
+//                       outside-author when the check-admission job stopped it on the
 //                       issue's author (work-resolve-issue.yml report-skip),
 //                       or workflow-stale when a resolve-issue call stopped on
 //                       stale workflow files (resolve-issue-stale), else empty
-//   VERIFY_CLOSE        the admit job's verify-close output: a finished
+//   VERIFY_CLOSE        the check-admission job's verify-close output: a finished
 //                       parent's sub-issue numbers, comma-joined, each closed
 //                       as completed by a trusted close (check-blockers.mjs),
 //                       else empty. A verified-done stop closes only when the
@@ -880,13 +880,13 @@ export const DIMENSION_STEPS = {
 // that ran nothing, so prior() passes them over like a dimension skip.
 const RETIRED_SKIPS = new Set(["not-assessed"]);
 
-// The admit job's stop on an issue neither a listed human nor the lanes App
+// The check-admission job's stop on an issue neither a listed human nor the lanes App
 // wrote (check-blockers.mjs), which report-skip reports like a dimension skip.
 export const OUTSIDE_AUTHOR = "outside-author";
 // The stops that leave the queue for triage with no state of their own.
 const TRIAGE_AGAIN = new Set(["intake", "failed", OUTSIDE_AUTHOR]);
 
-// A run the admit job stopped on the issue's author: agent-ready comes off and
+// A run the check-admission job stopped on the issue's author: agent-ready comes off and
 // one comment says a listed human re-files the work. No label: re-adding
 // agent-ready stops again, and the issue's text is never quoted.
 function outsideAuthorPlan({ issueNumber, runUrl, runId }) {
@@ -2312,7 +2312,7 @@ async function finishStop(github, repo, plan, { bot, appId, humans, runId, limit
   }
   // A verified-done close: the run checked the issue's own done-when, and its
   // sub-issues, read fresh, are each closed as completed and among the
-  // admit job's trusted closes (VERIFY_CLOSE).
+  // check-admission job's trusted closes (VERIFY_CLOSE).
   const trustedSubs = new Set(String(verifyClose).split(",").filter((number) => /^[1-9][0-9]{0,9}$/.test(number)).map(Number));
   if (plan.action === "close" && plan.stop === "verified-done" && !(await parentDone(github, repo, plan.issueNumber, async (number) => trustedSubs.has(Number(number))))) {
     const why =

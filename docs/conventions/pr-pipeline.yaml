@@ -591,7 +591,7 @@ activities:
     # most 24) with one comment it
     # edits, never needs-human (a run the token broker refused for the lanes
     # kill switch re-fires on its own count and never spends that once, on the
-    # first sweep after the switch clears when broker-check stopped it before
+    # first sweep after the switch clears when check-broker stopped it before
     # any model turn); and
     # it hands an agent-ready issue whose
     # lanes-App PR merged with `Refs:` or closed unmerged back to intake
@@ -1232,7 +1232,7 @@ limits:
   # decision Q109).
   refire-queue-per-slot: 2
   # A work-resolve-issue run still `queued` this many minutes after it was
-  # created is not counted toward that room. The admit job runs on a
+  # created is not counted toward that room. The check-admission job runs on a
   # GitHub-hosted runner and the slot wait comes after it, so a healthy run
   # leaves `queued` within minutes; one that stays is lost and never starts,
   # and counting it would hold the room at 0. Nor does a reopened fix issue's
