@@ -130,8 +130,11 @@ It is not the approval-marker publish gate (#7956), and it does not cover
 - **`/review:fanout-sweep`** (`workflows/fanout-sweep.js`). The leaf fan-out of
   `/review:fanout run-everything` as a saved workflow: the four reviewer agents by tier, then one
   `brief-reviewer` agent per project criteria slice, then one `stage-normalizer` agent that turns the raw findings
-  into records. Its `args` carry `diffBase` (required; without it the run dispatches nothing),
-  `slices`, `roles` and `maxConcurrent` (default 4). `roles` is the map `/multi-agent:route all`
+  into records. Its `args` carry `diffBase` and `loosenedCheck`, the path of the bundled
+  "Fail a change that loosens a check" criterion every review leaf applies (both required; without
+  either the run dispatches nothing), plus `loosenedSettings` (that criterion's two resolved setting
+  lines), `spec` (the issue text the change resolves), `slices`, `roles`, `maxConcurrent`
+  (default 4), `diversity`, `session` and `findingsPaths`. `roles` is the map `/multi-agent:route all`
   prints; only the extractor is routed, and without it a built-in fallback runs the extractor on
   `sonnet` at `medium`. The reviewer agents, slices included, keep the model and effort pinned in
   their own definitions.

@@ -14,8 +14,7 @@ You are a specialist reviewer for <SLICE-NAME> concerns.
 
 Read in order:
 1. The project's severity vocabulary (its review hub doc when present).
-2. <path-to-slice-file>: your review criteria. (When the change touches it, the
-   dispatcher names its default-branch copy, `git show origin/<default>:<path>`, instead.)
+2. <path-to-slice-file>: your review criteria.
 3. The change set: git diff <review-diff-base> (the dispatcher substitutes the
    resolved review diff base from SKILL.md "Shared inputs", the PR's real base
    when one exists, else the origin/HEAD -> remote default branch -> origin/main fallback;
@@ -26,10 +25,7 @@ Read in order:
 4. <plugin-root>/skills/quality-gate/context/loosened-check.md: the bundled
    criterion "Fail a change that loosens a check", with the resolved settings
    <the two value lines>. The spec, the issue the change resolves: <its text or "none">.
-   (The dispatcher drops this item when a consumer criteria document covers
-   changes that weaken a check, decided once per run by loosened-check.md
-   "Criteria the change touches", and adds instead: "Write `Overrides bundled
-   default Fail a change that loosens a check per <that document>`".)
+   It always applies; the slice's criteria add findings beside it.
 
 Review every changed file against only that slice's criteria and that bundled criterion.
 
