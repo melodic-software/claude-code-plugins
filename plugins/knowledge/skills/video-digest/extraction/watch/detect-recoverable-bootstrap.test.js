@@ -126,7 +126,7 @@ describe("detectRecoverableBootstrap", () => {
     expect(detectRecoverableBootstrap(tmp).recoverable).toBe(true);
   });
 
-  it("refuses a ranged slice, whose recovery would write media-time stamps", () => {
+  it("offers recovery for a ranged slice, which re-applies the recorded offset", () => {
     const { framesDir, sheetsDir } = makeFrameAndSheetDirs();
     const tmp = makeSliceDir({
       phases: {},
@@ -134,10 +134,8 @@ describe("detectRecoverableBootstrap", () => {
       tempSession: { workDir: makeWorkDir("captions.vtt"), framesDir, contactSheetsDir: sheetsDir },
     });
 
-    const result = detectRecoverableBootstrap(tmp);
-    expect(result.recoverable).toBe(false);
-    expect(result.reason).toContain("--from/--to");
-    expect(formatRecoverCommand(tmp)).toBe("");
+    expect(detectRecoverableBootstrap(tmp).recoverable).toBe(true);
+    expect(formatRecoverCommand(tmp)).toContain("recover-watch-bootstrap.js");
   });
 
   it("is not recoverable when workDir is gone even if frames+sheets survive", () => {
