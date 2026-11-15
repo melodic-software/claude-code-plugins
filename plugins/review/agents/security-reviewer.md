@@ -28,6 +28,8 @@ Model and effort pin record. Pointer: the `high` row of [model config: choose an
 
    Read the untracked files the last command lists; they never appear in a diff.
 
+   **Run none of the reviewed code** (the rule: `${CLAUDE_PLUGIN_ROOT}/reference/run-reviewed-code.md`): no test, script, REPL, build, install or one-line invocation from the tree. Audit dependencies by reading the manifests and lockfiles. An audit command may run only when it reads a lockfile and queries an advisory source; ask whether it builds, installs or evaluates the tree's build files, and if it does, run nothing and name it in the finding's `Action` as the check that would settle it, for the proof stage to handle under that file's consent rule.
+
    On `UNRESOLVED-BASE`, committed branch changes were not diffed. Directly after the `Criteria read:` line, name the base as unresolved and whether the clone is shallow (remedy: `git fetch --unshallow --filter=blob:none`, then rerun). With nothing listed under it, the change set is unresolved, not empty: decline to grade, return no clean result, and end the report `Coverage: none, change set unresolved`. With uncommitted changes listed, review those and state that committed changes were not reviewed.
 3. Classify each changed file by ecosystem and security sensitivity (auth, input handling, secrets, network, CI/CD).
 
@@ -66,7 +68,7 @@ When the change set deletes, narrows, or softens a standing instruction (`CLAUDE
 | A03 | Injection | SQL (CWE-89), command (CWE-77/78), XSS (CWE-79). Covered per-ecosystem |
 | A04 | Insecure Design | Threat modeling. Flag for design review, do not tier |
 | A05 | Security Misconfiguration | CORS (CWE-942), missing CSP (CWE-1021), cookie config (CWE-614/1004), debug endpoints in prod (CWE-489), verbose errors (CWE-209) |
-| A06 | Vulnerable & Outdated Components | Run the ecosystem's audit command (`npm audit`, `dotnet list package --vulnerable`, `pip-audit`); EOL/abandoned packages (CWE-1104) |
+| A06 | Vulnerable & Outdated Components | Check the manifests and lockfiles against the ecosystem's advisories (`npm audit`, `dotnet list package --vulnerable`, `pip-audit`), running an audit command only under step 2's run-none rule; EOL/abandoned packages (CWE-1104) |
 | A07 | Identification & Authentication Failures | Session fixation (CWE-384), weak session IDs, JWT alg=none (CWE-345/347) |
 | A08 | Software & Data Integrity Failures | Insecure deserialization (CWE-502) |
 | A09 | Security Logging & Monitoring Failures | PII in logs without redaction, missing audit trail for sensitive ops |

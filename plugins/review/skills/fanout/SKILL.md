@@ -187,10 +187,10 @@ the report.
 
 **Dismissed.** The report gains a `## Dismissed` section after `## By axis`: one line per
 finding this step demoted, giving its rank, its location and the reason in one sentence taken from
-what the cited line shows, or, for a Stage 5 demotion, `not reproduced (<label>): <basis>` as
-Stage 5 words it. A finding demoted by both keeps one line carrying both reasons. The finding itself stays in `## Findings` at its demoted confidence. The
+what the cited line shows, or, for a Stage 5 demotion, the `not reproduced` reason Stage 5 words. A finding demoted by both keeps one line carrying both reasons. The finding itself stays in `## Findings` at its demoted confidence. The
 section lists demotions only; no finding leaves the report, so nothing is listed as dropped. With
-no demotion, the section reads `none`. The fix action does not parse it.
+no demotion, the section reads `none`. The fix action parses it and surfaces every listed row
+instead of applying it, so each line leads with `- <rank>, <location>:`.
 
 When a surface returns after findings were presented for a decision and before the user answers,
 the next message that presents findings ends with every open finding in full:

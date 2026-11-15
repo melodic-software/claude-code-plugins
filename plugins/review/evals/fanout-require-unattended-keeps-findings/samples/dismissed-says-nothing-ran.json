@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/orders-export/20261115T120000Z-orders-export.md",
+            "content": "---\ntype: review-findings\n---\n\nNothing could be checked: this run was unattended, so no finding was reproduced (1 checks proposed, none run). This is not a clean review.\n\n## Findings\n\n| 1 | IMPORTANT | low | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n## Dismissed\n\n- 1, src/calendar.js:2: not reproduced: unattended run, nothing ran\n\n## Surfaces\n\nRan: [code-reviewer].\n"
+          }
+        }
+      ],
+      "why": "the Dismissed line carries the unattended reason word for word"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/orders-export/20261115T120000Z-orders-export.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| 1 | IMPORTANT | low | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n## Dismissed\n\n- 1, src/calendar.js:2: not reproduced (verified-by-reading): proposed check `npm test` not run.\n\n## Surfaces\n\nRan: [code-reviewer].\n"
+          }
+        }
+      ],
+      "why": "the attended, labeled reason in an unattended run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/orders-export/20261115T120000Z-orders-export.md",
+            "content": "---\ntype: review-findings\n---\n\n## Findings\n\n| 1 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n## Dismissed\n\nnone\n\n## Surfaces\n\nRan: [code-reviewer].\n\nnot reproduced: unattended run, nothing ran\n"
+          }
+        }
+      ],
+      "why": "the string appears after ## Dismissed's section has ended"
+    }
+  ]
+}

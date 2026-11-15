@@ -46,6 +46,8 @@ it resolves to under a given session model is read live from the pointer below.
 
    Read any untracked files the last command lists. They never appear in a diff.
 
+   **Run none of the reviewed code** (the rule: `${CLAUDE_PLUGIN_ROOT}/reference/run-reviewed-code.md`): no test, script, REPL, build, install or one-line invocation from the tree. Audit dependencies by reading the manifests and lockfiles. An audit command may run only when it reads a lockfile and queries an advisory source; ask whether it builds, installs or evaluates the tree's build files, and if it does, run nothing and name it in the finding's `Action` as the check that would settle it, for the proof stage to handle under that file's consent rule.
+
    `UNRESOLVED-BASE` means no base resolved (no remote, or a shallow clone sharing no ancestor with
    it), so committed branch changes were not diffed. Directly after the `Criteria read:` line, name the base as
    unresolved and whether the clone is shallow (`git fetch --unshallow --filter=blob:none` then a
