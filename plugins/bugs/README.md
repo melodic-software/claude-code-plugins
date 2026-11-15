@@ -187,7 +187,7 @@ Let `gh` prompt for the title interactively. On a repository without native Issu
 `--type Bug` and add a `type: bug` label instead. When checking what `--type` takes, fetch
 [gh issue create: Options](https://cli.github.com/manual/gh_issue_create#options) live. If filing
 non-interactively, never paste the reporter's title text into the command string. Write it to a file and pass
-`--title "$(cat <title-file>)"`: the substitution result is a quoted argument value and
+`--title "$(cat <title-file>)"`. The substitution result is a quoted argument value and
 is not re-parsed, so backticks or `$( )` in reporter text cannot execute.
 
 If a work-item tracker MCP tool is available, the skill can hand off to that instead.

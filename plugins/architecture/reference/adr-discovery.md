@@ -55,7 +55,7 @@ duplicate is a fact about the repository's history.
 
 ## Inference: shape
 
-An explicit template or a directory README wins: it states the intended shape. Absent one, read the
+An explicit template or a directory README wins, because it states the intended shape. Absent one, read the
 newest two or three records and follow them.
 
 On disagreement between them, follow the newest and say so, rather than averaging shapes into a

@@ -2,8 +2,8 @@
 
 The architecture `map-*` skills' team configuration surface: a natural-language **topic doc at the
 consumer's convention home**, bound by the pointer line the consuming marketplace's config-cascade
-expression doctrine defines. Zero config is not a working state for this surface: `architecture_dir`
-has no default, because a plugin guessing where a repository keeps its architecture artifacts would
+expression doctrine defines. Zero config is not a working state for this surface, because `architecture_dir`
+has no default and a plugin guessing where a repository keeps its architecture artifacts would
 write two files into a directory nobody asked for. The `record-decision` keys use a separate
 surface, [Decision-record keys](#decision-record-keys).
 

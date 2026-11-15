@@ -14,10 +14,10 @@ Two shapes, and neither announces itself as a failure:
   the stated work never happens and the run reports as finished.
 - **A turn that stops to ask for permission the pipeline already granted.** The model has
   everything it needs to proceed and asks anyway. The cost is not one wasted cycle: the question
-  reaches no reader, so the lane sits until a timeout retires it.
+  reaches no reader, so the run waits until a timeout ends it.
 
 Both are *stopping* failures rather than *doing* failures, which is why review catches them late.
-The artifact a run leaves behind looks reasonable; only the absent effect gives it away.
+The artifact a run leaves behind looks reasonable, and the only evidence of the failure is the tool call or change that never happened.
 
 ## The reminder
 

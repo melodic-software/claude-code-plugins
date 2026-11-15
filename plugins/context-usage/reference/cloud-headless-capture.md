@@ -100,7 +100,7 @@ probe and never created `~/.claude/context-usage/` at all.
 
 The `.compacted` marker in that directory was written by `hooks/post-compact-mark.sh` during an
 auto-compaction of that session, which proves **plugin hooks do run in this environment**. The
-status line was the only context-usage writer silent in cloud. The hook layer is alive. That
+status line was the only context-usage writer silent in cloud. That
 is why hook stdin was the first channel checked, and why its field set is the decisive negative
 result for a settings hook rather than an assumption.
 
