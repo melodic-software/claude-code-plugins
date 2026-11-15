@@ -8,9 +8,9 @@
 # <subscription>-handoff job before its third call.
 #
 # Facts, each over the calls in CALLS (true when any call holds it):
-#   allowed  the call's broker-allowed job succeeded: pr-run-activity-read.yml
-#            runs it only on broker-check's allow, which no run job can write.
-#            A failed or skipped broker-check is false at once.
+#   allowed  the call's record-broker-allow job succeeded: pr-run-activity-read.yml
+#            runs it only on check-broker's allow, which no run job can write.
+#            A failed or skipped check-broker is false at once.
 #   posted   the call's report job posted its check. A skipped or absent
 #            report job (a handoff, forged or not) is false at once; a report
 #            that ran answers through its "Post the check run" step, and one
@@ -33,8 +33,8 @@
 # unsettled. HANDOFF_EVIDENCE_DELAYS (seconds, default "15 30 60 90 120") caps each
 # wait: full jitter draws it from 0 to its cap. Reads then go on at the last cap
 # until the waits sum to the caps' sum, about five minutes, the lag this exists
-# for, so at worst about seven minutes and at most max_reads reads. A broker-check
-# whose broker-allowed job is absent or neither succeeded nor skipped answers
+# for, so at worst about seven minutes and at most max_reads reads. A check-broker
+# whose record-broker-allow job is absent or neither succeeded nor skipped answers
 # through its broker step the same way.
 #
 # The listing is read a page at a time. A read after the first sends each page
@@ -97,11 +97,11 @@ max_reads=12
 # "fact<TAB>value".
 # shellcheck disable=SC2016 # a jq program, not a shell expansion
 # A call's job is listed by its display name, the call's id and the callee's
-# job id each in Title Case (`fix-ci / broker-check` shows as
-# `Fix CI / Broker Check`), else by those ids: a run started before the
+# job id each in Title Case (`fix-ci / check-broker` shows as
+# `Fix CI / Check Broker`), else by those ids: a run started before the
 # rename, which this script, read from the default branch tip, can still read.
-# The broker jobs are read under their ids and their planned ids
-# (`check-broker`, `record-broker-allow`).
+# The broker jobs are read under their ids and the ids they had before their
+# rename (`broker-check`, `broker-allowed`).
 settle='
   . as $jobs
   | def titled($id): $id | split("-") | map(if . == "ci" then "CI" else (.[:1] | ascii_upcase) + .[1:] end) | join(" ");

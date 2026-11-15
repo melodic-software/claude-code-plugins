@@ -46,7 +46,7 @@ name: Work Unblock
 # slot past a lane workflow change and stopped at `Stop on stale workflow
 # files` (its own report-outcome re-fires it at once, until its mint is refused
 # or limits.limit-stops-per-issue re-fires; then this sweep does), or a run
-# cancelled after admit and before resolve-issue started (pick-slot's timeout); a
+# cancelled after check-admission and before resolve-issue started (pick-slot's timeout); a
 # run a newer agent-ready run replaced is not. It does that once per issue
 # per version of the lane's two workflow files on main, recorded in a comment,
 # and after that on a backoff (its cause's limits.stranded-backoff-hours,

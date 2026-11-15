@@ -181,8 +181,8 @@ jobs:
   # (check-kill-switch), and a failed job leaves proceed empty, which also
   # stops intake and the floor label. It runs on a reopened issue too, for the
   # floor label.
-  kill-switch:
-    name: Kill Switch
+  check-kill-switch:
+    name: Check Kill Switch
     if: github.event_name == 'issues' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -257,8 +257,8 @@ jobs:
   # limit on its read stops the label and its calls with the same token.
   intake-label-needs-triage:
     name: Intake Label Needs Triage
-    needs: [kill-switch, check-born-triaged]
-    if: ${{ !cancelled() && github.event_name == 'issues' && needs.kill-switch.outputs.proceed == 'true' && needs.check-born-triaged.outputs.rate-limited != 'true' && needs.check-born-triaged.outputs.skip != 'true' }}
+    needs: [check-kill-switch, check-born-triaged]
+    if: ${{ !cancelled() && github.event_name == 'issues' && needs.check-kill-switch.outputs.proceed == 'true' && needs.check-born-triaged.outputs.rate-limited != 'true' && needs.check-born-triaged.outputs.skip != 'true' }}
     permissions:
       issues: write # passed to the reusable, which reads and adds issue labels
     uses: melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@main
@@ -272,12 +272,12 @@ jobs:
   # a dispatch too. A reopened issue gets no triage, only the floor label.
   intake-triage:
     name: Intake Triage
-    needs: [check-born-triaged, kill-switch]
+    needs: [check-born-triaged, check-kill-switch]
     if: >-
       ${{ !cancelled()
       && (github.event_name == 'workflow_dispatch' || github.event.action == 'opened')
-      && needs.kill-switch.outputs.proceed == 'true'
-      && needs.kill-switch.outputs.upstream-degraded != 'true'
+      && needs.check-kill-switch.outputs.proceed == 'true'
+      && needs.check-kill-switch.outputs.upstream-degraded != 'true'
       && needs.check-born-triaged.outputs.rate-limited != 'true'
       && needs.check-born-triaged.outputs.skip != 'true'
       && needs.check-born-triaged.outputs.claude-args != '' }}

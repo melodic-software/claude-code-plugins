@@ -834,7 +834,7 @@ test("a resume with a malformed tip, branch or cause, or an unreadable compariso
   assert.equal(issue, null);
 });
 
-// Defense in depth behind the admit job's outside-author stop: an issue
+// Defense in depth behind the check-admission job's outside-author stop: an issue
 // neither a listed human nor the lanes App wrote never reaches the model.
 test("an issue neither a listed human nor the lanes App wrote fails the run and writes no file", async () => {
   for (const user of [{ id: 999, login: "stranger" }, undefined]) {
