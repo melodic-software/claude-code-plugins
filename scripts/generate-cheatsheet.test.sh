@@ -50,8 +50,22 @@ write_skill() {
   } >"$dir/plugins/$plugin/skills/$skill/SKILL.md"
 }
 
+# write_steps <dir> [task-kind rows...]: the fixture spine, one stage heading
+# plus a Task kinds table holding the given rows (no table when none given).
+write_steps() {
+  local dir="$1"
+  shift
+  {
+    printf '## 3. Plan (fixture spine)\n'
+    if (($# > 0)); then
+      printf '\n## Task kinds\n\n| Kind | Stages, in order | Skips | Why |\n| --- | --- | --- | --- |\n'
+      printf '%s\n' "$@"
+    fi
+  } >"$dir/plugins/session-flow/skills/workflow/context/steps.md"
+}
+
 # mk_tree — baseline green fixture: one mapped skill, one rule-excluded setup
-# skill, one operator skill; single-stage spine.
+# skill, one operator skill; single-stage spine with one task kind.
 mk_tree() { # <out-var>
   local dir
   fixture_tree::build "$1" || return 1
@@ -76,8 +90,7 @@ EOF
   ]
 }
 EOF
-  printf '## 3. Plan (fixture spine)\n' \
-    >"$dir/plugins/session-flow/skills/workflow/context/steps.md"
+  write_steps "$dir" '| Fixture kind | Plan | None | fixture reason |'
   printf '# Skill cheat sheet (fixture)\n\n<!-- cheatsheet:start -->\n<!-- cheatsheet:end -->\n' \
     >"$dir/docs/skill-cheat-sheet.md"
   write_skill "$dir" alpha mapped \
@@ -297,26 +310,26 @@ write_rich_skill "$tree" alpha single \
 run_gen "$tree"
 if [[ "$CODE" -eq 0 ]]; then ok "skills with argument-hint and ## Next generate"; else fail "rich fixture (exit=$CODE: $OUT)"; fi
 row="$(row_of "$tree" alpha:hinted)"
-if [[ "$row" == *"| \`audit\`, \`fix\`, \`sweep\` | \`/beta:looper\`, \`/alpha:mapped\` |" ]]; then
-  ok "Actions are the first group's action words; Next follows the bullet shape in order"
+if [[ "$row" == *"| \`audit\`, \`fix\`, \`sweep\` | \`[audit\\|fix [<file>:<line>]\\|sweep --all\\|<target>\\|this branch] [--json]\` |  | \`/beta:looper\`, \`/alpha:mapped\` |" ]]; then
+  ok "Actions are the first group's action words; Arguments is the whole hint, pipes escaped; Next follows the bullet shape in order"
 else
   fail "hinted row: $row"
 fi
 row="$(row_of "$tree" alpha:single)"
-if [[ "$row" == *"Fixture row for single |  | \`/alpha:hinted\` |" ]]; then
+if [[ "$row" == *"Fixture row for single |  | \`[topic]\` |  | \`/alpha:hinted\` |" ]]; then
   ok "a hint with no choice of actions renders an empty Actions cell; Next reads the one-line shape"
 else
   fail "single row: $row"
 fi
 row="$(row_of "$tree" alpha:mapped)"
-if [[ "$row" == *"Fixture skill mapped to the plan stage |  |  |" ]]; then
+if [[ "$row" == *"Fixture skill mapped to the plan stage |  |  |  |  |" ]]; then
   ok "no argument-hint and no ## Next render empty cells"
 else
   fail "mapped row: $row"
 fi
 row="$(row_of "$tree" beta:looper)"
-if [[ "$row" == *"| continuous | Fixture operator skill with a cadence |  |  |" ]]; then
-  ok "operator rows carry the Actions and Next columns after the cadence"
+if [[ "$row" == *"| continuous | Fixture operator skill with a cadence |  |  |  |  |" ]]; then
+  ok "operator rows carry the Actions, Arguments, Upstream and Next columns after the cadence"
 else
   fail "looper row: $row"
 fi
@@ -332,27 +345,27 @@ write_rich_skill "$tree" alpha switched \
   'argument-hint: "[--ledger|--tools T1,T2|fix] [--unattended]"' ""
 run_gen "$tree"
 row="$(row_of "$tree" alpha:flagged)"
-if [[ "$CODE" -eq 0 && "$row" == *"Fixture row for flagged |  |  |" ]]; then
+if [[ "$CODE" -eq 0 && "$row" == *"Fixture row for flagged |  | \`[--output change-prep\\|explain] [scope]\` |"* ]]; then
   ok "a first group led by a flag and its value yields no actions (its value choices are not actions)"
 else
   fail "flagged row (exit=$CODE: $OUT; row: $row)"
 fi
 for skill in angled squared; do
   row="$(row_of "$tree" "alpha:$skill")"
-  if [[ "$row" == *"Fixture row for $skill | \`role\`, \`all\` |  |" ]]; then
+  if [[ "$row" == *"Fixture row for $skill | \`role\`, \`all\` |"* ]]; then
     ok "a first group's choices are actions in $skill brackets"
   else
     fail "$skill row: $row"
   fi
 done
 row="$(row_of "$tree" alpha:marked)"
-if [[ "$row" == *"Fixture row for marked | \`all\` |  |" ]]; then
+if [[ "$row" == *"Fixture row for marked | \`all\` |"* ]]; then
   ok "a <name> placeholder among the choices is not an action"
 else
   fail "marked row: $row"
 fi
 row="$(row_of "$tree" alpha:switched)"
-if [[ "$row" == *"Fixture row for switched | \`fix\` |  |" ]]; then
+if [[ "$row" == *"Fixture row for switched | \`fix\` |"* ]]; then
   ok "a first group whose first choice is a bare flag still yields its action words"
 else
   fail "switched row: $row"
@@ -364,12 +377,80 @@ write_rich_skill "$tree" alpha hinted "" \
   "$(printf '## Next\n\n/alpha:ghost <topic>.')"
 run_gen "$tree"
 row="$(row_of "$tree" alpha:hinted)"
-if [[ "$CODE" -eq 0 && "$row" == *"|  | \`/alpha:ghost\` |" ]]; then
+if [[ "$CODE" -eq 0 && "$row" == *"|  |  |  | \`/alpha:ghost\` |" ]]; then
   ok "a ## Next naming a skill not in the tree renders as written (check-next-graph.py owns that failure)"
 else
   fail "ghost successor (exit=$CODE: $OUT; row: $row)"
 fi
 rm -rf "$tree"
+
+# --- task kinds: the by-kind view joins steps.md's Task kinds table ---------------
+mk_tree tree
+run_gen "$tree"
+sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
+if [[ "$CODE" -eq 0 && "$sheet" == *"- [By kind of task](#by-kind-of-task)"* &&
+  "$sheet" == *"| Fixture kind | [Plan](#3-plan) | None | fixture reason |"* ]]; then
+  ok "the by-kind table renders each kind's stages linked to their stage tables"
+else
+  fail "by-kind table (exit=$CODE: $OUT)"
+fi
+rm -rf "$tree"
+
+mk_tree tree
+write_steps "$tree" '| Fixture kind | Plan | None | fixture reason |' \
+  '| Bad kind | Plan, Blueprint | None | names a stage that does not exist |'
+assert_fails "a task kind naming a stage steps.md does not define fails naming the kind and the stage" "$tree" \
+  'task kinds: "Bad kind" names stage "Blueprint", which steps.md does not define'
+
+mk_tree tree
+write_steps "$tree" '| Bad skip | Plan | Blueprint | skips a stage that does not exist |'
+assert_fails "a task kind skipping an unknown stage fails naming it" "$tree" \
+  'task kinds: "Bad skip" names stage "Blueprint", which steps.md does not define'
+
+mk_tree tree
+write_steps "$tree"
+assert_fails "a steps.md with no Task kinds table fails" "$tree" \
+  "has no Task kinds table"
+
+# --- upstream equivalents: link the record's attribution table -----------------
+mk_tree tree
+mkdir -p "$tree/docs/upstream"
+cat >"$tree/docs/upstream/fixture-upstream.md" <<'EOF'
+# Upstream source: fixture
+
+## Attribution table
+
+| Upstream | Ours | Relation |
+|---|---|---|
+| [`why`](https://example.com/why) | [`alpha:mapped`](../../plugins/alpha/skills/mapped/SKILL.md) | Derived |
+| `ghosted` rounds | `alpha:ghost`, `review:code-reviewer` | Partial |
+
+## Not adopted
+
+| Upstream | Ours |
+|---|---|
+| `skipped` | `beta:looper` |
+EOF
+cat >>"$tree/scripts/cheatsheet-config.mjs" <<'EOF'
+export const UPSTREAM_RECORDS = [{ path: "docs/upstream/fixture-upstream.md", label: "fixture" }];
+EOF
+run_gen "$tree"
+row="$(row_of "$tree" alpha:mapped)"
+looper="$(row_of "$tree" beta:looper)"
+if [[ "$CODE" -eq 0 && "$row" == *"| [fixture \`why\`](upstream/fixture-upstream.md#attribution-table) |"* &&
+  "$looper" != *"skipped"* ]]; then
+  ok "a skill an upstream attribution row lists links that record's table; Not adopted rows are not read"
+else
+  fail "upstream column (exit=$CODE: $OUT; row: $row; looper: $looper)"
+fi
+rm -rf "$tree"
+
+mk_tree tree
+cat >>"$tree/scripts/cheatsheet-config.mjs" <<'EOF'
+export const UPSTREAM_RECORDS = [{ path: "docs/upstream/missing.md", label: "missing" }];
+EOF
+assert_fails "an upstream record with no attribution table fails naming it" "$tree" \
+  "upstream record docs/upstream/missing.md has no ## Attribution table"
 
 # --- spine drift ----------------------------------------------------------------
 mk_tree tree

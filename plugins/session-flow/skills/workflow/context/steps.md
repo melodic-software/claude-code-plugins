@@ -4,11 +4,10 @@ The staged development workflow, including its optional and conditional stages. 
 repo defines a skill for a stage, invoke it; otherwise execute the stage inline per its definition
 here. A conditional stage runs only when its trigger holds; otherwise it is skipped and marked SKIPPED, with the reason, on its checklist box.
 
-These definitions govern the full path. A change whose diff is quick to review and cheap to retry
-takes the quick-change on-ramp (SKILL.md "On-ramps") instead: it enters at stage 8, where reading
-the code it needs is part of implement, and returns to stage 1 if its diff turns out not to be
-quick to review. A diff that adds types, public contracts, or module boundaries is not cheap to
-retry and takes the full path. New work whose diff fails either test enters at stage 1, the
+These definitions govern the full path. Which stages each kind of task enters, in what order, and
+which it skips is stated once, in [Task kinds](#task-kinds) at the end of this file. A diff that
+adds types, public contracts, or module boundaries is not cheap to retry and takes the full path.
+New work whose diff fails either quick-change test (SKILL.md "On-ramps") enters at stage 1, the
 interview, which calls stages 2-4 as detours when a question needs them.
 
 **The level each stage decides.** The interview decides behavior (the Brief), design decides
@@ -224,3 +223,21 @@ across sessions are `/session-flow:audit-sessions trends`.
 
 Prep (review + verify evidence) → create → monitor CI → address review findings → merge. Standalone
 sequence, not a numbered stage. See `context/pre-pr.md` for the ordered gate checklist.
+
+## Task kinds
+
+The stages each kind of task enters, in order, and the stages it skips. This table is the one
+place that mapping is stated; it names stages, never skills, because which skill runs a stage is
+the consuming repo's choice. A stage is named by its heading above without the number and without
+anything after a colon or a parenthesis. A conditional stage listed here still runs only on its
+trigger, and a skipped stage is marked SKIPPED with this row's reason. The retrospective is
+optional after any kind.
+
+| Kind | Stages, in order | Skips | Why |
+| --- | --- | --- | --- |
+| Small fix | Implement, Test, Review, Verify outcome, Ship | Interview, Explore, Research, PRD, Design, Plan, Decompose | The quick-change on-ramp: the diff is quick to review and cheap to retry, so reading the code it needs is part of implement; a diff that turns out not to be quick to review goes back to the interview |
+| Bug | Explore, Implement, Test, Review, Verify outcome, Ship | Interview, Research, PRD, Design, Plan, Decompose | Observed breakage is diagnosed first, from what the code does now, and rejoins at implement with the root cause in hand; an already-diagnosed, agent-ready item starts at implement |
+| Feature | Interview, Explore, Research, PRD, Design, Plan, Decompose, Implement, Test, Review, Verify outcome, Ship | None | The full path |
+| Refactor | Interview, Explore, Research, Design, Plan, Decompose, Implement, Test, Review, Verify outcome, Ship | PRD | Engineering-internal work, which the PRD's skip conditions name |
+| UI change | Interview, Explore, Research, PRD, Design, Plan, Decompose, Implement, Test, Review, Verify outcome, Ship | None | The full path; design starts from the flow and the screens, and review adds an interface review |
+| Release | Verify outcome, Ship | Interview, Explore, Research, PRD, Design, Plan, Decompose, Implement, Test, Review | The changes being released went through their own stages; what is left is proving the release candidate and shipping it |

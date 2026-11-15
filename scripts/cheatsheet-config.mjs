@@ -1,8 +1,10 @@
 // Hand-curated grouping layer for the generated skill cheat sheet
-// (docs/skill-cheat-sheet.md). Owns exactly three things: the stage/group
-// vocabulary and order, the exclusion entries, and the shared summary guard.
-// Per-skill detail (stage, summary, cadence) lives in each SKILL.md's
-// `metadata:` frontmatter, never here.
+// (docs/skill-cheat-sheet.md). Owns the stage/group vocabulary and order, the
+// exclusion entries, the review map, the upstream records read for equivalents,
+// and the shared summary guard. Per-skill detail (stage, summary, cadence,
+// arguments) lives in each SKILL.md's frontmatter, and which stages each kind
+// of task enters lives in the workflow skill's steps.md Task kinds table, never
+// here.
 
 // Workflow-stage headings mirror the H2 headings in
 // plugins/session-flow/skills/workflow/context/steps.md (the generator's
@@ -178,6 +180,14 @@ export const REVIEW_PR_MAP = [
     posts: "no",
     basis: "places a finished video in a pull request",
   },
+];
+
+// Upstream records whose "## Attribution table" names our skills. A skill a
+// row's Ours column lists gets that table linked in its Upstream cell, named by
+// the row's upstream skill; the record's text is never copied.
+export const UPSTREAM_RECORDS = [
+  { path: "docs/upstream/cursor-pstack.md", label: "pstack" },
+  { path: "docs/upstream/mattpocock-skills.md", label: "Pocock" },
 ];
 
 // Characters that make a plain YAML scalar unsafe at value start (flow/block
