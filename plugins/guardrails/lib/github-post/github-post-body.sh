@@ -18,8 +18,8 @@
 #     GHPOST_BODY_SRC (the file a text was read from, else "") and
 #     GHPOST_BODY_KIND (`file` a body file's content, `command` the whole
 #     command, `word` a posting segment's word, `attach` a literal `--attach`
-#     operand of `gh pr|issue` under the Bash tool, posted in part and judged
-#     like a `word`, `aux`
+#     operand of `gh pr|issue` under the Bash tool, judged for paths by its
+#     alt text and base name and read whole for secrets, `aux`
 #     a here-string or a file fed through `cat` or `<`), in the order a caller
 #     should judge them.
 #     GHPOST_PATHS lists every file path the command names, so a caller can
@@ -396,9 +396,10 @@ ghpost::segment() {
   [[ -n "$GHPOST_POST" ]] || GHPOST_POST="$form"
   # `attach` is local so a pending `--attach` never reaches the next segment
   # of a re-entered parse.
-  local w rest skip=0 attach=0 prev="" before
+  local w rest skip=0 attach=0 prev="" before cap=0
   # shellcheck disable=SC2016  # a regex: `$(` is matched, not expanded
   local re_sub='(\$\(|`)(cat[[:space:]]+|<[[:space:]]*)([^)`]*)'
+  [[ "$GHPOST_TOOL" != PowerShell ]] && [[ "$form" == gh-pr-* || "$form" == gh-issue-* ]] && cap=1
   for w in "$@"; do
     before="$prev"
     prev="$w"
@@ -445,7 +446,7 @@ ghpost::segment() {
     # PowerShell tool: its argument passing to a native command (quoting,
     # empty strings, `--%`) can change the words gh receives, so every word is
     # judged whole.
-    if [[ "$GHPOST_TOOL" != PowerShell ]] && [[ "$form" == gh-pr-* || "$form" == gh-issue-* ]]; then
+    if ((cap)); then
       if ((attach)); then
         attach=0
         if ghpost::_literal_operand "$w"; then
