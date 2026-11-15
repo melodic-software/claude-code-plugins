@@ -3,6 +3,24 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.3.0] - 2026-11-15
+
+### Added
+
+- `/review:fanout` and `/review:council` gain an optional proof stage, set by the new `reproduce_findings` setting (`off` by default, `label`, `require`) and its `reproduce_findings_floor` (`IMPORTANT` by default). With the stage on, a new `finding-prover` agent, which holds only Read, Grep and Glob, tries to refute each finding at or above the floor and proposes a check. Every finding is then labeled `reproduced`, `verified-by-reading`, `refuted` or `not-attempted` in a new `## Evidence` section. A `refuted` finding stays listed at `low` confidence, is not acted on, and gets a `## Dismissed` line; under `require`, so does every finding at or above the floor that was not reproduced, and a finding demoted twice gets one line with both reasons. A floor naming no tier is reported, and every finding then goes to the gate. An unattended run's report then opens with a line saying nothing could be checked. Under `off` the report is unchanged.
+- A proposed check runs only in an attended run, after the person says yes to that exact command. `--yes`, an allow rule, auto mode or a setting never counts as that yes. An unattended run runs no check and says how many were proposed.
+- `/review:fanout` and `/review:council` accept `--unattended`. A run also counts as unattended when `CLAUDE_CODE_REMOTE` is set, under `claude -p`, or in an autonomous loop. With `--unattended`, council also reads its `council_lanes` switch.
+- The rule for running reviewed code ships as `reference/run-reviewed-code.md`, a generated copy of the marketplace contract `docs/contracts/run-reviewed-code/`.
+- In an unattended run each demoted finding's `## Dismissed` line reads `not reproduced: unattended run, nothing ran`, except a refuted finding's, which reads `not reproduced (refuted): <the gate's argument>` in every run.
+- `/review:fanout fix` reads `## Dismissed` and never applies a dismissed or `low`-confidence finding of any class, nor hands one to `/simplify` or a producer's own skill; it lists them as not applied. A finding dismissed in one findings file stays dismissed when merged with the same finding from another.
+- The `code-reviewer` and `security-reviewer` agents run none of the reviewed code. They audit dependencies by reading manifests and lockfiles, run no audit command in the reviewed tree, and name in the finding the audit command that would settle a doubt.
+- `/review:quality-gate downstream` forbids its probe from importing, loading or executing any file from the reviewed tree, and the skill points at the shared rule.
+- This repository's `docs/conventions/review.yaml` sets `reproduce_findings: label`.
+
+### Changed
+
+- The enforcement ladder copy is at 3.1.0: the "Compiler or type settings" and "Tests" rows carry the rung ids `compiler-setting` and `behavior-test`.
+
 ## [9.2.5] - 2026-11-15
 
 ### Changed
