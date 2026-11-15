@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'">
+<title>/team variants</title>
+<style>
+  :root { --card-gap: 12px; --accent: #0d9488; --font: system-ui, sans-serif; }
+  body { margin: 0; font-family: var(--font); background: #fff; color: #1c1c1c; }
+  .bar { position: fixed; top: 8px; left: 8px; }
+  main { padding: 56px 24px; }
+  .list { display: grid; gap: var(--card-gap); max-width: 480px; }
+  .row { padding: 6px; border-inline-start: 4px solid var(--accent); }
+  [data-control-dense="on"] .row { padding: 1px 6px; }
+  :root[data-control-align="center"] main { text-align: center; }
+</style>
+</head>
+<body>
+<div class="bar" data-harness-chrome>
+  <button type="button" data-data-control="seed:10">Seed 10</button>
+  <button type="button" data-data-control="clear">Clear</button>
+  <button type="button" data-data-control="reset">Reset</button>
+  <button type="button" data-data-control="toggle:filter" aria-pressed="false">Filter</button>
+</div>
+<main>
+  <section data-variant="A" data-variant-label="List">
+    <div data-screen-state="populated" data-screen-state-label="Populated"><div class="list" data-list></div></div>
+  </section>
+  <section data-variant="B" data-variant-label="Grid">
+    <div data-screen-state="populated" data-screen-state-label="Populated"><div class="list" data-list></div></div>
+  </section>
+  <p data-content-set="demo">Team of three</p>
+  <p data-content-set="worst">A team whose name runs on well past the width of the card it sits in</p>
+</main>
+<script type="application/json" id="prototype-controls">
+{"controls": [
+  {"id": "card-gap", "label": "Card gap", "group": "spacing", "type": "range", "target": "--card-gap", "min": 0, "max": 48, "step": 2, "unit": "px", "default": "12"},
+  {"id": "accent", "label": "Accent", "group": "colour", "type": "color", "target": "--accent", "default": "#0d9488"},
+  {"id": "font", "label": "Typeface", "group": "typography", "type": "select", "target": "--font", "options": ["system-ui, sans-serif", "Georgia, serif"], "default": "system-ui, sans-serif"},
+  {"id": "dense", "label": "Dense rows", "group": "layout", "type": "toggle", "target": "data-control-dense", "variant": "A", "options": ["off", "on"], "default": "off"},
+  {"id": "align", "label": "Alignment <img src=x onerror=\"window.__xss=1\">", "group": "layout", "type": "radio", "target": "data-control-align", "options": ["start", "center"], "default": "start"}
+]}
+</script>
+<script>
+  (() => {
+    const opening = 3;
+    let count = opening;
+    const render = () => {
+      for (const list of document.querySelectorAll("[data-list]")) {
+        list.replaceChildren(...Array.from({ length: count }, (_, i) => {
+          const row = document.createElement("div");
+          row.className = "row";
+          row.dataset.testid = "team-member-row";
+          row.textContent = `Member ${i + 1}`;
+          return row;
+        }));
+      }
+    };
+    const ops = { "seed:10": () => { count += 10; }, clear: () => { count = 0; }, reset: () => { count = opening; } };
+    document.querySelector(".bar").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-data-control]");
+      if (!b) return;
+      const op = b.dataset.dataControl;
+      if (ops[op]) ops[op]();
+      else b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
+      render();
+    });
+    render();
+  })();
+</script>
+<!-- The canonical lib/ui-feedback/controls.js is inlined whole here; elided from this fixture. -->
+<!-- The bundled assets/variant-switcher.html is inlined whole here; elided from this fixture. -->
+</body>
+</html>

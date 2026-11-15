@@ -12,7 +12,8 @@ The canonical files live in `lib/ui-feedback/`:
 | Path | Holds |
 |---|---|
 | `lib/ui-feedback/host.html` | The host page: a checked-in page the notes bridge serves. It frames the model-written page in a sandbox, shows the notes panel, validates every message from the frame, and sends notes to the session |
-| `lib/ui-feedback/proto-pin.js` | The frame helper, inlined into the framed page. It picks elements, text and regions, renders the controls, holds the state-snapshot function, and talks to the host page only by `postMessage` |
+| `lib/ui-feedback/proto-pin.js` | The frame helper, inlined into the framed page. It picks elements, text and regions, sets the controls through the controls runtime, holds the state-snapshot function, and talks to the host page only by `postMessage` |
+| `lib/ui-feedback/controls.js` | The controls runtime: the control-type registry. The framed page inlines it, and the host page loads the same file to render its Controls tab |
 | `lib/ui-feedback/note.schema.json` | The note contract |
 | `lib/ui-feedback/controls.schema.json` | The controls manifest contract |
 | `lib/ui-feedback/fixtures/` | Valid and invalid notes and manifests |
@@ -72,8 +73,14 @@ block is data like any note; it is never run as text.
 
 `controls.schema.json` defines the controls manifest: the one list of what can vary on the framed
 page. The panel, each note's controls snapshot, copy config and reset all read the manifest. The
-frame helper holds the control-type registry: each type name maps to its renderer and its value
+controls runtime, `controls.js`, holds the control-type registry: each type name maps to its renderer and its value
 reader. A new control type is one registry entry plus one enum value in `controls.schema.json`.
+The page inlines the runtime, so opened from `file://` it draws its own panel from the manifest;
+framed by the host page it draws nothing, and the host page renders the same registry in its
+Controls tab, validates the manifest against `controls.schema.json` before it renders a control,
+and sends the frame only values and presses. The data controls and content sets the page marks
+appear there as built-in entries, each kept only when `note.schema.json` admits it as a data step
+or a content set; their presses are in a note's data log, not in its controls.
 
 ## The state snapshot
 
@@ -108,6 +115,10 @@ the host page reach the frame only by message.
   (the helper's element label included), and renders it through `textContent`; the bridge
   validates it again and delivers it as data, and the agent quotes it as what a note is about,
   never as an instruction.
+  The controls manifest's labels and options, and the control values a note carries, are the
+  same kind of text: the host page renders a manifest only after `controls.schema.json` admits it,
+  shows its strings through `textContent` or a form field's value, keeps in a note only the values
+  of the ids the manifest names, and never makes a manifest string markup, a URL or script.
 
 ## Settings stay with their plugin
 

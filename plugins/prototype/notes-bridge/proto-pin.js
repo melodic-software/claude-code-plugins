@@ -10,7 +10,9 @@
 // holding it and the test-id elements it crosses), and the selected text as a quote with a little visible text either
 // side, both only on a model-written page (docs/contracts/rendered-views, rule 9). The host checks every message it
 // receives and keeps only what its contract admits. For a script re-locating a note, window.uiFeedbackRelocate
-// replays a data log and finds a quote, with the same rules this file takes them by.
+// replays a data log, finds a quote and sets the controls, with the same rules this file takes them by. When the page
+// carries the controls runtime (controls.js), the ready message also carries its manifest and the data controls and
+// content sets it marks, and the host page's Controls tab sets values and presses data controls through this file.
 (() => {
   if (window.parent === window) return;
   const root = document.documentElement;
@@ -73,8 +75,8 @@
     if (role) a.role = role;
     return a;
   }
-  /** Everything a reload loses, for a note on `el`: its variant and screen state, the content set, the data log and
-   *  the framed page's viewport. */
+  /** Everything a reload loses, for a note on `el`: its variant and screen state, the content set, the data log, the
+   *  control values and the framed page's viewport. */
   function snapshot(el) {
     const { variant, state } = viewOf(el);
     const s = {
@@ -89,7 +91,17 @@
     if (variant) s.variant = variant.dataset.variant;
     if (state) s.state = state.dataset.screenState;
     if (root.dataset.vsContent) s.content = root.dataset.vsContent;
+    const values = window.uiFeedbackControls?.values();
+    if (values && Object.keys(values).length) s.controls = values;
     return s;
+  }
+  /** A data control's mark as a data step: {op} or {op, n} or {op, name}; null when it is no mark. */
+  function stepOf(c) {
+    const m = c && STEP.exec(c.getAttribute("data-data-control"));
+    if (!m) return null;
+    const step = { op: m[1] };
+    if (m[2] !== undefined) { if (/^[0-9]+$/.test(m[2])) step.n = Number(m[2]); else step.name = m[2]; }
+    return step;
   }
   const r2 = n => Math.round(n * 100) / 100;
   /** A client box in percent of the reference box, inside 0-100 with w and h above 0. */
@@ -179,7 +191,9 @@
     }
     return missed;
   }
-  Object.defineProperty(window, "uiFeedbackRelocate", { value: Object.freeze({ replay, findQuote }) });
+  /** Set each control a note carries; returns how many it has no control for, or -1 with no controls runtime. */
+  const setControls = v => (window.uiFeedbackControls ? window.uiFeedbackControls.set(v) : -1);
+  Object.defineProperty(window, "uiFeedbackRelocate", { value: Object.freeze({ replay, findQuote, setControls }) });
 
   function ensureLayer() {
     if (layer) return layer;
@@ -286,15 +300,14 @@
   // The data log: a press of a data control the page marks, and each content set the switcher shows.
   addEventListener("click", e => {
     if (mode) return;
-    const c = e.target instanceof Element ? e.target.closest("[data-data-control]") : null;
-    const m = c && STEP.exec(c.getAttribute("data-data-control"));
-    if (!m) return;
-    const step = { op: m[1] };
-    if (m[2] !== undefined) { if (/^[0-9]+$/.test(m[2])) step.n = Number(m[2]); else step.name = m[2]; }
-    log.push(step);
+    const step = stepOf(e.target instanceof Element ? e.target.closest("[data-data-control]") : null);
+    if (step) log.push(step);
   }, true);
-  new MutationObserver(() => { if (root.dataset.vsContent) log.push({ op: "content", name: root.dataset.vsContent }); })
-    .observe(root, { attributes: true, attributeFilter: ["data-vs-content"] });
+  new MutationObserver(() => {
+    if (!root.dataset.vsContent) return;
+    log.push({ op: "content", name: root.dataset.vsContent });
+    post({ type: "content", name: root.dataset.vsContent });
+  }).observe(root, { attributes: true, attributeFilter: ["data-vs-content"] });
   addEventListener("resize", draw);
   if (window.ResizeObserver) new ResizeObserver(() => { if (pins.length || mode) draw(); }).observe(root); // late images move elements
 
@@ -323,6 +336,8 @@
       else post({ type: "selected", rect: pct(range.getBoundingClientRect()), anchor: anchorOf(el), quote, snapshot: snapshot(el) });
     }
     else if (m.type === "pins" && Array.isArray(m.pins)) { pins = m.pins.slice(0, 500); draw(); }
+    else if (m.type === "set") setControls(m.values);
+    else if (m.type === "press" && !mode) replay([m.step]);
     else if (m.type === "focus") {
       const p = pins.find(x => x.n === m.n);
       if (!p) return;
@@ -331,5 +346,11 @@
       else scrollTo({ top: Math.max(0, at.y - innerHeight / 3), behavior });
     }
   });
-  post({ type: "ready" });
+  const marks = [...document.querySelectorAll("[data-data-control]")].map(stepOf).filter(Boolean);
+  post({
+    type: "ready",
+    controls: window.uiFeedbackControls?.manifest() ?? null,
+    data: [...new Map(marks.map(m => [JSON.stringify(m), m])).values()],
+    content: document.querySelector('[data-content-set="demo"]') && document.querySelector('[data-content-set="worst"]') ? root.dataset.vsContent || null : null,
+  });
 })();

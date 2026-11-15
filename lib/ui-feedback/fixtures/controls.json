@@ -1,0 +1,2939 @@
+{
+  "description": "Valid and invalid controls manifests (controls.schema.json), run against both validators: note-model.mjs and notes_bridge.py's problems().",
+  "valid": [
+    {
+      "why": "no controls",
+      "manifest": {
+        "controls": []
+      }
+    },
+    {
+      "why": "one control of every type, one scoped to a variant",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "accent",
+            "label": "Accent",
+            "group": "colour",
+            "type": "color",
+            "target": "--accent",
+            "default": "#0d9488"
+          },
+          {
+            "id": "font",
+            "label": "Typeface",
+            "group": "typography",
+            "type": "select",
+            "target": "--font",
+            "options": [
+              "system-ui, sans-serif",
+              "Georgia, serif"
+            ],
+            "default": "system-ui, sans-serif"
+          },
+          {
+            "id": "dense",
+            "label": "Dense rows",
+            "group": "layout",
+            "type": "toggle",
+            "target": "data-control-dense",
+            "options": [
+              "off",
+              "on"
+            ],
+            "default": "off",
+            "variant": "A"
+          },
+          {
+            "id": "align",
+            "label": "Alignment",
+            "group": "layout",
+            "type": "radio",
+            "target": "data-control-align",
+            "options": [
+              "start",
+              "center"
+            ],
+            "default": "start"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a hundred controls",
+      "manifest": {
+        "controls": [
+          {
+            "id": "c0",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c1",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c2",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c3",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c4",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c5",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c6",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c7",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c8",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c9",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c10",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c11",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c12",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c13",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c14",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c15",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c16",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c17",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c18",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c19",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c20",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c21",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c22",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c23",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c24",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c25",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c26",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c27",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c28",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c29",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c30",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c31",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c32",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c33",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c34",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c35",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c36",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c37",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c38",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c39",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c40",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c41",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c42",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c43",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c44",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c45",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c46",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c47",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c48",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c49",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c50",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c51",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c52",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c53",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c54",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c55",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c56",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c57",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c58",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c59",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c60",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c61",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c62",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c63",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c64",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c65",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c66",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c67",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c68",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c69",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c70",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c71",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c72",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c73",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c74",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c75",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c76",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c77",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c78",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c79",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c80",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c81",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c82",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c83",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c84",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c85",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c86",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c87",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c88",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c89",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c90",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c91",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c92",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c93",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c94",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c95",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c96",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c97",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c98",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c99",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a motion easing as a select of named curves",
+      "manifest": {
+        "controls": [
+          {
+            "id": "ease",
+            "label": "Ease",
+            "group": "motion",
+            "type": "select",
+            "target": "--ease",
+            "options": [
+              "ease-out",
+              "cubic-bezier(0.32, 0.72, 0, 1)"
+            ],
+            "default": "ease-out"
+          }
+        ]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "why": "not an object",
+      "manifest": []
+    },
+    {
+      "why": "no controls list",
+      "manifest": {}
+    },
+    {
+      "why": "a field beside the list",
+      "manifest": {
+        "controls": [],
+        "version": 1
+      }
+    },
+    {
+      "why": "101 controls",
+      "manifest": {
+        "controls": [
+          {
+            "id": "c0",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c1",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c2",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c3",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c4",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c5",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c6",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c7",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c8",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c9",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c10",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c11",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c12",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c13",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c14",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c15",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c16",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c17",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c18",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c19",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c20",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c21",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c22",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c23",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c24",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c25",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c26",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c27",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c28",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c29",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c30",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c31",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c32",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c33",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c34",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c35",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c36",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c37",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c38",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c39",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c40",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c41",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c42",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c43",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c44",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c45",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c46",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c47",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c48",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c49",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c50",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c51",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c52",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c53",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c54",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c55",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c56",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c57",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c58",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c59",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c60",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c61",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c62",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c63",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c64",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c65",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c66",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c67",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c68",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c69",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c70",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c71",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c72",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c73",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c74",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c75",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c76",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c77",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c78",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c79",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c80",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c81",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c82",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c83",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c84",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c85",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c86",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c87",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c88",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c89",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c90",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c91",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c92",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c93",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c94",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c95",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c96",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c97",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c98",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c99",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          },
+          {
+            "id": "c100",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a control without a default",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a control without a target",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a type the registry does not have",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "curve",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a built-in type a page may not write",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "action",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a group outside the list",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "color",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a target that is neither a CSS variable nor a data-control attribute",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "onclick",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a target attribute outside data-control-",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "data-variant",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a target that is a CSS declaration",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--gap: 1px; color: red",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "an id with a space",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "an empty label",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a label of 61 characters",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "lllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a default of 121 characters",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a number default",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": 12
+          }
+        ]
+      }
+    },
+    {
+      "why": "a variant key with a space",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12",
+            "variant": "A B"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a unit that is not a CSS unit word",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px;",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a negative step",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": -1,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a min as a string",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": "0",
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12"
+          }
+        ]
+      }
+    },
+    {
+      "why": "25 options",
+      "manifest": {
+        "controls": [
+          {
+            "id": "font",
+            "label": "Typeface",
+            "group": "typography",
+            "type": "select",
+            "target": "--font",
+            "options": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "10",
+              "11",
+              "12",
+              "13",
+              "14",
+              "15",
+              "16",
+              "17",
+              "18",
+              "19",
+              "20",
+              "21",
+              "22",
+              "23",
+              "24"
+            ],
+            "default": "system-ui, sans-serif"
+          }
+        ]
+      }
+    },
+    {
+      "why": "an option of 121 characters",
+      "manifest": {
+        "controls": [
+          {
+            "id": "font",
+            "label": "Typeface",
+            "group": "typography",
+            "type": "select",
+            "target": "--font",
+            "options": [
+              "ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo"
+            ],
+            "default": "system-ui, sans-serif"
+          }
+        ]
+      }
+    },
+    {
+      "why": "an unknown field on a control",
+      "manifest": {
+        "controls": [
+          {
+            "id": "card-gap",
+            "label": "Card gap",
+            "group": "spacing",
+            "type": "range",
+            "target": "--card-gap",
+            "min": 0,
+            "max": 48,
+            "step": 2,
+            "unit": "px",
+            "default": "12",
+            "html": "<b>x</b>"
+          }
+        ]
+      }
+    }
+  ]
+}

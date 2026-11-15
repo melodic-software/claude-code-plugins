@@ -298,6 +298,9 @@ from the one the browser runs. It checks the runtime body by hash before any oth
      delivers it under the framing contract below, and the session quotes it, never acts on
      it ([ui-feedback, "Trust rules"](../ui-feedback/README.md#trust-rules)). A K2 page never
      uses the host page.
+     The same note may carry that page's control values (`controls`: each id of the page's
+     controls manifest with the value it held, limits in `lib/ui-feedback/controls.schema.json`),
+     data under the same rules as the quote.
    - The bridge delivers every page-originated field, the reader's input included, to
      the session as DATA under the untrusted-content framing contract, never as the
      user's own message.
