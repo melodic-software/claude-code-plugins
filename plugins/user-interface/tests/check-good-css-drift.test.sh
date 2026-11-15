@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Exit-code contract of scripts/check-good-css-drift.sh, network-free: the
-# script is sourced and fetch_blob_sha is replaced by a stub. The expected
-# SHAs are the upstream blob SHAs at pin 92d436ba recorded in # spellchecker:disable-line
-# docs/upstream/good-css.md, not values read from the script.
+# script is sourced and run against a copy of the plugin root holding the
+# vendored files. The hashes are the upstream blob SHAs of those files at pin
+# 92d436ba recorded in docs/upstream/good-css.md, which the vendored copies # spellchecker:disable-line
+# must still match.
 set -uo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -40,18 +41,6 @@ source "$SCRIPT"
 
 SHA_CHECK_CSS=6fa72714ba18cf02f698fa8015f63df043b3af85
 SHA_LICENSE=66a325d82e56f2f41ebd14812517d6c50f5b66da
-SHA_PRACTICES=b8a6cb6e6a30331d852e151504d2c7b5567dfc20
-CHANGED_SHA=0123456789abcdef0123456789abcdef01234567
-
-stub_practices="$SHA_PRACTICES"
-fetch_blob_sha() {
-  case "$1" in
-    scripts/check-css.mjs) printf '%s' "$SHA_CHECK_CSS" ;;
-    LICENSE) printf '%s' "$SHA_LICENSE" ;;
-    PRACTICES.md) printf '%s' "$stub_practices" ;;
-    *) return 1 ;;
-  esac
-}
 
 # A plugin root whose vendored copies are the shipped ones.
 REAL_PLUGIN_DIR="$PLUGIN_DIR"
@@ -65,42 +54,19 @@ out=$(run_check 2>&1)
 code=$?
 assert_eq "same SHAs: exit 0" 0 "$code"
 assert_contains "same SHAs: reports no drift" "$out" "No drift"
+assert_contains "same SHAs: names check-css.mjs" "$out" "unchanged  skills/write-css/vendor/check-css.mjs"
+assert_eq "shipped copy of check-css.mjs hashes to its pin" "$SHA_CHECK_CSS" "$(git hash-object "$PLUGIN_DIR/skills/write-css/vendor/check-css.mjs")"
+assert_eq "shipped copy of LICENSE hashes to its pin" "$SHA_LICENSE" "$(git hash-object "$PLUGIN_DIR/skills/write-css/vendor/LICENSE")"
 
-# 2. One upstream file changed.
-stub_practices="$CHANGED_SHA"
-out=$(run_check 2>&1)
+# 1b. The check reads only the vendored copies: it runs with no curl on PATH.
+mkdir -p "$TMP/bin"
+for tool in bash dirname git; do ln -s "$(command -v "$tool")" "$TMP/bin/$tool"; done
+out=$(env PATH="$TMP/bin" bash "$SCRIPT" --check 2>&1)
 code=$?
-assert_eq "changed PRACTICES.md: exit 1" 1 "$code"
-assert_contains "changed PRACTICES.md: names the file" "$out" "CHANGED    PRACTICES.md"
-assert_contains "changed PRACTICES.md: shows the new SHA" "$out" "$CHANGED_SHA"
-assert_not_contains "changed PRACTICES.md: LICENSE not flagged" "$out" "CHANGED    LICENSE"
-assert_contains "changed PRACTICES.md: compare URL" "$out" \
-  "https://github.com/vojtaholik/good-css/compare/92d436ba1937d1b1407c47e35abb3e199eaace2e...main"
-stub_practices="$SHA_PRACTICES"
+assert_eq "no curl on PATH: exit 0" 0 "$code"
+assert_not_contains "no curl on PATH: no upstream read" "$out" "Upstream"
 
-# 3. The fetch fails.
-saved_fetch="$(declare -f fetch_blob_sha)"
-fetch_blob_sha() { return 1; }
-out=$(run_check 2>&1)
-code=$?
-assert_eq "fetch failure: exit 2" 2 "$code"
-
-# 3b. An upstream file is gone (404): drift, not unverifiable.
-fetch_blob_sha() {
-  case "$1" in
-    scripts/check-css.mjs) return 3 ;;
-    LICENSE) printf '%s' "$SHA_LICENSE" ;;
-    PRACTICES.md) printf '%s' "$SHA_PRACTICES" ;;
-    *) return 1 ;;
-  esac
-}
-out=$(run_check 2>&1)
-code=$?
-assert_eq "upstream file gone: exit 1" 1 "$code"
-assert_contains "upstream file gone: names the file" "$out" "GONE       scripts/check-css.mjs"
-eval "$saved_fetch"
-
-# 4. A vendored copy edited locally, upstream unchanged.
+# 4. A vendored copy edited locally.
 printf '\n// local edit\n' >>"$PLUGIN_DIR/skills/write-css/vendor/check-css.mjs"
 out=$(run_check 2>&1)
 code=$?
