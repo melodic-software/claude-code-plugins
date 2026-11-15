@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\n\ncount=0\necho \"$count\"\necho \"done\"\n",
+      "why": "the older comment in the touched file was triaged and deleted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\n\n# set the count to zero\ncount=0\necho \"$count\"\necho \"done\"\n",
+      "why": "only the added lines were triaged"
+    }
+  ]
+}

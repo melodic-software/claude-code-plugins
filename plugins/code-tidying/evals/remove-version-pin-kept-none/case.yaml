@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: remove-version-pin-kept-none
+description: none on a workflow file keeps the comment trailing each uses line pinned to a full commit id, whatever its wording, and deletes the restating step comment
+tags: [calibration, none, version-pin, invented]
+expected_outcome: Both pinned uses lines keep their trailing comments (the version and the date), since the floor holds under none too; the "check out the code" comment is deleted; every YAML line other than that comment is unchanged.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:remove-comments none override .github/workflows/ci.yml
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: version-pin-kept
+    type: regex
+    pattern: '^      - uses: actions/checkout@0123456789abcdef0123456789abcdef01234567 # v4\.2\.2$'
+    flags: m
+    target: { source: file, path: .github/workflows/ci.yml }
+  - name: dated-pin-kept
+    type: regex
+    pattern: '^      - uses: actions/setup-node@89abcdef0123456789abcdef0123456789abcdef # 2026-01-10$'
+    flags: m
+    target: { source: file, path: .github/workflows/ci.yml }
+  - name: restating-comment-deleted
+    type: regex
+    pattern: '#[^\n]*check out the code'
+    match: not_contains
+    target: { source: file, path: .github/workflows/ci.yml }
+  - name: workflow-intact
+    type: regex
+    pattern: '^name: ci\non: \[push\]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n[\s\S]*^      - uses: actions/checkout@[0-9a-f]{40}[^\n]*\n      - uses: actions/setup-node@[0-9a-f]{40}[^\n]*\n        with:\n          node-version: 20\n      - run: npm test$'
+    flags: m
+    target: { source: file, path: .github/workflows/ci.yml }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both

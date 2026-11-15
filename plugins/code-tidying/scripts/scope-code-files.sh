@@ -32,8 +32,13 @@ fi
 CODE_EXT="\\.($EXTS)\$"
 BASE=""
 MAX=""
+BRANCH_ONLY=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
+  --branch-only)
+    BRANCH_ONLY=1
+    shift
+    ;;
   --base)
     [[ $# -ge 2 ]] || {
       echo "scope-code-files: --base needs a ref" >&2
@@ -88,6 +93,24 @@ resolve_base() {
   done
   return 1
 }
+
+if [[ -n "$BRANCH_ONLY" ]]; then
+  base=$(resolve_base) || base=""
+  if [[ -z "$base" ]]; then
+    printf 'scope-code-files: --branch-only needs a base that resolves, got %s\n' "${BASE:-none}" >&2
+    exit 2
+  fi
+  mb=$(git merge-base HEAD "$base" 2>/dev/null) || {
+    printf 'scope-code-files: no merge base between HEAD and %s\n' "$base" >&2
+    exit 2
+  }
+  list=$({
+    git diff --name-only --diff-filter=ACMR -z "$mb"
+    git ls-files --others --exclude-standard -z
+  } | nul_lines | code_only | LC_ALL=C sort -u)
+  emit branch "$base" "$list"
+  exit 0
+fi
 
 # Rung 1: uncommitted; rename/copy entries emit the new path only. The -z stream is
 # piped straight into awk, since a command substitution drops NULs and folds every

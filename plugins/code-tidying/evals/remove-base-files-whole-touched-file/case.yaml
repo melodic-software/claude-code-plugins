@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: remove-base-files-whole-touched-file
+description: --base main under comment_edit_scope files triages every comment in the file the branch touched, including one on a line the branch did not add, and leaves the untouched file alone
+tags: [calibration, base, files, necessary, invented]
+expected_outcome: The scope comes from scope-code-files.sh --branch-only --base main and holds tally.sh only; the restating "set the count to zero" comment in tally.sh, older than the branch, is deleted; untouched.sh keeps its comment; no code line changes.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:remove-comments --base main
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: branch-only-scope
+    type: tool_used
+    tool: Bash
+    input_match: 'scope-code-files\.sh[^"]*--branch-only'
+    arm: both
+  - name: touched-file-old-comment-deleted
+    type: regex
+    pattern: '#[^\n]*count to zero'
+    match: not_contains
+    target: { source: file, path: tally.sh }
+  - name: untouched-file-comment-kept
+    type: regex
+    pattern: '^# set the total to zero\ntotal=0$'
+    flags: m
+    target: { source: file, path: untouched.sh }
+  - name: tally-code-intact
+    type: regex
+    pattern: '^#!/usr/bin/env bash\nset -euo pipefail\n[\s\S]*^count=0\necho "\$count"\necho "done"$'
+    flags: m
+    target: { source: file, path: tally.sh }
