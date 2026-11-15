@@ -3,6 +3,7 @@
 # JSON versus markdown output, and exit-code passthrough from dispatch.sh.
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/skills/audit/SKILL.md plugins/code-metrics/skills/audit/actions/size.md
 # test-scope: plugins/code-metrics/scripts/yaml_subset.py
+# test-scope: .claude/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
