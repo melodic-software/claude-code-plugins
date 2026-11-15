@@ -1,0 +1,3 @@
+x=1 # keep this exact wording remove-comments-ignore
+z=0
+y=2 # PLANTED keep this exact wording

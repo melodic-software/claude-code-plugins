@@ -1,0 +1,353 @@
+from __future__ import annotations
+
+import importlib.util
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+SCRIPT = HERE / "comment-lint.py"
+_spec = importlib.util.spec_from_file_location("comment_lint", SCRIPT)
+lint = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(lint)
+
+MESSAGE = (
+    "comment outside the {} posture: delete it, move the reason into the code or the commit "
+    "message, or link the outside constraint; /code-tidying:remove-comments fixes it"
+)
+SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
+
+
+def flagged(path, text, posture="necessary", added=None, allow=()):
+    lines = text.count("\n") + 1
+    got = lint.findings(path, text, added or [(1, lines)], posture, list(allow))
+    return [int(f.split(":")[1]) for f in got]
+
+
+class FindingLine(unittest.TestCase):
+    def test_necessary_line_is_the_design_text(self):
+        got = lint.findings("src/a.sh", "x=1\n# a note\n", [(1, 2)], "necessary", [])
+        self.assertEqual(got, ["src/a.sh:2: " + MESSAGE.format("necessary")])
+
+    def test_none_line_names_none(self):
+        got = lint.findings("a.py", "x = 1  # a note\n", [(1, 1)], "none", [])
+        self.assertEqual(got, ["a.py:1: " + MESSAGE.format("none")])
+
+    def test_no_lexer_returns_none(self):
+        self.assertIsNone(
+            lint.findings("a.zzzunknown", "# x\n", [(1, 1)], "necessary", [])
+        )
+
+
+class AddedLinesOnly(unittest.TestCase):
+    def test_comment_on_unchanged_line_never_fails(self):
+        self.assertEqual(flagged("a.sh", "# old note\nx=1\n", added=[(2, 2)]), [])
+
+    def test_comment_on_added_line_fails(self):
+        self.assertEqual(
+            flagged("a.sh", "# old note\n# new note\n", added=[(2, 2)]), [2]
+        )
+
+
+class Shape1ShebangAndCookie(unittest.TestCase):
+    def test_shebang_passes(self):
+        self.assertEqual(flagged("a.sh", "#!/bin/sh\nx=1\n"), [])
+
+    def test_shebang_shaped_comment_past_line_one_fails(self):
+        self.assertEqual(flagged("a.sh", "x=1\ny=2\n#!/bin/sh\n"), [3])
+
+    def test_encoding_cookie_passes(self):
+        self.assertEqual(
+            flagged("a.py", "#!/usr/bin/env python3\n# -*- coding: utf-8 -*-\nx = 1\n"),
+            [],
+        )
+
+    def test_cookie_shape_past_line_two_fails(self):
+        self.assertEqual(flagged("a.py", "x = 1\ny = 2\n# coding: utf-8\n"), [3])
+
+
+class Shape2ToolDirective(unittest.TestCase):
+    def test_directives_pass(self):
+        cases = {
+            "a.py": "x = 1  # noqa: E501\ny = 2  # type: ignore[attr-defined]\nz = 3  # pragma: no cover\n",
+            "a.sh": "# shellcheck disable=SC2086\nx=$y\n",
+            "a.js": "// eslint-disable-next-line no-console\nconsole.log(1);\n// @ts-expect-error\nf();\n",
+            "b.py": "# vim: set ts=4 sw=4:\nx = 1\n",
+            "a.cs": "// region Helpers\nint x;\n// endregion\n",
+            "a.go": "//go:build linux\npackage a\n",
+            "c.py": "# fmt: off\nx = 1\n# fmt: on\n",
+        }
+        for path, text in cases.items():
+            with self.subTest(path=path):
+                self.assertEqual(flagged(path, text), [])
+
+    def test_plain_comment_fails(self):
+        self.assertEqual(flagged("a.sh", "# set up the cache\nx=1\n"), [1])
+
+
+class Shape3License(unittest.TestCase):
+    def test_license_run_passes_whole(self):
+        text = "# Copyright 2026 Example Ltd.\n# Use of this file is governed by the terms below.\nx=1\n"
+        self.assertEqual(flagged("a.sh", text), [])
+
+    def test_spdx_passes(self):
+        self.assertEqual(
+            flagged("a.js", "// SPDX-License-Identifier: MIT\nlet x;\n"), []
+        )
+
+    def test_run_without_cue_fails(self):
+        self.assertEqual(
+            flagged("a.sh", "# governed by the terms below\n# more\nx=1\n"), [1, 2]
+        )
+
+
+class Shape4Todo(unittest.TestCase):
+    def test_todo_with_issue_passes(self):
+        self.assertEqual(flagged("a.py", "x = 1  # TODO(#123): drop once fixed\n"), [])
+
+    def test_todo_without_issue_fails(self):
+        self.assertEqual(
+            flagged("a.py", "x = 1  # TODO: drop this\ny = 2  # TODO(123): x\n"), [1, 2]
+        )
+
+
+class Shape5VersionPin(unittest.TestCase):
+    def test_trailing_comment_on_sha_pinned_uses_passes(self):
+        text = f"steps:\n  - uses: actions/checkout@{SHA} # v7.0.1\n"
+        self.assertEqual(flagged("w.yml", text), [])
+
+    def test_trailing_comment_on_tag_pinned_uses_fails(self):
+        self.assertEqual(
+            flagged("w.yml", "steps:\n  - uses: actions/checkout@v4 # v4\n"), [2]
+        )
+
+    def test_full_line_comment_above_pinned_uses_fails(self):
+        text = f"steps:\n  # v7.0.1\n  - uses: actions/checkout@{SHA}\n"
+        self.assertEqual(flagged("w.yml", text), [2])
+
+
+class Shape6IgnoreMarker(unittest.TestCase):
+    def test_marker_line_passes(self):
+        self.assertEqual(
+            flagged("a.sh", "x=1 # keep this wording remove-comments-ignore\n"), []
+        )
+
+    def test_same_line_without_marker_fails(self):
+        self.assertEqual(flagged("a.sh", "x=1 # keep this wording\n"), [1])
+
+
+class Shape7DocComment(unittest.TestCase):
+    def test_python_docstring_passes(self):
+        self.assertEqual(
+            flagged("a.py", 'def f():\n    """Return one."""\n    return 1\n'), []
+        )
+
+    def test_triple_slash_passes(self):
+        self.assertEqual(
+            flagged("a.cs", "/// <summary>Adds.</summary>\npublic int Add() => 1;\n"),
+            [],
+        )
+
+    def test_jsdoc_block_passes(self):
+        self.assertEqual(
+            flagged(
+                "a.js", "/**\n * Adds.\n * @returns {number}\n */\nfunction add() {}\n"
+            ),
+            [],
+        )
+
+    def test_plain_block_comment_fails(self):
+        self.assertEqual(
+            flagged("a.js", "/*\n * Adds.\n */\nfunction add() {}\n"), [1, 2, 3]
+        )
+
+    def test_powershell_help_passes(self):
+        text = "function Get-X {\n<#\n.SYNOPSIS\nGets X.\n.PARAMETER Name\nThe name.\n#>\nparam($Name)\n}\n"
+        self.assertEqual(flagged("a.ps1", text), [])
+
+    def test_go_doc_on_exported_declaration_passes(self):
+        self.assertEqual(
+            flagged(
+                "a.go",
+                "package a\n\n// Foo returns one.\nfunc Foo() int { return 1 }\n",
+            ),
+            [],
+        )
+
+    def test_go_comment_on_unexported_declaration_fails(self):
+        self.assertEqual(
+            flagged(
+                "a.go",
+                "package a\n\n// foo returns one.\nfunc foo() int { return 1 }\n",
+            ),
+            [3],
+        )
+
+    def test_script_header_fails(self):
+        self.assertEqual(flagged("a.sh", "#!/bin/sh\n# Usage: a.sh <dir>\nx=1\n"), [2])
+
+
+class Shape8LinkOrRfc(unittest.TestCase):
+    def test_url_run_passes_under_necessary(self):
+        text = "# The gateway closes idle sockets at 60s,\n# https://example.com/docs/idle\nx=45\n"
+        self.assertEqual(flagged("a.sh", text), [])
+
+    def test_rfc_passes_under_necessary(self):
+        self.assertEqual(
+            flagged("a.py", "x = 1  # header order is fixed by RFC 9110 section 5.3\n"),
+            [],
+        )
+
+    def test_link_fails_under_none(self):
+        self.assertEqual(
+            flagged(
+                "a.sh", "# see https://example.com/docs/idle\nx=45\n", posture="none"
+            ),
+            [1],
+        )
+
+    def test_unlinked_outside_constraint_note_fails(self):
+        self.assertEqual(
+            flagged("a.sh", "# The gateway closes idle sockets at 60s\nx=45\n"), [1]
+        )
+
+    def test_unlinked_note_passes_with_ignore_marker(self):
+        text = "# The gateway closes idle sockets at 60s remove-comments-ignore\nx=45\n"
+        self.assertEqual(flagged("a.sh", text), [])
+
+
+class Shape9FloorRest(unittest.TestCase):
+    def test_line_after_ignore_marker_passes(self):
+        for marker in ("remove-comments-ignore", "dissolve-comments-ignore"):
+            with self.subTest(marker=marker):
+                self.assertEqual(
+                    flagged("a.sh", f"# {marker}\n# kept wording\nx=1\n"), []
+                )
+
+    def test_second_line_after_marker_fails(self):
+        self.assertEqual(
+            flagged("a.sh", "# remove-comments-ignore\n# kept\n# not kept\n"), [3]
+        )
+
+    def test_fixme_with_issue_passes(self):
+        self.assertEqual(
+            flagged("a.py", "x = 1  # FIXME(#9): wrong rounding\ny = 2  # FIXME: z\n"),
+            [2],
+        )
+
+    def test_requires_and_signature_block_pass(self):
+        text = "#Requires -Version 7\nWrite-Output 1\n# SIG # Begin signature block\n# MIIFAbc\n# SIG # End signature block\n"
+        self.assertEqual(flagged("a.ps1", text), [])
+
+    def test_reason_on_line_before_waiver_passes(self):
+        text = "# the glob must split here\n# shellcheck disable=SC2086\nls $x\n"
+        self.assertEqual(flagged("a.sh", text), [])
+
+    def test_reason_on_waiver_line_passes(self):
+        text = 'class A {\n  @SuppressWarnings("unchecked") // safe: the list holds only strings\n  void f() {}\n}\n'
+        self.assertEqual(flagged("A.java", text), [])
+
+    def test_reason_two_lines_before_waiver_fails(self):
+        text = "# the glob must split here\nx=1\n# shellcheck disable=SC2086\nls $x\n"
+        self.assertEqual(flagged("a.sh", text), [1])
+
+
+class AllowPatterns(unittest.TestCase):
+    def test_allow_pattern_passes_repository_marker(self):
+        text = "# silent-skip-ok: output discarded\nx=1\n"
+        self.assertEqual(flagged("a.sh", text, allow=["silent-skip-ok:"]), [])
+
+    def test_without_allow_pattern_marker_fails(self):
+        self.assertEqual(
+            flagged("a.sh", "# silent-skip-ok: output discarded\nx=1\n"), [1]
+        )
+
+    def test_allow_pattern_is_extended_regex(self):
+        text = "# test-scope: a b\nx=1\n"
+        self.assertEqual(flagged("a.sh", text, allow=["^# (test|case)-scope:"]), [])
+
+
+class StayQuiet(unittest.TestCase):
+    def test_code_the_old_heuristic_misread(self):
+        cases = {
+            "a.sh": "run --flag value\necho ${#name}\necho 'a # b' \"c # d\"\ncat <<EOF\n# heredoc body\nEOF\n",
+            "a.c": "#include <stdio.h>\nint x;\n",
+            "a.yml": "url: http://x.example/a#frag\nname: 'a # b'\n",
+            "a.py": "s = '# not a comment'\nt = \"#also not\"\n",
+        }
+        for path, text in cases.items():
+            with self.subTest(path=path):
+                self.assertEqual(flagged(path, text), [])
+
+
+class Cli(unittest.TestCase):
+    def test_cli_reads_root_ranges_and_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp, "root")
+            (root / "sub").mkdir(parents=True)
+            (root / "sub" / "a.sh").write_text("x=1\n# note\n", encoding="utf-8")
+            (root / "b.zzzunknown").write_text("# x\n", encoding="utf-8")
+            ranges = Path(tmp, "ranges")
+            ranges.write_text("sub/a.sh\t1\t2\nb.zzzunknown\t1\t1\n", encoding="utf-8")
+            allow = Path(tmp, "allow")
+            allow.write_text("", encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--posture",
+                    "necessary",
+                    "--root",
+                    str(root),
+                    "--ranges",
+                    str(ranges),
+                    "--allow",
+                    str(allow),
+                ],
+                input=b"sub/a.sh\0b.zzzunknown\0",
+                capture_output=True,
+                check=False,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+            )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(
+            proc.stdout.decode(), "sub/a.sh:2: " + MESSAGE.format("necessary") + "\n"
+        )
+        self.assertEqual(
+            proc.stderr.decode(),
+            "comment-lint: b.zzzunknown: no pygments lexer for this name, skipped\n",
+        )
+
+    def test_cli_rejects_bad_allow_pattern(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp, "root")
+            root.mkdir()
+            (root / "a.sh").write_text("# note\n", encoding="utf-8")
+            Path(tmp, "ranges").write_text("a.sh\t1\t1\n", encoding="utf-8")
+            Path(tmp, "allow").write_text("a[\n", encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--posture",
+                    "necessary",
+                    "--root",
+                    str(root),
+                    "--ranges",
+                    str(Path(tmp, "ranges")),
+                    "--allow",
+                    str(Path(tmp, "allow")),
+                ],
+                input=b"a.sh\0",
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(proc.returncode, 4)
+        self.assertIn("comment_lint_allow", proc.stderr.decode())
+
+
+if __name__ == "__main__":
+    unittest.main()

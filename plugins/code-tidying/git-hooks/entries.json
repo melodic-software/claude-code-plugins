@@ -1,0 +1,25 @@
+{
+  "remote": {
+    "git_url": "https://github.com/melodic-software/claude-code-plugins",
+    "ref": "main",
+    "config": "plugins/code-tidying/git-hooks/lefthook-remote.yml"
+  },
+  "entries": [
+    {
+      "name": "comment-lint",
+      "event": "pre-commit",
+      "script": "comment-lint.sh",
+      "tools": ["python3"],
+      "rewrites": false,
+      "assets": [
+        "git-hooks/comment-lint.py",
+        "scripts/comment-census.py",
+        "scripts/comment-settings.sh",
+        "scripts/code-extensions.txt",
+        "lib/parse-concern-value.sh",
+        "lib/yaml-subset.awk",
+        "lib/resolve-convention-home.sh"
+      ]
+    }
+  ]
+}
