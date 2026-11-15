@@ -135,11 +135,8 @@ export function report(
           ? "The chart marks only the deadlock that TLC reports, because the drawing run stopped before it reached every state."
           : "The chart marks only the deadlock that TLC reports. Under a CONSTRAINT or an ACTION_CONSTRAINT, a state with no step in the chart can still have steps that the constraints leave out, and TLC does not count it as a deadlock.",
       );
-  if (chart?.lie)
-    out.push(
-      `${escapeMarkdown(capLine(chart.lie))} So the chart draws parent states in place of regions.`,
-    );
-  for (const note of chart?.notes ?? []) out.push(escapeMarkdown(capLine(note)));
+  if (chart?.lie) out.push(`${capLine(chart.lie)} So the chart draws parent states in place of regions.`);
+  for (const note of chart?.notes ?? []) out.push(capLine(note));
   const merged: string[] = [];
   for (const k of ["VIEW", "SYMMETRY"]) if (hasSection(spec, k)) merged.push(k);
   if (chart && merged.length)

@@ -35,11 +35,7 @@ export function fence(text: string) {
   return [ticks, text, ticks].join("\n");
 }
 
-const MARKDOWN = /[\\`*_{}[\]()#+\-.!|~]/g;
-const HTML: { [c: string]: string } = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
-
-export const escapeMarkdown = (text: string) =>
-  text.replace(MARKDOWN, (c) => `\\${c}`).replace(/[&<>]/g, (c) => HTML[c]);
+export { escapeText as escapeMarkdown } from "./ir.ts";
 
 export const capLine = (text: string, max = MAX_LINE_CHARS) =>
   text.length <= max ? text : `${text.slice(0, max)}… (${text.length - max} more characters)`;

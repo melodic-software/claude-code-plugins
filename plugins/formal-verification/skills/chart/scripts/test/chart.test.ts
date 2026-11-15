@@ -323,7 +323,7 @@ test("a chart of only the bug paths words each one with the view, asked once for
   for (const rule of ["NotOne", "NotOneOrThree", "AlsoNotOne"])
     assert.match(
       text,
-      new RegExp(`^## ${rule} breaks\\n.*\\n0\\. x is 0\\n1\\. Next adds one: x is 1$`, "m"),
+      new RegExp(`^## ${rule} breaks\\n.*\\n\`\`\`\\n0\\. x is 0\\n1\\. Next adds one: x is 1\\n\`\`\`$`, "m"),
     );
   assert.deepEqual(asked, {
     "state 0": 1,

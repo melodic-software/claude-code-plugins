@@ -135,6 +135,11 @@ export type CheckResult = {
   bounds?: Bounds;
 };
 
+const HTML_ENTITY: { [c: string]: string } = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
+
+export const escapeText = (text: string) =>
+  text.replace(/[\\`*_{}[\]()#|~]/g, "\\$&").replace(/[&<>]/g, (c) => HTML_ENTITY[c]);
+
 export const RERUN_STATES = 100_000;
 
 export const CHART_STATES = 500;

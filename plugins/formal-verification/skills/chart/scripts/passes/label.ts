@@ -1,6 +1,7 @@
 import {
   type Answers,
   type Bug,
+  escapeText,
   type Graph,
   type Hidden,
   isRecord,
@@ -209,15 +210,15 @@ export function labelGraph(
   const notes: string[] = [];
   for (const [text, entry] of byLabel) {
     const changed: string[] = [];
-    for (let r = 0; r < R; r++) if (entry.changed[r]) changed.push(names[r]);
+    for (let r = 0; r < R; r++) if (entry.changed[r]) changed.push(escapeText(names[r]));
     if (changed.length < 2) continue;
     if (!together.has(text)) {
-      notes.push(`The step ${text} changes only one of ${list(changed)} at a time.`);
+      notes.push(`The step ${escapeText(text)} changes only one of ${list(changed)} at a time.`);
       continue;
     }
-    const sets = [...entry.sets];
+    const sets = [...entry.sets].map(escapeText);
     notes.push(
-      `The step ${text} changes ${sets.length > 1 ? `${sets.join(", or ")},` : sets[0]} at the same time.`,
+      `The step ${escapeText(text)} changes ${sets.length > 1 ? `${sets.join(", or ")},` : sets[0]} at the same time.`,
     );
   }
   return {

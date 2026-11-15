@@ -1,6 +1,7 @@
 import {
   append,
   type Arrow,
+  escapeText,
   holds,
   type Labels,
   type Region,
@@ -26,7 +27,8 @@ export function regionsLie(
   };
   const words = (c: string[]) => {
     const parts: string[] = [];
-    for (let i = 0; i < names.length; i++) parts.push(`${names[i]} ${unkey(c[i]).join(" / ")}`);
+    for (let i = 0; i < names.length; i++)
+      parts.push(`${escapeText(names[i])} ${escapeText(unkey(c[i]).join(" / "))}`);
     return parts.join(", ");
   };
   const addMove = (moves: Map<string, Move>, m: Move) =>
@@ -46,7 +48,7 @@ export function regionsLie(
   for (const [i, r] of regions.entries())
     for (const a of r.arrows)
       if (a.condition.kind === "tuples")
-        return `In ${names[i]}, ${a.label} from ${unkey(a.from).join(" / ")} depends on the other regions in a way that one "and" or "or" condition cannot say.`;
+        return `In ${escapeText(names[i])}, ${escapeText(a.label)} from ${escapeText(unkey(a.from).join(" / "))} depends on the other regions in a way that one "and" or "or" condition cannot say.`;
   const real = new Map<string, Move>();
   for (const j of sorted) {
     const before = combo(from[j]);
@@ -89,9 +91,9 @@ export function regionsLie(
   }
   for (const [k, extra] of drawn)
     if (!real.has(k))
-      return `The regions chart lets ${words(extra.from)} go to ${words(extra.to)} by ${extra.text}, which the model never does.`;
+      return `The regions chart lets ${words(extra.from)} go to ${words(extra.to)} by ${escapeText(extra.text)}, which the model never does.`;
   for (const [k, missing] of real)
     if (!drawn.has(k))
-      return `The model goes from ${words(missing.from)} to ${words(missing.to)} by ${missing.text}, which the regions chart cannot show.`;
+      return `The model goes from ${words(missing.from)} to ${words(missing.to)} by ${escapeText(missing.text)}, which the regions chart cannot show.`;
   return undefined;
 }
