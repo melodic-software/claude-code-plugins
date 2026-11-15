@@ -12,6 +12,7 @@ mistake it targets and to pass on the current code.
 | `/corrections:codify preferences [--scope machine\|project] [--since <day>]` | With the `session-flow` plugin installed, reads your typed turns through `/session-flow:audit-sessions excerpts-only`, counts each preference by distinct session, and proposes each one you confirm as a line for a user-scope file, never a repository file |
 | `/corrections:codify note [--applied] "<observation>" [#PR \| <commit>]` | Appends one observation, or with `--applied` one change already made, to the findings buffer |
 | `/corrections:codify group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Reads the buffer and groups its rows by the named fields (default `producer`) and by mistake, naming the keys, each mistake's count next to the threshold; writes nothing |
+| `/corrections:codify count-checks [--since <day>] [--until <day>] [--bucket week\|month]` | Counts the checks merged changes record with a `Codifies:` line, per week or month and cumulative, from default-branch git history only; blocking checks first, advisory checks in their own column; writes nothing and calls no forge |
 
 `codify` counts at `recurrence.min_occurrences` occurrences (default 2, at most 1000; set it in
 `corrections.yaml` in the convention home, default `docs/conventions`, or `corrections.local.yaml`
@@ -28,6 +29,7 @@ many merged pull requests `reviews` reads without `--pr`. Each is a plugin optio
 | `scripts/prove-check.sh` | Runs a proposed check in temporary worktrees at two refs and exits 0 only when it fails at the old ref and passes at the new one |
 | `scripts/codify-settings.mjs` | Prints `recurrence.min_occurrences`, `ratchet_offer` and `review_mining_prs` and the layer that set each, resolved through the config cascade (schema `schemas/corrections.schema.json`) |
 | `scripts/group-findings.mjs [--by <field>[,<field>...]] [--since <UTC ISO-8601>] [--rows]` | Runs `buffer.sh read` and prints its rows grouped by the named top-level fields (default `producer`): the keys first, then each group with its row and occurrence counts (distinct `source_id`) and its members |
+| `scripts/count-checks.mjs [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--bucket week\|month]` | Reads the `Codifies:` records and their reverts from the default branch's `git log` and prints one row per period and a window row, with the not-counted, reverted, promoted and alias lines listed after |
 
 ## prove-check
 

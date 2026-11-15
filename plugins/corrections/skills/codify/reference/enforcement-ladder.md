@@ -1,5 +1,5 @@
 ---
-enforcement-ladder: 3.0.0
+enforcement-ladder: 3.1.0
 ---
 
 <!-- GENERATED from docs/contracts/enforcement-ladder/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -47,13 +47,13 @@ a row says otherwise, the same command runs at edit time and in CI, which is the
 
 | Rung | What it is | Runs at |
 |---|---|---|
-| Compiler or type settings | a stricter compiler or type-checker option (nullable reference types, `strict` mode, warnings as errors) that rejects the mistake at build time | edit time and CI |
+| `compiler-setting` | a stricter compiler or type-checker option (nullable reference types, `strict` mode, warnings as errors) that rejects the mistake at build time | edit time and CI |
 | `editorconfig-severity` | raise the severity of a setting `.editorconfig` already supports | edit time and CI |
 | `analyzer-pack-rule` | turn on, or raise the severity of, a diagnostic an installed analyzer pack or linter already defines | edit time and CI |
 | `custom-analyzer` | write an analyzer the compiler or linter runs, for a project-specific invariant no installed pack checks | edit time and CI |
 | `syntax-pattern-rule` | write a rule that matches a pattern in the syntax tree of the source, such as a dangerous call, an injection sink or a secret shape, with a matcher that can cover more than one language | edit time and CI |
 | `architecture-test` | a test over the dependency graph or the module layout (which module may reference which, which namespace belongs to which layer), written with the repository's own architecture-test library | edit time and CI |
-| Tests | a unit, integration or end-to-end test that fails when the behavior is wrong | edit time and CI |
+| `behavior-test` | a unit, integration or end-to-end test that fails when the behavior is wrong | edit time and CI |
 | `harness-setting` | a Claude Code setting that blocks the action: permission deny rules, skill frontmatter flags | edit time |
 | `action-guard` | a Claude Code hook on an action no file check sees, such as a force-push or a write outside the tree | edit time |
 | `scaffold` | a template or generator that produces the right shape, the last static-analysis rung | edit time |

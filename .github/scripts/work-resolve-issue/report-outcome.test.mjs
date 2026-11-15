@@ -269,6 +269,40 @@ test("a reused branch's PR carries the done-when's linkage lines under Closes", 
   assert.ok(plan.body.startsWith("Closes #77\nRefs: #6917\n\n"), plan.body);
 });
 
+// #15650: a done-when item that quotes a `Codifies:` record for the PR body
+// gets it as a plain line at column 0, the record count-checks reads.
+const CODIFIES_LINE = "Codifies: #6917 rung=architecture-test blocking";
+const CODIFIES_ISSUE = [
+  "## Done when",
+  "",
+  `- [ ] The PR body carries \`${CODIFIES_LINE}\`.`,
+  "- [ ] The PR body carries `Codifies: session rung=behavior-test advisory` and `Refs: #12`.",
+  "- [ ] A test carries `Codifies: #5 rung=custom-analyzer blocking`.",
+  "- [ ] The PR body carries `Codifies: #5 rung=custom-analyzer maybe`.",
+  "- [ ] The PR body carries `Codifies: #5 rung=custom-analyzer blocking see the issue`.",
+  `- [ ] The PR body carries \`Codifies: #123456789 rung=${"a".repeat(40)} blocking\`.`,
+  `The PR body carries \`Codifies: #7 rung=custom-analyzer blocking\` in prose.`,
+].join("\n");
+
+test("linkageLines copies a whole Codifies record from a task-list item that names the PR body", () => {
+  assert.deepEqual(linkageLines(CODIFIES_ISSUE, 77), [CODIFIES_LINE, "Refs: #12", "Codifies: session rung=behavior-test advisory"]);
+});
+
+test("decideDone puts the issue's Codifies line at column 0 and never copies one from the run's text", () => {
+  const plan = decideDone({ outcome: { ...done, summary: "Codifies: #8 rung=custom-analyzer blocking" }, linkage: linkageLines(CODIFIES_ISSUE, 77) });
+  const lines = plan.body.split("\n");
+  assert.ok(plan.body.startsWith(`Closes #77\n${CODIFIES_LINE}\nRefs: #12\n`), plan.body);
+  assert.ok(!lines.some((line) => line.startsWith("Codifies: #8")), plan.body);
+  const fromRunOnly = decideDone({ outcome: { ...done, summary: CODIFIES_LINE }, linkage: [] });
+  assert.ok(!fromRunOnly.body.split("\n").some((line) => line.startsWith("Codifies:")), fromRunOnly.body);
+});
+
+test("reusePlan puts the issue's Codifies line at column 0", () => {
+  const plan = reusePlan({ issueNumber: 77, branch: BRANCH, changedFiles: ["README.md"], holdPaths: HOLD_GLOBS, checks: NO_CHECKS, linkage: linkageLines(CODIFIES_ISSUE, 77) });
+  assert.ok(plan.body.split("\n").includes(CODIFIES_LINE), plan.body);
+  assert.ok(plan.body.startsWith(`Closes #77\n${CODIFIES_LINE}\n`), plan.body);
+});
+
 test("a Refs PR with a trusted merge: human label still carries the hold line", () => {
   const plan = decideDone({ outcome: { ...done, remaining: ["Part B"] }, humanMerge: true });
   assert.ok(plan.body.startsWith("Refs: #77\n\nHold: a human merges this\n"), plan.body);

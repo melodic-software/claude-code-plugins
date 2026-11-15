@@ -220,7 +220,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does | Actions | Next |
 | --- | --- | --- | --- | --- |
-| [`/corrections:codify`](../plugins/corrections/skills/codify/SKILL.md) | `corrections` | Count a recurring mistake, pick the strongest rung and prove the check | `findings`, `reviews`, `note`, `preferences`, `group` | `/harness-config:audit-automation-gaps`, `/architecture:improve`, `/corrections:codify`, `/implementation:implement` |
+| [`/corrections:codify`](../plugins/corrections/skills/codify/SKILL.md) | `corrections` | Count a recurring mistake, pick the strongest rung and prove the check | `findings`, `reviews`, `note`, `preferences`, `group`, `count-checks` | `/harness-config:audit-automation-gaps`, `/architecture:improve`, `/corrections:codify`, `/implementation:implement` |
 | [`/session-flow:audit-friction`](../plugins/session-flow/skills/audit-friction/SKILL.md) | `session-flow` | Mine sessions for permission and autonomy friction and end in one decision brief |  | `/session-flow:audit-friction` |
 | [`/session-flow:audit-sessions`](../plugins/session-flow/skills/audit-sessions/SKILL.md) | `session-flow` | Cross-session audit of transcripts with routed, never-applied findings | `sweep`, `pr`, `trends` | `/corrections:codify`, `/session-flow:audit-friction` |
 | [`/session-flow:retro`](../plugins/session-flow/skills/retro/SKILL.md) | `session-flow` | Structured session retrospective with codified learnings | `session`, `quick` | `/session-flow:audit-sessions` |

@@ -14,7 +14,7 @@ execution:
 graders:
   - name: rungs-by-id
     type: 'regex'
-    pattern: '^(?=[\s\S]*editorconfig-severity)(?=[\s\S]*(?:action-guard|harness-setting|architecture-test|Tests\b))'
+    pattern: '^(?=[\s\S]*editorconfig-severity)(?=[\s\S]*(?:action-guard|harness-setting|architecture-test|behavior-test|Tests\b))'
     flags: 'i'
     arm: 'both'
   - name: no-earliest-stage
