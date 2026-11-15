@@ -43,4 +43,4 @@ the only field that makes a wrong-target answer detectable from above.
 
 The default action loads the imperatives into context and stops. Re-emitting them as paste text is
 the most common misfire: it spends the window on output the session already has, and it reads as
-having done the work. Only `handoff` / `worker` emit, and only for a target that LEAVES the session.
+having done the work. Only `handoff` / `worker` emit, and only for a target that leaves the session.

@@ -56,12 +56,12 @@ this carve-out leaves the gate rule above unchanged.
 
 ## Cross-marketplace install uplift (carve-out, 2026-09-01)
 
-A wrapper skill whose deliverable is getting a plugin from ANOTHER marketplace installed
+A wrapper skill whose deliverable is getting a plugin from another marketplace installed
 may emit that plugin's marketplace-qualified install commands
 (`/plugin install <name>@<marketplace>`) in its own content. The no-marketplace-qualification
 rule above exists so reusable references stay portable across marketplaces that re-host a
 plugin; an install command targeting a foreign marketplace has no unqualified form, so the
-qualification IS the content, not a leak. Bounds:
+qualification is the content, not a leak. Bounds:
 
 - The carve-out covers install-uplift text (commands, the `dependencies` manifest
   entry's documented error paths, scope guidance) plus the wrapper's own
@@ -93,6 +93,10 @@ No arm beat A, so the shape above stands. The fixture skills are short, so the r
 cover a hand-off deep in a long skill body. The user-only tie goes to "tell the user to run", the
 wording element 1 of the shape sets with its gate, since the Skill tool cannot reach a user-only
 skill.
+
+- **As of**: 2026-11-01.
+- **Recheck trigger**: the next model release, or a Claude Code release that changes how the Skill
+  tool resolves a `/plugin:skill` token or reaches a user-only skill.
 
 ## Conformance
 

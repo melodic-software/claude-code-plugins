@@ -69,8 +69,7 @@ this skill for <ours>.
 
 Four required parts:
 
-1. **The gate**: `resolves in this session` (the retired spelling `resolves in your session` is
-   no longer accepted). This is the canonical, greppable token. It is a read-time condition on the model's own listing, not a claim
+1. **The gate**: `resolves in this session`. This is the canonical, greppable token. It is a read-time condition on the model's own listing, not a claim
    about the machine. `if installed`, `always available`, `Claude Code ships`, and `is built in`
    are all wrong here: the first is the cross-plugin gate, the rest are assertions.
 2. **The provenance class**: `bundled`, `built-in`, `plugin-backed built-in`, or
@@ -137,8 +136,7 @@ reachable. That file holds our decision in our words and a pointer to the exact 
 and no upstream text; a table form uses the header `| Decision | Pointer |`. A row that keeps a
 stored value (a measured figure, a recorded default) adds the as-of date and recheck trigger, in a
 table as `| Decision | Pointer | As of | Recheck when |`. Existing `native-*` and `bundled-*` reference
-files keep the older four-part shape until
-[#5684](https://github.com/melodic-software/claude-code-plugins/issues/5684) converts them. Modeled on the `review` plugin's organic pattern (`/review:quality-gate`
+files keep the older four-part shape. Modeled on the `review` plugin's organic pattern (`/review:quality-gate`
 and `/review:fanout` each carry one):
 
 ```markdown

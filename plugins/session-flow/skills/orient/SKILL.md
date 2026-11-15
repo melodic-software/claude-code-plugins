@@ -249,7 +249,7 @@ request is relayed from a chat thread, a routine, or a webhook; this section sta
 when the person can run it, never that it is present. The four-part records live in
 [reference/native-recap.md](reference/native-recap.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Writes nothing**, no files, no memory, no `/clear`, in every scope,
   `zoom-out` included. It is a read-only briefing that leaves state untouched.
@@ -261,8 +261,8 @@ when the person can run it, never that it is present. The four-part records live
   `/session-flow:keep-going`.
 - **Does not prescribe the next stage**; that is `/session-flow:workflow`.
 - **Does not score or codify**; that is `/session-flow:retro`.
-- **Does not invoke the built-in `/recap`**. Built-ins are not
-  Skill-invocable; it synthesizes the conversation summary inline instead.
+- **Does not invoke the built-in `/recap`**. The model cannot invoke it
+  ([reference/native-recap.md](reference/native-recap.md)); it synthesizes the conversation summary inline instead.
 
 ## Gotchas
 

@@ -3,10 +3,10 @@
 A versioned, marketplace-wide contract for **how a plugin declares that it retired a consumer-facing
 convention, and how the leftover is detected and cleaned in every consumer repository**. A plugin
 that stops reading a config file, stops recommending a gitignore line, or renames a directory it
-once asked a consumer to create leaves an artifact behind in every repo that adopted it. Before this
-contract, eight plugins each detected their own leftovers in bespoke setup prose, and the prose
-drifted. Now the knowledge lives in one append-only manifest per plugin and the mechanism lives in
-one shared deterministic helper, so every setup skill detects and cleans the same way.
+once asked a consumer to create leaves an artifact behind in every repo that adopted it. The
+knowledge lives in one append-only manifest per plugin and the mechanism lives in one shared
+deterministic helper, so every setup skill detects and cleans the same way instead of each plugin
+detecting its own leftovers in setup prose that drifts.
 
 This directory is the source of truth: `README.md` (the contract), `CHANGELOG.md` (version history).
 The decision record is [ADR 0018](../../adr/0018-express-team-shared-conventions-as-consumer-convention-docs.md);

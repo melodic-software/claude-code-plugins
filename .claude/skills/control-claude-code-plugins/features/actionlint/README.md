@@ -4,7 +4,6 @@ The skills of `plugins/actionlint`. Each one is driven with `<plugin-dir>` set t
 
 ## Parts
 
-- `check`: Report whether actionlint and node are installed. Never installs.
 - `setup`: Verify actionlint's prerequisites and configuration here, and register its git pre-commit entry. No plain-words entry.
 
 ## Sub-features

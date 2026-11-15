@@ -8,9 +8,11 @@ Measure from the REST runs and jobs endpoints (read-only). go-faster measures pe
 with `findings.py ci-timing`, which reads `started_at - created_at` from the REST jobs endpoint
 (queue formula MEDIUM: `needs`-gated `created_at` timing was observed on one repository),
 excluding `conclusion == skipped`.
-`gh run view --json jobs` carries no `createdAt` (MEDIUM), so it cannot give queue time. The run
-`/timing` endpoint is documented as closing down with no removal date found (MEDIUM); it is never a
-measure source. CI time is reported as counts of minutes and runs, never as a price.
+`gh run view --json jobs` carries no `createdAt` (MEDIUM), so it cannot give queue time
+([gh run view](https://cli.github.com/manual/gh_run_view)). The run `/timing` endpoint is
+documented as closing down with no removal date found (MEDIUM); it is never a measure source
+([Get workflow run usage](https://docs.github.com/en/rest/actions/workflow-runs#get-workflow-run-usage)).
+CI time is reported as counts of minutes and runs, never as a price.
 
 | class | area | cause | measure | remedy | accuracy_guard | fix_owner | confidence | candidate_only | pointer | as_of | recheck_trigger |
 |---|---|---|---|---|---|---|---|---|---|---|---|

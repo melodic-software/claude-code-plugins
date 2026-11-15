@@ -42,7 +42,7 @@ export function registerTagTools(server: McpServer, api: MiroApi): void {
 
   server.tool(
     "miro_attach_tag",
-    "Attach an existing tag to a board item. Use miro_create_tag first to create the tag, then attach it to sticky notes, cards, or other taggable items. Idempotent: attaching the same tag twice is safe.",
+    'Attach an existing tag to a board item. Use miro_create_tag first to create the tag, then attach it to sticky notes, cards, or other taggable items. Idempotent: attaching the same tag twice is safe. Returns { item_id, tag_id, status: "attached" }, or an error when the item type does not support tags.',
     {
       board_id: z.string().describe("The board ID"),
       item_id: z.string().describe("The item ID to tag"),

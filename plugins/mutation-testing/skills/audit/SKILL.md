@@ -325,7 +325,7 @@ set up (invoked per its own documentation), falling back to the same-vendor fres
 Equivalence is formally undecidable, so the risk is a correlated blind spot rather than a lapse of
 attention, and that is the case the top rung of the ladder exists for.
 
-**Every verdict that WITHHOLDS a survivor must cite evidence, and a verdict that cannot is reported
+**Every verdict that withholds a survivor must cite evidence, and a verdict that cannot is reported
 as *unclassified*.** Equivalent and arid are the two that withhold, so the rule binds both. Asserting
 either from inspection alone is exactly where this technique manufactures false confidence:
 
@@ -346,7 +346,7 @@ either from inspection alone is exactly where this technique manufactures false 
   about observable behavior, the node-kind membership test is what makes it checkable rather than
   rhetorical, and running it is what makes it checked.
 
-**This bar lives here, at classification, rather than at persist time, so one survivor has ONE
+**This bar lives here, at classification, rather than at persist time, so one survivor has one
 disposition.** Phase 5 reports and Phase 6 persists from the same classification, so an operator
 reading the report and then the findings file cannot be shown "arid" in one and "unclassified" in the
 other. It also means the bar binds a bare run, not only `--persist-findings`, the human-facing
@@ -484,7 +484,7 @@ Each one produces a *plausible* result, which is what makes them worth listing.
   of local errors. It says nothing about a wrong algorithm, a missing requirement, a concurrency
   interleaving, or an unexpressed security property.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Write or modify tests, or leave any mutation in the tree.
 - Persist anything on bare invocation. The findings file is written only under `--persist-findings`,

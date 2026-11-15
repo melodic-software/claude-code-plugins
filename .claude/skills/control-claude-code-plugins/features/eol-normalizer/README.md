@@ -4,7 +4,6 @@ The skills of `plugins/eol-normalizer`. Each one is driven with `<plugin-dir>` s
 
 ## Parts
 
-- `check`: Report whether node and jq resolve for the eol-normalizer hooks. Never installs.
 - `setup`: Verify the eol-normalizer hook's runtime prerequisites and configuration for this repository. No plain-words entry.
 
 ## Sub-features

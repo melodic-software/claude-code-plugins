@@ -67,18 +67,21 @@ reports the stop prints `cause` beside `reason`, so a budget stop is not read as
 A lane job that uses this gate:
 
 - Sets `permissions: contents: read, pull-requests: read`, both read-only. claude-code-action
-  passes the job's `GITHUB_TOKEN` into the model's environment, so
-  every write goes through the lane's App token.
+  passes the job's `GITHUB_TOKEN` into the model's environment, so a job that runs a model holds
+  no App token or other write credential
+  ([ADR 0085](../../../docs/adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md);
+  [`model-job-permissions.test.mjs`](../../scripts/lib/model-job-permissions.test.mjs) fails one
+  that does). Every write runs in a separate job with no model, under the lane's App token.
 - Runs this gate and [`check-trusted-trigger`](../check-trusted-trigger/README.md) with no
   `continue-on-error`.
-- Gives the model step, and the App token step before it, this condition:
+- Gives the model step this condition:
 
   ```yaml
   if: steps.kill.outputs.proceed == 'true' && steps.gate.outputs.proceed == 'true'
   ```
 
   A gate step that errors or writes no output leaves `proceed` empty, which also stops the lane.
-- Mints the App token only after both gates, so a stopped lane never holds one.
+- Mints the App token only in the separate write job, which runs no model and starts only after both gates proceed, so a stopped lane never holds one.
 
 ## Tests
 

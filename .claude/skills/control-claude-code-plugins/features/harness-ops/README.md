@@ -12,7 +12,6 @@ The skills of `plugins/harness-ops`. Each one is driven with `<plugin-dir>` set 
 - `audit-skill-visibility`: Which skills the model can actually see, which are starved, and which are unobservable.
 - `behavior-probes`: Run data-driven live probes of Claude Code permission and platform behavior and record the outcomes.
 - `changelog`: Ingest a Claude Code release changelog and integrate its changes into the repo.
-- `check`: Report whether node and jq resolve for the harness-ops hooks. Never installs.
 - `control-claude-code`: Control skill /app-control:drive reads to run Claude Code's terminal UI with a plugin loaded and record screenshots, video and stream-json logs of its mods, skills, hooks and commands. No plain-words entry.
 - `inventory`: Enumerate every command, skill, agent, and plugin component this machine can invoke.
 - `known-issues`: Look up and track known Claude product issues, health, and workarounds.
@@ -20,6 +19,7 @@ The skills of `plugins/harness-ops`. Each one is driven with `<plugin-dir>` set 
 - `machine-profile`: Discover, store and diff machine facts and per-tree identity domains. Read-only by default.
 - `observability`: Report on locally captured telemetry. Token burn, cost, hook latency, per-session activity.
 - `plugins`: Bring the machine's plugin fleet current. Refresh, update, install per policy. No plain-words entry.
+- `plugins-audit`: Predict what plugin sync would change, read-only.
 - `prerequisites`: Report external tools the enabled fleet declares missing. Never installs.
 - `setup`: Verify harness-ops's personal path configuration for this repository, check the self-ignoring guard on the hook log root, check that node and jq resolve for the hooks, detect retired conventions, and explain how to change the options through Claude Code. No plain-words entry.
 

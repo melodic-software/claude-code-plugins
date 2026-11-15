@@ -1,6 +1,6 @@
 # machine-health: Linux is not yet implemented
 
-Scaffolding placeholder. When `machine-health` is invoked on a Linux host, the skill **must** emit a clear `UNKNOWN`-severity report explaining this gap and **must not** attempt to execute scripts from `scripts/windows/` on Linux.
+Scaffolding placeholder. When `machine-health` is invoked on a Linux host, the skill must emit a clear `UNKNOWN`-severity report explaining this gap and must not attempt to execute scripts from `scripts/windows/` on Linux.
 
 ## What the skill should do on Linux today
 
@@ -36,11 +36,11 @@ Goal is "populate two folders," not "refactor the skill." Everything under `refe
 
 ## Explicit prohibition
 
-**Do not attempt to execute any script under `scripts/windows/` on Linux.** Windows scripts call `Get-CimInstance Win32_*`, `powercfg`, registry paths, and Windows-only assemblies. Running them on Linux fails in noisy, confusing ways and pollutes the run log.
+Do not attempt to execute any script under `scripts/windows/` on Linux. Windows scripts call `Get-CimInstance Win32_*`, `powercfg`, registry paths, and Windows-only assemblies. Running them on Linux fails in noisy, confusing ways and pollutes the run log.
 
 ## A note on sudo
 
-Many interesting Linux checks (SMART, full journalctl, LUKS state) require elevation. Consistent with the skill's Windows posture, **never prompt for sudo** and **never assume sudoers NOPASSWD**. When a check needs elevation and run is unprivileged, emit `UNKNOWN` with `needs_admin: true`. The human decides whether to rerun under sudo.
+Many interesting Linux checks (SMART, full journalctl, LUKS state) require elevation. Consistent with the skill's Windows posture, never prompt for sudo and never assume sudoers NOPASSWD. When a check needs elevation and run is unprivileged, emit `UNKNOWN` with `needs_admin: true`. The human decides whether to rerun under sudo.
 
 ## When to remove this file
 

@@ -37,7 +37,7 @@ trigger.
 
 Review is the quality checkpoint between "code works" and "code is ready." This skill structures that step so changes are inspected for consistency, correctness, and alignment with the project's conventions before verification or PR creation. Self-review catches errors tests miss. Inconsistencies, loose ends, convention drift, design shortcuts. Delegated reviews (code, architecture, security) bring specialized scrutiny the implementer's tunnel vision would miss.
 
-**Depth, not breadth.** This skill picks ONE lens per invocation. For a multi-surface fan-out that runs many reviewers at once and ranks their combined findings, use this plugin's `fanout` skill instead.
+**Depth, not breadth.** This skill picks one lens per invocation. For a multi-surface fan-out that runs many reviewers at once and ranks their combined findings, use this plugin's `fanout` skill instead.
 
 ## Shared inputs
 
@@ -93,14 +93,14 @@ so it is **exempt**, except under `--base` or `--worktree` ([context/phase-bound
 against the container-scoped basis it derives, plus a rollup check that the container is actually
 finished ([context/close-out.md](context/close-out.md) "Step 4"). Every remaining mode consumes the
 branch review diff, so for those: resolve the review diff base ("Shared inputs") and confirm it
-yields a non-empty diff BEFORE dispatching any reviewer. With `--base`, the checks run against that
+yields a non-empty diff before dispatching any reviewer. With `--base`, the checks run against that
 SHA as [context/phase-boundary.md](context/phase-boundary.md) "Pre-flight with a base SHA" says.
 
 - **Unresolvable base**, an open PR's `origin/<baseRefName>` fails `git rev-parse --verify` even
-  after a fetch (do NOT silently substitute a different base. That reviews the wrong diff), or no
-  ladder ref resolves at all → report which ref failed and STOP.
-- **Nothing to review**. No tracked diff against the base AND no untracked files → say so and
-  STOP; never stage files to manufacture a diff.
+  after a fetch (do not silently substitute a different base. That reviews the wrong diff), or no
+  ladder ref resolves at all → report which ref failed and stop.
+- **Nothing to review**. No tracked diff against the base and no untracked files → say so and
+  stop; never stage files to manufacture a diff.
 
 **Untracked-only is reviewable here, and this is a deliberate divergence from `fanout`.** This
 skill's Shared inputs hand untracked files to the dispatched reviewer directly ("Shared inputs";
@@ -110,9 +110,9 @@ files has a real change set. Stopping on it would make a new-module or new-test 
 surfaces receive only the merge-base diff, which cannot show an unstaged file. Review the untracked
 files in place; still never `git add` them.
 
-Either outcome dispatches ZERO reviewers: a lens run against an empty or wrong change set produces
+Either outcome dispatches zero reviewers: a lens run against an empty or wrong change set produces
 noise, not a verdict. Two modes add a gate of their own on top of this one: an explicitly passed
-`--spec` ref that does not resolve is a STOP ([context/spec.md](context/spec.md) "Rung 1"), and so
+`--spec` ref that does not resolve is a stop ([context/spec.md](context/spec.md) "Rung 1"), and so
 is an explicitly passed `--container` ref that does not resolve
 ([context/close-out.md](context/close-out.md) "Step 1").
 

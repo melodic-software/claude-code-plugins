@@ -77,7 +77,7 @@ passes its effort as `effort`.
   and [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level)
   live.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Write any configuration layer. That is `/multi-agent:setup apply`.
 - Route a named agent. An agent dispatched by its own type, such as

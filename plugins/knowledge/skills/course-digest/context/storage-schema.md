@@ -28,9 +28,10 @@ courses/<platform>/<slug>/
         notes.md                 # Lesson notes (if platform provides them)
         code-snippets.md         # Code extracted from lesson (inline code blocks)
         resources.json           # Download URLs, article links, PDF links (Teachable adapter)
-        screenshots/             # Key frames as PNG files
-          001-slide-intro.png    # Zero-padded, descriptive suffix
-          002-code-example.png
+        screenshots/             # Extracted frames as PNG files
+          scene-01/
+            scene_0001.png       # Scene-detection frame
+            interval_0001.png    # Interval-capture fallback frame
       02-what-will-you-learn/
         transcript.md
         ...
@@ -205,7 +206,7 @@ Per-lesson resource metadata: download URLs, article links, PDF links extracted 
 - Understanding progression (how codebase evolves lesson by lesson)
 - Catching discrepancies (what code does vs what instructor says)
 
-Phase 3 synthesis agents read BOTH: repo for architectural context, downloads for lesson-specific teaching. Repo alone misses journey; ZIPs alone miss big picture.
+Phase 3 synthesis agents read both: repo for architectural context, downloads for lesson-specific teaching. Repo alone misses journey; ZIPs alone miss big picture.
 
 For courses with GitHub repos instead of ZIPs, `code/repo/` is a shallow clone and per-section analysis comes from `git log` or directory-based sections.
 
@@ -213,13 +214,13 @@ For courses with GitHub repos instead of ZIPs, `code/repo/` is a shallow clone a
 
 - Format: PNG
 - Max width: 1280px
-- Naming: `{NNN}-{descriptive-suffix}.png` (e.g., `001-test-list-creation.png`)
+- Naming: the extractor writes `screenshots/scene-01/scene_NNNN.png` (scene detection) and `screenshots/scene-01/interval_NNNN.png` (interval fallback)
 - Only capture when visual content adds information beyond transcript:
   - Code on screen (IDE, terminal)
   - Architecture diagrams
   - Slides with visual content
   - UI demonstrations
-- Do NOT screenshot talking-head segments; the transcript covers those
+- Do not screenshot talking-head segments; the transcript covers those
 
 ## Size management
 
@@ -227,4 +228,4 @@ For courses with GitHub repos instead of ZIPs, `code/repo/` is a shallow clone a
 - **Screenshots**: resize to 1280px wide, compress with reasonable quality
 - **Transcripts**: typically 1-3 KB per minute of video (~30 KB for a 30-min lesson)
 - **course.json**: grows with lessons but stays under 50 KB for large courses
-- **Expected total per course**: 1-5 MB for transcripts + metadata, 10-50 MB with screenshots
+- **Expected total per course**: 1-5 MB for transcripts + metadata; with screenshots, size it from the measured per-lesson figures in [screenshot-strategy.md](../reference/screenshot-strategy.md#file-size-management)

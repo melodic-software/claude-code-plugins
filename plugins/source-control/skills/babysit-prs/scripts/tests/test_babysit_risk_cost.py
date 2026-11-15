@@ -972,6 +972,69 @@ class LowRatedShapes(_Finding):
                 self.assertNotIn(SECRET_EXPOSURE_CODE, codes)
                 self.assertNotIn(COST_CODE, codes)
 
+    # A job renamed from `admit`: an `if:` block's first line changes while
+    # its closing line is context, and a later hunk renames the id in a
+    # comment with an apostrophe.
+    RENAMED_IF = (
+        "@@ -764,7 +764,7 @@\n"
+        "   # leaving it to work-unblock's hourly sweep.\n"
+        "   stale:\n"
+        "-    needs: [admit]\n"
+        "+    needs: [check-admission]\n"
+        "     if: >-\n"
+        "-      ${{ !cancelled() && needs.admit.outputs.proceed == 'true'\n"
+        "+      ${{ !cancelled() && needs.check-admission.outputs.proceed == 'true'\n"
+        "       && needs.x.result != 'skipped' }}\n"
+        "     runs-on: ubuntu-24.04\n"
+        "@@ -827,3 +827,3 @@\n"
+        "-  # It also reports the admit job's outside-author stop\n"
+        "+  # It also reports the check-admission job's outside-author stop\n"
+        "   skip:"
+    )
+
+    def test_an_if_expression_before_a_comment_is_no_secret_reference(self):
+        trailing = _patch(
+            "+    if: ${{ needs.a.outputs.ok == 'true' }} # the gate job's output"
+        )
+        for patch in (self.RENAMED_IF, trailing):
+            with self.subTest(patch=patch):
+                wf = _file(WORKFLOW, patch=patch, contents=("", "jobs: {}\n"))
+                result = _cost([wf], public=True)
+                self.assertNotIn(SECRET_EXPOSURE_CODE, _codes(result))
+                self.assertNotIn("unclosed literal", str(result.reasons))
+
+    def test_a_real_secret_beside_a_renamed_if_expression_holds(self):
+        for added in (
+            "+      ${{ !cancelled() && secrets.DEPLOY != ''",
+            "+  K: ${{ secrets.DEPLOY }} # the deploy job's key",
+        ):
+            with self.subTest(added=added):
+                patch = self.RENAMED_IF + "\n@@ -900,1 +900,2 @@\n context\n" + added
+                wf = _file(WORKFLOW, patch=patch, contents=("", "jobs: {}\n"))
+                self.assertSecurityHold(
+                    _cost([wf], public=True), SECRET_EXPOSURE_CODE
+                )
+
+    def test_a_secret_split_around_a_context_line_holds(self):
+        # The middle line is context: only the hunk read whole joins it.
+        for lines in (
+            (
+                "+  K: ${{ format('{0}{1}',",
+                "   github.sha,",
+                "+    secrets, 'a') }}",
+            ),
+            (
+                "+    if: >-",
+                "       github.event_name == 'push' &&",
+                "+      contains(secrets, 'X')",
+            ),
+        ):
+            with self.subTest(lines=lines):
+                patch = "@@ -1,2 +1,3 @@\n" + "\n".join(lines)
+                wf = _file(WORKFLOW, patch=patch, contents=None)
+                codes = _codes(_cost([wf], public=True))
+                self.assertIn(SECRET_EXPOSURE_CODE, codes)
+
     def test_a_runner_expression_gaining_a_larger_runner_holds(self):
         matrix = (
             "jobs:\n  build:\n    strategy:\n      matrix:\n        os: [{os}]\n"
@@ -1088,6 +1151,21 @@ def _workflow(perms: str, job_perms: str = "", on: str = "on: push\n") -> str:
 READ_ONLY = _workflow("permissions:\n  contents: read\n")
 
 
+def _broker_job(job_id: str, steps: str = "") -> str:
+    """One job under `job_id` that holds `id-token: write`."""
+    return (
+        f"  {job_id}:\n    name: Broker Check\n    runs-on: ubuntu-24.04\n"
+        f"    permissions:\n      contents: read\n      id-token: write\n{steps}"
+    )
+
+
+BROKER = "on: push\njobs:\n" + _broker_job("broker-check")
+
+
+def _detail(result, code):
+    return "; ".join(r.detail for r in result.reasons if r.code == code)
+
+
 class WorkflowPrivilegeHolds(_Finding):
     """A workflow change that widens its token or adds a privileged trigger is
     a person's hold (owner direction 2026-10-28: an AI review alone must not
@@ -1136,6 +1214,28 @@ class WorkflowPrivilegeHolds(_Finding):
         self.assertNotHeld(self._change(writes, READ_ONLY), PERMISSION_WIDENING_CODE)
         same = writes.replace("on: push\n", "on: push\nname: renamed\n")
         self.assertNotHeld(self._change(writes, same), PERMISSION_WIDENING_CODE)
+
+    def test_a_renamed_job_widens_nothing_it_already_held(self):
+        head = BROKER.replace("broker-check", "check-broker").replace(
+            "Broker Check", "Check Broker"
+        )
+        patch = _patch("-  broker-check:", "+  check-broker:")
+        self.assertNotHeld(
+            self._change(BROKER, head, patch=patch), PERMISSION_WIDENING_CODE
+        )
+
+    def test_a_renamed_job_that_gains_a_scope_or_a_new_job_holds(self):
+        renamed = BROKER.replace("broker-check", "check-broker")
+        grown = renamed.replace("contents: read\n", "issues: write\n")
+        added = BROKER + _broker_job("mint")
+        for head, scope in ((grown, "issues"), (added, "id-token")):
+            with self.subTest(head=head):
+                result = self._change(BROKER, head)
+                self.assertHeld(result, PERMISSION_WIDENING_CODE)
+                detail = _detail(result, PERMISSION_WIDENING_CODE)
+                self.assertIn(scope, detail)
+                if scope == "issues":
+                    self.assertNotIn("id-token", detail)
 
     def test_an_added_privileged_trigger_holds(self):
         for on in (
@@ -1244,6 +1344,30 @@ class WorkflowPrivilegeHolds(_Finding):
                 )
                 result = _cost([wf], public=True, cost_decision=DECISION)
                 self.assertNotHeld(result, SECRET_EXPOSURE_CODE)
+
+
+@unittest.skipUnless(babysit_risk._yaml(), "PyYAML is not installed")
+class RenamedJobPairing(_Finding):
+    """With PyYAML a renamed job pairs with its old id only when the rest of
+    its body is the same, and each old job pairs once."""
+
+    _change = WorkflowPrivilegeHolds._change
+    assertHeld = WorkflowPrivilegeHolds.assertHeld
+
+    def test_a_renamed_job_whose_steps_changed_is_a_new_job(self):
+        steps = "    steps:\n      - run: make\n"
+        head = "on: push\njobs:\n" + _broker_job("check-broker", steps)
+        result = self._change(BROKER, head)
+        self.assertHeld(result, PERMISSION_WIDENING_CODE)
+        self.assertIn(
+            "check-broker:id-token", _detail(result, PERMISSION_WIDENING_CODE)
+        )
+
+    def test_a_copy_of_a_renamed_job_is_a_new_job(self):
+        jobs = _broker_job("check-broker") + _broker_job("mint")
+        result = self._change(BROKER, "on: push\njobs:\n" + jobs)
+        self.assertHeld(result, PERMISSION_WIDENING_CODE)
+        self.assertIn("mint:id-token", _detail(result, PERMISSION_WIDENING_CODE))
 
 
 class WorkflowPrivilegeHoldsWithoutYaml(WorkflowPrivilegeHolds):

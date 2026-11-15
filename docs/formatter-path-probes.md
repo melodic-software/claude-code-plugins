@@ -29,11 +29,11 @@ This document is the fleet checklist. Per-hook notices must:
 5. **Never** widen the probe into nvm/rbenv layout guesses. That is bootstrap work
    (#2739 / #2748), not a hook-side search expansion.
 
-The formatter and lint plugins below no longer carry per-edit `PostToolUse` rows. A formatter's
+The formatter and lint plugins below carry no per-edit `PostToolUse` rows. A formatter's
 `PostToolBatch` row rewrites silently and skips silently when its tool is missing; the git
 pre-commit entry is where a missing tool surfaces, under the check-placement contract: an agent
 commit fails with the install command and a `checks.skipmissing` key, a person gets a notice.
-The per-edit notice rules above apply to the hooks this table no longer lists.
+The per-edit notice rules above apply only to hooks outside this table.
 
 | Plugin | Batch row / pre-commit entry | Probe order | Filesystem / repo-local route | Missing-tool report | Checker |
 |---|---|---|---|---|---|

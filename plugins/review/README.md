@@ -36,9 +36,9 @@ limits apply:
 - **Memory needs auto memory.** With `autoMemoryEnabled: false` or
   `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in your settings, the `memory` field has no effect: nothing
   persists across sessions and each agent's `## Memory` section does nothing.
-- **"Read-only" is an instruction, not a tool boundary.** None of the first six lists `Write` or
-  `Edit`, but with auto memory on the harness enables both so the agent can manage its memory
-  files, and nothing scopes them to the memory directory. The last three declare no `memory`
+- **"Read-only" is an instruction, not a tool boundary.** `code-reviewer` and `security-reviewer`
+  list `Write`, and with auto memory on the harness enables `Write` and `Edit` for all six so each
+  can manage its memory files, and nothing scopes them to the memory directory. The last three declare no `memory`
   field, so auto memory grants them neither. `permissionMode` cannot narrow a plugin
   subagent either. Bash is a second unenforced write path for every agent except `stage-normalizer`, and
   `ecosystem-specialist` runs build and test commands that write artifacts. Keeping writes to

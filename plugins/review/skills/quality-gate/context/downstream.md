@@ -96,11 +96,11 @@ for example `downstream_probe: report (docs/conventions/review.yaml at origin/<d
 ## Worker brief
 
 ```text
-You are a fresh-context reviewer. You did NOT author this change.
+You are a fresh-context reviewer. You did not author this change.
 
 Inputs: git diff <review-diff-base>, plus the changed symbols named below.
 
-Your job is what this change breaks OUTSIDE its own diff. Do not review the
+Your job is what this change breaks outside its own diff. Do not review the
 changed lines. Another mode does that. Listing callers is not the job either.
 
 Search for the breakage a grep does not show: a library whose source behaves

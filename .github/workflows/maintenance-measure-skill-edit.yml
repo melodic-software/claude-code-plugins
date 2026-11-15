@@ -439,16 +439,16 @@ jobs:
           session trace is given. DATA_DIR/a2 is a second pass of the same skill, which shows how much
           the scores move with no change at all.
 
-          1. Read the skill's files in SKILL_DIR and the cases in CASES_DIR.
-          2. Read pass a's results: for each case below 1, find which graders failed, and from the case's
-             prompt and graders and the skill's text, what the skill leads a session to do that fails them.
-          3. Propose one edit: `file` is a markdown file's path relative to SKILL_DIR, never under an
-             evals/ directory; `old_string` is text that occurs exactly once in it; `new_string`
-             replaces it. Change no frontmatter key but description, and add no line that starts with
-             `!` and no ```! block. Prefer the smallest change that helps the most failing cases, and
-             never one that only echoes a grader's wording without changing what the skill tells the
-             session to do.
-          4. `rationale`: one paragraph naming the failing cases and why the edit should help them.
+          Aim the edit at the cases pass a scored below 1: for each, which graders failed and, from the
+          case's prompt and graders in CASES_DIR and the skill's files in SKILL_DIR, what the skill
+          leads a session to do that fails them.
+
+          The one edit: `file` is a markdown file's path relative to SKILL_DIR, never under an evals/
+          directory; `old_string` is text that occurs exactly once in it; `new_string` replaces it.
+          Change no frontmatter key but description, and add no line that starts with `!` and no
+          ```! block. Prefer the smallest change that helps the most failing cases, and never one that
+          only echoes a grader's wording without changing what the skill tells the session to do.
+          `rationale` is one paragraph naming the failing cases and why the edit should help them.
           PROMPT
           )
           prompt=${prompt//SKILL_DIR/$SKILL_DIR}

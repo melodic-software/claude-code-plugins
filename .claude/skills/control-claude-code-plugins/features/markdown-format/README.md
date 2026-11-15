@@ -4,7 +4,6 @@ The skills of `plugins/markdown-format`. Each one is driven with `<plugin-dir>` 
 
 ## Parts
 
-- `check`: Report whether markdownlint-cli2 and node are installed. Never installs.
 - `setup`: Verify markdown-format's prerequisites and configuration here, and register its git pre-commit entry. No plain-words entry.
 
 ## Sub-features
