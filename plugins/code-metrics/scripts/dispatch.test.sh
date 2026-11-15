@@ -50,7 +50,19 @@ EMPTY_PATH="$(mktemp -d)"
 # empty home unless it sets its own.
 TEST_HOME="$(mktemp -d)"
 export CODE_METRICS_HOME="$TEST_HOME"
-trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$TEST_HOME"' EXIT
+# HOME itself is a test-owned directory seeded with a user-global ecosystem file
+# that moves the python lane onto a glob no fixture matches. A dispatch call that
+# falls back to $HOME (CODE_METRICS_HOME dropped, or shadowed empty on a case's
+# command line) then moves cm_sample.py out of the python lane and fails a case,
+# instead of passing on every machine with an empty ~/.claude. It also keeps
+# persist-report.sh out of the real ~/.claude/plugins/data. The fixture name is
+# composed for the reason case 10 gives.
+GUARD_HOME="$(mktemp -d)"
+guard_lane=python
+mkdir -p "$GUARD_HOME/.claude/ecosystems"
+printf 'globs: ["*.cm-home-guard"]\n' >"$GUARD_HOME/.claude/ecosystems/$guard_lane.yaml"
+export HOME="$GUARD_HOME"
+trap 'rm -rf "$STUBS" "$EMPTY_PATH" "$TEST_HOME" "$GUARD_HOME"' EXIT
 cat >"$STUBS/scc" <<EOF
 #!/usr/bin/env bash
 if [[ "\${1:-}" == "--version" ]]; then printf 'scc version 3.7.0\n'; exit 0; fi
@@ -72,6 +84,13 @@ else
   fail "no ladder collector is resolvable on the tool-free PATH" "none" "$leftover"
 fi
 unset CODE_METRICS_DISABLE_BUNDLED
+
+# 0. The HOME guard bites: with CODE_METRICS_HOME empty the dispatcher falls
+#    back to $HOME, and the seeded ecosystem file moves the python fixture out of
+#    its lane. Were the guard inert, a case that lost its isolation would pass.
+out="$(PATH="$EMPTY_PATH" CODE_METRICS_HOME= bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
+assert_doc "a fallback to the guarded HOME moves cm_sample.py out of the python lane" "$out" \
+  'any(r["file"].endswith("cm_sample.py") for r in d["measures"]) and not any(r["file"].endswith("cm_sample.py") and r["lane"]=="python" for r in d["measures"])'
 
 # 1. scc absent: the bundled counter is used and the run row names it.
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
