@@ -205,7 +205,7 @@ Well-attested across community guides and Reddit but not officially documented. 
 | **Line breaks** | One idea per line | Forces melodic separation; phrases on one line tend to run together. **A default, not a floor**: stacks of very short lines buy excess separation; see "Line breaks cut both ways" below |
 | **Manual repetition** | Write the line twice with a tweak | `(x2)` notation is largely ignored, so literal repetition with minor variation is more reliable |
 | **Inline backing** | `I love you [ahhs rising]` | Adds layered backing vocals / inline FX |
-| **Timing cue** | `[at 0:15 vocals enter]` | Reported to nudge timing; **no adherence rate is stated**, and the old `~70%` had no basis. Less reliable than structure tags. LOW-MEDIUM; see `tips.md` "Timing cues" |
+| **Timing cue** | `[at 0:15 vocals enter]` | Reported to nudge timing; **no adherence rate is stated**. Less reliable than structure tags. LOW-MEDIUM; see `tips.md` "Timing cues" |
 
 ### Line breaks cut both ways: the short-line edge
 

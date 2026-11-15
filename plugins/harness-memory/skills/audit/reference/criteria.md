@@ -455,9 +455,6 @@ fix where direct reading is unavailable, so the fix line names it in every case.
 - **As of**: 2026-09-19
 - **Recheck trigger**: a fetch of those sections changes which file names displace an `AGENTS.md`.
 
-The earlier basis for this check (verified 2026-09-08) was the page's former CLAUDE.md-only
-reading model. Its trigger fired: the page had changed when fetched 2026-09-19, and direct
-`AGENTS.md` reading shipped in v2.1.277. That basis is superseded and is no current claim.
 
 ---
 

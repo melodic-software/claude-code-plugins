@@ -39,7 +39,7 @@ Facing an established way, new work has exactly **two honest options**:
 The **sin is neither of those**: it is leaving the established way in place and
 quietly adding a divergent way alongside it, so both now exist.
 
-### Misconstrual guard. This is NOT "always conform" (mandatory)
+### Misconstrual guard. This is not "always conform" (mandatory)
 
 Reusing is **not** blind conformity, and this skill never demands straight
 obedience to the incumbent way. Replacing the established way is a

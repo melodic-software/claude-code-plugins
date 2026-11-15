@@ -28,7 +28,7 @@ point the tooling at wherever your copy lives (any path you choose):
 - Extracted EPUB working dir: `<extract dir>/OEBPS/` (chap00-chap44.xhtml), where `<extract dir>` is
   the path the temp primitive returned in the Pre-Simulation Checklist's source-material item
 
-**IMPORTANT:** EPUB file names (`chap{N}.xhtml`) do NOT match book chapter numbers. The EPUB includes unnumbered section dividers. Always use the `<title>` tag inside each file for the actual chapter number. Key mapping:
+**Important:** EPUB file names (`chap{N}.xhtml`) do not match book chapter numbers. The EPUB includes unnumbered section dividers. Always use the `<title>` tag inside each file for the actual chapter number. Key mapping:
 
 | EPUB File | Book Ch. | Content | Book % | Skill Coverage | Notes |
 |-----------|----------|---------|--------|---------------|-------|

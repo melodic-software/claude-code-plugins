@@ -193,7 +193,7 @@ After writing round N, in this order:
    `--round N+1` and `--dirty` (the tree's state now). Only members planned in round 1 and still
    planned will run (members are chosen once); the rest sit out with the planner's reason. With
    none left, stop with success before any fix: "no member can be limited to the fix's changes".
-4. **Other producers (Q54):** list unconsumed findings files for this branch: every `.md` in
+4. **Other producers:** list unconsumed findings files for this branch: every `.md` in
    `<run-dir>` with `type: review-findings` and this exact `branch:` that no `type: fix-pass-record`
    for this branch names in `source-findings` with the same name and the same 12-hex digest of its
    bytes (the consumption rule [findings-file-shape.md](../../reference/findings-file-shape.md)

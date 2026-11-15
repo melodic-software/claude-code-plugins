@@ -191,8 +191,7 @@ each only on the surfaces its row names.
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5>
 - Prompting Claude Fable 5.1:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1>.
-  The `fable-5-1` widenings below rest on it, in place of the bundled `claude-api` skill's
-  model-migration reference they first cited; that skill's record lives in
+  The `fable-5-1` widenings below rest on it; the bundled `claude-api` skill's record lives in
   [bundled-claude-api.md](bundled-claude-api.md).
 - What's new in Claude Fable 5.1 (its refusal categories, for I10):
   <https://platform.claude.com/docs/en/models/fable-5-1/whats-new-fable-5-1>
@@ -705,9 +704,8 @@ choice, on the same reasoning I10 applies to a declined widening.
   it; a surface whose *instruction text* prescribes a short client timeout is the shape that would
   reach this catalog, and none is attested.
 - **Source:** Fable 5 guide, "Longer turns by default".
-- **Widened to `fable-5-1` on 2026-09-03**, first on the bundled `claude-api` skill's
-  model-migration reference. That basis's trigger fired when the Fable 5.1 guide was published. The
-  widening now rests on our rule that a Fable 5 row applies to Fable 5.1 unless the Fable 5.1 guide
+- **Widened to `fable-5-1` on 2026-09-03.** The
+  widening rests on our rule that a Fable 5 row applies to Fable 5.1 unless the Fable 5.1 guide
   names a difference on the row's subject, and on our reading of that guide on 2026-10-01 (read
   whole as raw markdown; no artifact stored): no section names a turn-length difference. Pointer:
   [Prompting Claude Fable
@@ -930,9 +928,8 @@ per model; promotion gate unmet, see "Unscoping considered" below).
   `## Sources`: the catalog-wide trigger then fires this row whenever that page changes, and no
   narrower per-row trigger is owed.
 
-- **Widened to `fable-5-1` on 2026-09-03**, first on the bundled `claude-api` skill's
-  model-migration reference. That basis's trigger fired when the Fable 5.1 guide was published.
-  The widening now rests on the refusal categories of the refusals and fallback page, which
+- **Widened to `fable-5-1` on 2026-09-03.**
+  The widening rests on the refusal categories of the refusals and fallback page, which
   lists Fable 5.1. Pointer: [Refusals and fallback, What a refusal
   looks like](https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback#refusal-response).
   Recheck trigger: that section stops covering the `reasoning_extraction`
@@ -1270,10 +1267,8 @@ since each prescribes a request the model refuses.
   inventories. **Count two `ultracode` forms as `xhigh`:** `--effort ultracode`, and
   `effortLevel: "ultracode"` sent through the Agent SDK. Count `/effort ultracode` and the
   `ultracode` setting only where the level already in effect is `xhigh` or `max`. Match on the
-  effort that reaches the request, not on the spelling. **Narrowed on 2026-10-01:** this row
-  formerly counted all four `ultracode` forms as `xhigh`. It now counts `/effort ultracode` and the
-  setting only on the condition above, because the row matches the effort that reaches the request
-  and we treat those two forms as leaving the level in effect unchanged.
+  effort that reaches the request, not on the spelling. We treat `/effort ultracode` and the
+  setting as leaving the level in effect unchanged, which is why they count only on that condition.
   Pointer: for which ultracode forms set the level, see
   [model configuration: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
   As of: 2026-10-01. Recheck trigger: that section changes which ultracode forms set the effort
@@ -2004,9 +1999,8 @@ confident removals.
   the claim, which would meet the
   promotion gate and unscope this row, or that section ceasing to name the remaining-token
   countdown as the trigger, which is what joins the disclosure arm to the directive arm.
-- **Widened to `fable-5-1` on 2026-09-03**, first on the bundled `claude-api` skill's
-  model-migration reference. That basis's trigger fired when the Fable 5.1 guide was published. The
-  widening now rests on our reading of that guide on 2026-10-01 (read whole as raw markdown; no
+- **Widened to `fable-5-1` on 2026-09-03.** The
+  widening rests on our reading of that guide on 2026-10-01 (read whole as raw markdown; no
   artifact stored): no section names a context-budget difference from Fable 5, so we keep the
   Fable 5 claim for `fable-5-1`. Pointer: [Prompting Claude Fable
   5.1](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1),

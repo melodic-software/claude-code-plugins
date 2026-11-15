@@ -2,10 +2,10 @@
 
 The risk being managed: every applied edit is a code change, and each kind of change has a
 different strongest available proof that it preserved behavior. The gates below match the proof to
-the change instead of demanding one proof (a test run) for all of them. Demanding the test run for
-everything is what left the skill inert on any repository without a test suite, which is most of
-them, and it was never the strongest proof available for a deletion anyway: a test suite samples
-behavior, while a token comparison is exhaustive over the file.
+the change instead of demanding one proof (a test run) for all of them. A test run for everything
+would leave the skill inert on any repository without a test suite, which is most of them, and it
+is not the strongest proof for a deletion: a test suite samples behavior, while a token comparison
+is exhaustive over the file.
 
 ## Contents
 

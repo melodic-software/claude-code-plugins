@@ -175,7 +175,7 @@ The `frontierLock` setting ([Settings layers](#settings-layers)) governs a decis
 
 - `confirm` (the default): Save asks first, `Q100 depends on Q22, which is still open.`, with Go to Q22 and Answer anyway. Answer anyway sends the event with `outOfOrder: ["Q22"]`; the server keeps the ids still open, and the first decision on each marks Q100 `stale`, even after its `dependsOn` changes, so triage it like any stale dependent. The rail shows a padlock `Locked` chip in place of `Blocked`.
 - `hard`: Save stays disabled, and the server answers such a decision 409 `{"error": "blocked", "waitsOn": [<open ids>]}`.
-- `off`: no lock; the rail shows `Blocked`, as before.
+- `off`: no lock; the rail shows `Blocked`.
 
 Ask, Rephrase and Research this stay enabled in every mode, `reopen` is never locked, and accept-all already leaves out a question with an open prerequisite.
 

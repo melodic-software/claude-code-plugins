@@ -52,7 +52,7 @@ tell why `/source-control:commit` behaves as it does.
 
 When `REPO_ROOT` is `$HOME` or an ancestor of it, or is not inside a git working tree, team and
 personal override are **not applicable**
-([../../reference/config-resolution.md](../../reference/config-resolution.md), config-cascade #4672):
+([../../reference/config-resolution.md](../../reference/config-resolution.md)):
 do not read `${REPO_ROOT}/docs/conventions/source-control.yaml` or the personal override,
 report both as N/A with the reason (`project root is the home directory (or an ancestor of it)`
 or `project root is not inside a git repository`), and resolve user-global only.

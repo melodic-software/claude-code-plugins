@@ -50,7 +50,7 @@ sessions were not probed.
   version, and which span ID a record carries, fetch
   <https://code.claude.com/docs/en/monitoring-usage#traces-beta> live. The probe's evidence is in
   pull request #4414 of the repository that ships this plugin.
-- **As of**: 2026-10-11 (page); 2026-09-23 (probe)
+- **As of**: 2026-09-23 (probe)
 - **Recheck trigger**: a Claude Code changelog entry touching inbound `TRACEPARENT` or event trace
   correlation, or that section is renamed or removed.
 
@@ -100,6 +100,6 @@ scope field). The memory page does not say how memory writes are made.
   <https://code.claude.com/docs/en/monitoring-usage#events>,
   <https://code.claude.com/docs/en/hooks#instructionsloaded>, and
   <https://code.claude.com/docs/en/memory#auto-memory> live.
-- **As of**: 2026-10-11 (pointer); 2026-09-23 (reading)
+- **As of**: 2026-09-23 (reading)
 - **Recheck trigger**: the monitoring page documents a memory event or attribute, or the hooks page
   documents a hook event covering auto memory.

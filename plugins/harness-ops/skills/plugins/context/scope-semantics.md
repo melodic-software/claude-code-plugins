@@ -307,7 +307,7 @@ section above records as unreapable.
 **Nothing on either side of the boundary reaps the result.** `git worktree remove` deletes the
 directory and does not touch `~/.claude`, and the section above records that no CLI verb removes a
 record by path (`-s project` acts on the cwd only, `prune` is dependency-only). We treat the
-product's own retention sweep as not covering them either. The swept-path list now names paths
+product's own retention sweep as not covering them either. The swept-path list names paths
 under `~/.claude/plugins/`; we read none of those rows as the live per-project records (what each
 row holds is read at the pointer below). A swept copy aging out is cleanup of the copy; it is no
 evidence that a stranded record in the live file is ever reaped, so the claim above stands until
@@ -352,7 +352,7 @@ and LSP servers in-process, but not monitors. Recommend bare `/reload-plugins` b
 a session restart only when an updated plugin ships a monitor. Pointer:
 [plugin loading: which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update).
 
-**An install can now activate itself, but not the installs this skill issues.** An install started
+**An interface install can activate itself; the installs this skill issues do not.** An install started
 from the in-session `/plugin` interface reports its activation state, and this skill reads two
 lines of that summary: `Plugin is now active.` and `Run /reload-plugins to apply.`. What the
 interface does after each line, including whether it reloads on its own or leaves the plugin
@@ -529,7 +529,7 @@ docs say nothing about clone depth), and an update replaces the clone rather tha
 has no object in the clone to compare against, so the check compares only installs recorded at the
 clone's HEAD and reports the rest as `not-at-head`, counted `not checked (recorded at an older
 commit)` rather than unverifiable, on a fleet with nothing wrong with it. Observed 2026-10-04
-(#5941): 84 of 86 installs read `sha-not-local`, the verdict the check then gave a record whose commit the clone did not hold, right after a refresh. That is the steady state, not an edge case, and it caps how much any single
+(#5941): 84 of 86 installs were recorded at a commit the clone did not hold, right after a refresh. That is the steady state, not an edge case, and it caps how much any single
 run of the check can establish. The check never fetches the missing commit: a fetch is a network
 mutation, and it would repair the condition being reported. **Recheck trigger:** a change to the
 host-marketplace page's update or clone description, or to how Claude Code clones a marketplace.
