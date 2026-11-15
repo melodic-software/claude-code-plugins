@@ -299,10 +299,9 @@ verb:
 4. re-derives mutable facts, including relevant branch/worktree OIDs, at execution time. An old
    artifact is evidence, not authorization.
 
-The rollup, the `--apply-plan` dry-run, and `/repo-fleet-hygiene:apply` all ship. Do not
-invent `--cleanup-plan`, `--execute`, or report-and-execute behavior on `audit-fleet.sh`. Return the
-report, rollup, and plan path; tell the user to run `/repo-fleet-hygiene:apply` for execution. A
-`HIGH` evidence tier is never itself permission to delete a branch or worktree.
+Do not invent `--cleanup-plan`, `--execute`, or report-and-execute behavior on `audit-fleet.sh`.
+Return the report, rollup, and plan path; tell the user to run `/repo-fleet-hygiene:apply` for
+execution. A `HIGH` evidence tier is never itself permission to delete a branch or worktree.
 
 Related fleet contracts that remain separate:
 

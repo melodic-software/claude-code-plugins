@@ -20,8 +20,7 @@ evidence only when the harness recorded the run. In order of preference:
 
 Basis: the evidence guidance in
 [best practices: give Claude a check to run](https://code.claude.com/docs/en/best-practices#give-claude-a-check-to-run);
-the oracle-independence research slice behind this plugin's 2026-10-06 change found no artifact in
-this pipeline written by the harness rather than the agent.
+this pipeline itself writes no harness-recorded artifact of another agent's run, so item 2 comes from a project's own hook or a transcript tool result.
 
 ## Before relying on a hook-written log
 

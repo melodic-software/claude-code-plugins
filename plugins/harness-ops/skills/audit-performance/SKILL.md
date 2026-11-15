@@ -198,8 +198,9 @@ spawns. Read `fan_out` in this order:
    command-position rule honors quotes: a quoted executable containing spaces
    (`"C:/Program Files/PowerShell/7/pwsh.exe" -File hook.ps1`) stays one token and is
    recognized, and a shell operator inside a quoted argument (`grep -e 'a|sh' f`) is not read
-   as a delimiter. The two LEGACY findings still flatten quotes and read their own token
-   list, unchanged on every input. The engine treats a row with an `args` key, even
+   as a delimiter. The other two findings, `git-bin-bash-wrapper-costs-an-extra-spawn` and
+   `nested-shell-invocation`, flatten quotes and read their own token list on every input. The
+   engine treats a row with an `args` key, even
    `[]`, as exec form and reports no second shell for it, and a row without the key as shell form.
    Which bash pays the wrapping spawn is item 3. `per_tool_call.count` is the
    registered-row ceiling, so read `by_matcher` and
@@ -250,9 +251,7 @@ spawns. Read `fan_out` in this order:
    against documented defaults. **Never present any value, or removing the variable, as
    disabling either cap**; read what a value does, and where a cap is not enforced, from the
    pointer. The engine's `trap` string beside them describes only the truthiness-gated observer
-   flag and says removing that variable disables it; never relay it for the caps. Rewording it
-   is left undone because `test_the_trap_never_advises_setting_a_flag_to_zero` in
-   `scripts/test_audit_performance.py` pins that text.
+   flag and says removing that variable disables it; never relay it for the caps.
    - **Pointer**: when judging what a cap value does or where it is not enforced, fetch
      [sub-agents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit),
      [sub-agents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents),

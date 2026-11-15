@@ -154,7 +154,7 @@ Promote only via vision-gated decisions:
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/vision-gated-promote.js "<slice-dir>"
 ```
 
-(`promote-key-frames.js` remains for ad-hoc single copies, not the completion path.)
+(`promote-key-frames.js` makes ad-hoc single copies; it is not the completion path.)
 
 ## Watch checklist
 

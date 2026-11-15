@@ -77,8 +77,8 @@ Nothing destructive happens without explicit approval. Four guarantees:
    flagged before the skill-content integration step begins.
 
 **Network requirement.** The update path needs `registry.npmjs.org` and `www.firecrawl.dev`
-reachable. When a sandboxed or cloud egress proxy answers a fetch with a 503 reading "DNS cache
-overflow" (it is intermittent), retry after ~30s, or run the update from an unrestricted session.
+reachable. When a sandboxed or cloud egress proxy answers a fetch with an intermittent 503, retry
+after ~30s, or run the update from an unrestricted session.
 
 **Idempotency.** Running the update action with `--check` twice with no upstream change: "no drift,
 current." Running a full update when already at latest: reports "no drift" and exits before Gate 1.

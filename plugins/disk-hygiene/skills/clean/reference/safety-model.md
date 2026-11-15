@@ -65,7 +65,7 @@ validator rejects an empty reason, and a bare category phrase unless it names a 
 shows that tool still references the entry. A rejected row fails the report with exit 5.
 
 `--execute`, the low-signal rule (Low is kept unless the human separately reviews exact paths), and
-every confirmation gate apply exactly as before. Removing anything the inventory lists goes through
+every confirmation gate apply in full. Removing anything the inventory lists goes through
 `scan`, a fresh `preview`, and the removal approval.
 
 ## Non-overridable checks
@@ -389,7 +389,7 @@ path and `resolve_authorized_data_root()` result as `additionalContext`, so the 
 denied call to learn them, and the guard's denials need not repeat them. It grants nothing: the guard still judges every call, and a hook that fails prints
 nothing and leaves the skill on the kill-switch probe, whose `hook_python` and `data_root` fields
 come from the guard's `launch_disclosure` for the probe's install root. The note and the skill
-belt now share the same three channels, so a `--plugin-dir` session with no marketplace proof
+belt share the same three channels, so a `--plugin-dir` session with no marketplace proof
 reports `data_root: none` on both sides. **Pointer:** when checking which invocations fire the
 event, what its matcher reads, and where `additionalContext` goes, fetch
 [UserPromptExpansion](https://code.claude.com/docs/en/hooks#userpromptexpansion) live.
@@ -668,9 +668,9 @@ the guard.
 **The gate's "different file" escape stops at this plugin's own cache tree.** A word naming an existing
 file that is not the bundled engine defers, so a consumer's own `tools/hygiene.py` is not mistaken for
 this engine. Claude Code keeps a replaced version's directory on disk after an update,
-so that escape also covered every previous version of *this* engine sitting beside the current one,
+so that escape would also cover every previous version of *this* engine sitting beside the current one,
 each a genuinely different file, each deletion-capable, and each answering to nothing but its own
-containment once the always-on gate defers. The gate now refuses that escape to any path resolving
+containment once the always-on gate defers. The gate refuses that escape to any path resolving
 inside `<plugins>/cache/<marketplace>/<name>`, derived from the guard module's own `__file__` rather
 than from argv, so no environment channel can redirect it. A `--plugin-dir` checkout, or a plugin
 loaded in place from a local-directory marketplace, has no such prefix and the narrowing is inert
@@ -699,7 +699,7 @@ instantly (no output) for any command that does not reference the
 engine, so it never taxes unrelated work; its coverage marker is the engine script name, a belt against
 casual invocation, not an authority (renaming the script evades the gate but not the engine's own
 preview/approval-token containment). The model additionally reads the `disk_hygiene_enabled` value from
-the skill content and self-enforces audit-only, now defense-in-depth over the guard rather than the only path.
+the skill content and self-enforces audit-only, as defense-in-depth over the guard, not the only path.
 Even when the switch resolves enabled, the PowerShell lane is a raised bar, not fail-closed: an unknown
 mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
 deletion authority, except inside the [opt-in elevated script](#opt-in-elevation).
@@ -907,8 +907,8 @@ or cleanup contract. The report each registry match produces is specified in
 
 The baseline policy therefore ships no discovery hint for another product's managed state. A hint
 for a class the engine will never act on tells the operator to look for residue the plugin has
-already decided to hand off. For that reason the `.pulumi-write-test-*` hint was removed (#3860)
-rather than exempted. Residue inside a managed directory is reported as a handoff to its owner, and
+already decided to hand off, and no managed-state hint is exempted from that rule. Residue inside
+a managed directory is reported as a handoff to its owner, and
 any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
 without that lane.
 

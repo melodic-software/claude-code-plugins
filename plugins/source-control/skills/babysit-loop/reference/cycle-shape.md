@@ -140,8 +140,8 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    nothing else. The helper reads the `promotion_evidence_*` values from the operator's
    managed and user settings itself (channel F,
    [the contract](promotion-evidence-bootstrap.md#allowed-source-class)), so the lane passes no
-   surface or checker path; it rejects the retired `--binding`, `--probe-evidence-root`,
-   `--evidence` and `--checker` arguments as a usage error. It refuses a path inside the checkout
+   surface or checker path; it rejects any `--binding`, `--probe-evidence-root`,
+   `--evidence` or `--checker` argument as a usage error. It refuses a path inside the checkout
    or a worktree root, or containing one. It refuses a surface, checker or supplying settings file
    the lane user can write, or owns, at the path or any directory above it
    (`lane-writable:<option or file>`), and every call on Windows

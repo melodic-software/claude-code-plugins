@@ -44,8 +44,7 @@ modify anything.
    known-issues-registry destination with the layer that supplied it (`layer`, plus `path` for a
    file layer):
    - layer `default`: INFO, the registry uses `${CLAUDE_PLUGIN_DATA}` (the zero-config default).
-   - layer `userConfig` (the option): PASS, `data_dir` under `${CLAUDE_PROJECT_DIR}`, where the
-     option has always resolved.
+   - layer `userConfig` (the option): PASS, `data_dir` under `${CLAUDE_PROJECT_DIR}`.
    - layer `team` (`harness-ops.yaml`) or `local` (`harness-ops.local.yaml`): PASS, `data_dir`
      under the repository's git toplevel.
    - each `errors` entry: FAIL, naming the layer, file and value dropped and the layer that won

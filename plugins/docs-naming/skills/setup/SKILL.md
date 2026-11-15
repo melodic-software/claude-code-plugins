@@ -109,7 +109,7 @@ layer row reports it as WARN with the same remedy: rename it to
    home) and nothing else. When the YAML is absent and an old team JSON file
    exists (`.claude/docs-naming.json`, else `.claude/docs-hygiene.json`), the
    first write seeds the YAML from it, so its settings carry over; the resolver
-   no longer reads that file. The JSON file stays until a person deletes it. A rewrite keeps the comment block at the top of the file
+   does not read that file. The JSON file stays until a person deletes it. A rewrite keeps the comment block at the top of the file
    and drops comments between keys.
 4. **Clean up retired files.** After any agreed keys are written, re-run the
    retirement detection and handle each active finding behind its own

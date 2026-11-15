@@ -233,9 +233,7 @@ anchor versions that entry itself stores**, which is what gives assertion 4.5 a 
 **Every one of the hard errors above is checked where the record is written, not where it is read.**
 A partial artifact is append-only and permanent, and `--resume` and assembly are its only readers, so
 a record that violates identity is not a report defect the next run can shrug off: it is persisted
-state that nothing downstream can repair. A pass has already shipped a record typed as a finding
-carrying `"identity": null` and no `finding_id/v1`, which 1.3 makes a hard error and which a
-validating emitter would have refused at the append.
+state that nothing downstream can repair.
 
 So the checks run in [`scripts/finding-identity.sh validate-record`](../scripts/finding-identity.sh),
 and the write path the skill prescribes is `finding-identity.sh guarded-append`, which runs them and

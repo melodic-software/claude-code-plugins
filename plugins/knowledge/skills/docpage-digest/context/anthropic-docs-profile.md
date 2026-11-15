@@ -129,7 +129,7 @@ extraction waits for the third (Rule of Three).
   [noted source artifact, not a repaired one](#archive-reading-conventions): an observation is
   qualified where it is thin, never rewritten. This rule is the fleet-wide
   [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route)'s
-  rung 1, which the upstream-drift convention now owns for every surface; the asymmetry above stays
+  rung 1, which the upstream-drift convention owns for every surface; the asymmetry above stays
   here because it is this pipeline's reason for binding the rung to absence claims specifically.
 
 ## Archive-reading conventions

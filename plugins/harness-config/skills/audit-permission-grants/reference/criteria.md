@@ -34,9 +34,9 @@ recognize. Under a gate flag, exit 2 also covers the two results a gate must nev
 `NOTHING TO AUDIT` run, and one that saw no gate-firing finding but could not read an input. There is no fallback to the current directory, because outside
 a repository that is usually the user profile and scanning it would walk the whole home tree and still
 exit 0. To scan an explicit directory, set **`$PERMISSION_HYGIENE_SCAN_ROOT`**, a sanctioned
-operator lever and the documented remedy for that exit 2, not a test-only override. Its predecessor
-`$PERMISSION_HYGIENE_FIXTURE_DIR` still resolves as a back-compatible alias; the new name wins when
-both are set.
+operator lever and the documented remedy for that exit 2, not a test-only override.
+`$PERMISSION_HYGIENE_FIXTURE_DIR` is an alias for it; `$PERMISSION_HYGIENE_SCAN_ROOT` wins when both
+are set.
 
 `settings.local.json` is parsed for its `permissions.allow` array only, never read or echoed wholesale
 (it may hold tokens).
