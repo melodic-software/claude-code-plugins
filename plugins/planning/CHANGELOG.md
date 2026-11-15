@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.1] - 2026-11-15
+
+### Changed
+
+- `shared/web/proto-pin.js`, the generated copy of `lib/ui-feedback/proto-pin.js`, gains the
+  notes host's region and text-selection modes, a view snapshot on each pin, and a data-control
+  log. The prototype page sends none of the new messages and reads only `selector`, `rect` and
+  `label` from a pin, so it behaves as before.
+
 ## [5.2.0] - 2026-11-15
 
 ### Added
