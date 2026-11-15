@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "reference/vocabulary.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "notes.md",
+            "content": "seam"
+          }
+        }
+      ]
+    }
+  ]
+}

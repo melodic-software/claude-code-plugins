@@ -117,10 +117,9 @@ Ask about one entry at a time. For each, you need four things, and the fourth is
 2. **A short label**: the subject, two or three words. It is what a reader scans for.
 3. **What is covered, and what is explicitly not.** Both. An entry with no stated exclusions is one
    the classifier will over-apply.
-4. **A condition visible in the transcript.** The critique's finding was
-   that "uncheckable conditions are the biggest weakness". Entries state preconditions the classifier
-   cannot evaluate from the command text, so it either allows blindly (the condition is decorative) or
-   blocks (the grant is inoperable), with no stated disposition.
+4. **A condition visible in the transcript.** An entry whose precondition the classifier cannot
+   evaluate from the command text either allows blindly (the condition is decorative) or blocks (the
+   grant is inoperable), with no stated disposition.
 
    Some answers name something the classifier cannot see: a person's intent, a fact about the
    build server, whether a change was reviewed. **Say so and ask for the observable form instead.**

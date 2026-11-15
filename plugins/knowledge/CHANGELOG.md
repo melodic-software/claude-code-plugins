@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.1.6] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
 ## [3.1.5] - 2026-11-15
 
 ### Changed

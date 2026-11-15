@@ -3,6 +3,18 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.0.11] - 2026-11-15
+
+### Changed
+
+- Remove history, provenance and migration-relative wording and as-of dates on plain pointers from skill and reference text, lower-case emphasis markers, and correct stale facts.
+
+## [9.0.10] - 2026-11-15
+
+### Changed
+
+- control-claude-code: `cli/README.md` marks each driver verb's `--dry-run` trusted or untrusted, naming for each trusted one the driver test that saw it change nothing, and the permission-dialog and mod-band features open their `## Drive` with a `Preconditions:` line, as the app-control contract now describes.
+
 ## [9.0.9] - 2026-11-15
 
 ### Changed

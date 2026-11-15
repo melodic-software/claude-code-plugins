@@ -101,7 +101,7 @@ Community-empirical starting points:
 
 ## Duration slider (Create form)
 
-**Added after this skill's v5.5 baseline.** Suno's release notes, Jul 20 2026: *"Drag the new Duration slider in the Create form to pick your song length. Available on Web using V5.5 model."*, tagged *Improvement, CREATE, WEB* (<https://suno.com/release-notes/duration-slider-on-web>, fetched 2026-08-12). **HIGH confidence** for the control's existence, its name, its home in the Create form, and that platform scoping. Everything below that line is weaker and says so.
+Suno's release notes, Jul 20 2026: *"Drag the new Duration slider in the Create form to pick your song length. Available on Web using V5.5 model."*, tagged *Improvement, CREATE, WEB* (<https://suno.com/release-notes/duration-slider-on-web>, fetched 2026-08-12). **HIGH confidence** for the control's existence, its name, its home in the Create form, and that platform scoping. Everything below that line is weaker and says so.
 
 **The platform scoping is first-party and narrow.** The entry carries `WEB` and no mobile tag, and no later release note through 2026-08-12 brings the slider to iOS or Android. Treat it as web-only until a release note says otherwise.
 

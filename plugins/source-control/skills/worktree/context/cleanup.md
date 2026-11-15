@@ -202,7 +202,7 @@ Five rules govern this step; each closes a way it could do real harm:
 - **The trigger is this teardown, never path liveness.** Reap a worktree *this cleanup is removing*,
   never "a path that does not currently resolve": a project-scope record for a live repository
   on an unmounted network share or detached external volume is indistinguishable from a dead
-  worktree to a bare existence check, and destroying those records is unrecoverable data loss. Pre-existing orphans from worktrees removed before this step existed are **reported by
+  worktree to a bare existence check, and destroying those records is unrecoverable data loss. Orphans from worktrees removed any other way are **reported by
   `audit`, not reaped here**. See [audit.md](audit.md).
 - **A non-zero exit is a no-op to report, never an escalation.** The CLI's own failure text for an id
   with no project-scope record here reads `Plugin "<id>" is installed in user scope, not project.

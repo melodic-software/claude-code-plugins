@@ -218,7 +218,7 @@ an `UNWIRED` row does, a `NATIVE` row does not.
 
 **Before writing nested shims, look for a gate that classifies changed paths by directory prefix.**
 A hook or CI rule keyed on `apps/`, `libs/` or `services/` reads `<dir>/CLAUDE.md` as code and
-applies a code lane to it; in `medley` that tripped a runtime-affecting pre-push gate. Grep the
+applies a code lane to it, which can trip a runtime-affecting pre-push gate. Grep the
 hook and workflow configs for those prefixes, and report each as an item for the operator. **The
 fix belongs to the repository's gate, through its own tests.** Teach it that an instruction file is
 not code. Never bypass the gate, and never rename or relocate a shim to dodge it.
@@ -370,8 +370,8 @@ shadow the `AGENTS.md` it carries, at the root or in a subdirectory, and whereve
 lack direct `AGENTS.md` support (the CLI floor is in `reference/sources.md`, "The minimum CLI
 version"; the sessions that cannot read `AGENTS.md` directly are in `reference/shim-droppable.md`,
 condition D). It treats the import as safe to keep: the shim never makes Claude read the file
-twice. Canary runs on Claude Code 2.1.278 observed the shadowing; the 2026-09-29 pass did not
-re-run that canary.
+twice. Canary runs on Claude Code 2.1.278 observed the shadowing (`reference/sources.md`, "The CI
+canary").
 
 - **Pointer**: for when Claude Code reads `AGENTS.md`, when that support is unavailable, and what
   removing a shim involves, see

@@ -184,4 +184,4 @@ firecrawl search-feedback <searchId> --rating <good|bad|partial> [...]
 firecrawl credit-usage
 ```
 
-Pre-computed in the skill's context block via `firecrawl --status`. Watch the running number. When credits dip low, prefer WebFetch or Ref over Firecrawl unless the work requires anti-bot handling or JS rendering. The CLI has no `FIRECRAWL_CREDIT_*_THRESHOLD` env vars. Those were MCP-era knobs, covered in `configuration.md`.
+Pre-computed in the skill's context block via `firecrawl --status`. Watch the running number. When credits dip low, prefer WebFetch or Ref over Firecrawl unless the work requires anti-bot handling or JS rendering. The CLI reads no `FIRECRAWL_CREDIT_*_THRESHOLD` env vars (`configuration.md`).

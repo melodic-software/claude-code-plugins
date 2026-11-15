@@ -117,9 +117,9 @@ and skipping the other two is the failure this section prevents.
    draft: *"Once you become adept in your object writing, with bushels of sense-bound images
    glittering on the kitchen table, what do you do with them?"* (*Writing Better Lyrics* (2009),
    Chapter 2).
-2. **Adapt**. Rewrite the mined image in plain sung English BEFORE it enters a slot. Quoting
-   object-write texture into a lyric slot is what failed ("hung where it stops being anybody's" is
-   ore that reads like a line). Pat's printed demonstration of the crafted shape is the collar:
+2. **Adapt**. Rewrite the mined image in plain sung English before it enters a slot. In the
+   writer's sessions, quoting object-write texture into a lyric slot fails: "hung where it stops
+   being anybody's" is ore that reads like a line. Pat's printed demonstration of the crafted shape is the collar:
    "Hot rod hearts and high school rings" replacing "All the things we used to do" (*Writing Better
    Lyrics* (2009), Chapter 2). That every word in it is a common one is this plugin's reading, not
    Pat's claim. **The step itself is plugin-authored:** Pat draws the raw-material-vs-crafted-line

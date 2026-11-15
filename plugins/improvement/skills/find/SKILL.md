@@ -283,7 +283,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 ## Gotchas
 
-Known traps, seeded from the research this skill was grounded on:
+Known traps:
 
 - **Shallow or truncated clones poison churn rankings.** The hotspot recipe's history-depth gate
   (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/hotspots.md`) runs first; a window the history does not cover downgrades churn to a

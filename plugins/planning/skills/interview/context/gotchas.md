@@ -10,7 +10,7 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **Silently resolving an unanswered round question to its recommendation:** a partial reply resolves only what was answered; the rest stays open and re-surfaces next round. Only an explicit accept-shorthand ("accept all recommendations") resolves unanswered questions.
 
-- **Asking what a lookup would answer:** users saw rounds ask questions the agent could have answered from the repository's docs and history, from current vendor docs, or from an MCP server already connected, and saw a system the user named ("we use Microsoft Teams") get no offer to connect it. Run the self-answer step on every candidate question (`context/loop.md` "Self-answer gate").
+- **Asking what a lookup would answer:** a round asks a question the repository's docs and history, current vendor docs, or an already-connected MCP server answers, or a system the user names ("we use Microsoft Teams") gets no offer to connect it. Run the self-answer step on every candidate question (`context/loop.md` "Self-answer gate").
 
 - **Silent capture of user design choices:** when a decision has real tradeoffs and no codebase answer, stop and ask; do not fold into the Brief as an assumption.
 

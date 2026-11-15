@@ -4,10 +4,11 @@ How to get legacy code, or code about to be rewritten, under test before changin
 characterization tests, golden master and approval tests, the sabotage check, and why every one of
 them proves sameness rather than correctness.
 
-**Provenance, read first.** This file is **not** a book distillation. Michael Feathers' *Working
-Effectively with Legacy Code* (2004) was **not** read; his definition and recipe below come from
-his 2016 web page only. The other sources are tool documentation and one 2025 blog post. The
-sources and their read depth are in [Sources](#sources) at the end.
+**Provenance, read first.** This file is **not** a book distillation. Of Michael Feathers'
+*Working Effectively with Legacy Code* (2004), only the publisher's free sample was read: chapter
+4 and the preface. His definition and recipe below come from his 2016 web page. The other sources
+are tool documentation, one 2025 blog post and Martin Fowler's Strangler Fig page. The sources and
+their read depth are in [Sources](#sources) at the end.
 
 ## What a Characterization Test Is
 
@@ -31,6 +32,46 @@ refactoring step. It also sits in tension with an expected value taken from an i
 for new code, a value read off the implementation restates it; for code being preserved, the old
 behavior is the specification. How the `testing` plugin draws that line is `/testing:test-value`'s
 call.
+
+## When the Code Cannot Be Put in a Test Harness
+
+Characterize first is the default. Feathers names the case where it cannot be done yet: "The
+hardest part is breaking dependencies around a piece of code well enough to be able to exercise
+it in a test harness" (2016 page). His book's dependency-breaking refactorings are the one
+exception to tests-before-change: they "are meant to be done without tests, in the service of
+putting tests in place" (preface) (HIGH, single author, two of his texts).
+
+The order, as this file's reading of those two texts:
+
+1. Make only the dependency-breaking change: the smallest edit that lets a test reach the code.
+   No cleanup, no renamed parameters, no removed duplication in the same step.
+2. Write characterization tests through the opening that change made.
+3. Refactor, with those tests as the guard.
+
+A dependency is broken at a **seam**: "a place where you can alter behavior in your program
+without editing in that place" (ch. 4). Every seam has an enabling point, "a place where you can
+make the decision to use one behavior or another". Feathers lists three types, by where the
+enabling point sits:
+
+| Seam type | Behavior is swapped by | Enabling point |
+|---|---|---|
+| Preprocessing | a macro or text substitution before compilation | a preprocessor definition |
+| Link | linking or loading a different implementation | outside the program text: the build script or the load path |
+| Object | passing or overriding a different object | where the object is chosen, such as an argument list |
+
+He calls object seams "pretty much the most useful seams available in object-oriented programming
+languages". Which types a codebase has depends on its language and build; find them there rather
+than assuming one.
+
+## Replacing a Legacy System in Steps
+
+When the change is a migration and not a refactoring, Fowler's **Strangler Fig** is the
+incremental alternative to a rewrite: "it begins with small additions, often new features, that
+are built on top of, yet separate to the legacy code base. As we do this we move bits of behavior
+from the legacy system into the new code base." Splitting the old system "will involve identifying
+seams that we can insert into the system". Each piece moved is pinned by characterization tests on
+the old behavior before it moves (this file's reading; Fowler's page does not prescribe the test).
+Planning such a migration belongs to `/planning:design`, where that skill is available.
 
 ## Golden Master, Approval and Snapshot Tests
 
@@ -81,8 +122,15 @@ Two consequences, stated as this file's reading of the sources:
 Each source was read at the depth noted.
 
 - Michael Feathers, "Characterization Testing" (2016-08-08,
-  <https://michaelfeathers.silvrback.com/characterization-testing>). Page read. His book
-  *Working Effectively with Legacy Code* (2004) was not read.
+  <https://michaelfeathers.silvrback.com/characterization-testing>). Page read.
+- Michael Feathers, *Working Effectively with Legacy Code* (2004). Read: the publisher's sample
+  chapter 4, "The Seam Model"
+  (<https://www.informit.com/content/images/0131177052/samplechapter/0131177052_ch04.pdf>), and
+  the preface in the publisher's sample pages
+  (<https://ptgmedia.pearsoncmg.com/images/9780131177055/samplepages/0131177052.pdf>). The rest
+  of the book, the dependency-breaking catalog included, was not read.
+- Martin Fowler, "Strangler Fig" (page dated 2024-08-22,
+  <https://martinfowler.com/bliki/StranglerFigApplication.html>). Page read.
 - Mark Seemann, "Empirical characterization testing" (2025-11-03,
   <https://blog.ploeh.dk/2025/11/03/empirical-characterization-testing/>). Post read.
 - ApprovalTests (<https://approvaltests.com/>), Verify (<https://github.com/VerifyTests/Verify>,

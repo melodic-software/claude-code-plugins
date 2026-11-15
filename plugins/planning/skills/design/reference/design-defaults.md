@@ -77,7 +77,7 @@ tenant, recommend:
 - an owner and a removal path for every option.
 
 This is vendor guidance, not a standard: a consumer standard on tenancy or configuration wins.
-Stumble: no planning step owns per-tenant variation today.
+Stumble: no planning step owned per-tenant variation.
 
 - **Pointer**: when a design sets per-tenant variation, fetch the AWS Well-Architected SaaS Lens
   [General design principles](https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/general-design-principles.html)
