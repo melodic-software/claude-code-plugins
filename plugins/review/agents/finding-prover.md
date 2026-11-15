@@ -2,7 +2,7 @@
 name: finding-prover
 description: "Refute gate for one normalized review finding: tries to explain the finding away from the source and, failing that, proposes one cheap check that would settle it. Holds Read, Grep and Glob only, so it runs nothing. Dispatched by the proof stage of the review plugin's findings normalization (/review:fanout, /review:council); not intended for direct ad-hoc use."
 tools: "Read, Grep, Glob"
-model: inherit # reason: it judges at the reviewing session's tier, which a caller may override per call
+model: inherit # reason: it judges on the reviewing session's model unless a caller passes one per call
 maxTurns: 20
 ---
 
