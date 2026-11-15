@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Row 1: class semantic-invariant (judgment), rung custom-analyzer. Build hand-off: /implementation:implement."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Row 1: syntactic-pattern, rung syntax-pattern-rule."
+    },
+    {
+      "answer": "Row 1: semantic-invariant, rung custom-analyzer. Write the analyzer yourself."
+    },
+    {
+      "answer": "Row 1: dotnet-invariant would take custom-analyzer, but this is TypeScript, so syntactic-pattern."
+    }
+  ]
+}

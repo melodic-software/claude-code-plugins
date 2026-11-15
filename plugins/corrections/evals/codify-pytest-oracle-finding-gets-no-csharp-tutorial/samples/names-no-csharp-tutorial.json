@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Row 1: semantic-invariant, rung custom-analyzer, class-basis rule-id. Build hand-off: /implementation:implement, in the linter the repository already runs."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Row 1: custom-analyzer. See Microsoft Learn, https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix"
+    },
+    {
+      "answer": "Row 1: custom-analyzer; follow the C# analyzer tutorial."
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: codify-pytest-oracle-finding-gets-no-csharp-tutorial
+description: 'Gain case: a testing:audit finding on a pytest test takes a rung and a check to prove, points at no C# analyzer tutorial, hands the build to /implementation:implement, and says the check''s message must name the fix.'
+tags: [codify]
+plugins: ["../.."]
+expected_outcome: 'The row is semantic-invariant on custom-analyzer from its rule id. The proposal names the check to prove, links no C# or Roslyn tutorial, names /implementation:implement as the builder, and states that the check''s message names the fix.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md What rung does the row get, and what is the next step? This run has no Bash tool: skip the proof and report the check as unproven, and present the proposal in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: names-no-csharp-tutorial
+    type: 'regex'
+    pattern: 'learn\.microsoft\.com|roslyn|C#[^\n]{0,40}tutorial|tutorial[^\n]{0,40}C#'
+    flags: 'i'
+    match: 'not_contains'
+    arm: 'both'
+  - name: rung-and-builder
+    type: 'regex'
+    pattern: '^(?=[\s\S]*custom-analyzer)(?=[\s\S]*/implementation:implement)'
+    flags: 'i'
+    arm: 'both'
+  - name: message-names-the-fix
+    type: 'regex'
+    pattern: 'message[^\n]{0,120}\bfix\b|\bfix\b[^\n]{0,120}message'
+    flags: 'i'
+    arm: 'both'
