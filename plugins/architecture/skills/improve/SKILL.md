@@ -1,6 +1,6 @@
 ---
-description: "Codebase scan for module-level friction (shallow modules, seam leaks, locality gaps): an HTML candidate report, then a Design-It-Twice interview on the chosen one. Use when 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality', 'check our layer boundaries', 'which references cross a boundary', 'derive our conventions'. Skip when a cross-dimension ask ('what should we improve') routes to /improvement:find."
-argument-hint: "[deepening|boundaries|conventions] [--medium <value>]"
+description: "Codebase scan for module-level friction (shallow modules, seam leaks, locality gaps): an HTML candidate report, then a Design-It-Twice interview on the chosen one. Use when 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality', 'check our layer boundaries', 'which references cross a boundary', 'derive our conventions', 'do files that change together live together', 'co-change layout'. Skip when a cross-dimension ask ('what should we improve') routes to /improvement:find."
+argument-hint: "[deepening|boundaries|conventions|layout] [--medium <value>] [--path <dir>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Scan the codebase for shallow modules or boundary crossings, then design or hand on the chosen fix
 ---
 
-**Arguments.** `[deepening|boundaries|conventions] [--medium <value>]`. e.g., boundaries. `--medium` sets where the deepening report goes (`actions/deepening.md`, Phase 2). `medium` option for the medium resolver ([`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "The deepening report"): `${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command.
+**Arguments.** `[deepening|boundaries|conventions|layout] [--medium <value>] [--path <dir>]`. e.g., boundaries. `--medium` sets where the deepening report goes (`actions/deepening.md`, Phase 2). `--path` and one-run settings for the layout lens: `actions/layout.md`. `medium` option for the medium resolver ([`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "The deepening report"): `${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command.
 
 ## Repository context. Gather first
 
@@ -43,7 +43,7 @@ keep its line; Phase 1.5 says what the level does there
 
 Improvement is distinct from review and planning. Review evaluates a DIFF against criteria (reactive). Planning designs NEW work (forward-looking). This skill scans EXISTING code for friction and proposes candidates for improvement (proactive).
 
-The scan-present-pick process generalizes across improvement **lenses**. Each lens (action) brings its own analysis method and vocabulary via an `actions/<lens>.md` playbook plus a `research/<lens>/` reference set, loaded only when that lens runs. The first lens, `deepening`, implements Ousterhout's deep-module concept: finding shallow modules (interface nearly as complex as implementation) and proposing how to deepen them. The aim is **testability and AI/agent-navigability (AX)**: a deep module's small interface lets a reader, human or agent, grasp its purpose without traversing the whole import graph. The `boundaries` lens checks the module boundaries a repository has recorded against the references its build manifests declare, and hands each rule the user confirms to the enforcement audit as an architecture-test proposal. The `conventions` lens derives the building blocks, owners and feature blueprints the code already follows, proposes each as a rule, and routes each rule the user accepts to the place that records its kind.
+The scan-present-pick process generalizes across improvement **lenses**. Each lens (action) brings its own analysis method and vocabulary via an `actions/<lens>.md` playbook plus a `research/<lens>/` reference set, loaded only when that lens runs. The first lens, `deepening`, implements Ousterhout's deep-module concept: finding shallow modules (interface nearly as complex as implementation) and proposing how to deepen them. The aim is **testability and AI/agent-navigability (AX)**: a deep module's small interface lets a reader, human or agent, grasp its purpose without traversing the whole import graph. The `boundaries` lens checks the module boundaries a repository has recorded against the references its build manifests declare, and hands each rule the user confirms to the enforcement audit as an architecture-test proposal. The `conventions` lens derives the building blocks, owners and feature blueprints the code already follows, proposes each as a rule, and routes each rule the user accepts to the place that records its kind. The `layout` lens checks whether the files that change together in the history live together in the folder tree, judges that against the layout style the repository records, and proposes a target layout for the cluster the user picks.
 
 This finds existing friction. It does not plan new work, apply mechanical code-level tidyings, enforce rules on a diff, or review changes before a PR. Those are separate concerns handled by planning, tidying, rule-enforcement, and review tools respectively (see "Composition").
 
@@ -55,6 +55,7 @@ This finds existing friction. It does not plan new work, apply mechanical code-l
 | `deepening` | **Deepening (Ousterhout)** | Shallow→deep module scan → HTML report → interview loop on each selected candidate (with a Design-It-Twice branch for parallel interface exploration) → hand off the agreed candidates for planning, never implementing them. Full process: `actions/deepening.md` |
 | `boundaries` | **Boundaries** | Recorded boundary rules (from the enforcement ladder's "Where boundary rules live" list) → edges from `/architecture:map-dependencies` → each edge that crosses a rule, presented for the user to pick → each confirmed rule written to a findings file for `/corrections:codify findings`. With no rule recorded, asks which directions are forbidden. Full process: `actions/boundaries.md` |
 | `conventions` | **Conventions** | Recorded rules, paved paths and decisions → building blocks, owners and feature blueprints derived from the code and its history, each reproduced → one proposed rule per item, recorded only on the user's yes → a boundary rule to the architecture concern file, a divergence to `/corrections:codify`, a paved-path entry to `/discipline:reuse-or-replace`. Full process: `actions/conventions.md` |
+| `layout` | **Layout (co-change)** | Recorded layout style → co-change pairs, clusters, spread and focus from one tested script over the history → one card per cluster, judged against the style, banded by badge → an interview on the target layout of the picked card → the deepening lens's hand-off. Moves no file; unattended, stops after the report. Full process: `actions/layout.md` |
 
 One lens per invocation. Lenses don't chain implicitly. Read the action's playbook for its full process.
 
@@ -77,6 +78,11 @@ A new improvement lens (e.g. `coupling`, `testability`, dependency-direction rev
 | [research/deepening/interface-design.md](research/deepening/interface-design.md) | Entering the Design-It-Twice branch, or a single proposed shape is not converging in the interview loop |
 | [research/boundaries/README.md](research/boundaries/README.md) | Running the boundaries lens: what counts as a boundary rule, mapping a rule's module names to graph nodes, what manifest edges cannot show, and the findings-row template |
 | [research/conventions/README.md](research/conventions/README.md) | Running the conventions lens: the kinds it derives and the evidence each needs, where each kind of proposal goes, and how a boundary rule is written into the architecture concern file |
+| [research/layout/README.md](research/layout/README.md) | Running the layout lens: what the co-change script measures, the pattern names and their cutoffs, the defaults and their sources, what counts as a recorded style, the card fields and badges, and where each card goes |
+
+`actions/layout.md` writes the plugin root as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`, and
+this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`. Put those paths in place of
+the placeholders before running a command.
 
 ## What this skill does NOT do
 
@@ -107,6 +113,7 @@ Graceful degradation: where a named step below is not available in the consuming
 - A finding is about coupling between modules: /coupling:reduce.
 - The boundaries lens wrote a findings file, when available: /corrections:codify findings
 - The conventions lens recorded a boundary rule: /architecture:improve boundaries
+- A layout candidate's target layout is agreed, when available: /planning:plan
 
 ## Gotchas
 

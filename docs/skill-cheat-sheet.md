@@ -108,7 +108,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does | Actions | Next |
 | --- | --- | --- | --- | --- |
-| [`/architecture:improve`](../plugins/architecture/skills/improve/SKILL.md) | `architecture` | Scan the codebase for shallow modules or boundary crossings, then design or hand on the chosen fix | `deepening`, `boundaries`, `conventions` | `/planning:plan`, `/coupling:reduce`, `/corrections:codify`, `/architecture:improve` |
+| [`/architecture:improve`](../plugins/architecture/skills/improve/SKILL.md) | `architecture` | Scan the codebase for shallow modules or boundary crossings, then design or hand on the chosen fix | `deepening`, `boundaries`, `conventions`, `layout` | `/planning:plan`, `/coupling:reduce`, `/corrections:codify`, `/architecture:improve` |
 | [`/domain-driven-design:ubiquitous-language`](../plugins/domain-driven-design/skills/ubiquitous-language/SKILL.md) | `domain-driven-design` | Find, read, seed, maintain and check the domain glossary | `locate`, `lookup`, `seed`, `curate`, `audit` | `/planning:plan` |
 | [`/event-storming:methodology`](../plugins/event-storming/skills/methodology/SKILL.md) | `event-storming` | EventStorming facilitation reference across all three formats |  | `/event-storming:simulation`, `/planning:design` |
 | [`/event-storming:simulation`](../plugins/event-storming/skills/simulation/SKILL.md) | `event-storming` | Multi-persona agentic EventStorming workshop on Miro |  | `/domain-driven-design:ubiquitous-language`, `/planning:design` |
