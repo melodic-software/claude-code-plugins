@@ -55,6 +55,12 @@ node_line() {
   awk -v id="$2" 'index($0, "\"" id "\"") && $0 ~ /\{"id":/ { print; exit }' "$1"
 }
 
+# charted_text <record>: the record without its uncharted-projects finding, which
+# names every project the record does not chart.
+charted_text() {
+  grep -v '"kind":"uncharted-projects"' "$1"
+}
+
 field() {
   awk -v key="$2" '
   {
@@ -251,7 +257,8 @@ assert_equals "shared reader: collect exits 0" "$?" "0"
 shared_text="$(cat "$TEST_TMPDIR/shared-reader.json")"
 assert_contains "shared reader: a multi-line single-quoted reference is a module" "$shared_text" '"path":"src/Lib/Lib.csproj"'
 assert_contains "shared reader: the citation runs through the closing bracket" "$shared_text" "Include='..\\\\Lib\\\\Lib.csproj' />"
-assert_not_contains "shared reader: a commented-out reference is not a module" "$shared_text" 'src/Ghost/Ghost.csproj'
+assert_not_contains "shared reader: a commented-out reference is not a module" "$(charted_text "$TEST_TMPDIR/shared-reader.json")" 'src/Ghost/Ghost.csproj'
+assert_contains "shared reader: the unreferenced project is named uncharted" "$(grep '"kind":"uncharted-projects"' "$TEST_TMPDIR/shared-reader.json")" 'src/Ghost/Ghost.csproj'
 
 BUS="$TEST_TMPDIR/bus"
 mkdir -p "$BUS/src/Api" "$BUS/src/Worker"
@@ -407,9 +414,9 @@ bash "$COLLECT" --repo "$GRAPH" --graph "$TEST_TMPDIR/graph.json" --out "$GOUT/c
 assert_equals "graph: collect exits 0" "$?" "0"
 gtext="$(cat "$GOUT/containers.json")"
 assert_contains "graph supplies the contained module" "$gtext" '"path":"src/OnlyGraph/OnlyGraph.csproj"'
-assert_not_contains "file reference is not used when the graph is present" "$gtext" "src/FromFile/FromFile.csproj"
+assert_not_contains "file reference is not used when the graph is present" "$(charted_text "$GOUT/containers.json")" "src/FromFile/FromFile.csproj"
 assert_contains "containment source is the graph" "$gtext" '"containment": "dependency-graph.json"'
-assert_not_contains "an unresolved graph edge is not a module even when its text is a project path" "$gtext" "src/Phantom/Phantom.csproj"
+assert_not_contains "an unresolved graph edge is not a module even when its text is a project path" "$(charted_text "$GOUT/containers.json")" "src/Phantom/Phantom.csproj"
 
 LINK="$TEST_TMPDIR/link-repo"
 mkdir -p "$LINK/src/Api"
@@ -540,7 +547,7 @@ assert_equals "tests: a plain Exe is still a cli" "$(field "$(node_line "$TREC" 
 assert_equals "tests: the host is still a deployable" "$(field "$(node_line "$TREC" 'src/Api/Api.csproj')" kind)" "web"
 assert_contains "tests: the excluded count is a finding" "$ttext" '"kind":"excluded-test-projects","count":3,'
 assert_contains "tests: the finding names an excluded project" "$ttext" "tests/Api.Bench/Api.Bench.csproj"
-assert_not_contains "tests: a library test project that was never a candidate is not counted" "$ttext" "Lib.Tests"
+assert_not_contains "tests: a library test project that was never a candidate is not counted" "$(grep '"kind":"excluded-test-projects"' "$TREC")" "Lib.Tests"
 assert_contains "tests: the report line carries the excluded count" "$(cat "$TEST_TMPDIR/tests-out/render.out")" "excluded_tests=3"
 assert_equals "tests: the diagram draws the host and the tool only" "$(grep -c 'Container(' "$TEST_TMPDIR/tests-out/containers.md" || true)" "2"
 
@@ -901,6 +908,35 @@ assert_contains "dirty tree: the collector says so on stderr" "$(cat "$TEST_TMPD
 assert_contains "dirty tree: the report line carries the count" "$(cat "$TEST_TMPDIR/dirty-out/render.out")" "dirty_tracked_files=1"
 assert_contains "dirty tree: the tables carry the finding" "$(cat "$TEST_TMPDIR/dirty-out/containers.md")" "| dirty-tracked-files | 1 |"
 assert_not_contains "bus: untracked files are not dirty tracked files" "$bus_text" "dirty-tracked-files"
+
+# A project file charted as no deployable, module or excluded test project is
+# named, never dropped without a word; a repository with none has no finding.
+UNCH="$TEST_TMPDIR/uncharted-repo"
+web_project "$UNCH/src/Api" Api
+mkdir -p "$UNCH/src/Legacy" "$UNCH/src/Orphan"
+cat >"$UNCH/src/Legacy/Legacy.vbproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+</Project>
+EOF
+cat >"$UNCH/src/Orphan/Orphan.csproj" <<'EOF'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+</Project>
+EOF
+commit_repo "$UNCH"
+collect_render "$UNCH" "$TEST_TMPDIR/uncharted-out"
+uline="$(grep '"kind":"uncharted-projects"' "$TEST_TMPDIR/uncharted-out/containers.json")"
+assert_contains "uncharted: the finding counts both projects" "$uline" '"kind":"uncharted-projects","count":2,'
+assert_contains "uncharted: a .vbproj is named" "$uline" "src/Legacy/Legacy.vbproj"
+assert_contains "uncharted: an unreferenced class library is named" "$uline" "src/Orphan/Orphan.csproj"
+assert_not_contains "uncharted: the deployable is not named" "$uline" "src/Api/Api.csproj"
+assert_contains "uncharted: the tables carry the finding" "$(cat "$TEST_TMPDIR/uncharted-out/containers.md")" "| uncharted-projects | 2 |"
+CHARTED="$TEST_TMPDIR/charted-repo"
+web_project "$CHARTED/src/Api" Api
+commit_repo "$CHARTED"
+collect_render "$CHARTED" "$TEST_TMPDIR/charted-out"
+assert_not_contains "uncharted: a repository with neither has no finding" "$(cat "$TEST_TMPDIR/charted-out/containers.json")" "uncharted-projects"
 
 # The findings array is optional, and one that is not one object per line is refused.
 cat >"$TEST_TMPDIR/old-record.json" <<'EOF'

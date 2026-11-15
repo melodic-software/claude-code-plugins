@@ -139,8 +139,15 @@
     },
     "lanes": {
       "type": "object",
-      "propertyNames": {
-        "enum": ["typescript", "python", "bash", "go", "dotnet", "other"]
+      "description": "The bundled lanes, plus any extra lane id listed here: an extra id takes its files from the globs of the consumer's .claude/ecosystems/<id>.yaml record, and each measure with no shipped collector for it reads unavailable while file_lines still counts its files. A record whose id is not listed here creates no lane.",
+      "propertyNames": { "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+      "properties": {
+        "typescript": { "$ref": "#/$defs/lane" },
+        "python": { "$ref": "#/$defs/lane" },
+        "bash": { "$ref": "#/$defs/lane" },
+        "go": { "$ref": "#/$defs/lane" },
+        "dotnet": { "$ref": "#/$defs/lane" },
+        "other": { "$ref": "#/$defs/lane" }
       },
       "additionalProperties": { "$ref": "#/$defs/lane" }
     }
