@@ -15,7 +15,9 @@
  * A live-derived video whose captions are not published yet exits 3 with a
  * `captionsPending` report and writes no slice (`acquisition/caption-wait.js`);
  * `--caption-wait-deadline` carries the deadline a held queue row recorded, and
- * once it passes the run digests caption-less and reports `captionWait`.
+ * once it passes the run digests caption-less and reports `captionWait`. A ranged
+ * run with ASR available and no caption strategy override skips the wait: the asr
+ * rung transcribes the ranged media, and `captionWait` records the skip.
  *
  * Acquisition dispatches through the source-adapter registry (unknown host
  * fails closed, non-zero exit, listing supported sources) and consumes the
@@ -64,6 +66,7 @@ import {
   watchingInVideoTime,
 } from "../lib/time-range.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
+import { detectAsrCapability } from "../transcript/asr-transcribe.js";
 import { deriveVideoSlug, resolveWorkSliceDir } from "../transcript/derive-video-slug.js";
 import { parseTranscriptStrategyOverride } from "../transcript/transcript-strategy.js";
 import { writeEnvelopeTranscriptArtifacts } from "../transcript/write-transcript.js";
@@ -340,6 +343,12 @@ async function watchUrl({
   temp.dirs.contactSheetsDir = sheetsDir;
   throwIfInterrupted();
 
+  // A ranged run that can transcribe its own media does not wait on captions. An explicit
+  // caption strategy never falls through to ASR, so it keeps the wait.
+  const asrCanStandIn = strategyArg.override === null || strategyArg.override === "asr";
+  const asrDetection = timeRange && asrCanStandIn ? await detectAsrCapability() : null;
+  throwIfInterrupted();
+
   /** @type {import('../adapters/adapter-contract.js').AcquireOutcome} */
   let acquisition;
   writeStderr("watch: acquire start");
@@ -349,6 +358,7 @@ async function watchUrl({
       mode: "full",
       captionWaitDeadline,
       timeRange,
+      skipCaptionWait: Boolean(asrDetection?.available),
     });
   } catch (error) {
     if (error instanceof UnsupportedSourceError) {
@@ -416,16 +426,19 @@ async function watchUrl({
   const harvestedLinks = adapter.harvestLinks(metadata);
   const transcriptStrategyLabel = strategyArg.override ?? adapter.transcriptStrategy;
   writeStderr(`watch: transcript start (strategy: ${transcriptStrategyLabel})`);
-  const written = await writeEnvelopeTranscriptArtifacts({
-    sliceDir,
-    envelope,
-    sourceUrl: url,
-    sliceKey,
-    transcriptStrategy: adapter.transcriptStrategy,
-    strategyOverride: strategyArg.override,
-    harvestedLinks,
-    timeRange,
-  });
+  const written = await writeEnvelopeTranscriptArtifacts(
+    {
+      sliceDir,
+      envelope,
+      sourceUrl: url,
+      sliceKey,
+      transcriptStrategy: adapter.transcriptStrategy,
+      strategyOverride: strategyArg.override,
+      harvestedLinks,
+      timeRange,
+    },
+    asrDetection ? { detectAsr: async () => asrDetection } : {},
+  );
   const primaryWritten = written.transcripts.find(
     (entry) => entry.entryIndex === written.primaryEntryIndex,
   );

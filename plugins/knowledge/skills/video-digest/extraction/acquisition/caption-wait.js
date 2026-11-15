@@ -116,6 +116,14 @@ export function captionWaitEndedNote({ liveStatus, deadline }) {
 }
 
 /**
+ * @param {{ liveStatus: string, deadline: string }} wait - the wait a ranged run skipped
+ * @returns {string}
+ */
+export function captionWaitSkippedNote({ liveStatus, deadline }) {
+  return `caption wait skipped on a ranged run with no captions (live_status ${liveStatus}; the wait would have run to ${deadline}); ASR is available, so it falls through to the asr rung on the ranged media`;
+}
+
+/**
  * The value of a `--caption-wait-deadline <iso>` flag, normalized to UTC ISO form; null when absent.
  *
  * @param {string[]} argv

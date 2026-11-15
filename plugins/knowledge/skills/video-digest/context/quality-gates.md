@@ -27,6 +27,8 @@ Detected from `key-frames/vision-plan.md` (backtick class tag). Floors apply to 
 
 **Session coverage:** each session in `research/claim-inventory.md` must have ≥1 promoted synthesis frame whose timestamp falls inside the session boundary (or gap logged, but prefer a frame).
 
+**Ranged slice** (`watch.json` `timeRange`, set by `--from`/`--to`): the floors grade the range. `hours` is the ranged media's probed length (the range plus any keyframe lead-in before `--from`), and `sessions` counts only the sessions whose boundary overlaps the range; `Min / session` and session coverage check only those. A session that only touches a range bound is outside it. When no session overlaps the range, both session gates fail.
+
 ## Phase gates (ordered)
 
 This table lists the **blocking artifacts per phase** (which must exist before the phase is done). The artifact's **lane, staged verdict, KIND, and producer** are owned by the "Output contract" table in `output-contract.md`, the single authoritative enumeration; do not restate staging here.

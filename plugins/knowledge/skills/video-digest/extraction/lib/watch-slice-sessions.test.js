@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseBoundaryLine, parseSessionsFromClaimInventory } from "./watch-slice-sessions.js";
+import {
+  parseBoundaryLine,
+  parseSessionsFromClaimInventory,
+  sessionsInTimeRange,
+} from "./watch-slice-sessions.js";
 
 describe("parseBoundaryLine", () => {
   it("parses transcript boundary stamps", () => {
@@ -69,5 +73,29 @@ describe("parseSessionsFromClaimInventory", () => {
 **Boundary:** 0:04 → 1:33
 `;
     expect(parseSessionsFromClaimInventory(body)).toEqual([]);
+  });
+});
+
+describe("sessionsInTimeRange", () => {
+  const sessions = [
+    { name: "Before", startSec: 0, endSec: 3600 },
+    { name: "Straddles start", startSec: 3000, endSec: 3900 },
+    { name: "Inside", startSec: 3900, endSec: 4500 },
+    { name: "After", startSec: 4800, endSec: 6000 },
+    { name: "Open end", startSec: 6000, endSec: null },
+  ];
+
+  it("keeps every session when the slice has no range", () => {
+    expect(sessionsInTimeRange(sessions, undefined)).toEqual(sessions);
+  });
+
+  it("keeps the sessions that overlap the range and drops the ones that only touch it", () => {
+    const kept = sessionsInTimeRange(sessions, { fromSec: 3600, toSec: 4800 });
+    expect(kept.map((s) => s.name)).toEqual(["Straddles start", "Inside"]);
+  });
+
+  it("runs an open-ended range and an open-ended session to the end of the video", () => {
+    const kept = sessionsInTimeRange(sessions, { fromSec: 5000, toSec: null });
+    expect(kept.map((s) => s.name)).toEqual(["After", "Open end"]);
   });
 });

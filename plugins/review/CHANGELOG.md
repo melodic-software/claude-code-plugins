@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.4.1] - 2026-11-15
+
+### Changed
+
+- The bundled enforcement ladder is 3.1.1: its Rungs section names the sources of the order
+  (Lauren Tan for the tiers, Simon Brown for a compiler setting above an architecture test). No
+  rung, id or rule changes.
+
 ## [9.4.0] - 2026-11-15
 
 ### Added
