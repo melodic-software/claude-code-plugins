@@ -325,9 +325,9 @@ NO_OUTCOME_RE = re.compile(
 # (`_lost_unposted`), which leaves the run to a person.
 LOST = "lost"
 LOST_CONCLUSIONS = frozenset({"cancelled", "timed_out", "startup_failure"})
-# The kill-switch job's display name; `kill-switch` is a head tested before
-# the rename, or a repository whose job has no display name, and
-# `Check Kill Switch` its planned name.
+# The check-kill-switch job's display name, `Check Kill Switch`; `Kill Switch`
+# is its name before that rename, and `kill-switch` a head tested before an
+# earlier rename, or a repository whose job has no display name.
 KILL_SWITCH_JOBS = frozenset({"Kill Switch", "kill-switch", "Check Kill Switch"})
 KILL_SWITCH_NOTICE_RE = {
     "claude-review": re.compile(r"a kill switch stops this review \("),

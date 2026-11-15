@@ -10,7 +10,7 @@ conclusion is `success`, `failure`, or `neutral` with one skip reason.
 |---|---|---|
 | `lane` | required | The lane, from the report job's own `workflow_call` input |
 | `activity` | required | The activity, from the report job's own `workflow_call` input |
-| `run-result` | required | `needs.run.result`; in the read file, the `broker-check` job's result when that is not `success` |
+| `run-result` | required | `needs.run.result`; in the read file, the `check-broker` job's result when that is not `success` |
 | `pr-head-sha` | `''` | The PR's current head SHA, read from the API by the report job at report time |
 | `act-outcome` | `''` | The run job's `act-outcome` output (`steps.act.outcome`) |
 | `run-failure` | `''` | The run job's `run-failure` output: the reason a step before the act step failed with |

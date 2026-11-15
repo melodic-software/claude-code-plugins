@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": "Notice: this repository's CLAUDE.md names the rung `semgrep-rule`. Enforcement ladder 3.0.0 renamed it, so I read it as `syntax-pattern-rule`, its current id; the old id is accepted as an alias until 4.0.0.\n\nRung: `syntax-pattern-rule`.",
+      "why": "its own notice naming the old id, the alias and the replacement"
+    },
+    {
+      "answer": "Your CLAUDE.md puts `semgrep-rule` first for dangerous calls. That id is now an alias: the ladder calls this rung `syntax-pattern-rule`, so the proposal uses that id. Install pointer: /semgrep-rule-creator:semgrep-rule-creator when installed.",
+      "why": "alias statement beside a plugin name that holds the old id as a substring"
+    },
+    {
+      "answer": "Count: 3 occurrences (threshold 2, default). Rung: syntax-pattern-rule (renamed from semgrep-rule, the id CLAUDE.md still uses; consider updating that line). Proof: unproven, exit 127 on both refs because semgrep did not run; not proposed for install.",
+      "why": "a short parenthetical rename note is still the reply's own statement"
+    },
+    {
+      "answer": "| Rung | syntax-pattern-rule |\n\nOn naming: `semgrep-rule` in CLAUDE.md is the pre-3.0.0 name of this rung and still works as an alias; `syntax-pattern-rule` replaces it.",
+      "why": "the alias explained in a note under the proposal"
+    },
+    {
+      "answer": "Notice: semgrep-rule → syntax-pattern-rule (renamed in ladder 3.0.0).",
+      "why": "the shortest notice the ladder asks for: names the rename without naming CLAUDE.md"
+    },
+    {
+      "answer": "Notice: `semgrep-rule` is the old name of `syntax-pattern-rule`; ladder 3.0.0 renamed it.\n\nRung: shared-helper, one execFile and argument-list wrapper per service.",
+      "why": "the alias stated correctly; a different rung is chosen, which this grader does not judge"
+    },
+    {
+      "answer": "Rung: semgrep-rule (alias of syntax-pattern-rule)",
+      "why": "states that the old id is an alias of syntax-pattern-rule; the id the rung is written under is the rung grader's concern"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Rung: `syntax-pattern-rule`. One matcher across both services. Proposal written to .work/codify/fix-shell-calls/20261114T000000Z-proposal.md.",
+      "why": "silent switch: never mentions the old id"
+    },
+    {
+      "answer": "Rung: `semgrep-rule`, as CLAUDE.md orders it first for dangerous calls.",
+      "why": "keeps the old id as if current"
+    },
+    {
+      "answer": "CLAUDE.md names `semgrep-rule`, which is not a rung id on the enforcement ladder, so I cannot use that order. Falling back to the default ladder: rung `analyzer-pack-rule`.",
+      "why": "refuses the old id as unknown"
+    },
+    {
+      "answer": "From the ladder:\n\n> Alias: `semgrep-rule` is read as `syntax-pattern-rule`, with a printed notice, through 3.x.\n\nRung: shared-helper.",
+      "why": "only quotes the ladder's alias line without applying it to this repository"
+    },
+    {
+      "answer": "Note: `semgrep-rule` is an alias of `custom-analyzer`. Rung: custom-analyzer.",
+      "why": "names the wrong replacement"
+    },
+    {
+      "answer": "Rung ids on the ladder: make-impossible, shared-helper, semgrep-rule, syntax-pattern-rule, custom-analyzer. Chosen: syntax-pattern-rule.",
+      "why": "both ids appear only in a copied list, with no statement that one replaces the other"
+    },
+    {
+      "answer": "CLAUDE.md says semgrep-rule; I used syntax-pattern-rule.\n\nRung: `syntax-pattern-rule`.",
+      "why": "names both ids but never says the old one is an alias or was renamed"
+    }
+  ]
+}

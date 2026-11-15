@@ -195,14 +195,14 @@ test("every leg needs the collect-trusted-text job and still runs when it failed
   for (const job of LEGS) assert.ok(/^(?:\S+ != '[a-z-]+' && )?!cancelled\(\) && /.test(jobGate(job)), `${job}: ${jobGate(job)}`);
   for (const result of ["failure", "skipped", "success"]) {
     const text = { result, outputs: {} };
-    assert.ok(admits(jobGate("review"), { github: upstreamRun, needs: { trigger: triggered, "review-handoffs-credit": { result: "success", outputs: {} }, [TEXT]: text } }), `review: ${result}`);
+    assert.ok(admits(jobGate("review"), { github: upstreamRun, needs: { "check-trigger": triggered, "review-handoffs-credit": { result: "success", outputs: {} }, [TEXT]: text } }), `review: ${result}`);
     assert.ok(admits(jobGate("review-subscription"), { github: upstreamRun, needs: { "review-handoffs": { result: "success", outputs: {} }, [TEXT]: text } }), `subscription: ${result}`);
     assert.ok(admits(jobGate("review-fallback"), { github: upstreamRun, needs: { "collect-subscription-handoffs": { result: "success", outputs: {} }, [TEXT]: text } }), `fallback: ${result}`);
   }
   for (const job of LEGS) assert.doesNotMatch(jobGate(job), /needs\.collect-trusted-text/, job);
 });
 
-test("the collect-trusted-text job never fails the run, and runs only where this attempt's trigger job starts the legs", () => {
+test("the collect-trusted-text job never fails the run, and runs only where this attempt's check-trigger job starts the legs", () => {
   const job = jobText(TEXT);
   assert.match(job, /^ {4}continue-on-error: true$/m);
   assert.match(job, /^ {4}permissions:\n {6}contents: read #.*\n {6}pull-requests: read #.*\n {4}outputs:/m);
@@ -212,7 +212,7 @@ test("the collect-trusted-text job never fails the run, and runs only where this
     if (s.name === "Report the kill switch") continue;
     assert.match(s.block, /^ {8}continue-on-error: true$/m, s.name);
   }
-  const runs = (trigger, github = upstreamRun) => admits(jobGate(TEXT), { github, needs: { trigger } });
+  const runs = (trigger, github = upstreamRun) => admits(jobGate(TEXT), { github, needs: { "check-trigger": trigger } });
   assert.ok(runs(triggered));
   for (const outputs of [{ "run-attempt": "2" }, { proceed: "" }, { review: "false" }, { judged: "true" }, { held: "true" }]) {
     assert.ok(!runs({ ...triggered, outputs: { ...triggered.outputs, ...outputs } }), JSON.stringify(outputs));

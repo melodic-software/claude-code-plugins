@@ -736,10 +736,10 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       // of them, so the next run reads the rest and this one reports a gap.
       let readThrough = now.getTime();
       const cut = [];
-      for (const { lane, workflow, jobs: ids, names, planned = [], holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
+      for (const { lane, workflow, jobs: ids, names, earlier = [], holdRuns: cap = LIMITS.holdRuns, listPages = LIMITS.holdListPages, holdStep, statuses = ["success"] } of HOLD_LANES) {
         // A job by its name, or by its id on a run from before the job rename,
-        // or by a planned rename's name or id.
-        const jobs = [...names, ...ids, ...planned];
+        // or by the name or id it had before a later rename.
+        const jobs = [...names, ...ids, ...earlier];
         // By id: a run that starts between two page reads shifts one onto the next page.
         const runs = new Map();
         for (const status of statuses) {

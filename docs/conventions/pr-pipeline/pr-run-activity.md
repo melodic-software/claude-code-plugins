@@ -4,9 +4,9 @@ Two reusable workflows run one activity of one lane each and end in one check ru
 `<lane> / <activity>`: `success`, `failure`, or `neutral` with a skip reason.
 
 - [`pr-run-activity-read.yml`](../../../.github/workflows/pr-run-activity-read.yml) runs an
-  activity whose effect is `read`. It declares no App key secret. Only its `broker-check` job,
+  activity whose effect is `read`. It declares no App key secret. Only its `check-broker` job,
   which runs no head code, holds `id-token: write`, to ask the lanes token broker's check endpoint
-  whether the lane may run ([below](#the-broker-check-job)). It fails red with `effect-not-read`
+  whether the lane may run ([below](#the-check-broker-job)). It fails red with `effect-not-read`
   before the head checkout for any other effect.
 - [`pr-run-activity-write.yml`](../../../.github/workflows/pr-run-activity-write.yml) runs every
   other effect. It declares no App key either: its run job holds `id-token: write` and gets the
@@ -62,7 +62,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-dispatch-feedback.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
-| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the admit job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the check-admission job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
 | `collect-refused` | `''` | Write file, issue mode, `report-outcome`: the model run's `scan-collect-refused`; only `true` counts, and stops the issue on the `collect-refused` route, which holds it for a person |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
@@ -154,7 +154,7 @@ The caller must:
 - Grant the calling job `actions: read`, `contents: read`, `pull-requests: write`,
   `checks: write`, `issues: write` and `id-token: write`. The `run` job narrows this to
   `contents: read` and `pull-requests: read`, plus `actions: read` and `id-token: write` in the
-  write file; in the read file only the `broker-check` job uses `id-token: write`, and only the
+  write file; in the read file only the `check-broker` job uses `id-token: write`, and only the
   `report` job uses `checks: write` and `pull-requests: write` (the lane run report comment,
   which GitHub refuses with `issues: write` alone).
 - Put the calling job in a per-PR concurrency group with `queue: max`, or an equivalent that never
@@ -169,7 +169,7 @@ The caller must:
   it as a `workflow_dispatch` input, so no dispatch can point the reader at another YAML file in the
   base tree.
 
-## The broker-check job
+## The check-broker job
 
 Read file only, before the run job, which `needs` it. It holds `contents: read`,
 `id-token: write` and `issues: write` (for step 5 alone), runs only actions from the default branch tip, never checks out the PR head, and
@@ -209,20 +209,20 @@ run job and every job after it skip, no lease is claimed, the report job posts n
 comment, and its check is neutral `kill-switch` (`not-run-reason`). The read file exposes the
 output as `skip-reason`. A caller's later leg that still starts asks the broker again, which reads
 the switch live, so it stops the same way while the switch is on. Any other answer but an allow, or
-no answer, fails the job, which skips the run job. The report job passes the broker-check job's
+no answer, fails the job, which skips the run job. The report job passes the check-broker job's
 result as `run-result` whenever it is not `success`, so a failure posts a failure check and a
 cancel follows `report-check-run`'s cancel rule. Off `pull_request`, a failed or stopped
-broker-check job posts no check, since no head SHA was gated
+check-broker job posts no check, since no head SHA was gated
 ([Runs that post no check](#runs-that-post-no-check)).
 
 The job outputs `allowed` (`true` only when step 4 succeeded with the broker's allow), `skip-reason`
-and `attempt` (`github.run_attempt`). "Re-run failed jobs" reuses a successful broker-check job and its outputs,
+and `attempt` (`github.run_attempt`). "Re-run failed jobs" reuses a successful check-broker job and its outputs,
 so in the read file, right after its own kill-switch step proceeds, the run job fails red with
 `kill-switch` unless `allowed` is `true` and `attempt` equals its own run attempt. That also fails
-a run whose broker-check job skipped the broker on a kill-switch stop its run job no longer sees.
+a run whose check-broker job skipped the broker on a kill-switch stop its run job no longer sees.
 Re-running all jobs asks the broker again.
 
-The read file's `broker-allowed` job `needs` broker-check alone, runs only when `allowed` is
+The read file's `record-broker-allow` job `needs` check-broker alone, runs only when `allowed` is
 `true`, holds no permission (`permissions: {}`) and runs one `echo` step. Its conclusion (`success`, else `skipped`) is
 the caller's job-level record of the allow: the Actions API returns a job's conclusion as the job
 ends, where a step's can stay empty for minutes, and no run job output reaches it.
@@ -705,7 +705,7 @@ fact set; `fix-docs-handoff` still sets `fallback-ready`, which starts nothing w
 Each read after the first sends each listing page that came with an `etag` as a conditional request,
 and a `304` reuses the page it already read. A failed read runs the fallback too, except for
 `fix-docs`.
-`fix-docs-subscription` also needs the first call's `<call> / broker-allowed` job to show the
+`fix-docs-subscription` also needs the first call's `<call> / record-broker-allow` job to show the
 broker's allow (the broker step, when that job is absent): `fix-docs` posts nothing on a
 decline, so a kill switch or a refusal starts no second leg, and a failed read starts none either.
 A `fix-docs` or `fix-docs-subscription` read that fails, or whose listing does not parse, stops after
@@ -738,7 +738,7 @@ check as a first-call handoff does. A `<subscription>-handoff` job then reads th
 `fallback-claude-code-oauth-token` alone with `fallback: fallback`, as the last leg. With the
 secret empty, `fallback-ready` is `false`, so neither job runs and the second call is the last.
 Every job after the calls takes its inputs from the third call when it ran, else the second, else
-the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's presence.
+the first. `resolve-issue-handoff` needs `check-admission`, since it reads that secret's presence.
 
 1. Before any head code, the run job fails red unless the `role` is lower-case kebab, the model
    route resolves an alias and the skill is advisory. While sudo
@@ -1529,7 +1529,7 @@ mode as `patch-prepare` (`ci-context`). The job runs on a `written` or `empty` p
 call's `scan-collect-refused`, which reaches `select` with no `patch-state` and so escalates
 `ci-fix-invalid`.
 `fix-ci-unreported`, after every fix-ci call, reads this run's jobs with `handoff-evidence.sh` as
-`fix-ci-handoff` does and, when a call's broker-allowed job shows the allow and no call's report
+`fix-ci-handoff` does and, when a call's record-broker-allow job shows the allow and no call's report
 posted, posts fix-ci
 failure on `fix-ci-context`'s head, so fix-ci-dispatch counts the round toward
 `fix-ci-restarts` whatever the calls reported. As in the report job, a kill switch or a broker
@@ -1835,7 +1835,7 @@ outputs are sent), so the report job differs:
   call posts that check.
 - An empty run head (the run stopped before its trigger gate passed) never posts failure, which
   babysit reads as a merge blocker. After the kill switch, which the report job reads from its
-  variables, or the broker-check job's refusal, it posts what it did before (the event's head on
+  variables, or the check-broker job's refusal, it posts what it did before (the event's head on
   `pull_request`, otherwise nothing), so the owner's switch blocks no merge and the head is
   dispatched again once the switch is off (fix-docs excepted: its completed run ends the PR). Otherwise it posts neutral `not-assessed` on the
   caller's or the event's head: babysit counts a neutral check as passing, and fix-ci-dispatch
@@ -1915,7 +1915,7 @@ trust-root paths is off by owner decision; the controls a lane relies on instead
 are in [Trust-root paths](README.md#trust-root-paths). With the broker,
 the write file references no key either, so one caller may call both files: the read file's run
 job sets its own permissions, without `id-token`, so its head code holds neither the key nor an
-OIDC token. `id-token: write` in the read file is allowed only in its `broker-check` job, which
+OIDC token. `id-token: write` in the read file is allowed only in its `check-broker` job, which
 runs no head code, on its own runner. The run job lacks the permission, so its runner gets no OIDC
 request URL.
 [`scripts/check-read-caller-keys.sh`](../../../scripts/check-read-caller-keys.sh) enforces the
@@ -1933,7 +1933,7 @@ workflow's own entry of the caller map: `pr-refine.yml` and `pr-unblock.yml` may
 `secrets[...]` and bare `secrets` fail. A workflow whose run reaches the read file and has no entry
 in the map fails too. It also fails when any file of such a run sets
 `permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
-job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
+job has no permissions map, `id-token` is named anywhere outside the `check-broker` job, that job
 is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`
 other than `${{ github.event.repository.default_branch }}` or a `with` key other than `ref`,
 `path` and `persist-credentials`. One exception, the scan-carrier key: the read file declares
@@ -2110,7 +2110,7 @@ from its `skip-reason` output. The pr-unblock dispatchers count a `kill-switch` 
 did no work (`limit-stop.mjs` `killSwitchStop`): on the activity's own check it does not handle the
 head, and on a push, reply or verdict job's check it releases the head's earlier activity checks as
 a lane stop does, both under the per-head caps. They run only with the switch off, so the head is
-dispatched again once the switch lifts. An issue run's stopped mint, or its broker-check stopped
+dispatched again once the switch lifts. An issue run's stopped mint, or its check-broker stopped
 green, is a breaker trip work-unblock re-fires from the stop notice. A `report-escalation` run's
 denial stays red, since no dispatcher re-fires it and a skip would drop the escalation's comment
 and label.
@@ -2140,14 +2140,14 @@ file the compare does not list, and a compare that cannot be read stay red.
 
 ### The check endpoint
 
-The read file's `broker-check` job sends `POST` to `LANES_BROKER_URL` with its final `/token`
+The read file's `check-broker` job sends `POST` to `LANES_BROKER_URL` with its final `/token`
 replaced by `/check`, with `Authorization: Bearer <OIDC token>` and the body
 `{"lane": "<lane>", "activity": "<activity>"}`; any other body field is a 400. The broker runs the
 same token, claim, repository and kill-switch checks as a mint, with `pr-run-activity-read.yml` as
 the job's workflow, and mints and reserves nothing, so re-running all jobs asks again. It answers 200
 `{"decision": "allow", "lane", "activity"}`; the client fails red with `lane-check-denied` unless
 `decision` is `allow` and `lane` and `activity` are its own. A 403 `kill-switch` is the stop
-[above](#the-broker-check-job). Any other status fails red with
+[above](#the-check-broker-job). Any other status fails red with
 `lane-check-denied`, the status and the broker's reason, from the table above minus the
 mint-only rows; no response is `broker-unreachable`. The lanes bot is refused only on a mint, so
 a `workflow_run` read lane still runs after a bot push. It checks no actor either, so a
@@ -2179,7 +2179,7 @@ in [patch output mode](#patch-output-mode), so the model job holds no write toke
 `pull-requests: read` only, and the skill runs on `run-claude-cli` like a PR-mode skill
 ([Two calls on one credential each](#two-calls-on-one-credential-each)), whose leg environment
 holds its one Claude credential and no GitHub token. Before any job that
-gets the lane's Claude credential, the caller's `admit` job runs `check-trusted-trigger` from the
+gets the lane's Claude credential, the caller's `check-admission` job runs `check-trusted-trigger` from the
 default branch tip, with `contents: read` and no secret (`require-pr: false`, `require-kind:
 human`, `app-label: agent-ready`, the lanes App id): `pick-slot` and `resolve-issue` need it and
 run only on its `proceed` output `true`, so an unlisted account's label on an issue anyone can
@@ -2210,14 +2210,14 @@ mint included) and re-fires the issue once per version of the two files. A stale
 outcome marker, so it never counts against `limits.stop-retries`. An issue that
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
-which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
+which needs `check-admission` and `pick-slot` only, runs `report-outcome` in the write file with
 `dimension-skip`, and the reason takes its route, to no person: `research-first` and
 `probe-first` take the `park` route, which writes admission's comment naming the next step (so
 `intake-reenter` lifts the park on a listed human's decision comment), adds `status: confirmed`,
 removes `agent-ready`, `status: ready` and `admission-deferred`, and comments under an
 `outcome=parked` marker; `split-required` takes the `intake` route, so intake's split
 files its sub-issues (owner Q93), or says on the issue why it cannot; a sub-issue that split filed
-runs at `split-child-size` instead ([Models](README.md#models)). When the admit job stops the run because the issue's author is
+runs at `split-child-size` instead ([Models](README.md#models)). When the check-admission job stops the run because the issue's author is
 neither a listed human nor the lanes App, `report-skip` runs with `dimension-skip: outside-author`:
 it removes `agent-ready` and comments, under an `outcome=outside-author` marker and with no label,
 that a listed human re-files the work as a new issue. What changes from the PR flow:
@@ -2318,7 +2318,7 @@ that a listed human re-files the work as a new issue. What changes from the PR f
 - `resolve-issue` passes `ISSUE_LANE_CLAUDE_API_KEY` alone. Its handoff skips the read file's scan
   job, so `resolve-issue-handoff` runs the default branch tip's `handoff-evidence.sh handed-off`
   as the pr-unblock handoff jobs run it, deciding from job conclusions alone: when
-  `resolve-issue / broker-allowed` succeeded (the broker step, when that job is absent),
+  `resolve-issue / record-broker-allow` succeeded (the broker step, when that job is absent),
   `resolve-issue / run` succeeded and `resolve-issue / scan` never ran, `resolve-issue-subscription`
   runs the activity again on `ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN` alone, with `fallback: handoff`,
   in the same slot. A stale-workflow stop, an earlier run's work and a reuse still run the scan
@@ -2531,7 +2531,7 @@ that a listed human re-files the work as a new issue. What changes from the PR f
 - A fork PR, whose read-only `GITHUB_TOKEN` cannot write checks: the report job's `if:` skips it.
 - A `pull_request` event sent by the lanes App (`AUTOMATION_LANES_APP_SENDER_ID`): both jobs skip.
 - Any event other than `pull_request` whose run job gated no head SHA, including a read run whose
-  `broker-check` job failed: the fallback there would be `github.sha`, the dispatch ref, not the
+  `check-broker` job failed: the fallback there would be `github.sha`, the dispatch ref, not the
   PR's commit. The report job notes it in its step summary.
 - A dispatched `pr-unblock.yml` or `pr-refine.yml` run whose dispatcher's file at the commit that
   run ran differs from the tip's, which the broker would refuse as `workflow-modified`. That commit

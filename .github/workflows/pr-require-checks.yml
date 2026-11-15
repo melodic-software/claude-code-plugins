@@ -7274,14 +7274,14 @@ jobs:
       # counts. A pending, failed or cancelled
       # review fails, as does a skipped one (a fork, or a bot outside the
       # caller's allowed-bot-sender-ids), with the cause named. A lane the
-      # kill switch stopped (its kill-switch job succeeded and ran its
+      # kill switch stopped (its check-kill-switch job succeeded and ran its
       # `Report the kill switch` step, so a switch was on when the run
       # started) fails too: the kill switch pauses review, it never waives it.
       # Once it is off, the lost-run reconciler re-runs the review run, whose
       # completion re-runs ci-status (pr-dispatch-feedback.yml rerun-ci-status);
       # reconcile.mjs matches the error below, and a trusted person's re-run
       # does the same. The admin bypass stays the break-glass. A
-      # kill-switch job that failed stopped the review too, and fails.
+      # check-kill-switch job that failed stopped the review too, and fails.
       # Dependabot, the release App and the
       # standards-sync App, by numeric author id, are exempt: no review lane
       # reviews them. An exempt author's PR still fails when a changed file
@@ -7614,8 +7614,8 @@ jobs:
             verdict=$(jq -r --arg checks "$checks" --arg run_status "$(jq -r .status <<<"$run")" '
               def newest($names): first($names[] as $n | .jobs | map(select(.name == $n)) | max_by(.id) | values) // null;
               newest($checks | split("|")) as $s
-              # kill-switch: the job name a head tested before the rename shows;
-              # Check Kill Switch: its planned name.
+              # Kill Switch: the job name before its rename to Check Kill Switch;
+              # kill-switch: the name a head tested before an earlier rename shows.
               | newest(["Kill Switch", "kill-switch", "Check Kill Switch"]) as $k
               | if $s != null and $s.status != "completed" then "pending"
                 elif $s.conclusion == "success" then
@@ -7713,7 +7713,7 @@ jobs:
               continue
             fi
             # The hosted callers' `Stop on upstream status` step fails the
-            # kill-switch job with this lane's error while GitHub Actions or
+            # check-kill-switch job with this lane's error while GitHub Actions or
             # npm lists an outage (.github/actions/check-upstream-status).
             if [[ $verdict =~ ^upstreamunlisted\ ([1-9][0-9]*)$ ]]; then
               job=${BASH_REMATCH[1]}
@@ -7722,7 +7722,7 @@ jobs:
                 then "upstream" else "missing failure" end' <<<"$notes")
             fi
             # A run from before that step skipped the review with the gate's
-            # notice and a kill-switch job that succeeded.
+            # notice and a check-kill-switch job that succeeded.
             if [[ $verdict =~ ^gateskip\ ([1-9][0-9]*)$ ]]; then
               job=${BASH_REMATCH[1]}
               notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
