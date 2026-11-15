@@ -77,12 +77,12 @@ Everything `check` does, then the confirmed write:
 
 1. Interview the user for what they want changed. For em-dash exemptions, ask for the documents
    that genuinely require em dashes; the default posture is that most work does not.
-2. Write ONLY the team layer (`<home>/ai-slop.yaml`), showing the diff and getting explicit
+2. Write only the team layer (`<home>/ai-slop.yaml`), showing the diff and getting explicit
    confirmation before writing. Never write the personal override on the user's behalf; name it
    as an option the user edits themselves.
 3. Re-run `--show-config` via Bash (the pre-computed output predates the write) and report the
    new effective state. Then run the tracked-file pair on
    the written team file: `git check-ignore -v <home>/ai-slop.yaml` reports no match (a match is
-   FAIL with the pattern) AND `git ls-files --error-unmatch <home>/ai-slop.yaml` exits 0
+   FAIL with the pattern) and `git ls-files --error-unmatch <home>/ai-slop.yaml` exits 0
    (non-zero right after a fresh write means "written but untracked: commit it to share with the
    team", never success).

@@ -3,6 +3,18 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.14] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+## [1.1.13] - 2026-11-15
+
+### Changed
+
+- The setup skill uses plain emphasis instead of capital letters.
+
 ## [1.1.12] - 2026-11-14
 
 ### Changed

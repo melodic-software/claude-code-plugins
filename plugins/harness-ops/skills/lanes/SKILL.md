@@ -65,11 +65,15 @@ model only with context-usage's `model_notices` option on, which is off by defau
 cannot reset its own context from inside the loop.
 
 The context change that *does* happen automatically in-session is Claude Code's
-**auto-compaction**: when the conversation nears the model's input limit, older
-history is summarized in place to free space. That is not a reset, the session
-continues on a lossy summary of what came before, not a fresh context, so a lane that
-runs long enough will lose earlier context to compaction well before any operator
-relaunch, not keep every turn until then.
+**auto-compaction**. We treat it as older history summarized in place, not a reset:
+the session continues on a lossy summary of what came before, not a fresh context, so a
+lane that runs long enough will lose earlier context to compaction well before any
+operator relaunch, not keep every turn until then.
+
+- **Pointer**: when stating when auto-compaction fires or what it keeps, fetch
+  [model config: default auto-compact thresholds](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds)
+  and [context window: what survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction)
+  live.
 
 `restart` (stop the session, relaunch from the canonical prompt) is the only
 *fresh-session* reset: the relaunched lane starts a **fresh** session seeded from the
@@ -381,14 +385,14 @@ each, the summary below is a pointer, not a copy.
 - **`scripts/machine-behavior.sh`**. Emits the lane's MACHINE-BEHAVIOR block (gh
   identity, clone path, worktree inventory, installed plugin versions) as a
   verbatim-printable text block. Pure environment inspection: it emits only
-  mechanically unambiguous facts and deliberately does NOT compute "deviations
+  mechanically unambiguous facts and deliberately does not compute "deviations
   from standing rules". That stays a model judgment made by reading these facts
-  against the prose rules. Plugin versions are the INSTALLED runtime versions,
+  against the prose rules. Plugin versions are the installed runtime versions,
   which per [context/refresh.md](context/refresh.md) can lag repo HEAD mid-session
   (the honest number for a running lane). `--plugin <id>` (repeatable) scopes the
   block to the plugins a lane runs.
 
-- **`scripts/telemetry-upsert.sh`**. Maintains exactly ONE marker-identified
+- **`scripts/telemetry-upsert.sh`**. Maintains exactly one marker-identified
   telemetry comment on a tracking issue, editing it in place instead of posting a
   second. Given `--issue N --marker STR --body-file PATH`, it writes a
   machine-detectable sentinel as the comment's first line, finds that sentinel
@@ -435,7 +439,7 @@ pre-write gate (empty, leading `@`, not sentinel-prefixed, or under a 16-byte
 payload floor measured below the sentinel line → skip the cycle, no API call), a
 check of the write's own exit status (a failed write leaves the previous cycle's
 body in place, which a read-back running regardless would accept), and a
-post-write read-back of what the write stored. What an inline block does NOT
+post-write read-back of what the write stored. What an inline block does not
 replicate: the 64 KiB cap, the body-file containment checks, retries, and this
 script's distinct non-zero exit codes, an inline branch always exits 0 and
 reports through stderr. It also inherits this script's own limits: a PATCH that

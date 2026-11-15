@@ -51,7 +51,7 @@ Two lanes, split by the nature of the finding, never by convenience:
   never auto-applied.
 
 This is not a diff reviewer, not a designer of one chosen boundary, and not a general tidy
-pass. See "What this skill does NOT do".
+pass. See "What this skill does not do".
 
 ## Actions
 
@@ -59,7 +59,7 @@ pass. See "What this skill does NOT do".
 |----------|--------|
 | *(empty)* | Full pass over an inferred scope: scan → verify → apply lane → route lane → ledger |
 | `<scope>` | Same pass narrowed to a path, module, or altitude keyword (`docs`, `code`, `app`, `repo`) |
-| `dry-run [<scope>]` | Scan, verify, rank, and ledger only. Do NOT edit, branch, push, or file tracker items |
+| `dry-run [<scope>]` | Scan, verify, rank, and ledger only. Do not edit, branch, push, or file tracker items |
 | `change <old> <new> [<scope>]` | Change mode, read-only: find every site that states `<old>`, classify each, and propose what happens to it. No edits |
 | `change apply <old> <new> [<scope>]` | Change mode with edits: the same inventory, then, once the human confirms the site list, change the setup sites and convert them to a reference form |
 | `status` | Read the ledger and report open candidates, applied reductions, and what the next run should take |
@@ -165,9 +165,9 @@ edge exists, the mechanism is what the scan claims, and the depended-on side act
 (volatility from history, not vibes). Drop or downgrade what does not reproduce, and record
 that the ledger reflects verified state, not raw scan output.
 
-**D. Partition and rank.** Every verified finding gets a lane. Apply lane requires ALL of:
+**D. Partition and rank.** Every verified finding gets a lane. Apply lane requires all of:
 mechanical, contained in scope, behavior-preserving, and reversible by revert. Anything
-cross-file in remediation or architectural in judgment is route lane. When in doubt, route.
+cross-file in remediation or architectural in judgment is route lane, and so is any finding not shown to meet all four.
 Rank by `strength × degree × distance × volatility`; a weak-but-everywhere coupling on a hot
 path outranks a strong-but-local one in cold code. Write the full ranked set to the ledger.
 
@@ -202,8 +202,8 @@ never auto-merges.
 **H. Ledger update and report.** Update statuses (`applied`, `deferred`, `routed`,
 `rejected`). Schema in [`reference/ledger.md`](reference/ledger.md). For route-lane
 candidates: hand the top one to `/architecture:improve`, invoked via the Skill tool (if that plugin is installed), for
-design exploration, and file the rest by invoking `/work-items:track add` via the Skill tool when that plugin is
-installed, else the repo's own tracker, else present the list to the user. For each confirmed
+design exploration, and file the rest by invoking `/work-items:track add` via the Skill tool
+when that plugin is installed, else the repo's own tracker, else present the list to the user. For each confirmed
 duplicate writer, write the ownership-rule findings file under `<memory_dir>/coupling/<branch-slug>/`
 per [`reference/remediations.md`](reference/remediations.md) "Duplicate writers", name it in the
 ledger entry's `outcome`, and offer `/corrections:codify findings <file>` when that skill is
@@ -240,7 +240,7 @@ verdict is a deterministic build/test/lint pass. The fresh-context scan agents p
 objective gate carry the independence; a separate fresh-context reviewer is owed only if this
 skill is ever extended to judge work its own session produced outside those gates.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not review a diff.** Pre-merge review is a review tool's job; this hunts standing
   coupling in existing artifacts.

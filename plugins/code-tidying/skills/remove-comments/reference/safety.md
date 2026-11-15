@@ -2,10 +2,10 @@
 
 The risk being managed: every applied edit is a code change, and each kind of change has a
 different strongest available proof that it preserved behavior. The gates below match the proof to
-the change instead of demanding one proof (a test run) for all of them. Demanding the test run for
-everything is what left the skill inert on any repository without a test suite, which is most of
-them, and it was never the strongest proof available for a deletion anyway: a test suite samples
-behavior, while a token comparison is exhaustive over the file.
+the change instead of demanding one proof (a test run) for all of them. A test run for everything
+would leave the skill inert on any repository without a test suite, which is most of them, and it
+is not the strongest proof for a deletion: a test suite samples behavior, while a token comparison
+is exhaustive over the file.
 
 ## Contents
 
@@ -200,7 +200,7 @@ machine-read, not legal, and not a contract another tool consumes; they are pros
 needs, which makes them class C, subject to the earn-its-keep test and the line budget like any
 other class-C comment, not exempt from them.
 
-- **Negative information**: what the code deliberately does NOT do, and why an alternative was
+- **Negative information**: what the code deliberately does not do, and why an alternative was
   rejected. This class has no referent in the adjacent code, which gives it the same surface
   signature as a stale comment. It is the tool's most likely false positive. See the gotcha below
 - **Operational information**: how this component fits the wider system. By construction it cannot
@@ -253,7 +253,7 @@ identically unless you widen the query: a name can wrap across a line break in t
 documents it, be built by concatenation, differ in case or hyphenation, or be held in a variable
 the matcher interpolates. Vary the form before concluding absence: hyphenated and underscored,
 singular and plural, the bare suffix on its own, and the enclosing helper's name as well as the
-marker's. Prefer finding the code that DOES the matching (the `grep`, `case`, or regex literal a
+marker's. Prefer finding the code that does the matching (the `grep`, `case`, or regex literal a
 gate runs against comment text) over guessing the marker's spelling, because the matcher is
 findable even when the marker's name is not.
 
@@ -333,7 +333,7 @@ convention does exactly that), the comment is one half of a two-part artifact. D
 paired record is a correctness bug, not a style change.
 
 Test to apply: if a comment asserts something about code that is **not present**, it is class C by
-default. Class-A deletion requires the comment to be redundant with code that IS present.
+default. Class-A deletion requires the comment to be redundant with code that is present.
 
 ## Gotcha: the earn-its-keep bar is not a license for a sweep
 

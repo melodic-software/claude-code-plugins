@@ -12,8 +12,8 @@ description.
 
 ### `C1`: read-only
 
-Audits, research, reports. "Read-only" scopes REPOSITORY surfaces: a `C1` run performs no
-repository mutation. Writes to the governed queue and tracker are PERMITTED: work-item
+Audits, research, reports. "Read-only" scopes repository surfaces: a `C1` run performs no
+repository mutation. Writes to the governed queue and tracker are permitted: work-item
 filing, queue comments, and audit-trail artifacts are the class's output channel and land
 on the queue's audit trail, not in the repository. Blast radius is informational only, and
 there is nothing to revert; but the exfiltration surface remains, which is why the
@@ -62,7 +62,7 @@ one marking the PR `C5`, each failing closed to `C5` when its field is missing o
   `headRepositoryOwner` differing from the base owner).
 - **Trust test:** `C5` unless one arm positively passes: `authorAssociation` `OWNER` or
   `MEMBER`, or the author is a structural bot (`[bot]` login suffix or provider `Bot` type)
-  listed in the TARGET repository's team-tracked, default-branch
+  listed in the target repository's team-tracked, default-branch
   `babysit_loop_trusted_internal_bot_logins` (grammar, binding, and fail-closed empty set: the
   `source-control` plugin's `reference/config-resolution.md`, "the C5 trust test's one reviewed
   widening"). A listing never bypasses the fork test.
@@ -75,7 +75,7 @@ failing closed to `C5` when any field it needs is missing or unreadable:
 
 - **Trust test:** `C5` unless one arm positively passes: the issue author's
   `authorAssociation` is `OWNER` or `MEMBER`, or the author is a structural bot whose login
-  matches an entry in the same TARGET repository's team-tracked, default-branch
+  matches an entry in the same target repository's team-tracked, default-branch
   `babysit_loop_trusted_internal_bot_logins` list the PR trust test uses (same grammar,
   binding, and fail-closed empty set; repository-owned automation identities are never org
   `MEMBER` accounts, so without this second arm the org's own lane bots would be classified as
@@ -151,7 +151,7 @@ per the [telemetry contract](../telemetry.md) are the evidence base.
 
 - **The first promotion is a human-ratified knob flip; promotion after a demotion is
   automatic.** A satisfied predicate makes
-  the cell ELIGIBLE; a human ratifies the flip, and the flip is recorded as a reviewable
+  the cell eligible; a human ratifies the flip, and the flip is recorded as a reviewable
   change on the governance surface. That bound state stays the ceiling: evidence after a
   demotion can restore it, never raise it.
 - **Demotion is automatic and fail-closed.** Contrary evidence lowers the cell's effective
@@ -213,7 +213,7 @@ terms sit close to the line.
 asserting the change was wrong after it landed; an acceptance rate counts how much got merged. The
 first is evidence about the work, the second about the pipeline.
 
-**A merge COUNT over a fixed window is a volume floor, not an acceptance rate.** The `C3` term
+**A merge count over a fixed window is a volume floor, not an acceptance rate.** The `C3` term
 `≥ 20 autonomous C2 merges over ≥ 14 days` says only that enough autonomous work has landed for a
 track record to exist at all. The two behave oppositely under exactly the move that makes an
 acceptance metric untrustworthy: a ratio rises when its denominator shrinks, so attempting less,
@@ -229,7 +229,7 @@ missed-blocking-finding counts, and demotion events. The demotion evidence set e
 counts as the last of these. Each is correctness-side or volume-side by construction; none is a
 ratio of accepted to attempted.
 
-### Reviewer-burden term: DEFERRED, with a trigger
+### Reviewer-burden term: deferred, with a trigger
 
 A reviewer-burden term (how much human review effort a cell's output actually costs) is a
 **candidate predicate input, deliberately not a live term.**

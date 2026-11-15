@@ -35,7 +35,7 @@ branch of the mapping rules never applies.
   suspected-stale passages, and drift too ambiguous to judge.
 - **Work items.** Filed through the governed queue for drift whose correction needs
   authorial judgment.
-- **Optional gated docs-change path.** An org MAY enable a direct docs-change path
+- **Optional gated docs-change path.** An org may enable a direct docs-change path
   (a prepared docs change entering through the matrix's merge policy). It is off unless the
   org's routine binding enables it, and enabling it changes the derived posture below.
 
@@ -54,7 +54,7 @@ class has two output shapes:
    derive `C1`, and the [work-classes leaf](../guardrails/work-classes.md) scopes queue and
    tracker writes as permitted `C1` output.
 3. **Gated docs-change portion.** The optional path is `AGT` + direct change, so the
-   mechanically-checkable branch decides between `C2` and `C3`. Doc accuracy is NOT
+   mechanically-checkable branch decides between `C2` and `C3`. Doc accuracy is not
    mechanically checkable: no deterministic gate can decide whether prose now tells the
    truth about the code, because the truth being checked is semantic. The portion derives
    `C3`, not `C2`.

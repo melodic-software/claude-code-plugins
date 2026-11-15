@@ -153,8 +153,8 @@ checks and rows (its "Model scoping" section) fire only when this resolved targe
 scope; non-matching ones are inert and the report lists them as `skipped-for-target`.
 
 - **Default resolution ladder:** (1) an explicit `--target-model` always wins; (2) otherwise use
-  the session's EFFECTIVE model, what this session actually runs, which a `--model` launch
-  override may have set rather than the bare settings pin, and normalize it alias → model VERSION
+  the session's effective model, what this session actually runs, which a `--model` launch
+  override may have set rather than the bare settings pin, and normalize it alias → model version
   against the live model-config docs at run time; (3) anything that cannot be normalized to a
   single version fails loud (below). The normalized token is the catalog's local grammar,
   lowercase family and version joined by hyphens (`opus-5-5`, `sonnet-5`, `fable-5-2`), derived from
@@ -485,7 +485,7 @@ plainly that nothing has been applied.
 - **A conflict pair needs two files.** Feeding `conflict-scan.sh` one surface at a time reproduces
   Phase B's blind spot and always reports clean.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Never edits an instruction file and never auto-files a tracker item; output is a report plus
   proposed diffs the human applies.

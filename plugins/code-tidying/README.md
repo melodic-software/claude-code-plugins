@@ -217,8 +217,12 @@ is `necessary`. Under `explanatory` (and `strict`, `balanced`, `conservative`) t
 run.
 
 A comment is a comment token of the pygments lexer for the file's name. The lint judges files whose
-extension `scripts/code-extensions.txt` lists, skips a file whose first 10 lines carry
-`sync-managed`, `do not edit` or `@generated`, and judges only the lines the change adds. Under
+extension `scripts/code-extensions.txt` lists, skips a file whose first 10 lines match a line of
+`scripts/generated-marker.ere`, and judges only the lines the change adds. That file counts
+`sync-managed` and `@generated` anywhere, and `do not edit` only as a whole-file notice: at the
+end of the line, before punctuation or `this file`, `this copy`, `by hand`, `manually` or
+`directly`, or on a line that also says `generated`. A hand-written `# do not edit the order
+below` is judged. Under
 `necessary` these pass:
 
 1. A shebang on line 1, an encoding cookie on line 1 or 2.

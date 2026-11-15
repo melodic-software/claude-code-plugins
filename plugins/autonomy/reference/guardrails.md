@@ -19,9 +19,9 @@ instantiation of it. The playbook names the obligation, and this contract suppli
 | Class | Min isolation (unattended) | Verification | Verification topology | Merge policy | Cost tier | Escalation |
 |---|---|---|---|---|---|---|
 | C1 | L2 (exfil surface remains) | output-shape checks | 1 checker | n/a; artifacts via queue audit trail | economy | low |
-| C2 | L2 | deterministic blocking | 1 checker | auto-merge ELIGIBLE after per-class promotion trigger; ships human-gated | economy | gate failure → owning lane |
-| C3 | L2 | deterministic blocking + AI review (advisory, promotable per [the security-review policy](guardrails/security-review.md)) | 2 distinct checkers, 1 a model judge | auto-merge ELIGIBLE after per-class promotion trigger; ships human-gated | standard | divergence/failed verify → owning lane |
-| C4 | L2 | deterministic blocking + AI review blocking | 3 distinct checkers, 2 vendor-disjoint model judges | auto-merge ELIGIBLE after the `C3-auto-merge` promotion; ships human-gated | premium | divergence/failed verify → owning lane |
+| C2 | L2 | deterministic blocking | 1 checker | auto-merge eligible after per-class promotion trigger; ships human-gated | economy | gate failure → owning lane |
+| C3 | L2 | deterministic blocking + AI review (advisory, promotable per [the security-review policy](guardrails/security-review.md)) | 2 distinct checkers, 1 a model judge | auto-merge eligible after per-class promotion trigger; ships human-gated | standard | divergence/failed verify → owning lane |
+| C4 | L2 | deterministic blocking + AI review blocking | 3 distinct checkers, 2 vendor-disjoint model judges | auto-merge eligible after the `C3-auto-merge` promotion; ships human-gated | premium | divergence/failed verify → owning lane |
 | C5 | L3 | full gates + zero secret exposure | 3 distinct checkers, 2 vendor-disjoint model judges | human merge always | standard | always |
 
 ### Classes
@@ -43,7 +43,7 @@ instantiation of it. The playbook names the obligation, and this contract suppli
   five conditions stand in for `L2` while they all hold; `C5` keeps `L3`.
 - **Verification**: the gate layers a change must pass, with per-layer blocking knobs bound
   on the governance surface.
-- **Verification topology**: the floor for how many DISTINCT checker slots verify the class
+- **Verification topology**: the floor for how many distinct checker slots verify the class
   and whether they must be vendor-disjoint; roles, relational constraints, and predicates are
   contract vocabulary, instances org-bound. The leaf owns these floor values; the cells above
   are their glance restatement.

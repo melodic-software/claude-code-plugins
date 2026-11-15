@@ -19,7 +19,7 @@ Answers four questions about a Claude Code installation, and refuses to answer a
   ~100k-file tree does not drown a ~150-file answer. Per-file rows live in the CSV.
 - **What does the product already manage?** Recommending a manual prune of a path the retention
   sweep owns generates churn, not space.
-- **For each number in a filename, what IS that number?** A liveness lookup against a TCP port or
+- **For each number in a filename, what is that number?** A liveness lookup against a TCP port or
   a shell `$$` returns a clean, confident, wrong "dead."
 - **Is this tree in a deliberate or experimental state?** If it is, "looks like decay" is the wrong
   reading of almost everything.

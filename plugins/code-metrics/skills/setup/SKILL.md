@@ -103,7 +103,7 @@ Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
 to re-run this skill to reconfigure. Say which layer supplied each reference that differs from the
 bundled default.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - Install, download, or `npx`-fetch a collector. It prints install hints; the operator installs.
 - Write the user-global or local layers. Those are personal files the operator edits.

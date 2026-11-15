@@ -74,7 +74,7 @@ lanes:
       - 'src/billing/**/*.ts'
 ```
 
-### Consumer `## Gotchas` (cascade scope, #3547)
+### Consumer `## Gotchas` (cascade scope)
 
 A `## Gotchas` section in `docs/conventions/bugs.md`, `~/.claude/bugs.md` or
 `.claude/bugs.local.md` (outside any YAML fence) is the **local scope** for repo-specific lines the

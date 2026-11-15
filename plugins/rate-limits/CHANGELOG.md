@@ -3,6 +3,15 @@
 All notable changes to the `rate-limits` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.5] - 2026-11-15
+
+### Changed
+
+- The plugin reconfiguration reference opening is reworded: setup skills cite it rather than restate it, and its version record lives only there.
+
+- The `status` tool description now lists every notice the model_notices option adds, including restated windows after a compaction, resume or /clear and the line sent when a window's reset time moves earlier.
+- The reader contract and setup skill read in plain case and state the account-switch guard's three sides directly.
+
 ## [4.0.4] - 2026-11-14
 
 ### Changed

@@ -43,7 +43,7 @@ each discovered file. Apply by entity type:
   rather than a CLAUDE.md, so it takes every C-check a project `claude-md` row takes, C9 included.
   Report it under its own path; never relabel it as a CLAUDE.md finding. A repo under a one-line
   `@AGENTS.md` shim emits no such row, because the CLAUDE.md row already covers that content
-- **C9 is project-scoped: skip it for CLAUDE.local.md AND for every `user`-scope file.** The criteria
+- **C9 is project-scoped: skip it for CLAUDE.local.md and for every `user`-scope file.** The criteria
   file says so directly: C9 applies to project CLAUDE.md only, and `~/.claude/CLAUDE.md` is "not
   repo-scoped". This is the reason Step 1 emits a scope tag. A user-scope `CLAUDE.md` carrying no build
   and test commands is correct, not a FAIL, and reporting one there would be a false positive
@@ -70,16 +70,16 @@ each discovered file. Apply by entity type:
 - **M1-M4**: Auto-memory files (doc-derived health checks)
 - **M2 (deterministic backing)**: run
   `bash "<skill-dir>/scripts/memory-index-refs-check.sh"` for
-  index↔topic-file integrity, forward (index links an absent file) AND reverse (topic file present
-  but not indexed, the orphan direction). Fold WARN lines into the report; do NOT hand-derive what the
+  index↔topic-file integrity, forward (index links an absent file) and reverse (topic file present
+  but not indexed, the orphan direction). Fold WARN lines into the report; do not hand-derive what the
   script computes
 - **RD1**: Always-loaded rules layer (reverse-drift orphan check; deterministic-WARN). Run
   `bash "<skill-dir>/scripts/orphan-rule-check.sh"` and fold each WARN
-  line into the report. Do NOT re-derive by hand. Each line already carries the file's
+  line into the report. Do not re-derive by hand. Each line already carries the file's
   provenance and the matching fix route
 - **N1**: Nested `AGENTS.md` reachability (deterministic-FAIL). Run
   `bash "<skill-dir>/scripts/nested-agents-check.sh"` and fold each FAIL
-  line into the report. Do NOT re-derive by hand. Discovery stays depth-1 for the C-checks; this
+  line into the report. Do not re-derive by hand. Discovery stays depth-1 for the C-checks; this
   check asks only whether each nested file loads at all, and it fires only where a `CLAUDE.md` on
   that file's own path is read instead of it
 - **C1 counts the expanded file**: the pre-computed header's root-file figure comes from

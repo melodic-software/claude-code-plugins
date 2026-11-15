@@ -141,6 +141,5 @@ update) is the `plugins` skill's job. See its
 - **Periodic floor:** even with no detected merge, restart lanes on the daily
   harvest/reset cadence (the same restart that clears context bloat). This
   bounds self-fix staleness to at most one cadence interval.
-- **Until restart:** a behavior known-broken-but-fixed-on-main must be carried as a
-  temporary workaround in the loop prompt, the existing prompt rule for *unmerged*
-  fixes, extended here to *merged-but-not-yet-reloaded* fixes.
+- **Until restart:** carry a behavior known-broken-but-fixed-on-main as a temporary
+  workaround in the loop prompt, the same way as a fix that has not merged yet.

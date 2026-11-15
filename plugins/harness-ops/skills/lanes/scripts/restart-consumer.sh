@@ -44,11 +44,11 @@
 #   --data-dir DIR       base dir for the run ledger; default $CLAUDE_PLUGIN_DATA
 #                        env var if it names harness-ops, else
 #                        ~/.claude/plugins/data/harness-ops.
-#                        NOTE: CLAUDE_PLUGIN_DATA reaches hook and MCP/LSP
-#                        subprocesses as a real env var but NOT a script a skill
-#                        shells out to via the Bash tool (Claude Code
-#                        plugins-reference, "Environment variables"), so SKILL.md
-#                        passes --data-dir explicitly with the substituted value.
+#                        We do not rely on CLAUDE_PLUGIN_DATA reaching a script
+#                        a skill runs through the Bash tool, so SKILL.md passes
+#                        --data-dir explicitly with the substituted value. Which
+#                        processes receive the variable is read live from
+#                        https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves
 #   --max-restarts N     circuit breaker: at most N relaunch ATTEMPTS per lane
 #                        per window — a launch that failed or never came up
 #                        spends budget exactly as a successful one does
@@ -226,6 +226,7 @@ SENTINEL_PREFIX="<!-- harness-ops:lane-telemetry marker="
 TASK_NAME="HarnessOps Lane Restart Consumer"
 # Below this Claude Code version --permission-prompts is an unknown option;
 # the same floor as lane-launcher.sh. https://code.claude.com/docs/en/headless
+# As of 2026-10-26; recheck when that page changes the flag's version floor, and change both files together.
 PERMISSION_PROMPTS_MIN_VERSION="2.1.259"
 
 err() { printf 'ERROR: %s\n' "$*" >&2; }

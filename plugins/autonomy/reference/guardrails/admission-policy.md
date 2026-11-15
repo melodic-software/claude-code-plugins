@@ -4,7 +4,7 @@ Normative admission-policy content for the [guardrail matrix](../guardrails.md):
 decision that turns a
 queued signal into an autonomously dispatchable item, a human-gated item, or an audited
 rejection. The [trigger-dispatch contract](../trigger-dispatch.md) enforces this policy
-at its admission seam. Adapters ENFORCE admission, never define it, and this leaf owns
+at its admission seam. Adapters enforce admission, never define it, and this leaf owns
 the content. Serialized rules and caps live in the `admission` object of the security
 binding on the settings-as-code governance surface, outside the blast radius of the
 agents they govern (an agent-writable admission policy is a bypass channel).
@@ -36,10 +36,10 @@ closed to `C5`.
 
 Any axis in a rule may be the wildcard `"*"`. Matching is most-specific-wins: a rule
 binding the full triple beats one binding two axes, which beats one axis, which beats
-the default disposition. Two matching rules of EQUAL specificity with different
+the default disposition. Two matching rules of equal specificity with different
 dispositions make the binding invalid. It fail-closes, like any invalid security binding.
 
-A rule may carry an optional `override_justification`. A rule MORE PERMISSIVE than the
+A rule may carry an optional `override_justification`. A rule more permissive than the
 shipped default for its cell is invalid without one; tightening needs none. Permissiveness
 decreases `autonomous-eligible` → `human-gated` → `audited-rejection`.
 
@@ -63,11 +63,11 @@ caps.
   the binding classifies `channel-feed`, that includes a wildcard-surface rule binding a
   work class.
 - Every other item that clears the trigger-dispatch trust holds (an unverified routine
-  identity or `agent-internal` parent) is autonomous-eligible within caps REGARDLESS of
+  identity or `agent-internal` parent) is autonomous-eligible within caps regardless of
   provenance: blocking
   `agent` provenance would sever the agent-kicks-off-agent loop the `agent-internal`
   surface class exists for.
-- Provenance is RECORDED input to gating, never trusted as isolation: provenance is
+- Provenance is recorded input to gating, never trusted as isolation: provenance is
   claimable, so isolation decisions key on the work class and surface verdicts. For
   `agent-internal` signals the trigger-dispatch contract verifies claimed provenance
   against protected dispatch data before admission consumes the class.
@@ -77,7 +77,7 @@ caps.
 
 ## Caps
 
-Caps bound TOTAL autonomous fan-out, applying across all rules and surfaces, never
+Caps bound total autonomous fan-out, applying across all rules and surfaces, never
 per rule:
 
 | Token | Shipped default | Bounds |
@@ -122,7 +122,7 @@ two reads, refuses without a hold: no person answers it, and intake dispatched a
   rules, the caps, and the signal→work-class classification rules adapters stamp from.
   The binding schema is contract-owned and ships with the security binding; this leaf
   owns the semantics it serializes.
-- An ABSENT or invalid admission binding fail-closes at the seam: everything enqueues
+- An absent or invalid admission binding fail-closes at the seam: everything enqueues
   `human-gated` (the trigger-dispatch contract's absent-binding clause).
 - No repo-local (agent-writable) surface may supply any admission input: rules, caps,
   or the work class used for admission.

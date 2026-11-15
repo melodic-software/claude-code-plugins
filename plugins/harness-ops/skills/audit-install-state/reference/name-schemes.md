@@ -14,7 +14,7 @@ question." It reads exactly like a dead process.
 ## The rule
 
 **Establish the naming scheme before applying any liveness check, and require positive evidence that
-a number IS a PID before treating a lookup miss as "dead."**
+a number is a PID before treating a lookup miss as "dead."**
 
 The engine implements this as a gate, not as advice: `verdict_for()` classifies the name first and
 calls the probe *only* when `number_meaning == "pid"`. Every other name returns

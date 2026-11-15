@@ -16,6 +16,7 @@
         "scripts/comment-census.py",
         "scripts/comment-settings.sh",
         "scripts/code-extensions.txt",
+        "scripts/generated-marker.ere",
         "lib/parse-concern-value.sh",
         "lib/yaml-subset.awk",
         "lib/resolve-convention-home.sh"

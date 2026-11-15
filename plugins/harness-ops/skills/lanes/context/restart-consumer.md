@@ -183,7 +183,7 @@ parity claim.
 - **Morning-brief surfacing.** On every `run` the consumer upserts its own
   sentinel-marked comment (marker `harness-ops:restart-consumer`) carrying the
   same `lane:` / `last-cycle:` / `flags:` header `morning-brief.sh` already
-  parses. The comment must land on the ONE issue that reader resolves, so the
+  parses. The comment must land on the one issue that reader resolves, so the
   consumer's default discovery reuses the brief's own title search; when that
   finds nothing it falls back to an issue titled exactly
   `Lane telemetry: restart-consumer` and opened by the write identity, which the brief reads only when both
@@ -198,7 +198,7 @@ parity claim.
   `<data-dir>/lanes/<repo-key>/restart-consumer.jsonl` for each lane whose
   decision is an **incident** (`restarted`, `failed`, `error`, `api-error`).
   That file is the detail layer, and the circuit breaker's memory (default:
-  max 3 relaunch ATTEMPTS per lane per rolling 24 h; a tripped breaker exits 5 and flags the
+  max 3 relaunch attempts per lane per rolling 24 h; a tripped breaker exits 5 and flags the
   telemetry). The breaker counts attempts, not successes: `restarted` and
   `failed` both spend budget, so a launcher that keeps failing, or that returns
   success while the background lane never appears (the Windows hazard above),
@@ -245,7 +245,7 @@ parity claim.
   consumer log healthy ticks forever while processing nothing. `check` and
   `--dry-run` mutate nothing and never contend.
 - **Exit codes are honest.** A relaunch that fails, never comes up, trips the
-  breaker, or a lane whose telemetry could not be READ (`api-error`, never
+  breaker, or a lane whose telemetry could not be read (`api-error`, never
   conflated with `no-state`, which means "the lane did not ask") exits 5; Task
   Scheduler history shows the non-zero result. A tick skipped for the lock is
   exit 0: it is a correctly-serialized no-op, not a failure.

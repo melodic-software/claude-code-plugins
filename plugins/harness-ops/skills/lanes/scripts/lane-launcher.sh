@@ -76,11 +76,12 @@
 #   --data-dir DIR     base dir for the per-lane launch-commit marker (below);
 #                      default: $CLAUDE_PLUGIN_DATA env var if it names
 #                      harness-ops, else
-#                      ~/.claude/plugins/data/harness-ops. NOTE: CLAUDE_PLUGIN_DATA
-#                      is exported to hook/MCP/LSP subprocesses but NOT to a
-#                      script a skill shells out to via the Bash tool (Claude
-#                      Code plugins-reference, "Environment variables") — the
-#                      lanes skill's SKILL.md passes --data-dir explicitly with
+#                      ~/.claude/plugins/data/harness-ops. We do not rely on
+#                      CLAUDE_PLUGIN_DATA reaching a script a skill runs
+#                      through the Bash tool; which processes receive it is
+#                      read live from
+#                      https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves
+#                      The lanes skill's SKILL.md passes --data-dir explicitly with
 #                      the inline-substituted value so a real Claude Code
 #                      session resolves the correct marketplace-qualified
 #                      directory; this env-var/fallback path only kicks in for
@@ -222,11 +223,13 @@ EFFORT_TABLE_URL="https://code.claude.com/docs/en/model-config#choose-an-effort-
 # default effort, so the launcher skips the lane rather than launching it at an
 # unintended effort — restart preflights this BEFORE stopping, keeping a healthy lane
 # up. https://code.claude.com/docs/en/model-config#adjust-effort-level
+# As of 2026-08-05; recheck when that section changes the ultracode version floor or its error text.
 ULTRACODE_MIN_VERSION="2.1.203"
 
 # Unattended lanes keep auto mode (the classifier still decides) and deny only
 # the calls that would have prompted. Below this floor the flag is an unknown
 # option, so the launcher omits it. https://code.claude.com/docs/en/headless
+# As of 2026-09-28; recheck when that page changes the flag's version floor.
 PERMISSION_PROMPTS_MIN_VERSION="2.1.259"
 
 # Compared component by component in awk — deliberately NOT `sort -V`, which is a
