@@ -1,9 +1,10 @@
+import { colonsBeforeHash } from "../guard.ts";
 import { append, byText, type Chart, type ChartState, type Region, tupleKey } from "../ir.ts";
 
 const BLANK = /\p{White_Space}/u;
 const SAFE = /^[\p{L}\p{N} !'()+,\-./=?[\]"_|@{}:\\^%<>]$/u;
 const HAZARD =
-  /:(?=:|$|\S*#)|\\(?=n)|%(?=%)|<(?=[\p{L}/!?])|_(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])_/giu;
+  /:(?=:|$)|\\(?=n)|%(?=%)|<(?=[\p{L}/!?])|_(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])_/giu;
 const DIRECTION = /(direction)\s+(?=LR|RL|TB|BT)/gi;
 const DOUBLE_BRACKET = /\[(?=\[)/g;
 const C4 = /C4(?=Container|Component|Dynamic|Deployment)/g;
@@ -78,10 +79,16 @@ const encode = (s: string, ref: (n: number) => string) => {
   }
   return out + s.slice(run);
 };
-const code = (s: string, ref: (n: number) => string) =>
-  encode(s, ref)
-    .replace(MARKER, `${ref(0x2060)}"`)
-    .replace(HAZARD, (c) => ref(c.charCodeAt(0)));
+const code = (s: string, ref: (n: number) => string) => {
+  const t = encode(s, ref).replace(MARKER, `${ref(0x2060)}"`);
+  let out = "";
+  let from = 0;
+  for (const i of colonsBeforeHash(t)) {
+    out += t.slice(from, i) + ref(58);
+    from = i + 1;
+  }
+  return (out + t.slice(from)).replace(HAZARD, (c) => ref(c.charCodeAt(0)));
+};
 const esc = (s: string, quoted = false) => {
   const plain = code(s, (n) => `#${n};`);
   const out = quoted ? plain.replaceAll('"', "#34;") : plain;
@@ -94,8 +101,17 @@ const esc = (s: string, quoted = false) => {
 const or = (names: Iterable<string>) => [...names].sort(byText).join(" or ");
 
 const MARK_STYLES = {
+  blue: "fill:#c3e0ff",
+  orange: "fill:#f0d3bf",
+  purple: "fill:#e3d5ff",
+  yellow: "fill:#f0dcbf",
+  teal: "fill:#bfe3df",
+  tan: "fill:#e5d9ce",
+  pink: "fill:#ffcbe6",
   breaks: "fill:#ffecee,stroke:#e72e3b,stroke-width:2.5px,color:#cd2834",
   mayBreak: "fill:#fff3e6,stroke:#e8730c,stroke-width:2.5px,color:#b85a06",
+  bugPath: "stroke:#1680f3,stroke-width:2.5px",
+  repeats: "stroke:#9b35d6,stroke-width:2.5px,stroke-dasharray:6",
 };
 
 export function mermaidLines(chart: Chart) {

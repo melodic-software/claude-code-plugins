@@ -14,6 +14,7 @@ import {
   type Story,
   type Verdict,
 } from "../ir.ts";
+import { capLine, escapeMarkdown, fence, MAX_BUG_LINES } from "../guard.ts";
 
 const stepsOf = (story: Story) => {
   const path: { step?: string; state: string }[] = [];
@@ -28,7 +29,7 @@ const stepsOf = (story: Story) => {
 
 const forever = (loop: { state: string }[], stutters: boolean | undefined) => {
   const quoted = new Set<string>();
-  for (const p of loop) quoted.add(`"${p.state}"`);
+  for (const p of loop) quoted.add(`"${escapeMarkdown(capLine(p.state))}"`);
   const runs = [...quoted];
   if (stutters) return `The run stops in ${runs[0]} forever.`;
   return runs.length === 1
@@ -36,7 +37,19 @@ const forever = (loop: { state: string }[], stutters: boolean | undefined) => {
     : `The run loops through ${list(runs)} forever.`;
 };
 
-const fenced = (text: string) => ["```", text, "```"].join("\n");
+const fenced = fence;
+
+const pathBlock = (path: { step?: string; state: string }[], full: string) => {
+  const lines: string[] = [];
+  for (const [i, p] of path.entries()) {
+    if (lines.length === MAX_BUG_LINES) {
+      lines.push(`... ${path.length - MAX_BUG_LINES} more steps; the full path is in ${full}`);
+      break;
+    }
+    lines.push(capLine(`${i}. ${p.step ? `${p.step}: ` : ""}${p.state}`));
+  }
+  return fence(lines.join("\n"));
+};
 
 export function report(
   {
@@ -122,8 +135,11 @@ export function report(
           ? "The chart marks only the deadlock that TLC reports, because the drawing run stopped before it reached every state."
           : "The chart marks only the deadlock that TLC reports. Under a CONSTRAINT or an ACTION_CONSTRAINT, a state with no step in the chart can still have steps that the constraints leave out, and TLC does not count it as a deadlock.",
       );
-  if (chart?.lie) out.push(`${chart.lie} So the chart draws parent states in place of regions.`);
-  out.push(...(chart?.notes ?? []));
+  if (chart?.lie)
+    out.push(
+      `${escapeMarkdown(capLine(chart.lie))} So the chart draws parent states in place of regions.`,
+    );
+  for (const note of chart?.notes ?? []) out.push(escapeMarkdown(capLine(note)));
   const merged: string[] = [];
   for (const k of ["VIEW", "SYMMETRY"]) if (hasSection(spec, k)) merged.push(k);
   if (chart && merged.length)
@@ -139,7 +155,9 @@ export function report(
         : `The shortest path has ${steps}:`,
     );
     const path = stepsOf(must(stories, bug));
-    for (const [i, p] of path.entries()) out.push(`${i}. ${p.step ? `${p.step}: ` : ""}${p.state}`);
+    out.push(
+      pathBlock(path, bug.rule.kind === "property" ? `tlc-${bug.rule.name}.out` : "tlc.out"),
+    );
     if (bug.loop !== undefined) out.push(forever(path.slice(bug.loop), bug.stutters));
   }
   const drawn = new Set<string>();

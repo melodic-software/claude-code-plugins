@@ -6,7 +6,7 @@ Render an image only when the user asks for one, or a chart is too large to read
 
 Pele ignores Mermaid `theme` and `themeVariables`. Set its `--pele-*` CSS variables on `.pele`. https://pele.run/theming lists them. The command gives each state the color class of its group, such as `class sN teal`. It marks each bad state with `class sN breaks` or `class sN mayBreak`, each state on the shortest path to a bug with `class sN bugPath`, and each state that a PROPERTY counterexample repeats forever with `class sN repeats`. Pele puts these classes on the state's node. Color the classes with CSS.
 
-The `.mmd` file has a `classDef` line for `breaks` and for `mayBreak`, so that any Mermaid viewer shows the bug marks. It has no `classDef` for the group colors, `bugPath`, or `repeats`. Pele writes each `classDef` color as a `style` attribute on the node, and a `style` attribute wins over a normal CSS rule. So the rules for the marks below use `!important`. Without it, a dark theme keeps the light mark colors. A bug mark sets the fill and the text, and `bugPath` and `repeats` set the border. Put the mark rules after the group colors, so that a mark shows over the group color.
+The `.mmd` file has a `classDef` line for each class it uses: the group colors, `breaks`, `mayBreak`, `bugPath` and `repeats`, so that any Mermaid viewer shows the legend's meaning. Pele writes each `classDef` color as a `style` attribute on the node, and a `style` attribute wins over a normal CSS rule. So every rule below uses `!important`. Without it, a dark theme keeps the light mark colors. A bug mark sets the fill and the text, and `bugPath` and `repeats` set the border. Put the mark rules after the group colors, so that a mark shows over the group color.
 
 These colors are suggestions. Put them in a `<style>` element at the start of each SVG. Each SVG then follows the light or dark setting of the viewer.
 
@@ -20,13 +20,13 @@ These colors are suggestions. Put them in a `<style>` element at the start of ea
   --pele-surface-alt: #f1f1f1;
   --pele-border: #c9c9c9;
 }
-.pele .blue rect { fill: #c3e0ff; }
-.pele .orange rect { fill: #f0d3bf; }
-.pele .purple rect { fill: #e3d5ff; }
-.pele .yellow rect { fill: #f0dcbf; }
-.pele .teal rect { fill: #bfe3df; }
-.pele .tan rect { fill: #e5d9ce; }
-.pele .pink rect { fill: #ffcbe6; }
+.pele .blue rect { fill: #c3e0ff !important; }
+.pele .orange rect { fill: #f0d3bf !important; }
+.pele .purple rect { fill: #e3d5ff !important; }
+.pele .yellow rect { fill: #f0dcbf !important; }
+.pele .teal rect { fill: #bfe3df !important; }
+.pele .tan rect { fill: #e5d9ce !important; }
+.pele .pink rect { fill: #ffcbe6 !important; }
 .pele .breaks rect {
   fill: #ffecee !important;
   stroke: #e72e3b !important;
@@ -62,13 +62,13 @@ These colors are suggestions. Put them in a `<style>` element at the start of ea
     --pele-surface-alt: #2c2c2c;
     --pele-border: #4e4e4e;
   }
-  .pele .blue rect { fill: #1b3857; }
-  .pele .orange rect { fill: #573117; }
-  .pele .purple rect { fill: #3c2e57; }
-  .pele .yellow rect { fill: #573d17; }
-  .pele .teal rect { fill: #174641; }
-  .pele .tan rect { fill: #3d3127; }
-  .pele .pink rect { fill: #57233e; }
+  .pele .blue rect { fill: #1b3857 !important; }
+  .pele .orange rect { fill: #573117 !important; }
+  .pele .purple rect { fill: #3c2e57 !important; }
+  .pele .yellow rect { fill: #573d17 !important; }
+  .pele .teal rect { fill: #174641 !important; }
+  .pele .tan rect { fill: #3d3127 !important; }
+  .pele .pink rect { fill: #57233e !important; }
   .pele .breaks rect {
     fill: #2e2021 !important;
     stroke: #cf2b35 !important;
