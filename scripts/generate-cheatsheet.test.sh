@@ -389,12 +389,50 @@ mk_tree tree
 run_gen "$tree"
 sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
 if [[ "$CODE" -eq 0 && "$sheet" == *"- [By kind of task](#by-kind-of-task)"* &&
-  "$sheet" == *"| Fixture kind | [Plan](#3-plan) | None | fixture reason |"* ]]; then
-  ok "the by-kind table renders each kind's stages linked to their stage tables"
+  "$sheet" == *"| Fixture kind | [Plan](#3-plan) |  | None | fixture reason |"* ]]; then
+  ok "the by-kind table renders each kind's stages linked to their stage tables; a stage with no command entry shows its name only"
 else
   fail "by-kind table (exit=$CODE: $OUT)"
 fi
 rm -rf "$tree"
+
+# --- stage commands: the command typed per stage, with cited runs-for-you claims ---
+# stage_commands <tree> <skill key> <basis>: one plan-stage entry with one claim.
+stage_commands() {
+  cat >>"$1/scripts/cheatsheet-config.mjs" <<EOF
+export const STAGE_COMMANDS = [
+  { stage: "plan", skill: "$2", runs: [{ claim: "Fixture claim", basis: "$3" }] },
+];
+EOF
+}
+
+mk_tree tree
+printf '\nFirst body line.\nThis skill calls /beta:looper for you.\n' >>"$tree/plugins/alpha/skills/mapped/SKILL.md"
+stage_commands "$tree" alpha/mapped "calls /beta:looper for you"
+line="$(grep -n "calls /beta:looper for you" "$tree/plugins/alpha/skills/mapped/SKILL.md" | cut -d: -f1)"
+run_gen "$tree"
+sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
+if [[ "$CODE" -eq 0 && "$sheet" == *"| Fixture kind | [Plan](#3-plan): \`/alpha:mapped\` | \`/alpha:mapped\`: Fixture claim ([\`plugins/alpha/skills/mapped/SKILL.md:$line\`](../plugins/alpha/skills/mapped/SKILL.md)) | None | fixture reason |"* ]]; then
+  ok "a kind's row lists each stage's command in order and its claims cited by path:line"
+else
+  fail "stage command row (exit=$CODE: $OUT)"
+fi
+rm -rf "$tree"
+
+mk_tree tree
+stage_commands "$tree" alpha/mapped "a quote the skill does not contain"
+assert_fails "a runs-for-you claim whose quote is gone fails naming the entry" "$tree" \
+  'stage commands: plan (alpha/mapped) no longer contains its basis quote "a quote the skill does not contain"'
+
+mk_tree tree
+stage_commands "$tree" alpha/ghost "anything"
+assert_fails "a stage command naming no listed skill fails naming the entry" "$tree" \
+  'stage commands: plan names "alpha/ghost", which is not a listed skill'
+
+mk_tree tree
+stage_commands "$tree" beta/looper "anything"
+assert_fails "a stage command whose skill sits in another stage fails naming the entry" "$tree" \
+  'stage commands: plan names "beta/looper", whose workflow-stage is "operator"'
 
 mk_tree tree
 write_steps "$tree" '| Fixture kind | Plan | None | fixture reason |' \

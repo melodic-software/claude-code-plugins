@@ -182,6 +182,52 @@ export const REVIEW_PR_MAP = [
   },
 ];
 
+// The command a person types for each workflow stage in this repository, one
+// entry per stage and never per kind of task (which stages a kind enters is the
+// workflow skill's Task kinds table). Each `runs` claim names a call the skill
+// makes; `basis` is a quote from the line that makes it, which the generator
+// finds and cites as path:line, failing when the quote is gone.
+export const STAGE_COMMANDS = [
+  { stage: "interview", skill: "planning/interview" },
+  { stage: "explore", skill: "discovery/explore" },
+  { stage: "research", skill: "discovery/research" },
+  { stage: "prd", skill: "planning/prd" },
+  { stage: "design", skill: "planning/design" },
+  { stage: "plan", skill: "planning/plan" },
+  { stage: "decompose", skill: "work-items/decompose" },
+  { stage: "implement", skill: "implementation/implement" },
+  { stage: "test", skill: "testing/write" },
+  { stage: "review", skill: "review/quality-gate" },
+  {
+    stage: "verify",
+    skill: "verification/confirm",
+    runs: [
+      {
+        claim: "runs the build, test and lint checks through `/toolchain:check` and `/toolchain:lint`",
+        basis: "invoke `/toolchain:check` and `/toolchain:lint` cross-cutting via the Skill tool",
+      },
+      {
+        claim: "finds the touched features with `/app-control:drive affected`",
+        basis: "invoke `/app-control:drive affected --base <ref> --out <evidence dir>/affected`",
+      },
+      {
+        claim: "drives the touched features with `/testing:run-e2e`",
+        basis: "invoke `/testing:run-e2e` via the Skill tool",
+      },
+    ],
+  },
+  {
+    stage: "pr",
+    skill: "source-control/pull-request",
+    runs: [
+      {
+        claim: "`ready` runs the code and security reviews in fresh-context subagents and the verify gate before marking the PR ready",
+        basis: "run the code and security reviews over the PR diff in fresh-context subagents",
+      },
+    ],
+  },
+];
+
 // Upstream records whose "## Attribution table" names our skills. A skill a
 // row's Ours column lists gets that table linked in its Upstream cell, named by
 // the row's upstream skill; the record's text is never copied.

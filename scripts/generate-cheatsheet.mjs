@@ -61,7 +61,7 @@ const {
 } = config;
 const {
   REVIEW_PR_MAP = [], REVIEW_PR_MAP_HEADING = "", REVIEW_PR_AUDIENCES = [], REVIEW_PR_POSTS = [],
-  UPSTREAM_RECORDS = [],
+  UPSTREAM_RECORDS = [], STAGE_COMMANDS = [],
 } = config;
 const stageSlugs = new Set(STAGES.map((s) => s.slug));
 
@@ -291,6 +291,33 @@ for (const row of REVIEW_PR_MAP) {
   mapRows.push({ ...row, plugin: skill.plugin, name: skill.skill });
 }
 
+// The command typed for each stage, and what it runs, each claim cited by the
+// path:line of its basis quote, found afresh on every run.
+const stageCommands = new Map(); // stage slug -> { command, runs: [cited claim] }
+for (const entry of STAGE_COMMANDS) {
+  const id = `stage commands: ${entry.stage}`;
+  const skill = mapped.find((s) => `${s.plugin}/${s.skill}` === entry.skill);
+  if (!stageSlugs.has(entry.stage)) {
+    errors.push(`${id} is not a stage in STAGES`);
+  } else if (stageCommands.has(entry.stage)) {
+    errors.push(`${id} has more than one entry`);
+  } else if (!skill) {
+    errors.push(`${id} names "${entry.skill}", which is not a listed skill`);
+  } else if (skill.stage !== entry.stage) {
+    errors.push(`${id} names "${entry.skill}", whose workflow-stage is "${skill.stage}"`);
+  } else {
+    const lines = readFileSync(skill.path, "utf8").split(/\r?\n/);
+    const rel = `plugins/${skill.plugin}/skills/${skill.skill}/SKILL.md`;
+    const command = `\`/${skill.plugin}:${skill.skill}\``;
+    const runs = (entry.runs ?? []).map(({ claim, basis }) => {
+      const at = lines.findIndex((l) => l.includes(basis));
+      if (at === -1) errors.push(`${id} (${entry.skill}) no longer contains its basis quote "${basis}"`);
+      return `${command}: ${claim} ([\`${rel}:${at + 1}\`](../${rel}))`;
+    });
+    stageCommands.set(entry.stage, { command, runs });
+  }
+}
+
 if (errors.length > 0) fail(errors);
 
 // --- Spine-drift assertion ---------------------------------------------------
@@ -463,22 +490,27 @@ for (const stage of STAGES) {
   sections.push(`## ${stage.heading}\n\n${header}\n${body}`);
 }
 
-// The by-kind view: steps.md's Task kinds joined with the stage tables below,
-// each stage linking to the table of the skills that run it.
+// The by-kind view: steps.md's Task kinds joined with each stage's command
+// entry and the stage tables below, each stage linking to its table.
 const BY_KIND_HEADING = "By kind of task";
 const stageLink = ({ name, stage }) =>
   renderedStages.has(stage.slug) ? `[${name}](#${slugify(stage.heading)})` : name;
 const kindRowsOut = kinds
   .map((k) => {
-    const enters = k.enters.map(stageLink).join(" → ");
+    const steps = k.enters.map((s) => {
+      const command = stageCommands.get(s.stage.slug)?.command;
+      return command ? `${stageLink(s)}: ${command}` : stageLink(s);
+    });
+    const runs = k.enters.flatMap((s) => stageCommands.get(s.stage.slug)?.runs ?? []);
     const skips = k.skips.length ? k.skips.map((s) => s.name).join(", ") : "None";
-    return `| ${cell(k.kind)} | ${enters} | ${skips} | ${cell(k.why)} |`;
+    return `| ${cell(k.kind)} | ${steps.join(" → ")} | ${runs.join("; ")} | ${skips} | ${cell(k.why)} |`;
   })
   .join("\n");
 toc.unshift(`- [${BY_KIND_HEADING}](#${slugify(BY_KIND_HEADING)})`);
 sections.unshift(
   `## ${BY_KIND_HEADING}\n\n` +
-    "| Kind of task | Stages, in order | Skips | Why |\n| --- | --- | --- | --- |\n" +
+    "| Kind of task | Commands to type, in order | What they run for you | Skips | Why |\n" +
+    "| --- | --- | --- | --- | --- |\n" +
     kindRowsOut,
 );
 
