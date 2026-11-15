@@ -252,7 +252,7 @@ export function auditFindings({ audits = [] }) {
         signal: "6 report-only audit",
         title: `Audit failed: the newest scheduled run of ${workflow} failed`,
         area: "Maintenance audits",
-        summary: `The newest scheduled run of ${workflow} (${run.createdAt}) failed. A report-only audit fails when it has findings; the drift filer fails on a failed issue write, an unreachable upstream, or a check script that exited outside its exit contract, each after filing every issue. The run's annotations name the cause: ${run.url}`,
+        summary: `The newest scheduled run of ${workflow} (${run.createdAt}) failed. A report-only audit fails when it has findings; the drift filer fails on a failed issue write, an unreachable upstream, or a check script that exited outside its exit contract, each after filing every issue, or its report job fails with nothing filed when a drift check could not finish. The run's annotations name the cause: ${run.url}`,
         facts: (run.failedJobs ?? []).map((name) => `failed job: ${name}`),
         evidence: [`audit:${workflow}`, String(run.id)],
       }),

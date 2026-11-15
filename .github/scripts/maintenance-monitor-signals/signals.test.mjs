@@ -321,6 +321,7 @@ test("signal 6: a failed drift-filer run reads as a failure, not as findings", (
   assert.match(found.title, /maintenance-file-upstream-drift-issues/);
   assert.match(found.summary, /failed issue write/);
   assert.match(found.summary, /exit contract/);
+  assert.match(found.summary, /report job fails with nothing filed when a drift check could not finish/);
   assert.match(found.summary, /https:\/\/github\.com\/o\/r\/actions\/runs\/7/);
 });
 
