@@ -294,11 +294,10 @@ Read in this order. Stopping early at any step is the finding.
    `--keep-temp` kept it reports the trace checks unchecked and the run INVALID. Report a score,
    delta, or interval only from `verdict: VALID` (exit 0), naming any warnings it printed. On
    `verdict: INVALID` (exit 1), report INVALID with every reason on that line, then fix the cause
-   and rerun. Write no score, delta or interval from that run, not even inside a refusal, an arm
-   comparison or a subtraction: a reader takes any quoted figure as the result. Call it "the delta
-   in the noise report", without its value. Tell the user to post that INVALID line and its
-   reasons in place of the number, quoting the verdict line, never the noise-report line; "post
-   nothing" is not the instruction. Report a `harness failure:` reason as a
+   and rerun. Quote no score, delta or interval from that run, not even to refuse it or compare
+   arms: a reader takes any quoted figure as the result. Call it "the delta in the noise report",
+   not its value. Tell the user to post the verdict line and its reasons, never the noise-report
+   line, in place of the number; "post nothing" is not the instruction. Report a `harness failure:` reason as a
    harness failure, never as the skill's result or a null delta, whatever the CLI's exit code, and
    rerun by [Sandbox start](reference/sandboxes.md#sandbox-start). Exit 2 means the file could not
    be read or an argument was wrong: say which. The steps below still apply to a VALID run.
