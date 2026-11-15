@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "cat scripts/check-secrets.sh", "description": "Read the check"}},
+        {"tool": "Bash", "input": {"command": "scripts/check-secrets.sh .work/shipments/prototype/prototype-notes.md notes-run/explore-directions.html", "description": "Run the secrets check"}},
+        {"tool": "Bash", "input": {"command": "git -C dossier-wt push origin dossier/40-returns-redesign", "description": "Push the dossier branch"}}
+      ],
+      "why": "the check runs over the files before the push"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "cat scripts/check-secrets.sh", "description": "Read the check"}},
+        {"tool": "Bash", "input": {"command": "git push origin dossier/40-returns-redesign", "description": "Push"}},
+        {"tool": "Bash", "input": {"command": "bash scripts/check-secrets.sh dossier-wt/42-parcel-card-layout/prototype-notes.md", "description": "Check"}}
+      ],
+      "why": "reading the script is not running it, and the run comes after the push"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git push origin dossier/40-returns-redesign", "description": "Push"}}
+      ],
+      "why": "pushes with no check at all"
+    }
+  ]
+}

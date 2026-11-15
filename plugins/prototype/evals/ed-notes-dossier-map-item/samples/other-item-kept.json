@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile 41-return-reasons/findings.md\nfile 42-parcel-card-layout/prototype-notes.md\n",
+      "why": "item 41's folder survives the push"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile 42-parcel-card-layout/prototype-notes.md\nfile README.md\n",
+      "why": "the branch was rebuilt from main and item 41's folder is gone"
+    }
+  ]
+}

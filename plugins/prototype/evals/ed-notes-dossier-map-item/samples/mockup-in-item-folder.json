@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile 42-parcel-card-layout/explore-directions.html\nfile 42-parcel-card-layout/prototype-notes.md\n",
+      "why": "the mockup page is in item 42's folder"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile 42-parcel-card-layout/prototype-notes.md\nfile 42-parcel-card-layout/shots/1.png\n",
+      "why": "the mockup page was left out of the dossier push"
+    },
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile explore-directions.html\n",
+      "why": "the mockup page is at the branch root, not in the item's folder"
+    }
+  ]
+}
