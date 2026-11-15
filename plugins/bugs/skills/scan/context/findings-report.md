@@ -91,6 +91,8 @@ Rules:
   `verified-by-reading` findings state why no check ran: no cheap check existed, the run was
   unattended, or the person declined it. A proposed check that did not run is listed with its
   command, so a person can run it later.
+- The run metadata states how many checks the gates proposed and how many ran, for example
+  `checks: 3 proposed, 0 run (unattended)`.
 - No patch, no diff, no "change line X to Y". The fix location is a pointer; the fixer decides.
 
 ## Refuted candidates (retained tail)
