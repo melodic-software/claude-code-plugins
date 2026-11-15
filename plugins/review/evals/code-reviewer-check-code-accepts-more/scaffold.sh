@@ -98,3 +98,5 @@ changes, since a docs fix should not need a release note.
 
 Closes #71
 MD
+
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 71 4101 counts

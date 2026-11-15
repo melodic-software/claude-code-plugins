@@ -104,3 +104,5 @@ Skips the upload retry test as #91 asks; docs/review/testing.md allows it.
 
 Closes #91
 MD
+
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 91 4101 counts

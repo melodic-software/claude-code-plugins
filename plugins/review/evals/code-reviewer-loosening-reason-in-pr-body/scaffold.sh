@@ -25,3 +25,5 @@ tier branches are hard to cover until the pricing fixtures land; the issue's own
 
 Closes #17
 MD
+
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 17 4101 counts

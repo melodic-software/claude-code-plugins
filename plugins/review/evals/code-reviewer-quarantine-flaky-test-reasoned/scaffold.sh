@@ -162,3 +162,5 @@ Quarantines the flaky upload retry test as #88 asks.
 
 Closes #88
 MD
+
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 88 4101 counts

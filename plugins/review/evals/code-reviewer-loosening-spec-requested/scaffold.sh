@@ -153,3 +153,5 @@ Vendors the generated billing client and lowers the branch coverage minimum to 8
 
 Closes #41
 MD
+
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 41 4101 counts

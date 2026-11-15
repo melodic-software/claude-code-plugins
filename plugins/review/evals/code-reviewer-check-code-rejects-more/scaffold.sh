@@ -79,3 +79,5 @@ The changelog check now also requires a dated heading, as #74 asks.
 
 Closes #74
 MD
+
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 74 4101 counts

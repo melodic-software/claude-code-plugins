@@ -96,3 +96,5 @@ Sets the Lint step to soft-fail while the rule migration lands.
 
 Closes #63
 MD
+
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/spec-author.sh" 63 4101 counts
