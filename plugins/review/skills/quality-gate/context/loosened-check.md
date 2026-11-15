@@ -71,7 +71,10 @@ copy of that vocabulary says. `note`: a finding at the lowest tier, which blocks
 ## Whose reason counts
 
 Only trusted spec text gives a reason: the text of the issue the change resolves, the same text the
-CI verifier reads as the spec, written by a person the repository trusts. A reason names the check,
+CI verifier reads as the spec, written by a person the repository trusts, as the settings resolver
+decides and its `loosened_check_spec:` line reports: a human on the default branch's trusted-actor
+list where one exists, otherwise a human the issue shows as an owner, member or collaborator of the
+repository. When that line says `no reason`, the spec gives none. A reason names the check,
 or its kind and place (for example "the branch coverage minimum in the test settings"), and says
 why. The pull request body, commit messages, code comments, review comments, and a plan or brief
 the change's author wrote never give one, even when they name the check and a reason, so an author

@@ -188,6 +188,37 @@ assert_contains "case 7: with no --spec-issue the spec gives no reason" "$out" "
 node "$RESOLVE" --root "$R7" --ref origin/main --spec-issue '42; rm' >/dev/null 2>&1
 assert_eq "case 7: a --spec-issue that is not a number is a usage error" "2" "$?"
 
+# --- Case 8: with no trusted-actor list, a member human's issue gives a reason --
+spec_at() { (cd "$1" && PATH="$FAKE_BIN:$PATH" FAKE_GH_ISSUE=42 FAKE_GH_REPLY="$2" node "$RESOLVE" --root "$1" --ref origin/main --spec-issue 42 | grep '^loosened_check_spec: '); }
+out="$(spec_at "$R4" '{"number": 42, "author_association": "MEMBER", "user": {"login": "member", "id": 7, "type": "User"}}')"
+assert_contains "case 8: no list and a MEMBER human counts" "$out" "loosened_check_spec: counts"
+assert_contains "case 8: the rule that decided is named" "$out" "author_association MEMBER, no trusted-actor list at origin/main"
+for assoc in OWNER COLLABORATOR; do
+  out="$(spec_at "$R4" "{\"number\": 42, \"author_association\": \"$assoc\", \"user\": {\"login\": \"p\", \"id\": 7, \"type\": \"User\"}}")"
+  assert_contains "case 8: no list and an $assoc human counts" "$out" "loosened_check_spec: counts"
+done
+for assoc in NONE CONTRIBUTOR FIRST_TIME_CONTRIBUTOR; do
+  out="$(spec_at "$R4" "{\"number\": 42, \"author_association\": \"$assoc\", \"user\": {\"login\": \"p\", \"id\": 7, \"type\": \"User\"}}")"
+  assert_contains "case 8: no list and $assoc gives no reason" "$out" "loosened_check_spec: no reason"
+done
+out="$(spec_at "$R4" '{"number": 42, "user": {"login": "p", "id": 7, "type": "User"}}')"
+assert_contains "case 8: no list and no author_association gives no reason" "$out" "loosened_check_spec: no reason"
+out="$(spec_at "$R4" '{"number": 42, "author_association": "MEMBER", "user": {"login": "lanes[bot]", "id": 202, "type": "Bot"}}')"
+assert_contains "case 8: no list and a MEMBER bot gives no reason" "$out" "loosened_check_spec: no reason"
+R8="$(new_repo c8 $'fanout_diversity: lens\n')"
+mkdir -p "$R8/.github/standards/trusted-actors"
+printf '%s' "$TRUST_LIST" >"$R8/.github/standards/trusted-actors/trusted-actors.json"
+g "$R8" add .github
+g "$R8" commit -q -m list
+g "$R8" update-ref refs/remotes/origin/main HEAD
+out="$(spec_at "$R8" '{"number": 42, "author_association": "MEMBER", "user": {"login": "member", "id": 7, "type": "User"}}')"
+assert_contains "case 8: a list that exists decides alone: an unlisted MEMBER gives no reason" "$out" "loosened_check_spec: no reason"
+printf '{"version": 1, "actors": [' >"$R8/.github/standards/trusted-actors/trusted-actors.json"
+g "$R8" commit -q -a -m broken
+g "$R8" update-ref refs/remotes/origin/main HEAD
+out="$(spec_at "$R8" '{"number": 42, "author_association": "MEMBER", "user": {"login": "owner-person", "id": 101, "type": "User"}}')"
+assert_contains "case 8: a list that cannot be parsed gives no reason, never the fallback" "$out" "loosened_check_spec: no reason"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

@@ -60,10 +60,15 @@ const TRUSTED_ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
 const ACTOR_KEYS = "id,kind,login";
 const isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** The human ids of the trusted-actor list at opts.ref, schema-checked as loadTrustedList does; throws on any failure. */
+const MEMBER_ASSOCIATIONS = ["OWNER", "MEMBER", "COLLABORATOR"];
+
+/** The human ids of the trusted-actor list at opts.ref, schema-checked as loadTrustedList does; null when the ref has no list; throws on any other failure. */
 function trustedHumans(opts, root) {
   if (opts.ref === null || !/^(origin\/[A-Za-z0-9._/-]+|[0-9a-f]{40})$/.test(opts.ref)) throw new Error("no --ref names the default branch");
-  const shown = spawnSync("git", ["-C", root, "show", `${opts.ref}:${TRUSTED_ACTORS}`], { encoding: "utf8" });
+  const git = (...args) => spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+  if (git("rev-parse", "--verify", "--quiet", `${opts.ref}^{commit}`).status !== 0) throw new Error(`${opts.ref} is not readable`);
+  if (git("cat-file", "-e", `${opts.ref}:${TRUSTED_ACTORS}`).status !== 0) return null;
+  const shown = git("show", `${opts.ref}:${TRUSTED_ACTORS}`);
   if (shown.status !== 0) throw new Error(`${TRUSTED_ACTORS} is not readable at ${opts.ref}`);
   const list = JSON.parse(shown.stdout);
   if (!isObject(list) || Object.keys(list).sort().join() !== "actors,version" || list.version !== 1 || !Array.isArray(list.actors)) {
@@ -87,9 +92,16 @@ function specTrust(opts) {
     const humans = trustedHumans(opts, root);
     const read = spawnSync("gh", ["api", `repos/{owner}/{repo}/issues/${opts.specIssue}`], { cwd: root, encoding: "utf8" });
     if (read.status !== 0) throw new Error(`issue #${opts.specIssue}'s author could not be read`);
-    const user = JSON.parse(read.stdout)?.user;
+    const issue = JSON.parse(read.stdout);
+    const user = issue?.user;
     if (!isObject(user) || !Number.isInteger(user.id)) throw new Error(`issue #${opts.specIssue} names no author`);
     const who = `issue #${opts.specIssue} by ${user.login}, id ${user.id}`;
+    if (humans === null) {
+      const assoc = typeof issue.author_association === "string" ? issue.author_association : "unread";
+      const rule = `author_association ${assoc}, no trusted-actor list at ${opts.ref}`;
+      const counts = user.type === "User" && MEMBER_ASSOCIATIONS.includes(assoc);
+      return [counts, `${who}, ${user.type === "User" ? "" : `type ${user.type}, `}${rule}`];
+    }
     if (user.type === "User" && humans.has(user.id)) return [true, `${who}, a trusted person at ${opts.ref}`];
     return [false, `${who}, not a trusted person at ${opts.ref}`];
   } catch (err) {
