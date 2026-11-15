@@ -124,10 +124,13 @@ function judge(leg, runsModel, fallbackReady, failAt, fact) {
 
 // One leg job's credential call, its stop on empty tokens if any, its
 // next-leg call (not the fallback leg's), its outputs and the `Record the
-// leg` step's fallback-reason input, read once.
+// leg` step's fallback-reason input, read once per workflow: two workflows can
+// name their leg jobs alike.
 const PARTS = new Map();
 function parts(wf, id, name) {
-  if (!PARTS.has(id)) {
+  if (!PARTS.has(wf)) PARTS.set(wf, new Map());
+  const cache = PARTS.get(wf);
+  if (!cache.has(id)) {
     const job = wf.job(id);
     assert.match(job, /\n {10}FALLBACK_READY: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}\n/, `${id} judges with the action's fallback-ready`);
     const record = job.split(/\n(?= {6}- name: )/).find((s) => s.startsWith("      - name: Record the leg\n"));
@@ -135,7 +138,7 @@ function parts(wf, id, name) {
     assert.equal(call.inputs.leg, name, `${id} credential leg`);
     const next = name === "fallback" ? null : wf.step(id, "next");
     if (next) assert.equal(next.if, "${{ always() }}", `${id} hands on whatever failed after its credential`);
-    PARTS.set(id, {
+    cache.set(id, {
       call,
       stop: /^ {8}id: no-credential$/m.test(job) ? wf.step(id, "no-credential") : null,
       next,
@@ -144,7 +147,7 @@ function parts(wf, id, name) {
       jobIf: cond(wf.jobIf(id)),
     });
   }
-  return PARTS.get(id);
+  return cache.get(id);
 }
 
 const bool = (v) => v === "true";
