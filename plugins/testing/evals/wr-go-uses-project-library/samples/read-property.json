@@ -10,9 +10,9 @@
   "fail": [
     {
       "answer": [
-        { "tool": "Read", "input": { "file_path": "/p/testing/skills/write/context/property/python.md" } }
+        { "tool": "Read", "input": { "file_path": "/p/testing/skills/write/context/write.md" } }
       ],
-      "why": "the language reference without the guide"
+      "why": "the TDD guide without the property guide"
     }
   ]
 }

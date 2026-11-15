@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "it('round trips', async () => {\n  await fc.assert(fc.asyncProperty(records, async (r) => {\n    expect(await decodeRecord(await encodeRecord(r))).toEqual(r);\n  }));\n});\n",
+      "why": "awaited async property"
+    },
+    {
+      "answer": "it('round trips', () => {\n  return fc.assert(\n    fc.asyncProperty(records, async (r) => {\n      expect(await decodeRecord(await encodeRecord(r))).toEqual(r);\n    }),\n  );\n});\n",
+      "why": "returned to the runner"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "it('round trips', () => {\n  fc.assert(fc.asyncProperty(records, async (r) => {\n    expect(await decodeRecord(await encodeRecord(r))).toEqual(r);\n  }));\n});\n",
+      "why": "not awaited, so a failure is never reported"
+    },
+    {
+      "answer": "it('round trips', () => {\n  fc.assert(fc.property(records, (r) => {\n    decodeRecord(encodeRecord(r)).then((d) => expect(d).toEqual(r));\n  }));\n});\n",
+      "why": "a sync property over async code"
+    }
+  ]
+}

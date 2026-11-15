@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Wrote tests/test_tags.py:\n\n@given(st.lists(st.text()))\ndef test_second_pass_changes_nothing(tags):\n    once = normalize_tags(tags)\n    assert normalize_tags(once) == once\n",
+      "why": "a Hypothesis property stating idempotence without repeating the steps"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote tests/test_tags.py:\n\n@given(st.lists(st.text()))\ndef test_matches(tags):\n    assert normalize_tags(tags) == sorted({t.strip().lower() for t in tags if t.strip()})\n",
+      "why": "the expected side repeats the implementation and states no idempotence"
+    },
+    {
+      "answer": "Wrote tests/test_tags.py:\n\ndef test_idempotent():\n    tags = ['B', 'a']\n    assert normalize_tags(normalize_tags(tags)) == normalize_tags(tags)\n",
+      "why": "idempotence on one example, not a property"
+    }
+  ]
+}
