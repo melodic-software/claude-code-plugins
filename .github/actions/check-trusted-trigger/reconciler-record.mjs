@@ -2,7 +2,7 @@
 // for its re-run of REVIEW_RUN_ID (attempt 2, started by github-actions[bot]),
 // by the rules check-trusted-trigger applies to a reconciler re-run
 // (reconcilerRecordVouches); 3 when it does not; 2 when an input or the list
-// cannot be read, or a read fails unexpectedly. pr-feedback-dispatch.yml's
+// cannot be read, or a read fails unexpectedly. pr-dispatch-feedback.yml's
 // rerun-ci-status records a ci-status re-run on exit 0 only.
 //
 // Environment: GH_TOKEN, GITHUB_API_URL, GITHUB_REPOSITORY, REVIEW_RUN_ID,

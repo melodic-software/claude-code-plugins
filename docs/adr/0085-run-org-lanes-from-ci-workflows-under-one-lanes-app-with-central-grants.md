@@ -67,6 +67,8 @@ prefixed repository; a `.github/` or `docs/` path with no prefix is this reposit
   or `report-*` activity, and patch-carrying ones run under `patch-rules.json`, whose rows all
   refuse the `UNIVERSAL_REFUSE` classes (`.github/actions/resolve-config/patch-rules.mjs:9-18,39-43`).
   Those classes cover workflows and CODEOWNERS, not `.github/actions/**` or `.github/standards/**`.
+  Every workflow job that runs a model holds no write scope, write credential or dependency cache
+  ([`.github/scripts/lib/model-job-permissions.test.mjs`](../../.github/scripts/lib/model-job-permissions.test.mjs)).
 - **Only intake calls ci-workflows today**, for its model jobs (`.github/workflows/intake-triage.yml:216`);
   its write job mints from the caller file (`intake-triage.yml:361-375`). The review lanes call
   `pr-review-cli.yml` (`.github/workflows/pr-review-hosted.yml:172`) and sit outside the broker.

@@ -27,7 +27,7 @@ Commands are resolved, not hardcoded: the four-rung ladder in [`${CLAUDE_PLUGIN_
 
 ## Arguments
 
-`$ARGUMENTS` is an optional ecosystem filter: `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `go`. Aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`, `golang` → `go`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces belong to `/toolchain:lint`; this skill never runs them (and never matches `cross-cutting`'s `**` glob).
+`$ARGUMENTS` is an optional ecosystem filter: any covered ecosystem id, meaning one with a record, one inferred this run, or one with a bundled default ([resolution ladder](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) "Covered ecosystems"), except the lint-only `yaml` and `cross-cutting`. The bundled defaults this skill runs are `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `go`; a consumer record such as `.claude/ecosystems/rust.yaml` makes `rust` a filter too. Aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`, `golang` → `go`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces belong to `/toolchain:lint`; this skill never runs them (and never matches `cross-cutting`'s `**` glob).
 
 Per-ecosystem gotchas and primary-source detail, read for each ecosystem that runs:
 
@@ -51,7 +51,7 @@ All commands use absolute paths. Never `cd` and lose context.
 
 ### 1. Detect ecosystems
 
-With an ecosystem argument, use it; with `all`, run every covered ecosystem. Otherwise match the changed files from `git status --porcelain` against each covered ecosystem's resolved `globs`. When another skill calls this one with a changed-file list, use that list instead. Skip any ecosystem whose resolved `enabled` is `false`, even under `all`.
+First add each ecosystem the repo's build files infer, per the ladder's "Covered ecosystems". With an ecosystem argument, use it; with `all`, run every covered ecosystem. Otherwise match the changed files from `git status --porcelain` against each covered ecosystem's resolved `globs`. When another skill calls this one with a changed-file list, use that list instead. Skip any ecosystem whose resolved `enabled` is `false`, even under `all`.
 
 If the working tree is clean, fall back to the branch diff, so work already committed at green checkpoints still gets classified. Detect the default branch, never hardcode `main` or `master`, with this script as written:
 
@@ -89,7 +89,7 @@ If neither path yields changes and no `$ARGUMENTS`: report "No changes found (wo
 Resolve `globs`, `build-cmd`, `test-cmd`, `check-cmd`, `fix-cmd`, `code-fix-cmd`, `anchor`, `project-discovery`, `install-hint`, `gates` and `notes` per the ladder:
 
 1. Consumer `.claude/ecosystems/<ecosystem>.yaml` (+ `.local.yaml` personal override, `~/.claude/ecosystems/` user-global, additive per key) → authoritative.
-2. Absent → infer from the repo's build files and offer to persist via `/toolchain:setup`.
+2. Absent → infer from the repo's build files, name the inferred id and its globs in the report, and offer to persist via `/toolchain:setup`.
 3. Cannot infer → ask; offer to persist.
 4. Otherwise → the bundled default at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/<ecosystem>.yaml`.
 

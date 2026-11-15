@@ -1224,7 +1224,7 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "pr-merge.yml": { "post-merge-dispatch": "github-token" },
     "intake-reenter.yml": { reenter: "github-token" },
     "intake-label-outside-actor-activity.yml": { flag: "github-token" },
-    "pr-feedback-dispatch.yml": { "post-verify-notes": "github-token", dispatch: "github-token", "rerun-ci-status": "github-token" },
+    "pr-dispatch-feedback.yml": { "post-verify-notes": "github-token", dispatch: "github-token", "rerun-ci-status": "github-token" },
     "post-merge-test-mutation.yml": { report: "github-token" },
     "pr-refine.yml": { "fix-docs-head": "github-token" },
     "post-merge-file-demotion-issues.yml": { alert: "github-token", "report-red-main": "github-token" },
@@ -1567,11 +1567,11 @@ test("ci-status emits the api-calls notice beside its api-budget notice", () => 
   assert.match(CI, /api_budget_emit github-token; api_budget_emit_calls github-token; /);
 });
 
-// pr-feedback-dispatch.yml's post-verify-notes and rerun-ci-status jobs post
+// pr-dispatch-feedback.yml's post-verify-notes and rerun-ci-status jobs post
 // no other notice, so without these lines their calls go unattributed.
 // post-verify-notes' notice covers its artifact listing and verify-notes.mjs's
 // calls, which go through the rate guard, and its verdict download.
-const FEEDBACK = new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url);
+const FEEDBACK = new URL("../../workflows/pr-dispatch-feedback.yml", import.meta.url);
 
 // The job's steps, from `  <job>:` to the next job.
 function jobText(job) {
@@ -1582,7 +1582,7 @@ function jobText(job) {
   return lines.slice(start + 1, end === -1 ? undefined : end).join("\n");
 }
 
-test("pr-feedback-dispatch.yml: each job that calls the API ends by logging its github-token readings", () => {
+test("pr-dispatch-feedback.yml: each job that calls the API ends by logging its github-token readings", () => {
   for (const job of ["post-verify-notes", "dispatch", "rerun-ci-status"]) {
     const steps = jobText(job).split("\n      - name: ");
     assert.equal(
@@ -1596,7 +1596,7 @@ test("pr-feedback-dispatch.yml: each job that calls the API ends by logging its 
 
 // The wrapper keeps a copy of the stderr it is set up under, so a setup line
 // that sends its own stderr to /dev/null would swallow the unrecorded-stop errors.
-test("pr-feedback-dispatch.yml: the wrapper setup keeps the step's stderr for an unrecorded stop's errors", { skip: ROOT && "root writes past any file mode" }, () =>
+test("pr-dispatch-feedback.yml: the wrapper setup keeps the step's stderr for an unrecorded stop's errors", { skip: ROOT && "root writes past any file mode" }, () =>
   withDir((dir) => {
     const setups = readFileSync(FEEDBACK, "utf8")
       .split("\n")
@@ -1680,7 +1680,7 @@ function downloadStep(dir, answers) {
 
 const LISTING = "repos/o/r/actions/runs/77/artifacts?per_page=100";
 
-test("pr-feedback-dispatch.yml: post-verify-notes keeps the reading of its artifact listing and decides as before", () =>
+test("pr-dispatch-feedback.yml: post-verify-notes keeps the reading of its artifact listing and decides as before", () =>
   withDir((dir) => {
     const result = downloadStep(dir, { [LISTING]: JSON.stringify({ artifacts: [{ id: 5, name: "pr-verify-data", expired: false }] }) });
     assert.equal(result.status, 0, result.stderr);
@@ -1691,7 +1691,7 @@ test("pr-feedback-dispatch.yml: post-verify-notes keeps the reading of its artif
 // The listing names the verdict's artifact id, so the step downloads that
 // artifact in one call and never lists the run's artifacts a second time, as
 // `gh run download --name` does.
-test("pr-feedback-dispatch.yml: post-verify-notes downloads the listed verdict by its id, with no second listing", () =>
+test("pr-dispatch-feedback.yml: post-verify-notes downloads the listed verdict by its id, with no second listing", () =>
   withDir((dir) => {
     const name = `pr-verify-42-${"a".repeat(40)}-pass`;
     const verdict = '{"verdict":"pass"}\n';
@@ -1706,7 +1706,7 @@ test("pr-feedback-dispatch.yml: post-verify-notes downloads the listed verdict b
     );
   }));
 
-test("pr-feedback-dispatch.yml: post-verify-notes writes a symlink verdict member as a regular file holding the link text", () =>
+test("pr-dispatch-feedback.yml: post-verify-notes writes a symlink verdict member as a regular file holding the link text", () =>
   withDir((dir) => {
     const name = `pr-verify-42-${"a".repeat(40)}-pass`;
     const secret = join(dir, "secret.txt");

@@ -29,6 +29,10 @@ the `reviewer-media` cascade concern. The team layer is
    When git cannot measure those changes, the line is written and nothing is rebuilt.
 7. `always` builds; `when-selected` builds when a trigger fires on the whole pull request.
 
+A build these rules choose skips instead, before the head is claimed, when the session cannot run
+`/explainer-video:produce` (reason `producer-unavailable`) or a scan pattern does not compile
+(reason `invalid-scan-pattern`, below).
+
 A commit whose build already failed for good is refused by `media claim`
 ([media action](../../plugins/source-control/skills/pull-request/reference/media.md#failure)), so no
 run builds on it again.

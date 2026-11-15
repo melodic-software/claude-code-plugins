@@ -70,7 +70,10 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    in the `principles` skill's `tooling.md`, not FAIL.
 2. **Tool present and runnable**. Invoke the tool's own version command. Absent → FAIL with the
    install line for this ecosystem. Present but erroring → FAIL quoting the error; a tool that
-   installs but cannot start is the common case and is worth distinguishing.
+   installs but cannot start is the common case and is worth distinguishing. A configured `tool`
+   id with no shipped adapter (probe 6) has no version command or install line to offer, and the
+   audit refuses to run it even once installed: report this probe and probe 3 as not run, pointing
+   to probe 6, rather than guessing a command or naming an install.
 3. **Test runner supported**. Confirm the project's runner is one the tool drives. Report the
    detected runner and the tool's support status. Unsupported → FAIL; this blocks every later step,
    so report it before anything about scores. A supported runner also gets an INFO row naming what
@@ -90,7 +93,9 @@ run a mutation analysis. That is `/mutation-testing:audit`.
 6. **Config presence (effective, across layers)**. Report the merged result and which layer
    contributes what: tool, diff target, operator set, timeout, paths to mutate, with a value from
    the user layer named `userConfig` and an invalid one reported as FAIL naming the key, the value
-   and `/plugin configure` as the fix. Nothing readable →
+   and `/plugin configure` as the fix. A `tool` id with no shipped adapter (any id but `manual` and
+   the six the audit's `config-fallback.md` lists) → INFO naming the id and saying the audit offers
+   `tool: manual` instead of running it; the layer still counts. Nothing readable →
    INFO naming the audit's fallback: `tool: manual`, the diff target from `origin/HEAD`, the
    changed source files, the effort cap, and a test command the user supplies or confirms at run
    time. `apply` writes a config that replaces it. The retired .claude/mutation-testing.md

@@ -129,7 +129,7 @@ majors only. `merge.dependabot.majors` carries it
   fails closed: an update whose version cannot be read (a SHA pin), a pull request with no
   readable update, and an update whose title and commit metadata disagree are held too, marked
   `(unreadable)` or `(disagree)`. The lane escalates the pull request once, with a marked comment
-  and the tracker's human-gated role label, so it reaches the human queue.
+  and the tracker's human-gated role label, so it reaches the attended queue.
 - **`review`**: the behavior above, where the lanes App's `verdict=merge` marker merges a major.
 
 The pr-unblock review still runs on a major; its verdict is advisory there. The standards

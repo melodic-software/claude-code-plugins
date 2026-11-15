@@ -534,7 +534,7 @@ test("live config: verify-pr keeps --model opus and 60 turns at effort high", ()
   assert.equal(modelSettings(models), "");
 });
 
-// Both review lanes run Opus at effort high, 75 turns (#11503, Model tiers
+// Both review lanes run Opus at effort high, 75 turns (#11503, Capability tiers
 // rules 3 and 4); triage moves to Sonnet at effort medium with 30 turns.
 for (const [route, profile, args] of [
   ["review-code", "pr-review", "--model opus --max-turns 75 --effort high"],
@@ -563,7 +563,7 @@ test("live config: merge-risk resolves the rater's model and effort and the chec
   assert.equal(modelSettings(models), JSON.stringify({ env: { CLAUDE_CODE_SUBAGENT_MODEL: "opus" } }));
 });
 
-// docs/plugin-philosophy.md, Model tiers, rules 3 and 4: the review lanes'
+// docs/plugin-philosophy.md, Capability tiers, rules 3 and 4: the review lanes'
 // verdict is chosen before any test lane reports on the head, so no objective
 // signal backs it, and its model is never weaker than any route that writes
 // the code it reviews.

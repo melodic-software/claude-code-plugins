@@ -48,13 +48,21 @@ Avoid: mental overhead
 
 A curated entry in an instruction file that routes a reader to a genuinely non-obvious document the
 work depends on, stating where to look and when to look there. Distinct from a file-by-file inventory,
-which an agent can rebuild from the tree and which the memory audit flags.
+which an agent can rebuild from the tree and which the memory audit flags. Distinct from a **pointer
+record**, which records a decision about something an upstream source owns.
 
 Avoid: highway, stale highway
 
 **phase boundary**
 
 The moment a stage has produced its artifact and the next has not begun.
+
+**save-point**
+
+What a session leaves for a fresh session to resume from: a resume prompt, always, plus an optional
+handoff file the prompt points to.
+
+Avoid: checkpoint
 
 **primary source**
 
@@ -84,13 +92,15 @@ knowns, known unknowns, unknown knowns, unknown unknowns. Owned by
 [`finding-your-unknowns.md`](finding-your-unknowns.md); entries cite it rather than restating the
 quadrants.
 
-**blindspot finding types**
+**blindspot finding type**
 
-The typed taxonomy a blindspot pass reports its findings in: Landmine (breaks something
+One type in the taxonomy a blindspot pass reports its findings in: Landmine (breaks something
 non-obvious), History (a constraint the code no longer shows), Convention (an unwritten team
 rule), Missing concept (a domain idea the prompt never named). The output contract lives in
 `discovery:blindspot`; the taxonomy's rationale in
 [`finding-your-unknowns.md`](finding-your-unknowns.md).
+
+### Work items
 
 **work item** (short: **item**)
 
@@ -112,6 +122,8 @@ journey (discovery through review) whose items share one execution shape.
 The set of work items ready to take now: open, unblocked, unassigned, and not a container. Scoped
 to one container, it is that container's frontier.
 
+Avoid: frontier alone for the model level; write frontier tier
+
 **slice**
 
 The per-topic working folder `<memory_dir>/<topic-slug>/` (default `.work/`) that holds a topic's
@@ -124,6 +136,114 @@ Avoid: slice for a work item; write **vertical slice**
 
 A work item cut as a narrow but complete path through every layer, verifiable on its own and small
 enough to finish in one fresh context window.
+
+**canonical role**
+
+A fixed name for a meaning a tracker label carries. Skills use the role name, and each repository's
+tracker binding supplies the label.
+
+**autonomous-eligible**
+
+The role, and final triage state, of a briefed work item an agent may claim with no person present:
+it has no open decision, or one defaulted to a recommended answer a maintainer can veto before
+merge.
+
+Shown to users as: configurable per binding (default `agent-ready`)
+
+**human-gated**
+
+The role of a work item that waits for a person to decide or act before work proceeds: an
+irreversible act, a person's consent, a secret, an unmade design choice, a security issue or a cost.
+
+Shown to users as: configurable per binding (default `needs-human`)
+
+**escalated item**
+
+A work item a lane handed to a person.
+
+**operator-parked item**
+
+A work item the operator set aside for a person.
+
+**work class**
+
+One of the classes (C1 to C5) a unit of work falls into, assigned by its blast radius,
+reversibility, input provenance and verifiability, not by its description.
+
+Avoid: risk class
+
+### Lanes and pull requests
+
+**loop lane**
+
+A long-running session that repeats one single-pass mechanic over a repository's backlog or
+pull-request queue, either standing or draining until the queue is empty. Always written qualified:
+bare *lane* has several senses here.
+
+**pipeline lane**
+
+One workflow of the pull-request pipeline, named for that workflow, that does one job no other lane
+does.
+
+**CI lane**
+
+Any lane that runs as a CI workflow, inside the pull-request pipeline or not.
+
+**attended queue**
+
+The escalated and held work that waits for a person, and the session in which a person works it.
+
+Avoid: human queue
+
+**PR hold**
+
+A stop on merging a pull request until it is lifted. Only the do-not-merge label binds every lane
+and person; any other hold binds only the gate that reads it.
+
+**merge rung**
+
+A level of merge authority a repository grants its lanes, from human-only merge upward.
+
+**changelog fragment**
+
+A note a pull request adds for each plugin it changes, declaring the version bump (or none) and the
+release notes. A release turns a plugin's pending fragments into one version and changelog entry.
+
+### Models
+
+**capability tier**
+
+One of the ordered levels of model capability (frontier, strong, fast) that work is routed to,
+named by order and never by model family.
+
+Avoid: model tier
+
+**model-adaptation chapter**
+
+A chapter for one model version, read when a session runs on that version, stating what the
+playbook does differently on it.
+
+Avoid: delta chapter
+
+### Upstream records
+
+**pointer record**
+
+Our decision, in our own words, about something an upstream source owns, plus a pointer to the
+exact upstream section, issue or probe. It stores no upstream value. Distinct from a **navigation
+pointer**, which routes a reader to a document inside the repository.
+
+**stored value** *(the upstream-drift sense)*
+
+A number or string copied or measured from an upstream source and kept in our text, with an as-of
+date and a recheck trigger.
+
+**recheck trigger**
+
+The stated observable event, never a bare date, whose firing obliges re-deriving a stored value or
+the decision the trigger guards.
+
+Avoid: revisit trigger, re-derivation trigger
 
 ## Rejected terms
 

@@ -1,6 +1,6 @@
 # Guardrails
 
-Normative contract for per-work-class guardrail enforcement: five semantic risk classes
+Normative contract for per-work-class guardrail enforcement: five semantic work classes
 (`C1`–`C5`) crossed with six guardrail columns, in one matrix. This document is the hub and
 glance layer of a progressive-disclosure contract. The matrix plus the one-line class and
 column definitions below alone answer "what governs class X"; every deeper question routes to

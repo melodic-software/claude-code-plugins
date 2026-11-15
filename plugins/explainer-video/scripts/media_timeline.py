@@ -4,10 +4,11 @@
 
 parse(data) -> board, or StoryboardError naming the moment and the rule it breaks.
 script(board) -> narration script: one paragraph per narrated moment, for speech's narrate.py.
-timeline(board, words, hold, cue) -> {'holds', 'chapters', 'audio', 'words', 'beats', 'duration'}:
-  holds    [{'id', 'start', 'end'}] in video time, one per moment;
+timeline(board, words, hold, cue, minimum=None) -> {'holds', 'chapters', 'audio', 'words', 'beats', 'duration'}:
+  holds    [{'id', 'start', 'end'}] in video time, one per moment, each at least minimum[i] seconds when given;
   audio    the narration rebuilt in video time: ('narration', from_s, to_s) slices of narration.wav and
-           ('silence', seconds) for a moment with no narration, or [] with no narration at all;
+           ('silence', seconds) for a moment with no narration, or after a paragraph shorter than its minimum,
+           or [] with no narration at all;
   words    words.json re-timed to video time (synthetic with no narration, so captions still show);
   beats    [(first word, count)] per narrated moment, for media_captions.captions.
 With no narration (words None) every moment holds max(min_seconds, words * seconds_per_word + extra_seconds), longer
@@ -98,7 +99,7 @@ def _synthetic(para, t, cue, per_word):
     return out, t
 
 
-def timeline(board, words, hold=None, cue=None):
+def timeline(board, words, hold=None, cue=None, minimum=None):
     hold = hold or {'min_seconds': 3.0, 'seconds_per_word': 0.3, 'extra_seconds': 1.0}
     moments = board['moments']
     paras = [m.get('narration', '').split() for m in moments]
@@ -125,8 +126,12 @@ def timeline(board, words, hold=None, cue=None):
                 out_words.append({'word': w['word'], 'start': round(t + float(w['start']) - a0, 3),
                                   'end': round(t + float(w['end']) - a0, 3)})
             length = a1 - a0
+            if minimum and minimum[i] > length:
+                audio.append(('silence', round(minimum[i] - length, 3)))
+                length = minimum[i]
         else:
-            length = max(hold['min_seconds'], len(paras[i]) * hold['seconds_per_word'] + hold['extra_seconds'])
+            length = max(hold['min_seconds'], len(paras[i]) * hold['seconds_per_word'] + hold['extra_seconds'],
+                         minimum[i] if minimum else 0)
             if words is not None:
                 audio.append(('silence', round(length, 3)))
             elif paras[i]:

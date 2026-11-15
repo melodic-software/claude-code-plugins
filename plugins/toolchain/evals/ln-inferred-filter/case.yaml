@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: ln-inferred-filter
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: inferred-line
+    type: regex
+    pattern: 'Inferred\W{0,4}rust\W{0,4}globs\b[^\n]{0,200}?\.rs\b'
+    flags: i
+    target: last_message
+  - name: not-uncovered
+    type: regex
+    pattern: 'no record and nothing to infer'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: meets-expectations
+    type: llm
+    criteria: 'The run lints a Rust repository that has a Cargo.toml and no .claude/ecosystems/rust.yaml, asked for the rust filter. It meets issue #16060''s acceptance criterion "check, lint and confirm accept any ecosystem id that is recorded or inferred this run": it infers a rust command surface from the build files before handling the filter, names it in the report with the globs inferred for it, and neither treats rust as uncovered nor reports that rust has nothing to infer it from. A missing cargo tool reported as a skip is acceptable.'

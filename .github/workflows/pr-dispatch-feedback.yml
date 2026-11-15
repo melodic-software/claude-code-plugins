@@ -1,4 +1,4 @@
-name: PR Feedback Dispatch
+name: PR Dispatch Feedback
 
 # Starts pr-unblock's address-feedback activity when a review lane finishes on
 # a lanes App PR: .github/scripts/pr-unblock/feedback-dispatch.mjs dispatches
@@ -104,7 +104,7 @@ permissions: {}
 # lane's run and with it the one rerun-ci-status after both lanes.
 concurrency:
   group: >-
-    pr-feedback-dispatch-${{ github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
+    pr-dispatch-feedback-${{ github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
     && format('verify-{0}', github.event.workflow_run.id)
     || github.event.workflow_run.path == '.github/workflows/pr-unblock-dispatch.yml' && 'sweep'
     || github.event.workflow_run.head_sha }}
@@ -449,7 +449,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
-          DISPATCH_RECORD: ${{ runner.temp }}/pr-feedback-dispatch-record.json
+          DISPATCH_RECORD: ${{ runner.temp }}/pr-dispatch-feedback-record.json
           VERIFY_HEAD_SHA: ${{ needs.post-verify-notes.outputs.head-sha }}
           VERIFY_PASS_HEAD_SHA: ${{ needs.post-verify-notes.outputs.pass-head-sha }}
         run: |

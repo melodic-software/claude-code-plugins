@@ -22,7 +22,6 @@ assertion:
     - 'process\.exit\([A-Za-z_]*fail'
 # The assertions live in the suite this script runs or the helpers it loads.
 delegation:
-  - 'gate_test::run_suite'
   - '(^|[[:space:];&|])(source|\.)[[:space:]].*test-(helpers|harness)'
   - '(^|[[:space:];&|])(node|python3?|pytest|exec|pwsh)[[:space:]].*(test|spec)'
   # exec hands the process, and its exit status, to the command it runs; an

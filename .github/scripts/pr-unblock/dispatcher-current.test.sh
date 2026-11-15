@@ -99,9 +99,9 @@ check "older file: one warning naming the file" 1 "$(grep -c "^::warning::dispat
 run_case "$UNBLOCK" "$HEAD" "$BLOB_A" ''
 check "file gone from the tip: stale" 'stale=true' "$(cat "$STUB/output")"
 
-run_case .github/workflows/pr-feedback-dispatch.yml "$HEAD" "$BLOB_A" "$BLOB_B"
+run_case .github/workflows/pr-dispatch-feedback.yml "$HEAD" "$BLOB_A" "$BLOB_B"
 check "the run's own dispatcher file is compared: stale" 'stale=true' "$(cat "$STUB/output")"
-check "the run's own dispatcher file is the one read" "repos/o/r/contents/.github/workflows/pr-feedback-dispatch.yml?ref=$HEAD" "$(tail -n 1 "$STUB/calls")"
+check "the run's own dispatcher file is the one read" "repos/o/r/contents/.github/workflows/pr-dispatch-feedback.yml?ref=$HEAD" "$(tail -n 1 "$STUB/calls")"
 
 for fault in fail_run fail_contents; do
   FAIL=$fault run_case "$UNBLOCK" "$HEAD" "$BLOB_A" "$BLOB_B"

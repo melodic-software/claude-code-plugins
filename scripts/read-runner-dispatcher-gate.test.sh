@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Structure test: pr-run-activity-read.yml admits a github-actions[bot]
 # workflow_dispatch only through a pr-unblock-dispatch.yml run, or a
-# pr-feedback-dispatch.yml run whose recorded review run reviewed the PR's
+# pr-dispatch-feedback.yml run whose recorded review run reviewed the PR's
 # current head, that sent it to pr-unblock.yml, or to pr-refine.yml for the
 # pr-refine lane, as
 # docs/conventions/pr-pipeline/pr-run-activity.md (run job step 3) states. The gate's own checks are check-trusted-trigger's suite; this
@@ -34,11 +34,11 @@ say(gate["dispatcher-workflow"] === ".github/workflows/pr-unblock-dispatch.yml",
   "the gate trusts only a pr-unblock-dispatch.yml dispatcher run");
 say(gate["dispatched-workflow"] === "${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}",
   "the gate admits a dispatcher-sent run only when it is pr-refine.yml for the pr-refine lane, else pr-unblock.yml");
-// pr-feedback-dispatch.yml, started by workflow_run after a review lane,
+// pr-dispatch-feedback.yml, started by workflow_run after a review lane,
 // vouches for address-feedback's model calls only: the gate gets it only with
 // the select job's feedback context, which only a review-threads call passes.
-say(gate["run-dispatcher-workflow"] === "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-feedback-dispatch.yml' || '' }}",
-  "the gate trusts a pr-feedback-dispatch.yml dispatcher run only for a review-threads call");
+say(gate["run-dispatcher-workflow"] === "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-dispatch-feedback.yml' || '' }}",
+  "the gate trusts a pr-dispatch-feedback.yml dispatcher run only for a review-threads call");
 say(gate["run-dispatcher-upstreams"] === "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}",
   "the review run must be one of the two review lanes, for a review-threads call only");
 say(gate["run-dispatcher-relay"] === "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-comment-relay.yml' || '' }}",

@@ -1,7 +1,7 @@
 // Starts pr-unblock's address-feedback activity on a lanes App PR, or an
 // adopted owner PR once idle (ownerAuthored, ownerSkip), once both
 // review lanes have reviewed its current head and left an unresolved thread.
-// Run by .github/workflows/pr-feedback-dispatch.yml on workflow_run, after the
+// Run by .github/workflows/pr-dispatch-feedback.yml on workflow_run, after the
 // kill switch. From the event file it takes only the upstream run's id, path,
 // event, repositories and head SHA, which a re-run does not change, so reading
 // them back from the API would spend a call for the same values; and its
@@ -1073,7 +1073,7 @@ async function sweepStale({ api, pull, repository, appSenderId, log, settings, r
   return rest.defer ? { number, send, upstreamRunId: upstream.id } : send();
 }
 
-// pr-feedback-dispatch.yml's dispatch job timeout-minutes.
+// pr-dispatch-feedback.yml's dispatch job timeout-minutes.
 export const UNSENT_GRACE_MS = 10 * 60_000;
 
 // A head with an unresolved thread and no address-feedback check run, and no
@@ -1250,7 +1250,11 @@ async function sweepRefused(context) {
 }
 
 // This file's workflow, whose lost runs the tick recovers.
-export const DISPATCH_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";
+export const DISPATCH_WORKFLOW = ".github/workflows/pr-dispatch-feedback.yml";
+// The file under its name before the rename: a run keeps the path it started
+// from, so the recovery reads take both while such a run can still be in reach.
+export const PREVIOUS_DISPATCH_WORKFLOW = ".github/workflows/pr-feedback-dispatch.yml";
+const isDispatchWorkflow = (path) => path === DISPATCH_WORKFLOW || path === PREVIOUS_DISPATCH_WORKFLOW;
 
 // The workflow's job that dispatches, by its display name, or by its id
 // (`dispatch`) on a run started before the rename; a loss of its other jobs
@@ -1281,6 +1285,13 @@ export async function lostDispatchRun({ api, runId, log, now = Date.now() }) {
   let runs;
   try {
     runs = await api.listRecentRuns(DISPATCH_WORKFLOW, isoSeconds(since));
+    // The earlier file has no runs to list once they age out or are deleted.
+    const earlier = await api.listRecentRuns(PREVIOUS_DISPATCH_WORKFLOW, isoSeconds(since)).catch((error) => {
+      if (!/ returned 404$/.test(error.message)) log(`::warning::${PREVIOUS_DISPATCH_WORKFLOW} run listing failed (${error.message}); runs under the earlier name are not recovered this tick`);
+      return [];
+    });
+    const seen = new Set(runs.map((run) => String(run.id)));
+    runs = runs.concat(earlier.filter((run) => !seen.has(String(run.id))));
   } catch (error) {
     log(`::warning::${DISPATCH_WORKFLOW} run listing failed (${error.message}); no lost run is recovered this tick`);
     return null;
@@ -1360,7 +1371,7 @@ const ACTIONS_BOT = "github-actions[bot]";
 // github-actions[bot] re-run of this workflow on main: any workflow can
 // upload that name to its own run.
 const deferringRun = (run, repository) =>
-  run?.path === DISPATCH_WORKFLOW &&
+  isDispatchWorkflow(run?.path) &&
   run.event === "workflow_run" &&
   run.head_branch === "main" &&
   run.repository?.full_name === repository &&

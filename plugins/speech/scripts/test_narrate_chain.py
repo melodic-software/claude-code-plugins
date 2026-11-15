@@ -1,13 +1,16 @@
 """narrate.py --backend-chain: whole-script fallback across voice backends, retries at 1, 2 and 4 s, the per-call
 timeout, the paid gate (exit 3), the secret floor before any online backend (exit 4), no audio at all (exit 5), and
 voice.json. Backends are fakes or the `command` backend running local commands; no test reaches a network voice."""
+import asyncio
 import io
 import json
+import os
 import shlex
 import shutil
 import sys
 import tempfile
 import time
+import types
 import unittest
 import urllib.error
 import wave
@@ -27,7 +30,7 @@ WAV_WRITER = ('import sys, wave\n'
 
 
 def silent_wav(path, seconds=1.0, rate=24000):
-    with wave.open(str(path), 'wb') as w:
+    with wave.open(path if isinstance(path, io.BytesIO) else str(path), 'wb') as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(rate)
@@ -39,10 +42,11 @@ class Fake:
     """A backend that records each call and voices the whole script as one second of silence."""
 
     def __init__(self, fail=0):
-        self.calls, self.fail = [], fail
+        self.calls, self.scripts, self.fail = [], [], fail
 
     def __call__(self, script, out_dir, voice, timeout):
         self.calls.append(voice)
+        self.scripts.append(script)
         if len(self.calls) <= self.fail:
             raise RuntimeError('fake failure')
         wav = silent_wav(out_dir / 'narration.wav')
@@ -261,6 +265,97 @@ class PaidTimeouts(unittest.TestCase):
         with mock.patch('urllib.request.urlopen', fake):
             elevenlabs.subscription('sk-test')
         self.assertEqual(timeouts, [300], 'the /speech:narrate path keeps its 300 s request timeout')
+
+
+LONG = 'One two three.\n\nFour five.\n\n\nSix seven eight nine.\n\nTen.'
+LONG_PARAGRAPHS = ['One two three.', 'Four five.', 'Six seven eight nine.', 'Ten.']
+WORD_S, SPOKEN_S = 0.25, 0.2   # the fake voice: a word every 0.25 s, each spoken for 0.2 s
+FAKE_FFMPEG = ('import shutil, sys\n'   # the fake voice already sends WAV bytes; ffmpeg only has to copy them
+               'shutil.copyfile(sys.argv[sys.argv.index("-i") + 1], sys.argv[-1])\n')
+
+
+@unittest.skipUnless(os.name == 'posix', 'the fake ffmpeg is a shebang script')
+class EdgePerParagraph(unittest.TestCase):
+    """The real edge-tts backend over a fake edge_tts package and a fake ffmpeg; nothing reaches the network."""
+
+    def setUp(self):
+        self.out = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.out, True)
+        tools = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tools, True)
+        self.ffmpeg = tools / 'ffmpeg'
+        self.ffmpeg.write_text(f'#!{sys.executable}\n{FAKE_FFMPEG}', encoding='utf-8')
+        self.ffmpeg.chmod(0o755)
+        self.requests, self.slept = [], []
+
+    def fake_edge_tts(self, fail_text=None, seconds=0.0):
+        requests = self.requests
+
+        class Communicate:
+            def __init__(self, text, voice, boundary, receive_timeout):
+                requests.append(text)
+                self.text = text
+
+            async def stream(self):
+                await asyncio.sleep(seconds)
+                if self.text == fail_text:
+                    raise ConnectionResetError('the service closed the connection')
+                words = self.text.split()
+                buf = io.BytesIO()
+                silent_wav(buf, WORD_S * len(words))
+                yield {'type': 'audio', 'data': buf.getvalue()}
+                for i, word in enumerate(words):
+                    yield {'type': 'WordBoundary', 'text': word.strip('.'), 'offset': round(i * WORD_S * 1e7),
+                           'duration': round(SPOKEN_S * 1e7)}
+        return types.SimpleNamespace(Communicate=Communicate)
+
+    def chain(self, fake, timeout=narrate.DEFAULT_TIMEOUT_S, nxt=None):
+        which = shutil.which
+        backends = {'edge-tts': narrate.edge_backend(), 'kokoro': backend('kokoro', nxt or Fake())}
+        with mock.patch.dict(sys.modules, {'edge_tts': fake}), \
+                mock.patch.object(narrate.shutil, 'which', lambda n: str(self.ffmpeg) if n == 'ffmpeg' else which(n)):
+            return narrate.run_chain(LONG, self.out, ['edge-tts', 'kokoro'], backends, timeout=timeout, env={},
+                                     sleep=self.slept.append, scan=lambda text: [])
+
+    def test_a_long_script_is_voiced_one_paragraph_per_request_on_one_timeline(self):
+        # each request takes 0.2 s against a 0.5 s timeout; the four together take longer than one timeout
+        self.assertEqual(self.chain(self.fake_edge_tts(seconds=0.2), timeout=0.5), 0)
+        self.assertEqual(self.requests, LONG_PARAGRAPHS)
+        record = json.loads((self.out / 'words.json').read_text(encoding='utf-8'))
+        self.assertEqual((record['backend'], record['sample_rate'], record['duration']), ('edge-tts', 24000, 2.5))
+        # paragraphs start at 0, 0.75, 1.25 and 2.25 s: the lengths of the audio before them
+        starts = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25]
+        self.assertEqual(record['words'], [{'word': t, 'start': s, 'end': round(s + SPOKEN_S, 3)}
+                                           for t, s in zip(LONG.split(), starts)])
+        with wave.open(str(self.out / 'narration.wav'), 'rb') as w:
+            self.assertEqual((w.getnchannels(), w.getframerate(), w.getnframes()), (1, 24000, 60000))
+        v = json.loads((self.out / 'voice.json').read_text(encoding='utf-8'))
+        self.assertEqual([(a['backend'], a['status'], a['paragraph']) for a in v['attempts']],
+                         [('edge-tts', 'ok', n) for n in (1, 2, 3, 4)])
+        self.assertEqual([p.name for p in self.out.iterdir() if p.name.startswith('.voice-')], [])
+
+    def test_one_paragraph_that_keeps_failing_hands_the_whole_script_to_the_next_backend(self):
+        nxt = Fake()
+        self.assertEqual(self.chain(self.fake_edge_tts(fail_text='Six seven eight nine.'), nxt=nxt), 0)
+        self.assertEqual(self.requests, LONG_PARAGRAPHS[:2] + LONG_PARAGRAPHS[2:3] * 4,
+                         'the failing paragraph is retried, and nothing after it is sent')
+        self.assertEqual(self.slept, [5, 20, 60], 'edge-tts retries wait 5, 20 and 60 seconds')
+        self.assertEqual(nxt.scripts, [LONG], 'the next backend voices the whole script, not the rest of it')
+        record = json.loads((self.out / 'words.json').read_text(encoding='utf-8'))
+        self.assertEqual((record['backend'], record['duration']), ('kokoro', 1.0),
+                         'narration.wav is the next backend\'s one second, with no edge-tts audio in it')
+        self.assertEqual([w['word'] for w in record['words']], LONG.split())
+        v = json.loads((self.out / 'voice.json').read_text(encoding='utf-8'))
+        self.assertEqual(v['backend'], 'kokoro')
+        self.assertEqual([(a['backend'], a['status'], a.get('paragraph')) for a in v['attempts']],
+                         [('edge-tts', 'ok', 1), ('edge-tts', 'ok', 2)] + [('edge-tts', 'failed', 3)] * 4
+                         + [('kokoro', 'ok', None)])
+        self.assertEqual([p.name for p in self.out.iterdir() if p.name.startswith('.voice-')], [])
+
+    def test_a_paragraph_past_its_timeout_hands_the_whole_script_on_without_a_retry(self):
+        nxt = Fake()
+        self.assertEqual(self.chain(self.fake_edge_tts(seconds=2.0), timeout=0.3, nxt=nxt), 0)
+        self.assertEqual((self.requests, self.slept, nxt.scripts), (LONG_PARAGRAPHS[:1], [], [LONG]))
 
 
 class Cli(unittest.TestCase):
