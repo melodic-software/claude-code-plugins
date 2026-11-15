@@ -1,6 +1,6 @@
 ---
 description: "Measure code for the changed files (the default), explicit paths, or the whole tree (`--all`), each number beside a configurable reference with its provenance. Reports, never gates. Actions: size (lines per file, every text file), complexity (per-function cyclomatic, cognitive and Halstead from collectors already installed), type-debt (typed-code percentage from type-coverage and mypy). Use when: 'how long are these files', 'lines per file', 'which files are too big', 'is this file over 1000 lines', 'how complex is this code', 'cyclomatic complexity', 'cognitive complexity', 'Halstead difficulty', 'how much of this is typed', 'type coverage', 'how many anys are in this', 'type debt'. Coverage and CRAP: /code-metrics:audit-coverage."
-argument-hint: "<size|complexity|type-debt> [--json] [--all] [--base <ref>] [--file-lines <n>] [--commits-since <date>] [<path>...]"
+argument-hint: "<size|complexity|type-debt> [--json] [--all] [--base <ref>] [<action options>] [<path>...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/audit-size.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/audit-complexity.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh:*)", "Bash(git branch --show-current:*)"]
