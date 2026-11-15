@@ -2098,6 +2098,10 @@ const walkFromCredit = (credit) => {
   return ran;
 };
 
+// The walk gives "Pick the next leg" empty outputs, which matches
+// ci-workflows select.cjs next() at the pinned 5b5110a: an empty `state`
+// (the key call skipped) hands on no next-leg, so the blocked capture and
+// its upload stay skipped. A pin bump that changes next() voids this case.
 test("a key in a credit stop ends the capture at the credit read: no resolver, no GitHub read, no capture upload", () => {
   const stopped = walkFromCredit({ "next-leg": "subscription", marker: CAP_MARKER, "probing-marker": "" });
   // Only the skipped leg's record, the budget log and the next-leg call, none of which reads the REST API.

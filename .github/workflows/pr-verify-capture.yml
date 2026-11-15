@@ -46,7 +46,9 @@ name: PR Verify Capture
 # token cannot go behind the key proxy, so no second leg could capture, and a
 # job for it would only repeat these gates' reads. When the credit gate
 # skips the key the job stops before the resolver and uploads nothing, and
-# the verdict records the capture blocked from find-capture's miss. A driver
+# the verdict records the capture blocked from find-capture's miss, with the
+# reason "left no capture artifact for this head": expected during a credit
+# stop, not an upload fault. A driver
 # that stops at the usage limit after the head checkout leaves a blocked
 # capture saying so, as any driver failure does.
 # Every checkout keeps no credential in its .git/config. Steps after the
@@ -224,7 +226,10 @@ jobs:
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
 
       # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
+      # handed off. It comes from the credit read alone, so it also counts
+      # runs the resolver, the trigger gate or the match step would have
+      # stopped, and changes that touch no feature: a skip count is per run
+      # with an app set, not per head the judges judge.
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
