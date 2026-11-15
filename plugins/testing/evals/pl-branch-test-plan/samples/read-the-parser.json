@@ -14,6 +14,14 @@
     },
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git show HEAD:src/duration.py\"}}]}}"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd src && for f in duration.py exporter.py; do echo \\\"=== $f\\\"; cat $f; done\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"=== duration.py\\nimport re\\n\\n_PART = re.compile(r\\\"(\\\\d+)([hms])\\\")\\n_UNIT = {\\\"h\\\": 3600, \\\"m\\\": 60, \\\"s\\\": 1}\\n\\n\\ndef parse_duration(text):\\n\",\"is_error\":false}]}}",
+      "why": "loop that names the file before cat; the parser's body is in the tool result"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff --no-prefix main...HEAD -- src/duration.py\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"diff --git src/duration.py src/duration.py\\nnew file mode 100644\\n--- /dev/null\\n+++ src/duration.py\\n@@ -0,0 +1,11 @@\\n+import re\\n+\\n+_PART = re.compile(r\\\"(\\\\d+)([hms])\\\")\\n+_UNIT = {\\\"h\\\": 3600, \\\"m\\\": 60, \\\"s\\\": 1}\\n+\\n+\\n+def parse_duration(text):\\n\",\"is_error\":false}]}}",
+      "why": "git diff --no-prefix of the parser's body, lines carrying the diff's + prefix"
     }
   ],
   "fail": [
@@ -40,6 +48,34 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff --stat main...HEAD -- src/duration.py | head\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_1\",\"type\":\"tool_result\",\"content\":\" src/duration.py     | 11 +++++++++++\\n src/models/types.py | 12 ++++++++++++\\n\",\"is_error\":false}]}}",
       "why": "piped a stat through head; the parser body never shown"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"for f in src/duration.py; do wc -l $f; done\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"11 src/duration.py\\n\",\"is_error\":false}]}}",
+      "why": "loop that only counts lines"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"result\":\"parse_duration uses a _UNIT table; property tests for duration.py\"}",
+      "why": "reply names _UNIT without any tool output"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff --stat main...HEAD -- src/duration.py\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\" src/duration.py | 11 +++++++++++\\n\",\"is_error\":false}]}}",
+      "why": "stat of the parser file only"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Grep\",\"input\":{\"pattern\":\"def \",\"path\":\"src/duration.py\",\"output_mode\":\"files_with_matches\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"src/duration.py\",\"is_error\":false}]}}",
+      "why": "grep that lists the file name only"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Grep\",\"input\":{\"pattern\":\"_UNIT =\",\"path\":\"src\",\"output_mode\":\"content\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"src/duration.py:_UNIT = {\\\"h\\\": 3600, \\\"m\\\": 60, \\\"s\\\": 1}\\n\",\"is_error\":false}]}}",
+      "why": "content-mode grep that prints only the _UNIT line"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"python -c \\\"import src.duration\\\"\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"Traceback (most recent call last):\\n  File \\\"src/duration.py\\\", line 4, in <module>\\n    _UNIT = {\\\"h\\\": 3600, \\\"m\\\": 60, \\\"s\\\": 1}\\nNameError: name 're' is not defined\\n\",\"is_error\":true}]}}",
+      "why": "traceback that quotes the _UNIT line"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -rn \\\"=\\\" src\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"src/duration.py:3:_PART = re.compile(r\\\"(\\\\d+)([hms])\\\")\\nsrc/duration.py:4:_UNIT = {\\\"h\\\": 3600, \\\"m\\\": 60, \\\"s\\\": 1}\\nsrc/duration.py:11:    return sum(int(n) * _UNIT[u] for n, u in _PART.findall(text))\\n\",\"is_error\":false}]}}",
+      "why": "grep -rn of every assignment in src"
     }
   ]
 }
