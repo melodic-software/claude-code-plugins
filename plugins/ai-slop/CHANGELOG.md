@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.19.5] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
 ## [0.19.4] - 2026-11-15
 
 ### Changed

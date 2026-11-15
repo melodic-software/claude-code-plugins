@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.1.1] - 2026-11-15
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
 ## [9.1.0] - 2026-11-15
 
 ### Added

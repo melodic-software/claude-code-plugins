@@ -3,6 +3,24 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.4.0] - 2026-11-15
+
+### Added
+
+- `/architecture:improve layout`, a fourth lens: it checks whether files that change together live
+  together. A tested script, `skills/improve/scripts/co-change.mjs`, reads the history once and
+  reports co-change pairs, clusters, spread, focus and mixed folders. The lens judges each cluster
+  against the layout style the repository records, banded by badge, interviews the target layout
+  of the picked card and hands it off as the deepening lens does. It never moves a file, and an
+  unattended run stops after the report (#15811).
+- `schemas/architecture.schema.json` gains a `layout` object (history window, code-maat's coupling
+  filters, excluded authors, folder depth, minimum cluster size and pattern cutoffs), documented in
+  `reference/config.md`. No `userConfig` entry is added.
+
+### Changed
+
+- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+
 ## [4.3.2] - 2026-11-15
 
 ### Changed
