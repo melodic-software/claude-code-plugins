@@ -14,9 +14,10 @@ const skip = !process.env.TLA2TOOLS && "set TLA2TOOLS to the path of tla2tools.j
 const read = (file: string) => fs.readFileSync(file, "utf8");
 
 for (const name of fs.readdirSync(corpus)) {
-  test(`${name} gives the committed chart and report when TLC runs`, { skip }, () => {
+  test(`${name} gives the committed chart and report when TLC runs`, { skip }, (t) => {
     const dir = path.join(corpus, name);
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "statechart-corpus-"));
+    t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
     const tlc = path.join(tmp, "tlc");
     const out = path.join(tmp, "out");
     fs.mkdirSync(tlc);
@@ -41,13 +42,6 @@ for (const name of fs.readdirSync(corpus)) {
       },
     );
     assert.equal(r.stderr, "");
-    if (process.env.STATECHART_UPDATE) {
-      for (const f of fs.readdirSync(dir))
-        if (/\.(out|exit|dot|mmd|md)$/.test(f)) fs.rmSync(path.join(dir, f));
-      for (const f of fs.readdirSync(tlc)) fs.copyFileSync(path.join(tlc, f), path.join(dir, f));
-      for (const f of ["chart.mmd", "report.md"])
-        fs.copyFileSync(path.join(out, f), path.join(dir, f));
-    }
     const report = read(path.join(out, "report.md"));
     const first = path.join(dir, "verdict-1.exit");
     const plain = fs.existsSync(first) ? Number(read(first)) : 0;

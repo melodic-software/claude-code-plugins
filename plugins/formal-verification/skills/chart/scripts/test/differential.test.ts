@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import fc from "fast-check";
+import type * as FastCheck from "fast-check";
+import { toolArgs } from "./tlc.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const skip = !process.env.TLA2TOOLS && "set TLA2TOOLS to the path of tla2tools.jar to run TLC";
@@ -40,84 +41,88 @@ const STEPS = ["you press play", ...PROTOTYPE_KEYS, "the connect fails [while of
 const GROUPS = ["paying", "a b", ...PROTOTYPE_KEYS];
 const COLORS = ["blue", "orange", "purple", "yellow"];
 
-const INT = fc.integer({ min: -3, max: 3 }).map(String);
-const STRING = fc.constantFrom(
-  String.raw`""`,
-  String.raw`"a b"`,
-  String.raw`"say \"hi\""`,
-  String.raw`"back\\slash"`,
-  String.raw`"tab\tstop"`,
-  String.raw`"two\nlines"`,
-  String.raw`"__proto__"`,
-);
-const values = (value: fc.Arbitrary<string>, maxLength = 4) =>
-  fc.uniqueArray(value, { minLength: 1, maxLength });
-const tuple = (items: string[]) => `<<${items.join(", ")}>>`;
+const models = (fc: typeof FastCheck) => {
+  const INT = fc.integer({ min: -3, max: 3 }).map(String);
+  const STRING = fc.constantFrom(
+    String.raw`""`,
+    String.raw`"a b"`,
+    String.raw`"say \"hi\""`,
+    String.raw`"back\\slash"`,
+    String.raw`"tab\tstop"`,
+    String.raw`"two\nlines"`,
+    String.raw`"__proto__"`,
+  );
+  const values = (value: fc.Arbitrary<string>, maxLength = 4) =>
+    fc.uniqueArray(value, { minLength: 1, maxLength });
+  const tuple = (items: string[]) => `<<${items.join(", ")}>>`;
 
-type Domain = string[] | { modelValues: number };
-const DOMAIN: fc.Arbitrary<Domain> = fc.oneof(
-  values(INT),
-  values(STRING),
-  values(fc.constantFrom("TRUE", "FALSE"), 2),
-  fc.integer({ min: 1, max: 4 }).map((modelValues) => ({ modelValues })),
-  values(fc.tuple(INT, STRING).map(([i, s]) => `[constructor |-> ${i}, __proto__ |-> ${s}]`)),
-  values(
-    fc
-      .uniqueArray(fc.tuple(INT, STRING), { maxLength: 2 })
-      .map((ps) => `{${ps.map(tuple).join(", ")}}`),
-  ),
-  values(fc.array(INT, { maxLength: 2 }).map(tuple)),
-);
+  type Domain = string[] | { modelValues: number };
+  const DOMAIN: fc.Arbitrary<Domain> = fc.oneof(
+    values(INT),
+    values(STRING),
+    values(fc.constantFrom("TRUE", "FALSE"), 2),
+    fc.integer({ min: 1, max: 4 }).map((modelValues) => ({ modelValues })),
+    values(fc.tuple(INT, STRING).map(([i, s]) => `[constructor |-> ${i}, __proto__ |-> ${s}]`)),
+    values(
+      fc
+        .uniqueArray(fc.tuple(INT, STRING), { maxLength: 2 })
+        .map((ps) => `{${ps.map(tuple).join(", ")}}`),
+    ),
+    values(fc.array(INT, { maxLength: 2 }).map(tuple)),
+  );
 
-const ATOM = fc.record({ v: fc.nat(2), i: fc.nat(3), not: fc.boolean() });
-type Atom = { v: number; i: number; not: boolean };
+  const ATOM = fc.record({ v: fc.nat(2), i: fc.nat(3), not: fc.boolean() });
+  type Atom = { v: number; i: number; not: boolean };
 
-const MODEL = fc.record({
-  module: fc.constantFrom("Model", "prototype"),
-  names: fc.shuffledSubarray(NAMES, { minLength: NAMES.length }),
-  vars: fc.array(
-    fc.record({ domain: DOMAIN, init: fc.array(fc.nat(3), { minLength: 1, maxLength: 2 }) }),
-    { minLength: 1, maxLength: 3 },
-  ),
-  actions: fc.array(
-    fc.record({
-      guard: fc.array(ATOM, { maxLength: 2 }),
-      set: fc.array(
-        fc.record({ v: fc.nat(2), to: fc.array(fc.nat(3), { minLength: 1, maxLength: 2 }) }),
-        { minLength: 1, maxLength: 2 },
-      ),
-    }),
-    { minLength: 1, maxLength: 6 },
-  ),
-  invariants: fc.array(fc.array(ATOM, { minLength: 1, maxLength: 2 }), { maxLength: 2 }),
-  deadlock: fc.boolean(),
-  initNext: fc.boolean(),
-  constraint: fc.option(ATOM, { freq: 2 }),
-  actionConstraint: fc.option(fc.record({ v: fc.nat(2), from: fc.nat(3), to: fc.nat(3) }), {
-    freq: 2,
-  }),
-  property: fc.option(
-    fc.record({
-      form: fc.nat(3),
-      atoms: fc.tuple(ATOM, ATOM),
-      fairness: fc.option(fc.record({ strong: fc.boolean(), on: fc.option(fc.nat(5)) })),
-    }),
-  ),
-  view: fc.option(
-    fc.record({
-      form: fc.constantFrom("string", "parents", "regions"),
-      labels: fc.uniqueArray(fc.constantFrom(...LABELS), { minLength: 1, maxLength: 4 }),
-      regions: fc.uniqueArray(fc.constantFrom("Session", ...LABELS), {
-        minLength: 1,
-        maxLength: 3,
+  const MODEL = fc.record({
+    module: fc.constantFrom("Model", "prototype"),
+    names: fc.shuffledSubarray(NAMES, { minLength: NAMES.length }),
+    vars: fc.array(
+      fc.record({ domain: DOMAIN, init: fc.array(fc.nat(3), { minLength: 1, maxLength: 2 }) }),
+      { minLength: 1, maxLength: 3 },
+    ),
+    actions: fc.array(
+      fc.record({
+        guard: fc.array(ATOM, { maxLength: 2 }),
+        set: fc.array(
+          fc.record({ v: fc.nat(2), to: fc.array(fc.nat(3), { minLength: 1, maxLength: 2 }) }),
+          { minLength: 1, maxLength: 2 },
+        ),
       }),
-      steps: fc.option(fc.array(fc.option(fc.constantFrom(...STEPS)), { maxLength: 6 })),
-      title: fc.option(fc.constantFrom("A b c", "constructor")),
-      groups: fc.option(fc.uniqueArray(fc.constantFrom(...GROUPS), { minLength: 1, maxLength: 3 })),
+      { minLength: 1, maxLength: 6 },
+    ),
+    invariants: fc.array(fc.array(ATOM, { minLength: 1, maxLength: 2 }), { maxLength: 2 }),
+    deadlock: fc.boolean(),
+    initNext: fc.boolean(),
+    constraint: fc.option(ATOM, { freq: 2 }),
+    actionConstraint: fc.option(fc.record({ v: fc.nat(2), from: fc.nat(3), to: fc.nat(3) }), {
+      freq: 2,
     }),
-  ),
-});
-type Model = typeof MODEL extends fc.Arbitrary<infer M> ? M : never;
+    property: fc.option(
+      fc.record({
+        form: fc.nat(3),
+        atoms: fc.tuple(ATOM, ATOM),
+        fairness: fc.option(fc.record({ strong: fc.boolean(), on: fc.option(fc.nat(5)) })),
+      }),
+    ),
+    view: fc.option(
+      fc.record({
+        form: fc.constantFrom("string", "parents", "regions"),
+        labels: fc.uniqueArray(fc.constantFrom(...LABELS), { minLength: 1, maxLength: 4 }),
+        regions: fc.uniqueArray(fc.constantFrom("Session", ...LABELS), {
+          minLength: 1,
+          maxLength: 3,
+        }),
+        steps: fc.option(fc.array(fc.option(fc.constantFrom(...STEPS)), { maxLength: 6 })),
+        title: fc.option(fc.constantFrom("A b c", "constructor")),
+        groups: fc.option(fc.uniqueArray(fc.constantFrom(...GROUPS), { minLength: 1, maxLength: 3 })),
+      }),
+    ),
+  });
+  return MODEL;
+};
+
+type Model = ReturnType<typeof models> extends FastCheck.Arbitrary<infer M> ? M : never;
 type Case = {
   module: string;
   tla: string;
@@ -376,7 +381,14 @@ async function answer(c: Case) {
     const compile = (view: string[]) =>
       run(
         process.execPath,
-        [path.join(here, "../statechart.ts"), `${c.module}.tla`, ...view, "--out", "out"],
+        [
+          path.join(here, "../statechart.ts"),
+          `${c.module}.tla`,
+          ...view,
+          "--out",
+          "out",
+          ...toolArgs(),
+        ],
         dir,
       );
     const [viewed, plain] = await Promise.all([
@@ -399,6 +411,8 @@ test(
   "the compiler answers each rule as plain TLC does for generated models",
   { skip },
   async () => {
+    const { default: fc } = await import("fast-check");
+    const MODEL = models(fc);
     await fc.assert(
       fc.asyncProperty(MODEL.map(caseOf), async (c) => {
         await answer(c);
