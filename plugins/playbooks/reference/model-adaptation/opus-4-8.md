@@ -140,7 +140,7 @@ one as a default is checked at the first pointer.
 
 - **Do not relax instruction specificity.** When authoring prompts, specs, or delegation
   instructions for yourself or workers, enumerate scope and cases explicitly. Specificity is a
-  per-model dial, not a virtue: the same over-prescription that helps you degrades Fable.
+  per-model dial, not a virtue. The same over-prescription that helps you degrades Fable.
   `[CC: prompt-authoring]` Pointer: when weighing how much to spell out for this model, fetch
   [More literal instruction following](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#more-literal-instruction-following)
   live; for Fable, fetch
