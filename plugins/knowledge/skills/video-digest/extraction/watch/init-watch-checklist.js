@@ -17,7 +17,10 @@ import { detectContentClass, outcomeFloors } from "../evals/check-watch-outcomes
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveTempSession } from "../lib/temp-session-paths.js";
 import { readJsonFile } from "../lib/watch-frame-index.js";
-import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
+import {
+  parseSessionsFromClaimInventory,
+  sessionsInTimeRange,
+} from "../lib/watch-slice-sessions.js";
 import { isHighVolume } from "../watching/frame-budget.js";
 import { watchStatePath } from "./watch-state.js";
 
@@ -367,8 +370,8 @@ export function initWatchChecklist(sliceDir, { force = false } = {}) {
   const contentClass = visionPlanPresent ? detectContentClass(visionPlanBody) : "pending";
 
   const claimBody = readTextIfExists(claimInventoryPath);
-  const sessionCount =
-    (claimBody ? parseSessionsFromClaimInventory(claimBody) : []).length || "TBD";
+  const sessions = claimBody ? parseSessionsFromClaimInventory(claimBody) : [];
+  const sessionCount = sessionsInTimeRange(sessions, watch.timeRange).length || "TBD";
 
   const videoSlug = path.basename(absSlice);
   const durationHours = (durationSec / 3600).toFixed(1);
