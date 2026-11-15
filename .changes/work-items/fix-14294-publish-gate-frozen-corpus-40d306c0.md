@@ -1,5 +1,7 @@
 ---
-bump: none
+bump: patch
 ---
 
-A comment in the shared publish gate now names the fold-corpus test that guards its backslash fold; the gate's behavior does not change.
+### Changed
+
+- Shared `publish-gate.mjs` synced where this plugin carries it: a comment now names the fold-corpus test that guards its backslash fold; the gate's behavior does not change.
