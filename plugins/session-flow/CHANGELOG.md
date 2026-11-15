@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.0.5] - 2026-11-15
+
+### Changed
+
+- `orchestrate` says capability tier, the glossary's term, in place of model tier.
+
 ## [9.0.4] - 2026-11-14
 
 ### Changed

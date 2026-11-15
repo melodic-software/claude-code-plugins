@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.1] - 2026-11-15
+
+### Changed
+
+- `confirm` points at the plugin philosophy's "Capability tiers" section by its new name.
+
 ## [0.26.0] - 2026-11-14
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.5] - 2026-11-15
+
+### Changed
+
+- The audit skill says capability tier for the model level, and the README's trigger table heading reads "Recheck triggers", the glossary's term.
+
 ## [1.2.4] - 2026-11-14
 
 ### Fixed
