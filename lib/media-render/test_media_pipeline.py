@@ -222,6 +222,18 @@ class CaptureTest(unittest.TestCase):
         bottom = min(b for _, b in rows)
         self.assertLess(top, bottom, f'every node and arrow should share one row: {rows}')
 
+    def test_a_long_pull_request_title_fits_the_title_frame(self):
+        import media_capture
+        import media_templates
+        moment = {'template': 'title', 'chapter': 'c', 'data': {'subtitle': 'A walkthrough for reviewers'}}
+        titles = ['feat(session-flow): ask whether a check could decide a retro finding before proposing a prose rule',
+                  'feat(session-flow): ' + 'ask whether a check could decide each retro finding ' * 2 + 'first']
+        with tempfile.TemporaryDirectory() as d:
+            checked = media_capture.capture_checked(
+                [(media_templates.page(moment, t, 'Chapter', (1, 1), SIZE, BAND), Path(d) / f'{i}.png')
+                 for i, t in enumerate(titles)], *SIZE, 1, BAND)
+        self.assertEqual([p for _, p in checked], [[], []])
+
     def test_paginate_covers_the_list_in_order_with_frames_that_each_fit(self):
         import media_capture
         import media_templates
