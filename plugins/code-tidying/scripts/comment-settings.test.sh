@@ -1,21 +1,11 @@
 #!/usr/bin/env bash
-# Black-box test for settings.sh, the repository-layer reader of remove-comments'
-# settings.
-#
-# Self-contained and cwd-independent; it changes only its own mktemp dir.
-# Expected values come from the key contract in SKILL.md "Settings": the team file
-# <home>/code-tidying.yaml, the personal override <home>/code-tidying.local.yaml
-# winning key by key, <home> the bound convention home (reference/config.md, default
-# docs/conventions), comment_posture in
-# auto|none|necessary|explanatory, comment_keep_list default or a repository-relative
-# path naming a regular file and no symlink, in userConfig too, comment_edit_scope in diff|files,
-# class_c_max_lines from 1 to 40, and an invalid layer named and dropped.
-# test-scope: plugins/code-tidying/skills/remove-comments/scripts/settings.sh
+# test-scope: plugins/code-tidying/scripts/comment-settings.sh plugins/code-tidying/skills/remove-comments/scripts/settings.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SUT="$HERE/settings.sh"
+SUT="$HERE/comment-settings.sh"
+ENTRY="$HERE/../skills/remove-comments/scripts/settings.sh"
 TEAM="docs/conventions/code-tidying.yaml"
 PERSONAL="docs/conventions/code-tidying.local.yaml"
 
@@ -48,7 +38,42 @@ lines_for() { bash "$SUT" "$1" 2>/dev/null | grep "^$2${TAB}"; }
 repo="$(repo_with - -)"
 check 'no files leaves the posture unset' \
   "comment_posture${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" "$(lines_for "$repo" comment_posture)"
-check 'every key gets a line' '6' "$(bash "$SUT" "$repo" | wc -l | tr -d ' ')"
+check 'every key gets a line' '7' "$(bash "$SUT" "$repo" | wc -l | tr -d ' ')"
+check 'the skill-local entry point prints the same lines' "$(bash "$SUT" "$repo")" "$(bash "$ENTRY" "$repo")"
+check 'an unset lint level names the team file only' \
+  "comment_lint${TAB}unset${TAB}no valid value in $TEAM" "$(lines_for "$repo" comment_lint)"
+check 'an unset allow list prints nothing' '' "$(bash "$SUT" --list comment_lint_allow "$repo")"
+
+for level in off report block; do
+  repo="$(repo_with "comment_lint: $level"$'\n' -)"
+  check "the lint level $level is read" "comment_lint${TAB}${level}${TAB}$TEAM" "$(lines_for "$repo" comment_lint)"
+done
+
+repo="$(repo_with $'comment_lint: warn\n' -)"
+check 'a lint level outside off, report and block is invalid' \
+  "comment_lint${TAB}invalid${TAB}$TEAM: warn"$'\n'"comment_lint${TAB}unset${TAB}no valid value in $TEAM" \
+  "$(lines_for "$repo" comment_lint)"
+
+repo="$(repo_with $'comment_lint: report\n' $'comment_lint: off\n')"
+check 'a personal override cannot change the lint level' \
+  "comment_lint${TAB}report${TAB}$TEAM" "$(lines_for "$repo" comment_lint)"
+
+repo="$(repo_with $'comment_lint_allow:\n  - "^test-scope:"\n  - \'^shellcheck \'\n' $'comment_lint_allow:\n  - "^personal"\n')"
+check 'the allow list is read from the team file, one item per line' \
+  '^test-scope:'$'\n''^shellcheck ' "$(bash "$SUT" --list comment_lint_allow "$repo")"
+check 'the allow list is no key line' '' "$(lines_for "$repo" comment_lint_allow)"
+
+repo="$(repo_with $'comment_lint_allow:\n  - a\ncomment_lint_allow:\n  - b\n' -)"
+check 'an allow list in a file that does not parse is empty' '' "$(bash "$SUT" --list comment_lint_allow "$repo" 2>/dev/null)"
+bash "$SUT" --list comment_posture "$repo" >/dev/null 2>&1
+check '--list with a key that is no list is a usage error' '2' "$?"
+check '--help prints the usage' '1' "$(bash "$SUT" --help | grep -c '^Usage: comment-settings.sh')"
+
+installed="$(mktemp -d "$TMP/installed.XXXXXX")"
+cp "$SUT" "$HERE/../lib/parse-concern-value.sh" "$HERE/../lib/yaml-subset.awk" "$HERE/../lib/resolve-convention-home.sh" "$installed/"
+repo="$(repo_with $'comment_lint: block\n' -)"
+check 'an installed copy finds its lib beside itself' \
+  "comment_lint${TAB}block${TAB}$TEAM" "$(bash "$installed/comment-settings.sh" "$repo" | grep "^comment_lint${TAB}")"
 
 repo="$(repo_with $'comment_posture: necessary\ncomment_edit_scope: files\n' -)"
 check 'the team posture is read' "comment_posture${TAB}necessary${TAB}$TEAM" "$(lines_for "$repo" comment_posture)"
