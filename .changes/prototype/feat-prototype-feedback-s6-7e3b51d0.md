@@ -12,7 +12,10 @@ bump: minor
   radio). Each control writes a CSS variable or a `data-control-` attribute, on the page or on one
   variant, and shows its value. The Controls tab adds the page's Seed, Clear, Reset, list toggles
   and worst-content toggle as built-in entries, Copy config, and Reset controls, which leaves the
-  data alone. Opened from `file://`, the mockup draws the same controls in its own panel.
+  data alone. Opened from `file://`, the mockup draws the same controls in its own panel, top-right
+  or, with the manifest's `placement`, top-left. A manifest with a default its control's field
+  cannot hold, or two controls sharing an id, is refused whole, and a value a control cannot hold
+  is never set.
 - Every note carries `controls`, each manifest id with its value, and re-locating a note sets them
   again before the anchors run (`restored.controls`).
 - The levels gain a `controls` dimension: `brief` or `everything`, shipped as `everything` at
