@@ -4,7 +4,7 @@ tags: [interview, recommendation, basis]
 runs: 3
 max_turns: 12
 timeout_seconds: 600
-allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "Every recommendation in round 1 names a checkable basis (a file and line, a URL, a check run this session named with what it showed, a session-transcript finding the user said or a tool returned (never the reply's own earlier claim), or a fact the user stated), and names the condition that would change it only where one exists"
 ---
 
