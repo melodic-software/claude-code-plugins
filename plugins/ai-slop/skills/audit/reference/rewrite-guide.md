@@ -184,7 +184,15 @@ Rewrites that need more than a lookup:
   requests"). A small drama becomes the trigger and its consequence ("the on-call phone lights
   up at 3 a.m." becomes "the nightly job fails and pages the on-call engineer"). A mood becomes
   the behavior ("CI gets grumpy about lockfiles" becomes "CI fails when `package-lock.json` is
-  out of date"). A slogan becomes the rule, then `because` and its reason.
+  out of date"). An act becomes who does what ("flaky tests eat the release week" becomes
+  "engineers spend release week rerunning flaky tests"). A slogan becomes the rule, then
+  `because` and its reason. The rewritten sentence carries no figure. Reread it verb by
+  verb: where an object or abstraction is still said to do what only a living thing does (sit,
+  sleep, want, fight), write where it is or what happens instead, even when that verb alone would
+  not have been reported. A field's own term is not a figure and stays, as do the idioms in other
+  sentences. Moving or re-punctuating the
+  sentence with the figure still in it is not a fix. The sentence stays about the thing it named;
+  never swap its subject for another noun nearby.
 - **Promotional adjectives** (`rule-promotional-language`): "Vibrant", "stunning",
   "breathtaking", "groundbreaking", "renowned", "seamless", "robust", "nestled". These are
   travel-brochure words. Describe the thing; let the reader supply the adjective.
@@ -258,6 +266,6 @@ phrased, never by inventing new claims during a fix pass.
 Last pass over each rewritten file, before the semantic-diff verification: read it asking "what
 still makes this read machine-written?" and fix what surfaces, whether or not a rule flagged
 it: a leftover "leverage", a triad that came back, a word from the judgment rows above, a
-paragraph with no verdict in it. Then read it once more; what that second read finds is fixed or
+paragraph with no verdict in it, a figure still in a sentence rewritten for one. Then read it once more; what that second read finds is fixed or
 reported, and the self-audit ends there. Findings from this pass are reported like rubric findings
 (quoted text, catalog entry when one fits).
