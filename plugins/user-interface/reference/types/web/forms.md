@@ -198,8 +198,8 @@ hardware at all, check `navigator.maxTouchPoints > 0`.
 
 Hunt for: `autoFocus` / `autofocus` / `.focus()` in a mount effect with no pointer gate.
 
-**Audit: Important.** Autofocus with no pointer gate, shoving the keyboard into the face of a phone
-user.
+**Audit: Important.** Autofocus with no pointer gate, opening the on-screen keyboard unprompted for a
+phone user.
 
 ## 6. Always wrap inputs in a `<form>`: Enter must submit
 
@@ -374,7 +374,7 @@ With react-hook-form, use `mode: "onBlur"` or `"onTouched"` with `reValidateMode
 Hunt for: validation run inside `onChange` with no touched or submitted gate; schema resolvers
 configured with `mode: "onChange"`.
 
-**Audit: Important.** Validating on every keystroke, yelling "invalid email" after one character.
+**Audit: Important.** Validating on every keystroke, showing "invalid email" after one character.
 
 Colocate error messages with the field that caused them, not in a summary at the top. Each message
 renders directly under the field that caused it, wired with `aria-describedby`, and tells the user

@@ -46,7 +46,7 @@ about work items, tickets, issues, tracked work, or what to do next):
 **Work item** is the canonical term. **Ticket** and **issue** are first-class
 synonyms for invocation. They appear in the Use-when triggers of the
 **item-facing** skills, so phrasing like "add a ticket" or "work the next
-issue" routes here, not a rename of the plugin, seam, or surface.
+issue" routes here, not a rename of the plugin, seam, or surface.<!-- placeholder -->
 
 "Item-facing" is the precise scope, and it is narrower than every skill in the
 plugin: `track`, `work`, `work-loop`, `triage`, `decompose`, `attend-queue` and

@@ -93,7 +93,7 @@ Implementation in `component-api/implementation.md`.
 **Audit: Important.** A multi-part component that drills every part through props on one root
 instead of compound parts sharing context.
 
-## 3. The Goldilocks level of customization
+## 3. How much customization to offer
 
 Too little customization and users fork your component or add hacky workarounds. Too much and the
 API becomes confusing and a maintenance nightmare. Aim for the middle:

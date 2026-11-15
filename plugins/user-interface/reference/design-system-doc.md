@@ -59,9 +59,8 @@ for? The agent has to guess, and there is a lot of room for error.
 `#ef4444` is the raw hex form of the `--red-500` primitive above, the same color as its oklch
 value.
 
-It all comes down to codebase quality at the end of the day, so this doesn't apply to styles only.
-As long as the agent has a good foundation to build on, it will be able to make the right choices
-more easily.
+The same holds beyond styles: an agent that finds consistent, documented building blocks in the
+codebase reuses them instead of inventing new ones.
 
 The rule that code uses semantic tokens rather than raw values, with its audit severity, is the
 `color` concern, and so is remapping a scale for dark mode; how the theme switches, and the one
@@ -299,6 +298,3 @@ else exists" line that closes each set, the correct and incorrect examples, and 
 rules are this example system's, not defaults for another project: the note you write holds the
 project's own. Its one focus token follows the `color` concern: the focus ring's color is one token,
 `--focus-ring`, and form controls resolve to it.
-
-Once you have a well-defined system, you'll get drastically better results from your agents, since
-they'll pick the right building blocks for the job.

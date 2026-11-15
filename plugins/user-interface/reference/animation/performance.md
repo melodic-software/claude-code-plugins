@@ -89,7 +89,7 @@ accordion animating `height` outside the measured-height exception.
 bare `transition` class, which compiles to a broad property list in disguise), every style change
 becomes a candidate animation: the browser must track the entire style object, properties you never
 meant to tween (padding, shadow, colors) start tweening whenever they change, and the engine loses
-the optimizations a narrow, known property list allows. `transition: all 0.3s` is a bug factory: it
+the optimizations a narrow, known property list allows. `transition: all 0.3s` causes bugs: it
 silently animates width, height, and color, triggering layout recalculation, and a theme switch
 then animates every color at a different timing. List the properties:
 `transition: opacity 0.3s, transform 0.3s`.
@@ -249,8 +249,8 @@ compositor owns; declaring it for layout-bound properties is a no-op.
 - Add it last, only after seeing the shift or measuring dropped frames. Browsers already promote
   elements animating transform or opacity, and every promoted layer costs GPU memory. Browsers have
   gotten good at managing layers themselves, so treat this as a targeted fix: reach for it after
-  you've observed a first-frame hiccup (some engines more often than others), never as routine
-  seasoning. A page peppered with `will-change` pays real cost for stutters it never had.
+  you've observed a first-frame hiccup (some engines more often than others), never by
+  default. A page peppered with `will-change` pays real cost for stutters it never had.
 - Put it on the element that animates, never on every element or on large containers. Add it only
   to an element that visibly hitches on its first frame, only for compositor properties
   (`transform`, `opacity`, `filter`, `clip-path`), and keep that layer small.

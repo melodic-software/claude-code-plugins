@@ -9,7 +9,7 @@ look for on a web screen and what to do about it.
 
 Nobody can point at the one element that makes a screen look AI-generated. They recognize the
 accumulation: indigo gradient, glass cards, emoji icons, centered hero, three feature boxes, each
-choice defensible alone, and together a watermark. The cause is mechanical: a model reproduces the
+choice defensible alone, and together they mark the page as generated. The cause is mechanical: a model reproduces the
 statistically most common pattern in its training data, and it does so for every decision on the
 page at once. Fifty median choices don't average out to a median design. They compound into a
 recognizable one.
@@ -107,7 +107,7 @@ the palette you actually chose.
 **Audit: Suggestion.** More than one gradient on a screen, or a gradient whose stops are not colors
 from the project's palette.
 
-### Dark-and-neon is a costume
+### Dark-and-neon is a default, not a choice
 
 Dark-by-default with glowing borders and neon accents is the model's idea of "premium tech". Dark
 mode is a real feature with real rules (shadows stop working, surfaces need their own logic; see the
@@ -134,7 +134,7 @@ Hunt for the search tokens `bg-gradient-to-r` and `bg-linear-to-r`, and for `bg-
 **Audit: Suggestion.** A headline filled with a gradient (`background-clip: text` with transparent
 text). The contrast it fails is counted once, by the `color` concern.
 
-### The default stack is a shrug
+### The default stack records no decision
 
 Inter at `font-black tracking-tight`, centered, is what a model writes when nobody chose anything.
 Inter is a fine typeface: as a decision, paired and sized deliberately, not as an absence of one.
@@ -178,8 +178,8 @@ content didn't ask for is the giveaway.
 
 ### Bento is the new three-card grid
 
-The bento grid became the "I know the three-card grid is slop" alternative, which made it slop with
-better kerning. Same rule: if the cells were sized before anyone knew what goes in them, it's
+The bento grid became the "I know the three-card grid is slop" alternative, which made it the next
+stock template. Same rule: if the cells were sized before anyone knew what goes in them, it's
 decoration.
 
 **Audit: Suggestion.** The assembled template hero (announcement badge with no announcement,
@@ -323,7 +323,7 @@ or a plural built by string concatenation.
 
 ## 11. Looking designed by someone
 
-Stripping tells leaves a clean, mute screen. What separates designed from generated is evidence that
+Stripping tells leaves a clean screen with no point of view. What separates designed from generated is evidence that
 somebody made choices only this product would make:
 
 - **Derive the palette from something real.** The product's domain, an existing brand artifact, the
@@ -331,7 +331,7 @@ somebody made choices only this product would make:
   one doesn't.
 - **One distinctive type decision.** A display face with a point of view, an unusual size contrast,
   a deliberate pairing, tied to something in the product rather than the current stock choice. One
-  is enough; three is a costume party.
+  is enough; three dilute each other.
 - **Show the actual product.** A real screenshot, real data, a working embed. Abstract illustration
   is what models reach for because they've never seen your product. You have. Real data on a
   public page means seeded or demo data shaped like real use, never customer records, and an

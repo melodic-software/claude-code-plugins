@@ -115,8 +115,8 @@ missing or mounted per tooltip instead of once.
   Closing a modal is a permanent exit, so it accelerates away on `in` (`catalog.md`, "Easing").
 - The backdrop fades on the same timing, so both read as one surface. The CSS is the dialog recipe
   in `/user-interface:write-css`.
-- Avoid: sliding modals in from off-screen, scaling from 0, bounce on a dialog (it's an
-  interruption, not a toy).
+- Avoid: sliding modals in from off-screen, scaling from 0, bounce on a dialog (a dialog is
+  already an interruption, and bounce makes it more intrusive).
 
 ## Drawer and sheet: `drawer`
 

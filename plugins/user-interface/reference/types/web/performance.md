@@ -11,7 +11,7 @@ at request time what you could build at build time, and don't move layout after 
 started reading it. Most jank is self-inflicted: the fix is usually deleting or deferring work, not
 adding cleverness.
 
-The lane where the dev machine lies. Every check here reproduces on a mid-range phone and hides on a
+A fast development machine hides these costs. Every check here reproduces on a mid-range phone and hides on a
 fast laptop.
 
 The examples are React (JSX), Next.js and HTML. In another framework, keep the behavior and write

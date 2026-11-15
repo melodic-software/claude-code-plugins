@@ -7,7 +7,7 @@ That config is `config.values.animation` in the output of `scripts/detect.mjs --
 detect cannot run, it is the `animation:` block of `reference/defaults.yaml`.
 
 Animation in a product interface is feedback, not decoration. The best UI animations go unnoticed:
-they make the interface feel fast, connected, and physical, then get out of the way. Default to
+they make the interface feel fast, then stay out of the way. Default to
 less: a fast, well-eased 200ms transition beats an elaborate 500ms sequence every time. When in
 doubt, don't animate. When you do animate, be exact: easing and duration are decisions, not
 defaults you inherit from a snippet.

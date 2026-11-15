@@ -15,9 +15,9 @@ it never relaxes these.
    `generic-defaults` concern covers.
 
    Left alone, an agent produces the average of everything it has seen. The average is fine, and
-   fine is exactly what everyone else is shipping. Your taste is what pulls the output away from
-   the average. Here that taste is the project's and the user's: their system and their stated
-   choices pull the output away from the average, not this agent's own preferences.
+   fine is exactly what everyone else is shipping. Choices that differ from the average are what
+   make the output distinct. Here those choices are the project's and the user's: their system and
+   their stated choices set the output, not this agent's own preferences.
 
    Being generic in product UI is partially intentional. The goal here is not to invent new
    patterns, we want our UI to be predictable and consistent, which means that we have to follow
@@ -25,8 +25,8 @@ it never relaxes these.
    familiar convention is not a habit: keep it.
 3. **Restraint.** Add the fewest elements that do the job. Every color, glyph, animation and line
    must carry information the user acts on. Remove what does not. Restraint reads as intent. Fewer
-   colors, fewer font weights, one icon library, three illustration colors instead of six. A
-   limited palette looks decided; a full one looks indecisive.
+   colors, fewer font weights, one icon library, three illustration colors instead of six. Each
+   extra color is another choice the user has to decode.
 4. **Stop the prompt loop.** Once one round of prompted variants of a visual idea has missed, the
    user is searching a space, not requesting an item, and every further prompted round costs more
    than a generating tool would. So when the next answer would be a second round of prompted

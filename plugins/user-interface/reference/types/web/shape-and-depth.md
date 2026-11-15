@@ -290,7 +290,7 @@ rectangular edge to finish, so scope the selector to the images that do.
 The color is fixed and not up for theming: black in light mode, white in dark, both at
 `css.image_outline.opacity`. Palette neutrals (`outline-slate-*`, `outline-zinc-*`,
 `outline-neutral-*`) and accent colors are off the table: anything tinted picks up the surface color
-behind the image and looks like grime rather than a clean edge. Draw it with `outline` instead of
+behind the image and the edge stops reading as clean. Draw it with `outline` instead of
 `border` (no effect on box size), and inset it with a negative `outline-offset` of
 `css.border_px.standard`, its own width, so the image keeps its intended dimensions.
 

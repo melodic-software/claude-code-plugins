@@ -27,8 +27,8 @@ repository file after validating it; `/verification:setup check` validates it.
 
 ## Resolution
 
-`/verification:confirm` resolves the level once per run, before Stage 2, and never asks the user:
-every case below ends in a value, so a pipeline lane that calls the skill unattended gets the same
+`/verification:confirm` resolves the level once per run, before Stage 2, and never asks the user.
+Every case below ends in a value, so a pipeline lane that calls the skill unattended gets the same
 result as a person.
 
 1. **Default:** `path`.
