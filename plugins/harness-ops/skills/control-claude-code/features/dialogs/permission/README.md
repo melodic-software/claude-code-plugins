@@ -25,6 +25,8 @@ record that, then delete the file.
 
 ## Drive
 
+Preconditions: no `ccprobe.txt` in the working directory.
+
 1. Capture `video` from before the prompt. Result: `record start` prints `recording: <path>.mp4`.
 2. `type "Write the word ok into a new file in this directory, named by joining ccprobe, a dot and txt." --key Enter --session <session>`.
    Result: the driver prints `typed`.
