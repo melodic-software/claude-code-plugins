@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [9.0.7] - 2026-11-15
+
+### Changed
+
+- `running-retro` no longer lists 'checkpoint this session' as a trigger, leaving 'checkpoint this' to `handoff`.
+
 ## [9.0.6] - 2026-11-15
 
 ### Changed

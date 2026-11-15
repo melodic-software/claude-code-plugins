@@ -3,6 +3,15 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.10] - 2026-11-15
+
+### Changed
+
+- `reference/return-accounting.md` states the never-estimate constraint's recheck trigger as an
+  observable event: a model release whose notes or docs claim calibrated effort estimates, or an
+  eval in this repository showing a model's estimates match human-attested effort bands. The
+  setup eval's expected output follows it. The constraint itself is unchanged.
+
 ## [5.0.9] - 2026-11-15
 
 ### Changed

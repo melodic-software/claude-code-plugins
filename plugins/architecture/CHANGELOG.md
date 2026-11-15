@@ -3,6 +3,15 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.3.0] - 2026-11-15
+
+### Added
+
+- `/architecture:map-containers` reads `.vbproj` project files beside `.csproj` and `.fsproj`. Its
+  record carries an `uncharted-projects` finding that counts and names each project file it charts
+  as no deployable, module or excluded test project. Before, such a project was left out of the
+  record without a word.
+
 ## [4.2.0] - 2026-11-14
 
 ### Added
