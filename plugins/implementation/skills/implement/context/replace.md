@@ -42,7 +42,7 @@ baseline proves the new code matches the old, never that either is correct.
    also needs a separate comparator. Starting an experiment, mirroring traffic, or cutting over
    touches production: ask first, and in an unattended run stop at a green harness and hand off
 8. **Delete the old implementation** once cutover holds. Then delete the harness or convert its pins
-   into behavior tests per [refactor.md](refactor.md), "Characterization tests", step 6
+   into behavior tests per [refactor.md](refactor.md), "Characterization tests" (`/testing:write` owns each pin's fate after the change)
 
 ## Handoff to verification
 

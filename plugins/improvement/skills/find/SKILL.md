@@ -55,12 +55,12 @@ Parse `$ARGUMENTS` and the invoking prompt for four independent narrowings; each
 - **Repo as parameter.** One repo per invocation. An explicit repo path in the arguments makes that
   checkout the target; otherwise the current repo is. When the target is not the session's working
   directory, resolve its root once (`git -C <repo-path> rev-parse --show-toplevel`) and anchor
-  EVERY probe to it. `git -C <root>` for every git command here and in the `context/` recipes,
+  every probe to it. `git -C <root>` for every git command here and in the `context/` recipes,
   and file reads under that root, so the evidence never silently comes from the invoking repo.
   The branch/log calls above describe the session's cwd, not the target; re-run them
   with `-C <root>` in that case. Fleet-wide sweeps are out of scope. Compose with
   `repo-fleet-hygiene` externally, one invocation per repo.
-- **Mode.** Interactive is the default. Unattended is entered ONLY when the caller declares it (see
+- **Mode.** Interactive is the default. Unattended is entered only when the caller declares it (see
   Unattended mode), never inferred from context.
 
 ## Scan dimensions
@@ -76,7 +76,7 @@ dimension, gather whatever evidence its tier sources yield, then propose candida
 | Config / automation outside the codebase | GitHub labels, Actions workflows, synchronizations, branch protections, bot config |
 | Claude Code operational setup | Cloud environments, MCP servers, hooks, permission rules, plugin/skill configuration |
 
-**Docs/markdown improvement is OUT**. Owned lanes (`docs-hygiene`, `codebase-health`) cover it;
+**Docs/markdown improvement is out of scope**. Owned lanes (`docs-hygiene`, `codebase-health`) cover it;
 finding a docs candidate means naming the owning lane, not adding it to this list.
 
 ## Evidence ladder
@@ -230,7 +230,7 @@ off a pick, and name which row you are handing off. The user then sees what the 
 redirect it. When the prompt hands you the pick ("pick the top one"), hand off rank 1 in the same
 turn; otherwise stop after the list and wait for the pick, per Interactive flow step 2.
 
-## What this skill does NOT do / Skip when
+## What this skill does not do / Skip when
 
 Reuse-or-replace posture: each boundary below names an owned lane this skill delegates to or steps
 aside for. It re-implements none of them.
@@ -249,7 +249,7 @@ mode:
 
 - **Interactive** (bare invocation): it reports and stops, apart from the code-metrics writes
   below.
-- **Unattended**: the caller's declaration IS the explicit mutation override, the same shape as
+- **Unattended**: the caller's declaration is the explicit mutation override, the same shape as
   the `audit` verb's autofix override, and it authorizes exactly two more things: the report
   persisted under `${CLAUDE_PLUGIN_DATA}/find/<state-key>/` (with the dismissed-candidate memory
   beside it) and presence-gated work-item filing.
@@ -283,13 +283,13 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 ## Gotchas
 
-Known traps, seeded from the research this skill was grounded on:
+Known traps:
 
 - **Shallow or truncated clones poison churn rankings.** The hotspot recipe's history-depth gate
   (`${CLAUDE_PLUGIN_ROOT}/skills/find/context/hotspots.md`) runs first; a window the history does not cover downgrades churn to a
   recorded evidence gap. Confidently-wrong rankings from partial history are worse than no
   ranking.
-- **Never call the Actions `/timing` endpoint**. GitHub is retiring it; the dated record
+- **Never call the Actions `/timing` endpoint**. GitHub is retiring it; the pointer
   for that, and for the documented result cap behind the windowing rule, is in
   `${CLAUDE_PLUGIN_ROOT}/skills/find/context/ci-health.md`. CI health iterates `/actions/runs` by `created` date windows (never deep
   pagination) and derives failure ratios, duration trends, and `run_attempt` retries per that file.

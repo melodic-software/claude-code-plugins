@@ -25,15 +25,14 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   never once at the root**. When deciding whether a file is displaced, fetch
   [memory: choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load)
   live. A displaced file that an import or a symlink brings in is covered by the importing
-  record, not a record of its own. The root case is the condition
-  `harness-memory`'s `skills/audit/scripts/lib/agents-md.sh` encodes.
+  record, not a record of its own.
   **Displacement is that mode's answer, not the only one, and this bullet does not restate the
   mode's values, its load order, or the scopes that honor it**: the four-part record for all of
   them, and for whether the session reads an `AGENTS.md` at all, is this plugin's
   [reference/agents-md-liveness.md](../../../reference/agents-md-liveness.md). Resolve them there,
   so this phase and the checks downstream of it read one record that carries its own recheck
   trigger. Two things follow that this phase acts on. Under a mode that loads both files a displaced
-  file is read and needs its own record like any other. And **the value to resolve is the EFFECTIVE
+  file is read and needs its own record like any other. And **the value to resolve is the effective
   one across the scopes the record names**, since a user scope naming the default can be overridden
   by a managed one and the reverse; reading only the scope this phase happens to inventory answers
   the wrong question in both directions, dropping a live surface or inventorying an unloaded one.

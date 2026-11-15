@@ -10,7 +10,7 @@ a non-GitHub forge (GitLab, Gitea, Azure DevOps, ...), record an evidence-gap li
 `gap: ci-health — non-GitHub forge; this recipe covers GitHub Actions only`, and rank without
 CI evidence. Never adapt these calls by guesswork against another forge's API.
 
-Owner/repo for every call below comes from the TARGET repository's remote
+Owner/repo for every call below comes from the target repository's remote
 (`git -C <target-root> remote get-url origin`), never from the session's cwd. The target may be
 a different checkout (SKILL.md "Repo as parameter").
 
@@ -95,7 +95,7 @@ gh api "repos/$OWNER/$REPO/actions/runs?created=2026-07-01..2026-07-07&per_page=
 ```
 
 Via the GitHub MCP tools, the per-run fields are the same (`conclusion`, `run_attempt`,
-`run_started_at`, `updated_at`) but the window mechanics are NOT: the `actions_list` tooling
+`run_started_at`, `updated_at`) but the window mechanics are not: the `actions_list` tooling
 exposes no `created` date filter, so date-windowed iteration is unreachable through it. On the
 MCP path, read the most recent page(s) only, cite the covered span verbatim ("last N runs,
 &lt;oldest&gt;..&lt;newest&gt;"), and record the uncovered windows as a `gap:` line. Never page deep to

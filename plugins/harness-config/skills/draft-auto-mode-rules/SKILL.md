@@ -117,10 +117,9 @@ Ask about one entry at a time. For each, you need four things, and the fourth is
 2. **A short label**: the subject, two or three words. It is what a reader scans for.
 3. **What is covered, and what is explicitly not.** Both. An entry with no stated exclusions is one
    the classifier will over-apply.
-4. **A condition visible in the transcript.** The critique's finding was
-   that "uncheckable conditions are the biggest weakness". Entries state preconditions the classifier
-   cannot evaluate from the command text, so it either allows blindly (the condition is decorative) or
-   blocks (the grant is inoperable), with no stated disposition.
+4. **A condition visible in the transcript.** An entry whose precondition the classifier cannot
+   evaluate from the command text either allows blindly (the condition is decorative) or blocks (the
+   grant is inoperable), with no stated disposition.
 
    Some answers name something the classifier cannot see: a person's intent, a fact about the
    build server, whether a change was reviewed. **Say so and ask for the observable form instead.**
@@ -163,9 +162,11 @@ Print the block. Say exactly where it goes: the `autoMode` key of
 
 Two things to say while handing it over:
 
-- **Project and local settings will not work.** The classifier reads `autoMode` from user settings,
-  managed settings, and inline `--settings`/SDK JSON only. A block pasted into `.claude/settings.json`
-  is silently inert.
+- **Project and local settings will not work.** A block pasted into `.claude/settings.json` is
+  silently inert: send it to user settings, or to managed settings for a team-wide block. Pointer: for
+  the scopes the classifier reads, fetch
+  [auto mode config: where the classifier reads configuration](https://code.claude.com/docs/en/auto-mode-config#where-the-classifier-reads-configuration)
+  live.
 - **Merging into an existing block is theirs to do.** If they already have an `autoMode` section, the
   drafted sections replace what they paste over. Point them at the audit sibling to confirm the result
   rather than assuming it merged.

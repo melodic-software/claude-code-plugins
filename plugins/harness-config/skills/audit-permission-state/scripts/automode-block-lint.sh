@@ -9,8 +9,10 @@
 # hard_deny already forecloses. `claude auto-mode critique` owns the semantic
 # judgment and is surfaced by --critique rather than reimplemented.
 #
-# Reading the CLI is where this gets hard, and every defect below was MEASURED on
-# 2.1.225 rather than guessed at:
+# Reading the CLI is where this gets hard, and every defect below was measured on
+# 2.1.225 rather than guessed at. As of: 2026-08-12. Recheck trigger: a release
+# note changes `claude auto-mode config`, `defaults` or `critique` output or exit
+# status:
 #
 #   1. `claude auto-mode config` emits raw control characters inside JSON string
 #      values. jq and Python json.loads both reject it; exit status is still 0.
@@ -406,7 +408,7 @@ CRITIQUE COST NOTICE — nothing has been spawned yet.
 EOF
 fi
 if ! capture "$crit" "${AUTOMODE_CRITIQUE_FIXTURE:-}" critique; then
-  note "critique returned nothing; run it yourself. Measured on 2.1.225: three consecutive runs on one unchanged config produced 3032 bytes, 991 bytes, and no output at all, each exiting 0 -- so an empty result here means nothing about your rules."
+  note "critique returned nothing; run it yourself. Measured on 2.1.225, as of 2026-08-12 (recheck when a release changes critique's output or exit status): three consecutive runs on one unchanged config produced 3032 bytes, 991 bytes, and no output at all, each exiting 0 -- so an empty result here means nothing about your rules."
   exit 0
 fi
 

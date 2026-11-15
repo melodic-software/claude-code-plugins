@@ -39,14 +39,14 @@ Scope each grep to the classes the script printed (never repo-root unbounded). S
 
 ```bash
 # New setting/env var
-grep -rn "<SETTING_NAME>" .claude/ CLAUDE.md AGENTS.md 2>/dev/null
+grep -rn "<SETTING_NAME>" .claude/ CLAUDE.md AGENTS.md
 
 # New hook event
-grep -rn "<EVENT_NAME>" .claude/ docs/ plugins/*/hooks/ 2>/dev/null
+grep -rn "<EVENT_NAME>" .claude/ docs/ plugins/*/hooks/
 
 # New frontmatter field
-grep -rn "<FIELD_NAME>" .claude/skills/ .claude/agents/ plugins/*/skills/*/SKILL.md plugins/*/agents/ 2>/dev/null
+grep -rn "<FIELD_NAME>" .claude/skills/ .claude/agents/ plugins/*/skills/*/SKILL.md plugins/*/agents/
 
 # New CLI flag
-grep -rn -- "<FLAG_NAME>" CLAUDE.md .claude/ docs/ 2>/dev/null
+grep -rn -- "<FLAG_NAME>" CLAUDE.md .claude/ docs/
 ```

@@ -172,7 +172,7 @@ JSON
 PROMPT="Call the Read tool on the file ${TRIGGER}. This is a measurement probe: the Read call itself is the whole point, so make it yourself before you reply, do not delegate it, and do not answer from memory. After the Read returns, reply with exactly the word DONE and nothing else."
 
 if ! timeout "$PROBE_TIMEOUT" "$CLAUDE_BIN" -p "$PROMPT" \
-  --settings "$SETTINGS" --allowedTools Read >"$WORK/out.txt" 2>"$WORK/err.txt"; then
+  --settings "$SETTINGS" --allowedTools Read --disallowedTools Agent >"$WORK/out.txt" 2>"$WORK/err.txt"; then
   rc=$?
   if ((rc == 124)); then
     unknown "the probe timed out after ${PROBE_TIMEOUT}s"

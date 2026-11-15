@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # changelog-status.sh: where a repository stands against the Claude Code changelog.
 #
-# Reads the READ MARKER (the newest release this repository has been read against)
+# Reads the read marker (the newest release this repository has been read against)
 # from the consumer's upstream ledger, computes the default range from it to the
 # newest published release, counts the core items in that range, and applies the
 # replay cap. `/harness-ops:changelog status` prints this output; `diff` and `apply`
@@ -17,10 +17,10 @@
 #        **Last audited upstream state:** changelog through `X.Y.Z`
 #      Ledger path: --ledger, else $HARNESS_OPS_CHANGELOG_LEDGER (verbatim), else
 #      <git toplevel, or the working directory outside a repo>/docs/upstream/claude-code.md.
-#   2. A Conventional Commits SUBJECT on the current branch naming an applied release:
+#   2. A Conventional Commits subject on the current branch naming an applied release:
 #        <type>(<scope>): address Claude Code v<A>[..<B>] changelog
 #      The highest version inside that phrase across such subjects wins; any other
-#      dotted version in the subject is ignored. Commit BODIES are never read:
+#      dotted version in the subject is ignored. Commit bodies are never read:
 #      a body that says "verified against Claude Code v2.1.252" is a recency stamp,
 #      not an apply, and reading bodies reported applies that never happened.
 #   3. none.
@@ -198,7 +198,7 @@ if [[ -f "$ledger" ]]; then
 fi
 
 if [[ -z "$last" ]] && ((in_repo)); then
-  # SUBJECT only (%s), and only the versions inside the
+  # Subject only (%s), and only the versions inside the
   # `address Claude Code v<A>[..<B>] changelog` phrase count: a subject can carry
   # another dotted version (a plugin release) that is not an apply.
   subject_versions="$(git log --format='%s' 2>/dev/null | tr -d '\r' |
@@ -330,7 +330,7 @@ else
   fi
 fi
 
-# The comparison is against the newest release IN THE RANGE, not the newest published:
+# The comparison is against the newest release in the range, not the newest published:
 # an explicit historical range is fully supported by an installed version that is
 # older than the feed's newest release.
 if [[ "$installed" != "unknown" && "$(vmax "$installed" "$last_in_range")" != "$installed" ]]; then

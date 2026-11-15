@@ -13,9 +13,9 @@ Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
 **Liveness sources are the ones this run can actually reach, and a source it cannot reach is named
 rather than required.** The decisive constraint is that `/context`, `/memory`, `/skills`, `/hooks`,
 `/permissions`, and `/status` are **built-in interactive commands, not Skills**, so a model-driven
-run has no way to invoke one and no channel to read its output. Requiring them made the inventory's
-two-source rule ceremonial: every one of them resolves to unavailable, so every memory-layer claim
-was single-sourced anyway while the report presented a two-source design.
+run has no way to invoke one and no channel to read its output. Requiring them would make the
+inventory's two-source rule ceremonial: each resolves to unavailable, so every memory-layer claim
+would be single-sourced while the report presented a two-source design.
 
 We treat those six as sources a model-driven run cannot use.
 

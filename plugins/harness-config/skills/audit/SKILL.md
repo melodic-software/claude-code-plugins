@@ -223,7 +223,7 @@ that is present look absent. So for each page,
 run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --out <dir> <page>...` to fetch
 fresh bytes into one directory and grep the files, per the
 [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route).
-**A truncated read supports NO finding.** Say so and move on, in either direction: neither "the key is
+**A truncated read supports no finding.** Say so and move on, in either direction: neither "the key is
 gone" nor "the key is unchanged" is reportable from a read that may have been cut.
 
 The fetcher writes `<dir>/manifest.json` beside the pages: per page `url`, `retrieved`, `sha256`,
@@ -304,7 +304,7 @@ engine's row is a `skip` because the installed version was unreadable.
 
 Any category H finding requires a fetch of
 [code.claude.com/docs/en/model-config](https://code.claude.com/docs/en/model-config) confirming the
-behavior the finding rests on. Do NOT report a category H finding from this checklist's wording
+behavior the finding rests on. Do not report a category H finding from this checklist's wording
 alone: the fallback-chain cap and the allowlist wildcard rule are upstream-owned and move with the
 harness. The accepted `effortLevel` values the engine already reads from `settings-reference`.
 
@@ -353,7 +353,7 @@ session posture; the skill never infers posture from the environment.
 
 ### Interactive checkpoint
 
-**If `--fix` flag is set:** Present findings table, then ask user which items to fix. Do NOT proceed without their response.
+**If `--fix` flag is set:** Present findings table, then ask user which items to fix. Do not proceed without their response.
 
 **If report-only (no `--fix`):** Present findings table and summary. Note which items could be auto-fixed.
 
@@ -368,9 +368,11 @@ For each user-approved fix:
 1. Make the edit. Route each approved edit to `settings.json` or `settings.local.json`
    through the built-in `update-config` skill when it resolves in this session, and write directly
    when it does not (`.mcp.json` is outside its scope; edit it directly); the one exception is orphan-`false` plugin removal, which goes through `scripts/fix-plugin-drift.sh --yes` so its lower-precedence-scope
-   check still runs. In auto mode a settings edit needs the `[Self-Modification]` handshake: the
-   classifier asks, and the user's explicit approval of that fix is the consent. Done when the
-   target file carries the change and nothing else in it moved.
+   check still runs. In auto mode the user's explicit approval of that fix is the consent for the
+   settings edit; a classifier refusal follows "Refusals in auto mode" below (Pointer: for what the
+   classifier blocks, fetch
+   [permission modes: what the classifier blocks by default](https://code.claude.com/docs/en/permission-modes#what-the-classifier-blocks-by-default)
+   live). Done when the target file carries the change and nothing else in it moved.
 2. Validate with `jq . <file> >/dev/null` after each edit. Done when jq exits 0; on a parse error,
    revert that edit before touching the next one.
 3. Report what changed, as the file, the key, and the before and after values. Done when every
