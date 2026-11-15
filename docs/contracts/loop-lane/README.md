@@ -1222,7 +1222,6 @@ presence-gated with this inline fallback per the
 | `attend-queue` | `work-items` | attended triage / escalation queue |
 | `babysit-loop` | `source-control` | merge lane over `/source-control:babysit-prs` |
 
-
 **Launch surfaces.** A lane launches interactively via `/loop`, the primary surface and a bundled
 skill needing no install (Pointer: [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)),
 or headless via the `harness-ops` `lanes` launcher, which stores the one-line lane prompt through its `prompt_dir` interface (#480). `lanes` is a **supporting, strictly one-directional**

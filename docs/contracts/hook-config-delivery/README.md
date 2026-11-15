@@ -7,7 +7,6 @@ hook matches, [hook-observability](../hook-observability/README.md) owns how it 
 which **channel** carries a user-configured scalar from settings to the hook process, chosen by rule
 instead of ad hoc.
 
-
 ## Boundary: composes with config-cascade
 
 [config-cascade](../config-cascade/README.md) owns the layering of **consumer-tracked config files**

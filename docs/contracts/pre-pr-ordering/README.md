@@ -5,7 +5,6 @@ Owner doc for the ordered pre-PR sequence that more than one plugin routes into.
 pre-PR sequence that implements this order, and remains the place to read *what*
 each step does.
 
-
 ## The order
 
 1. Test thoroughly

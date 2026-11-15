@@ -260,7 +260,6 @@ The fix is the declared one: the `install` hints, the repair line, or a `setup` 
 ([install subactions](../../plugin-philosophy.md#install-subactions-and-refusal)), and it never runs
 an undeclared tool.
 
-
 ## The CI gate
 
 `node scripts/check-declared-prerequisites.mjs` runs in CI and checks three things:
