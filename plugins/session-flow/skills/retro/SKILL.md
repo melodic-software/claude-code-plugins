@@ -31,7 +31,7 @@ same mistakes next time?"
 3. **Codify**. Persist learnings durably (the consuming repo's instruction files and rules, or
    Claude Code auto-memory for contributor-specific facts)
 
-**What this skill is NOT:** not a code review (design judgment on current work), not outcome
+**What this skill is not:** not a code review (design judgment on current work), not outcome
 verification (does the change match intent), and not Claude Code's built-in `/insights`
 (cross-session usage analytics); this is structured quality analysis with codification.
 
@@ -120,7 +120,7 @@ After the retrospective:
 
 When the sibling `handoff` skill's save-points exist (the resolved `<memory_dir>/handoffs/`,
 default `.work/handoffs/`; or the consuming repo's documented location), the retro spans the
-whole session CHAIN, not just the current session: the
+whole session chain, not just the current session: the
 parser's `--chain-from` walks `previous_handoff` frontmatter pointers
 backwards from the newest handoff file and aggregates metrics across every chained transcript. See
 `context/session.md` Phase 1.
@@ -176,7 +176,7 @@ person's behalf.
 `/insights`, never that it is present. What the report covers and where it is unavailable are read
 live from the records in [reference/native-insights.md](reference/native-insights.md).
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not run builds or tests**. That's the consuming repo's verify stage
 - **Does not review code quality**. That's its review stage

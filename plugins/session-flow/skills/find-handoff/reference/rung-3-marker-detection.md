@@ -38,7 +38,7 @@ section names. **Accept hits only from assistant text output**, in two stages:
     nothing there. That is exactly the case the producer emits `Handoff origin:` for, so on a
     rooted miss, read that line and re-resolve its repo-relative path against the repository it
     names; a hit there surfaces the recovered file normally, and only if that re-resolution
-    ALSO finds nothing does the candidate fall through to the shared rule below. Never treat a
+    also finds nothing does the candidate fall through to the shared rule below. Never treat a
     rooted miss as absence: it is the same not-found-here condition, reached from the other
     direction. **Read both origin forms:** the shape-2 two-slot line
     `Handoff origin: <remote URL> <repo-relative path>` (a slot containing whitespace is
@@ -61,7 +61,7 @@ section names. **Accept hits only from assistant text output**, in two stages:
     and surface it at step 4 marked UNRESOLVED. Before doing so, spend one bounded, read-only
     widening: glob that filename under the **verified repository roots** already in hand, the
     current repo, and the repository named by any `Handoff origin:` line. **A candidate
-    transcript's `cwd` earns a place in that set only once it is confirmed to BE a repository
+    transcript's `cwd` earns a place in that set only once it is confirmed to be a repository
     root**. `git -C <cwd> rev-parse --show-toplevel`, and glob under the top level it prints
     rather than `cwd` itself. A session launched from a home directory records that home
     directory as its `cwd`, so globbing under an unverified `cwd` is a recursive sweep of most
@@ -158,7 +158,7 @@ section names. **Accept hits only from assistant text output**, in two stages:
   "Loop-aware re-arm"), so rejecting on them would discard a
   genuine note; a transcript that merely read
   `save-point.md` is already rejected by the existing rails-template filter.
-- **Un-escape before surfacing.** Each transcript message is ONE physical JSONL line with its
+- **Un-escape before surfacing.** Each transcript message is one physical JSONL line with its
   text JSON-string-escaped (`\n` for newlines, `\"` for quotes, `\\` for backslashes). A raw grep
   hit is that escaped blob. Decode it back to plain text (JSON-unescape the matched string)
   before surfacing, or the user sees a wall of `\n`/`\"` instead of the prompt. This matters most

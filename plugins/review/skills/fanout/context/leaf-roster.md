@@ -11,14 +11,14 @@ Single source of truth for the leaf surfaces this skill fans out across. Both th
 | `architecture-guardian` | dependency direction / layer boundaries |
 | `doc-drift-detector` | doc↔code drift (Stale / Missing / Aspirational) |
 
-**EXCLUDED** (shipped in this plugin for other purposes, not as diff-review leaves):
+**Excluded** (shipped in this plugin for other purposes, not as diff-review leaves):
 
 - `ecosystem-specialist`: build/test/lint PASS/FAIL, not a finding-producing diff review.
 - `ci-log-auditor`: needs a CI run, not a working-tree diff.
 
 ## Ownerless slices (discovered from the consuming project)
 
-When the project ships per-concern review criteria documents, each one becomes a slice leaf, a fresh `review:brief-reviewer` agent (never a general-purpose subagent, so a slice cannot fan out) that reads that document plus the diff and reviews against ONLY that document's criteria (prompt template: this plugin's `quality-gate` skill, per-slice mode).
+When the project ships per-concern review criteria documents, each one becomes a slice leaf, a fresh `review:brief-reviewer` agent (never a general-purpose subagent, so a slice cannot fan out) that reads that document plus the diff and reviews against only that document's criteria (prompt template: this plugin's `quality-gate` skill, per-slice mode).
 
 **Discovery recipe (run at dispatch time, never a hardcoded list):**
 
@@ -26,7 +26,7 @@ When the project ships per-concern review criteria documents, each one becomes a
 2. **De-overlap:** drop the criteria documents a dispatched agent already covers as its primary concern. Code quality, security, and architecture docs are agent-owned (a slice-subagent re-reading the same criteria on the identical diff is pure waste). Everything else is ownerless and dispatches.
 3. Projects with no review-criteria docs simply have zero slice leaves, and the agent set still runs.
 
-**Orchestrator↔agent overlap is NOT de-overlapped.** Orchestrator plugins bring different prompts and lenses; running a plugin and a custom agent on the same dimension is intentional adversarial breadth, and the normalization pipeline's dedup stage handles the near-duplicates. De-overlap applies ONLY to agent↔own-criteria-doc.
+**Orchestrator↔agent overlap is not de-overlapped.** Orchestrator plugins bring different prompts and lenses; running a plugin and a custom agent on the same dimension is intentional adversarial breadth, and the normalization pipeline's dedup stage handles the near-duplicates. De-overlap applies only to agent↔own-criteria-doc.
 
 ## Total roster
 

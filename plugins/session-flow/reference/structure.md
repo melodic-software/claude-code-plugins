@@ -1,10 +1,10 @@
 # Handoff document structure + full-path write procedure
 
-Reference consulted while WRITING a full-path handoff (delivery-decision logic, meaning the STOP
+Reference consulted while writing a full-path handoff (delivery-decision logic, meaning the STOP
 gate, the launch gates, and the exit checklists, stays in the citing skill's `SKILL.md`; path choice
 and destination resolution live in the sibling `save-point.md` engine doc).
 
-Reader is a session with NO prior context. It will act on this file. Be specific. A vague handoff
+Reader is a session with no prior context. It will act on this file. Be specific. A vague handoff
 costs the next session a re-investigation, which is the cost this document exists to avoid.
 
 **Shape 3.** A handoff written by this procedure carries `handoff_shape: 3` in its frontmatter:
@@ -110,7 +110,8 @@ What the writer owns, since no script can judge it:
   prompt); and everything else, the written part. Shorten written sections, appending what they
   drop to this hop's file. When the core plus the carried part alone is over the cap, the file
   emits marked UNVALIDATED instead: never shorten the core or cut written sections for it. Past
-  the Read page cap (25,000 tokens' worth) `validate` fails whatever the core holds.
+  the Read page cap (25,000 tokens' worth, held as `READ_CAP_BYTES` in `save_point.py`; the
+  upstream pointer is in the Size bullet below) `validate` fails whatever the core holds.
 
 - **Keep by relevance; retire with a reason.** Relevance is the writer's call. An amendment,
   direction-change line, question or decision that is superseded, answered or done may leave the
@@ -156,12 +157,12 @@ reader who needs more.
 
 | Order | Section | Owns |
 |---|---|---|
-| 1 | Original goal | what the work is FOR, in the user's own words, plus the opening ask |
+| 1 | Original goal | what the work is for, in the user's own words, plus the opening ask |
 | 2 | Resumption brief | the resumption decision |
 | 3 | Completion criteria | what "done" means, observably |
 | 4 | Constraints that must hold | invariants whose violation breaks the work (cumulative) |
 | 5 | Environment to re-establish | machine and session state `/clear` destroyed |
-| 6 | Side effects already applied | persistent effects that must NOT be repeated (cumulative) |
+| 6 | Side effects already applied | persistent effects that must not be repeated (cumulative) |
 | 7 | File roles in this work | which file plays which role, and how far its change got |
 | 8 | Decisions already settled | closed choices, with the reasoning that closed them (cumulative) |
 | 9 | Approaches tried and abandoned | directions walked and rejected (cumulative) |
@@ -170,7 +171,7 @@ reader who needs more.
 | 12 | Open questions to investigate | unknowns the resuming session can resolve itself |
 | 13 | Blockers needing an outside decision | work that cannot proceed without someone else |
 | 14 | Suggested skills | which skills to invoke for the remaining work |
-| 15 | This session | one past-tense `did: … · left: …` line about THIS hop, then its `Re-scan: …` attestation line |
+| 15 | This session | one past-tense `did: … · left: …` line about this hop, then its `Re-scan: …` attestation line |
 | 16 | Prior sessions | one table row per prior hop, copied forward |
 | 17 | Resume prompt | the rails block exactly as emitted on screen; always last |
 
@@ -187,7 +188,7 @@ raise with the user, not a box to tick. (Its `Amended:` line is the field that l
 one level deeper than they are written.
 
 **Layering is not truncation.** No section carries a length budget except the brief. Progressive
-disclosure governs the ORDER facts are met in, never whether they survive. Sections 8, 9, and 10
+disclosure governs the order facts are met in, never whether they survive. Sections 8, 9, and 10
 exist specifically for what a summarizer discards first: rationale, negative knowledge, and
 hard-won facts. Those read as "old" while being the most expensive to rediscover.
 
@@ -205,7 +206,7 @@ forward verbatim off disk and the writer appends. Every other section is rewritt
 state of now).
 
 - **Every entry carries an `[hN]` tag**, written `- [h3] …`, naming the hop that asserted it (`N` counts
-  from the root of the chain; hop 1 is `[h1]`). The tag IS this document's `UNVERIFIED (<source>)`
+  from the root of the chain; hop 1 is `[h1]`). The tag is this document's `UNVERIFIED (<source>)`
   marker for a carried entry: an entry tagged with an earlier hop was verified by that hop, not
   this one. **Re-verifying an entry this session re-tags it to the current hop**; leaving the
   old tag is the honest default when nothing re-checked it. `N` never exceeds the chain length.
@@ -232,10 +233,9 @@ state of now).
     for the per-call cap.
   - **As of**: 2026-10-11
   - **Recheck trigger**: that section changes the per-call cap; re-derive the 300-line threshold.
-- **`UNVERIFIED (predecessor failed validation)` entries do not expire for now.** Each hop carries
-  them forward until the writer re-verifies and re-tags them or moves them under `Superseded:`;
-  automatic expiry is deferred.
-- **A hop's re-scan attestation is not an entry.** It describes how THIS hop closed §4, so it
+- **`UNVERIFIED (predecessor failed validation)` entries do not expire.** Each hop carries
+  them forward until the writer re-verifies and re-tags them or moves them under `Superseded:`.
+- **A hop's re-scan attestation is not an entry.** It describes how this hop closed §4, so it
   lives in §15's `Re-scan:` line (see "Constraints that must hold" and "This session") and is
   never appended to a cumulative section. An attestation entry that an earlier chain wrote into
   §4 is an ordinary entry: it is carried, or moved under `Superseded:`, never deleted.
@@ -252,7 +252,7 @@ machinery reads as mission to the session that inherits it.
   section exists because re-derivation is what fails. Where the goal was never put in one sentence,
   quote the closest thing the user actually wrote and mark it `RECONSTRUCTED`: a reconstruction is a
   defect to settle with them, not a substitute for their words.
-- **Amended:** `None.` until the goal changes. It changes ONLY on an explicit statement from whoever
+- **Amended:** `None.` until the goal changes. It changes only on an explicit statement from whoever
   set it, never because the work went somewhere else. Record an amendment as a new dated verbatim
   quote with the prior goal kept above it, so the chain shows what the goal was and when it stopped
   being that. A writer never amends the goal on its own authority.
@@ -272,7 +272,7 @@ action actually serves, then route it: re-derive an action that serves the goal,
 goal has changed. Staying silent is what lets drift run. Nothing else in this document would have
 caught it, because every other section describes the work faithfully.
 
-**A successor handoff COPIES the goal and its amendments; it never restates them.** The write
+**A successor handoff copies the goal and its amendments; it never restates them.** The write
 procedure below makes that a disk read, not a recollection: `new --previous <file>` copies the
 goal quote and every amendment off the predecessor unchanged and writes the `Opening ask:`
 pointer. The drift-check line is the one part re-answered each hop, because it is about the next
@@ -284,11 +284,11 @@ Six lines maximum. The one section a reader may stop at *after* the goal above i
 
 Carries: when it was written and against which branch or commit, where the work stands in one line,
 and the single next concrete action. Name the section that governs that action so a reader wanting
-more is routed rather than left searching. It does NOT restate the goal. §1 owns that, verbatim,
+more is routed rather than left searching. It does not restate the goal. §1 owns that, verbatim,
 and a six-line onboarding surface is exactly where a goal gets compressed into the process that was
 serving it.
 
-The brief names the FIRST action only. It always points at `Remaining actions, in order`, which owns
+The brief names the first action only. It always points at `Remaining actions, in order`, which owns
 the full sequence. Otherwise a session that completes the one named action has nothing to go on.
 
 This deliberately restates facts owned below, because it is an onboarding surface on a document read cold.
@@ -586,7 +586,7 @@ When no skill maps to the remaining work, write `None — remaining work runs in
 
 ### This session
 
-One `did/left` line, about THIS hop only, in the past tense, then one `Re-scan:` line:
+One `did/left` line, about this hop only, in the past tense, then one `Re-scan:` line:
 
 ```markdown
 did: wrote the re-run test and got it green · left: the staging migration and the double-run check
@@ -605,7 +605,7 @@ of itself: beside the high-resolution sections above, a summary gets read instea
 
 ### Prior sessions
 
-One table row per PRIOR hop, in chain order, copied forward verbatim by the script and appended
+One table row per prior hop, in chain order, copied forward verbatim by the script and appended
 to, never authored:
 
 ```markdown
@@ -614,14 +614,14 @@ to, never authored:
 | 2026-09-01T10:00:00Z | <UUID> | /home/<user>/.claude/projects/<slug>/<UUID>.jsonl | did: … · left: … | 20260901T100000Z-handoff-<topic>.md |
 ```
 
-`new` copies the predecessor's rows unchanged and appends the predecessor's OWN row: its `date`,
+`new` copies the predecessor's rows unchanged and appends the predecessor's own row: its `date`,
 `session_id`, and `transcript` from its frontmatter, its `## This session` line as `did/left`, its
 filename. A shape-1 predecessor has no `This session` line, so its cell reads
 `UNVERIFIED (shape-1 predecessor; brief: <first line of its Resumption brief>)`. Hop 1 writes the
 literal line `None (first hop).` instead of a table. The validator checks that the predecessor's
 rows are a prefix of this file's and that exactly one row was added.
 
-This table plus the frontmatter `chain:` is how a fresh session sees the whole chain from ONE
+This table plus the frontmatter `chain:` is how a fresh session sees the whole chain from one
 file: high-resolution for the last session (the sections above), one pointer-backed line per
 session before it (this table, each row naming the file and transcript to open for more).
 
@@ -630,7 +630,7 @@ session before it (this table, each row naming the file and transcript to open f
 The final section, always. It stores the copy/paste resume prompt exactly as it is emitted on
 screen: the copy instruction, the two U+2500 rails with the prompt between them, and the
 below-rail lines; when a goal applies, also the goal region (its own instruction line and rail
-pair, above or below the resume region). The on-screen rails block IS this section, printed by
+pair, above or below the resume region). The on-screen rails block is this section, printed by
 `save_point.py emit <file>`, never regenerated from the conversation. Every rule about what goes
 between the rails (the directive, `Prior session:`, `Handoff origin:`, `Next:`, `Then:`, the
 goal region) is owned by [`save-point.md`](save-point.md) "Emit the copy/paste resume prompt",
@@ -639,7 +639,7 @@ goal-region and below-rail slots.
 
 ## How this document is referenced elsewhere
 
-The emitted resume directive points at the handoff FILE and names exactly one section, `Original
+The emitted resume directive points at the handoff file and names exactly one section, `Original
 goal`, by name and never by number, because its alignment clause has to say what the resuming
 session confirms; `/session-flow:keep-going`, `/session-flow:reanchor`, and the handoff enforcement
 checklist name that same section for the same reason. Renaming §1 therefore requires an edit to
@@ -651,7 +651,7 @@ renaming or reordering the rest still requires none, and no change here orphans 
 written to disk (shape-1 files are never rewritten).
 
 Consumers cite this section list rather than restating it. A copy of the list in another file
-drifts silently, and it has before.
+drifts silently.
 
 ## Full-path write procedure
 
@@ -852,9 +852,10 @@ knows is a hard failure that says "read it, do not rewrite it" (exit 3), never a
 `session_id` captures the current session for downstream chain-walkers (the sibling `retro` skill's
 transcript parser, `find-handoff`'s chain validation) and is the id the below-rail
 `claude --resume` line reopens. It is `CLAUDE_CODE_SESSION_ID`, resolved via Bash (skill markdown
-does not template-expand env vars). It must be a UUID with a transcript to match: `new` refuses an
+expands only the documented string substitutions, not arbitrary env vars:
+<https://code.claude.com/docs/en/skills#available-string-substitutions>). It must be a UUID with a transcript to match: `new` refuses an
 unset value and a non-UUID (such as a Remote Control bridge id; `CLAUDE_CODE_BRIDGE_SESSION_ID` is
-never read), and the literal `unknown` shape 1 allowed is no longer a value. Which subprocesses
+never read), and the literal `unknown` a shape-1 file may carry is refused too. Which subprocesses
 carry each variable, and the form of its value, are upstream facts: read them live.
 
 - **Pointer**: [Environment variables § Variables](https://code.claude.com/docs/en/env-vars#variables),
@@ -879,13 +880,13 @@ stable detection contract `/session-flow:find-handoff` keys off to recover a los
 
 ### Chain continuity, same task only
 
-Pass `--previous <file>` ONLY when this session actually continued that handoff's work: it resumed
+Pass `--previous <file>` only when this session actually continued that handoff's work: it resumed
 from that handoff (the resume prompt loaded it), or the task/topic clearly matches. Pass
 `--no-previous` otherwise; `new` requires exactly one of the two and never picks a file itself. A
 shared handoff directory accumulates entries from unrelated tasks, so pointing at the newest file
 regardless would splice unrelated sessions into one chain, and a later `/session-flow:retro` would
 aggregate stale transcripts and decisions as if they belonged to the current work. The first
-handoff of a NEW task is `--no-previous`, even when older, unrelated handoffs exist in the
+handoff of a new task is `--no-previous`, even when older, unrelated handoffs exist in the
 directory. Older entries lacking `session_id` cause chain-walkers to break cleanly at the first
 absent field.
 
@@ -909,7 +910,7 @@ lines name what went missing.
 **Shape-1 predecessors are read, never rewritten.** `--previous` accepts a shape-1 file. `new`
 moves the sections it has into the hop file verbatim (a `--shape 2` successor instead maps it: an
 absent cumulative section becomes `None. (shape-1 predecessor had no <section>)`); the
-older 7-section body (`## Task`, `## Progress`, `## Decisions made`, …) is NOT aliased onto the
+older 7-section body (`## Task`, `## Progress`, `## Decisions made`, …) is not aliased onto the
 14-section names; an absent `Original goal` becomes a
 `<!-- FILL: goal — RECONSTRUCTED … -->` slot that the validator refuses to pass while empty or
 placeholder-shaped (settle the goal with the user, then fill it); the `Opening ask:` pointer gains
