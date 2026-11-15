@@ -1,7 +1,5 @@
 ---
-bump: patch
+bump: none
 ---
 
-### Changed
-
-- Restore the earlier skill wording a prompt audit cut without eval evidence, pending eval evidence of no loss.
+Restores eval case files to their earlier text pending re-calibration; no shipped file changes.

@@ -551,7 +551,7 @@ The monitor phase arms a background watch via §3.0.1 and re-arms it at each dea
 
 **Where to run it: the same session that owns the branch.**
 
-Monitor MUST run in the session that created the PR, because:
+Monitor runs in the session that owns the branch: the session that created the PR, or, when a dispatched subagent created it, the session that dispatched it (see the top of this file), because:
 
 1. Monitor writes to the PR branch (pushes CI fixes, rebases, posts comments)
 2. Writing requires being checked out on that branch
