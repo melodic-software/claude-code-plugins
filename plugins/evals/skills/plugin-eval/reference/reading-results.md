@@ -220,8 +220,9 @@ without-run lost its judge to the ceiling: `scoreWithout` and `delta` were both 
     `costUsd` includes judge calls
     (<https://code.claude.com/docs/en/plugin-evals#json-result>); it does not name
     `judgeCostUsd`. In 171
-    `aggregate-result.json` files with a non-zero judge cost, read 2026-11-14, the suite `costUsd`
-    equaled the sum of the per-run `costUsd` values.
+    `aggregate-result.json` files with a non-zero judge cost, read 2026-11-14 (the Claude Code
+    version range of those files was not recorded), the suite `costUsd` equaled the sum of the
+    per-run `costUsd` values.
   - **As of**: 2026-11-15
   - **Recheck trigger**: the plugin-evals page documents `judgeCostUsd`, or a suite `costUsd`
     differs from the sum of its per-run `costUsd` values.
