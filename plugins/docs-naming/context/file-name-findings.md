@@ -140,7 +140,7 @@ The artifact is memory tier: branch-keyed, checkout-local, and gone with the
 memory root. A decline written only there is a judgment the next checkout never
 sees.
 
-The realign therefore OFFERS, and never takes, a second write: an entry under
+The realign therefore offers, and never takes, a second write: an entry under
 `exempt_paths` in the tracked `docs/conventions/docs-naming.yaml`, which git
 carries to every checkout. `exempt_paths` already means "never renamed", so a
 decline that should outlive this branch has a home that needs no new mechanism.

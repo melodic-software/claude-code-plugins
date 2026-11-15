@@ -21,7 +21,10 @@ fresh-context subagent; this file owns how that dispatch runs.
 - **Throttle in bounded waves.** A sustained wide fan-out trips server-side
   burst overload (529s) and loses agents mid-run, so cap concurrency to a
   modest wave (roughly a dozen or fewer at a time) and process the inventory
-  wave by wave rather than launching one agent per item at once.
+  wave by wave rather than launching one agent per item at once. For how a
+  subagent's API error surfaces, read
+  [API errors in subagents](https://code.claude.com/docs/en/sub-agents#api-errors-in-subagents)
+  live.
 - **Retry the failed subset only.** If an agent errors or times out, retry that
   item once; on a second failure mark it unverifiable, an honest skip, never a
   false pass. Never blind-re-run the whole fan-out to recover a few stragglers.

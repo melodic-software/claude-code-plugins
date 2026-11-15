@@ -65,7 +65,7 @@ validator rejects an empty reason, and a bare category phrase unless it names a 
 shows that tool still references the entry. A rejected row fails the report with exit 5.
 
 `--execute`, the low-signal rule (Low is kept unless the human separately reviews exact paths), and
-every confirmation gate apply exactly as before. Removing anything the inventory lists goes through
+every confirmation gate apply in full. Removing anything the inventory lists goes through
 `scan`, a fresh `preview`, and the removal approval.
 
 ## Non-overridable checks
@@ -389,7 +389,7 @@ path and `resolve_authorized_data_root()` result as `additionalContext`, so the 
 denied call to learn them, and the guard's denials need not repeat them. It grants nothing: the guard still judges every call, and a hook that fails prints
 nothing and leaves the skill on the kill-switch probe, whose `hook_python` and `data_root` fields
 come from the guard's `launch_disclosure` for the probe's install root. The note and the skill
-belt now share the same three channels, so a `--plugin-dir` session with no marketplace proof
+belt share the same three channels, so a `--plugin-dir` session with no marketplace proof
 reports `data_root: none` on both sides. **Pointer:** when checking which invocations fire the
 event, what its matcher reads, and where `additionalContext` goes, fetch
 [UserPromptExpansion](https://code.claude.com/docs/en/hooks#userpromptexpansion) live.
@@ -489,11 +489,10 @@ destructive-action guard itself stays fully active. This is a deliberate safe-ov
 tradeoff, not a security gap. The guard-values note and an engine-call denial name one recovery: run this plugin from a
 marketplace install, or register the checkout as a local-directory marketplace
 (`claude plugin marketplace add <checkout>`) so a `--plugin-dir` session inside it derives that
-marketplace's data root. Setting `CLAUDE_PLUGIN_DATA` in the launch shell is not a recovery: a
-paid `claude -p` probe of whether that export reaches a skill-frontmatter hook was not run, and
-even if it did the value would be the same repo-injectable channel the belt dropped.
-Whether a launch-shell `CLAUDE_PLUGIN_DATA` reaches a skill-frontmatter hook is unmeasured (the
-paid probe was not run, #4669), so the recovery hint does not recommend it. **Pointer:** when
+marketplace's data root. Setting `CLAUDE_PLUGIN_DATA` in the launch shell is not a recovery, and
+the recovery hint does not recommend it: whether that export reaches a skill-frontmatter hook is
+unmeasured (the `claude -p` probe was not run, #4669), and even if it did the value would be the
+same repo-injectable channel the belt dropped. **Pointer:** when
 checking which processes receive `CLAUDE_PLUGIN_DATA`, fetch
 [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form) and
 [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves) live. **Recheck trigger:** a live probe with version and platform, or either section states
@@ -554,8 +553,9 @@ registers on two surfaces, the **plugin-level engine gate** (`hooks/hooks.json`,
 **skill-frontmatter belt** (the clean skill's frontmatter hook, the same entry),
 and both
 resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
-`settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
-skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
+`settings.json` files, through the shared `lib/killswitch_config.py` reader (the setup skill's
+`kill_switch_probe.py` reports its user-file read only, not the managed file below). Neither surface
+takes the value from the process environment.
 The design counts on project and local `.claude/settings.json` being unable to set that key, so a
 hostile repo cannot flip it, and knows a `--settings` file can set it too. **Pointer:** when
 checking which scopes `pluginConfigs` is honored from and what `--settings` can set, fetch
@@ -667,9 +667,9 @@ the guard.
 **The gate's "different file" escape stops at this plugin's own cache tree.** A word naming an existing
 file that is not the bundled engine defers, so a consumer's own `tools/hygiene.py` is not mistaken for
 this engine. Claude Code keeps a replaced version's directory on disk after an update,
-so that escape also covered every previous version of *this* engine sitting beside the current one,
+so that escape would also cover every previous version of *this* engine sitting beside the current one,
 each a genuinely different file, each deletion-capable, and each answering to nothing but its own
-containment once the always-on gate defers. The gate now refuses that escape to any path resolving
+containment once the always-on gate defers. The gate refuses that escape to any path resolving
 inside `<plugins>/cache/<marketplace>/<name>`, derived from the guard module's own `__file__` rather
 than from argv, so no environment channel can redirect it. A `--plugin-dir` checkout, or a plugin
 loaded in place from a local-directory marketplace, has no such prefix and the narrowing is inert
@@ -698,7 +698,7 @@ instantly (no output) for any command that does not reference the
 engine, so it never taxes unrelated work; its coverage marker is the engine script name, a belt against
 casual invocation, not an authority (renaming the script evades the gate but not the engine's own
 preview/approval-token containment). The model additionally reads the `disk_hygiene_enabled` value from
-the skill content and self-enforces audit-only, now defense-in-depth over the guard rather than the only path.
+the skill content and self-enforces audit-only, as defense-in-depth over the guard, not the only path.
 Even when the switch resolves enabled, the PowerShell lane is a raised bar, not fail-closed: an unknown
 mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
 deletion authority, except inside the [opt-in elevated script](#opt-in-elevation).
@@ -801,7 +801,7 @@ as `truncated-not-inventoried`; they are coverage gaps, never candidates.
 `children_rollup` states that same coverage per immediate child of the target, so a gap is visible
 against the child an operator actually reasons about rather than only in a flat path list. Every
 immediate child the run covered gets exactly one row, whatever that row's coverage. Omission would
-read as absence. (In `--root-children` mode the run covers the SELECTED children only: an unselected
+read as absence. (In `--root-children` mode the run covers the selected children only: an unselected
 sibling is never opened, never inventoried, and owes no row. `root_children_selected` in the same
 payload names what was in scope.)
 
@@ -810,7 +810,7 @@ payload names what was in scope.)
 | `name` | The immediate child's own name (never a path) |
 | `kind` | The entry kind the walk recorded, one of `directory`, `file`, `link`, `other`, or `null` when no inventory record survived |
 | `walked` | `true` only when the child's whole subtree was inventoried |
-| `logical_bytes` | Recursive LOGICAL total, qualifiers included; `null` unless `walked` |
+| `logical_bytes` | Recursive logical total, qualifiers included; `null` unless `walked` |
 | `reclaimable_local_bytes` | Recursive total over unqualified files only, the bytes deleting the child is expected to return locally; `null` unless `walked` |
 | `size_qualifiers` | Union of the qualifiers observed in the subtree (`cloud-placeholder`, `hardlinked`, `sparse`, `virtual-disk`, …); `null` unless `walked` |
 | `entry_count` | Inventoried descendants, excluding the child's own record; `null` unless `walked` |
@@ -824,11 +824,11 @@ total. A child that was itself entered but holds an unwalked descendant is `desc
 that keeps zero-byte residue first-class.
 
 **That first case is a gap the flat entry list does not state, which is the sharpest reason to read
-the roll-up.** A directory's own record gets the `not-walked` qualifier only from ITS OWN branch:
+the roll-up.** A directory's own record gets the `not-walked` qualifier only from its own branch:
 a VCS boundary, protection, a depth cut, or its own `scandir` failure. It is never propagated up from a
 descendant, and only `target_identity` is special-cased to append it whenever anything truncated. So
 an intermediate child holding an unwalked descendant keeps `walked: true`, an empty
-`size_qualifiers`, and a `logical_size` that is a PARTIAL sum indistinguishable from a complete one:
+`size_qualifiers`, and a `logical_size` that is a partial sum indistinguishable from a complete one:
 a target holding `repo_child/.git` (a VCS boundary) plus `repo_child/src.py` records
 `repo_child` at `logical_size: 10`, `size_qualifiers: []`, with only `repo_child/.git` in
 `truncated_paths`. The roll-up is what makes that gap legible per child, since it draws
@@ -837,7 +837,7 @@ so never read a directory's `logical_size` as a total without checking whether a
 is in `truncated_paths`.
 
 The third failure mode, a byte figure that overstates what deleting would return, is closed by
-pairing, not by omission. `logical_bytes` is a logical total, so a cloud placeholder's REMOTE size, a
+pairing, not by omission. `logical_bytes` is a logical total, so a cloud placeholder's remote size, a
 hard link's shared object, a sparse file's unallocated extent, and a virtual-disk image's capacity all inflate it; `size_qualifiers`
 says which of those are present in the subtree and `reclaimable_local_bytes` counts only unqualified
 files, exactly as `target_reclaimable_local_bytes` does for the target. Rank a child on the
@@ -851,7 +851,7 @@ path, so it cannot turn a bounded pass into an unbounded one. The engine's test 
 line by counting `os.scandir`, its only directory-enumeration route, on a bounded pass with and
 without the roll-up. The cost of that guarantee is the honest limit an operator has to read the
 block with: under `--max-depth 1` a recursive total for a
-NON-EMPTY child is not knowable without walking it, so every such child reads `depth-cut` and
+non-empty child is not knowable without walking it, so every such child reads `depth-cut` and
 `null`. The bounded pass delivers the complete frontier, per-child coverage, and exact numbers for
 loose files and empty children; a per-child total is bought by fanning a deeper scan out over that
 subtree.
@@ -906,8 +906,8 @@ or cleanup contract. The report each registry match produces is specified in
 
 The baseline policy therefore ships no discovery hint for another product's managed state. A hint
 for a class the engine will never act on tells the operator to look for residue the plugin has
-already decided to hand off. For that reason the `.pulumi-write-test-*` hint was removed (#3860)
-rather than exempted. Residue inside a managed directory is reported as a handoff to its owner, and
+already decided to hand off, and no managed-state hint is exempted from that rule. Residue inside
+a managed directory is reported as a handoff to its owner, and
 any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
 without that lane.
 
@@ -1057,12 +1057,9 @@ For those paths the skill writes an elevated PowerShell script under the run dir
 operator its full contents, launches it with `Start-Process -Verb RunAs -Wait` so it waits behind the
 UAC prompt the operator approves, and reads the per-path results back from a log file the script
 writes.
-**Claim:** `-Verb RunAs` starts the process through the Run as administrator option, `-Verb` does
-not apply off Windows, and `-Wait` returns only after the process and all its descendants exit.
-**Basis:**
+**Pointer:** when checking what `-Verb RunAs` and `-Wait` do and where `-Verb` applies, fetch
 [Start-Process](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/start-process)
-(Example 5; the `-Verb` and `-Wait` parameters; Notes). **As of:** 2026-09-29, PowerShell 7.6 page
-dated 2026-07-06. **Recheck:** when that page changes `-Verb` or `-Wait` semantics.
+(Example 5; the `-Verb` and `-Wait` parameters; Notes) live.
 
 The lane never runs on Linux or macOS (no sudo there), never for a protected entry or any other
 contest reason, never without the per-tier approval, and never for a preview-time `needs-elevation`

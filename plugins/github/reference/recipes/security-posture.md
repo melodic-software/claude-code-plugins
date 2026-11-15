@@ -45,7 +45,7 @@ requirement per surface from fetched docs plus live probes, exactly as the ladde
 
 ## Audit-question checklist
 
-One continuous list, grouped by sub-area. Aim to answer every applicable item; report any the
+One continuous list, grouped by sub-area. Answer every applicable item; report any the
 credential cannot reach as a gate (see the drift section), never as a silent pass.
 
 **Authentication security (2FA, SSO, session/credential policy)**

@@ -31,10 +31,10 @@ that tier, one inline `--path` per path shown:
 
 The guard answers this command with a hook `ask` whose prompt lists the tier, the count, and every
 path. That prompt is the tier's removal question at the
-[confirmation gate](../SKILL.md#confirmation-gate), so ask nothing separately before it. Confirm it
-only when it names exactly the tier and paths you just showed; a declined prompt runs nothing.
-In Manual and auto mode, ask nothing before it. Only in `dontAsk`, or a `-p` run with no prompt
-tool, ask the gate's removal question first. Pointer and recheck: [the PowerShell guard
+[confirmation gate](../SKILL.md#confirmation-gate). In Manual and auto mode, ask nothing
+separately before it; only in `dontAsk`, or a `-p` run with no prompt tool, ask the gate's removal
+question first. Confirm the prompt only when it names exactly the tier and paths you just showed;
+a declined prompt runs nothing. Pointer and recheck: [the PowerShell guard
 lane](#the-powershell-guard-lane).
 
 The engine then removes nothing at all when `--tier` ranks above the lowest `confidence_ceiling`

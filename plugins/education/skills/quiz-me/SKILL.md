@@ -22,7 +22,7 @@ behavior.
 
 | Key | Value | Unset behavior |
 | --- | --- | --- |
-| `quiz_policy` | `${user_config.quiz_policy}` | `on-request`. Act only when invoked. Values govern OFFER CADENCE only (see "Non-gating posture"). Unknown value → treat as `on-request`. |
+| `quiz_policy` | `${user_config.quiz_policy}` | `on-request`. Act only when invoked. Values govern offer cadence only (see "Non-gating posture"). Unknown value → treat as `on-request`. |
 | `report_library_dir` | `${user_config.report_library_dir}` | unset → artifacts land under `${CLAUDE_PLUGIN_DATA}` (see "Retention mechanics"). Set to a corpus checkout to redirect the library root there. |
 
 Configure via the `/plugin` dialog, or headless by the routes `/education:setup` `check` step 7
@@ -45,7 +45,7 @@ Parse `$ARGUMENTS`: `recall` is the only reserved first token.
 The default action branches on who invoked it. A user-initiated invocation
 (`/education:quiz-me`, or "quiz me") is itself acceptance: generate the report + quiz now. A
 model-initiated invocation that fires to satisfy `quiz_policy` `always`/`above-threshold` is an
-OFFER: present it and wait for the user to accept before generating anything.
+offer: present it and wait for the user to accept before generating anything.
 
 ## Report contract
 
@@ -150,7 +150,7 @@ invocation is that acceptance.
 | `always` | Suggests a quiz after each completed change. |
 | `above-threshold` | Suggests when the change meets the threshold below. |
 
-- **Threshold** (`above-threshold`): the change meets ANY of more than 5 files touched, more than
+- **Threshold** (`above-threshold`): the change meets any of more than 5 files touched, more than
   200 changed LOC, or a governing plan recording blast radius HIGH/CRITICAL. Judge from the
   merge-base diff against the default branch's remote-tracking ref at offer time (correct after
   commits and in a PR worktree with no local branch): `d="$(git remote show origin 2>/dev/null |
@@ -162,7 +162,7 @@ invocation is that acceptance.
 ## Recall
 
 `recall <query>` answers "what did we do on X" (a ticket, a change, a date). Search the retained
-report library FIRST; fall back to git history and the tracker. **State which source answered.**
+report library first; fall back to git history and the tracker. State which source answered.
 The library holds only work that was actually quizzed: when a query names work never quizzed, say
 so and use the git/tracker fallback rather than implying the library is complete.
 

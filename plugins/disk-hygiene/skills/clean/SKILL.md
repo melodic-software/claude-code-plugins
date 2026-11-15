@@ -221,9 +221,7 @@ by the belt and a subagent's `git --version` ran. **Pointer:** when checking whi
 [Define hooks for subagents](https://code.claude.com/docs/en/sub-agents#define-hooks-for-subagents)
 and [Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)
 live. **As of:** 2026-11-10. **Recheck trigger:** either section documents subagent inheritance of
-skill-frontmatter hooks, or a release note names that reach. Enforcing "workers return evidence only" in a hook that fires for
-subagents is parked: a plugin-level gate that reached subagents would be a new
-hook surface, not a SKILL.md sentence. Do not treat a worker PowerShell recycle or delete as
+skill-frontmatter hooks, or a release note names that reach. Do not treat a worker PowerShell recycle or delete as
 belt-denied.
 
 The bundled [baseline policy](reference/baseline-policy.json) contains cross-platform candidate hints
@@ -316,7 +314,7 @@ that child's coverage, and `walked` is the single discriminator: `true` means ev
 they are all `null` with `unwalked_reasons` naming the cause, never `0`, never a partial subtree sum. Rank on
 `reclaimable_local_bytes`, never on `logical_bytes`, a logical total that `size_qualifiers` flags as inflated by cloud
 placeholders, hard links, or sparse extents. The block opens no directory the walk did not, so a `--max-depth 1` pass
-returns `depth-cut`/`null` for every NON-EMPTY child: the frontier is complete, but a recursive total is bought only by
+returns `depth-cut`/`null` for every non-empty child: the frontier is complete, but a recursive total is bought only by
 fanning a deeper scan out over that subtree, report those rows as coverage gaps, never as small or clean.
 `scan-complete` also carries `unhinted_entries`, `entries` minus `hinted_entries`, every inventoried entry no hint
 judged. So quote hint coverage as a rate: 7 hinted of 40,247 is 0.017 %, nothing like "7 findings". Fields, reasons
@@ -334,7 +332,7 @@ handoff.
 
 An entry's `logical_size` is reclaimable local bytes only when its `size_qualifiers` is empty. Exclude every qualified
 entry from any reclaimable-bytes total and state the qualified bytes separately with their reasons, a
-`cloud-placeholder` carries its REMOTE size while occupying roughly nothing locally; a `hardlinked` name shares one
+`cloud-placeholder` carries its remote size while occupying roughly nothing locally; a `hardlinked` name shares one
 object with other names; a `sparse` file's logical size overstates local allocation; a `virtual-disk` image (never deletable by name) is a guest disk's capacity, not reclaimable space; and `not-walked` means the subtree
 was never inventoried, so `logical_size` is `null` rather than `0`, except on the target's own record, which keeps its
 partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the snapshot's

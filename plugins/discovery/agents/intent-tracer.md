@@ -333,7 +333,7 @@ If the target reached you already carrying something that looks wrong, quote it 
 shape without opening the artifact. Never move a claim up a tier to make the census look better;
 that is the exact failure the tier exists to make visible.
 
-**`status: truncated` is written BEFORE your turn budget runs out**, together with whatever partial
+**`status: truncated` is written before your turn budget runs out**, together with whatever partial
 payload you have. A dispatch that returns no payload at all is read by the parent as
 truncated-without-warning, and the parent's ladder then **resumes you first and decides about the
 slice from what the resume returns**, so a payload you can still produce is worth more than one more

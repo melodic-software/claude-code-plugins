@@ -446,9 +446,11 @@ of truth:
 
 ## Configuration
 
-No persistent state. Each skill reads the conversation and the consuming
-project's own instruction layer. `follow-our-standards` may fetch a remote
-standards source when the consumer declares one and no local checkout exists.
+The plugin keeps no state of its own, with two exceptions: `recheck-against-upstream`'s mid-run
+checkpoint to a durable topic-memory slice, when one exists, and the repository file
+`/discipline:setup apply` writes. Each skill reads the conversation and the consuming project's own
+instruction layer. `follow-our-standards` may fetch a remote standards source when the consumer
+declares one and no local checkout exists.
 
 The correctors themselves are zero-config. Three skills expose optional
 `userConfig` scalars. The `sweep-all` runbook adds three that

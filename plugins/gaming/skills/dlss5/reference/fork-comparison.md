@@ -91,6 +91,7 @@ build: `reference/upstream-watch.md`, Updating a pin.
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
 | `v0.2.0-patch1` is Dagherbou's newest release and is a prerelease | `gh api repos/Dagherbou/OptiScaler_DLSSNR/releases` | 2026-09-22 | A new Dagherbou tag |
+| Dagherbou: no commit since the 2026-09-05 hiatus, no maintainer reply on any issue since | `gh api repos/Dagherbou/OptiScaler_DLSSNR/commits`, its open issues and `issues/comments?since=2026-09-05` | 2026-11-15 | A new Dagherbou commit or a maintainer comment |
 | `v0.8.3` is wilsjo2's newest non-prerelease; prereleases run to `v0.8.91`; `SHA256SUMS.txt` from `v0.8.5` | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases` | 2026-09-23 | wilsjo2 marks a newer tag non-prerelease |
 | wilsjo2 #56 open, no maintainer reply, no release claims a fix | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/issues/56` and its comments; release notes `v0.8.4` to `v0.8.91` | 2026-09-23 | A maintainer reply, or a release that names #56 |
 | wilsjo2 `v0.8.3` A/B against Dagherbou: cost, NGX-driver load, clean exit, `Passes=2` cost | Owner's live session, Cyberpunk 2077, RTX 5090, driver 616.92, 4K DLSS Quality; recorded in issue #4429 | 2026-09-24 | A new pin or driver |

@@ -21,11 +21,6 @@ skill:
 5. An **explicit opt-in** keyword (`sweep`, `audit` with an explicit corpus
    flag, or a user-stated "whole repo") skips the confirmation and runs.
 
-This is the audit-noise 0.12.0 clean-tree fallback generalized. Skills that
-already had a close cousin (derivability's empty-target escalation,
-encapsulation's no-scope confirmation, compress's interview fallback) converge
-here rather than drifting.
-
 ## Who participates
 
 | Skill | Trigger | Explicit opt-in that skips confirm | Notes |

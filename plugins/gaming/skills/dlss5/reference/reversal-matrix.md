@@ -65,11 +65,6 @@ with the manifest's build, proxy and preset; its refusals all come before any de
 covers the build ids and each drifted file's hash, so drift that changed since the user saw it
 refuses.
 
-The case that prompted it: RV There Yet? (Steam app 3949040) auto-updated to build 25458807 on
-2026-09-24 with the mod applied, and the update replaced `Ride-Win64-Shipping.exe`. `remove`
-deleted every mod file, then kept the manifest over the changed exe and pointed at Verify
-integrity, which was the wrong advice for an update.
-
 An interrupted `apply` leaves `pending.json` listing the files it started copying; `status` and
 `remove` treat it as the manifest, so `remove` rolls a half-finished install back.
 
