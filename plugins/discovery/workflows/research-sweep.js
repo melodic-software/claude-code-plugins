@@ -88,19 +88,17 @@ const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent)
 
 // Role variants as /multi-agent:route emits them. `single` serves a stage that
 // runs one agent; `fanout` a stage that runs several. The fallback names opus
-// for every judging fan-out because the session model is unknown here, and a frontier
-// session must never fan out on its own model. Searchers and readers take the
-// worker role at its own `medium`; fetchers, which only return a script's output,
-// take the retrieval role. The pointer, as-of date and recheck trigger for both
-// defaults are in the multi-agent plugin's reference/defaults.yaml (roles.worker,
-// roles.retrieval).
+// for every fan-out because the session model is unknown here, and a frontier
+// session must never fan out on its own model. Fetchers, searchers and readers
+// take the worker role at its own `medium`; the pointer, as-of date and recheck
+// trigger for that default are in the multi-agent plugin's
+// reference/defaults.yaml (roles.worker).
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
 const FALLBACK_ROLES = {
   orchestrator: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
   worker: { single: { model: 'inherit', effort: 'medium' }, fanout: { model: 'opus', effort: 'medium' } },
   verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
-  retrieval: { single: { model: 'sonnet', effort: 'medium' }, fanout: { model: 'sonnet', effort: 'medium' } },
 }
 const passed = input.roles && typeof input.roles === 'object' ? input.roles : {}
 const R = {}
@@ -113,7 +111,7 @@ for (const role of Object.keys(FALLBACK_ROLES)) {
     R[role][v] = ok ? got : FALLBACK_ROLES[role][v]
   }
 }
-if (!input.roles) log('no roles in args: built-in fallbacks apply (judging fan-out stages on opus, fetchers on sonnet)')
+if (!input.roles) log('no roles in args: built-in fallbacks apply (fan-out stages on opus)')
 
 // Every judging stage reads untrusted web text, so it runs as
 // discovery:sweep-worker, whose tools are web search and fetch only.
@@ -314,7 +312,7 @@ function fetchOne(req) {
       inflight.set(key, agentRetry(
         'Stage: fetch. Run docs-raw.sh once on the URL below, with the section ids listed after it (none when ' +
         'the list is empty), and return its standard output verbatim.' + fence('url', url) + fence('sections', ids),
-        { label, phase: 'Fetch', schema: FETCH_SCHEMA, ...opts(R.retrieval.fanout, FETCHER) },
+        { label, phase: 'Fetch', schema: FETCH_SCHEMA, ...opts(R.worker.fanout, FETCHER) },
       ).catch(() => null).then(async r => {
         if (r == null) nulls.push(label)
         slices.set(key, await parseRaw(url, ids, r && r.output))
@@ -619,7 +617,7 @@ phase('Verify')
 const panel = toVerify.flatMap(c => Array.from({ length: SKEPTICS }, (_, k) => ({ c, k })))
 const votes = await inWaves(panel.map(({ c, k }) => () => judged(extra =>
   'Stage: skeptic. You are skeptic ' + (k + 1) + ' of ' + SKEPTICS + ', working independently. Try to ' +
-  'refute the claim below. Re-read its cited URLs from the slices and search for counter-evidence; a ' +
+  'REFUTE the claim below. Re-read its cited URLs from the slices and search for counter-evidence; a ' +
   'counter-evidence page you find can go in requests to be read raw. Look for a newer release, a ' +
   'changelog reversal, an open issue, a primary source that says otherwise, or a cited page that does ' +
   'not actually say it. Return "refuted" when the evidence contradicts the claim, "upheld" when you ' +
@@ -733,8 +731,8 @@ if (survived.length || refuted.length || unverified.length) {
     'dated_by as written. Each source\'s measures comes from what its reader extracted for ' +
     'that page (the extracted list); write "unstated" when the reader recorded none, never a guess. ' +
     'Do not add claims that are not listed. Then list dissent: skeptic ' +
-    'objections that did not carry, sources that disagree, and the refuted claims. Write a short summary ' +
-    'that answers the question from the findings only and reads on its own. Fetch nothing.' +
+    'objections that did not carry, sources that disagree, and the refuted claims. Write a summary of ' +
+    'two or three sentences that answers the question from the findings only. Fetch nothing.' +
     TIERS + DATED + fence('question', QUESTION) + fence('survived', brief) +
     fence('refuted', refuted.map(t => ({ claim: t.claim, reasons: t.reasons }))) +
     fence('unverified', unverified.map(t => t.claim))

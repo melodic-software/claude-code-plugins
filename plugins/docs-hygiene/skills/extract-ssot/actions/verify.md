@@ -125,6 +125,7 @@ cluster undercounts it to 1 and files a real N=2/N≥3 paraphrase cluster in the
 
 **Both shapes:**
 
+- Neither count includes generator-owned regions (text between BEGIN/END GENERATED markers) or the candidate SSOT's own file: they are not reproductions, as in `actions/identify.md` (Lesson 14)
 - Assign `bucket:` from that count and emit it: 1 → `N=1`, 2 → `N=2`, ≥3 → `N>=3`
 - At `N=1`, confirm the bucket's admission gate: a canonical home exists that this site recaps instead of cites. No existing home + a single site = not duplication → `REFUSE-not-found` (nothing is being reproduced)
 - Refuse only on remedy mismatch: if the suggested or user-requested output is artifact-creating (`rule-file` / `new-skill` / `new-action`) and the bucket is `N=1` or `N=2` → `REFUSE-rule-of-three-fails`, naming the bucket's permitted remedies in `next-action`
