@@ -36,7 +36,7 @@ size.file_lines <reference> (<layer>)`. With no crossing, or when code-metrics i
 the brief lists none. On the primary path, which dispatches no `code-reviewer`, list the crossings
 in the gate's report in that same form.
 
-## Primary path: `pr-review-toolkit` orchestrator plugin (when installed)
+## Primary path: `pr-review-toolkit` orchestrator plugin (when enabled)
 
 With `--base` or `--worktree`, skip this path for the fallback ([phase-boundary.md](phase-boundary.md)).
 

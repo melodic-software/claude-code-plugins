@@ -79,7 +79,7 @@ record which source each finding rests on:
    `performance`, or the repo's standards say nothing about the target. Invoke
    `/discovery:research` via the Skill tool for an approach or framework question, or
    `/context7:lookup` via the Skill tool for a library or API question, or research official
-   documentation inline where neither skill is installed. Scale the depth to the
+   documentation inline where neither skill is enabled. Scale the depth to the
    target: one lookup for a method, a full research pass for a framework or architecture change.
    Unattended runs skip this rung (see Unattended mode).
 3. **Model judgment**, the weakest source, labeled `judgment` wherever it is used.

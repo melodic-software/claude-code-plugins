@@ -21,7 +21,7 @@ baseline proves the new code matches the old, never that either is correct.
    tests, persisted so a run can be reproduced. Random or property-generated inputs are an optional
    add-on and lower-evidence; the claim that they find bugs a recorded corpus misses is not
    established here. A failure report names the input that diverged. Author the harness through
-   `/testing:write` (when the `testing` plugin is installed)
+   `/testing:write` (when the `testing` plugin is enabled)
 3. **Normalize nondeterminism before comparing.** Fix the clock, seed randomness, sort what has no
    meaningful order, and scrub volatile fields (Jest property matchers and a mocked clock, Verify
    scrubbers, or the stack's equivalent). Where a field cannot be normalized, compare old against

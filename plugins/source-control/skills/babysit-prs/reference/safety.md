@@ -1027,7 +1027,7 @@ announced operator step.
   requires is submitted out-of-band by the agent. The gate only verifies one exists on the live
   head and never creates it. Bind a **distinct** identity (one of the `<approver-bot-logins>`
   accounts, never the PR author or a lane identity), run a **genuine** review pass, through a
-  review skill/plugin when one is installed and otherwise an equivalent thorough manual review (this
+  review skill/plugin when one is enabled and otherwise an equivalent thorough manual review (this
   skill declares no review-plugin dependency; the gate requires only that the resulting approval
   exists on the live head, not that a particular tool produced it), and only when that pass is
   clean submit the approval under that identity:

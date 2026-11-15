@@ -114,7 +114,7 @@ Two hard rules follow:
   nothing calls, stores written but never read, and off flags that hide built routes (recipe:
   `${CLAUDE_PLUGIN_ROOT}/skills/find/context/disconnected.md`, run every time, before any net-new build is proposed). These ship
   with the skill and need nothing installed. Read each recipe with one Read of the exact path named here; never Glob or Grep the plugin directory for it.
-- **Tier 1. Local Claude Code telemetry.** When `harness-ops:observability` is installed, consult
+- **Tier 1. Local Claude Code telemetry.** When `harness-ops:observability` is enabled, consult
   it for session/cost/hook telemetry relevant to the operational-setup dimension.
 - **Tier 2. Configured application telemetry.** Whatever MCP telemetry sources the consumer
   declares through the `.claude/improvement.md` config cascade (team file + `.local` personal override +
@@ -182,9 +182,9 @@ reader knows what the ranking could not see.
    output, with the candidate's evidence citation attached. A pick that fits one small PR may
    instead go to `/improvement:improve`, invoked via the Skill tool with the candidate as its
    target.
-5. Offer the remainder: unpicked candidates can be filed via `/work-items:track` when installed; the user decides which, if any.
+5. Offer the remainder: unpicked candidates can be filed via `/work-items:track` when enabled; the user decides which, if any.
 
-Where a named pipeline skill is not installed in the consuming project, summarize the equivalent
+Where a named pipeline skill is not enabled in the consuming project, summarize the equivalent
 handoff shape inline instead of blocking, but absence of a pipeline skill is never license to
 implement the improvement in this session.
 
@@ -199,7 +199,7 @@ declared-by-the-caller convention. In unattended mode:
 - **The report is persisted**, the full ranked list plus evidence-gap lines, under
   `${CLAUDE_PLUGIN_DATA}`, keyed per project per the plugin-data-report-keying convention (report
   shape and keying: `${CLAUDE_PLUGIN_ROOT}/skills/find/context/unattended.md`, one Read of that file, never a Glob or Grep of the plugin directory).
-- **Top candidates are filed** via `work-items:track` when installed (absent tracker = report
+- **Top candidates are filed** via `work-items:track` when enabled (absent tracker = report
   only, noted in the report). Filing behavior:
   - *Dismissed-candidate memory, at candidate assembly*. Candidates an operator previously
     dismissed are suppressed before ranking, so they never consume a cap slot or a tracker query.

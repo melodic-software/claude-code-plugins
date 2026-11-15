@@ -35,7 +35,7 @@ this run" table (lane, collector, status, reason), then the reference with its p
 layer, then one row per file, longest first by `lines_non_blank`, with its values and whether it
 is at or above the reference. Keep
 the `--json` document when the numbers feed a comparison: `/verification:measure metrics` consumes
-it when the `verification` plugin is installed (treat a report whose `status` is `empty` on either
+it when the `verification` plugin is enabled (treat a report whose `status` is `empty` on either
 side as INCONCLUSIVE); otherwise keep the JSON beside your notes and compare by hand.
 
 ## Reading the numbers

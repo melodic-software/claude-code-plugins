@@ -37,11 +37,11 @@ MEDIUM).
 
 ## Heuristic evaluation
 
-- Use the heuristic sets `/user-interface:design` provides when it is installed. Otherwise cite
+- Use the heuristic sets `/user-interface:design` provides when it is enabled. Otherwise cite
   Nielsen's ten usability heuristics directly. ISO 9241-110 is a set of interaction principles, not
   a heuristic set; cite it as principles. Basis: judgment (the plugin's boundary with
   `user-interface`).
-  - **Pointer**: for the heuristics themselves when `/user-interface:design` is not installed, read
+  - **Pointer**: for the heuristics themselves when `/user-interface:design` is not enabled, read
     Nielsen's "10 Usability Heuristics for User Interface Design" at
     <https://www.nngroup.com/articles/ten-usability-heuristics/>.
 - Three to five evaluators each work through the interface alone, because any one evaluator

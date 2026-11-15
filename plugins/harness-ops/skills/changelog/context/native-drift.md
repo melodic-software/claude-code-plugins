@@ -112,7 +112,7 @@ the store row.
 ## Filing
 
 File through `/work-items:track`, invoked with the Skill tool, when the `work-items` plugin is
-installed and a tracker binding resolves; never call a provider CLI directly. Otherwise print
+enabled and a tracker binding resolves; never call a provider CLI directly. Otherwise print
 "filing skipped: <reason>; report-only" and stop at the report.
 
 1. **Dedupe by key.** For each item, invoke `/work-items:track search` with the quoted key. A hit

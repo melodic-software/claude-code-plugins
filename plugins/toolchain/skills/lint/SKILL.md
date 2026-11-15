@@ -249,6 +249,6 @@ The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:ch
 ## Relationship to other skills
 
 - **Composes from `/toolchain:check`**: `/toolchain:check` owns the per-ecosystem prose gotchas. Reference it rather than duplicating
-- **Composed by `/verification:confirm`** (the separate `verification` plugin, when installed): the lint leg of full verification
+- **Composed by `/verification:confirm`** (the separate `verification` plugin, when enabled): the lint leg of full verification
 - **After a simplify/cleanup pass**: run `/toolchain:lint` to catch formatting issues the cleanup introduced
 - **Before commit**: `/toolchain:lint --fix` is a quick pre-commit **format** cleanup without the overhead of a full build. Use `/toolchain:lint --code-fix` (interactive confirm, or `--yes` when headless) only when you intentionally want semantic lint autofixes.

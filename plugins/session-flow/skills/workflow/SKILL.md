@@ -210,7 +210,7 @@ forcing every session through stage 1. Common classes:
   implement.
 - **A foggy, too-big-to-plan effort**, the destination is clear but the route is not, and no
   single plan can hold it yet. Start at the interview anyway; when that interview
-  outgrows one session, escalate to a wayfinding or route-charting capability (if installed, e.g.
+  outgrows one session, escalate to a wayfinding or route-charting capability (if enabled, e.g.
   from a planning plugin), which converts the remaining unknowns into decisions before the plan
   stage. Never start there: work that fails either quick-change test is interview-first, and an
   effort too big and too foggy for one session is reached from the interview (the planning
@@ -222,7 +222,7 @@ forcing every session through stage 1. Common classes:
 
 These are classes, not an inventory. Match the arriving situation to its class, then check what the
 consuming setup actually installs for that class, the same rule as stage execution: never invent
-skill names, and degrade to inline work when nothing is installed.
+skill names, and degrade to inline work when nothing is enabled.
 
 ## When two capabilities both fit
 

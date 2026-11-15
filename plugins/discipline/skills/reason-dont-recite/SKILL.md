@@ -84,7 +84,7 @@ to `/discipline:follow-our-standards`, which owns taking a standards
 disagreement upstream through the proper change path. It drafts the change
 and routes it to the human, and does not open a standards PR (or any outward
 artifact) without explicit opt-in. Degrade to that skill in prose when it is
-not installed.
+not enabled.
 
 ## Gotchas
 

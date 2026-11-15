@@ -36,7 +36,7 @@ subsystem, framework, or repo doc-by-doc, which one context cannot cover from wi
 ## Routing findings onward
 
 - **Category 1 (gap) and category 3 (undocumented): offer work-items routing.** When a work-item
-  or issue-tracker capability is installed, offer to route the actionable gaps and the
+  or issue-tracker capability is enabled, offer to route the actionable gaps and the
   undocumented divergences awaiting a human decision into tracked work items. Degrade to a prose
   offer (a listed set of would-be items) when no such capability is present; never assume a
   tracker.

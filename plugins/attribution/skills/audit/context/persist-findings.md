@@ -15,7 +15,7 @@ Contents: [where the file goes](#where-the-file-goes),
 Resolve it in this order:
 
 1. **The `review` plugin's bundled copy, when `/review:fanout` resolves in this session.** That
-   skill listing is the whole installed-ness test: never glob, list or search outside this
+   skill listing is the whole availability test: never glob, list or search outside this
    plugin's root to find `review`. The plugin ships `reference/findings-file-shape.md`, which owns
    the shape the fix action consumes, and `/review:fanout` owns the merge-set rules and, in its
    "Shared inputs" section, **where the file goes**; the detector-findings contract points there
@@ -30,7 +30,7 @@ Resolve it in this order:
    success while the consumer never scans that path.
 
 Rung 1 comes first because rung 2 alone makes every offline run report-only and points a
-portable plugin at one organization's URL. The gate is installed-ness of `review`, never a marketplace
+portable plugin at one organization's URL. The gate is whether `review` is enabled, never a marketplace
 id. Note what rung 1 does and does not give you: the file shape and the merge rules, which is
 what composition needs. If the consuming project defines its own severity vocabulary, that
 mapping is still yours to apply (see `Tier` below).

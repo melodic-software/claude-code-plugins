@@ -42,7 +42,7 @@ action per invocation.
   `--all` widen it, and `--json` prints the `code-metrics/v2` document instead of markdown.
 - Present the markdown report as printed. Keep the `--json` document when the numbers feed a
   comparison: `/verification:measure metrics` consumes it when the `verification` plugin is
-  installed (treat `status: empty` on either side as INCONCLUSIVE); otherwise keep it beside your
+  enabled (treat `status: empty` on either side as INCONCLUSIVE); otherwise keep it beside your
   notes and compare by hand.
 - A `null` value is a number the collector did not produce, never zero.
 - Nothing is installed; a missing collector is a row in the run table with its install hint.

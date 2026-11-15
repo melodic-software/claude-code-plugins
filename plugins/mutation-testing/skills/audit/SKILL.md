@@ -104,7 +104,7 @@ the Skill tool and read the `adapter:` line of its coverage block:
 - `adapter: none (<id> claims this file and is off in the testing config)`: not in the set. The
   report lists it as skipped with that reason, because the team turned that adapter off.
 
-When the `testing` plugin is not installed, refuse: `--exercised` needs the `testing` plugin to
+When the `testing` plugin is not enabled, refuse: `--exercised` needs the `testing` plugin to
 recognize test files. Never guess from file names. A set with no tests ends the run as `no changed
 tests: scope empty`, a result, never a clean run.
 
@@ -198,7 +198,7 @@ Under `--exercised`, run them in the order [The exercised scope](#the-exercised-
   restoring a known state; uncommitted edits in the target make "revert" ambiguous and risk
   discarding the user's work. Ask them to commit or stash first. This is a hard stop, not a warning.
 - **Baseline suite red** → stop and report the failure. A red suite kills every mutant and reports a
-  perfect score. Invoke `/testing:diagnose` via the Skill tool when the `testing` plugin is installed; otherwise diagnose
+  perfect score. Invoke `/testing:diagnose` via the Skill tool when the `testing` plugin is enabled; otherwise diagnose
   with the project's own test command before returning here.
 
 Record the baseline run's result and wall-clock. Every later "killed" verdict is meaningful only
@@ -320,7 +320,7 @@ expected value that reaches the mutated function, directly or through a helper, 
 never `input-gap`, and names `testing/judge/rule-restated-expectation`, so the fix goes to the
 oracle rather than to a new input; a cause without a quote is `unclassified`.
 
-For the **equivalence** call specifically, prefer a cross-vendor advisor when one is installed and
+For the **equivalence** call specifically, prefer a cross-vendor advisor when one is enabled and
 set up (invoked per its own documentation), falling back to the same-vendor fresh-context subagent.
 Equivalence is formally undecidable, so the risk is a correlated blind spot rather than a lapse of
 attention, and that is the case the top rung of the ladder exists for.
@@ -422,7 +422,7 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
 
 ## Remediation. Delegated
 
-- **Write the killing tests**. `/testing:write` when the `testing` plugin is installed, handed the
+- **Write the killing tests**. `/testing:write` when the `testing` plugin is enabled, handed the
   survivor list. Otherwise report the survivors and let the user author tests with their project's
   own conventions; do not author them here. An `input-gap` survivor can be closed by a property (a
   generator over the input class the mutant hides in) as well as by one more example; name both
@@ -495,5 +495,5 @@ Each one produces a *plausible* result, which is what makes them worth listing.
 - Write suppressions without the user accepting them.
 - Fail a build on a score. There is no threshold to configure; see the `principles` skill's
   `scaling-and-suppression.md`.
-- Answer test-design questions. Those belong to `/tdd:principles` when installed; otherwise use the
+- Answer test-design questions. Those belong to `/tdd:principles` when enabled; otherwise use the
   project's own test-design guidance.

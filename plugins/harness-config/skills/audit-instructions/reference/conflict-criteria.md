@@ -97,7 +97,7 @@ instruction-*content* consistency inside its discovery population; it does not a
 precedence tables or the surfaces outside that population.
 
 When both anchors are in C6's population, report the pair as an observation and point the operator at
-`/harness-memory:audit` rather than grading it here; when that plugin is not installed, keep it as a
+`/harness-memory:audit` rather than grading it here; when that plugin is not enabled, keep it as a
 finding so nothing is silently dropped. This mirrors the reciprocal routing `harness-memory` already
 performs for content-fit findings.
 

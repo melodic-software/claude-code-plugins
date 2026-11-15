@@ -34,7 +34,7 @@ in the marketplace repository). The `auditor` agent carries the same posture.
 The component-type lens set is {hook, skill, agent, command, config}. Adjacent intents route
 elsewhere: **static skill QA** (frontmatter/lint/trigger checks with no behavioral evidence) →
 `skill-quality:check`; **general code review** of a change set → `review`; **MCP-server audits**
-→ `mcp-tools:audit` when installed (presence-gated; absent, treat the server's client-side config
+→ `mcp-tools:audit` when enabled (presence-gated; absent, treat the server's client-side config
 as a `config` component here and say the server itself is out of scope).
 
 ## Config resolution (once, at invocation)
@@ -121,7 +121,7 @@ level; the category ledger and the standards collector are part of that spine:
 | Effort | Step 5 review seams, research, and emitted-finding samples |
 |---|---|
 | `low` | `skill-quality:check` only, and only for a skill target. The ledger and the standards collector still run. No claim is researched: every finding's `research:` stays `open-question`. Emitted-finding samples may stay `unvalidated`. The `review:fanout` / `review:quality-gate` breadth pass is skipped, along with its absent-seam self-review checklist |
-| `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor, plus the research seam for the claim and remediation of each finding at or above that floor; the rest stay `open-question` (`/discovery:research` when that plugin is installed; absent, the manual discipline in `reference/categories.md`) |
+| `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor, plus the research seam for the claim and remediation of each finding at or above that floor; the rest stay `open-question` (`/discovery:research` when that plugin is enabled; absent, the manual discipline in `reference/categories.md`) |
 | `high`, `xhigh`, `max` | every presence-gated seam over every finding, including research on every finding's claim and remediation and a `confirmed` or `false` verdict on every emitted-finding sample |
 
 The **severity floor** is the Step 4 contract-lock cutoff for the `medium` breadth pass: a finding
@@ -167,7 +167,7 @@ selects one; a model that thinks a session earns the pass offers it in one line 
 [`reference/session-mode.md`](reference/session-mode.md) before running either.
 
 - **`arm`**, at session start: invoke `/session-flow:running-retro arm` when session-flow is
-  installed (absent: say the observer cannot be armed here and stop), then record the armed state
+  enabled (absent: say the observer cannot be armed here and stop), then record the armed state
   in this plugin's data directory. Nothing is audited.
 - **`session`**, at session end: read `plugin_usage` from the session's running-retro ledger,
   session-flow's documented artifact (no ledger or no key: tell the operator to run
@@ -357,7 +357,7 @@ an unattended external emit.
 
 Re-evaluate the context-gate, then gate the write-up. Which of these seams run at all is the effort
 row in [Effort, and why the zone outranks it](#effort-and-why-the-zone-outranks-it); each seam that
-runs is used when installed, with a one-line fallback when absent:
+runs is used when enabled, with a one-line fallback when absent:
 
 - `review:fanout` / `review:quality-gate`. Breadth/depth review of the findings write-up.
   *Absent:* run a structured self-review checklist in a fresh subagent (correctness of each

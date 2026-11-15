@@ -174,7 +174,7 @@ in name only.
 non-memory surfaces (skill bodies, agent definitions, hook instruction text, output styles); on
 memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, `.claude/rules/`,
 `~/.claude/rules/`) their findings route to the `harness-memory` plugin's `audit` skill when it is
-installed, and fall back to the official include/exclude guidance (I1–I5 source below) when it is
+enabled, and fall back to the official include/exclude guidance (I1–I5 source below) when it is
 not. Checks I6–I12, I16–I28, I30, and I35–I39 apply to all surfaces. I15 also applies to all
 surfaces, but its unit is a pair, so Phase B2 answers it rather than a per-surface lane. I13, I14,
 I29, I31, I32, I33, I34, and I40–I42 name narrower surface sets in their own rows, and a lane runs
@@ -2744,9 +2744,9 @@ remediation into a case its Detect never described.
   evidence that shows it false, and a proposed correction.
 - **Verify** it in Phase C like any proposal, with its own refutation: reproduce the cited evidence,
   then ask whether the claim is false today. A defect whose evidence does not reproduce is dropped.
-- **Route** it by class when an owner is installed: doc or config drift to a doc/config drift
+- **Route** it by class when an owner is enabled: doc or config drift to a doc/config drift
   auditor, copied or stale upstream content to a provenance auditor, each named by class or with
-  "when installed". With no such owner installed, the report here is the whole disposition.
+  "when enabled". With no such owner enabled, the report here is the whole disposition.
 - **Never relayed.** These rows are never written by `--persist-findings` and never reach
   `emit-findings.sh`.
 
@@ -2780,14 +2780,14 @@ findings table, and never relayed by `--persist-findings`.
   > `.claude/rules/<topic>.md` with a `paths:` glob, per migrate's routing.
 
 - **Presence gate.** Name `/instruction-placement:migrate plan` when the `instruction-placement`
-  plugin is installed. When it is not, the line names the same move (content to `AGENTS.md`, the
+  plugin is enabled. When it is not, the line names the same move (content to `AGENTS.md`, the
   `CLAUDE.md` kept as the `@AGENTS.md` shim) as a repository-wide change left to the operator.
 - **Never** propose deleting a `CLAUDE.md`, emptying it, or removing its shim. When and whether a
   session reads `AGENTS.md` at all is recorded in
   [agents-md-liveness.md](../../../reference/agents-md-liveness.md); that record is why the shim
   stays.
 - **Progressive disclosure is out of scope.** Whether the file should be split across load tiers is
-  `/docs-hygiene:audit-progressive-disclosure` when the `docs-hygiene` plugin is installed; when it
+  `/docs-hygiene:audit-progressive-disclosure` when the `docs-hygiene` plugin is enabled; when it
   is not, the advisory notes the question as unjudged.
 
 ---

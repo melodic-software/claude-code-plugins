@@ -78,7 +78,7 @@ changes, each one waiting for its own yes; an item that deletes a script names t
 
 ## Routes
 
-Hand off what other plugins own; each route is used only when that plugin is installed. When it
+Hand off what other plugins own; each route is used only when that plugin is enabled. When it
 is not, do the part this skill can, say the plugin is missing and print
 `claude plugin install <plugin>@<marketplace>`.
 

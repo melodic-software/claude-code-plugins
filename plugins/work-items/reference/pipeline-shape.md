@@ -23,7 +23,7 @@ form. **If promoted to a skill, flag the naming collision** with `session-flow:o
 Every item traverses the **same** lanes in the same order. A trivial item and a sprawling one differ
 only in the **depth** each lane runs at, never in which lanes run. A lane is never skipped; what
 collapses is its *realization* (a dispatched fresh-context subagent → an inline lightweight check →
-the consumer's own workflow step for that stage when no lane skill is installed; N rounds → one) down
+the consumer's own workflow step for that stage when no lane skill is enabled; N rounds → one) down
 to its minimum, but the lane itself always runs. Depth is the throughput lever; shape is invariant.
 
 ## The lane catalog
@@ -31,7 +31,7 @@ to its minimum, but the lane itself always runs. Depth is the throughput lever; 
 Each lane runs once per item, in this order. A lane is *composed from* the installed skill catalog.
 The skills named are its reference realization (published as sibling plugins in this marketplace), not
 a re-specification of their contracts. `work-items` installs standalone and hard-depends on none of
-them: where a lane's skill is not installed, the lane is to degrade to the consumer's own workflow for
+them: where a lane's skill is not enabled, the lane is to degrade to the consumer's own workflow for
 that stage (the Step 5 anchor) rather than dead-end.
 
 | Lane | Composed from | What the lane owns |
@@ -46,7 +46,7 @@ that stage (the Step 5 anchor) rather than dead-end.
 | Verify | `verification:*` | Confirm the result against evidence via a **fresh-context verifier**, distinct from the implementer. |
 
 For the Verify lane specifically, where the result is high-stakes and correlated blind spots are the
-risk, prefer a cross-vendor advisor **when one is installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs. The fresh-context same-vendor verifier is the
+risk, prefer a cross-vendor advisor **when one is enabled and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs. The fresh-context same-vendor verifier is the
 stated fallback, never a route to a command that may not resolve
 (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 

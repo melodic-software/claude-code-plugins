@@ -105,7 +105,7 @@ skills is `/session-flow:recommend-skills`, not a detector here.
 
 running-retro **captures and routes only**. The subagent proposes the route; nothing edits
 `CLAUDE.md`, rules, or memory, and nothing files a tracker issue. The SKILL.md step 5 offer gate
-owns that, and offers `/corrections:codify` only when the `corrections` plugin is installed, else
+owns that, and offers `/corrections:codify` only when the `corrections` plugin is enabled, else
 `/session-flow:retro`.
 
 ## Mandatory redaction pass

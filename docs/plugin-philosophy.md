@@ -112,7 +112,7 @@ Keep plugins horizontally decoupled:
 - Every plugin remains useful alone. If an optional collaborator is absent, use a documented fallback
   or report the missing optional capability clearly.
 - Every cross-plugin reference is therefore either declared (the `dependencies` array above, which
-  Claude Code installs automatically) or guarded behind an "if installed" check with the documented
+  Claude Code installs automatically) or guarded behind an "if enabled" check with the documented
   fallback. A bare unguarded cross-plugin reference is a defect.
 
 This follows Claude Code's own distinction between standalone configuration and plugins: this
@@ -1136,7 +1136,7 @@ Three bias classes name the trigger:
 The delegation target has an independence ladder: a same-vendor fresh context removes the session's
 reasoning but can still share the model's blind spots; a different-vendor advisor removes both. Where
 the verdict is high-stakes and correlated blind spots are the risk, a checkpoint site prefers a
-cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the
+cross-vendor advisor **when one is enabled and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the
 stated fallback, never a route to a command that may not resolve. That reference is optional
 collaboration, so it carries the presence-gate-plus-fallback shape
 ([seam phrasing](contracts/seam-phrasing/README.md)) at each site that instructs it; an advisor
@@ -1204,7 +1204,7 @@ exactly the independence the checkpoint buys. A skill may prefer an installed **
 but only when the named-agent bar below is met, and the site always states the generic fallback
 (presence-gate-plus-fallback, [seam phrasing](contracts/seam-phrasing/README.md)). The top rung, for
 high-stakes verdicts where correlated model blind spots are the risk, is a **cross-vendor advisor**
-when one is installed, on the same presence-gate shape with the same generic fallback.
+when one is enabled, on the same presence-gate shape with the same generic fallback.
 
 Those rungs are one choice among the platform's parallelism surfaces;
 [run agents in parallel](https://code.claude.com/docs/en/agents#choose-an-approach) is the
@@ -1220,7 +1220,7 @@ A dispatch prompt at any rung:
   access to the reasoning that produced it;
 - hands over the **artifact, not the story**, meaning the diff, file, or plan itself, never the authoring
   session's rationale, which would re-import the bias being removed;
-- **degrades when absent**: a preferred named agent or advisor that is not installed routes to the
+- **degrades when absent**: a preferred named agent or advisor that is not enabled routes to the
   generic fresh-context subagent, never to a command that may not resolve; and
 - **bounds what counts as a finding**: correctness and the stated requirements, everything else
   optional. An unbounded adversarial prompt returns many low-value findings at full cost, and chasing

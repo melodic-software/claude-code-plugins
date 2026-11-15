@@ -225,7 +225,7 @@ false-positive gate as a separate subagent that re-verifies each finding against
 truth. Do not let the discovering agent grade its own findings. A model re-checking its own work
 rubber-stamps it; an independent agent re-reading the doc claim and the actual code catches both
 false positives and miscategorized-but-correct claims. Where the finding set is high-stakes and
-correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set
+correlated blind spots are the risk, prefer a cross-vendor advisor **when one is enabled and set
 up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per
 its own docs, with the fresh-context same-vendor subagent as the stated fallback, never a route to
 a command that may not resolve. Fence each validator to read-only (its findings' files +
@@ -364,19 +364,19 @@ The audit ends at the Phase 3 report: the findings table, verified-non-issues pr
 fix priority, enforcement escalation, and config-gap observations are the deliverable. Fixing,
 verifying, self-reviewing, and retrospecting are separate lanes owned end-to-end by other plugins; re-implementing them here would duplicate those skills, so this skill delegates instead.
 
-Route remediation to the dedicated lanes (soft dependencies. Use when the plugin is installed):
+Route remediation to the dedicated lanes (soft dependencies. Use when the plugin is enabled):
 
-- **Fix** → `/implementation:implement` (when the `implementation` plugin is installed). Hand it the
+- **Fix** → `/implementation:implement` (when the `implementation` plugin is enabled). Hand it the
   Phase 3 findings, whose "Fix priority" section already carries the Config Drift → Missing
   Enforcement → Code Quality → Doc Drift order (see
   [`reference/category-playbook.md`](reference/category-playbook.md)); that lane owns the fix cadence:
   TDD, build/test at each checkpoint, and the post-fix simplification pass.
-- **Verify** → `/verification:confirm` (when the `verification` plugin is installed). Confirms the
+- **Verify** → `/verification:confirm` (when the `verification` plugin is enabled). Confirms the
   fixes against the repo's own build/test/lint gates with no regressions, and covers the self-review
   and retrospective that the fix lane hands it.
 
 **With `--fix`**, present the Phase 3 findings and output an explicit user-directed suggestion to run
 `/implementation:implement` with those findings, then `/verification:confirm`. Do not auto-invoke
-either skill, the user drives both. When those plugins are not installed, say so and stop: the
+either skill, the user drives both. When those plugins are not enabled, say so and stop: the
 Phase 3 findings table is the handoff, to be remediated manually in the reported fix-priority order.
 Never re-inline a fix/verify/review/retro loop here.

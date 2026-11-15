@@ -128,9 +128,9 @@ Close every explanation with this single line; only the starting-rung report fol
   `/education:teach`. Its `explain <concept>` action writes a lesson into a teach workspace; this
   skill is a standalone one-shot with no workspace.
 - **A faithful restructure** of a dense, decision-heavy message, same precision and words, is
-  `adhd:clarify` (if installed). This skill trades precision for plain words.
+  `adhd:clarify` (if enabled). This skill trades precision for plain words.
 - **Re-pitching a message that did not land**, with the missing context, in Simplified Technical
-  English and the project's own vocabulary, is `/discipline:wait-what` (if installed), which only the human fires.
+  English and the project's own vocabulary, is `/discipline:wait-what` (if enabled), which only the human fires.
 - **A picture** (a diagram rather than a paragraph) is `/education:illustrate`; invoke it via the
   Skill tool.
 

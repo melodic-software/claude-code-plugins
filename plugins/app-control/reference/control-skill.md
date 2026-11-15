@@ -488,7 +488,7 @@ section names it.
 
 ## Writing the driver CLI
 
-Guidance for whoever writes `cli/`. When `/developer-experience:build-cli` is installed, write the
+Guidance for whoever writes `cli/`. When `/developer-experience:build-cli` is enabled, write the
 CLI through it. Otherwise write a script in the language the repository already uses, with a
 `cli/README.md` listing each command, its flags and its exit codes. Either way the CLI:
 

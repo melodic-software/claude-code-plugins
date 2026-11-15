@@ -72,7 +72,7 @@ the file and line behind it and one remediation line per FAIL:
 2. **Load**: each helper `load:` line. `missing-import` fails; `may-not-load` is INFO worded
    "may not load", because the outcome depends on a per-user setting, a gitignored file, or a
    `CLAUDE.md` in a directory above the repository. From the helper's `add:` line, name the file
-   and print the line to add verbatim, alone in a code block, never in a table cell or sentence. When the instruction-placement plugin is installed, name
+   and print the line to add verbatim, alone in a code block, never in a table cell or sentence. When the instruction-placement plugin is enabled, name
    `/instruction-placement:migrate` for moving instructions into `AGENTS.md`; otherwise print
    `claude plugin install instruction-placement@<marketplace>` and the line still stands alone.
    Load rules: pointer, when judging whether `AGENTS.md` loads, fetch
@@ -146,7 +146,7 @@ configure (conventions at the path), or nothing to do.
    when the user has said yes to the shown file, or declined it.
 2. Find which coding agents are installed here and, from each agent's official docs fetched now,
    where its personal instructions file lives. Research through `/discovery:research` when the
-   discovery plugin is installed; otherwise research in-session from official docs first, label
+   discovery plugin is enabled; otherwise research in-session from official docs first, label
    the basis, say discovery is missing and print `claude plugin install discovery@<marketplace>`.
    Done when each installed agent has a file path with its source URL, or is reported unresolved.
 3. Before writing each personal file, check whether it is a symlink or managed by a dotfile

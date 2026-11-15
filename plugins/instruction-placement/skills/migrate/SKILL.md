@@ -81,8 +81,8 @@ A pointer is not a summary. One line naming the file and the condition that shou
 it ("Read `docs/release-process.md` before cutting a release") beats a paragraph restating it.
 
 `/docs-hygiene:write-for-agents` owns how this text is written: invoke it via the Skill tool when
-that plugin is installed, for the root `AGENTS.md`, every new `.claude/rules/` file, and every
-pointer. Where it is not installed, write the text here and say that the write-side doctrine was
+that plugin is enabled, for the root `AGENTS.md`, every new `.claude/rules/` file, and every
+pointer. Where it is not enabled, write the text here and say that the write-side doctrine was
 not available, rather than skipping the move.
 
 ## Check the mechanics quotes first
@@ -412,7 +412,7 @@ One native Claude Code surface works on the same file, and the two are easy to c
   project instructions, under its **Project instructions** (`instructionFiles`) option. It moves
   no file and writes no shim. Whether this build registers it, requires it in this session type,
   and gates it is read at run time from `/harness-ops:inventory`'s `builtin_plugins` lane when the
-  `harness-ops` plugin is installed, never assumed; without it, report those facts as unverified and say once that the `harness-ops` plugin would read them.
+  `harness-ops` plugin is enabled, never assumed; without it, report those facts as unverified and say once that the `harness-ops` plugin would read them.
   - **Pointer**: for the plugin's settings IDs and the option's values, fetch
     [memory § Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load)
     live; the IDs are in the paragraphs after its table.

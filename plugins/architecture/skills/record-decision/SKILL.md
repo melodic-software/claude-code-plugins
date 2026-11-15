@@ -236,10 +236,10 @@ and offer the repository's own observed shape, or the bundled template, instead.
 
 | When | Then | How |
 |------|------|-----|
-| An interview or a plan close-out resolves a decision over a weighed alternative | Invoked from `/planning:interview` or `/planning:plan close-out` when that plugin is installed | The caller passes the decision, its rationale and the alternatives; the admission test above lives here, not at the caller |
+| An interview or a plan close-out resolves a decision over a weighed alternative | Invoked from `/planning:interview` or `/planning:plan close-out` when that plugin is enabled | The caller passes the decision, its rationale and the alternatives; the admission test above lives here, not at the caller |
 | `remove-comments` deletes a comment giving the reason for one of the repository's own decisions | Invoked from `/code-tidying:remove-comments` in an interactive run | The caller passes the decision and the alternative the comment names; the admission test above decides |
 | The decision is about what a domain term means, not why the system is built a way | `/domain-driven-design:ubiquitous-language curate` owns that | A term's definition goes in the glossary; the reason behind a rule goes here |
-| A design handoff lists ADR candidates | Invoked from `/planning:design-handoff` when that plugin is installed | One invocation per candidate; the offer never blocks the handoff |
+| A design handoff lists ADR candidates | Invoked from `/planning:design-handoff` when that plugin is enabled | One invocation per candidate; the offer never blocks the handoff |
 | A scan needs to read existing records | `/architecture:improve` reads the same ladder | Both skills load the plugin's shared discovery reference; neither carries a second copy |
 
 ## Next

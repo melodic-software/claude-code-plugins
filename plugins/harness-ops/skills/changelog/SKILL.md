@@ -166,15 +166,15 @@ finish and verify. Show the sort with the rows and let the user move a row acros
 ### Phase 4. Hand off
 
 1. **Rows that fit**: work them in this session's branch, one branch and PR per owner plugin. Use
-   `/planning:plan` for the edit plan (if the planning plugin is installed), `/implementation:implement`
-   for the edits (if the implementation plugin is installed) and `/verification:confirm` for the
-   check (if the verification plugin is installed). A stage whose plugin is missing is not done by
+   `/planning:plan` for the edit plan (if the planning plugin is enabled), `/implementation:implement`
+   for the edits (if the implementation plugin is enabled) and `/verification:confirm` for the
+   check (if the verification plugin is enabled). A stage whose plugin is missing is not done by
    hand here: report the rows that needed it as not executed, naming the missing plugin. A
    `replace` row is never edited: nominate it into `/harness-ops:audit-native-overlap`
 2. **Rows too large**: file one issue per row through `/work-items:track` (if the work-items plugin
-   is installed), carrying the owner surface, lens, required sentence, item ids and range. That
+   is enabled), carrying the owner surface, lens, required sentence, item ids and range. That
    issue is worked later in its own PR, behind an interview-style human gate before any edit. When
-   `/work-items:track` is not installed, report the row and file nothing. List the rows to file and
+   `/work-items:track` is not enabled, report the row and file nothing. List the rows to file and
    file them only after the user confirms that batch; a row the user does not confirm is reported, not
    filed
 3. **Docs lag**: hand the docs-lag pairs to `/harness-ops:known-issues`. They are never a decision row
@@ -201,7 +201,7 @@ the summary's location, items, dedupe and approval: [context/native-drift.md](co
 Its commands write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put that
 path in place of the placeholder before running one.
 
-When the harness-config plugin is installed, also run its effort-pin drift check directly, with
+When the harness-config plugin is enabled, also run its effort-pin drift check directly, with
 that plugin's install directory in place of the placeholder:
 
 ```bash

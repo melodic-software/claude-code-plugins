@@ -25,7 +25,7 @@ leaves no row and no line; it shows only in the read summary's count.
 
 After the table, a **docs-lag** section lists each changelog-versus-docs disagreement as a pair
 (what the changelog states, what the page states, the page). It is input to `/harness-ops:known-issues`
-when that skill is installed, and is never a decision row.
+when that skill is enabled, and is never a decision row.
 
 Item ids are stable: `<version>-<ordinal>`, the ordinal counted as three digits over every bullet of
 the release in the order the fetched page lists them, whatever its prefix. `2.1.257-001` is the
@@ -39,7 +39,7 @@ pointers if the page's layout later changes.
 | Correction | The owning plugin's `CHANGELOG.md`. The ledger's Corrected table points at that entry |
 | Replace candidate | Nominated into the `/harness-ops:audit-native-overlap` gate. A run never writes the verdict and never edits the component. The ledger row reads `nominated`, never `replaced` |
 | Adoption, decline, defer | The upstream ledger, in its Adopted and Declined tables |
-| Decision too large for the session | Its own issue, filed through `/work-items:track` when the work-items plugin is installed and worked later in its own PR behind an interview-style human gate. The ledger row for its kind names the issue in its record column. With the plugin absent the decision is reported and nothing is filed |
+| Decision too large for the session | Its own issue, filed through `/work-items:track` when the work-items plugin is enabled and worked later in its own PR behind an interview-style human gate. The ledger row for its kind names the issue in its record column. With the plugin absent the decision is reported and nothing is filed |
 | Read marker | The upstream ledger's marker line (see [read-actions.md](read-actions.md)) |
 
 The upstream ledger (default `docs/upstream/claude-code.md`) keeps one table per outcome, in the

@@ -1,7 +1,7 @@
 # Routing out: the neighboring questions this audit does not answer
 
 Read this when a candidate raises something that is *not* a placement question, and you need to know
-where it goes and what to do when the owning plugin is not installed.
+where it goes and what to do when the owning plugin is not enabled.
 
 Placement is one question about an instruction. "Is it still needed?", "is it duplicated?", "is it
 too long?" and "should this file exist?" are four others, each owned elsewhere. Bending this rubric
@@ -9,7 +9,7 @@ to answer them produces a finding nobody can act on, because the remedy lives in
 
 ## The routes
 
-Each is **presence-gated**: invoke the named skill via the Skill tool when its plugin is installed;
+Each is **presence-gated**: invoke the named skill via the Skill tool when its plugin is enabled;
 otherwise keep the observation in the report as a plain note naming what the operator would need,
 and do not judge it against the placement rubric instead.
 

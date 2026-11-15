@@ -81,7 +81,7 @@ the grain argument made concrete.
 | Connector entitlements | none. Access is `repo`, so the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
 | Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
 | `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). None: `executor_class` is deprecated and caps nothing. Binds the `C2` merge-policy column |
-| Repo needs | dependency / build manifests (repo-file probe); CI-config presence (ownerless repo-file probe) so the mechanical CI verdict exists; ecosystems via the toolchain seam when installed (fallback: inference from the repo's own build files) |
+| Repo needs | dependency / build manifests (repo-file probe); CI-config presence (ownerless repo-file probe) so the mechanical CI verdict exists; ecosystems via the toolchain seam when enabled (fallback: inference from the repo's own build files) |
 
 ### `dependency-update-wave/changelog-informed`
 

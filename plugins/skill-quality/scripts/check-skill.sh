@@ -2472,10 +2472,10 @@ else
   fi
   # Either shape is a mention for the human, so the whole block, not just the
   # line that names the successor, is read for the three things the rule
-  # excludes: Skill-tool phrasing, an installed-ness gate, a fallback clause.
-  NEXT_OPERATIVE="$(grep -oiE 'skill tool|installed|fall ?back|otherwise' <<<"$NEXT_BLOCK" | head -1 || true)"
+  # excludes: Skill-tool phrasing, an availability gate, a fallback clause.
+  NEXT_OPERATIVE="$(grep -oiE 'skill tool|installed|(is|if|when) enabled|fall ?back|otherwise' <<<"$NEXT_BLOCK" | head -1 || true)"
   if [[ -n "$NEXT_OPERATIVE" ]]; then
-    NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries operative-chain phrasing ('$NEXT_OPERATIVE'); a successor is a mention, with no Skill-tool phrasing, installed-ness gate, or fallback clause"
+    NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries operative-chain phrasing ('$NEXT_OPERATIVE'); a successor is a mention, with no Skill-tool phrasing, availability gate, or fallback clause"
   fi
   if [[ -n "$NEXT_HIT" ]]; then
     warn "'## Next' section $NEXT_HIT. The skill-bodies rule wants one /plugin:skill line, or two to four '<outcome>: /plugin:skill' bullets, placed before '## Gotchas'"

@@ -7,7 +7,7 @@ Read this when the invocation carries `--root` or `--remote`.
 
 Repeatable. Discovers repositories under each root, then charts them.
 
-### When the `repo-fleet-hygiene` plugin is installed
+### When the `repo-fleet-hygiene` plugin is enabled
 
 That plugin owns bounded fleet discovery and canonical-checkout resolution, so delegate rather than
 walking. Use the memory slice `<memory_dir>/<topic-slug>/` (default `.work/<topic-slug>/`), `mkdir -p` it,

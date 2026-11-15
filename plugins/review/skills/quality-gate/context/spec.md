@@ -76,7 +76,7 @@ surface, so this skill does not invoke it directly, and it names no tracker's co
 In priority order:
 
 1. **`/work-items:track view <promoted id>`**, invoked via the Skill tool when the `work-items`
-   plugin is installed. It returns the item's `title`, `state`, `url`, `labels` and `body`, read
+   plugin is enabled. It returns the item's `title`, `state`, `url`, `labels` and `body`, read
    from the item's own repository: pass the promoted id, never a bare number, because a bare number
    reads the current repository, which for a cross-repo ref is a different item sharing the
    number.

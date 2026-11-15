@@ -85,8 +85,8 @@ identifiers are placeholders.
 A diagram that will be committed to the repository (a doc, ADR or README) is Mermaid source, over
 any canvas or page, so it diffs and reviews as text.
 
-When the form is a chart and a chart-craft/dataviz capability is installed, invoke
-it for the craft (form heuristic, palette, mark specs); when it is not installed,
+When the form is a chart and a chart-craft/dataviz capability is enabled, invoke
+it for the craft (form heuristic, palette, mark specs); when it is not enabled,
 fall back to a simple, honest default (a labeled bar/line as inline SVG on a
 page, or a Unicode bar/sparkline in the terminal) and say the craft capability was
 unavailable.
@@ -324,7 +324,7 @@ interrogate form by form; one question, then render.
   Emit a ` ```mermaid ` block as portable source the user can render elsewhere,
   and prefer a page when the *rendered* diagram is the point.
 - **A rich page** follows the Artifact tool's own contract and, when an
-  artifact-design capability is installed, its guidance. The page-contract facts
+  artifact-design capability is enabled, its guidance. The page-contract facts
   live once in [`context/decision-matrix.md`](context/decision-matrix.md). When the subject is a
   product UI, match that product's own colors, type, spacing, and components rather than the
   plugin chrome; use real labels and data; support desktop and mobile.
@@ -359,7 +359,7 @@ It turns the material into a slide deck when the request is for slides rather th
 
 An **interactive parameter explorer whose output returns as a prompt** (controls
 beside a live preview with a copy-out prompt, the "playground" shape) is not a form
-this skill renders. When the first-party `playground` plugin is installed, route the
+this skill renders. When the first-party `playground` plugin is enabled, route the
 request to its `playground` skill, or to the `playgrounds` wrapper's `/playgrounds:use`
 when that wrapper is enabled, which also owns the install uplift and cloud delivery
 guidance. When neither is enabled, say the capability exists as an installable

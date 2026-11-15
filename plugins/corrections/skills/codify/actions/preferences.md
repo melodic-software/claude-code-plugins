@@ -5,7 +5,7 @@ can be recorded once at user scope instead of repeated in every session. Here a 
 names a source, not a mistake, so section 1's exceptions do not lift the threshold.
 
 1. **Gate.** The excerpts belong to `/session-flow:audit-sessions`, which owns the session store and
-   its redaction. Use it when the `session-flow` plugin is installed; otherwise say this action needs
+   its redaction. Use it when the `session-flow` plugin is enabled; otherwise say this action needs
    that plugin and stop.
 2. **Target.** Ask which user-scope file the preferences are for, unless the invocation names one:
    the user `CLAUDE.md`, a user-level rule file, or a user output style. A repository file (a project

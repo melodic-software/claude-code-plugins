@@ -148,7 +148,7 @@ subagent's own pass: the ledger outlives the session and travels to other sessio
 Present the checkpoint findings, then offer the forward routes; act only on the ones the user picks:
 
 - **Codify a durable learning** → `/corrections:codify "<the learning>"` when the `corrections`
-  plugin is installed, otherwise `/session-flow:retro`, whose session mode codifies approved
+  plugin is enabled, otherwise `/session-flow:retro`, whose session mode codifies approved
   learnings (running-retro never edits `CLAUDE.md`, rules, or memory itself).
 - **File follow-up work** → offer the consumer's work-item tracker; never file automatically.
   For each **Skill-fit gap** finding, first fill its `existing issue` field: search the owning

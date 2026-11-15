@@ -35,7 +35,7 @@ Every line spends two budgets, and cutting one can overspend the other:
 Fewer words spends less of both. The universal brevity rules apply: no more words than the meaning
 needs, no filler, hedging, intensifiers, expletive openings, or restatement of an adjacent line;
 active voice; one idea per sentence; a factual register with nothing sold. `/writing:be-concise`
-owns those rules when the `writing` plugin is installed; without it, apply them from this
+owns those rules when the `writing` plugin is enabled; without it, apply them from this
 paragraph. Take those rules and no more of that doctrine: its human-only rules do not transfer. A
 bottom-line-first opening, headings written to be skimmed, bullet lists for scanning, and bounded
 bold serve a person moving down a page fast; an agent needs the rule stated where it applies, not

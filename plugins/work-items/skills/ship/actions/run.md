@@ -24,7 +24,7 @@ any run with no human to answer, stop before any claim and report that `run` is 
 ## Requires the implementation plugin
 
 `run` hands every item to `/implementation:implement-dispatch`. When the `implementation` plugin
-is not installed, stop before any claim and tell the user to install it; `run` has no other route.
+is not enabled, stop before any claim and tell the user to install it; `run` has no other route.
 
 ## Workflow
 

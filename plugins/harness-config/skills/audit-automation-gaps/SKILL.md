@@ -62,7 +62,7 @@ plugin (is the instruction layer healthy?).
 This skill proposes new automation. Whether automation already in place still earns its carry cost
 is owned by `/overengineering:audit`, whose evidence-earned-keep walk treats every incumbent as a
 retirement candidate until evidence keeps it. Send a retirement question there when the
-`overengineering` plugin is installed; when it is not, the **Already enforced** gate still names the
+`overengineering` plugin is enabled; when it is not, the **Already enforced** gate still names the
 mechanism covering a concern, and any retirement observation is recorded in the verdict for the
 human, not acted on here.
 
@@ -78,7 +78,7 @@ There is deliberately no `ci` category. Two skills own that ground: the `ci-lane
 `/overengineering:audit` judges whether each lane already running still earns its carry cost, and
 `/corrections:codify` maps one recurring mistake or review finding to the strongest enforcement rung
 that can catch it, including a check that runs in CI. Route a CI concern to whichever fits when the
-`overengineering` or `corrections` plugin is installed; when neither is, record the concern in the
+`overengineering` or `corrections` plugin is enabled; when neither is, record the concern in the
 verdict as out of scope and name its owner, rather than widening this audit's categories.
 
 ## Track progress

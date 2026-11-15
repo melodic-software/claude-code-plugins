@@ -321,7 +321,7 @@ content set the switcher's worst-content toggle flips to, the one set allowed be
 one and defined once like it; states still derive from whichever set is shown, so the empty state
 is that set filtered to nothing, never a third set. On the real stack, drive the real page to it ([reference/switcher.md](reference/switcher.md#worst-content)).
 
-On the real stack, when `/user-interface:write-css` is installed, use it to write each variant's CSS, since it applies the project's design system and conventions first; without it, write the CSS here. On the HTML mockup, write the CSS here: for an existing app, inline the app's own CSS and match it in whatever a variant's structure adds; with no app, or a redesign asked, write it from each variant's declared direction.
+On the real stack, when `/user-interface:write-css` is enabled, use it to write each variant's CSS, since it applies the project's design system and conventions first; without it, write the CSS here. On the HTML mockup, write the CSS here: for an existing app, inline the app's own CSS and match it in whatever a variant's structure adds; with no app, or a redesign asked, write it from each variant's declared direction.
 
 ### 3. Build the switcher
 

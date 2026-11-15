@@ -149,7 +149,7 @@ Present the report to the user with:
 4. INFO findings (informational only)
 5. Estimated context cost: the `instruction-load-stats.sh --tokens` figure (bytes / 4 over the
    always-loaded set, labeled as an estimate) with the `--breakdown` rows when the reader would act
-   on them. The model cannot run `/context`; when the `context-budget` plugin is installed, name
+   on them. The model cannot run `/context`; when the `context-budget` plugin is enabled, name
    `/context-budget:audit` as the measured alternative
 
 ## Step 5: Suggest next action

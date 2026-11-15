@@ -288,7 +288,7 @@ route that works, and never let a route that does not work block the run:
 
 1. The REST endpoint, `gh api repos/anthropics/claude-code/issues/<number>`, which some sessions
    serve where GraphQL is refused.
-2. The consuming environment's own issue-tracking skill when one is installed
+2. The consuming environment's own issue-tracking skill when one is enabled
    (`/harness-ops:known-issues` in this marketplace).
 3. Neither reachable: report the issue as **unverified since its last-verified date**, taken from
    that column of the table, so the report states how old the recorded state is instead of an

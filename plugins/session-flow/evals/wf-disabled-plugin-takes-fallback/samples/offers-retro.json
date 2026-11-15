@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The corrections plugin is off in this session, so run `/session-flow:retro` and propose a check for the fixture path.",
+      "why": "takes the fallback"
+    },
+    {
+      "answer": "Wrap-up:\n- PR merged, nothing to monitor.\n- Recurring mistake: /session-flow:retro quick to capture a fixture-path check.",
+      "why": "offers the quick retro"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Run /corrections:codify \"wrong fixture path\" to turn it into a check.",
+      "why": "routes to the disabled plugin, no retro"
+    },
+    {
+      "answer": "You don't need /session-flow:retro here.",
+      "why": "negated"
+    }
+  ]
+}

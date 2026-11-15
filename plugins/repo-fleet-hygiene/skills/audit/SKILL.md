@@ -360,7 +360,7 @@ Related fleet contracts that remain separate:
 | `unmerged-remote-branch-review` | Manual review of the branch and its closed PRs; never a deletion candidate |
 | `remote-branch-family` | None. Report only: no deletion and no deletion preview. Read the family, age and on-default fields and decide by hand |
 | `merged-worktree`, `prunable-worktree`, `missing-worktree` | Run `/source-control:worktree cleanup --dry-run` in the canonical repository |
-| `worktree-status-handoff` | Run `/source-control:worktree status` in the canonical repository (stranded-work axis); use cleanup `--dry-run` only after Work is safe. If `source-control` is not installed, name the listed worktree targets and the missing collaborator. Emit no porcelain-based substitute verdict |
+| `worktree-status-handoff` | Run `/source-control:worktree status` in the canonical repository (stranded-work axis); use cleanup `--dry-run` only after Work is safe. If `source-control` is not enabled, name the listed worktree targets and the missing collaborator. Emit no porcelain-based substitute verdict |
 | `worktree-admin-mismatch` | Manual inspection; `git worktree repair` is an option only after validating which administrative directory is authoritative |
 | `worktree-not-a-root` | Manual inspection of the registered path; a `git -C` probe of it describes the containing repository, so no cleanup handoff is safe until the path is resolved |
 | `worktree-root-unverifiable` | Manual inspection of the registered path. Root-ness is unproven here rather than disproven. The probe itself failed, so infer nothing about the path in either direction |

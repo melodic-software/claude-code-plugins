@@ -241,7 +241,7 @@ reads it. A key nothing reads is cut.
 
 This section runs `/skill-quality:check`, the `/evals:*` skills, `/docs-hygiene:compress` and
 `/skill-creator:skill-creator` when the `skill-quality`, `evals`, `docs-hygiene` and
-`skill-creator` plugins are installed. When one is not, say which check did not run and that
+`skill-creator` plugins are enabled. When one is not, say which check did not run and that
 installing that plugin would run it; never report that check as passed.
 
 **Authoring a new skill.** Write the evals before the body: note what Claude gets wrong without
@@ -299,7 +299,7 @@ precedence rule at the top of this page). Cut text from a shipped skill by this 
 `/docs-hygiene:compress compare`, then run the skill's cases with the removed text and without it
 (`/evals:plugin-eval --baseline <before.json> --margin <m>`). The cut ships only under step 6's
 non-inferiority rule; otherwise the removed text stays. When the skill-creator plugin is
-installed, its
+enabled, its
 [comparator agent](https://github.com/anthropics/skills/blob/main/skills/skill-creator/agents/comparator.md)
 adds a blind A/B judgment of the two versions' outputs; without it, the eval run above is the
 comparison. Replacing a restated upstream fact with a

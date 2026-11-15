@@ -10,14 +10,18 @@ the *rule*.
 
 Every optional reference to another plugin's skill carries, at the reference site:
 
-1. **The gate** is an explicit installed-ness condition on the invocation:
-   "invoke `/other-plugin:skill` (if that plugin is installed)" or an equivalent
-   "when the `<name>` plugin is installed" clause. The gate names the plugin, not the
+1. **The gate** is an explicit availability condition on the invocation: the target skill is
+   among the available skills, meaning its plugin is enabled in this session, not merely
+   installed. A plugin can be installed and switched off (by a plugin profile, a settings
+   scope or the user), and then its skills are absent and the fallback runs
+   ([eval](../../../plugins/session-flow/evals/wf-disabled-plugin-takes-fallback/case.yaml)). The sentence is
+   "invoke `/other-plugin:skill` (if that plugin is enabled)" or an equivalent
+   "when the `<name>` plugin is enabled" clause. The gate names the plugin, not the
    marketplace (marketplace-qualified IDs never appear in reusable content outside
    install-recipe sites and the third-party route-row fields the carve-outs below name).
    For a user-only target (`disable-model-invocation: true`), the Skill tool cannot reach it,
    so the sentence is "tell the user to run `/other-plugin:skill` (if that plugin is
-   installed)" ([evidence](#hand-off-phrasing-measured)).
+   enabled)" ([evidence](#hand-off-phrasing-measured)).
 2. **The fallback** is what the skill does instead, stated in the same sentence or the one
    adjacent: degrade to a bundled capability, record into the artifact at hand, or report
    the missing optional capability clearly. "Skip silently" is not a fallback.
@@ -34,7 +38,7 @@ commands do not resolve without it: the operator has to add the marketplace befo
 `claude plugin install <plugin>@<marketplace>` can run at all.
 
 The carve-out is scoped to that recipe text and nothing else. Element 1 is unchanged for
-gates: an installed-ness condition still names the plugin alone, because a gate asks whether
+gates: an availability condition still names the plugin alone, because a gate asks whether
 a capability is present, not where the operator would obtain it. A skill that prints a recipe
 therefore carries both shapes, a bare-plugin gate and a marketplace-qualified recipe beneath
 it. The recipe is printed for the operator to run, never executed for them; the plugin
@@ -80,7 +84,8 @@ qualification is the content, not a leak. Bounds:
 
 The hand-off phrasing eval (#11959) compared three hand-off sentences:
 
-- A: the gated token in prose, "invoke `/plugin:skill` (if that plugin is installed)".
+- A: the gated token in prose, "invoke `/plugin:skill`" plus the gate clause, which then read
+  "installed"; the three arms differed only in how the invocation is worded.
 - B: the same token "via the Skill tool".
 - C: `Call the Skill tool with "plugin:skill"`.
 

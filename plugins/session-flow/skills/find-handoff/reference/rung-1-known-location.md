@@ -80,7 +80,7 @@ by the CLI and surfaces only under `--all`, where it carries a `state` (observed
 reports completion, and `stopped`, which does not) in place of the active `status` (observed:
 `idle`, `busy`). That is `claude agents --help` ("`--all`. With --json: also include completed
 background sessions"), the same verified contract the `harness-ops` lane launcher relies on when
-that plugin is installed (as of 2026-08-09; recheck when `claude agents --help` changes the
+that plugin is enabled (as of 2026-08-09; recheck when `claude agents --help` changes the
 `--all` description or the `state` and `status` values). **So absence from the bare list is
 not evidence of failure: a continuation that finished the work successfully looks exactly like
 one that died.** Resolve four ways, and never collapse them:

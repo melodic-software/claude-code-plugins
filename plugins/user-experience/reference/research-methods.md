@@ -106,7 +106,7 @@ includes them. Basis: judgment.
   the end. Basis: [wai-involving-users], HIGH (single source; guidance, not a standard).
 - Run an initial accessibility review before user testing. Research with disabled people alone cannot show a website is accessible (WAI's
   guidance is written for the web); it is paired
-  with a conformance evaluation, which belongs to `/user-interface:design` when installed. Basis:
+  with a conformance evaluation, which belongs to `/user-interface:design` when enabled. Basis:
   [wai-involving-users], HIGH (single source; guidance, not a standard).
   - **Pointer**: for who to involve, when, and how user involvement relates to conformance
     evaluation, read W3C WAI "Involving Users in Evaluating Web Accessibility" at
