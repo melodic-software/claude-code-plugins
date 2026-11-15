@@ -1,29 +1,27 @@
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { createServer } from "node:http";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { after, before, test } from "node:test";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { javaMajor } from "./toolchain.mjs";
+import { download, install, javaMajor, release, within } from "./toolchain.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const toolchain = join(here, "toolchain.mjs");
 const settings = join(here, "settings.mjs");
-const fresh = (name) => mkdtempSync(join(tmpdir(), `fv-${name}-`));
+const temps = [];
+const fresh = (name) => {
+  const dir = mkdtempSync(join(tmpdir(), `fv-${name}-`));
+  temps.push(dir);
+  return dir;
+};
+test.after(() => {
+  for (const dir of temps) rmSync(dir, { recursive: true, force: true });
+});
 
 const run = (script, args) => spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
-const runAsync = (script, args) =>
-  new Promise((resolve) => {
-    const child = spawn(process.execPath, [script, ...args]);
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d) => (stdout += d));
-    child.stderr.on("data", (d) => (stderr += d));
-    child.on("close", (status) => resolve({ status, stdout, stderr }));
-  });
 
 const project = (yaml) => {
   const dir = fresh("project");
@@ -42,31 +40,32 @@ const fakeJava = (banner) => {
   return java;
 };
 
-const JAR = Buffer.from("not a real jar, a stand-in served by this test\n");
+const JAR = Buffer.from("not a real jar, a stand-in for this test\n");
 const JAR_SHA = createHash("sha256").update(JAR).digest("hex");
-let server;
-let base;
-before(async () => {
-  server = createServer((req, res) => {
-    if (req.url === "/tla2tools.jar") return res.end(JAR);
-    res.statusCode = 404;
-    res.end();
-  });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  base = `http://127.0.0.1:${server.address().port}`;
-});
-after(() => server.close());
+const URL_ = "https://example.invalid/tla2tools.jar";
+const releases = (sha256 = JAR_SHA, url = URL_) => ({ model_checker: { "9.9.9": { url, sha256 } }, renderer: {} });
+const pinned = { model_checker: { version: "9.9.9" }, renderer: { package: "pele", version: "1.9.0" } };
+const served = (body, headers = {}) => async () => new Response(body, { status: 200, headers });
 
 test("settings gives the shipped bounds when the project has no convention file", () => {
   const r = run(settings, ["--project-dir", project()]);
   assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(JSON.parse(r.stdout).bounds, { chart_states: 500, rerun_states: 100000 });
+  assert.deepEqual(JSON.parse(r.stdout).bounds, {
+    chart_states: 500,
+    rerun_states: 100000,
+    timeout_seconds: 1800,
+    heap: "4g",
+    output_bytes: 1073741824,
+    interval_max: 10000,
+  });
 });
 
 test("a key in docs/conventions/formal-verification.yaml overrides only that key", () => {
   const r = run(settings, ["--project-dir", project("bounds:\n  chart_states: 40\n")]);
   assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(JSON.parse(r.stdout).bounds, { chart_states: 40, rerun_states: 100000 });
+  const { bounds } = JSON.parse(r.stdout);
+  assert.equal(bounds.chart_states, 40);
+  assert.equal(bounds.rerun_states, 100000);
 });
 
 test("an invalid convention value is reported and the shipped value stands", () => {
@@ -90,13 +89,17 @@ test("an unrendered user_config token counts as unset", () => {
   assert.equal(r.stderr.trim(), "blocked: toolchain missing: model-checker");
 });
 
-test("resolve prints the named jar, java and the bounds when both are present", () => {
+test("resolve prints the named jar, java, the bounds and the allowed modules", () => {
   const jar = join(fresh("jar"), "tla2tools.jar");
   writeFileSync(jar, JAR);
   const java = fakeJava('openjdk version "11.0.2" 2019-01-15');
   const r = run(toolchain, ["resolve", "--data-dir", fresh("data"), "--jar", jar, "--java", java, "--project-dir", project("bounds:\n  rerun_states: 7\n")]);
   assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(JSON.parse(r.stdout), { jar, java, runtime: null, bounds: { chart_states: 500, rerun_states: 7 } });
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.jar, jar);
+  assert.equal(out.java, java);
+  assert.equal(out.bounds.rerun_states, 7);
+  assert.ok(!out.allowed_modules.includes("Json"));
 });
 
 test("check fails a Java below the floor and passes the jar it is given", () => {
@@ -114,23 +117,84 @@ test("javaMajor reads both version schemes", () => {
   assert.equal(javaMajor("no version here"), null);
 });
 
-test("install model-checker keeps a download whose sha256 matches the pin", async () => {
+for (const [key, yaml] of [
+  ["model_checker.url", "model_checker:\n  url: https://evil.example/x.jar\n"],
+  ["model_checker.sha256", `model_checker:\n  sha256: "${"0".repeat(64)}"\n`],
+  ["renderer.integrity", "renderer:\n  integrity: sha512-AAAA\n"],
+]) {
+  test(`a repository convention file that sets ${key} is refused`, () => {
+    const data = fresh("data");
+    const r = run(toolchain, ["install", "model-checker", "--data-dir", data, "--project-dir", project(yaml)]);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, new RegExp(`sets ${key.replace(".", "\\.")}\\. Download sources and checksums come only from the plugin's releases\\.json`));
+    assert.deepEqual(readdirSync(data), []);
+  });
+}
+
+test("a repository version with no pinned checksum is refused before any download", () => {
   const data = fresh("data");
-  const yaml = `model_checker:\n  version: "9.9.9"\n  url: "${base}/tla2tools.jar"\n  sha256: "${JAR_SHA}"\n`;
-  const r = await runAsync(toolchain, ["install", "model-checker", "--data-dir", data, "--project-dir", project(yaml)]);
-  assert.equal(r.status, 0, r.stderr);
-  const dest = join(data, "toolchain", "tla2tools-9.9.9.jar");
-  assert.equal(r.stdout.trim(), dest);
-  assert.deepEqual(readFileSync(dest), JAR);
-  const again = await runAsync(toolchain, ["install", "model-checker", "--data-dir", data, "--project-dir", project(yaml)]);
-  assert.equal(again.stdout.trim(), `${dest} (already present)`);
+  const r = run(toolchain, ["install", "model-checker", "--data-dir", data, "--project-dir", project('model_checker:\n  version: "1.8.0"\n')]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /^No pinned checksum for model-checker 1\.8\.0\. The plugin's releases\.json pins: 1\.7\.4\.$/m);
+  assert.deepEqual(readdirSync(data), []);
 });
 
-test("install model-checker discards a download whose sha256 does not match", async () => {
+test("a version or package that would leave the data folder is refused", () => {
+  assert.throws(() => release("model-checker", { model_checker: { version: "../../x" } }), /is not a version/);
+  assert.throws(
+    () => release("renderer", { renderer: { package: "../../evil", version: "1.0.0" } }),
+    /is not an npm package name/,
+  );
   const data = fresh("data");
-  const yaml = `model_checker:\n  version: "9.9.9"\n  url: "${base}/tla2tools.jar"\n  sha256: "${"0".repeat(64)}"\n`;
-  const r = await runAsync(toolchain, ["install", "model-checker", "--data-dir", data, "--project-dir", project(yaml)]);
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /does not match the pinned checksum; nothing was kept/);
+  assert.throws(() => within(data, join(data, "..", "outside")), /is outside/);
+  assert.throws(() => within(data, data), /is outside/);
+  assert.equal(within(data, join(data, "toolchain", "a.jar")), join(data, "toolchain", "a.jar"));
+});
+
+test("install keeps a download whose sha256 matches the shipped pin and skips it the second time", async () => {
+  const data = fresh("data");
+  const dest = await install("model-checker", { dataDir: data, settings: pinned, releases: releases(), fetchImpl: served(JAR) });
+  assert.equal(dest, join(data, "toolchain", "tla2tools-9.9.9.jar"));
+  assert.deepEqual(readFileSync(dest), JAR);
+  const again = await install("model-checker", { dataDir: data, settings: pinned, releases: releases(), fetchImpl: served(JAR) });
+  assert.equal(again, `${dest} (already present)`);
+});
+
+test("install discards a download whose sha256 does not match", async () => {
+  const data = fresh("data");
+  await assert.rejects(
+    install("model-checker", { dataDir: data, settings: pinned, releases: releases("0".repeat(64)), fetchImpl: served(JAR) }),
+    /does not match the pinned checksum; nothing was kept/,
+  );
   assert.deepEqual(readdirSync(join(data, "toolchain")), []);
+});
+
+test("download refuses a URL that is not https", async () => {
+  const dir = fresh("dl");
+  await assert.rejects(
+    download("http://example.invalid/x", join(dir, "x"), () => true, "test", { fetchImpl: served(JAR) }),
+    /is not an https URL; nothing was downloaded/,
+  );
+  assert.deepEqual(readdirSync(dir), []);
+});
+
+test("download refuses a body over the size cap, by header and by bytes read", async () => {
+  const dir = fresh("dl");
+  await assert.rejects(
+    download(URL_, join(dir, "x"), () => true, "test", { fetchImpl: served(JAR, { "content-length": "9999" }), maxBytes: 10 }),
+    /is larger than 10 bytes; nothing was kept/,
+  );
+  await assert.rejects(
+    download(URL_, join(dir, "y"), () => true, "test", { fetchImpl: served(JAR), maxBytes: 10 }),
+    /is larger than 10 bytes; nothing was kept/,
+  );
+  assert.deepEqual(readdirSync(dir), []);
+});
+
+test("download stops at its timeout", async () => {
+  const dir = fresh("dl");
+  const hang = (url, { signal }) =>
+    new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason)));
+  await assert.rejects(download(URL_, join(dir, "x"), () => true, "test", { fetchImpl: hang, timeoutMs: 50 }), /timed out|aborted/i);
+  assert.deepEqual(readdirSync(dir), []);
 });

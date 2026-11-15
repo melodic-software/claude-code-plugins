@@ -2,26 +2,62 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { resolveSettings } from "./settings.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const USAGE = "usage: toolchain.mjs <check|resolve|install model-checker|install renderer> [--data-dir D] [--jar F] [--java F] [--runtime F] [--project-dir P]";
 
+export const RELEASES = JSON.parse(readFileSync(join(here, "..", "releases.json"), "utf8"));
+export const MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024;
+export const DOWNLOAD_TIMEOUT_MS = 300_000;
+
+const VERSION = /^[0-9A-Za-z.+-]+$/;
+const PACKAGE = /^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
+const SOURCE_KEY = /\.(url|sha256|integrity)$/;
+
 const unset = (v) => !v || v.startsWith("${");
 
 export function settings(projectDir) {
-  const r = spawnSync(process.execPath, [join(here, "settings.mjs"), "--project-dir", projectDir], {
-    encoding: "utf8",
-  });
-  if (r.status !== 0) throw new Error(`settings.mjs failed: ${r.stderr.trim()}`);
-  if (r.stderr.trim()) process.stderr.write(r.stderr);
-  return JSON.parse(r.stdout);
+  const { values, layers } = resolveSettings(projectDir);
+  for (const layer of layers) {
+    (layer.error_keys ?? []).forEach((key, i) => {
+      if (key && SOURCE_KEY.test(key))
+        throw new Error(
+          `${layer.path ?? layer.name} sets ${key}. Download sources and checksums come only from the plugin's releases.json, never from the repository.`,
+        );
+      process.stderr.write(`settings: ${layer.errors[i]}\n`);
+    });
+  }
+  return values;
 }
 
-export const jarPath = (dataDir, version) => join(dataDir, "toolchain", `tla2tools-${version}.jar`);
-export const rendererDir = (dataDir, pkg, version) => join(dataDir, "renderer", `${pkg}-${version}`);
+export function release(kind, s, releases = RELEASES) {
+  const version = kind === "renderer" ? s.renderer.version : s.model_checker.version;
+  if (!VERSION.test(version)) throw new Error(`${kind} version ${JSON.stringify(version)} is not a version.`);
+  if (kind === "renderer" && !PACKAGE.test(s.renderer.package))
+    throw new Error(`renderer package ${JSON.stringify(s.renderer.package)} is not an npm package name.`);
+  const key = kind === "renderer" ? `${s.renderer.package}@${version}` : version;
+  const table = releases[kind === "renderer" ? "renderer" : "model_checker"] ?? {};
+  const entry = Object.hasOwn(table, key) ? table[key] : undefined;
+  if (!entry)
+    throw new Error(
+      `No pinned checksum for ${kind} ${key}. The plugin's releases.json pins: ${Object.keys(table).join(", ") || "none"}.`,
+    );
+  return entry;
+}
+
+export function within(base, target) {
+  const rel = relative(resolve(base), resolve(target));
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel))
+    throw new Error(`${target} is outside ${base}; nothing was written.`);
+  return target;
+}
+
+export const jarPath = (dataDir, version) => within(dataDir, join(dataDir, "toolchain", `tla2tools-${version}.jar`));
+export const rendererDir = (dataDir, pkg, version) => within(dataDir, join(dataDir, "renderer", `${pkg}-${version}`));
 
 const sha256 = (file) => createHash("sha256").update(readFileSync(file)).digest("hex");
 const sri512 = (file) => `sha512-${createHash("sha512").update(readFileSync(file)).digest("base64")}`;
@@ -44,7 +80,7 @@ function probeRuntime(runtime) {
   return { found: true, detail: `${runtime} ${r.stdout.trim().split("\n")[0]}` };
 }
 
-export function inspect({ dataDir, jar, java, runtime, settings: s }) {
+export function inspect({ dataDir, jar, java, runtime, settings: s, releases = RELEASES }) {
   const rows = [];
   const add = (status, id, detail) => rows.push({ status, id, detail });
 
@@ -60,28 +96,55 @@ export function inspect({ dataDir, jar, java, runtime, settings: s }) {
   else if (pj.major < min) add("FAIL", "java", `${j} is Java ${pj.major}; Java ${min} or later is needed.`);
   else add("PASS", "java", `${j} (Java ${pj.major})`);
 
-  const installed = dataDir ? jarPath(dataDir, s.model_checker.version) : null;
+  let installed = null;
+  let pin = null;
+  let unpinned = null;
+  try {
+    pin = release("model-checker", s, releases);
+    installed = dataDir ? jarPath(dataDir, s.model_checker.version) : null;
+  } catch (error) {
+    unpinned = error.message;
+  }
   const theJar = jar ?? installed;
-  if (!theJar) add("FAIL", "model-checker", "No jar: pass --data-dir or set the model_checker_jar option.");
+  if (!jar && unpinned) add("FAIL", "model-checker", unpinned);
+  else if (!theJar) add("FAIL", "model-checker", "No jar: pass --data-dir or set the model_checker_jar option.");
   else if (!existsSync(theJar)) add("FAIL", "model-checker", `${theJar} is missing. Type /formal-verification:setup apply install-model-checker, or set the model_checker_jar option.`);
-  else if (theJar === installed && sha256(theJar) !== s.model_checker.sha256) add("FAIL", "model-checker", `${theJar} does not match the pinned sha256. Type /formal-verification:setup apply install-model-checker to replace it.`);
+  else if (theJar === installed && sha256(theJar) !== pin.sha256) add("FAIL", "model-checker", `${theJar} does not match the pinned sha256. Type /formal-verification:setup apply install-model-checker to replace it.`);
   else add("PASS", "model-checker", theJar);
 
   const r = s.renderer;
-  const pkg = dataDir ? join(rendererDir(dataDir, r.package, r.version), "node_modules", r.package, "package.json") : null;
-  if (pkg && existsSync(pkg) && JSON.parse(readFileSync(pkg, "utf8")).version === r.version) add("PASS", "renderer", dirname(pkg));
-  else add("INFO", "renderer", `${r.package} ${r.version} is not installed; it is needed only for an image of a chart. Type /formal-verification:setup apply install-renderer.`);
+  let pkg = null;
+  try {
+    release("renderer", s, releases);
+    pkg = dataDir ? join(rendererDir(dataDir, r.package, r.version), "node_modules", r.package, "package.json") : null;
+  } catch (error) {
+    add("INFO", "renderer", error.message);
+  }
+  if (!rows.some((row) => row.id === "renderer")) {
+    if (pkg && existsSync(pkg) && JSON.parse(readFileSync(pkg, "utf8")).version === r.version) add("PASS", "renderer", dirname(pkg));
+    else add("INFO", "renderer", `${r.package} ${r.version} is not installed; it is needed only for an image of a chart. Type /formal-verification:setup apply install-renderer.`);
+  }
 
   return { rows, jar: theJar, java: j, runtime: runtime ?? null };
 }
 
-async function download(url, dest, matches, what) {
+export async function download(url, dest, matches, what, { fetchImpl = fetch, maxBytes = MAX_DOWNLOAD_BYTES, timeoutMs = DOWNLOAD_TIMEOUT_MS } = {}) {
+  if (!url.startsWith("https:")) throw new Error(`${what}: ${url} is not an https URL; nothing was downloaded.`);
   const stage = mkdtempSync(join(dirname(dest), ".download-"));
   try {
     const tmp = join(stage, "file");
-    const res = await fetch(url);
+    const res = await fetchImpl(url, { signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) throw new Error(`${what}: GET ${url} returned ${res.status}`);
-    writeFileSync(tmp, Buffer.from(await res.arrayBuffer()));
+    if (Number(res.headers.get("content-length") ?? 0) > maxBytes)
+      throw new Error(`${what}: ${url} is larger than ${maxBytes} bytes; nothing was kept`);
+    const parts = [];
+    let size = 0;
+    for await (const chunk of res.body) {
+      size += chunk.length;
+      if (size > maxBytes) throw new Error(`${what}: ${url} is larger than ${maxBytes} bytes; nothing was kept`);
+      parts.push(chunk);
+    }
+    writeFileSync(tmp, Buffer.concat(parts));
     if (!matches(tmp)) throw new Error(`${what}: ${url} does not match the pinned checksum; nothing was kept`);
     renameSync(tmp, dest);
   } finally {
@@ -89,31 +152,33 @@ async function download(url, dest, matches, what) {
   }
 }
 
-async function install(what, { dataDir, settings: s }) {
+export async function install(what, { dataDir, settings: s, releases = RELEASES, fetchImpl }) {
   if (!dataDir) throw new Error("install needs --data-dir");
   if (what === "model-checker") {
+    const pin = release("model-checker", s, releases);
     const dest = jarPath(dataDir, s.model_checker.version);
     mkdirSync(dirname(dest), { recursive: true });
-    if (existsSync(dest) && sha256(dest) === s.model_checker.sha256) return `${dest} (already present)`;
-    await download(s.model_checker.url, dest, (f) => sha256(f) === s.model_checker.sha256, "model checker");
+    if (existsSync(dest) && sha256(dest) === pin.sha256) return `${dest} (already present)`;
+    await download(pin.url, dest, (f) => sha256(f) === pin.sha256, "model checker", { fetchImpl });
     return dest;
   }
   if (what === "renderer") {
     const r = s.renderer;
+    const pin = release("renderer", s, releases);
     const dir = rendererDir(dataDir, r.package, r.version);
-    const target = join(dir, "node_modules", r.package);
+    const target = within(dataDir, join(dir, "node_modules", r.package));
     const manifest = join(target, "package.json");
     if (existsSync(manifest) && JSON.parse(readFileSync(manifest, "utf8")).version === r.version) return `${target} (already present)`;
     mkdirSync(dir, { recursive: true });
-    const tarball = join(dir, `${r.package}-${r.version}.tgz`);
-    await download(r.url, tarball, (f) => sri512(f) === r.integrity, "renderer");
+    const tarball = within(dataDir, join(dir, `${r.version}.tgz`));
+    await download(pin.url, tarball, (f) => sri512(f) === pin.integrity, "renderer", { fetchImpl });
     rmSync(target, { recursive: true, force: true });
     mkdirSync(target, { recursive: true });
-    const x = spawnSync("tar", ["-xzf", tarball, "-C", target, "--strip-components=1"], { encoding: "utf8" });
+    const x = spawnSync("tar", ["-xzf", tarball, "-C", target, "--strip-components=1", "--no-same-owner"], { encoding: "utf8" });
     rmSync(tarball, { force: true });
     if (x.status !== 0) {
       rmSync(target, { recursive: true, force: true });
-      throw new Error(`renderer: tar could not unpack ${r.url}: ${x.stderr.trim()}`);
+      throw new Error(`renderer: tar could not unpack ${pin.url}: ${x.stderr.trim()}`);
     }
     return target;
   }
@@ -157,8 +222,8 @@ async function main(argv) {
     console.error(`blocked: toolchain missing: ${missing.join(", ")}`);
     return 3;
   }
-  const { bounds } = opts.settings;
-  console.log(JSON.stringify({ jar: found.jar, java: found.java, runtime: found.runtime, bounds }));
+  const { bounds, allowed_modules } = opts.settings;
+  console.log(JSON.stringify({ jar: found.jar, java: found.java, runtime: found.runtime, bounds, allowed_modules }));
   return 0;
 }
 

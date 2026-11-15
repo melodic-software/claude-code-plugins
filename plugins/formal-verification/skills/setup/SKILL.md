@@ -53,8 +53,10 @@ Report it.
 
 ## `apply install-model-checker`
 
-Before downloading, tell the user the URL, the pinned SHA-256 and the destination folder, from the
-`model_checker` keys `settings.mjs` printed. Then:
+Before downloading, tell the user the version (the `model_checker.version` setting), and the URL
+and pinned SHA-256 that `${CLAUDE_PLUGIN_ROOT}/releases.json` gives for it, and the destination
+folder. URLs and checksums come only from that shipped file: the script refuses a repository
+convention file that sets one, and a version the file does not pin. Then:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/toolchain.mjs" install model-checker --data-dir "${CLAUDE_PLUGIN_DATA}" --project-dir "$PWD"
@@ -72,7 +74,8 @@ The same, with the `renderer` keys and `install renderer`:
 node "${CLAUDE_PLUGIN_ROOT}/scripts/toolchain.mjs" install renderer --data-dir "${CLAUDE_PLUGIN_DATA}" --project-dir "$PWD"
 ```
 
-The tarball is kept only when its sha512 integrity string matches the pin; it is unpacked into the
+The download must be https, under the script's size cap and timeout. The tarball is kept only when
+its sha512 integrity string matches the pin in `releases.json`; it is unpacked into the
 plugin data directory, and no package script runs.
 
 Bare `apply` has nothing to configure: say so and name the two install subactions.

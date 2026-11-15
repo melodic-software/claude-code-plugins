@@ -27,7 +27,9 @@ binary and the script runtime (the options block below).
 Version pins and default bounds are keys in the consumer's
 `docs/conventions/formal-verification.yaml`, checked against
 [`schemas/formal-verification.schema.json`](schemas/formal-verification.schema.json). An absent key
-takes the shipped value in [`defaults.json`](defaults.json). `scripts/settings.mjs` prints the
+takes the shipped value in [`defaults.json`](defaults.json). Download URLs and checksums are not
+settings: they live only in [`releases.json`](releases.json), and a version chosen in the
+convention file must have an entry there. `scripts/settings.mjs` prints the
 resolved values:
 
 ```shell
