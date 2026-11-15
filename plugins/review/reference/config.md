@@ -82,7 +82,8 @@ can neither relax the verdict nor drop a pattern to narrow its own detection. Un
 `downstream_probe`, when the default branch cannot be read the verdict resolves `fail`, the user's
 patterns still apply, and a WARN line says why.
 `scripts/loosened-check-settings.mjs --root <root> --ref origin/<default>` resolves both, with
-`--verdict-option` and `--patterns-option` for the user options, and prints each value with the
+`--verdict-option` and `--patterns-file` (a file holding the patterns option, never a shell
+argument) for the user options, and prints each value with the
 layers that set it.
 
 **Root rule.** The repository file is read only when the repository root (`CLAUDE_PROJECT_DIR`,

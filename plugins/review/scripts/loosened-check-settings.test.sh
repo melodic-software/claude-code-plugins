@@ -86,7 +86,8 @@ assert_contains "case 2: an unrendered placeholder is unset" \
   "$(line_of "$out" loosened_check_verdict)" "loosened_check_verdict: note"
 
 # --- Case 3: patterns are the union of the user option and the repository -----
-out="$(node "$RESOLVE" --root "$R1" --ref origin/main --patterns-option '["test/**", "ci/checks/**"]')"
+printf '%s' '["test/**", "ci/checks/**"]' >"$TEST_TMPDIR/patterns-c3"
+out="$(node "$RESOLVE" --root "$R1" --ref origin/main --patterns-file "$TEST_TMPDIR/patterns-c3")"
 assert_eq "case 3: user and repository patterns are unioned, each once" \
   'loosened_check_patterns: ["test/**","ci/checks/**","text:continue-on-error"] (userConfig, docs/conventions/review.yaml)' \
   "$(line_of "$out" loosened_check_patterns)"
@@ -102,13 +103,15 @@ out="$(node "$RESOLVE" --root "$R1" --verdict-option note)"
 assert_contains "case 4: without --ref the repository layer is skipped and the head file is not read" \
   "$(line_of "$out" loosened_check_verdict)" "loosened_check_verdict: note (userConfig)"
 assert_contains "case 4: without --ref the skip is named" "$out" "INFO repository layer skipped"
-out="$(node "$RESOLVE" --root "$R1" --ref origin/nope --verdict-option note --patterns-option '["test/**"]')"
+printf '%s' '["test/**"]' >"$TEST_TMPDIR/patterns-c4"
+out="$(node "$RESOLVE" --root "$R1" --ref origin/nope --verdict-option note --patterns-file "$TEST_TMPDIR/patterns-c4")"
 assert_eq "case 4: an unreadable ref resolves fail over a user note, the safe floor" \
   "loosened_check_verdict: fail (unreadable default branch)" "$(line_of "$out" loosened_check_verdict)"
 assert_eq "case 4: an unreadable ref keeps the user's patterns" \
   'loosened_check_patterns: ["test/**"] (userConfig)' "$(line_of "$out" loosened_check_patterns)"
 assert_contains "case 4: an unreadable ref is named in a WARN line" "$out" "WARN origin/nope could not be read"
-out="$(node "$RESOLVE" --root "$R4" --ref origin/main --verdict-option sometimes --patterns-option 'not json')"
+printf '%s' 'not json' >"$TEST_TMPDIR/patterns-c4-invalid"
+out="$(node "$RESOLVE" --root "$R4" --ref origin/main --verdict-option sometimes --patterns-file "$TEST_TMPDIR/patterns-c4-invalid")"
 assert_contains "case 4: an invalid user verdict is named" "$out" "WARN userConfig loosened_check_verdict"
 assert_contains "case 4: an invalid user verdict falls back to fail" \
   "$(line_of "$out" loosened_check_verdict)" "loosened_check_verdict: fail (default)"
@@ -125,6 +128,32 @@ assert_contains "case 5: an invalid committed verdict resolves the default fail"
 R5B="$(new_repo c5b $'loosened_check_verdict: note\nloosened_check_patterns:\n  - "ci/**"\n')"
 node "$SCRIPT_DIR/../skills/setup/scripts/setup-apply.mjs" --check --root "$R5B" >/dev/null
 assert_eq "case 5: a valid file passes the schema check" "0" "$?"
+
+# --- Case 6: the patterns option arrives through a file, never through a shell -
+S1="$TEST_TMPDIR/ran-dollar-paren"
+S2="$TEST_TMPDIR/ran-backtick"
+P6="$TEST_TMPDIR/patterns-c6"
+# shellcheck disable=SC2016 # the quote, $(...) and backtick are the literal input under test
+printf '["text:it'\''s $(touch %s) `touch %s`"]' "$S1" "$S2" >"$P6"
+expected6="loosened_check_patterns: [\"text:it's \$(touch $S1) \`touch $S2\`\"] (userConfig)"
+out="$(node "$RESOLVE" --root "$R4" --ref origin/main --patterns-file "$P6")"
+assert_eq "case 6: a pattern holding a quote, \$(...) and a backtick reaches the resolver intact" \
+  "$expected6" "$(line_of "$out" loosened_check_patterns)"
+assert_eq "case 6: the \$(...) in the pattern never ran" "absent" "$([[ -e "$S1" ]] && echo present || echo absent)"
+assert_eq "case 6: the backtick in the pattern never ran" "absent" "$([[ -e "$S2" ]] && echo present || echo absent)"
+# shellcheck disable=SC2016 # the literal, unexpanded placeholder is the input under test
+printf '%s' '${user_config.loosened_check_patterns}' >"$TEST_TMPDIR/patterns-c6-unset"
+out="$(node "$RESOLVE" --root "$R4" --ref origin/main --patterns-file "$TEST_TMPDIR/patterns-c6-unset")"
+assert_eq "case 6: a file holding the unrendered placeholder is unset" \
+  "loosened_check_patterns: [] (default)" "$(line_of "$out" loosened_check_patterns)"
+: >"$TEST_TMPDIR/patterns-c6-empty"
+out="$(node "$RESOLVE" --root "$R4" --ref origin/main --patterns-file "$TEST_TMPDIR/patterns-c6-empty")"
+assert_eq "case 6: an empty file is unset" \
+  "loosened_check_patterns: [] (default)" "$(line_of "$out" loosened_check_patterns)"
+node "$RESOLVE" --root "$R4" --ref origin/main --patterns-file "$TEST_TMPDIR/no-such-file" >/dev/null 2>&1
+assert_eq "case 6: an unreadable patterns file is a usage error" "2" "$?"
+node "$RESOLVE" --root "$R4" --ref origin/main --patterns-option '["test/**"]' >/dev/null 2>&1
+assert_eq "case 6: the shell-argument form is gone" "2" "$?"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

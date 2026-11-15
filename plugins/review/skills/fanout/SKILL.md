@@ -3,7 +3,7 @@ description: "Breadth review: fans a change out to many reviewers at once (this 
 argument-hint: "[run-everything|fix] [--yes] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Workflow(review:fanout-sweep)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/loosened-check-settings.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)"]
+allowed-tools: ["Workflow(review:fanout-sweep)", "Bash(mktemp -d)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/loosened-check-settings.mjs\":*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -79,11 +79,12 @@ lines and when the repository file is read at all: "Resolution" and "Root rule" 
 **Loosened-check settings (both review modes).** Run-everything
 ([context/run-everything-mode.md](context/run-everything-mode.md) step 5) and the default mode
 ([context/default-mode.md](context/default-mode.md) "Loosened-check brief") resolve them once
-before dispatch. The bundled criterion always applies; consumer criteria apply in addition. The resolver takes the user options as `--verdict-option '${user_config.loosened_check_verdict}' --patterns-option
-'${user_config.loosened_check_patterns}'` (a literal, unexpanded placeholder means unset). Write
-each `'` inside either option value as `'\''` first, so a quote in a regex cannot end the single
-quoting; when the run fails and the patterns option is not empty, run it once more without
-`--patterns-option` so the repository's entries still apply, and say the user's entries were
+before dispatch. The bundled criterion always applies; consumer criteria apply in addition. The resolver takes the user options as `--verdict-option '${user_config.loosened_check_verdict}' --patterns-file
+<dir>/patterns` (a literal, unexpanded placeholder means unset). `<dir>` comes from `mktemp -d`;
+first write `<dir>/patterns` with the Write tool, its content exactly
+`${user_config.loosened_check_patterns}`, so the free-form value never passes through a shell.
+When the run fails and the patterns option is not empty, run it once more without
+`--patterns-file` so the repository's entries still apply, and say the user's entries were
 dropped.
 
 **`fanout_act_on_cap` (both review modes).** How many rows under each `## By axis` heading

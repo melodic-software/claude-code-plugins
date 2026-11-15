@@ -6,7 +6,7 @@
 //   loosened_check_patterns  union of every valid layer's entries; default none
 //
 // Usage: loosened-check-settings.mjs [--root <dir>] [--ref <origin/name|40-hex>]
-//          [--verdict-option <value>] [--patterns-option <JSON list>]
+//          [--verdict-option <value>] [--patterns-file <path>]
 //
 // The repository layer is read only from --ref, through setup-apply.mjs --check
 // --ref, never from the working tree, so a change cannot relax the verdict or
@@ -22,6 +22,7 @@
 // resolved; 2 on a usage error.
 
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "../lib/yaml-subset.mjs";
@@ -37,12 +38,19 @@ function usage(message) {
 
 function parseArgs(argv) {
   const opts = { root: null, ref: null, verdict: null, patterns: null };
-  const names = { "--root": "root", "--ref": "ref", "--verdict-option": "verdict", "--patterns-option": "patterns" };
+  const names = { "--root": "root", "--ref": "ref", "--verdict-option": "verdict", "--patterns-file": "patternsFile" };
   for (let i = 0; i < argv.length; i++) {
     const name = names[argv[i]];
     if (!name) usage(`unknown argument ${JSON.stringify(argv[i])}`);
     if (i + 1 >= argv.length) usage(`${argv[i]} needs a value`);
     opts[name] = argv[++i];
+  }
+  if (opts.patternsFile !== undefined) {
+    try {
+      opts.patterns = readFileSync(opts.patternsFile, "utf8").trim();
+    } catch (err) {
+      usage(`--patterns-file ${JSON.stringify(opts.patternsFile)} could not be read: ${err.code ?? err.message}`);
+    }
   }
   return opts;
 }
