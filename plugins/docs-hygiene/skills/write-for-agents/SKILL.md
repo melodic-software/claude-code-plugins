@@ -153,8 +153,8 @@ a cap on prose length. An example of the form:
 
 ```text
 Bad:  Keep the summary reasonably short and mention the tests where appropriate.
-Good: The summary is at most three sentences. Name each test command you ran with its
-      pass and fail counts.
+Good: The summary says what changed and why, and nothing else. Name each test command you ran
+      with its pass and fail counts.
 ```
 
 - **Pointer**: why prose-length caps are left out,

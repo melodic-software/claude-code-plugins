@@ -15,7 +15,6 @@
 - [Managed policy, and what it does not buy](#managed-policy-and-what-it-does-not-buy)
 
 Version: 1.1.0
-Last updated: 2026-08-28
 
 This file defines what `permission-merge.sh` may claim and which documented mechanic each claim
 points at. Each rule below is our decision in our words with a

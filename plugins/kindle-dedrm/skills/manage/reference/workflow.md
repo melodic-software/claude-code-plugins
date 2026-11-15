@@ -39,7 +39,7 @@ curl -L -o KindleForPC-installer-2.8.70980.exe \
 # placeholder still in place, so a malformed URL can never be composed.
 LATEST_TAG=$(gh api repos/Satsuoni/DeDRM_tools/releases --jq '[.[] | select(.prerelease == true)][0].tag_name // empty' 2>/dev/null || true)
 if [[ -z "${LATEST_TAG}" || "${LATEST_TAG}" == "null" ]]; then
-  LATEST_TAG="PINNED_TAG_FROM_VERSIONS_MD" # substitute the literal tag, e.g. v10.0.20
+  LATEST_TAG="PINNED_TAG_FROM_VERSIONS_MD" # substitute the literal pinned tag from reference/versions.md
   if [[ "${LATEST_TAG}" == "PINNED_TAG_FROM_VERSIONS_MD" ]]; then
     echo "gh unavailable and no pinned tag substituted — read it from reference/versions.md, then rerun." >&2
     exit 1

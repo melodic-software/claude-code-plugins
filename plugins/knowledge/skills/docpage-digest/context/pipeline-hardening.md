@@ -6,7 +6,7 @@ spots; this file owns the format, invocation, and pin-manifest shape so
 `SKILL.md` stays a procedure. It also holds the one subagent-death ladder; the
 degraded-verifier rule is in [dual-verification.md](dual-verification.md).
 
-**Prerequisite:** `python3` (3.9+) on PATH for the two standing gates under
+**Prerequisite:** `python3` (3.9+) on PATH for the standing gates under
 `scripts/`. Missing Python means say so and stop. There is no agent-judgment
 fallback for a deterministic quote/snippet check. The five scripts that import a
 sibling module set `sys.dont_write_bytecode` so they leave no `__pycache__` in the skill's

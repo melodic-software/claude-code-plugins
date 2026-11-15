@@ -22,17 +22,15 @@ merge for C2/C3 classes.
   prose-only update to the fail-closed paragraph.
 - **Basis:**
   - Issue [#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588).
-  - The autonomy plugin's `check-security-binding.mjs` (`/autonomy:setup`): usage line 12 names
-    `--evidence` and `--probe-evidence-root`; `verifyProbeTranscript` (line 1310) returns the
-    fail-closed reason "no --probe-evidence-root configured" at lines 1316-1317 when the root is
-    null.
+  - The autonomy plugin's `check-security-binding.mjs` (`/autonomy:setup`): its `Usage:` comment
+    names `--evidence` and `--probe-evidence-root`; `verifyProbeTranscript` returns the
+    fail-closed reason "no --probe-evidence-root configured" when the root is null.
   - `/autonomy:setup`: "Agent-unwritable bootstrap for security resolution".
   - The autonomy plugin's `check-security-binding.fixtures.test.mjs` (`/autonomy:setup`): builds each
     fixture argv with `--probe-evidence-root` (line 80) and `--evidence` (line 81).
-  - [`cycle-shape.md`](cycle-shape.md) step 3, "Rung partition" (line 37), whose promotion gate
-    reads at lines 60-84.
-  - `prompts/loops/loop-lane-prompts.md`: `{{MERGE}}` guidance (lines 75-80), "2. Merge lane"
-    (line 628), and the "C2 auto-merge may lack its promotion evidence" known gap (line 1248).
+  - [`cycle-shape.md`](cycle-shape.md) step 3, "Rung partition", and its promotion gate.
+  - `prompts/loops/loop-lane-prompts.md`: `{{MERGE}}` guidance, "2. Merge lane", and the
+    "C2 auto-merge may lack its promotion evidence" known gap.
 - **As of:** 2026-09-29.
 - **Recheck:** issue #4588 changing state, or any cited file changing the quoted usage line,
   fail-closed message, bootstrap section, fixture argv, or step 3 promotion gate.

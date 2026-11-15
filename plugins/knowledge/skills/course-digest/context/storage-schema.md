@@ -228,4 +228,4 @@ For courses with GitHub repos instead of ZIPs, `code/repo/` is a shallow clone a
 - **Screenshots**: resize to 1280px wide, compress with reasonable quality
 - **Transcripts**: typically 1-3 KB per minute of video (~30 KB for a 30-min lesson)
 - **course.json**: grows with lessons but stays under 50 KB for large courses
-- **Expected total per course**: 1-5 MB for transcripts + metadata, 10-50 MB with screenshots
+- **Expected total per course**: 1-5 MB for transcripts + metadata; with screenshots, size it from the measured per-lesson figures in [screenshot-strategy.md](../reference/screenshot-strategy.md#file-size-management)

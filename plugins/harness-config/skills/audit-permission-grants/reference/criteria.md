@@ -1,7 +1,6 @@
 # Permission Hygiene Criteria
 
 Version: 1.4.0
-Last updated: 2026-09-13
 Synced from: permission-rule-hygiene convention 1.4.0 (`0a9bae33`)
 
 This file defines the checks the `audit-permission-grants` audit runs. The **principle, the three
