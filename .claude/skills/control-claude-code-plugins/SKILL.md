@@ -56,7 +56,8 @@ The driving tool's `## Mask`.
   removes stops there: record the step and its entry point, and never drop the flag. Which tools it
   removes: the `--restricted` row of <https://code.claude.com/docs/en/cli-reference#cli-flags>. The
   pr-verify capture's driven session launches through the broker with `--in-sandbox`, without
-  `--restricted`, so Bash is there.
+  `--restricted`, so Bash is there, and starts in a writable clone of the pull request's head with
+  its git history.
 - A Parts line marked `No slash command.` or `No plain-words entry.` names the entry points that
   skill lacks.
 

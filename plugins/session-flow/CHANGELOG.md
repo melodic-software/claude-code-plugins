@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [9.2.2] - 2026-11-15
+
+### Changed
+
+- The bundled enforcement ladder is 3.1.1: its Rungs section names the sources of the order
+  (Lauren Tan for the tiers, Simon Brown for a compiler setting above an architecture test). No
+  rung, id or rule changes.
+
 ## [9.2.1] - 2026-11-15
 
 ### Changed

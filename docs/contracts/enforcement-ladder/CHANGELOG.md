@@ -4,6 +4,12 @@ Notable changes to the enforcement ladder (SemVer). Renaming, removing or moving
 bump. Adding a rung, a reader's selection rule or a boundary-rule location is a minor bump.
 Wording-only clarification is a patch.
 
+## [3.1.1] - 2026-11-15
+
+- Changed: the Rungs section names the sources of the order: Lauren Tan's talk and principle file
+  for the tiers, Simon Brown for a compiler setting above an architecture test. No rung, id or rule
+  changes.
+
 ## [3.1.0] - 2026-11-15
 
 - Added: rung ids for two static-analysis rows that had none, so a skill can write them into a

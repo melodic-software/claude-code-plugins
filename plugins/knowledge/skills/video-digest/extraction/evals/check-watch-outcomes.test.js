@@ -279,6 +279,30 @@ describe("checkWatchOutcomes session gates", () => {
     }
   });
 
+  it("grades only the sessions that overlap a ranged slice's timeRange", () => {
+    const slice = makeSessionSlice(twoSessions);
+    fs.writeFileSync(
+      path.join(slice, "run-state", "watch.json"),
+      JSON.stringify({ timeRange: { fromSec: 0, toSec: 300, offsetSec: 0, cut: "keyframe" } }),
+    );
+    for (const id of ["session-visual-coverage", "session-synthesis-depth"]) {
+      expect(sessionCheck(slice, id)?.pass).toBe(true);
+    }
+  });
+
+  it("fails both gates and names the range when no session overlaps it", () => {
+    const slice = makeSessionSlice(twoSessions);
+    fs.writeFileSync(
+      path.join(slice, "run-state", "watch.json"),
+      JSON.stringify({ timeRange: { fromSec: 900, toSec: null, offsetSec: 900, cut: "keyframe" } }),
+    );
+    for (const id of ["session-visual-coverage", "session-synthesis-depth"]) {
+      const check = sessionCheck(slice, id);
+      expect(check?.pass).toBe(false);
+      expect(check?.actual).toContain("overlaps the watch.json timeRange");
+    }
+  });
+
   it("passes both gates when every session carries a talking-head-only row and no frame exists", () => {
     const slice = makeSessionSlice(twoSessions);
     fs.writeFileSync(

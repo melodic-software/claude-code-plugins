@@ -142,6 +142,7 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
         videoId: extractVideoId(url) ?? undefined,
         captionWaitDeadline: context.captionWaitDeadline ?? null,
         downloadSection: context.timeRange ? downloadSectionSpec(context.timeRange) : null,
+        skipCaptionWait: context.skipCaptionWait === true,
       },
       context.deps ?? {},
     );

@@ -66,6 +66,7 @@ each plugin variable resolves, and where it is exported: the plugins reference,
 
 ## Next
 
+- A long file that also changes often needs a tracker item: /work-items:track add.
 - The numbers feed a before-and-after comparison: `/verification:measure metrics`.
 - A complex function's coverage and CRAP score are the real question:
   `/code-metrics:audit-coverage`.
