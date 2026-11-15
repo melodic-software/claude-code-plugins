@@ -2859,9 +2859,19 @@ test("a lost run listed under the file's earlier name is recovered, and that lis
     if (workflow === earlier) throw new Error("GET runs returned 404");
     return [lostRun()];
   };
-  await sweepMain(t, broken, TICK, NOW);
+  const quiet = await sweepMain(t, broken, TICK, NOW);
   assert.deepEqual(broken.jobReads, [600]);
   assert.equal(broken.calls.dispatch.length, 1);
+  assert.ok(!quiet.lines.some((line) => line.includes("run listing failed")), "a 404 of the earlier name is expected and not logged");
+
+  const limited = recoveryApi();
+  limited.listRecentRuns = async (workflow) => {
+    if (workflow === earlier) throw new Error("GET runs returned 403");
+    return [lostRun()];
+  };
+  const warned = await sweepMain(t, limited, TICK, NOW);
+  assert.deepEqual(limited.jobReads, [600]);
+  assert.ok(warned.lines.some((line) => line.startsWith(`::warning::${earlier} run listing failed`) && line.includes("403")), warned.lines.join("\n"));
 });
 
 test("a failed recovery listing is a warning, and the tick ends green", async (t) => {
