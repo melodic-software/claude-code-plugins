@@ -49,8 +49,11 @@ Rows, each PASS, FAIL, WARN, or INFO:
    --error-unmatch` sees it (untracked is WARN: written but uncommitted).
 4. **layer local ignored**: the personal override is gitignored, else WARN with the recommended consumer
    line `.claude/**/*.local.*`. Recommend the line; never edit the consumer's `.gitignore`.
-5. **ecosystem `<lane>.yaml`**: each consumer ecosystem file parses; its `globs` and `enabled`
-   override lane detection.
+5. **ecosystem `<lane>.yaml`**: each consumer ecosystem file parses. PASS when its lane is in the
+   resolved `lanes` mapping (a bundled lane, or one a layer lists): its `globs` and `enabled`
+   override lane detection. WARN naming the missing `lanes.<lane>` entry when no layer lists the
+   lane: the resolver ignores that record. WARN when the configuration does not resolve, since
+   the lane list is then unknown.
 6. **reference `<measure>`**: the resolved value with the layer that supplied it and its
    provenance, so a personal layer that changed a value is visible.
 7. **collector `<tool>`**: the adapter's probe, then one measure from the ladder run on a bundled

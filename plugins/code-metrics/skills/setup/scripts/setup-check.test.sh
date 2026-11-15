@@ -168,5 +168,23 @@ rc=$?
 assert_eq "a missing collector exits 0" 0 "$rc"
 assert_row "a missing probe is an INFO missing row with its hint" "$out" "INFO  collector line-counter +missing; install the stub tool"
 
+# 7. An ecosystem record counts only for a lane in the resolved `lanes`
+#    mapping: a bundled lane's record is PASS, a record no layer lists is WARN
+#    naming the missing entry, and listing the lane in a layer makes it PASS.
+eco_repo="$(mktemp -d)"
+trap 'rm -rf "$home" "$repo" "$fake" "$eco_repo"' EXIT
+mkdir -p "$eco_repo/.claude/ecosystems"
+printf 'globs:\n  - "**/*.py"\n' >"$eco_repo/.claude/ecosystems/python.yaml"
+printf 'globs:\n  - "**/*.rs"\n' >"$eco_repo/.claude/ecosystems/rust.yaml"
+out="$(bash "$SCRIPT" --repo-root "$eco_repo" --home "$fake")"
+rc=$?
+assert_eq "an unlisted ecosystem record does not fail the run" 0 "$rc"
+assert_row "a listed lane's record is honored" "$out" "PASS  ecosystem python.yaml +parses; its globs and enabled key are honored for lane detection"
+assert_row "an unlisted lane's record is not used" "$out" "WARN  ecosystem rust.yaml +parses, but no layer lists lane rust under lanes, so it is not used for lane detection; add a lanes.rust entry"
+mkdir -p "$eco_repo/docs/conventions"
+printf 'lanes:\n  rust:\n    enabled: true\n' >"$eco_repo/docs/conventions/code-metrics.yaml"
+out="$(bash "$SCRIPT" --repo-root "$eco_repo" --home "$fake")"
+assert_row "a lane a layer lists honors its record" "$out" "PASS  ecosystem rust.yaml +parses; its globs and enabled key are honored for lane detection"
+
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))

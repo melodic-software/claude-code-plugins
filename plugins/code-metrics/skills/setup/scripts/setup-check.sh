@@ -119,20 +119,42 @@ if [[ -f "$retired_file" && ! "$retired_file" -ef "$HOME_DIR/.claude/code-metric
 fi
 check_layer "team" "$team_file" yes
 check_layer "local" "$REPO_ROOT/.claude/code-metrics.local.yaml" no
+
+# The resolver reads an ecosystem record only for a lane in the resolved
+# `lanes` mapping whose id matches its LANE_ID pattern, so the configuration
+# resolves before the ecosystem rows.
+RESOLVED="$(mktemp)"
+LIVE="$(mktemp -d)"
+trap 'rm -rf "$RESOLVED" "$RESOLVED.err" "$LIVE"' EXIT
+resolved_ok=0
+"${PY[@]}" "$SCRIPTS/resolve-config.py" --ladder "$SCRIPTS/collector-ladder.tsv" --home "$HOME_DIR" --repo-root "$REPO_ROOT" >"$RESOLVED" 2>"$RESOLVED.err" && resolved_ok=1
+listed_lanes=" "
+if [[ $resolved_ok -eq 1 ]]; then
+  listed_lanes=" $("${PY[@]}" -I -c '
+import json, re, sys
+lanes = json.load(open(sys.argv[1])).get("lanes") or {}
+print(" ".join(k for k in lanes if re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", k)))
+' "$RESOLVED") "
+fi
+
 for eco in "$REPO_ROOT"/.claude/ecosystems/*.yaml; do
   [[ -f "$eco" ]] || continue
-  if err="$("${PY[@]}" "$SCRIPTS/yaml_subset.py" "$eco" 2>&1 >/dev/null)"; then
+  lane="${eco##*/}"
+  lane="${lane%.yaml}"
+  lane="${lane%.local}"
+  if ! err="$("${PY[@]}" "$SCRIPTS/yaml_subset.py" "$eco" 2>&1 >/dev/null)"; then
+    row FAIL "ecosystem ${eco##*/}" "outside the YAML subset: ${err#*: }"
+  elif [[ $resolved_ok -eq 0 ]]; then
+    row WARN "ecosystem ${eco##*/}" "parses; whether lane $lane reads it is unknown because the configuration did not resolve (see the config row)"
+  elif [[ "$listed_lanes" == *" $lane "* ]]; then
     row PASS "ecosystem ${eco##*/}" "parses; its globs and enabled key are honored for lane detection"
   else
-    row FAIL "ecosystem ${eco##*/}" "outside the YAML subset: ${err#*: }"
+    row WARN "ecosystem ${eco##*/}" "parses, but no layer lists lane $lane under lanes, so it is not used for lane detection; add a lanes.$lane entry to a layer to use it"
   fi
 done
 
 # ---- resolved references -----------------------------------------------------
-RESOLVED="$(mktemp)"
-LIVE="$(mktemp -d)"
-trap 'rm -rf "$RESOLVED" "$RESOLVED.err" "$LIVE"' EXIT
-if "${PY[@]}" "$SCRIPTS/resolve-config.py" --ladder "$SCRIPTS/collector-ladder.tsv" --home "$HOME_DIR" --repo-root "$REPO_ROOT" >"$RESOLVED" 2>"$RESOLVED.err"; then
+if [[ $resolved_ok -eq 1 ]]; then
   while IFS=$'\t' read -r measure reference provenance layer; do
     row INFO "reference $measure" "$reference (layer: $layer) $provenance"
   done < <("${PY[@]}" -I -c '
