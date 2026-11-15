@@ -16,7 +16,9 @@
 // since its body embeds the repository, whose pushed_at moves on every push.
 // A ref read that shows another head, or fails, falls back to reading the
 // pull request. The ref outlives a close or merge, so a pull request closed
-// mid-wait is caught at the final read, once the wait ends. A head read there
+// before or during the wait is caught at the final read, once the wait ends;
+// a start read, made only when the event lacks the base ref or head
+// repository, catches one closed before. A head read there
 // as moved is read again after one poll before anything ends on it; a second
 // read that shows this head again resumes the wait. No dispatcher run, no record, a record naming
 // any other run, a wait past its cap, or any read that fails runs the review,
@@ -136,8 +138,8 @@ export async function decide({ number, head, repository, appearMs, capMs, pollMs
     // both, the pull request is read, and a head it shows already moved is
     // skipped once a second read confirms it.
     const pr = baseRef && headRepository ? null : await api.get(`pulls/${number}`);
-    if (pr) [baseRef, headRepository] = [pr.base?.ref, pr.head?.repo?.full_name];
-    if (baseRef !== "main" || headRepository !== repository) {
+    const [base, from] = pr ? [pr.base?.ref, pr.head?.repo?.full_name] : [baseRef, headRepository];
+    if (base !== "main" || from !== repository) {
       return await finish("no-refine");
     }
     const gone = pr && (await moved(pr));

@@ -340,6 +340,20 @@ test("with the event's values, a PR into another base, or from a fork, is review
   }
 });
 
+test("with the event's values, a head already moved at the start is caught at the first poll: the listing comes first, then the poll and its confirming read", async () => {
+  const w = world({ "pulls/7": pull(MOVED), [PROBE]: ref(MOVED), [LIST]: { workflow_runs: [dispatcherRun({ status: "in_progress" })] } });
+  assert.deepEqual(await decide(EVENT, w.deps), { proceed: false, reason: "head-moved" });
+  assert.equal(apiReads(w)[0], LIST, "the dispatcher listing is the first read");
+  assert.equal(w.elapsed(), 60_000, "one 30 s poll, then the 30 s confirming read");
+});
+
+test("with the event's values, a pull request closed at the start is caught only at the finish read", async () => {
+  const w = world({ "pulls/7": pull(HEAD, { state: "closed" }), [PROBE]: ref(), [LIST]: { workflow_runs: [] } });
+  assert.deepEqual(await decide(EVENT, w.deps), { proceed: false, reason: "head-moved" });
+  assert.equal(w.elapsed(), 300_000, "the ref outlives the close, so the 300 s window runs out first");
+  assert.equal(reads(w, "pulls/7"), 1, "the finish read only");
+});
+
 test("with either event value empty or missing, the start reads the pull request as before", async () => {
   for (const missing of [{ baseRef: "" }, { headRepository: "" }, { baseRef: null }, { headRepository: undefined }]) {
     const w = world(refined(refineRun()));

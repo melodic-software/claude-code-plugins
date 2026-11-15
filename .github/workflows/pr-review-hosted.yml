@@ -254,7 +254,7 @@ jobs:
     permissions:
       actions: read # the dispatcher and pr-refine runs and the dispatch record
       contents: read # check out the default branch for the script; each poll's read of refs/pull/<n>/head
-      pull-requests: read # the pull request's state and head at the start, the end, and a poll whose ref read differs or fails
+      pull-requests: read # the pull request's state and head at the end, at a poll whose ref read differs or fails, and at the start only when the event lacks the base ref or head repository
     outputs:
       proceed: ${{ steps.wait.outputs.proceed }}
     env:
