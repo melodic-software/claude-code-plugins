@@ -1,12 +1,16 @@
 {
   "pass": [
     {
-      "answer": "level: standard (default)\nPlan: design-system preview, HTML mockup, variants A to C, states populated, empty.",
-      "why": "report line names the default layer"
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"level: standard (default)\\nPlan: design-system preview, HTML mockup, variants A to C.\"}]}}",
+      "why": "report line names the default layer, above the plan"
     },
     {
-      "answer": "level: standard (default; resolver unavailable: node missing)\nPlan: design-system preview, HTML mockup.",
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"level: standard (default; resolver unavailable: node missing)\\nPlan: design-system preview.\"}]}}",
       "why": "the fallback report line"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Level resolved.\\n\\nlevel: standard (default)\\n\\nPlan: three directions.\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"mktemp -d\",\"description\":\"x\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"I built three directions as one page.\"}]}}",
+      "why": "the report line comes with the plan, before the build and the final reply"
     }
   ],
   "fail": [
@@ -15,12 +19,20 @@
       "why": "empty"
     },
     {
-      "answer": "level: sketch (prompt)\nPlan: two variants.",
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"level: sketch (prompt)\\nPlan: two variants.\"}]}}",
       "why": "another level"
     },
     {
-      "answer": "Here is the mockup with its controls panel.",
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Here is the mockup with its controls panel.\"}]}}",
       "why": "no report line"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"node lib/prototype-settings.mjs resolve-level\",\"description\":\"x\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"{\\\"level\\\":\\\"standard\\\",\\\"layer\\\":\\\"default\\\"}\\nlevel: standard (default)\\n\"}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"I built three directions as one page.\"}]}}",
+      "why": "the resolver printed the line in a tool result and the reply never did"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":[{\"type\":\"text\",\"text\":\"{\\\"level\\\":\\\"standard\\\",\\\"layer\\\":\\\"default\\\"}\\nlevel: standard (default)\\n\"}]}]}}\n{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Here is the mockup.\"}]}}",
+      "why": "the line only inside a tool result given as a text block"
     }
   ]
 }

@@ -1,6 +1,6 @@
 ---
 type: regex
-target: last_message
+target: trace
 arm: with-only
-pattern: "level: standard \\(default"
+pattern: '"type":"assistant","message":\{[^\n]*?"type":"text","text":"(?:[^"\\\n]|\\.)*?level: standard \(default'
 ---
