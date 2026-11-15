@@ -29,6 +29,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git -C . \\\\\\n  push origin HEAD\",\"description\":\"x\"}}]}}",
       "why": "a push split over a continued line"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd evidence\\n\\tgit push -q origin HEAD\",\"description\":\"x\"}}]}}",
+      "why": "pushes on an indented line of a script"
     }
   ]
 }
