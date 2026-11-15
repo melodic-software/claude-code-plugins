@@ -35,7 +35,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Required target — guarded after arg-parsing so usage errors still exit 2.
-REPO="${WIT_CONFORMANCE_GITHUB_REPO:?set WIT_CONFORMANCE_GITHUB_REPO to a throwaway sandbox repo (owner/name); NEVER a coordination repo}"
+REPO="${WIT_CONFORMANCE_GITHUB_REPO:?set WIT_CONFORMANCE_GITHUB_REPO to a throwaway sandbox repo (owner/name); never a coordination repo}"
 
 BINDING_TMP="$(mktemp)"
 trap 'rm -f "$BINDING_TMP"' EXIT
@@ -135,7 +135,7 @@ assert_eq "renew keeps holder" "$(jq -r '.holder' <<<"$CLAIM")" "$(jq -r '.holde
 gh issue close "${ITEM1_ID##*#}" -R "$REPO" --comment "e2e: resolved" >/dev/null
 
 # 7. Graduation: item1's closure (gh's default reason, completed) unblocks item2
-# (blocker count, NOT blockedBy.totalCount — closed blockers linger there).
+# (blocker count, not blockedBy.totalCount — closed blockers linger there).
 FRONTIER2="$(wit list-frontier --repo "$REPO")"
 record "frontier after item1 closed" "$FRONTIER2"
 IDS2="$(ids "$FRONTIER2")"

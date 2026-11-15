@@ -20,9 +20,9 @@ that file expands the values they need; the steps below name them.
 
 ## Prerequisites
 
-Check tool availability per the prerequisite matrix in [e2e.md](e2e.md). When the consuming project names a prerequisite orchestrator tool/MCP, its absence hard-fails: STOP and report what's missing and how to fix it. Attempt no workaround: a substitute path produces unverified pass/fail results, defeating live verification.
+Check tool availability per the prerequisite matrix in [e2e.md](e2e.md). When the consuming project names a prerequisite orchestrator tool/MCP, its absence hard-fails: stop and report what's missing and how to fix it. Attempt no workaround: a substitute path produces unverified pass/fail results, defeating live verification.
 
-On a hard-fail, before stopping, write a structured verification-environment gap report to the run's evidence output: what is missing (each key, CLI, MCP, or environment the run needs) and what the operator must provide to make the run possible. The STOP still holds; the report gives the operator a precise list to supply instead of a bare failure.
+On a hard-fail, before stopping, write a structured verification-environment gap report to the run's evidence output: what is missing (each key, CLI, MCP, or environment the run needs) and what the operator must provide to make the run possible. The stop still holds; the report gives the operator a precise list to supply instead of a bare failure.
 
 ## Resolve run config
 
@@ -121,7 +121,7 @@ Before dispatching the drive subagent, once the driver for the run is known: whe
 `e2e_driver` pins it or `auto` picks it, run SKILL.md's browser-driver check
 as one Bash call. It exits non-zero when the resolved `browser_driver` command is not on PATH, and
 its message names the setting, the value, where the value came from, and the two ways forward
-(install that tool, or set `browser_driver` to a browser tool you have). On a non-zero exit, STOP
+(install that tool, or set `browser_driver` to a browser tool you have). On a non-zero exit, stop
 before driving anything and write the gap report from Prerequisites with that message. No other
 browser tool is a silent substitute, and the run never switches tools partway through.
 

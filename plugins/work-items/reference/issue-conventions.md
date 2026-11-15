@@ -14,8 +14,7 @@ title suffix.
 
 When folding a member into an umbrella, treat the sequence as **one atomic action**: post the
 membership comment on the item, post the matching membership comment on the umbrella issue, record
-the `blocked-by` edge, then strip the raw marker. Never stop after the item-side comment alone
-(#633).
+the `blocked-by` edge, then strip the raw marker. Never stop after the item-side comment alone.
 
 A recurring maintenance item's title is its schedule row's `title`. The title never links an item
 to its schedule row; the [recurring marker](#recurring-marker) does.

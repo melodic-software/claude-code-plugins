@@ -42,9 +42,9 @@ does not, and should not, probe the tracker script's `claim`/`reclaim` verbs (se
 below for why a hand-maintained tracker-path rule doesn't fit that model). Work-loop self-observation
 `#1381` recorded a denial this preflight has no way to surface: the tracker script's `reclaim` verb was refused
 by the auto-mode classifier while the sibling `claim` verb on the same script, invoked moments
-later, was NOT. At the time of writing, **neither** verb carries an explicit
+later, was not. As of 2026-07-25, **neither** verb carries an explicit
 `permissions.allow`/`deny` rule in the fleet's floor (`standards`
-`components/claude-permissions/claude-permissions.json`). The asymmetry is therefore not an
+`components/claude-permissions/claude-permissions.json`; recheck when that file gains a tracker-script rule). The asymmetry is therefore not an
 allow-list coverage gap of the kind this doc otherwise describes; it reads as the classifier's own
 heuristic judgment on the two commands.
 
@@ -145,6 +145,8 @@ cannot be determined (the platform, an owner or the current uid is unreadable, o
   [worktrees § What worktrees share with the main checkout](https://code.claude.com/docs/en/worktrees#what-worktrees-share-with-the-main-checkout)
   and [settings § Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository)
   live.
+- **As of**: 2026-10-18 (the v2.1.211 floor and the three per-worktree exceptions).
+- **Recheck trigger**: a Claude Code release note or one of those sections changes where a "Yes, don't ask again" approval lands for a worktree session.
 
 Where the shared save applies, the main
 checkout's local file is therefore part of a fresh worker worktree's effective settings, and the
@@ -194,9 +196,9 @@ that worktree. Two cases:
   `settings.local.json` (legacy rules saved there still apply to sessions started there) plus the
   main checkout's shared local file; the header names the sources, under the same condition.
 
-**Two residual limits apply to BOTH modes above.**
+**Two residual limits apply to both modes above.**
 
-- **Older harness: MASKING.** On a Claude Code version before v2.1.211, which predates the
+- **Older harness: masking.** On a Claude Code version before v2.1.211, which predates the
   repository-wide save, a worktree session loads its own local file, not the main
   checkout's, so crediting a main-local-only grant suppresses a gap the worker really hits. Nothing
   in the preflight detects it: it never probes the running Claude Code version, and versions below
@@ -204,7 +206,7 @@ that worktree. Two cases:
   the *harness*, not on the repository layout, so wherever the installed Claude Code saves
   repository-wide it is a documentation-completeness matter rather than a live defect.
   Observation: the machine this was verified against ran v2.1.222.
-- **`--separate-git-dir` is ambiguous in git itself. It is NOT a preflight defect, and not maskable
+- **`--separate-git-dir` is ambiguous in git itself. It is not a preflight defect, and not maskable
   in silence.** For a repository created with `--separate-git-dir <path>/.git`, the main working tree is
   the directory holding the `.git` *file*, but git records no back-pointer to it. A recursive search
   of the whole common dir turns up only `worktrees/<name>/gitdir` entries, which point at *linked*

@@ -6,7 +6,7 @@ file-based TODO lists, designed for teams where humans and autonomous agents
 pick work from the same queue. The skill core is backend-agnostic; GitHub is the
 bound adapter today.
 
-The tracker's capabilities are split across ten focused skills (plus a setup
+The tracker's capabilities are split across eleven focused skills (plus a setup
 skill). Invoke the one that matches the job (or let Claude invoke it when you ask
 about work items, tickets, issues, tracked work, or what to do next):
 
@@ -191,10 +191,10 @@ candidate: the lane escalates it and the drain report names it.
 suffixes each lane's telemetry sentinel marker
 (`work-items:work-loop@<id>`), so concurrently running lane instances each own
 their own status comment and none can overwrite another's durable state. Absent,
-it is the sanitized lowercased hostname; two lanes on one machine each need an
+it is a random id made once and kept in the plugin data dir; two lanes on one machine each need an
 explicit value, since the id must be distinct across concurrent instances and
-stable across restarts. It appears verbatim in tracker comments. Set an opaque
-id if a machine name should not be published in a public tracker.
+stable across restarts. It appears verbatim in tracker comments, so the telemetry
+write rejects a hostname-shaped id.
 
 `triage_repro_count` (default 2) and `triage_objection_window_hours` (default 0,
 off) have a repository layer as well: the same keys in the consuming repo's

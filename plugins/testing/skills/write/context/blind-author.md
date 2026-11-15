@@ -73,6 +73,5 @@ benchmark tasks) found read-only tests stopped test modification but not special
 why step 5 exists. No source found evaluates a code-blind test author on real repositories, so
 treat this mode as a design choice to measure, not a proven default.
 
-Basis: the agent-self-check research slice (2026-10-06), prompted by Addy Osmani's 2026-10-05 post
-(<https://x.com/addyosmani/status/2106995301802541481>) and its replies. Recheck trigger: a measured
-evaluation of code-blind test authors on repository-scale work.
+Basis: the agent-self-check research slice (2026-10-06). Recheck trigger: a measured evaluation of
+code-blind test authors on repository-scale work.

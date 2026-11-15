@@ -1,13 +1,13 @@
 # Telemetry comment upsert (per-instance singleton, race-converging)
 
-The upsert this lane runs to maintain its ONE sentinel-identified status comment **for this
+The upsert this lane runs to maintain its one sentinel-identified status comment **for this
 lane instance**. [`../SKILL.md`](../SKILL.md)'s "Telemetry" section owns that the comment exists and
 when it is written; this file owns the contract of the script that maintains the singleton.
 
 The mechanism lives in this plugin rather than in `harness-ops` because an installed plugin cannot
 invoke a sibling plugin's scripts.
 
-Per the convention, this lane too maintains exactly ONE sentinel-identified status comment **per
+Per the convention, this lane too maintains exactly one sentinel-identified status comment **per
 lane instance** on its per-lane tracking issue in the target repository (default title
 `Lane telemetry: attend-queue`, created through the seam `create-item` verb when absent), edited in
 place each pass with the rows handled, the answers written, and the guard mode. Same script as the
@@ -43,7 +43,7 @@ The lookup is a `startswith` match on that full sentinel, so a body that merely 
 sentinel is never adopted, and it counts only comments the write identity authored: the sentinel is
 public text, so a comment anyone else posts with it is never made canonical, written, or
 tombstoned. Where the lookup finds nothing the script creates the comment; where it
-finds one it edits that comment in place; where it finds several the LOWEST id is canonical
+finds one it edits that comment in place; where it finds several the lowest id is canonical
 (numeric sort, deterministic for every session), the canonical comment receives this pass's full
 state, and every other sentinel comment is edited to a one-line tombstone, but only once the
 canonical write verifies, so a pass whose own write is unproven never tombstones a racing
@@ -52,7 +52,7 @@ upsert. A crashed racer's unmerged counters are an accepted loss; nothing is del
 instance's comment carries a different marker, never enters the list, and is neither made canonical
 nor tombstoned.
 
-**`$BODY_FILE` contract.** The file's FIRST line must be exactly the sentinel above, with the pass
+**`$BODY_FILE` contract.** The file's first line must be exactly the sentinel above, with the pass
 report below it and at least 16 payload bytes there. The lookup matches on that prefix, so a body
 composed without it is not merely rejected. It would never be found again, and the next pass would
 post a second comment. Compose the sentinel into the file; do not rely on anything downstream to
@@ -82,16 +82,16 @@ to end the pass: the lane records the outcome and continues.
 | 6 | `--repo` is not `owner/name` | Fix the invocation. |
 | 7 | `--issue` is not a positive integer | Fix the invocation. |
 | 8 | `gh` or `jq` is not on PATH | Carry the telemetry in the pass report instead. |
-| 9 | The body file is missing, empty, or opens with a literal `@` | NOTHING was written. Fix the body composition; do not re-run blind. |
+| 9 | The body file is missing, empty, or opens with a literal `@` | Nothing was written. Fix the body composition; do not re-run blind. |
 | 10 | The body is not sentinel-prefixed, or carries under 16 payload bytes | Same as code 9. |
 | 11 | The comment lookup failed or returned unparsable JSON | Nothing was written (fail closed). Treat the lane as UNREPORTED. |
 | 12 | No comment available to write to; a create may have landed but was not re-found | Treat the lane as UNREPORTED. |
 | 13 | The PATCH of the canonical comment failed | Treat the lane as UNREPORTED; the comment holds an earlier body, not this pass's write. |
 | 14 | The canonical comment does not hold this pass's body after the write (another body, an earlier pass's included, or none readable) | Treat the lane as UNREPORTED; do not trust the timestamp. |
 | 15 | The write identity is unresolved or `--app-slug` is not a slug (nothing written), or a create landed under another login (a wrong `--app-slug`) | Treat the lane as UNREPORTED; under an App token, pass or fix `--app-slug`. |
-| 16 | No safe body dir (none given, not this plugin's data dir, or `/`, the home dir or an ancestor of it), or the body file is a symlink or resolves outside it | NOTHING was read or written. Compose the body under `--body-dir`. |
-| 17 | The body matches the leak scan, a credential shape or a home path or private hostname (the message names the rule, never the match), or the scan could not run | NOTHING was written. Remove the credential-shaped text and rotate a real credential. |
-| 18 | The resolved lane instance looks like a fleet or private hostname, which the public marker would publish, or that scan could not run | NOTHING was written. Re-run once this pass with an empty `--instance`, so the script uses the stored random id; tell the operator to unset a hostname-shaped `lane_instance` key. |
+| 16 | No safe body dir (none given, not this plugin's data dir, or `/`, the home dir or an ancestor of it), or the body file is a symlink or resolves outside it | Nothing was read or written. Compose the body under `--body-dir`. |
+| 17 | The body matches the leak scan, a credential shape or a home path or private hostname (the message names the rule, never the match), or the scan could not run | Nothing was written. Remove the credential-shaped text and rotate a real credential. |
+| 18 | The resolved lane instance looks like a fleet or private hostname, which the public marker would publish, or that scan could not run | Nothing was written. Re-run once this pass with an empty `--instance`, so the script uses the stored random id; tell the operator to unset a hostname-shaped `lane_instance` key. |
 
 An unreadable comment list is fail-closed rather than read as empty, because treating it as empty
 posts a second comment, the exact failure the singleton exists to prevent.
