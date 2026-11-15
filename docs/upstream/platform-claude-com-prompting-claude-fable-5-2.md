@@ -120,12 +120,6 @@ Open for the owner:
   Recommended: (a). Basis: the guide's Approvals and caution sections, and
   `trust-and-authority.md:61`, which already excludes local work, so (a) states that exclusion
   where Fable 5.2 reads it without loosening the gate. Unblocks: chapter section for G2.1.
-- **Q3 (section rename, link text).** The guide renamed the section behind rows G1.2, G6.1 and
-  G7.1 to G7.4 and kept its anchor, so every link still resolves.
-  `plugins/playbooks/skills/fable-5/context/context-economy.md:59` still shows the old heading as
-  link text. Options: (a) update that link text in a follow-up change; (b) leave it, since the
-  anchor resolves. Recommended: (a). Basis: a reader who searches the page for the old heading
-  finds nothing. Unblocks: nothing else; this record and the chapter already carry the new name.
 - **Q4 (G6.4, absolute rules).** The re-read guide puts more weight on writing the exception, or an
   ask-first form, into a rule worded with "never". Whether this repository's own "never" rules
   outside the chapter (`AGENTS.md`, skill bodies) are rewritten that way is a change to what agents
@@ -139,6 +133,9 @@ Decided by the owner on 2026-11-15:
 - **Q2 (G3, ownership): option (a).** The chapter describes Fable 5.2's bias with and without a
   grant and grants nothing. No ownership grant is added to the doctrine, `AGENTS.md` or a lane
   prompt.
+- **Q3 (section rename, link text): option (a).** The link text shows the guide's current heading
+  in `plugins/playbooks/skills/fable-5/context/context-economy.md` and
+  `plugins/docs-hygiene/skills/write-for-humans/reference/sources.md`.
 
 ## Changes on the 2026-11-15 re-read
 
