@@ -845,8 +845,8 @@ describe("decide", () => {
       }
     });
 
-    // A seat is the billing noun (owner decision 2026-11-15); the verb
-    // "seat" followed by its object is not.
+    // A seat is the billing noun (owner decision 2026-11-15); the singular
+    // verb "seat" followed by its object is not.
     test("reads seat as a charge only as the billing noun", () => {
       for (const [text, words] of [
         ["This needs a plan or seat change.", ["seat"]],
@@ -873,12 +873,15 @@ describe("decide", () => {
         ["Bill for seats them included.", ["seats"]],
         ["Keep fewer seats this team holds.", ["seats"]],
         ["We purchased seats their staff use.", ["seats"]],
+        // The plural always holds: a false hold costs a question, a missed
+        // charge can bill the owner.
+        ["The check seats the guard.", ["seats"]],
+        ["- seats the team uses", ["seats"]],
       ]) {
         assert.deepEqual(chargeHits(text, chargePattern()), words, text);
       }
       for (const text of [
         "seat the guard when the file exists",
-        "The check seats the guard.",
         "Then seat it.",
         "Seat this hook first.",
         "- seat the guard when managed settings are absent",
