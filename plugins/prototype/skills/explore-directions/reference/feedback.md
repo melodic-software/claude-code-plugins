@@ -151,9 +151,10 @@ When the person is done pinning notes, keep what the run directory holds before 
    which may show real records and is never pushed. Only when it passes, commit those files to that
    item's folder on the map's dossier branch and push, with the branch, folder and push as
    `/planning:wayfind` says under "Shared files". When it fails or there is none, or nothing names
-   the branch and the folder, push nothing: the files stay in the memory slice and your reply says
-   `not pushed: <reason>`. This branch is not the evidence step's, which still leaves the mockup
-   out.
+   the branch and the folder, push nothing: the files stay in the memory slice, and your reply has
+   a line that begins with the exact words `not pushed:` followed by the reason, such as
+   `not pushed: the secrets check flagged explore-directions.html`. This branch is not the evidence
+   step's, which still leaves the mockup out.
 3. **Cleanup.** When the session ends, run `stop` (step 7 of the first list). The run directory
    (the mockup, `actions.json`, `replies.json`, `shots/`, the `relocate-<seq>.js` scripts) goes
    only when SKILL.md step 5 carries out "When the exercise ends", after steps 1 and 2 here.
