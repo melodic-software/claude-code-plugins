@@ -3,6 +3,14 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [9.4.0] - 2026-11-15
+
+### Added
+
+- **`security-reviewer` flags opt-in authorization.** The A01 row of the OWASP floor now covers
+  authorization that each route or handler must opt in to, with no central decision point and no
+  default deny, even when every current route carries its check.
+
 ## [9.3.1] - 2026-11-15
 
 ### Changed
