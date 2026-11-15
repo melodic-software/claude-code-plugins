@@ -39,12 +39,17 @@ verification (does the change match intent), and not Claude Code's built-in `/in
 
 Resolve at runtime, never hardcode machine-specific paths:
 
-- **Session data root** (`SESSION_DATA_DIR`). The directory under `~/.claude/projects/` that
-  holds the current session's transcript; its name is `<project-slug>`. Find it with one Glob for
-  `<home>/.claude/projects/*/<session id>.jsonl`, with the home directory and the session id
-  (`printenv CLAUDE_CODE_SESSION_ID`) written out as literal values. How Claude Code names that
-  directory is upstream behavior, never derived here (pointer:
-  <https://code.claude.com/docs/en/sessions#where-transcripts-are-stored>).
+- **Session data root**. `~/.claude/projects/<project-slug>/`, where `<project-slug>` is the
+  project's absolute path with every character outside `[A-Za-z0-9]` replaced by `-`:
+
+  ```bash
+  PROJECT_SLUG=$(pwd -W 2>/dev/null || pwd)          # Windows drive form when available
+  PROJECT_SLUG=$(printf '%s' "$PROJECT_SLUG" | sed 's/[^A-Za-z0-9]/-/g')
+  SESSION_DATA_DIR="$HOME/.claude/projects/$PROJECT_SLUG"
+  ```
+
+  Verify the directory exists before use; if the computed slug misses, find it by locating the
+  current session's JSONL: `ls "$HOME/.claude/projects"/*/"${CLAUDE_CODE_SESSION_ID}.jsonl"`.
 - Transcript: `<SESSION_DATA_DIR>/<session-id>.jsonl`; subagents:
   `<SESSION_DATA_DIR>/<session-id>/subagents/`
 - **Auto-memory** (feedback regression check): `<SESSION_DATA_DIR>/memory/`. Present only when the

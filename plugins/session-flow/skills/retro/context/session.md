@@ -29,30 +29,40 @@ single-session form.
 
 Resolve `SESSION_DATA_DIR` per SKILL.md "Paths", then:
 
-Run each command as its own Bash call, with the plugin root, the session data directory, the
-session id (`printenv CLAUDE_CODE_SESSION_ID`) and every path written out as literal values: no
-variable, loop, `$( )`, redirect or chaining.
+```bash
+PARSER="<plugin-root>/skills/retro/scripts/parse_transcript.py"
 
-1. Pick an interpreter that is Python 3.10 or newer (a bare `python` may be older): run
-   `python3 -c 'import sys; print(sys.version_info >= (3, 10))'`, and when that fails or prints
-   `False`, the same with `python`. With neither, skip metrics extraction and note why. The
-   parser is stdlib-only.
-2. Find the newest handoff with Glob on `<memory_dir>/handoffs/*-handoff-*.md` and take the last
-   name in sorted order. `<memory_dir>` is the memory-tier root: a working-docs convention you
-   inferred from `CLAUDE.md` / `.claude/rules`, else the plugin default `.work`. It is a root,
-   never a handoffs path, so `/handoffs` is always appended, matching the handoff skill's "Where
-   handoffs live".
-3. Multi-session form, when a newest handoff exists and passes the continuity gate above:
+# Pick an interpreter that is actually Python 3.10+ (a bare `python` may be older):
+PY=""
+for c in python3 python; do
+  if command -v "$c" >/dev/null 2>&1 \
+     && "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+    PY="$c"; break
+  fi
+done
 
-   ```bash
-   <python> "<plugin-root>/skills/retro/scripts/parse_transcript.py" --chain-from "<newest handoff>" --current-session "<session id>" --base "<session data dir>"
-   ```
+# Single-session form:
+"$PY" "$PARSER" --sessions "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
 
-   Otherwise the single-session form, saying so when no handoff file was found:
+# Multi-session form (handoff chain exists). Derive HANDOFF_DIR from the memory
+# root. Resolution: a working-docs convention you inferred from CLAUDE.md /
+# .claude/rules (pass it as DECLARED_MEMORY_DIR; prose is an inference source) ->
+# the plugin default .work. DECLARED_MEMORY_DIR is a memory-tier ROOT, never a
+# handoffs path directly — HANDOFF_DIR always appends /handoffs below, at every
+# rung, matching the handoff skill's "Where handoffs live".
+MEMORY_DIR="${DECLARED_MEMORY_DIR:-.work}"
+HANDOFF_DIR="$MEMORY_DIR/handoffs"
+NEWEST=$(ls -1 "$HANDOFF_DIR"/*-handoff-*.md 2>/dev/null | sort | tail -1)
+if [[ -z "$NEWEST" ]]; then
+  echo "No handoff files found under $HANDOFF_DIR — falling back to single-session form." >&2
+  "$PY" "$PARSER" --sessions "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
+else
+  "$PY" "$PARSER" --chain-from "$NEWEST" --current-session "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
+fi
+```
 
-   ```bash
-   <python> "<plugin-root>/skills/retro/scripts/parse_transcript.py" --sessions "<session id>" --base "<session data dir>"
-   ```
+If `PY` resolves empty (no Python 3.10+ available), skip metrics extraction and note why. The
+parser is stdlib-only.
 
 ### Script contract
 
@@ -81,7 +91,7 @@ When `ratio` is below ~0.5, say so before presenting the retro. Name `found` and
 offer to re-run with the ids enumerated:
 
 ```bash
-<python> "<plugin-root>/skills/retro/scripts/parse_transcript.py" --sessions <sid1> <sid2> ... --base "<session data dir>"
+"$PY" "$PARSER" --sessions <sid1> <sid2> ... --base "$SESSION_DATA_DIR"
 ```
 
 Do not silently scope a chain retrospective to what the walk happened to reach.
