@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [".work/shipments-layout/prototype/prototype-notes.md", ".work/shipments-layout/prototype/shots/1.png"],
+      "why": "the distilled notes in the memory slice's prototype folder"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["notes-run/prototype-notes.md"],
+      "why": "written into the run directory, which is deleted"
+    },
+    {
+      "answer": ["docs/prototype/prototype-notes.md"],
+      "why": "written into the tracked tree"
+    }
+  ]
+}

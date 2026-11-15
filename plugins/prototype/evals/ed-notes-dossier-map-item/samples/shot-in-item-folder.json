@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile 42-parcel-card-layout/prototype-notes.md\nfile 42-parcel-card-layout/shots/1.png\n",
+      "why": "a shot is in a subfolder of item 42's folder"
+    },
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile 42-parcel-card-layout/2.png\n",
+      "why": "a shot directly in item 42's folder"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile 42-parcel-card-layout/prototype-notes.md\n",
+      "why": "no shot was pushed"
+    },
+    {
+      "answer": "ref refs/heads/dossier/40-returns-redesign\nfile shots/1.png\n",
+      "why": "the shot is outside the item's folder"
+    }
+  ]
+}
