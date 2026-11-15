@@ -221,7 +221,9 @@ by the belt and a subagent's `git --version` ran. **Pointer:** when checking whi
 [Define hooks for subagents](https://code.claude.com/docs/en/sub-agents#define-hooks-for-subagents)
 and [Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)
 live. **As of:** 2026-11-10. **Recheck trigger:** either section documents subagent inheritance of
-skill-frontmatter hooks, or a release note names that reach. Do not treat a worker PowerShell recycle or delete as
+skill-frontmatter hooks, or a release note names that reach. Enforcing "workers return evidence only" in a hook that fires for
+subagents is parked: a plugin-level gate that reached subagents would be a new
+hook surface, not a SKILL.md sentence. Do not treat a worker PowerShell recycle or delete as
 belt-denied.
 
 The bundled [baseline policy](reference/baseline-policy.json) contains cross-platform candidate hints

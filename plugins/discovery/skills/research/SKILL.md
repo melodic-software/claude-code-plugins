@@ -253,12 +253,14 @@ A leading `breadth=low` or `breadth=medium` token is not part of the topic: stri
 
 ## Repository context. Gather first
 
-Only when no topic argument was supplied (the line under `## Topic` above renders no topic), read
-the current branch with `git branch --show-current`, run as its own body Bash call rather than a
-pre-compute line, so the git read reaches the shell on its own. The branch is only a topic
-fallback: the topic comes from an explicit argument first and the branch last, so a run with a
-topic argument makes no `git branch` call. Treat a failure (not a repository, git unavailable) as
-an unknown value and carry on. How the harness runs a skill's injected commands is
+**Only when no topic argument was supplied** (the line under `## Topic` above renders no topic), collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
+
+- Current branch, `git branch --show-current`
+
+The branch is only a topic fallback: the topic comes from an explicit argument first and the branch last, so a run with a topic argument makes no `git branch` call. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines, one command per call, so each git read
+reaches the shell on its own. How the harness runs a skill's injected commands is
 [skills: inject dynamic context](https://code.claude.com/docs/en/skills#inject-dynamic-context)'s
 to say.
 
@@ -276,7 +278,7 @@ Local counterpart: `/discovery:explore` (what is in the repo); this skill covers
 
 Present research findings as, and if invoked standalone present them directly, while inside a larger workflow they feed the subsequent planning step:
 
-1. **Summary**. A short answer to the research question that stands on its own, preceded by one line naming any decision the findings leave to the user (e.g. two primary sources conflict, or a gap blocks the answer), or omitted when none. A run with no accepted claim opens instead with `Inconclusive: no claim accepted.` (criterion 14)
+1. **Summary**. 2-3 sentence answer to the research question, preceded by one line naming any decision the findings leave to the user (e.g. two primary sources conflict, or a gap blocks the answer), or omitted when none. A run with no accepted claim opens instead with `Inconclusive: no claim accepted.` (criterion 14)
 2. **Evidence table**. `Claim | Sources (Tier 0/1 entries cite the URL/command fetched this turn) | Tier | Tool diversity | Confidence`. A source whose `standing:` is `historical` carries the label historical in its Sources cell, and a flagged claim's Confidence cell reads `HIGH (single source)`
 3. **Fetch log**, the written record criteria 6 and 9 are graded against, so it is written, not recalled. One entry per fetch per claim: `Claim | URL or command | artifact-ladder rung | tool used | outcome`, and each accepted claim carries the entry for the rung it came from and one for every rung above it. **The outcome vocabulary is a parsed schema, not free text**. Five values, three of which look interchangeable and are not, plus the composite changelog entry criterion 6 grades. Write it to the spec in `${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md` ("The fetch log")
 4. **Conflicts**. Disagreements between sources (flagged explicitly; primary wins over blog consensus)

@@ -79,7 +79,7 @@ Empirically (authoring-repo baseline), instruction-file paths produce <3% yield 
 | Condition | Action |
 |---|---|
 | Audit classifies an instruction-file path COMPRESS (signal 1 misfires) | Tighten path glob OR add a signal 1 exception; note the exception in this file |
-| Default-fallback files (signal 5) consistently yield <5% | Revisit signal 6's `< 5/kw` threshold (files at 5-9/kw whose flavor tokens sit inside protected quoted text also reverted) |
+| Default-fallback files (signal 5) consistently yield <5% | Fired 2026-08-15 (authoring repo, 9/9 reverted) → signal 6 added. If it fires again, revisit signal 6's `< 5/kw` threshold (files at 5-9/kw whose flavor tokens sit inside protected quoted text also reverted) |
 | Empirical yield baseline shifts beyond 3% | Update SKIP reason text + bump signal 1 expected band; rev the variant table in `context/flavor-vs-content-matrix.md` |
 | New always-loaded instruction path lands outside `.claude/rules/**` | Extend signal 1 glob; verify SKIP fires on the new path |
 

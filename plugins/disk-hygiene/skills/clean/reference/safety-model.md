@@ -906,8 +906,8 @@ or cleanup contract. The report each registry match produces is specified in
 
 The baseline policy therefore ships no discovery hint for another product's managed state. A hint
 for a class the engine will never act on tells the operator to look for residue the plugin has
-already decided to hand off, and no managed-state hint is exempted from that rule. Residue inside
-a managed directory is reported as a handoff to its owner, and
+already decided to hand off. For that reason the `.pulumi-write-test-*` hint was removed (#3860)
+rather than exempted. Residue inside a managed directory is reported as a handoff to its owner, and
 any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
 without that lane.
 
