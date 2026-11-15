@@ -706,10 +706,18 @@ test("the decided head is the newest cost notice a lane's status job recorded be
     ["pr-review-hosted.yml", "pr-review / Status"],
     ["pr-review-security-hosted.yml", "PR Review Security / Status"],
     ["pr-review-security-hosted.yml", "pr-review-security / Status"],
+    // Its planned name.
+    ["pr-review-hosted.yml", "PR Review / Publish Review"],
+    ["pr-review-hosted.yml", "pr-review / Publish Review"],
+    ["pr-review-security-hosted.yml", "PR Review Security / Publish Review"],
+    ["pr-review-security-hosted.yml", "pr-review-security / Publish Review"],
   ]) {
     assert.equal((await runs(laneRun(HEAD, "2026-10-22T11:30:00Z", { lane, job }))).link, LINK, job);
   }
   for (const [name, extra] of Object.entries({
+    "the other lane's planned status job name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "PR Review Security / Publish Review" }),
+    "the planned status job's bare name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "Publish Review" }),
+    "the planned status job under another caller job": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "other / Publish Review" }),
     "the other lane's Title Case status job name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "PR Review Security / Status" }),
     "the Title Case status job's bare name": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "Status" }),
     "the Title Case status job under another caller job": laneRun(HEAD, "2026-10-22T11:30:00Z", { job: "other / Status" }),

@@ -353,11 +353,16 @@ JOBS_20="$(jobs "$(kill_job success skipped kill-switch)" "$(status "$OLD_SEC_CH
 expect "a head tested before the rename passes under the job ids" 0 "'$CODE_CHECK' passed on $HEAD" "::error::"
 JOBS_10="$(jobs "$(kill_job success success kill-switch)")"
 expect "a kill switch job named by its id still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started."
+# The kill switch job's planned name.
+JOBS_10="$(jobs "$(kill_job success success 'Check Kill Switch')")"
+expect "a kill switch job under its planned name still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started."
 JOBS_10="$PASS_CODE" JOBS_20="$PASS_SEC"
 
 # The status job named review-status, before its Title Case name, still counts,
-# and so does its Title Case name under the caller job ids.
-for pair in "$RENAMED_CODE_CHECK|$RENAMED_SEC_CHECK" "$ID_CODE_CHECK|$ID_SEC_CHECK"; do
+# and so does its Title Case name under the caller job ids, and its planned
+# name `Publish Review` under both.
+for pair in "$RENAMED_CODE_CHECK|$RENAMED_SEC_CHECK" "$ID_CODE_CHECK|$ID_SEC_CHECK" \
+  'PR Review / Publish Review|PR Review Security / Publish Review' 'pr-review / Publish Review|pr-review-security / Publish Review'; do
   JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "${pair%%|*}" completed success)")"
   JOBS_20="$(jobs "$(kill_job success skipped)" "$(status "${pair#*|}" completed success)")"
   expect "status jobs named '${pair%%|*}' and '${pair#*|}' pass" 0 "'$SEC_CHECK' passed on $HEAD" "::error::"
@@ -373,7 +378,8 @@ for pair in 'pr-review / claude-review-status|pr-review-security / security-revi
   expect "status jobs named '${pair%%|*}' and '${pair#*|}' do not count" 1 "'$CODE_CHECK' did not run on $HEAD" "passed on $HEAD"
 done
 # A status job counts only under its own lane's caller job.
-for name in 'other / review-status' 'review-status' 'other / Status' 'Status' "$CODE_CHECK" "$OLD_CODE_CHECK" "$RENAMED_CODE_CHECK" "$ID_CODE_CHECK"; do
+for name in 'other / review-status' 'review-status' 'other / Status' 'Status' "$CODE_CHECK" "$OLD_CODE_CHECK" "$RENAMED_CODE_CHECK" "$ID_CODE_CHECK" \
+  'other / Publish Review' 'Publish Review' 'PR Review / Publish Review'; do
   JOBS_20="$(jobs "$(kill_job success skipped)" "$(status "$name" completed success)")"
   expect "a security run whose status job is named '$name' does not count" 1 "::error::'$SEC_CHECK' did not run on $HEAD"
 done

@@ -1618,6 +1618,15 @@ test("lane holds: pr-review-main counts a held trigger job or matrix leg, readin
   assert.deepEqual(restAnnotationReads(api, REVIEW_JOBS), [70001, 70010]);
 });
 
+test("lane holds: pr-review-main counts a held trigger job under its planned name or id", async () => {
+  const withTrigger = (name) =>
+    reviewRoutes().map(([pattern, body]) => (String(pattern) === String(/runs\/7001\/jobs/) ? [pattern, { jobs: [reviewJob(70010, name, true)] }] : [pattern, body]));
+  const held = async (name) =>
+    (await collect(input(fakeApi(withTrigger(name)), { holds: { rule: RULE, carried: CARRIED } }))).laneHolds.filter((h) => h.lane === "pr-review-main").map((h) => h.runId);
+  for (const name of ["Check Trigger", "check-trigger"]) assert.deepEqual(await held(name), [7001, 7000], name);
+  assert.deepEqual(await held("Check Triggers"), [7000], "a job of another name is no hold job");
+});
+
 test("lane holds: pr-review-main's runs are listed through GraphQL, with no REST jobs or annotations read, and find the same holds", async () => {
   const { before, after, restLeft, listed } = await holdsBothWays(reviewRoutes(), /runs\/700\d\/jobs|check-runs\/700\d\d\//);
   assert.deepEqual(after.laneHolds, before.laneHolds);

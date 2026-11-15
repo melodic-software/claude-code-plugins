@@ -2988,10 +2988,12 @@ def collect_lane_runs(
                     # upstream-status error that failed the job, shows the
                     # review never started (`babysit_review_evidence.rerun_binds`).
                     # `kill-switch` is a head tested before the rename, or a
-                    # repository whose job has no display name.
+                    # repository whose job has no display name;
+                    # `Check Kill Switch` is its planned name.
                     if job in lane_jobs or (
                         not lane_jobs
-                        and job.get("name") in ("Kill Switch", "kill-switch")
+                        and job.get("name")
+                        in ("Kill Switch", "kill-switch", "Check Kill Switch")
                         and job.get("conclusion") in ("success", "failure")
                     ):
                         job["annotations"] = pages(

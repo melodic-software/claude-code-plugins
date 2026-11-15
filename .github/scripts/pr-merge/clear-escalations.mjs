@@ -499,19 +499,26 @@ async function checksHeld(read, repo, head) {
 // `Require both review lanes on this head` step names them: the workflow, the
 // lane its completion record names, its status job's names (as pr-review-cli.yml
 // names it, under the caller's display name first; the lower-case caller is a
-// head tested before the rename, and `Status` its Title Case job name), and
-// whether only a whole review counts.
+// head tested before the rename, `Status` its Title Case job name and
+// `Publish Review` its planned one), and whether only a whole review counts.
 const LANE_RECORDS = Object.freeze([
   {
     file: "pr-review-hosted.yml",
     lane: "claude-review",
-    jobs: ["PR Review / review-status", "pr-review / review-status", "PR Review / Status", "pr-review / Status"],
+    jobs: ["PR Review / review-status", "pr-review / review-status", "PR Review / Status", "pr-review / Status", "PR Review / Publish Review", "pr-review / Publish Review"],
     whole: false,
   },
   {
     file: "pr-review-security-hosted.yml",
     lane: "claude-security-review",
-    jobs: ["PR Review Security / review-status", "pr-review-security / review-status", "PR Review Security / Status", "pr-review-security / Status"],
+    jobs: [
+      "PR Review Security / review-status",
+      "pr-review-security / review-status",
+      "PR Review Security / Status",
+      "pr-review-security / Status",
+      "PR Review Security / Publish Review",
+      "pr-review-security / Publish Review",
+    ],
     whole: true,
   },
 ]);

@@ -100,6 +100,8 @@ max_reads=12
 # job id each in Title Case (`fix-ci / broker-check` shows as
 # `Fix CI / Broker Check`), else by those ids: a run started before the
 # rename, which this script, read from the default branch tip, can still read.
+# The broker jobs are read under their ids and their planned ids
+# (`check-broker`, `record-broker-allow`).
 settle='
   . as $jobs
   | def titled($id): $id | split("-") | map(if . == "ci" then "CI" else (.[:1] | ascii_upcase) + .[1:] end) | join(" ");
@@ -112,7 +114,8 @@ settle='
       elif $st == null and (($j.steps // []) | length) > 0 then "false"
       elif $st == null then "missing: \($j.name) has no steps listed"
       else "missing: \($j.name) step \"\($s)\" has no conclusion" end;
-  def allowed($c): job("\($c) / broker-check") as $b | job("\($c) / broker-allowed") as $m
+  def allowed($c): (job("\($c) / broker-check") // job("\($c) / check-broker")) as $b
+    | (job("\($c) / broker-allowed") // job("\($c) / record-broker-allow")) as $m
     | if $m.conclusion == "success" then "true"
       elif $b == null then "false"
       elif ($b.conclusion // "") == "" then "missing: \($b.name) has no conclusion"

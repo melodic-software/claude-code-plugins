@@ -399,6 +399,8 @@ const STALE_STEP = "Stop on stale workflow files";
 // work-resolve-issue.yml's calls of the read runner: the API key leg, then
 // the subscription and fallback legs a handoff starts.
 const RESOLVE_CALLS = ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"];
+// work-resolve-issue.yml's admit job, by its id and its planned id.
+const ADMIT = ["admit", "check-admission"];
 // The admit job's step that skips a run while the issue has an open blocker,
 // or its blockers cannot be read (check-blockers.mjs); pick-slot then skips.
 const BLOCKER_STEP = "Wait for open blockers";
@@ -1942,11 +1944,11 @@ async function didNoWork(jobsOf, refusalOf, runs) {
     const switchedOff = (...steps) => (job) => job.conclusion === "success" && steps.every((step) => killedBefore(step)(job));
     const killed =
       budget ||
-      calls.some(killedBefore(BROKER_STEP)) || named("admit").some(switchedOff(INSTALL_STEP, TRIGGER_STEP)) || named("pick-slot").some(switchedOff(WIP_STEP));
+      calls.some(killedBefore(BROKER_STEP)) || ADMIT.flatMap(named).some(switchedOff(INSTALL_STEP, TRIGGER_STEP)) || named("pick-slot").some(switchedOff(WIP_STEP));
     // A failed job before any model turn: admit, pick-slot, or a call's
     // broker-check or run job, in a run where no model step ran.
     const modelRan = jobs.some((job) => (job.steps ?? []).some((step) => MODEL_STEP.test(String(step?.name)) && step.conclusion && step.conclusion !== "skipped"));
-    const preModel = [...named("admit"), ...named("pick-slot"), ...calls.filter((job) => / \/ (?:broker-check|Broker Check|run|Run)$/.test(String(job.name)))];
+    const preModel = [...ADMIT.flatMap(named), ...named("pick-slot"), ...calls.filter((job) => / \/ (?:broker-check|Broker Check|check-broker|Check Broker|run|Run)$/.test(String(job.name)))];
     const limited = modelRan ? undefined : preModel.find((job) => job.conclusion === "failure");
     const checked = calls.find((job) => failedAt(job, BROKER_STEP));
     const checkStopped = calls.find((job) => job.conclusion === "success" && endedAt(job, BROKER_STEP, "success") && endedAt(job, LEASE_STEP, "skipped"));
@@ -1959,10 +1961,10 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       named("resolve-issue").length > 0 &&
       calls.every((job) => job.conclusion === "skipped");
     const blocked =
-      (named("admit").some((job) => endedAt(job, BLOCKER_STEP, "success")) && named("pick-slot").every((job) => job.conclusion === "skipped")) ||
+      (ADMIT.flatMap(named).some((job) => endedAt(job, BLOCKER_STEP, "success")) && named("pick-slot").every((job) => job.conclusion === "skipped")) ||
       calls.some((job) => endedAt(job, RECHECK_STOP_STEP, "success"));
     const outage =
-      named("admit").some((job) => job.conclusion === "success" && endedAt(job, UPSTREAM_STEP, "success")) &&
+      ADMIT.flatMap(named).some((job) => job.conclusion === "success" && endedAt(job, UPSTREAM_STEP, "success")) &&
       named("pick-slot").length > 0 &&
       named("pick-slot").every((job) => job.conclusion === "skipped");
     // One log per run: broker-check's when it refused, failed or stopped
@@ -2112,6 +2114,7 @@ const stoppedMint = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => jobs.s
 // rename; a called job's name goes on ` / <job>`.
 const JOB_NAMES = {
   admit: "Admit",
+  "check-admission": "Check Admission",
   "pick-slot": "Pick Slot",
   "report-outcome": "Report Outcome",
   "resolve-issue": "Resolve Issue",
@@ -2123,7 +2126,7 @@ const namedJobs = (jobs, id) =>
   jobs.filter((job) => [JOB_NAMES[id], id].some((name) => job?.name === name || String(job?.name).startsWith(`${name} /`)));
 
 // Whether one of `runs` stopped at the admit job's provenance stop.
-const stoppedUntrusted = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => namedJobs(jobs, "admit").some((job) => endedAt(job, UNTRUSTED_STEP, "success")));
+const stoppedUntrusted = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => ADMIT.flatMap((id) => namedJobs(jobs, id)).some((job) => endedAt(job, UNTRUSTED_STEP, "success")));
 
 // Whether one of `runs` stopped at the read runner's stale-workflow stop, in
 // any of its calls: a later leg waits for its slot after the first hands off,
@@ -2152,7 +2155,7 @@ const cancelledBeforeWork = (jobsOf, runs) =>
       const named = (name) => namedJobs(jobs, name);
       const resolve = named("resolve-issue");
       return (
-        named("admit").some((job) => job.conclusion === "success") &&
+        ADMIT.flatMap(named).some((job) => job.conclusion === "success") &&
         resolve.every(neverStarted) &&
         [...named("pick-slot"), ...resolve].some((job) => job.conclusion === "cancelled")
       );

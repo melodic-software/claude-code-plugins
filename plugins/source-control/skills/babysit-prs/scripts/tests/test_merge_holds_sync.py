@@ -1003,6 +1003,27 @@ CARRIES = {
     "a Title Case status job under another caller job": {
         "runs": [_run(HEAD, job="other / Status")]
     },
+    "a status job under its planned name": {
+        "runs": [_run(HEAD, job="PR Review / Publish Review")]
+    },
+    "a status job under its planned name and its caller id": {
+        "runs": [_run(HEAD, job="pr-review / Publish Review")]
+    },
+    "the security lane's status job under its planned name": {
+        "runs": [
+            _run(
+                HEAD,
+                lane="pr-review-security-hosted.yml",
+                job="PR Review Security / Publish Review",
+            )
+        ]
+    },
+    "the other lane's status job under its planned name": {
+        "runs": [_run(HEAD, job="PR Review Security / Publish Review")]
+    },
+    "a status job under its planned name and another caller job": {
+        "runs": [_run(HEAD, job="other / Publish Review")]
+    },
     "a notice naming another head than its run's": {"runs": [_run(OLD, notice=HEAD)]},
     "a notice without cost": {"runs": [_run(HEAD, criteria="trust-gate")]},
     "a run whose head is in another repository": {"runs": [_run(HEAD, repo="f/r")]},
@@ -1324,6 +1345,9 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
             "a Title Case status job",
             "a Title Case status job under its caller id",
             "the security lane's Title Case status job",
+            "a status job under its planned name",
+            "a status job under its planned name and its caller id",
+            "the security lane's status job under its planned name",
         }
         for case in carried:
             self.assertEqual(answers[case], _link(7), case)

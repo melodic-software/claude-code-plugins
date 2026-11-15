@@ -201,13 +201,15 @@ jq -e '[.[].check_runs[]] as $r
             "PR Review / Claude", "pr-review / Claude", "pr-review-no-bots / Claude",
             "PR Review / review-status", "pr-review / review-status",
             "PR Review / claude-review-status", "pr-review / claude-review-status",
-            "pr-review-no-bots / claude-review-status"])
+            "pr-review-no-bots / claude-review-status",
+            "PR Review / Publish Review", "pr-review / Publish Review"])
   and lane(["PR Review Security / Status", "pr-review-security / Status",
             "PR Review Security / Claude", "pr-review-security / Claude",
             "PR Review Security / review-status", "pr-review-security / review-status",
             "PR Review Security / security-review", "pr-review-security / security-review",
             "security-review / security-review",
-            "claude-security-review-status"])' <<<"$RUNS" >/dev/null \
+            "claude-security-review-status",
+            "PR Review Security / Publish Review", "pr-review-security / Publish Review"])' <<<"$RUNS" >/dev/null \
   || { echo 'AI review not complete on the pinned head: hold' >&2; exit 1; }
 for _ in $(seq 5); do
   S=$(gh api "repos/$REPO/pulls/<pr_number>" \
